@@ -29,6 +29,7 @@ import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtForExpression
 import org.jetbrains.kotlin.psi.KtFunctionLiteral
 import org.jetbrains.kotlin.psi.KtLambdaExpression
+import org.jetbrains.kotlin.psi.KtLoopExpression
 import org.jetbrains.kotlin.psi.KtNamedDeclaration
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtObjectDeclaration
@@ -162,7 +163,7 @@ private fun KaSession.planFor(
 					when {
 						span.start >= cutoff -> InlineExclusion.PastCutoff
 
-						cutoff != Int.MAX_VALUE && isDeferred(read, target) -> InlineExclusion.DeferredExecution
+						cutoff != Int.MAX_VALUE && runsOutOfTextualOrder(read, target) -> InlineExclusion.DeferredExecution
 
 						isShadowedAt(read, target, initializerNames) -> InlineExclusion.Shadowed
 
@@ -548,17 +549,27 @@ private fun KaSession.isSmartCast(reference: KtSimpleNameExpression): Boolean =
 private fun isCallee(reference: KtSimpleNameExpression): Boolean = (reference.parent as? KtCallExpression)?.calleeExpression === reference
 
 /**
- * Whether [reference] sits inside a lambda, local function or anonymous object between it and
- * [target]. A body that runs later does not read the value at the offset where its text sits, so once
- * a write exists at all, the cutoff's textual position cannot judge whether such a reference is safe.
+ * Whether [reference] sits inside a body that does not run once, in order, at the offset where its
+ * text sits: a lambda, a local function, an anonymous object -- all of which run later -- or a loop
+ * body, which runs again after everything textually below it. Once a write exists at all, the cutoff's
+ * textual position cannot judge such a reference, so it is excluded outright.
+ *
+ * A loop that contains the declaration is not one of these: the walk stops at the first ancestor of
+ * [target], so the value is recomputed on every iteration alongside the reference.
  */
-private fun isDeferred(
+private fun runsOutOfTextualOrder(
 	reference: KtSimpleNameExpression,
 	target: KtProperty,
 ): Boolean {
 	var current: PsiElement? = reference.parent
 	while (current != null && !PsiTreeUtil.isAncestor(current, target, false)) {
-		if (current is KtFunctionLiteral || current is KtNamedFunction || current is KtObjectDeclaration) return true
+		if (current is KtFunctionLiteral ||
+			current is KtNamedFunction ||
+			current is KtObjectDeclaration ||
+			current is KtLoopExpression
+		) {
+			return true
+		}
 		current = current.parent
 	}
 	return false

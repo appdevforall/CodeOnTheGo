@@ -578,6 +578,90 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a reference in a while body is excluded when the loop writes what the initializer reads`() {
+		val content =
+			"""
+			package p
+			fun println(n: Int) {}
+			fun demo() {
+				var i = 0
+				val step = i + 1
+				while (i < 10) {
+					println(step)
+					i += 2
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val step") + "val ".length)
+
+		/*
+		 * The reference is textually before the write, so a purely textual cutoff would call it
+		 * inlinable and delete the declaration too, turning "1 1 1 1 1" into "1 3 5 7 9".
+		 */
+		assertEquals(InlineExclusion.DeferredExecution, result.references.single().exclusion)
+		assertEquals(false, result.canDeleteDeclaration)
+	}
+
+	@Test
+	fun `a reference in a for body is excluded when the loop writes what the initializer reads`() {
+		val content =
+			"""
+			package p
+			fun println(n: Int) {}
+			fun demo(items: List<Int>) {
+				var i = 0
+				val step = i + 1
+				for (item in items) {
+					println(step)
+					i += item
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val step") + "val ".length)
+
+		assertEquals(InlineExclusion.DeferredExecution, result.references.single().exclusion)
+	}
+
+	@Test
+	fun `a declaration inside the loop body still inlines`() {
+		val content =
+			"""
+			package p
+			fun println(n: Int) {}
+			fun demo(items: List<Int>) {
+				var i = 0
+				for (item in items) {
+					val step = i + 1
+					println(step)
+					i += item
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val step") + "val ".length)
+
+		// The value is recomputed on every iteration alongside the reference, so the back edge is moot.
+		assertNull(result.references.single().exclusion)
+		val rewrites = buildInlineVariableRewrites(result, InlineMode.AllReferences)
+		assertEquals(
+			"""
+			package p
+			fun println(n: Int) {}
+			fun demo(items: List<Int>) {
+				var i = 0
+				for (item in items) {
+					println((i + 1))
+					i += item
+				}
+			}
+			""".trimIndent(),
+			apply(content, rewrites!!),
+		)
+	}
+
+	@Test
 	fun `a callable reference initializer in call position is left untouched`() {
 		val content =
 			"""
