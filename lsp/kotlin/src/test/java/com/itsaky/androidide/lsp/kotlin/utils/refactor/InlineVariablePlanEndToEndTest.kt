@@ -506,6 +506,78 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a reference inside a destructuring initializer resolves its own target`() {
+		val content =
+			"""
+			package p
+			fun split(sep: String): Pair<String, String> = sep to sep
+			fun demo(a: String, b: String): String {
+				val total = a + b
+				val (p, q) = split(total)
+				return p + q
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "total", after = 1))
+
+		// The initializer is part of the destructuring node, but only the entries cannot be inlined.
+		assertNull(result.refusal)
+		assertEquals("total", result.variableName)
+		val rewrites = buildInlineVariableRewrites(result, InlineMode.AllReferences)
+		assertEquals(
+			"""
+			package p
+			fun split(sep: String): Pair<String, String> = sep to sep
+			fun demo(a: String, b: String): String {
+				val (p, q) = split((a + b))
+				return p + q
+			}
+			""".trimIndent(),
+			apply(content, rewrites!!),
+		)
+	}
+
+	@Test
+	fun `a caret immediately after a reference still resolves it`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int, b: Int): Int {
+				val total = a + b
+				val y = total + 1
+				return y
+			}
+			""".trimIndent()
+
+		// The leaf at this offset is the whitespace before the `+`, not the name.
+		val result = plan(content, at(content, "total", after = 1) + "total".length)
+
+		assertNull(result.refusal)
+		assertEquals(InlineCursorPosition.Reference, result.cursorPosition)
+		assertEquals(0, result.cursorReferenceIndex)
+	}
+
+	@Test
+	fun `a caret on the closing parenthesis after a reference still resolves it`() {
+		val content =
+			"""
+			package p
+			fun f(n: Int) = n
+			fun demo(a: Int, b: Int): Int {
+				val total = a + b
+				return f(total)
+			}
+			""".trimIndent()
+
+		// The leaf at this offset is the `)`, which has no simple-name ancestor at all.
+		val result = plan(content, at(content, "total", after = 1) + "total".length)
+
+		assertNull(result.refusal)
+		assertEquals(InlineCursorPosition.Reference, result.cursorPosition)
+		assertEquals(0, result.cursorReferenceIndex)
+	}
+
+	@Test
 	fun `a callable reference initializer in call position is left untouched`() {
 		val content =
 			"""

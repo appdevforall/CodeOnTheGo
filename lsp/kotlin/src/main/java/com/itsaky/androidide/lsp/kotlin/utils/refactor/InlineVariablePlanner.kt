@@ -240,12 +240,33 @@ private fun KaSession.planFor(
 /**
  * The target the cursor points at, from either of the two cursor positions.
  *
+ * A caret resting immediately *after* a use -- `val y = x| + 1`, `foo(x|)` -- is a routine editor
+ * position, and there the leaf at the offset is the whitespace or the `)`, which resolves to nothing.
+ * Retrying one character back recovers it. The retry is confined to [InlineRefusal.NotAVariable]: every
+ * other refusal already names something real at the caret and must not be second-guessed. The
+ * declaration position needs no retry -- trailing whitespace is a child of the [KtProperty], so its
+ * name-range test still matches.
+ */
+private fun KaSession.resolveTarget(
+	ktFile: KtFile,
+	offset: Int,
+): TargetResolution {
+	val resolution = resolveTargetAt(ktFile, offset)
+	if (resolution is TargetResolution.Refused && resolution.refusal == InlineRefusal.NotAVariable && offset > 0) {
+		return resolveTargetAt(ktFile, offset - 1)
+	}
+	return resolution
+}
+
+/**
+ * One resolution attempt at exactly [offset].
+ *
  * Function parameters, lambda parameters, `it`, loop variables, `catch` parameters and destructuring
  * entries are not [KtProperty] at all, so they are excluded by construction. The three refusals made
  * explicitly here are the positions a user can reasonably put the cursor in and deserves to be told
  * about.
  */
-private fun KaSession.resolveTarget(
+private fun KaSession.resolveTargetAt(
 	ktFile: KtFile,
 	offset: Int,
 ): TargetResolution {
@@ -254,8 +275,16 @@ private fun KaSession.resolveTarget(
 			?: ktFile.findElementAt(offset - 1)
 			?: return TargetResolution.Refused(InlineRefusal.NotAVariable)
 
-	PsiTreeUtil.getParentOfType(leaf, KtDestructuringDeclaration::class.java, false)?.let {
-		return TargetResolution.Refused(InlineRefusal.DestructuringDeclaration)
+	PsiTreeUtil.getParentOfType(leaf, KtDestructuringDeclaration::class.java, false)?.let { destructuring ->
+		/*
+		 * The initializer is part of the destructuring node, so an unscoped ancestor test refuses a
+		 * perfectly inlinable target: `val (p, q) = split(total)` with the caret on `total`. Only the
+		 * entries and the syntax around them cannot be inlined.
+		 */
+		val initializer = destructuring.initializer
+		if (initializer == null || !PsiTreeUtil.isAncestor(initializer, leaf, false)) {
+			return TargetResolution.Refused(InlineRefusal.DestructuringDeclaration)
+		}
 	}
 
 	val declaration = PsiTreeUtil.getParentOfType(leaf, KtProperty::class.java, false)
