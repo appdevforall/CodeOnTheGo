@@ -662,6 +662,54 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a reference inside an anonymous object body is left untouched`() {
+		val content =
+			"""
+			package p
+			fun println(s: String) {}
+			class A {
+				fun f() {
+					val label = toString()
+					val o = object : Any() {
+						fun g() = println(label)
+					}
+					println(o.toString())
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val label") + "val ".length)
+
+		/*
+		 * The object's own `this` displaces the enclosing one, so `println(toString())` there would
+		 * resolve to the object's inherited toString. Shadowing does not catch it: that test compares
+		 * declared names, and toString is declared nowhere.
+		 */
+		assertEquals(InlineExclusion.ReceiverShift, result.references.single().exclusion)
+	}
+
+	@Test
+	fun `a bare this initializer is excluded under a receiver lambda`() {
+		val content =
+			"""
+			package p
+			class Other
+			fun f(a: Any) {}
+			class Holder {
+				fun demo(other: Other) {
+					val v = this
+					with(other) { f(v) }
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val v") + "val ".length)
+
+		// `f(this)` inside with(other) would resolve to `other`, a silent meaning change.
+		assertEquals(InlineExclusion.ReceiverShift, result.references.single().exclusion)
+	}
+
+	@Test
 	fun `a callable reference initializer in call position is left untouched`() {
 		val content =
 			"""

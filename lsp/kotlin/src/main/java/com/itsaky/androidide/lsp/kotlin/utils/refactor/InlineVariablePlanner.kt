@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.psi.KtCallableReferenceExpression
 import org.jetbrains.kotlin.psi.KtCatchClause
 import org.jetbrains.kotlin.psi.KtClassBody
 import org.jetbrains.kotlin.psi.KtClassLiteralExpression
+import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtCollectionLiteralExpression
 import org.jetbrains.kotlin.psi.KtConstantExpression
 import org.jetbrains.kotlin.psi.KtDestructuringDeclaration
@@ -168,7 +169,7 @@ private fun KaSession.planFor(
 						isShadowedAt(read, target, initializerNames) -> InlineExclusion.Shadowed
 
 						initializerUsesImplicitReceiver &&
-							hasReceiverLambdaBetween(target, read) -> InlineExclusion.ReceiverShift
+							changesImplicitReceiverBetween(target, read) -> InlineExclusion.ReceiverShift
 
 						isSmartCast(read) -> InlineExclusion.SmartCast
 
@@ -492,39 +493,51 @@ private fun lambdaParameterNames(lambda: KtFunctionLiteral): Set<String> {
  * Whether the initializer reaches a member through an implicit receiver. Half of the receiver-shift
  * test; on its own it is perfectly fine.
  */
-private fun KaSession.readsThroughImplicitReceiver(initializer: KtExpression): Boolean =
-	PsiTreeUtil.collectElementsOfType(initializer, KtSimpleNameExpression::class.java).any { reference ->
+private fun KaSession.readsThroughImplicitReceiver(initializer: KtExpression): Boolean {
+	/*
+	 * A bare `this` names the receiver without going through a call, and must be asked *before* the
+	 * simple-name scan rather than inside it: `this` contributes no KtSimpleNameExpression -- its
+	 * instance reference is a plain KtReferenceExpression -- so `val v = this` leaves that scan with an
+	 * empty list, and a check nested in its predicate would never run.
+	 */
+	if (PsiTreeUtil.collectElementsOfType(initializer, KtThisExpression::class.java).isNotEmpty()) return true
+
+	return PsiTreeUtil.collectElementsOfType(initializer, KtSimpleNameExpression::class.java).any { reference ->
 		// A qualified selector already has its receiver written out next to it.
 		if ((reference.parent as? KtQualifiedExpression)?.selectorExpression === reference) {
-			false
-		} else {
-			runCatching {
-				val callSource =
-					(reference.parent as? KtCallExpression)?.takeIf { it.calleeExpression === reference } ?: reference
-				val applied =
-					callSource
-						.resolveToCall()
-						?.successfulCallOrNull<KaCallableMemberCall<*, *>>()
-						?.partiallyAppliedSymbol
-				applied?.dispatchReceiver is KaImplicitReceiverValue ||
-					applied?.extensionReceiver is KaImplicitReceiverValue
-			}.getOrDefault(false)
-		} ||
-			// A bare `this` names the receiver without going through a call.
-			PsiTreeUtil.collectElementsOfType(initializer, KtThisExpression::class.java).isNotEmpty()
+			return@any false
+		}
+		runCatching {
+			val callSource =
+				(reference.parent as? KtCallExpression)?.takeIf { it.calleeExpression === reference } ?: reference
+			val applied =
+				callSource
+					.resolveToCall()
+					?.successfulCallOrNull<KaCallableMemberCall<*, *>>()
+					?.partiallyAppliedSymbol
+			applied?.dispatchReceiver is KaImplicitReceiverValue ||
+				applied?.extensionReceiver is KaImplicitReceiverValue
+		}.getOrDefault(false)
 	}
+}
 
 /**
- * Whether a receiver-introducing lambda -- `with`, `apply`, `run`, `buildString`, a Compose scope --
- * sits between the declaration and [reference]. The other half of the receiver-shift test.
+ * Whether anything between the declaration and [reference] puts a different implicit receiver in
+ * scope. The other half of the receiver-shift test.
+ *
+ * Two shapes do it: a receiver-introducing lambda -- `with`, `apply`, `run`, `buildString`, a Compose
+ * scope -- and a class or object body, whose own `this` displaces the enclosing one. The latter is not
+ * covered by shadowing: `isShadowedAt` compares *declared* names, and an inherited member such as
+ * `toString` is declared nowhere.
  */
-private fun KaSession.hasReceiverLambdaBetween(
+private fun KaSession.changesImplicitReceiverBetween(
 	target: KtProperty,
 	reference: KtSimpleNameExpression,
 ): Boolean {
 	var current: PsiElement? = reference.parent
 	while (current != null && !PsiTreeUtil.isAncestor(current, target, false)) {
 		if (current is KtFunctionLiteral && introducesReceiver(current)) return true
+		if (current is KtClassOrObject) return true
 		current = current.parent
 	}
 	return false
