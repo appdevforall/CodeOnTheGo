@@ -33,11 +33,13 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 object InstallationResultHandler {
-
 	private val log = LoggerFactory.getLogger(InstallationResultHandler::class.java)
 
 	@JvmStatic
-	fun onResult(context: Activity?, intent: Intent?): String? {
+	fun onResult(
+		context: Activity?,
+		intent: Intent?,
+	): String? {
 		if (context == null || intent == null || intent.action != InstallationResultReceiver.ACTION_INSTALL_STATUS) {
 			log.warn("Invalid broadcast received. action={}", intent?.action)
 			return null
@@ -73,8 +75,17 @@ object InstallationResultHandler {
 			}
 
 			PackageInstaller.STATUS_SUCCESS -> {
-				log.info("Package installed successfully!")
-				packageName
+				if (extras.getBoolean(ApkInstaller.EXTRA_SUPPRESS_POST_INSTALL_LAUNCH, false)) {
+					// A Quick Build proxy-app install (ADFA-4128): the session switches to
+					// the proxy app itself on provisioning success, so returning null here
+					// keeps the generic launch-after-install from firing a second launch
+					// of the app the user just watched appear.
+					log.info("Package {} installed; post-install launch suppressed (Quick Build)", packageName)
+					null
+				} else {
+					log.info("Package installed successfully!")
+					packageName
+				}
 			}
 
 			PackageInstaller.STATUS_FAILURE,
@@ -83,11 +94,12 @@ object InstallationResultHandler {
 			PackageInstaller.STATUS_FAILURE_CONFLICT,
 			PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
 			PackageInstaller.STATUS_FAILURE_INVALID,
-			PackageInstaller.STATUS_FAILURE_STORAGE -> {
+			PackageInstaller.STATUS_FAILURE_STORAGE,
+			-> {
 				log.error(
 					"Package installation failed with status code {} and message {}",
 					status,
-					message
+					message,
 				)
 				null
 			}

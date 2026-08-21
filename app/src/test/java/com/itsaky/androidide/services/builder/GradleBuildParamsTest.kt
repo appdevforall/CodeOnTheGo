@@ -25,6 +25,7 @@ class GradleBuildParamsTest {
 	private fun gradleDaemonConfig(
 		daemonEnabled: Boolean = true,
 		jvm: JvmConfig = jvmConfig(),
+		daemonIdleTimeoutMs: Int = 30 * 60 * 1000,
 		maxWorkers: Int = 4,
 		parallel: Boolean = true,
 		caching: Boolean = true,
@@ -34,6 +35,7 @@ class GradleBuildParamsTest {
 	) = GradleDaemonConfig(
 		daemonEnabled = daemonEnabled,
 		jvm = jvm,
+		daemonIdleTimeoutMs = daemonIdleTimeoutMs,
 		maxWorkers = maxWorkers,
 		parallel = parallel,
 		caching = caching,
@@ -71,6 +73,46 @@ class GradleBuildParamsTest {
 		val params =
 			toGradleBuildParams(tuningConfig(gradle = gradleDaemonConfig(daemonEnabled = false)))
 		assertThat(params.gradleArgs).contains("--no-daemon")
+	}
+
+	@Test
+	fun `daemon enabled adds idle timeout system property`() {
+		val params =
+			toGradleBuildParams(
+				tuningConfig(
+					gradle = gradleDaemonConfig(daemonEnabled = true, daemonIdleTimeoutMs = 900_000),
+				),
+			)
+		assertThat(params.gradleArgs).contains("-Dorg.gradle.daemon.idletimeout=900000")
+	}
+
+	@Test
+	fun `daemon idle timeout value reflects config`() {
+		val params =
+			toGradleBuildParams(
+				tuningConfig(
+					gradle = gradleDaemonConfig(daemonEnabled = true, daemonIdleTimeoutMs = 7_200_000),
+				),
+			)
+		assertThat(params.gradleArgs).contains("-Dorg.gradle.daemon.idletimeout=7200000")
+	}
+
+	@Test
+	fun `daemon disabled omits idle timeout system property`() {
+		val params =
+			toGradleBuildParams(tuningConfig(gradle = gradleDaemonConfig(daemonEnabled = false)))
+		val hasIdleTimeout =
+			params.gradleArgs.any { it.startsWith("-Dorg.gradle.daemon.idletimeout=") }
+		assertThat(hasIdleTimeout).isFalse()
+	}
+
+	@Test
+	fun `daemon idle timeout is a gradle arg not a jvm arg`() {
+		val params =
+			toGradleBuildParams(tuningConfig(gradle = gradleDaemonConfig(daemonEnabled = true)))
+		val jvmArgsHaveIdleTimeout =
+			params.jvmArgs.any { it.contains("org.gradle.daemon.idletimeout") }
+		assertThat(jvmArgsHaveIdleTimeout).isFalse()
 	}
 
 	@Test
