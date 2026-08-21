@@ -142,6 +142,7 @@ include(
 	":lsp:xml",
 	":profiler",
 	":quickbuild:core",
+	":quickbuild:daemon",
 	":quickbuild:protocol",
 	":quickbuild:runtime",
 	":subprojects:aapt2-proto",
