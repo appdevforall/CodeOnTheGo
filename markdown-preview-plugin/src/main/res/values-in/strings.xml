@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pratinjau Markdown</string>
+    <string name="plugin_title">Pratinjau File</string>
+    <string name="plugin_description">Pratinjau file Markdown dan HTML dengan rendering langsung</string>
+
+    <!-- Buttons -->
+    <string name="select_from_project">Proyek</string>
+    <string name="select_from_storage">Penyimpanan</string>
+    <string name="refresh">Segarkan</string>
+    <string name="view_source">Sumber</string>
+    <string name="view_preview">Pratinjau</string>
+
+    <!-- Empty State -->
+    <string name="empty_state_title">Belum ada file yang dipilih</string>
+    <string name="empty_state_subtitle">Pilih file dari proyek atau penyimpanan perangkat Anda untuk melihat pratinjaunya</string>
+    <string name="supported_formats">Didukung: .md, .markdown, .html, .htm</string>
+
+    <!-- Status Messages -->
+    <string name="loading">Memuat…</string>
+    <string name="no_project">Tidak ada proyek yang tersedia</string>
+    <string name="no_files_found">Tidak ditemukan file yang didukung</string>
+    <string name="file_not_found">File tidak ditemukan</string>
+    <string name="cannot_read_file">Tidak dapat membaca file</string>
+
+    <!-- Menu Items -->
+    <string name="preview_file">Pratinjau File</string>
+    <string name="preview_markdown">Pratinjau Markdown</string>
+    <string name="preview_html">Pratinjau HTML</string>
+</resources>
