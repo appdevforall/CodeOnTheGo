@@ -5,6 +5,8 @@ import com.itsaky.androidide.analytics.AnalyticsManager
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.deeplink.PendingDeepLinkOpen
 import com.itsaky.androidide.git.core.GitCredentialsManager
+import com.itsaky.androidide.repositories.RecentProjectRepository
+import com.itsaky.androidide.repositories.RecentProjectRepositoryImpl
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
@@ -40,6 +42,10 @@ val coreModule =
 
 		single {
 			get<RecentProjectRoomDatabase>().recentProjectDao()
+		}
+
+		single<RecentProjectRepository> {
+			RecentProjectRepositoryImpl(get())
 		}
 
 		single { GitCredentialsManager(get()) }

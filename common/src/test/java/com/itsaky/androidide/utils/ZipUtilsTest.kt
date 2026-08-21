@@ -63,7 +63,7 @@ class ZipUtilsTest {
 	}
 
 	@Test
-	fun `unzipFile refuses to extract over an existing symlink`() {
+	fun `unzipFile skips an entry that would extract over an existing symlink, without aborting the rest`() {
 		val destDir = tempFolder.newFolder("dest")
 		val realFile = File(destDir, "real.txt").apply { writeText("original") }
 		val linkPath = File(destDir, "link.txt").toPath()
@@ -86,17 +86,45 @@ class ZipUtilsTest {
 		Assume.assumeTrue("Symlinks are not supported/permitted on this filesystem", symlinkCreated)
 
 		// The symlink's target is inside destDir, so the canonical-path containment check alone
-		// would pass -- this isolates the separate, explicit isSymbolicLink guard.
+		// would pass -- this isolates the separate, explicit isSymbolicLink guard. A second,
+		// unrelated entry proves a skip doesn't abort the whole archive (e.g. a user's legitimately
+		// symlinked gradlew alongside a normal Gradle wrapper zip entry).
 		val zipFile = tempFolder.newFile("archive.zip")
 		ZipOutputStream(zipFile.outputStream()).use { zip ->
 			zip.putNextEntry(ZipEntry("link.txt"))
 			zip.write("payload".toByteArray())
 			zip.closeEntry()
+
+			zip.putNextEntry(ZipEntry("unrelated.txt"))
+			zip.write("unrelated content".toByteArray())
+			zip.closeEntry()
 		}
 
-		assertThrows(IOException::class.java) { ZipUtils.unzipFile(zipFile, destDir) }
+		val extracted = ZipUtils.unzipFile(zipFile, destDir)
 
 		assertThat(Files.isSymbolicLink(linkPath)).isTrue()
 		assertThat(realFile.readText()).isEqualTo("original")
+		assertThat(File(destDir, "unrelated.txt").readText()).isEqualTo("unrelated content")
+		assertThat(extracted.map { it.name }).containsExactly("unrelated.txt")
+	}
+
+	@Test
+	fun `unzipFile allows a harmless double-dot inside a path segment`() {
+		val zipFile = tempFolder.newFile("archive.zip")
+		ZipOutputStream(zipFile.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("notes..txt"))
+			zip.write("note content".toByteArray())
+			zip.closeEntry()
+
+			zip.putNextEntry(ZipEntry("a..b/c.txt"))
+			zip.write("nested content".toByteArray())
+			zip.closeEntry()
+		}
+
+		val destDir = tempFolder.newFolder("dest")
+		ZipUtils.unzipFile(zipFile, destDir)
+
+		assertThat(File(destDir, "notes..txt").readText()).isEqualTo("note content")
+		assertThat(File(destDir, "a..b/c.txt").readText()).isEqualTo("nested content")
 	}
 }

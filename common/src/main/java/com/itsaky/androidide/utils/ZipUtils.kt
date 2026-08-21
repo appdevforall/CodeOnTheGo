@@ -50,7 +50,11 @@ object ZipUtils {
 			while (entries.hasMoreElements()) {
 				val entry = entries.nextElement()
 
-				if (entry.name.contains("..") || entry.name.startsWith("/") || entry.name.startsWith("\\")) {
+				// Per-segment, not a bare substring match: "notes..txt" or "a..b/c.txt" are harmless
+				// names that a substring check would wrongly abort the whole archive over.
+				if (entry.name.startsWith("/") || entry.name.startsWith("\\") ||
+					entry.name.split('/', '\\').any { it == ".." }
+				) {
 					throw IOException("Zip entry contains dangerous path components: ${entry.name}")
 				}
 
@@ -62,9 +66,11 @@ object ZipUtils {
 
 				// The checks above are lexical (entry name) or rely on canonicalPath's own symlink
 				// resolution for a path that may not exist yet -- neither catches writing through an
-				// existing symlink already inside destDir. Reject that up front.
+				// existing symlink already inside destDir. A user symlinking e.g. gradlew or
+				// gradle/wrapper to a shared location is legitimate, so skip this one entry (leaving
+				// their symlink as-is) rather than aborting the whole extraction over it.
 				if (Files.isSymbolicLink(outFile.toPath())) {
-					throw IOException("Refusing to extract over an existing symlink: ${entry.name}")
+					continue
 				}
 
 				if (entry.isDirectory) {

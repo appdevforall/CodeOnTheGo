@@ -22,8 +22,8 @@ import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.repositories.RecentProjectRepository
 import com.itsaky.androidide.roomData.recentproject.RecentProject
-import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.templates.Language
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -41,15 +41,18 @@ private val log = LoggerFactory.getLogger("ProjectOpenBookkeeping")
  * `openProject` entirely (see
  * [com.itsaky.androidide.activities.editor.EditorHandlerActivity.onDestroy]).
  *
- * [recentProjectDao] is the caller's Koin-provided instance (`by inject()`), the same one
- * `di/AppModule.kt` wires into `MainViewModel`/`RecentProjectsViewModel` -- per ADR 0001/0006,
- * persistence is always acquired through Koin, never by re-deriving the database directly.
+ * [recentProjectRepository] is the caller's Koin-provided instance (`by inject()`) -- per ADR
+ * 0001/0006, persistence is always acquired through Koin, never by re-deriving the database
+ * directly, and kept behind this repository interface (not the raw DAO) so callers in the UI layer
+ * (both [com.itsaky.androidide.activities.MainActivity] and
+ * [com.itsaky.androidide.activities.editor.EditorHandlerActivity]) don't depend on a Room data
+ * source directly, per ARCHITECTURE.md's UI -> ViewModel -> Repository -> data source layering.
  *
  * Uses [ProcessLifecycleOwner]'s scope rather than a per-activity one, since this can run from an
  * activity's `onDestroy()` after its own `lifecycleScope` has already been cancelled.
  */
 fun recordProjectOpenedBookkeeping(
-	recentProjectDao: RecentProjectDao,
+	recentProjectRepository: RecentProjectRepository,
 	root: File,
 	project: RecentProject?,
 	analyticsManager: IAnalyticsManager,
@@ -70,9 +73,9 @@ fun recordProjectOpenedBookkeeping(
 		try {
 			// Insert is IGNOREd for a project already in Recents, so refresh the detected language
 			// separately -- but never clobber a stored value with a failed ("Unknown") detection.
-			recentProjectDao.insert(recentProject)
+			recentProjectRepository.insert(recentProject)
 			if (!recentProject.language.equals(Language.Unknown.lang, ignoreCase = true)) {
-				recentProjectDao.updateLanguage(recentProject.location, recentProject.language)
+				recentProjectRepository.updateLanguage(recentProject.location, recentProject.language)
 			}
 		} catch (e: CancellationException) {
 			throw e

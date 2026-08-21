@@ -21,6 +21,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
+import java.nio.file.LinkOption
 
 /**
  * Resolves [relativePath] against [baseDir], rejecting any attempt to escape outside it. Intended
@@ -75,7 +76,12 @@ fun resolveWithinDirectory(
 
 		val realBase = base.toRealPath()
 		var existingAncestor = resolved
-		while (!Files.exists(existingAncestor)) {
+		// NOFOLLOW_LINKS: plain Files.exists() follows symlinks, so a *dangling* symlink (one whose
+		// target doesn't currently exist) would otherwise read as absent here, walking straight past
+		// it to its parent instead of stopping to verify it -- toRealPath() below throws IOException
+		// (caught at the bottom) for a genuinely dangling target, correctly rejecting the path instead
+		// of silently trusting whatever ends up at the far side of it later.
+		while (!Files.exists(existingAncestor, LinkOption.NOFOLLOW_LINKS)) {
 			existingAncestor = existingAncestor.parent ?: return null
 		}
 		if (!existingAncestor.toRealPath().startsWith(realBase)) null else resolved.toFile()

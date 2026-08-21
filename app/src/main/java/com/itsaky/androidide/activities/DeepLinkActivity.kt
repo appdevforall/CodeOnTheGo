@@ -27,9 +27,10 @@ import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.resources.R.string
 
 /**
- * The sole `<intent-filter>` holder for `https://www.appdevforall.org/device/open/project/...` App
- * Links. Never shows any UI -- it only parses the incoming [android.net.Uri], decides whether a
- * project is already loaded, and hands off to whichever real activity owns that scenario:
+ * The sole `<intent-filter>` holder for `https://appdevforall.org/device/open/project/...` (and the
+ * identical `www` subdomain) App Links. Never shows any UI -- it only parses the incoming
+ * [android.net.Uri], decides whether a project is already loaded, and hands off to whichever real
+ * activity owns that scenario:
  * [MainActivity] if nothing is open yet, or the already-running [EditorActivityKt] (via its
  * `singleTask` `onNewIntent`) if one is.
  *
@@ -64,18 +65,17 @@ class DeepLinkActivity : Activity() {
 		startActivity(
 			Intent(this, target).apply {
 				putExtra(DeepLinkRequest.EXTRA_KEY, request)
-				// If `target` is MainActivity and one already exists in the task, reuse it via
-				// onNewIntent instead of stacking a second instance -- SINGLE_TOP alone isn't enough
-				// here, since DeepLinkActivity (not MainActivity) is what's actually on top of the
-				// stack at this exact call, so SINGLE_TOP's "already at the top" check never matches;
-				// CLEAR_TOP finds MainActivity anywhere in the task and reuses it via onNewIntent
-				// (combined with SINGLE_TOP, rather than the destroy-and-recreate CLEAR_TOP alone
-				// would do). EditorActivityKt is singleTask, so it always reuses its live instance
-				// regardless of these flags.
+				// FLAG_ACTIVITY_CLEAR_TOP deliberately omitted: MainActivity has no special launch
+				// mode, so if an existing MainActivity instance sits lower in this task's back stack
+				// under a live EditorActivityKt - which ActionContextProvider.getActivity() can miss
+				// even when that editor is alive (see its KDoc) - CLEAR_TOP would destroy that editor
+				// to clear the path down to MainActivity, discarding unsaved work with no prompt.
+				// Without it, this may at worst stack a redundant MainActivity instance, a harmless
+				// nuisance; EditorActivityKt is singleTask, so it always reuses its live instance via
+				// onNewIntent regardless of these flags.
 				addFlags(
 					Intent.FLAG_ACTIVITY_NEW_TASK or
-						Intent.FLAG_ACTIVITY_SINGLE_TOP or
-						Intent.FLAG_ACTIVITY_CLEAR_TOP,
+						Intent.FLAG_ACTIVITY_SINGLE_TOP,
 				)
 			},
 		)

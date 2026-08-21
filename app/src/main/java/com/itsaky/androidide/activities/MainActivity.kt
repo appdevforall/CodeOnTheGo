@@ -26,6 +26,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
+import androidx.core.os.BundleCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
@@ -49,9 +50,10 @@ import com.itsaky.androidide.localWebServer.WebServer
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.models.PendingFileRequest
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
+import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.repositories.RecentProjectRepository
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.roomData.recentproject.RecentProject
-import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
 import com.itsaky.androidide.shortcuts.ShortcutContext
 import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
@@ -93,7 +95,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _binding: ActivityMainBinding? = null
 	private val analyticsManager: IAnalyticsManager by inject()
-	private val recentProjectDao: RecentProjectDao by inject()
+	private val recentProjectRepository: RecentProjectRepository by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
 	private var webServer: WebServer? = null
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
@@ -101,6 +103,18 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	// Tracked so a slower, older deep-link resolve (still in flight when a second, faster-resolving
 	// deep link arrives) can tell it's been superseded -- see handleDeepLinkRequest.
 	private var latestDeepLinkRequest: DeepLinkRequest? = null
+
+	// The last deep-link request actually opened (or, if GeneralPreferences.confirmProjectOpen is on,
+	// actually confirmed) -- see handleOpenProject/askProjectOpenPermission. Persisted via
+	// onSaveInstanceState rather than signalled by removing the Intent's own extra: a genuine process
+	// death redelivers the ORIGINAL, unmutated launch Intent (extras and all) once the user returns to
+	// the task, so an Intent-mutation-based "already handled" signal doesn't survive it and this same
+	// request force-reopens a project the user has since navigated away from. A config-change
+	// recreate, in contrast, preserves this field across the recreate but correctly leaves it unset
+	// if the recreate happens before the user actually responds to the confirm dialog, so that dialog
+	// (destroyed along with the old instance) gets a fresh retry on the new one instead of the link
+	// being silently dropped.
+	private var consumedDeepLinkRequest: DeepLinkRequest? = null
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -138,19 +152,22 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		val deepLinkRequest =
 			IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+		consumedDeepLinkRequest =
+			savedInstanceState?.let {
+				BundleCompat.getParcelable(it, KEY_CONSUMED_DEEP_LINK_REQUEST, DeepLinkRequest::class.java)
+			}
 		// A config change this activity doesn't declare (e.g. font scale, day/night) recreates it with
 		// savedInstanceState != null while handleDeepLinkRequest's resolve may still be in flight --
 		// the old instance's lifecycleScope (and its coroutine) is cancelled with it. Gating solely on
 		// savedInstanceState == null would silently lose a not-yet-consumed request instead of
-		// retrying it on the new instance; deepLinkRequest != null is a safe extra signal here since
-		// the extra is only ever removed once handleDeepLinkRequest has actually consumed it (see
-		// there), never eagerly.
-		if (savedInstanceState == null || deepLinkRequest != null) {
-			if (deepLinkRequest != null) {
-				handleDeepLinkRequest(deepLinkRequest)
-			} else {
-				openLastProject()
-			}
+		// retrying it on the new instance; comparing against consumedDeepLinkRequest (restored above)
+		// rather than just checking deepLinkRequest != null is what tells a genuinely new/not-yet-acted-
+		// on request apart from the system redelivering the same original launch Intent verbatim after
+		// this same request was already fully handled (see consumedDeepLinkRequest's own docs).
+		if (deepLinkRequest != null && deepLinkRequest != consumedDeepLinkRequest) {
+			handleDeepLinkRequest(deepLinkRequest)
+		} else if (savedInstanceState == null) {
+			openLastProject()
 		}
 
 		if (FeatureFlags.isExperimentsEnabled) {
@@ -428,6 +445,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			askProjectOpenPermission(root, pendingFileRequest, isDeepLink)
 			return
 		}
+		// No confirmation gate -- opening happens immediately below, so this is "confirm time" for
+		// consumedDeepLinkRequest's purposes.
+		if (isDeepLink) {
+			consumedDeepLinkRequest = latestDeepLinkRequest
+		}
 		openProject(root, pendingFileRequest = pendingFileRequest)
 	}
 
@@ -462,7 +484,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.setTitle(string.title_confirm_open_project)
 		builder.setMessage(getString(string.msg_confirm_open_project, root.absolutePath))
 		builder.setCancelable(false)
-		builder.setPositiveButton(string.yes) { _, _ -> openProject(root, pendingFileRequest = pendingFileRequest) }
+		builder.setPositiveButton(string.yes) { _, _ ->
+			// The user has now actually confirmed -- "confirm time" for consumedDeepLinkRequest's
+			// purposes, unlike merely having shown this dialog (see its own docs on why that
+			// distinction matters for a recreate that happens while this dialog is still up).
+			if (isDeepLink) {
+				consumedDeepLinkRequest = latestDeepLinkRequest
+			}
+			openProject(root, pendingFileRequest = pendingFileRequest)
+		}
 		builder.setNegativeButton(string.no, null)
 		activeOpenPermissionDialog = builder.show()
 	}
@@ -473,9 +503,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		hasTemplateIssues: Boolean = false,
 		pendingFileRequest: PendingFileRequest? = null,
 	) {
+		// Captured before the bookkeeping call below overwrites it: EditorHandlerActivity.onNewIntent
+		// (already-live singleTask instance) needs to know what project WAS open to tell a genuine
+		// switch from a same-project no-op, but recordProjectOpenedBookkeeping's synchronous
+		// ProjectManagerImpl.projectPath write below makes that global read the NEW path by the time
+		// onNewIntent runs -- comparing against it there would always see "already open".
+		val previousProjectPath = IProjectManager.getInstance().projectDirPath
+
 		// Bookkeeping (Recents/analytics/lastOpenedProject) must run regardless of isFinishing --
 		// only the startActivity() below is unsafe from a finishing activity.
-		recordProjectOpenedBookkeeping(recentProjectDao, root, project, analyticsManager)
+		recordProjectOpenedBookkeeping(recentProjectRepository, root, project, analyticsManager)
 
 		if (isFinishing) {
 			return
@@ -484,6 +521,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		val intent =
 			Intent(this, EditorActivityKt::class.java).apply {
 				putExtra("PROJECT_PATH", root.absolutePath)
+				putExtra("PREVIOUS_PROJECT_PATH", previousProjectPath)
 				if (hasTemplateIssues) {
 					putExtra("HAS_TEMPLATE_ISSUES", true)
 				}
@@ -529,24 +567,18 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	 * [DeepLinkActivity] has already determined no project is currently loaded.
 	 *
 	 * This still goes through [handleOpenProject] (honoring [GeneralPreferences.confirmProjectOpen])
-	 * rather than calling [openProject] directly: [MainActivity] is `exported="true"` (required for
-	 * the launcher), so any co-installed app can target it directly with this same extra, bypassing
-	 * [DeepLinkActivity]'s own URI re-validation entirely. Skipping the confirmation gate here would
-	 * let such an app silently force a project open with no user interaction at all.
+	 * rather than calling [openProject] directly: [MainActivity] is `exported="true"` -- not because
+	 * anything requires it to be (`SplashActivity` holds the actual MAIN/LAUNCHER intent-filter;
+	 * [MainActivity] has none of its own), which is exactly why any co-installed app can target it
+	 * directly with this same extra, bypassing [DeepLinkActivity]'s own URI re-validation entirely.
+	 * Skipping the confirmation gate here would let such an app silently force a project open with no
+	 * user interaction at all.
 	 */
 	private fun handleDeepLinkRequest(request: DeepLinkRequest) {
 		latestDeepLinkRequest = request
 		lifecycleScope.launch(Dispatchers.IO) {
 			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName)
 			withContext(Dispatchers.Main) {
-				// Only remove the extra (and only if it's still THIS request's -- see below) once this
-				// point is actually reached -- if this coroutine was cancelled before now (e.g.
-				// onDestroy() from a config-change recreate mid-resolve), the extra stays intact so
-				// onCreate's relaxed savedInstanceState check can retry it on the freshly recreated
-				// instance instead of silently losing it.
-				if (latestDeepLinkRequest === request) {
-					intent.removeExtra(DeepLinkRequest.EXTRA_KEY)
-				}
 				// The activity may have started finishing while resolveDeepLinkProject was still
 				// scanning disk -- lifecycleScope only cancels at ON_DESTROY, not the moment isFinishing
 				// first flips true, so this continuation can otherwise still run and show a dialog on a
@@ -554,11 +586,14 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				if (isFinishing || isDestroyed) return@withContext
 				projectDir ?: return@withContext
 				// A second, faster-resolving deep link superseded this one while it was still resolving
-				// -- reading the ambient intent property above (rather than a reference captured for
-				// THIS call) means this cleanup could otherwise strip the newer request's still-unconsumed
-				// extra, and this stale, slower request must not now bounce the user back to its own
-				// (older) target after they've already been taken to the newer one.
+				// -- this stale, slower request must not now bounce the user back to its own (older)
+				// target after they've already been taken to the newer one.
 				if (latestDeepLinkRequest !== request) return@withContext
+				// consumedDeepLinkRequest is set once this request is actually opened (or confirmed, if
+				// GeneralPreferences.confirmProjectOpen is on) -- see handleOpenProject/
+				// askProjectOpenPermission and consumedDeepLinkRequest's own docs for why marking it
+				// here, before the user has necessarily responded to that confirm dialog, would be too
+				// early.
 				handleOpenProject(projectDir, pendingFileRequest = request.fileRequest, isDeepLink = true)
 			}
 		}
@@ -570,5 +605,14 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		activeOpenPermissionDialog?.dismiss()
 		super.onDestroy()
 		_binding = null
+	}
+
+	override fun onSaveInstanceState(outState: Bundle) {
+		super.onSaveInstanceState(outState)
+		outState.putParcelable(KEY_CONSUMED_DEEP_LINK_REQUEST, consumedDeepLinkRequest)
+	}
+
+	companion object {
+		private const val KEY_CONSUMED_DEEP_LINK_REQUEST = "consumedDeepLinkRequest"
 	}
 }

@@ -215,6 +215,15 @@ abstract class BaseEditorActivity :
 	val appLogsViewModel by viewModels<AppLogsViewModel>()
 	var appLogsCoordinator: AppLogsCoordinator? = null
 
+	// Mirrors EditorHandlerActivity's/ProjectHandlerActivity's own same-named, independently-tracked
+	// flags: set only once onCreate reaches its end without bailing out early (the "no matching
+	// project" doomed-duplicate-instance branch above returns before this runs). preDestroy() checks
+	// it before touching the process-wide singletons this onCreate registers this instance with
+	// (BuildOutputProvider, the plugin snippet-refresh listener) -- a doomed instance never actually
+	// registered as their owner, so clearing them on its teardown would wipe out whatever a
+	// genuinely live sibling instance set up instead.
+	private var didCompleteLiveOnCreate = false
+
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
 	val binding: ActivityEditorBinding
@@ -463,9 +472,11 @@ abstract class BaseEditorActivity :
 	internal abstract fun doOpenHelp()
 
 	protected open fun preDestroy() {
-		BuildOutputProvider.clearBottomSheet()
+		if (didCompleteLiveOnCreate) {
+			BuildOutputProvider.clearBottomSheet()
 
-		IDEApplication.getPluginManager()?.setSnippetRefreshListener(null)
+			IDEApplication.getPluginManager()?.setSnippetRefreshListener(null)
+		}
 
 		Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
 		if (isAtLeastR()) wadbConnectionViewModel.stop(this)
@@ -809,6 +820,8 @@ abstract class BaseEditorActivity :
 		observeFileOperations()
 
 		setupGestureDetector()
+
+		didCompleteLiveOnCreate = true
 	}
 
 	override fun onConfigurationChanged(newConfig: Configuration) {
