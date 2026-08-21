@@ -3,6 +3,7 @@ package com.itsaky.androidide.localWebServer
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
+import com.itsaky.androidide.utils.DatabaseVersionResolver
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -56,6 +57,29 @@ class WebServerTest {
 			clearCacheEnablePath = "/nonexistent/cs0-flag",
 			projectDatabasePath = "/nonexistent/recent-projects.db",
 		)
+
+	// ADFA-5153/ADFA-5220: the dictionary is gated on the MAJOR version the database declares, so
+	// every test that expects the dictionary to load has to declare one. A relaxed mock answers the
+	// existence probe with moveToFirst() = false, i.e. "no version table", which would silently turn
+	// the dictionary tests below into no-ops rather than failing them.
+	private fun stubDeclaredMajorVersion(
+		db: SQLiteDatabase,
+		major: Int?,
+	) {
+		every {
+			db.rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
+		} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns (major != null) }
+		if (major != null) {
+			every {
+				db.rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any())
+			} returns
+				mockk<Cursor>(relaxed = true) {
+					every { moveToFirst() } returns true
+					every { isNull(0) } returns false
+					every { getInt(0) } returns major
+				}
+		}
+	}
 
 	private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
@@ -133,6 +157,7 @@ class WebServerTest {
 
 		val db = mockk<SQLiteDatabase>(relaxed = true)
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		stubDeclaredMajorVersion(db, DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY)
 		every {
 			db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
 		} returns dictionaryExistsCursor
@@ -201,6 +226,7 @@ class WebServerTest {
 			db: SQLiteDatabase,
 			dictionaryBytes: String,
 		) {
+			stubDeclaredMajorVersion(db, DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY)
 			every {
 				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
 			} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns true }
@@ -272,6 +298,82 @@ class WebServerTest {
 			server.stop()
 			serverThread.join(2_000)
 			debugDbFile.delete()
+		}
+	}
+
+	// ADFA-5153/ADFA-5220: below MAJOR 2 the dictionary is neither read nor attached, and the
+	// CompressionDictionary probe does not even run -- table sniffing is precisely what the version
+	// gate replaces, since a database can carry the table while its content is still plain brotli.
+	@Test
+	fun `a database declaring a version below 2 is never asked for a dictionary`() {
+		assertDictionaryLoads(declaredMajor = 1, expected = 0)
+	}
+
+	@Test
+	fun `a database with no version table is never asked for a dictionary`() {
+		assertDictionaryLoads(declaredMajor = null, expected = 0)
+	}
+
+	// A later format is still expected to carry the dictionary, so the gate is a floor, not a match.
+	@Test
+	fun `a database declaring a version above 2 still loads the dictionary`() {
+		assertDictionaryLoads(declaredMajor = 3, expected = 1)
+	}
+
+	// The CompressionDictionary cursors are stubbed as *available* in every case, including the
+	// ones expecting zero queries: that is what makes this a test of the gate rather than of a
+	// missing table -- the queries are not skipped for want of an answer.
+	private fun assertDictionaryLoads(
+		declaredMajor: Int?,
+		expected: Int,
+	) {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		stubDeclaredMajorVersion(db, declaredMajor)
+		every {
+			db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+		} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns true }
+		every {
+			db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+		} returns
+			mockk<Cursor>(relaxed = true) {
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "test-dictionary-bytes".toByteArray()
+			}
+		every {
+			db.rawQuery(match { it.contains("FROM   Content") }, any())
+		} returns
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "hello".toByteArray()
+				every { getString(1) } returns "text/plain"
+				every { getString(2) } returns "none"
+				every { getInt(3) } returns 0
+			}
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			sendRawGetRequestAndAwaitClose(port, "/some/path")
+
+			verify(exactly = expected) {
+				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
+			verify(exactly = expected) {
+				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+			// The version itself is read once per database either way -- the gate is consulted, and
+			// its answer cached, exactly like the dictionary it guards.
+			verify(exactly = 1) {
+				db.rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
+			}
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
 		}
 	}
 

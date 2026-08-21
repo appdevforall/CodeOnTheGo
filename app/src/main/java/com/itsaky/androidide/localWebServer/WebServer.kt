@@ -130,9 +130,9 @@ class WebServer(
 	// ADFA-5153). Lazily (re)loaded on demand, right before the first content fetch that needs
 	// it after `database` changes -- see compressionDictionaryStale -- rather than eagerly at
 	// database-open/swap time, but still cached (not reloaded per-request) once loaded for the
-	// currently active database. Null (no dictionary attached, plain-brotli decode) if the
-	// active database predates the dictionary-compression migration -- CompressionDictionary
-	// won't exist yet.
+	// currently active database. Null (no dictionary attached, plain-brotli decode) unless the
+	// active database declares MAJOR >= MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY in ADFA-5220's
+	// version table.
 	private var compressionDictionary: ByteBuffer? = null
 
 	// Set whenever `database` changes (see switchToDatabase); cleared once compressionDictionary
@@ -194,15 +194,37 @@ class WebServer(
 
 	/**
 	 * Loads the shared Brotli dictionary most Content rows are compressed against (see ADFA-5153).
-	 * Returns null (logged) when the database *definitively* has no dictionary -- predates the
-	 * migration, or has an empty/anomalous `CompressionDictionary` row -- so callers fall back to
-	 * plain, dictionary-free brotli decode (see [decompressBrotli]). Deliberately does *not* catch
-	 * exceptions itself: an unexpected `SQLiteException`/IO failure is likely transient, and the
-	 * caller (see [handleClient]) must not cache that as "no dictionary" the way it does a
-	 * definitive absence, or a transient failure would permanently disable dictionary decoding
-	 * for the rest of this database's lifetime.
+	 * Returns null (logged) when the database *definitively* has no dictionary -- so callers fall
+	 * back to plain, dictionary-free brotli decode (see [decompressBrotli]).
+	 *
+	 * The gate is the MAJOR version the database declares in ADFA-5220's version table, not the
+	 * presence of a `CompressionDictionary` table: table sniffing infers a whole content format
+	 * from one table's existence, and gets it wrong in both directions -- a database carrying the
+	 * table but *unmigrated* content makes every plain row pay a failed dictionary decode before
+	 * its plain one, on every request. Below
+	 * [DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY] the dictionary is neither
+	 * read nor attached.
+	 *
+	 * The `CompressionDictionary` checks below still run, for a database that declares a new-enough
+	 * version but has no usable dictionary row: without them the data query would raise "no such
+	 * table", which the caller correctly reads as transient and would then retry on every request.
+	 *
+	 * Deliberately does *not* catch exceptions itself: an unexpected `SQLiteException`/IO failure is
+	 * likely transient, and the caller (see [handleClient]) must not cache that as "no dictionary"
+	 * the way it does a definitive absence, or a transient failure would permanently disable
+	 * dictionary decoding for the rest of this database's lifetime.
 	 */
 	private fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
+		val majorVersion = DatabaseVersionResolver.resolveMajorVersion(db)
+		if (majorVersion == null || majorVersion < DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY) {
+			log.warn(
+				"Database declares documentation version {}, below {}; decoding brotli content without a dictionary.",
+				majorVersion ?: "none",
+				DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY,
+			)
+			return null
+		}
+
 		val tableExists =
 			db
 				.rawQuery(
