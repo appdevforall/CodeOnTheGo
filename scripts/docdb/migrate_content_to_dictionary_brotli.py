@@ -1,43 +1,68 @@
 #!/usr/bin/env python3
-"""Recompress documentation.db's Brotli Content rows against the shared dictionary.
+"""Repair mislabelled binary rows in documentation.db, then recompress its Brotli
+Content rows against the shared dictionary.
 
-Reads the dictionary from the database's own CompressionDictionary table (id = 1)
-and rewrites every `ContentTypes.compression = 'brotli'` row so it is compressed
-against that dictionary instead of plainly. WebServer tries a dictionary-attached
-decode first and falls back to a plain one, so a half-migrated database still
-serves -- which is what makes running this incrementally safe.
+Three phases, in this order, because each one changes what the next one sees:
 
-Two properties of the data shape this script, both verified against the 20-Aug
+  1. retype   -- rows that claim to be text but hold a GIF/PNG/JPEG/QuickTime
+                 payload (ADFA-5221). Their declared type is `text/plain`, whose
+                 ContentTypes row says `brotli`, so they were pointlessly
+                 compressed *and* are served as `Content-Type: text/plain`. The
+                 fix is to store the plaintext and point the row at the honest
+                 type, whose compression is `none`.
+  2. renumber -- chunked items whose continuation rows start at -2 while
+                 WebServer's reassembly loop starts at -1 (ADFA-5170), so they
+                 currently serve as their first 1 MiB and nothing more.
+  3. migrate  -- rewrite every `ContentTypes.compression = 'brotli'` row so it is
+                 compressed against the database's own dictionary rather than
+                 plainly. WebServer tries a dictionary-attached decode first and
+                 falls back to a plain one, so a half-migrated database still
+                 serves -- which is what makes running this incrementally safe.
+
+Phase 1 feeds phase 3 for free: a row retyped to `image/gif` inherits that type's
+`compression = 'none'`, so phase 3's `compression = 'brotli'` selection simply
+stops seeing it. No exclusion list is needed.
+
+Properties of the data that shape this script, all verified against the 20-Aug
 database rather than assumed:
 
   * Content over 1 MiB is *not* stored as independently compressed pieces. The
-    rows are raw 1 MiB slices of one Brotli stream: `path`, then `path-N`
-    continuations. A slice on its own does not decode. So the unit of work here
-    is a logical item -- a base row plus its continuations -- concatenated,
-    decoded, recompressed, and re-split. Migrating such rows one at a time would
-    destroy the content.
+    rows are raw 1 MiB slices of one stream: `path`, then `path-N` continuations.
+    A slice on its own does not decode. So the unit of work is a logical item --
+    a base row plus its continuations -- concatenated, decoded, rewritten, and
+    re-split. Treating such rows one at a time would destroy the content.
 
   * A few rows decode identically with and without the dictionary: tiny,
     already-compressed payloads where the compressor found nothing to reference.
     Those are left alone, so "already migrated" covers them as well as genuinely
     dictionary-bound rows, and re-running does not churn them.
 
-  * The continuation rows in that database are numbered from **-2**, while
-    WebServer's reassembly loop starts at -1 (ADFA-5170), so those items already
-    serve truncated. This script preserves whatever numbering it finds, keeping
-    the migration behaviour-neutral; --renumber-continuations rewrites them from
-    -1 instead, which incidentally makes them reachable again.
+  * Extensions nominate phase 1's candidates; magic bytes decide. A row is
+    retyped to what its payload actually is, not to what its name suggests, and a
+    name/content disagreement is reported rather than trusted. The four `.mov`
+    files are `ftypqt` QuickTime, not ISO-BMFF, so --mov-type picks between the
+    honest `video/quicktime` (inserted into ContentTypes if absent) and the
+    `video/mp4` that Chromium is likelier to actually play.
+
+  * `Content` has a real UNIQUE constraint on `path` (the schema's `UNIQUE('path')`
+    quotes the identifier but does enforce it), so a renumbering mistake fails
+    loudly instead of duplicating a row. The `AddBook`/`DeleteBook` triggers fire
+    only for paths ending `.pdf`, which continuation paths never do.
 
 Parallel by default: compression at quality 11 is the whole cost (~4 GB of
 plaintext), and it parallelises perfectly across cores.
 
 Usage:
-    # inspect: what would change, nothing written
+    # inspect: what all three phases would change, nothing written
     migrate_content_to_dictionary_brotli.py documentation.db --dry-run
 
-    # migrate a copy, then swap it in
+    # do it, on a copy
     cp documentation.db migrated.db
     migrate_content_to_dictionary_brotli.py migrated.db --yes
+    sqlite3 migrated.db 'VACUUM;'
+
+    # just the data repair, leaving compression alone
+    migrate_content_to_dictionary_brotli.py migrated.db --yes --phases retype,renumber
 
 Requires the `brotli` CLI (>= 1.0) on PATH: no Python binding exposes custom
 dictionaries, so encode and decode both shell out to it with -D.
@@ -58,6 +83,15 @@ from dataclasses import dataclass, field
 
 CHUNK_BYTES = 1024 * 1024
 CONTINUATION = re.compile(r"^(.*)-(\d+)$")
+ALL_PHASES = ("retype", "renumber", "migrate")
+
+# Extensions worth a second look when a row claims to be text. The extension only
+# nominates a candidate -- sniff() decides what the row actually holds.
+BINARY_EXTENSIONS = (
+    ".gif", ".png", ".jpg", ".jpeg", ".webp", ".ico", ".bmp",
+    ".mov", ".mp4", ".m4v", ".pdf",
+    ".woff", ".woff2", ".ttf", ".otf", ".wasm",
+)
 
 # Set once per worker process: the dictionary lives in a file because the CLI
 # takes a path, and writing it once per process beats once per row.
@@ -95,6 +129,40 @@ def encode_with_dictionary(payload: bytes, quality: int, window: int) -> tuple[b
     )
 
 
+def sniff(payload: bytes) -> str:
+    """The MIME type the bytes themselves declare, or '' if unrecognised."""
+    if payload[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if payload[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if payload[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if payload[:4] == b"RIFF" and payload[8:12] == b"WEBP":
+        return "image/webp"
+    if payload[:4] == b"\x00\x00\x01\x00":
+        return "image/x-icon"
+    if payload[:4] == b"%PDF":
+        return "application/pdf"
+    if payload[4:8] == b"ftyp":
+        # The brand distinguishes a QuickTime container from ISO-BMFF/MP4.
+        return "video/quicktime" if payload[8:12] == b"qt  " else "video/mp4"
+    if payload[:4] == b"wOF2":
+        return "font/woff2"
+    if payload[:4] == b"wOFF":
+        return "font/woff"
+    if payload[:4] == b"OTTO":
+        return "font/otf"
+    if payload[:4] in (b"\x00\x01\x00\x00", b"true", b"ttcf"):
+        return "font/ttf"
+    if payload[:4] == b"\x00asm":
+        return "application/wasm"
+    return ""
+
+
+def slice_stream(payload: bytes) -> list[bytes]:
+    return [payload[i:i + CHUNK_BYTES] for i in range(0, len(payload), CHUNK_BYTES)] or [b""]
+
+
 @dataclass
 class Item:
     """One logical piece of content: a base row plus any continuation rows."""
@@ -104,6 +172,8 @@ class Item:
     language_id: int
     content_type_id: int
     template_id: int
+    content_type: str = ""
+    compression: str = ""
     # (row id, suffix number, byte length), ascending by suffix
     continuations: list[tuple[int, int, int]] = field(default_factory=list)
     base_bytes: int = 0
@@ -116,15 +186,59 @@ class Item:
     def first_suffix(self) -> int:
         return self.continuations[0][1] if self.continuations else 1
 
+    @property
+    def suffixes(self) -> list[int]:
+        return [suffix for _, suffix, _ in self.continuations]
+
+
+@dataclass
+class Inspection:
+    """Phase 1's verdict on one candidate row."""
+
+    base_path: str
+    status: str  # retype | keep | error
+    sniffed: str = ""
+    slices: list[bytes] = field(default_factory=list)
+    before: int = 0
+    after: int = 0
+    detail: str = ""
+
 
 @dataclass
 class Result:
+    """Phase 3's verdict on one item."""
+
     base_path: str
     status: str  # migrated | already | unchanged | error
     slices: list[bytes] = field(default_factory=list)
     before: int = 0
     after: int = 0
     detail: str = ""
+    sniffed: str = ""  # set when a text-typed row turns out to hold binary
+
+
+def inspect_item(item: Item, blobs: list[bytes]) -> Inspection:
+    """Decide what a text-typed candidate actually holds, and hand back its plaintext."""
+    stored = b"".join(blobs)
+    before = len(stored)
+
+    if item.compression == "brotli":
+        ok, payload = decode_plain(stored)
+        if not ok:
+            ok, payload = decode_with_dictionary(stored)
+            if not ok:
+                return Inspection(item.base_path, "error", before=before,
+                                  detail="decodes neither plainly nor with the dictionary")
+    else:
+        payload = stored
+
+    kind = sniff(payload)
+    if not kind:
+        return Inspection(item.base_path, "keep", before=before, after=before,
+                          detail=f"declared {item.content_type}, and the payload carries no binary signature")
+
+    return Inspection(item.base_path, "retype", sniffed=kind, slices=slice_stream(payload),
+                      before=before, after=len(payload))
 
 
 def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only_if_smaller: bool) -> Result:
@@ -146,13 +260,17 @@ def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only
             return Result(item.base_path, "already", before=before, after=before)
         return Result(item.base_path, "error", before=before, detail="decodes neither plainly nor with the dictionary")
 
+    # Decoding every row here anyway makes a mislabel sweep free: report a
+    # text-typed row whose payload is recognisably binary, whatever its name.
+    mislabelled = sniff(plaintext) if item.content_type.startswith("text") else ""
+
     # A stream that decodes *both* ways is one the compressor never referenced the
     # dictionary for -- small, already-compressed payloads like a 1 KB GIF. It is
     # byte-identical in either form, so there is nothing to migrate, and skipping it
     # keeps a re-run from recompressing it for no gain.
     ok_dict, as_dict = decode_with_dictionary(stored)
     if ok_dict and as_dict == plaintext:
-        return Result(item.base_path, "already", before=before, after=before)
+        return Result(item.base_path, "already", before=before, after=before, sniffed=mislabelled)
 
     ok, recompressed, stderr = encode_with_dictionary(plaintext, quality, window)
     if not ok:
@@ -169,35 +287,45 @@ def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only
         )
 
     if only_if_smaller and len(recompressed) >= before:
-        return Result(item.base_path, "unchanged", before=before, after=before,
+        return Result(item.base_path, "unchanged", before=before, after=before, sniffed=mislabelled,
                       detail=f"dictionary-compressed form is larger ({len(recompressed)} vs {before})")
 
-    slices = [recompressed[i:i + CHUNK_BYTES] for i in range(0, len(recompressed), CHUNK_BYTES)] or [b""]
-    return Result(item.base_path, "migrated", slices=slices, before=before, after=len(recompressed))
+    return Result(item.base_path, "migrated", slices=slice_stream(recompressed),
+                  before=before, after=len(recompressed), sniffed=mislabelled)
 
 
-def load_items(connection: sqlite3.Connection) -> list[Item]:
+def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
     rows = connection.execute(
-        """
-        SELECT C.id, C.path, C.languageID, C.contentTypeID, C.templateId, LENGTH(C.content)
+        f"""
+        SELECT C.id, C.path, C.languageID, C.contentTypeID, C.templateId,
+               LENGTH(C.content), CT.value, CT.compression
           FROM Content C
           JOIN ContentTypes CT ON CT.id = C.contentTypeID
-         WHERE CT.compression = 'brotli'
+         WHERE {predicate}
         """
     ).fetchall()
 
-    by_path = {path: row for row in rows for path in (row[1],)}
+    paths = {row[1] for row in rows}
     items: dict[str, Item] = {}
     continuations: list[tuple[str, int, int, int]] = []
 
-    for row_id, path, language_id, content_type_id, template_id, length in rows:
+    for row_id, path, language_id, type_id, template_id, length, type_value, compression in rows:
         match = CONTINUATION.match(path)
         # A continuation only counts as one if its base is itself a row; a path
         # that merely ends in -<digits> is ordinary content.
-        if match and match.group(1) in by_path:
+        if match and match.group(1) in paths:
             continuations.append((match.group(1), row_id, int(match.group(2)), length))
         else:
-            items[path] = Item(path, row_id, language_id, content_type_id, template_id, base_bytes=length)
+            items[path] = Item(
+                base_path=path,
+                base_id=row_id,
+                language_id=language_id,
+                content_type_id=type_id,
+                template_id=template_id,
+                content_type=type_value,
+                compression=compression,
+                base_bytes=length,
+            )
 
     for base_path, row_id, suffix, length in continuations:
         owner = items.get(base_path)
@@ -217,14 +345,34 @@ def read_blobs(connection: sqlite3.Connection, item: Item) -> list[bytes]:
     return [found[row_id] for row_id in ids]
 
 
-def write_item(connection: sqlite3.Connection, item: Item, slices: list[bytes], renumber: bool) -> tuple[int, int]:
+def write_item(
+    connection: sqlite3.Connection,
+    item: Item,
+    slices: list[bytes],
+    renumber: bool,
+    content_type_id: int | None = None,
+) -> tuple[int, int]:
     """Write an item's new slices back. Returns (rows inserted, rows deleted)."""
-    connection.execute("UPDATE Content SET content = ? WHERE id = ?", (slices[0], item.base_id))
+    type_id = item.content_type_id if content_type_id is None else content_type_id
+    connection.execute(
+        "UPDATE Content SET content = ?, contentTypeID = ? WHERE id = ?",
+        (slices[0], type_id, item.base_id),
+    )
 
     start = 1 if renumber else item.first_suffix
     wanted = list(enumerate(slices[1:], start=start))
     existing = {suffix: row_id for row_id, suffix, _ in item.continuations}
     inserted = deleted = 0
+
+    # Retained rows are renumbered by taking the slot they now hold, so drop every
+    # old continuation path first and re-create what the new stream needs. Deleting
+    # before inserting keeps the UNIQUE(path) constraint out of the way when the
+    # numbering shifts.
+    if renumber and item.first_suffix != 1:
+        for row_id in existing.values():
+            connection.execute("DELETE FROM Content WHERE id = ?", (row_id,))
+            deleted += 1
+        existing = {}
 
     for suffix, payload in wanted:
         row_id = existing.pop(suffix, None)
@@ -234,11 +382,14 @@ def write_item(connection: sqlite3.Connection, item: Item, slices: list[bytes], 
                 INSERT INTO Content (path, languageID, content, contentTypeID, templateId)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (f"{item.base_path}-{suffix}", item.language_id, payload, item.content_type_id, item.template_id),
+                (f"{item.base_path}-{suffix}", item.language_id, payload, type_id, item.template_id),
             )
             inserted += 1
         else:
-            connection.execute("UPDATE Content SET content = ? WHERE id = ?", (payload, row_id))
+            connection.execute(
+                "UPDATE Content SET content = ?, contentTypeID = ? WHERE id = ?",
+                (payload, type_id, row_id),
+            )
 
     # Whatever is left over described slices the new stream no longer needs.
     for row_id in existing.values():
@@ -246,6 +397,59 @@ def write_item(connection: sqlite3.Connection, item: Item, slices: list[bytes], 
         deleted += 1
 
     return inserted, deleted
+
+
+def retype_rows(connection: sqlite3.Connection, item: Item, content_type_id: int) -> None:
+    """Point an item's rows at a different content type, leaving the bytes alone."""
+    ids = [item.base_id] + [row_id for row_id, _, _ in item.continuations]
+    placeholders = ",".join("?" * len(ids))
+    connection.execute(
+        f"UPDATE Content SET contentTypeID = ? WHERE id IN ({placeholders})",
+        [content_type_id, *ids],
+    )
+
+
+def content_types(connection: sqlite3.Connection) -> dict[str, tuple[int, str]]:
+    return {
+        value: (type_id, compression)
+        for type_id, value, compression in connection.execute("SELECT id, value, compression FROM ContentTypes")
+    }
+
+
+def renumber_item(connection: sqlite3.Connection, item: Item, write: bool) -> str:
+    """Shift an item's continuations down so they start at -1. Returns a note, or ''."""
+    shift = item.first_suffix - 1
+    if shift <= 0:
+        return ""
+
+    expected = list(range(item.first_suffix, item.first_suffix + len(item.continuations)))
+    if item.suffixes != expected:
+        return f"continuations are not contiguous ({item.suffixes}); left alone"
+
+    # A row this item already owns is not a clash: it is the one being moved out of
+    # that slot. Only a foreign row occupying a target path blocks the shift.
+    own = {row_id for row_id, _, _ in item.continuations}
+    for _, suffix, _ in item.continuations:
+        target = f"{item.base_path}-{suffix - shift}"
+        clash = connection.execute("SELECT id FROM Content WHERE path = ?", (target,)).fetchone()
+        if clash and clash[0] not in own:
+            return f"{target} already exists and belongs to another row; left alone"
+
+    if write:
+        # Two passes: park every row under a name nothing can collide with, then
+        # settle them into their new slots. One ascending pass would be enough only
+        # if the target were always already free, and for a shift of 1 it never is.
+        for row_id, suffix, _ in item.continuations:
+            connection.execute(
+                "UPDATE Content SET path = ? WHERE id = ?",
+                (f"{item.base_path}-renumbering-{suffix}", row_id),
+            )
+        for row_id, suffix, _ in item.continuations:
+            connection.execute(
+                "UPDATE Content SET path = ? WHERE id = ?",
+                (f"{item.base_path}-{suffix - shift}", row_id),
+            )
+    return ""
 
 
 def human(n: float) -> str:
@@ -256,11 +460,152 @@ def human(n: float) -> str:
     return f"{n:,.1f} GiB"
 
 
+def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[str]]:
+    """Retype rows that claim to be text but hold a recognisable binary payload."""
+    print(f"[1/3] retype      {len(items):,} text-typed rows with a binary extension")
+    if not items:
+        return set(), []
+
+    types = content_types(connection)
+    counts: dict[str, int] = {}
+    problems: list[str] = []
+    retyped: list[tuple[Item, Inspection, str]] = []
+    before_total = after_total = 0
+
+    pending = {pool.submit(inspect_item, item, read_blobs(connection, item)): item for item in items}
+    for future in futures.as_completed(pending):
+        item = pending[future]
+        found = future.result()
+        if found.status == "error":
+            problems.append(f"{item.base_path}: {found.detail}")
+            continue
+        if found.status == "keep":
+            counts["left as text"] = counts.get("left as text", 0) + 1
+            problems.append(f"{item.base_path}: {found.detail}")
+            continue
+
+        target = found.sniffed
+        if target == "video/quicktime" and args.mov_type == "mp4":
+            target = "video/mp4"
+        extension = item.base_path.rsplit(".", 1)[-1].lower()
+        if extension not in target and not (extension in ("jpg", "jpeg") and target == "image/jpeg") \
+                and not (extension == "mov" and target.startswith("video/")):
+            problems.append(f"{item.base_path}: named .{extension} but the payload is {found.sniffed}")
+
+        retyped.append((item, found, target))
+        counts[target] = counts.get(target, 0) + 1
+        before_total += found.before
+        after_total += found.after
+
+    missing = sorted({target for _, _, target in retyped if target not in types})
+    for value in missing:
+        if write:
+            cursor = connection.execute(
+                "INSERT INTO ContentTypes (value, compression) VALUES (?, 'none')", (value,)
+            )
+            types[value] = (cursor.lastrowid, "none")
+            print(f"      ContentTypes  + id {cursor.lastrowid} {value} (compression none)")
+        else:
+            types[value] = (-1, "none")
+            print(f"      ContentTypes  would insert {value} (compression none)")
+
+    inserted_total = deleted_total = 0
+    for item, found, target in retyped:
+        type_id, compression = types[target]
+        if not write:
+            continue
+        if compression == "none":
+            inserted, deleted = write_item(
+                connection, item, found.slices, renumber="renumber" in args.phase_list, content_type_id=type_id
+            )
+            inserted_total += inserted
+            deleted_total += deleted
+        else:
+            # The honest type is itself a compressed one, so the stored bytes stay
+            # as they are and phase 3 picks the row up.
+            retype_rows(connection, item, type_id)
+    if write:
+        connection.commit()
+
+    for target, count in sorted(counts.items(), key=lambda kv: -kv[1]):
+        print(f"      {target:22} {count:>4}")
+    print(f"      stored {human(before_total)} of Brotli -> {human(after_total)} of plaintext "
+          f"({'+' if after_total >= before_total else ''}{human(after_total - before_total)})")
+    if write:
+        print(f"      rows inserted {inserted_total}   deleted {deleted_total}")
+    return {item.base_path for item, _, _ in retyped}, problems
+
+
+def phase_renumber(connection, args, write, retyped_paths: set[str]) -> tuple[int, list[str]]:
+    """Shift -2-based continuation numbering down to the -1 the app expects."""
+    items = [item for item in load_items(connection, "1 = 1") if item.continuations]
+    if args.renumber_scope == "retyped":
+        items = [item for item in items if item.base_path in retyped_paths]
+    broken = [item for item in items if item.first_suffix != 1]
+
+    starts = sorted({item.first_suffix for item in broken})
+    if broken:
+        print(f"[2/3] renumber    {len(broken)} of {len(items)} chunked items start at "
+              f"{', '.join('-' + str(n) for n in starts)} instead of -1")
+    else:
+        print(f"[2/3] renumber    all {len(items)} chunked items already start at -1")
+    problems: list[str] = []
+    fixed = 0
+    for item in broken:
+        note = renumber_item(connection, item, write)
+        if note:
+            problems.append(f"{item.base_path}: {note}")
+        else:
+            fixed += 1
+    if write:
+        connection.commit()
+
+    for item in items:
+        if item.base_bytes != CHUNK_BYTES:
+            problems.append(
+                f"{item.base_path}: chunked but its base row is {item.base_bytes:,} bytes, not "
+                f"{CHUNK_BYTES:,} -- the app detects chunking by that exact length, so it will not reassemble"
+            )
+    if fixed:
+        print(f"      renumbered from -1: {fixed}")
+    return fixed, problems
+
+
+def verify_retype(connection, retyped_paths: set[str], mov_type: str) -> list[str]:
+    """Re-read what phase 1 wrote and confirm the bytes match the declared type."""
+    problems: list[str] = []
+    written = {item.base_path: item for item in load_items(connection, "1 = 1")}
+    for path in sorted(retyped_paths):
+        item = written.get(path)
+        if item is None:
+            problems.append(f"{path}: row vanished")
+            continue
+        payload = b"".join(read_blobs(connection, item))
+        found = sniff(payload)
+        expected = item.content_type
+        if expected == "video/mp4" and mov_type == "mp4" and found == "video/quicktime":
+            found = "video/mp4"  # deliberately typed mp4; the container really is qt
+        if found != expected:
+            problems.append(f"{path}: declared {expected} but the stored bytes sniff as {found or 'unknown'}")
+        if item.compression != "none":
+            problems.append(f"{path}: retyped to {expected}, whose compression is {item.compression}")
+        if item.continuations and item.suffixes != list(range(1, len(item.continuations) + 1)):
+            problems.append(f"{path}: continuations numbered {item.suffixes}, expected 1..n")
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("database", help="documentation.db to migrate (operate on a copy)")
+    parser.add_argument("database", help="documentation.db to work on (operate on a copy)")
     parser.add_argument("--yes", action="store_true", help="actually write; without it the run is a dry run")
     parser.add_argument("--dry-run", action="store_true", help="explicit no-write run (the default anyway)")
+    parser.add_argument("--phases", default=",".join(ALL_PHASES),
+                        help=f"comma-separated subset of {','.join(ALL_PHASES)} (default: all, in that order)")
+    parser.add_argument("--mov-type", choices=("quicktime", "mp4"), default="quicktime",
+                        help="what to call the ftypqt .mov payloads: the honest video/quicktime (inserted into "
+                             "ContentTypes) or the video/mp4 Chromium is likelier to play (default: quicktime)")
+    parser.add_argument("--renumber-scope", choices=("all", "retyped"), default="all",
+                        help="renumber every -2-based chunked item, or only the ones phase 1 retyped (default: all)")
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2)), help="parallel compressors")
     parser.add_argument("--quality", type=int, default=11, help="brotli quality (default 11, as the pipeline uses)")
     parser.add_argument("--window", type=int, default=22, help="brotli window log (default 22, the portable maximum)")
@@ -272,14 +617,14 @@ def main() -> int:
         action="store_true",
         help="leave a row alone when its dictionary-compressed form is not smaller",
     )
-    parser.add_argument(
-        "--renumber-continuations",
-        action="store_true",
-        help="write continuation rows from -1 rather than preserving existing numbering "
-             "(fixes ADFA-5170's unreachable slices; changes behaviour, so opt-in)",
-    )
     args = parser.parse_args()
     write = args.yes and not args.dry_run
+
+    args.phase_list = [phase.strip() for phase in args.phases.split(",") if phase.strip()]
+    unknown = [phase for phase in args.phase_list if phase not in ALL_PHASES]
+    if unknown:
+        print(f"error: unknown phase(s) {', '.join(unknown)}; pick from {', '.join(ALL_PHASES)}", file=sys.stderr)
+        return 2
 
     connection = sqlite3.connect(args.database)
     connection.execute("PRAGMA foreign_keys = ON")
@@ -290,32 +635,60 @@ def main() -> int:
         return 2
     dictionary = dictionary_row[0]
 
-    items = load_items(connection)
-    if args.path:
-        items = [item for item in items if args.path in item.base_path]
-    if args.limit:
-        items = items[: args.limit]
-    chunked = [item for item in items if item.continuations]
+    def select(items: list[Item]) -> list[Item]:
+        if args.path:
+            items = [item for item in items if args.path in item.base_path]
+        return items[: args.limit] if args.limit else items
 
     print(f"database        {args.database}")
     print(f"dictionary      {human(len(dictionary))}")
-    print(f"items           {len(items):,} ({len(chunked)} of them stored as multiple slices)")
-    print(f"stored now      {human(sum(item.stored_bytes for item in items))}")
+    print(f"phases          {' -> '.join(args.phase_list)}")
     print(f"workers         {args.workers}   quality {args.quality}   window {args.window}")
     print(f"mode            {'WRITING' if write else 'dry run (pass --yes to write)'}")
-    if chunked and not args.renumber_continuations:
-        starts = sorted({item.first_suffix for item in chunked})
-        print(f"continuations   preserving existing numbering (starts at {starts}); "
-              f"--renumber-continuations rewrites from -1")
     print()
 
-    counts = {"migrated": 0, "already": 0, "unchanged": 0, "error": 0}
-    before_total = after_total = 0
-    inserted_total = deleted_total = 0
-    errors: list[Result] = []
+    problems: list[str] = []
+    retyped_paths: set[str] = set()
     started = time.time()
 
     with futures.ProcessPoolExecutor(args.workers, initializer=_init_worker, initargs=(dictionary,)) as pool:
+        if "retype" in args.phase_list:
+            candidates = select([
+                item for item in load_items(connection, "CT.value LIKE 'text%'")
+                if item.base_path.lower().endswith(BINARY_EXTENSIONS)
+            ])
+            retyped_paths, notes = phase_retype(connection, pool, args, write, candidates)
+            problems += notes
+            if write:
+                problems += verify_retype(connection, retyped_paths, args.mov_type)
+            print()
+
+        if "renumber" in args.phase_list:
+            _, notes = phase_renumber(connection, args, write, retyped_paths)
+            problems += notes
+            print()
+
+        if "migrate" not in args.phase_list:
+            connection.commit() if write else connection.rollback()
+            connection.close()
+            sys.stdout.flush()
+            for note in problems[:30]:
+                print(f"  note: {note}", file=sys.stderr)
+            return 0
+
+        items = select(load_items(connection, "CT.compression = 'brotli'"))
+        chunked = [item for item in items if item.continuations]
+
+        print(f"[3/3] migrate     {len(items):,} items ({len(chunked)} of them stored as multiple slices)")
+        print(f"      stored now  {human(sum(item.stored_bytes for item in items))}")
+        print()
+
+        counts = {"migrated": 0, "already": 0, "unchanged": 0, "error": 0}
+        before_total = after_total = 0
+        inserted_total = deleted_total = 0
+        errors: list[Result] = []
+        mislabelled: list[Result] = []
+
         for offset in range(0, len(items), args.batch):
             batch = items[offset : offset + args.batch]
             pending = {
@@ -332,10 +705,12 @@ def main() -> int:
                 before_total += result.before
                 after_total += result.after or result.before
 
+                if result.sniffed:
+                    mislabelled.append(result)
                 if result.status == "error":
                     errors.append(result)
                 elif result.status == "migrated" and write:
-                    inserted, deleted = write_item(connection, item, result.slices, args.renumber_continuations)
+                    inserted, deleted = write_item(connection, item, result.slices, renumber=False)
                     inserted_total += inserted
                     deleted_total += deleted
 
@@ -347,7 +722,7 @@ def main() -> int:
             rate = done / elapsed if elapsed else 0
             remaining = (len(items) - done) / rate if rate else 0
             print(
-                f"\r{done:,}/{len(items):,} items  {rate:5.1f}/s  "
+                f"\r      {done:,}/{len(items):,} items  {rate:5.1f}/s  "
                 f"eta {remaining/60:4.1f} min  saved {human(before_total - after_total)}",
                 end="",
                 flush=True,
@@ -367,10 +742,22 @@ def main() -> int:
         print(f"saved           {human(before_total - after_total)} ({100 * (before_total - after_total) / before_total:.1f}%)")
     print(f"took            {(time.time() - started)/60:.1f} min")
 
+    if mislabelled:
+        print(f"\nstill text-typed but holding binary ({len(mislabelled)}; phase 1 nominates by extension only):")
+        for result in mislabelled[:20]:
+            print(f"  {result.base_path}: {result.sniffed}")
+        if len(mislabelled) > 20:
+            print(f"  ... and {len(mislabelled) - 20} more")
+
     for result in errors[:20]:
         print(f"  error: {result.base_path}: {result.detail}", file=sys.stderr)
     if len(errors) > 20:
         print(f"  ... and {len(errors) - 20} more", file=sys.stderr)
+    sys.stdout.flush()
+    for note in problems[:30]:
+        print(f"  note: {note}", file=sys.stderr)
+    if len(problems) > 30:
+        print(f"  ... and {len(problems) - 30} more notes", file=sys.stderr)
 
     if write:
         connection.commit()
