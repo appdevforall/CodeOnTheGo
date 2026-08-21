@@ -14,6 +14,7 @@ import org.appdevforall.cotg.quickbuild.data.RelinkOutput
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationStore
 import org.appdevforall.cotg.quickbuild.service.deploy.DeployResult
 import org.appdevforall.cotg.quickbuild.service.deploy.DeploySender
+import org.appdevforall.cotg.quickbuild.service.session.QuickBuildHistoryStore
 import java.io.File
 
 /** Scripted [QuickBuildDaemon]: every op records its arguments and replies per script. */
@@ -211,4 +212,31 @@ class FakePaths(
 	override val projectScratchRoot = File(baseDir, "app-private/quickbuild-scratch")
 
 	override fun daemonEnvironment(): Map<String, String> = emptyMap()
+}
+
+/**
+ * In-memory [QuickBuildHistoryStore]. Defaults to `hasUsedQuickBuild = true` (the "warm
+ * path") so the many [QuickBuildSessionManagerTest] cases exercising prebuild/tap
+ * mechanics don't need to touch the gate; tests of the gate itself flip it to false.
+ */
+class FakeQuickBuildHistoryStore : QuickBuildHistoryStore {
+	private var used = true
+
+	/**
+	 * Thrown by [setHasUsedQuickBuild] when set. Stands in for any real store failure
+	 * (no project open, unwritable preferences): recording history is bookkeeping and must
+	 * never be able to swallow the tap that triggered it.
+	 */
+	var writeError: Throwable? = null
+
+	/** Runs on every [setHasUsedQuickBuild], so a test can observe WHEN the write lands. */
+	var onWrite: () -> Unit = {}
+
+	override fun hasUsedQuickBuild(): Boolean = used
+
+	override fun setHasUsedQuickBuild(used: Boolean) {
+		onWrite()
+		writeError?.let { throw it }
+		this.used = used
+	}
 }
