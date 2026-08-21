@@ -240,7 +240,7 @@
 	<string name="new_file">File baru</string>
 	<string name="create_auto_layout">Buat file layout</string>
 	<string name="new_java_class">Class Java baru</string>
-	<string name="new_xml_resource">Sumber XML baru</string>
+	<string name="new_xml_resource">Sumber daya XML baru</string>
 	<string name="new_folder">Folder baru</string>
 	<string name="title_confirm_delete">Konfirmasi penghapusan</string>
 	<string name="msg_confirm_delete">Apakah Anda yakin ingin menghapus:\n%s?</string>

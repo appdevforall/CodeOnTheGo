@@ -15,7 +15,7 @@
     <string name="section_apk_structure">Struktur APK</string>
     <string name="section_key_files">File Utama</string>
     <string name="section_native_libraries">Pustaka Native (%d)</string>
-    <string name="section_resource_directories">Direktori Sumber (%d)</string>
+    <string name="section_resource_directories">Direktori Sumber Daya (%d)</string>
     <string name="section_large_files">File Besar (&gt;100KB)</string>
     <string name="section_apk_metadata">Metadata APK</string>
 
