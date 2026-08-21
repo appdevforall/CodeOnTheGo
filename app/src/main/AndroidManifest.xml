@@ -120,9 +120,19 @@
         <activity
             android:name=".activities.PreferencesActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
+        <!-- uiMode/locale/fontScale/density/keyboard/keyboardHidden/navigation are handled here
+             (not just orientation etc.) because a recreation mid-dialog (e.g. a system dark/light
+             auto-switch, or attaching/detaching a hardware keyboard) would otherwise dismiss the
+             forwarded-install dialog while the ViewModel's one-shot "already handled" guard
+             (markPendingInstallHandled) silently blocks it from ever being shown again - ADFA-4934.
+             Accepted tradeoff: since the Activity isn't recreated for these axes and
+             onConfigurationChanged() isn't overridden either, already-inflated view text/theme
+             (e.g. a title set once in onCreate(), or day/night-themed colors) can look stale
+             until the user backs out and re-enters - dialog continuity was judged more important
+             than instant re-theming for this one screen. -->
         <activity
             android:name=".activities.PluginManagerActivity"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|fontScale|density|keyboard|keyboardHidden|navigation" />
         <activity
             android:name=".activities.PluginScreenActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
@@ -130,6 +140,107 @@
             <intent-filter>
                 <action android:name="com.itsaky.androidide.plugins.OPEN_PLUGIN_SCREEN" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <!-- Receives a .cgp/.cgt file opened from outside the app (e.g. an email attachment).
+             Neither extension has a registered MIME type, so the incoming intent may be typed
+             (e.g. "application/octet-stream") or untyped (a bare Uri with no type) depending on
+             the sending app. Within a single <intent-filter>, a mimeType on any <data> element
+             applies to the WHOLE filter (verified via `dumpsys package`: every <data> tag in a
+             filter reports the same "StaticType", even ones with no android:mimeType attribute
+             of their own) - so a mimeType-bearing and a mimeType-less variant can't share one
+             filter without the mimeType contaminating the mimeType-less one too. `content` gets
+             OS leniency and matches even when the incoming intent has no explicit type, so one
+             filter with mimeType="*/*" covers both typed and untyped content:// intents; `file`
+             gets no such leniency and needs its typed and untyped cases in separate filters.
+             Both extensions are combined into each filter below (safe: every <data> tag within
+             a given filter shares the same mimeType-or-not shape, so there's no cross-extension
+             contamination), and each extension gets both a lowercase and an UPPERCASE pathPattern
+             - android:pathPattern has no case-insensitive mode, and some senders (e.g. archives
+             re-exported from Windows tools) produce uppercase extensions.
+             android:host="*" is required alongside pathPattern - the manifest matcher only
+             evaluates pathPattern when host is also present.
+             Known limitations:
+             (1) a sender whose content:// Uri path never carries the filename/extension at all -
+             the common case in practice, not an edge case: Storage Access Framework providers
+             (Android's Downloads app, most file managers) hand out opaque document IDs like
+             content://com.android.providers.downloads.documents/document/msf%3A19, and some email
+             providers' attachment Uris look like
+             content://.../message_attachment/12345/0/ATTACHMENT/false - can't match a
+             pathPattern-based filter regardless of type (confirmed via ADFA-4934's QA pass: the
+             OS fell through to an unrelated app that happened to declare a broader, unconstrained
+             VIEW+content+application/octet-stream filter, since ours never matched at all).
+             Mitigated (not fully fixed) below by a fourth, pathPattern-less filter matching only
+             the small set of mimeTypes such senders actually use for a binary/zip attachment
+             (application/octet-stream, application/zip, application/x-zip-compressed) - narrower
+             than the mimeType="*/*" this same reasoning previously rejected (that would register
+             this app as a candidate handler for every file view intent on the device), but still
+             broader than just .cgp/.cgt: any octet-stream/zip content from any app now offers this
+             app as an "Open with" candidate. Accepted since the real extension is re-validated
+             from DISPLAY_NAME once opened (ExternalFileInstallViewModel.onReceived) - a mismatched
+             file is rejected with msg_unsupported_file_type, not a crash.
+             (2) only the fully-lowercase and fully-UPPERCASE forms are covered per extension -
+             a mixed-case extension (e.g. "Plugin.Cgp") matches neither, since pathPattern's
+             matcher supports only literal characters, '.', and '*' (no character classes), and
+             exhaustively enumerating every case permutation (2^3 per 3-letter extension, times
+             two extensions, times three filters below) would bloat this manifest far out of
+             proportion to how rare a genuinely mixed-case sender is in practice (real senders
+             observed so far are consistently either all-lowercase or Windows-style
+             all-UPPERCASE). -->
+        <!-- uiMode/locale/fontScale/density/keyboard/keyboardHidden/navigation are handled here
+             (not just orientation etc.) because a recreation mid-dialog (e.g. a system dark/light
+             auto-switch, or attaching/detaching a hardware keyboard) would otherwise reset the
+             Compose dialog state to nothing while the ViewModel's one-shot receivedUriGate guard
+             silently blocks the effect from ever being resent - ADFA-4934. Since this screen is
+             Compose (unlike PluginManagerActivity), content reading LocalConfiguration/
+             stringResource/isSystemInDarkTheme() still recomposes reactively on these axes even
+             without an Activity recreation, so the same "stale until back-and-return" tradeoff is
+             narrower here than on the View-based screen. -->
+        <activity
+            android:name=".activities.ExternalFileInstallActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|fontScale|density|keyboard|keyboardHidden|navigation"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.AndroidIDE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgp" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.CGP" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgt" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.CGT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgp" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.CGP" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.cgt" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.CGT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" android:host="*" android:pathPattern=".*\\.cgp" />
+                <data android:scheme="file" android:host="*" android:pathPattern=".*\\.CGP" />
+                <data android:scheme="file" android:host="*" android:pathPattern=".*\\.cgt" />
+                <data android:scheme="file" android:host="*" android:pathPattern=".*\\.CGT" />
+            </intent-filter>
+            <!-- pathPattern-less fallback for content:// senders whose document Uri never carries
+                 the filename at all (see "Known limitations" (1) above) - matched by mimeType only,
+                 so it still finds real .cgp/.cgt attachments from Downloads/email/file-manager
+                 providers that the pathPattern-based filter above can never reach. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:mimeType="application/octet-stream" />
+                <data android:scheme="content" android:host="*" android:mimeType="application/zip" />
+                <data android:scheme="content" android:host="*" android:mimeType="application/x-zip-compressed" />
             </intent-filter>
         </activity>
         <activity android:name=".activities.AboutActivity" />

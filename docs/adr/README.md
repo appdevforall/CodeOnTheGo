@@ -26,3 +26,5 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 | [0010](0010-navigation-resolves-via-analysis-api.md) | Kotlin navigation resolves via the Analysis API, not the symbol index | Proposed |
 | [0011](0011-command-analysis-priority.md) | User-invoked commands get their own analysis priority | Proposed |
 | [0012](0012-volatile-build-metadata-out-of-abis.md) | Keep volatile build metadata out of module ABIs | Proposed |
+| [0013](0012-refactoring-ui-lives-in-the-owning-lsp-module.md) | Refactoring UI lives in the owning LSP module | Proposed |
+| [0014](0013-refactorings-decline-rather-than-rewrite.md) | Interactive refactorings decline rather than rewrite unselected code | Proposed |

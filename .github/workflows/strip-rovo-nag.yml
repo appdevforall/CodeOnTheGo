@@ -1,0 +1,132 @@
+name: Strip Rovo Dev Nags
+
+# Atlassian's GitHub integration advertises Rovo Dev in two places on every pull
+# request: it appends a "Rovo Dev code review status" block to the description,
+# and atlassian[bot] posts a comment asking you to link your GitHub account.
+# Strip both back out.
+#
+# Runs on pull_request_target so it can edit pull requests from forks.
+# It must never check out or execute code from the pull request.
+#
+# Run it manually (workflow_dispatch) to sweep pull requests that were opened
+# before this workflow landed, or that the bot nagged while it was broken.
+on:
+  pull_request_target:
+    types: [ edited ]
+  issue_comment:
+    types: [ created ]
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  strip_rovo_nag:
+    name: Remove the Rovo Dev advertising
+    # Filter comment events here so an ordinary comment never starts a runner.
+    # Pull requests only, matching the sweep below, which walks only pull requests.
+    if: >-
+      github.event_name != 'issue_comment' ||
+      (github.event.issue.pull_request &&
+       github.event.comment.user.login == 'atlassian[bot]' &&
+       contains(github.event.comment.body, 'Rovo Dev code review'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Strip the Rovo Dev block and delete the Rovo Dev comment
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+
+            // Atlassian wraps the description block in HTML comment markers.
+            // Anchoring on those catches every wording of the message, not just
+            // "not activated", and swallows the horizontal rule tucked inside.
+            const marked = /\n*<!--\s*Rovo Dev code review status\s*-->[\s\S]*?<!--\s*\/\s*Rovo Dev code review status\s*-->[ \t]*/gi;
+
+            // Fallback for the day Atlassian drops the markers.
+            const bare = /\n*(?:-{3,}[ \t]*\n)?[ \t]*(?:\*\*|<strong>)?\s*Rovo Dev code review:[\s\S]*?Atlassian organization admin needs to activate Rovo Dev\.[ \t]*/gi;
+
+            // Deliberately narrow: a real Rovo Dev code review would also come
+            // from atlassian[bot], and deleting one of those would lose content.
+            const adPhrases = [
+              /to enable rovo dev code reviews/i,
+              /link your github account to your atlassian account/i,
+            ];
+
+            const isAtlassianBot = (user) => /^atlassian(\[bot\])?$/i.test(user?.login ?? '');
+            const isRovoAd = (comment) =>
+              isAtlassianBot(comment.user) && adPhrases.some((re) => re.test(comment.body ?? ''));
+
+            async function stripBody(pr) {
+              const body = pr.body ?? '';
+              const cleaned = body.replace(marked, '').replace(bare, '').trimEnd();
+              if (cleaned === body.trimEnd()) {
+                return false;
+              }
+              // This update runs as GITHUB_TOKEN, which does not trigger further
+              // workflow runs, so stripping the block cannot loop back on itself.
+              await github.rest.pulls.update({ owner, repo, pull_number: pr.number, body: cleaned });
+              core.info(`Stripped the Rovo Dev block from the body of PR #${pr.number}.`);
+              return true;
+            }
+
+            async function deleteComment(comment, number) {
+              await github.rest.issues.deleteComment({ owner, repo, comment_id: comment.id });
+              core.info(`Deleted Rovo Dev comment ${comment.id} on #${number}.`);
+            }
+
+            async function deleteAdComments(number) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: number,
+                per_page: 100,
+              });
+              const ads = comments.filter(isRovoAd);
+              for (const comment of ads) {
+                await deleteComment(comment, number);
+              }
+              return ads.length;
+            }
+
+            if (context.eventName === 'pull_request_target') {
+              const pr = context.payload.pull_request;
+              if (!(await stripBody(pr))) {
+                core.info(
+                  `No Rovo Dev block in PR #${pr.number} (edited by ${context.payload.sender.login}); nothing to strip.`
+                );
+              }
+              return;
+            }
+
+            if (context.eventName === 'issue_comment') {
+              const comment = context.payload.comment;
+              const number = context.payload.issue.number;
+              // The job filter already matched; re-check so a wording change to
+              // a real Rovo Dev review can never slip past it.
+              if (!isRovoAd(comment)) {
+                core.info(`Comment ${comment.id} on #${number} is not the Rovo Dev ad; leaving it alone.`);
+                return;
+              }
+              await deleteComment(comment, number);
+              return;
+            }
+
+            const pulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+            let bodies = 0;
+            let comments = 0;
+            for (const pr of pulls) {
+              if (await stripBody(pr)) {
+                bodies += 1;
+              }
+              comments += await deleteAdComments(pr.number);
+            }
+            core.info(
+              `Swept ${pulls.length} open pull requests: stripped ${bodies} bodies, deleted ${comments} comments.`
+            );
