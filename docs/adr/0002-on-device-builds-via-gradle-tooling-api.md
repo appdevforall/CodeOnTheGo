@@ -20,6 +20,8 @@ Run builds with the **Gradle Tooling API in a separate JVM process**, and have t
 
 The app streams progress/events back from this process and renders them (e.g. `BuildState`, build output). The process runs on a **full out-of-process JDK** — the `java` binary from our terminal bootstrap packages (`appdevforall/terminal-packages`), launched by `ToolingServerRunner` — **not** the composite-build toolchains from [ADR 0003](0003-vendored-forked-desktop-toolchain.md), which are a separate, in-IDE-runtime concern.
 
+**Scope:** this covers every build that produces an installable artifact, including Quick Build's own proxy-app provisioning. Quick Build's incremental per-save step is the one exception — it compiles outside Gradle, and the trade-offs are recorded in [ADR 0016](0016-quick-build-compiles-outside-gradle.md).
+
 ## Consequences
 
 **Positive**
