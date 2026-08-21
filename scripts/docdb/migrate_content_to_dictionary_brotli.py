@@ -11,7 +11,7 @@ Three phases, in this order, because each one changes what the next one sees:
                  fix is to store the plaintext and point the row at the honest
                  type, whose compression is `none`.
   2. renumber -- chunked items whose continuation rows start at -2 while
-                 WebServer's reassembly loop starts at -1 (ADFA-5170), so they
+                 WebServer's reassembly loop starts at -1 (ADFA-5171), so they
                  currently serve as their first 1 MiB and nothing more.
   3. migrate  -- rewrite every `ContentTypes.compression = 'brotli'` row so it is
                  compressed against the database's own dictionary rather than
