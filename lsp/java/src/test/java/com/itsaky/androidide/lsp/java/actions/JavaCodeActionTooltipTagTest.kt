@@ -30,8 +30,9 @@ import org.junit.Test
  * Kotlin equivalent asserts on the tooltipTag property instead, which is why it kept passing while
  * ADFA-4510 was live.
  *
- * Actions pinned to "" have no authored tooltip yet. Tagging one later must be a deliberate edit
- * here, not a silent drift.
+ * Actions pinned to "" carry no tag at all. A pinned tag means the tag is wired, not that
+ * documentation.db holds content for it -- see surroundWithTryCatch below. Either way, a change
+ * here must be a deliberate edit, not silent drift.
  */
 class JavaCodeActionTooltipTagTest {
 	private val actualTags
@@ -61,8 +62,11 @@ class JavaCodeActionTooltipTagTest {
 				"ide.editor.lsp.java.removeUnusedImports" to
 					TooltipTag.EDITOR_CODE_ACTIONS_UNUSED_IMPORTS,
 				"lsp_java_organizeImports" to TooltipTag.EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS,
+				// Tag is reserved ahead of content: documentation.db has no
+				// editor.codeactions.trycatch row, so long-press renders the documentation
+				// fallback. The Kotlin twin editor.codeactions.kotlin.trycatch is authored.
 				"ide.editor.lsp.java.surroundWithTryCatch" to TooltipTag.EDITOR_CODE_ACTIONS_TRY_CATCH,
-				// No authored tooltip yet.
+				// No tag pinned.
 				"ide.editor.lsp.java.diagnostics.variableToStatement" to "",
 				"ide.editor.lsp.java.diagnostics.fieldToBlock" to "",
 				"ide.editor.lsp.java.diagnostics.removeClass" to "",
