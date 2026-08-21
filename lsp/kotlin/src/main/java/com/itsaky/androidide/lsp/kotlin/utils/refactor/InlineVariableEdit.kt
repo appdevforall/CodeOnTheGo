@@ -62,9 +62,18 @@ internal fun substitutionTextFor(
 	return if (plan.initializerNeedsParentheses) "($value)" else value
 }
 
+/**
+ * Keywords that read as identifiers but are not: `"$true"` does not parse, so the braced form is the
+ * only way to substitute one.
+ *
+ * `this` is deliberately absent -- `"$this"` is legal Kotlin, the one keyword the short form accepts.
+ */
+private val KEYWORDS_REJECTED_AFTER_DOLLAR = setOf("true", "false", "null")
+
 /** Whether [text] is a bare Kotlin identifier, and so legal after a `$` in a template. */
 internal fun isPlainIdentifier(text: String): Boolean {
 	if (text.isEmpty()) return false
+	if (text in KEYWORDS_REJECTED_AFTER_DOLLAR) return false
 	if (!(text[0].isLetter() || text[0] == '_')) return false
 	return text.all { it.isLetterOrDigit() || it == '_' }
 }

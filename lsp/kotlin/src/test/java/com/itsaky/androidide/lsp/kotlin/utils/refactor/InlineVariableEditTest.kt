@@ -27,7 +27,10 @@ class InlineVariableEditTest {
 		after: Int = 0,
 	): TextSpan {
 		var start = -1
-		repeat(after + 1) { start = text.indexOf(fragment, start + 1) }
+		repeat(after + 1) { occurrence ->
+			start = text.indexOf(fragment, start + 1)
+			require(start >= 0) { "occurrence ${occurrence + 1} of '$fragment' not found" }
+		}
 		return TextSpan(start, start + fragment.length)
 	}
 
@@ -146,6 +149,70 @@ class InlineVariableEditTest {
 			"package p\n" +
 				"fun demo(a: Int, b: Int): String {\n" +
 				"\treturn \"total: \${a + b}\"\n" +
+				"}\n",
+			apply(file, rewrites!!),
+		)
+	}
+
+	@Test
+	fun `a template entry braces a keyword initializer`() {
+		for (keyword in listOf("true", "false", "null")) {
+			val file =
+				"package p\n" +
+					"fun demo(): String {\n" +
+					"\tval flag = " + keyword + "\n" +
+					"\treturn \"flag: \$flag\"\n" +
+					"}\n"
+			val result =
+				plan(
+					fileText = file,
+					declaration = "val flag = " + keyword,
+					initializerText = keyword,
+					references = listOf(reference(file, "\$flag", isShortTemplateEntry = true)),
+					name = "flag",
+				)
+
+			val rewrites = buildInlineVariableRewrites(result, InlineMode.AllReferences)
+
+			// "$true" does not parse: the keyword reads as an identifier but is not one.
+			assertEquals(
+				"package p\n" +
+					"fun demo(): String {\n" +
+					"\treturn \"flag: \${" + keyword + "}\"\n" +
+					"}\n",
+				apply(file, rewrites!!),
+			)
+		}
+	}
+
+	@Test
+	fun `a template entry stays in short form for a bare this`() {
+		val file =
+			"package p\n" +
+				"class C {\n" +
+				"\tfun demo(): String {\n" +
+				"\t\tval self = this\n" +
+				"\t\treturn \"me: \$self\"\n" +
+				"\t}\n" +
+				"}\n"
+		val result =
+			plan(
+				fileText = file,
+				declaration = "val self = this",
+				initializerText = "this",
+				references = listOf(reference(file, "\$self", isShortTemplateEntry = true)),
+				name = "self",
+			)
+
+		val rewrites = buildInlineVariableRewrites(result, InlineMode.AllReferences)
+
+		// "$this" is the one keyword the short form accepts.
+		assertEquals(
+			"package p\n" +
+				"class C {\n" +
+				"\tfun demo(): String {\n" +
+				"\t\treturn \"me: \$this\"\n" +
+				"\t}\n" +
 				"}\n",
 			apply(file, rewrites!!),
 		)
