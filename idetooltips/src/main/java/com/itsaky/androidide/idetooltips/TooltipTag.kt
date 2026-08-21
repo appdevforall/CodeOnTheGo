@@ -131,6 +131,7 @@ object TooltipTag {
 	const val PLUGIN_MANAGER_ITEM = "plugin.manager.item"
 	const val PLUGIN_MANAGER_ITEM_MENU = "plugin.manager.item.menu"
 
+	const val EXTERNAL_FILE_INSTALL = "external.file.install"
 	const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
 	const val TEMPLATE_LEGACY_PROJECT = "template.legacy.project"
 	const val TEMPLATE_EMPTY_ACTIVITY = "template.empty.activity"
@@ -162,6 +163,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_GEN_TO_STRING_DIALOG = "editor.codeactions.gentostring.dialog"
 	const val EDITOR_CODE_ACTIONS_UNUSED_IMPORTS = "editor.codeactions.unusedimports"
 	const val EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS = "editor.codeactions.organizeimports"
+	const val EDITOR_CODE_ACTIONS_TRY_CATCH = "editor.codeactions.trycatch"
 
 	// Kotlin code actions. Tags are per-language even where the action exists in both languages,
 	// so the tooltip can describe the Kotlin behaviour (see ADFA-4730).
@@ -174,6 +176,8 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH = "editor.codeactions.kotlin.trycatch"
 	const val EDITOR_CODE_ACTIONS_KT_GOTO_DEF = "editor.codeactions.kotlin.gotodef"
 	const val EDITOR_CODE_ACTIONS_KT_FIND_REFS = "editor.codeactions.kotlin.findrefs"
+	const val EDITOR_CODE_ACTIONS_KT_EXTRACT_VARIABLE = "editor.codeactions.kotlin.extractvariable"
+	const val EDITOR_CODE_ACTIONS_KT_EXTRACT_METHOD = "editor.codeactions.kotlin.extractmethod"
 
 	const val EXIT_TO_MAIN = "exit.to.main"
 
