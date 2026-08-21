@@ -109,6 +109,8 @@ sentry.properties
 /composite-builds/build-deps/build/
 
 /app/google-services.json
+/app/keystore-debug.jks
+
 
 # Written by the gradle-plugin tests, not by a Gradle task: writeInitScript() in
 # gradle-plugin/src/test/.../utils.kt resolves FileProvider.testHomeDir() and creates
