@@ -23,7 +23,10 @@ enum class InlineExclusion {
 	/** A name the initializer reads means something else here. */
 	Shadowed,
 
-	/** The initializer reads through an implicit receiver a lambda in between replaces. */
+	/**
+	 * The initializer reads through an implicit receiver that something in between replaces: a
+	 * receiver-introducing lambda, or a class or object body whose own `this` displaces it.
+	 */
 	ReceiverShift,
 
 	/** The reference is used under a smart cast, which an expression cannot carry. */
@@ -37,8 +40,9 @@ enum class InlineExclusion {
 	UnsafeInCalleePosition,
 
 	/**
-	 * The reference is inside a body that may run after a write invalidates the cutoff -- a lambda, a
-	 * local function, or an anonymous object -- so the cutoff's textual position cannot be trusted.
+	 * The reference is inside a body that does not run once, in order, where its text sits -- a lambda, a
+	 * local function, a class or object body, or a loop body -- so once a write exists the cutoff's
+	 * textual position cannot judge it.
 	 */
 	DeferredExecution,
 }
