@@ -1,7 +1,6 @@
 package org.appdevforall.cotg.quickbuild.domain.classify
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.cotg.quickbuild.service.telemetry.report
 import org.junit.jupiter.api.Test
 
 /**
