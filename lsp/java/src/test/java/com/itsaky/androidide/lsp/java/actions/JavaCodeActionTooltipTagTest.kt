@@ -16,9 +16,9 @@
  */
 package com.itsaky.androidide.lsp.java.actions
 
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.idetooltips.TooltipTag
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -72,7 +72,7 @@ class JavaCodeActionTooltipTagTest {
 				"ide.editor.lsp.java.diagnostics.suppressUncheckedWarning" to "",
 				"ide.editor.lsp.java.diagnostics.addThrows" to "",
 			)
-		assertEquals(expected, actualTags)
+		assertThat(actualTags).containsExactlyEntriesIn(expected)
 	}
 
 	/** Guards a Java action drifting onto a Kotlin tag or some unrelated namespace. */
@@ -80,10 +80,9 @@ class JavaCodeActionTooltipTagTest {
 	fun `no java code action borrows a non java code action tag`() {
 		actualTags.forEach { (id, tag) ->
 			if (tag.isEmpty()) return@forEach
-			assertTrue(
-				"$id uses tag '$tag' outside the java code actions namespace",
-				tag.startsWith("editor.codeactions.") && !tag.startsWith("editor.codeactions.kotlin."),
-			)
+			assertWithMessage("$id uses tag '$tag' outside the java code actions namespace")
+				.that(tag.startsWith("editor.codeactions.") && !tag.startsWith("editor.codeactions.kotlin."))
+				.isTrue()
 		}
 	}
 }

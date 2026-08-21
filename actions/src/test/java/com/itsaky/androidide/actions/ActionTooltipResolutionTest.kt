@@ -19,8 +19,6 @@ package com.itsaky.androidide.actions
 import android.graphics.drawable.Drawable
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
 
 /**
  * Covers the two halves of code-action tooltip resolution that failed in ADFA-4510: finding a
@@ -31,7 +29,6 @@ import org.robolectric.RobolectricTestRunner
  * property while the render path reads `retrieveTooltipTag()`, so both must resolve to the same
  * value.
  */
-@RunWith(RobolectricTestRunner::class)
 class ActionTooltipResolutionTest {
 	private open class FakeAction(
 		override val id: String,
