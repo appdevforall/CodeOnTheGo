@@ -110,6 +110,10 @@
                     android:scheme="https"
                     android:host="www.appdevforall.org"
                     android:pathPrefix="/device/open/project/" />
+                <data
+                    android:scheme="https"
+                    android:host="appdevforall.org"
+                    android:pathPrefix="/device/open/project/" />
             </intent-filter>
         </activity>
         <activity

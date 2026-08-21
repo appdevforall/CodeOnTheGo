@@ -43,7 +43,8 @@ data class PendingFileRequest(
 
 /**
  * A parsed (but not yet resolved-to-a-path) request for
- * `https://www.appdevforall.org/device/open/project/{projectName}[/file/{filename}[/line/{n}[/column/{n}]]]`.
+ * `https://appdevforall.org/device/open/project/{projectName}[/file/{filename}[/line/{n}[/column/{n}]]]`
+ * (the `www` subdomain works identically -- see [HOSTS]).
  */
 @Parcelize
 data class DeepLinkRequest(
@@ -54,7 +55,10 @@ data class DeepLinkRequest(
 		const val EXTRA_KEY = "com.itsaky.androidide.DEEP_LINK_REQUEST"
 
 		private const val SCHEME = "https"
-		private const val HOST = "www.appdevforall.org"
+
+		// Both hosts serve an identical, verified assetlinks.json (see AndroidManifest.xml's matching
+		// pair of <data> elements on DeepLinkActivity's intent-filter) -- kept in sync with that list.
+		private val HOSTS = setOf("www.appdevforall.org", "appdevforall.org")
 		private const val PATH_PREFIX = "/device/open/project/"
 
 		private const val SEGMENT_PROJECT = "project"
@@ -118,7 +122,7 @@ data class DeepLinkRequest(
 			// non-canonical case, and a semantically valid link must not be rejected over that alone.
 			if (uri == null ||
 				!uri.scheme.equals(SCHEME, ignoreCase = true) ||
-				!uri.host.equals(HOST, ignoreCase = true) ||
+				HOSTS.none { it.equals(uri.host, ignoreCase = true) } ||
 				uri.path?.startsWith(PATH_PREFIX) != true
 			) {
 				return null

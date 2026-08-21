@@ -215,6 +215,14 @@ class DeepLinkRequestTest {
 	}
 
 	@Test
+	fun `apex host without the www subdomain also matches`() {
+		// Both hosts serve an identical, verified assetlinks.json - see AndroidManifest.xml's matching
+		// pair of <data> elements on DeepLinkActivity's intent-filter.
+		val request = parse("https://appdevforall.org/device/open/project/MyApp")
+		assertThat(request).isEqualTo(DeepLinkRequest(projectName = "MyApp"))
+	}
+
+	@Test
 	fun `wrong path prefix yields null`() {
 		assertThat(parse("https://www.appdevforall.org/some/other/path/project/MyApp")).isNull()
 	}
