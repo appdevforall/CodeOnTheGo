@@ -4,6 +4,7 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import android.os.Environment.getExternalStorageDirectory
+import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -287,6 +288,30 @@ class WebServer(
 	}
 
 	/**
+	 * Loads brotli4j's native library if nothing else has yet, and turns its absence into a failed
+	 * request rather than a dead app.
+	 *
+	 * Nothing here owns that load: it happens as a side effect of `AssetsInstallationHelper`'s
+	 * install or `ToolsManager`'s tooling-jar update, neither of which runs on an ordinary cold
+	 * start. A process that skips both -- Android restarting the app straight into the editor, say --
+	 * reaches the first brotli row with the natives unregistered, and `DecoderJNI.nativeCreate`
+	 * raises `UnsatisfiedLinkError`. Being an Error rather than an Exception, that escapes
+	 * [handleClient]'s catch and kills the app from a coroutine worker instead of failing one
+	 * request (observed on-device, 20-Aug).
+	 *
+	 * Referencing [Brotli4jLoader] triggers the static init that performs the load, so this call is
+	 * the warm-up; afterwards `ensureAvailability` is a single static null-check, cheap enough to
+	 * leave on the per-decode path rather than tracking "warmed" state of our own.
+	 */
+	private fun ensureBrotliAvailable() {
+		try {
+			Brotli4jLoader.ensureAvailability()
+		} catch (e: UnsatisfiedLinkError) {
+			throw IOException("brotli4j's native library is unavailable, so brotli content cannot be decoded", e)
+		}
+	}
+
+	/**
 	 * Decompresses one Brotli-compressed Content row. Tries the shared dictionary first, since every
 	 * ADFA-5153-migrated row requires it, then falls back to a plain decode for rows that were never
 	 * dictionary-compressed: plugin-contributed Tier 3 docs (PluginDocumentationManager/BrotliCompressor
@@ -296,6 +321,7 @@ class WebServer(
 	 * this ordering never lets a dictionary-compressed row fall through to the plain path by accident.
 	 */
 	private fun decompressBrotli(chunks: List<ByteArray>): ByteArray {
+		ensureBrotliAvailable()
 		val dictionary = compressionDictionary
 		if (dictionary != null) {
 			try {
