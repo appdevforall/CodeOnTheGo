@@ -40,7 +40,7 @@ Four files we must edit are space-indented. Reformatting them is mechanical and 
 - [ ] **Step 1: Make each file differ from `origin/stage` so the ratchet picks it up**
 
 ```bash
-cd /Users/eisen/src/cogo/ADFA-4510
+cd "$(git rev-parse --show-toplevel)"
 for f in actions/src/main/java/com/itsaky/androidide/actions/ActionItem.kt \
          actions/src/main/java/com/itsaky/androidide/actions/ActionMenu.kt \
          lsp/java/src/main/java/com/itsaky/androidide/lsp/java/actions/diagnostics/VariableToStatementAction.kt \
@@ -789,8 +789,21 @@ Static analysis and unit tests cannot prove a popup renders. This task confirms 
 Fresh worktrees lack `app/google-services.json`, and `:app:processV8DebugGoogleServices` fails without it. It should already be present from worktree setup; confirm.
 
 ```bash
-ls -la /Users/eisen/src/cogo/ADFA-4510/app/google-services.json \
-  || cp /Users/eisen/src/CodeOnTheGo/app/google-services.json /Users/eisen/src/cogo/ADFA-4510/app/google-services.json
+repo_root="$(git rev-parse --show-toplevel)"
+
+# Already there? Nothing to do.
+if [ ! -f "$repo_root/app/google-services.json" ]; then
+  # Name the donor checkout explicitly -- never guess a sibling path, or you can
+  # copy Firebase config from an unrelated project into this build.
+  : "${GOOGLE_SERVICES_SRC:?set GOOGLE_SERVICES_SRC to an existing app/google-services.json}"
+  [ -f "$GOOGLE_SERVICES_SRC" ] || {
+    echo "not a file: $GOOGLE_SERVICES_SRC" >&2
+    exit 1
+  }
+  cp "$GOOGLE_SERVICES_SRC" "$repo_root/app/google-services.json"
+fi
+
+ls -la "$repo_root/app/google-services.json"
 ```
 
 - [ ] **Step 2: Run the full unit test sweep for the touched modules**
