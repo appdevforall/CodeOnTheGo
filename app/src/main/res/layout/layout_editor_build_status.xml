@@ -17,6 +17,7 @@
 		android:id="@+id/statusText"
 		android:layout_width="0dp"
 		android:layout_height="wrap_content"
+		android:ellipsize="end"
 		android:gravity="center"
 		android:maxLines="1"
 		android:paddingStart="16dp"
