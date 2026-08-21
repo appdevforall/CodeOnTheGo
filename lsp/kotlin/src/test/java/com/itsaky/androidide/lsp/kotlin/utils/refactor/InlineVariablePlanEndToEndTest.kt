@@ -662,6 +662,100 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a reference in a local class property initializer is excluded once a write exists`() {
+		val content =
+			"""
+			package p
+			fun println(n: Int) {}
+			fun demo() {
+				var i = 0
+				val step = i + 1
+				class L {
+					val y = step
+				}
+				i = 5
+				println(L().y)
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val step") + "val ".length)
+
+		/*
+		 * The initializer runs when L is constructed, which is after the write, so a purely textual
+		 * cutoff would call the reference inlinable and delete the declaration too, printing 6 instead
+		 * of 1.
+		 */
+		assertEquals(InlineExclusion.DeferredExecution, result.references.single().exclusion)
+		assertEquals(false, result.canDeleteDeclaration)
+	}
+
+	@Test
+	fun `a reference in a local class init block is excluded once a write exists`() {
+		val content =
+			"""
+			package p
+			fun println(n: Int) {}
+			fun demo() {
+				var i = 0
+				val step = i + 1
+				class L {
+					init {
+						println(step)
+					}
+				}
+				i = 5
+				L()
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val step") + "val ".length)
+
+		assertEquals(InlineExclusion.DeferredExecution, result.references.single().exclusion)
+	}
+
+	@Test
+	fun `a reference in a local class constructor parameter default is excluded once a write exists`() {
+		val content =
+			"""
+			package p
+			fun println(n: Int) {}
+			fun demo() {
+				var i = 0
+				val step = i + 1
+				class L(val n: Int = step)
+				i = 5
+				println(L().n)
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val step") + "val ".length)
+
+		assertEquals(InlineExclusion.DeferredExecution, result.references.single().exclusion)
+	}
+
+	@Test
+	fun `a reference in a local class method body is excluded once a write exists`() {
+		val content =
+			"""
+			package p
+			fun println(n: Int) {}
+			fun demo() {
+				var i = 0
+				val step = i + 1
+				class L {
+					fun y() = println(step)
+				}
+				i = 5
+				L().y()
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "val step") + "val ".length)
+
+		assertEquals(InlineExclusion.DeferredExecution, result.references.single().exclusion)
+	}
+
+	@Test
 	fun `a reference inside an anonymous object body is left untouched`() {
 		val content =
 			"""

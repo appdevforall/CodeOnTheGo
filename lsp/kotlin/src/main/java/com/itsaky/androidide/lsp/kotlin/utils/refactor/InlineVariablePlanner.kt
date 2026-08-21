@@ -33,7 +33,6 @@ import org.jetbrains.kotlin.psi.KtLambdaExpression
 import org.jetbrains.kotlin.psi.KtLoopExpression
 import org.jetbrains.kotlin.psi.KtNamedDeclaration
 import org.jetbrains.kotlin.psi.KtNamedFunction
-import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.kotlin.psi.KtObjectLiteralExpression
 import org.jetbrains.kotlin.psi.KtParenthesizedExpression
 import org.jetbrains.kotlin.psi.KtPostfixExpression
@@ -563,9 +562,10 @@ private fun isCallee(reference: KtSimpleNameExpression): Boolean = (reference.pa
 
 /**
  * Whether [reference] sits inside a body that does not run once, in order, at the offset where its
- * text sits: a lambda, a local function, an anonymous object -- all of which run later -- or a loop
- * body, which runs again after everything textually below it. Once a write exists at all, the cutoff's
- * textual position cannot judge such a reference, so it is excluded outright.
+ * text sits: a lambda, a local function, a class or object body -- all of which run later, the class
+ * body at construction time -- or a loop body, which runs again after everything textually below it.
+ * Once a write exists at all, the cutoff's textual position cannot judge such a reference, so it is
+ * excluded outright.
  *
  * A loop that contains the declaration is not one of these: the walk stops at the first ancestor of
  * [target], so the value is recomputed on every iteration alongside the reference.
@@ -578,7 +578,7 @@ private fun runsOutOfTextualOrder(
 	while (current != null && !PsiTreeUtil.isAncestor(current, target, false)) {
 		if (current is KtFunctionLiteral ||
 			current is KtNamedFunction ||
-			current is KtObjectDeclaration ||
+			current is KtClassOrObject ||
 			current is KtLoopExpression
 		) {
 			return true
