@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,10 +49,16 @@ fun InlineVariableSheetContent(
 	modifier: Modifier = Modifier,
 ) {
 	Column(
+		/*
+		 * Scrollable because everything here grows: at font scale 2.0 both mode labels wrap, and the
+		 * value below renders an arbitrarily long initializer verbatim. Without it the Cancel row is
+		 * pushed off the sheet with no way back to it.
+		 */
 		modifier =
 			modifier
 				.fillMaxWidth()
 				.navigationBarsPadding()
+				.verticalScroll(rememberScrollState())
 				.padding(horizontal = 24.dp, vertical = 16.dp),
 		verticalArrangement = Arrangement.spacedBy(16.dp),
 	) {

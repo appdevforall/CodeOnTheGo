@@ -113,6 +113,7 @@ class InlineVariableAction : BaseKotlinCodeAction() {
 		val shown = InlineVariableSheet.show(activity, result) { mode -> applyMode(data, result, mode) }
 		if (!shown) {
 			logger.warn("Fragment manager unavailable. Cannot show the inline sheet.")
+			flashError(R.string.msg_cannot_perform_fix)
 		}
 	}
 
@@ -157,6 +158,7 @@ class InlineVariableAction : BaseKotlinCodeAction() {
 		val client =
 			data.languageClient ?: run {
 				logger.warn("No language client set. Cannot inline variable.")
+				flashError(R.string.msg_cannot_perform_fix)
 				return
 			}
 
