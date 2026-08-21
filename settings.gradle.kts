@@ -141,6 +141,7 @@ include(
 	":lsp:ui",
 	":lsp:xml",
 	":profiler",
+	":quickbuild:protocol",
 	":subprojects:aapt2-proto",
 	":subprojects:aaptcompiler",
 	":subprojects:builder-model-impl",
