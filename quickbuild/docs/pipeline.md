@@ -435,7 +435,7 @@ flowchart TB
         exec["Run the live reload route<br/><i>(LiveReloadExecutorImpl) route -> daemon ops + deploy</i>"]
         client["Talk to the daemon<br/><i>(DaemonProcessClient) one request in flight</i>"]
         assets["Package changed assets<br/><i>(AssetPackager) staged in the scratch work dir</i>"]
-        policy["Decide hot swap vs restart<br/><i>(DeployPolicy) service/provider/Application -> restart</i>"]
+        policy["Decide hot swap vs restart<br/><i>(DeployPolicy) service/provider/Application -> restart,<br/>except the components CoGo injects</i>"]
         deployer["Hand the payload over<br/><i>(PayloadDeployer) hot swap, restart, retry once</i>"]
         gen[("Generation counter<br/><i>(GenerationTracker + FileGenerationStore) monotone</i>")]
         timeline["Stamp host spans<br/><i>(E2eTimelineRecorder) residual = untimed work</i>"]
@@ -513,7 +513,7 @@ flowchart TB
     classDef out fill:#eef,stroke-width:1.5px
 ```
 
-A repeated *pipeline* fault (not a compile error) escalates to a proxy-app rebuild once (`ESCALATE_AFTER_IDENTICAL_FAILURES = 2`), then the latch stays spent so it cannot loop. `DeployPolicy` walks each restart-sensitive component's supertype closure against the recompiled class set; a `null` changed-set is answered conservatively (restart if any such component exists).
+A repeated *pipeline* fault (not a compile error) escalates to a proxy-app rebuild once (`ESCALATE_AFTER_IDENTICAL_FAILURES = 2`), then the latch stays spent so it cannot loop. `DeployPolicy` ignores the recompiled set entirely - the payload is the whole class set either way - and restarts whenever the app *declares* a service, provider or custom `Application`, excluding the components CoGo injects (see [live-reload-alternatives.md](live-reload-alternatives.md)).
 
 Routing. The classifier picks the cheapest still-correct route from the coalesced set by path shape; the first path that demands a full build wins for the whole set:
 

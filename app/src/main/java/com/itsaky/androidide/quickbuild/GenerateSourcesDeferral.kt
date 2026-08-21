@@ -1,6 +1,7 @@
 package com.itsaky.androidide.quickbuild
 
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -123,9 +124,24 @@ class GenerateSourcesDeferral(
 	 * this used to do - dropped the request with nothing left to retry it, so a resource save
 	 * that happened to land during someone else's build left the Java LSP's R symbols stale
 	 * until the next save.
+	 *
+	 * A throw from the build request counts as a refusal. It reaches here from three places: the
+	 * save call site synchronously (where it would surface as a failed *save*), and two
+	 * coroutines in [scope] (where an uncaught throw cancels the scope, taking the state
+	 * collection with it - so every later save silently loses its build for the rest of the
+	 * process). Neither is worth risking for a symbol-freshness build the reload pipeline does
+	 * not consume.
 	 */
 	private fun release() {
-		val dispatched = runBuild()
+		val dispatched =
+			try {
+				runBuild()
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Throwable) {
+				log.warn("generateSources threw; treating it as a refusal", e)
+				false
+			}
 		synchronized(lock) {
 			if (dispatched) {
 				pending = false

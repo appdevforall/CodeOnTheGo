@@ -187,7 +187,15 @@ object SourceAnnotationScanner {
 			}
 		}
 		if (state != State.CODE) return null
-		return Prepared(code.toString().lines(), mask.toString().lines())
+		val codeLines = code.toString().lines()
+		val maskLines = mask.toString().lines()
+		// Every index into the mask is a line index, so the two line counts must agree. A
+		// backslash-escaped line break inside a single-quoted literal appends the newline to
+		// `code` but MASKED to `mask`, and scanning past that indexes the mask out of bounds -
+		// which, on this call path, is an uncaught throw in a handler-less scope. Illegal in both
+		// languages, so bail like any other structural surprise rather than guess.
+		if (codeLines.size != maskLines.size) return null
+		return Prepared(codeLines, maskLines)
 	}
 
 	private enum class State { CODE, BLOCK_COMMENT, STRING, RAW_STRING }

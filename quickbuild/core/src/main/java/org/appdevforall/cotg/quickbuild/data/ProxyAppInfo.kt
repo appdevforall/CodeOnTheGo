@@ -4,6 +4,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import org.appdevforall.cotg.quickbuild.domain.reload.ComponentInfo
 import org.appdevforall.cotg.quickbuild.domain.reload.ComponentKind
+import org.appdevforall.cotg.quickbuild.protocol.ConfigureRequest
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -83,6 +84,14 @@ data class ProxyAppInfo(
 	 * setup.json or a build whose AGP version/variant never produced them.
 	 */
 	val libraryResourceFlats: List<File> = emptyList(),
+	/**
+	 * The API level the proxy app build dexed the seed payload at (`setup.json` `minApi`) -
+	 * `max(the project's minSdk, the Quick Build floor)`. Every increment the daemon dexes
+	 * patches that baseline, so it must use the same level. Falls back to
+	 * [ConfigureRequest.DEFAULT_MIN_API] on an older setup.json that carries no such key, which
+	 * is what the daemon assumed unconditionally before the field existed.
+	 */
+	val minApi: Int = ConfigureRequest.DEFAULT_MIN_API,
 ) {
 	/** True when [schema] is at least [COMPONENT_SCHEMA_VERSION]. */
 	val supportsComponentInfo: Boolean
@@ -173,6 +182,13 @@ data class ProxyAppInfo(
 				sourceRoots = obj.stringArray("sourceRoots").map { resolve(it, baseDir) },
 				stableIdsFile = obj.firstString("stableIdsPath")?.let { resolve(it, baseDir) },
 				libraryResourceFlats = obj.stringArray("libraryResourcePaths").map { resolve(it, baseDir) },
+				// Absent (older setup.json) or an explicit null both fall back to the
+				// protocol default - the level the daemon used before this was published.
+				minApi =
+					obj
+						.get("minApi")
+						?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+						?.asInt ?: ConfigureRequest.DEFAULT_MIN_API,
 			)
 		}
 

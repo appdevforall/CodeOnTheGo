@@ -20,15 +20,13 @@ import org.appdevforall.cotg.quickbuild.service.MemoryGenerationStore
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import java.io.ByteArrayOutputStream
-import java.io.DataOutputStream
 import java.io.File
 
 /**
  * Edge paths of [LiveReloadExecutorImpl] beyond [LiveReloadExecutorImplTest]'s route
  * coverage: the outer pipeline-failure guard, relink failures on the resource routes,
- * source-extension filtering, the transformed-manifest preference, and the deploy
- * policy's tolerance of unreadable class headers.
+ * source-extension filtering, the transformed-manifest preference, and the deploy policy's
+ * effect on the metadata a deploy carries.
  */
 class LiveReloadExecutorImplEdgeTest {
 	@TempDir lateinit var projectRoot: File
@@ -208,10 +206,32 @@ class LiveReloadExecutorImplEdgeTest {
 		}
 
 	@Test
-	fun `an unreadable changed class is skipped and the deploy still lands`() =
+	fun `a helper-only edit sends restart metadata when the app declares a service`() =
 		runTest {
-			// The policy is live (a service exists) but the recompiled class's header cannot
-			// be read - the classes dir is fake. The pass must skip it, not fail the build.
+			// The end-to-end half of the restart rule: nothing about this edit names the
+			// service, and the deploy must still carry `restart` because the payload it ships
+			// redefines the service class along with everything else.
+			daemon.compileReply =
+				DaemonReply.Ok(
+					CompileOutput(File("/fake/classes"), listOf("com/example/Helper.class")),
+				)
+
+			executor(
+				deployPolicy =
+					DeployPolicy(
+						listOf(ComponentInfo(ComponentKind.SERVICE, "com.example.SyncService")),
+					),
+			).execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			val metadata = JsonParser.parseString(deploy.calls.single().metadataJson).asJsonObject
+			assertThat(metadata.get("restart").asString).isEqualTo("true")
+		}
+
+	@Test
+	fun `the same edit hot-swaps when the app declares no held component`() =
+		runTest {
+			// The negative control for the test above: same edit, same pipeline, a component
+			// list with nothing a loader swap cannot update.
 			daemon.compileReply =
 				DaemonReply.Ok(
 					CompileOutput(File("/fake/classes"), listOf("com/example/Helper.class")),
@@ -221,57 +241,19 @@ class LiveReloadExecutorImplEdgeTest {
 				executor(
 					deployPolicy =
 						DeployPolicy(
-							listOf(ComponentInfo(ComponentKind.SERVICE, "com.example.SyncService")),
+							listOf(
+								ComponentInfo(
+									ComponentKind.ACTIVITY,
+									"com.example.MainActivity",
+									proxyClass = "com.example.quickbuild.proxies.Proxy0Activity",
+									launcher = true,
+								),
+							),
 						),
 				).execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
 
 			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 0))
 			val metadata = JsonParser.parseString(deploy.calls.single().metadataJson).asJsonObject
-			// A helper-only edit hot-swaps: no restart metadata despite the live policy.
 			assertThat(metadata.has("restart")).isFalse()
 		}
-
-	@Test
-	fun `a changed class without a superclass feeds the policy without crashing the pass`() =
-		runTest {
-			// A real (hand-built) class file whose super_class is 0 - the java/lang/Object
-			// shape. listOfNotNull must drop the null super, not throw.
-			val classesDir = File(projectRoot, "daemon-out/classes")
-			val rootClass = File(classesDir, "com/example/RootType.class")
-			rootClass.parentFile!!.mkdirs()
-			rootClass.writeBytes(classBytesWithoutSuper("com/example/RootType"))
-			daemon.compileReply =
-				DaemonReply.Ok(CompileOutput(classesDir, listOf("com/example/RootType.class")))
-
-			val outcome =
-				executor(
-					deployPolicy =
-						DeployPolicy(
-							listOf(ComponentInfo(ComponentKind.SERVICE, "com.example.SyncService")),
-						),
-				).execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
-
-			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 0))
-			assertThat(deploy.calls).hasSize(1)
-		}
-
-	/** Minimal class file: one Utf8 + one Class entry, this_class set, super_class 0. */
-	private fun classBytesWithoutSuper(internalName: String): ByteArray {
-		val bytes = ByteArrayOutputStream()
-		DataOutputStream(bytes).use { out ->
-			out.writeInt(-0x35014542) // 0xCAFEBABE
-			out.writeShort(0)
-			out.writeShort(52)
-			out.writeShort(3) // constant_pool_count = entries + 1
-			out.writeByte(1) // Utf8
-			out.writeUTF(internalName)
-			out.writeByte(7) // Class -> #1
-			out.writeShort(1)
-			out.writeShort(0x0021) // access
-			out.writeShort(2) // this_class -> #2
-			out.writeShort(0) // super_class: none
-			out.writeShort(0) // interfaces_count
-		}
-		return bytes.toByteArray()
-	}
 }

@@ -99,9 +99,26 @@ sealed interface BuildOutcome {
 	 *
 	 * @property diagnostics every compiler message, warnings included; equality across two
 	 *   builds is what the orchestrator's duplicate-follow-up guard turns on.
+	 * @property kotlinDeclaredChanged Kotlin sources the daemon declared changed to its engine,
+	 *   or null when it reported none. 0 vs >= 1 separates two causes of a stale mixed-language
+	 *   output: 0 means the edit never entered the dirty set, so the fix is upstream in
+	 *   changed-set assembly; >= 1 means it did and the staleness is downstream. Null is
+	 *   ABSENT, never a measured zero.
+	 * @property allSources the source set this compile was handed - [kotlinDeclaredChanged]'s
+	 *   denominator, without which "0" cannot be read.
+	 * @property javaSources `.java` count, all of which javac recompiles every build.
+	 *
+	 * These are DIAGNOSTIC counts for the bench feed, deliberately plain numbers rather than the
+	 * daemon's `CompileStats`: no file in this domain package imports the wire protocol, and a
+	 * counter is a poor reason to be the first. They must NOT be threaded into `SessionFailure`
+	 * - that boundary is what keeps them out of the user-facing Build Output pane, which
+	 *   consumes `SessionFailure` and should never show an engine statistic.
 	 */
 	data class CompileError(
 		val diagnostics: List<BuildDiagnostic>,
+		val kotlinDeclaredChanged: Int? = null,
+		val allSources: Int? = null,
+		val javaSources: Int? = null,
 	) : BuildOutcome
 
 	/**

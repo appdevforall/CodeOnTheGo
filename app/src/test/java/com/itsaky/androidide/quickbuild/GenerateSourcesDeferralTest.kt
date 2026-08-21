@@ -26,12 +26,14 @@ class GenerateSourcesDeferralTest {
 	private var builds = 0
 	private var attempts = 0
 	private var dispatch = true
+	private var throwOnBuild: Throwable? = null
 
 	private fun TestScope.deferral(): GenerateSourcesDeferral =
 		GenerateSourcesDeferral(
 			scope = backgroundScope,
 			runBuild = {
 				attempts++
+				throwOnBuild?.let { throw it }
 				if (dispatch) builds++
 				dispatch
 			},
@@ -268,4 +270,39 @@ class GenerateSourcesDeferralTest {
 		/** One initial release plus GenerateSourcesDeferral's MAX_REFUSALS retries. */
 		private const val MAX_ATTEMPTS = 6
 	}
+
+	@Test
+	fun `a throwing build request is a refusal, not a lost save path or a dead collector`() =
+		runTest {
+			// generateSources reaches a tooling server over IPC and can throw rather than
+			// early-return. The throw travelled two ways: out of the SAVE call site (surfacing
+			// as a failed save for a build the reload pipeline never consumes), and out of the
+			// grace-timer coroutine, cancelling the scope - which takes the session-state
+			// collection with it, so every LATER save in the process silently loses its build.
+			val deferral = deferral()
+			val state = MutableStateFlow<QuickBuildSessionState>(QuickBuildSessionState.Idle())
+			deferral.attach(state)
+			runCurrent()
+
+			throwOnBuild = IllegalStateException("tooling server is gone")
+			deferral.onResourceSaved()
+			assertThat(attempts).isEqualTo(1)
+			assertThat(builds).isEqualTo(0)
+
+			// The request survived as a refusal: it retries on the grace timer, which proves
+			// the scope is alive.
+			throwOnBuild = null
+			advanceTimeBy(GRACE + 1)
+			runCurrent()
+			assertThat(builds).isEqualTo(1)
+
+			// And the state collector still runs, so a later park/release still works.
+			state.value = QuickBuildSessionState.Building(1L)
+			runCurrent()
+			deferral.onResourceSaved()
+			assertThat(builds).isEqualTo(1)
+			state.value = QuickBuildSessionState.Idle()
+			runCurrent()
+			assertThat(builds).isEqualTo(2)
+		}
 }

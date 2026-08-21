@@ -135,7 +135,7 @@ class AnalyticsQuickBuildMetricsSink(
 				d8Ms = timeline.steps?.d8Millis,
 				walkMs = timeline.steps?.walkMillis,
 				javaAbiSnapMs = timeline.steps?.javaAbiSnapMillis,
-				kotlinCompiled = timeline.counts?.kotlinCompiled,
+				kotlinDeclaredChanged = timeline.counts?.kotlinDeclaredChanged,
 				changedClasses = timeline.counts?.changedClasses,
 				compileOrdinal = timeline.counts?.compileOrdinal,
 				scratchFs = timeline.scratchFsType,

@@ -1048,6 +1048,7 @@
 	<string name="cd_quick_build">Quick Build</string>
 	<string name="quick_build_action_label">Quick Build</string>
 	<string name="quick_build_error">Quick Build: %1$s</string>
+	<string name="quick_build_standard_build_in_progress">Standard build in progress</string>
 	<string name="quick_build_menu_restart_session">Restart session</string>
 	<string name="quick_build_switch_to_quick_title">Replace the installed app?</string>
 	<string name="quick_build_switch_to_quick_message">%1$s is a regular APK installed by the standard Run button. Quick Build will replace it with a proxy app designed for live reloads without reinstalling. Use the Run button to restore a normal APK.</string>
@@ -1058,6 +1059,7 @@
 	<string name="quick_build_switch_confirm">Replace</string>
 	<string name="quick_build_reload_crashed">Your app crashed on the last reload. Fix the crash and save. If it keeps crashing, Quick Build cannot clear a bad reload on its own - long-press Quick Build and choose Restart session.</string>
 	<string name="quick_build_relink_stuck">This resource error is now blocking every save, even code-only ones - Quick Build rebuilds all of your resources on each reload. Fix it and save. If the error names something you cannot change, long-press Quick Build and choose Restart session.</string>
+	<string name="quick_build_test_source_ignored">Saved. Quick Build does not deploy test sources - nothing under src/test, src/androidTest or testFixtures is part of the app it builds. Run your tests from a build task instead.</string>
 	<string name="quick_build_stale_component_helpers">Reloaded. A running service, content provider or Application object can still be calling the previous version of the code you changed, until it restarts - close and reopen your app to be sure.</string>
 	<string name="quick_build_provisioning">Quick Build: running initial full build</string>
 	<string name="quick_build_rebuilding">Quick Build: rebuilding app</string>
@@ -1086,6 +1088,7 @@
 	<string name="quick_build_non_debuggable_variant">Quick Build needs a debuggable build variant, and \"%1$s\" is a release variant. Open Build Variants in the sidebar and select a debug variant.</string>
 	<string name="quick_build_variant_setup_missing">Quick Build could not set up \"%1$s\". If that variant is not debuggable, open Build Variants in the sidebar and select a debug variant.</string>
 	<string name="quick_build_setup_failed">Quick Build setup failed. Check the Build Output for what went wrong.</string>
+	<string name="quick_build_slot_busy">Another build is running. Wait for it to finish, then start Quick Build again.</string>
 	<string name="quick_build_rebuild_failed">Quick Build could not rebuild your app. Check the Build Output for what went wrong.</string>
 	<string name="quick_build_reinstall_return_to_cogo">Your app needs a reinstall - return to CoGo to confirm.</string>
 	<string name="quick_build_reinstall_declined">Your app needs a reinstall - the install prompt was cancelled. Tap Quick Build to try again.</string>

@@ -135,7 +135,7 @@ data class QuickBuildReloadTimingMetric(
 	val walkMs: Long? = null,
 	val javaAbiSnapMs: Long? = null,
 	/** Scale of the build, for reading a slow row. */
-	val kotlinCompiled: Int? = null,
+	val kotlinDeclaredChanged: Int? = null,
 	val changedClasses: Int? = null,
 	/** 1 = the daemon session's cold build; above 1 = a warm edit. */
 	val compileOrdinal: Long? = null,
@@ -166,7 +166,7 @@ data class QuickBuildReloadTimingMetric(
 			d8Ms?.let { putLong("d8_ms", it) }
 			walkMs?.let { putLong("walk_ms", it) }
 			javaAbiSnapMs?.let { putLong("java_abi_snap_ms", it) }
-			kotlinCompiled?.let { putInt("n_kotlin_compiled", it) }
+			kotlinDeclaredChanged?.let { putInt("n_kotlin_declared_changed", it) }
 			changedClasses?.let { putInt("n_changed_classes", it) }
 			compileOrdinal?.let { putLong("compile_ordinal", it) }
 			scratchFs?.let { putString("scratch_fs", it) }

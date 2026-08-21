@@ -154,6 +154,11 @@ fun Activity.flashError(msg: String?) = showFlashBar(msg, IconType.ERROR, durati
 
 fun Activity.flashInfo(msg: String?) = showFlashBar(msg, IconType.INFO)
 
+// A 1 s bar (the default) is gone before a sentence can be read. For an informational
+// message that fires once and explains why something did NOT happen, the longer duration
+// is the difference between an explanation and a flicker.
+fun Activity.flashInfoLong(msg: String?) = showFlashBar(msg, IconType.INFO, duration = DURATION_LONG)
+
 /**
  * Like [showFlashBar], but suspends until the bar's entrance animation has actually finished (or
  * [FLASH_SHOWN_TIMEOUT_MS] elapses) instead of firing-and-forgetting - for callers (e.g. a

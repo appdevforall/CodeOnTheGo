@@ -58,6 +58,10 @@ class ComponentProxiabilityResolverTest {
 		assertThat(resolver.resolve("anything.at.All")).isEqualTo(ComponentProxiabilityResolver.Resolution.Proxiable)
 		assertThat(resolver.resolve("androidx.startup.InitializationProvider"))
 			.isInstanceOf(ComponentProxiabilityResolver.Resolution.Skip::class.java)
+		// Same self-lookup-by-name shape as InitializationProvider: renaming it makes Firebase
+		// discover zero ComponentRegistrars, and initialization silently no-ops.
+		assertThat(resolver.resolve("com.google.firebase.components.ComponentDiscoveryService"))
+			.isInstanceOf(ComponentProxiabilityResolver.Resolution.Skip::class.java)
 	}
 
 	@Test

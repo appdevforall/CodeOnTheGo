@@ -27,6 +27,50 @@ class PayloadPersistenceQuarantineTest {
 	File temp;
 
 	@Test
+	void aGenerationThatAlreadyRanIsNotQuarantined() throws IOException {
+		// It reached the screen once, so a fresh process booting it does not repeat whatever
+		// failed later - and quarantining it would throw away the fallback along with the
+		// fault, which is how the good generations got swept up on device.
+		PayloadPersistence store = store();
+		store.persist(7, FP, bytes("dex7"), null, null);
+		store.markGood(7);
+
+		store.quarantine(7);
+
+		assertThat(new File(store.dir(), PayloadPersistence.QUARANTINE_FILE).exists()).isFalse();
+		assertThat(store.load(FP).generation).isEqualTo(7);
+	}
+
+	@Test
+	void aLastGoodSetForAnotherBaselineIsNotBooted() throws IOException {
+		// A reinstall or rebaseline changes the fingerprint; the fallback must not outlive
+		// the baseline its classes were compiled against any more than the published set does.
+		PayloadPersistence store = store();
+		store.persist(7, FP, bytes("dex7"), null, null);
+		store.markGood(7);
+		store.persist(8, FP, bytes("dex8"), null, null);
+		store.quarantine(8);
+
+		assertThat(store.load("a-different-baseline")).isNull();
+		assertThat(store.dir().exists()).isFalse();
+	}
+
+	@Test
+	void aLastGoodSetNamingAMissingFileDiscardsTheStore() throws IOException {
+		PayloadPersistence store = store();
+		store.persist(7, FP, bytes("dex7"), null, null);
+		store.markGood(7);
+		store.persist(8, FP, bytes("dex8"), null, null);
+		store.quarantine(8);
+		assertThat(new File(store.dir(),
+				PayloadPersistence.payloadFileName(PayloadPersistence.KIND_DEX, 7)).delete()).isTrue();
+
+		// A meta claiming a generation it cannot serve is corruption, not a plain absence.
+		assertThat(store.load(FP)).isNull();
+		assertThat(store.dir().exists()).isFalse();
+	}
+
+	@Test
 	void anUnreadableMarkerIsIgnoredRatherThanBlockingEveryBoot() throws IOException {
 		PayloadPersistence store = store();
 		store.persist(4, FP, bytes("dex4"), null, null);
@@ -39,17 +83,56 @@ class PayloadPersistenceQuarantineTest {
 	}
 
 	@Test
-	void aQuarantinedGenerationIsRefusedAndTheStoreDiscarded() throws IOException {
+	void aQuarantinedGenerationWithNothingGoodBehindItDiscardsTheStore() throws IOException {
 		PayloadPersistence store = store();
 		store.persist(7, FP, bytes("dex7"), bytes("arsc7"), null);
 
 		store.quarantine(7);
 
-		// Nothing to adopt, so the process boots the gen-0 baseline - the code the
-		// installed APK already carries - and reports generation 0, which is what makes
-		// CoGo redeploy instead of leaving the app dead.
+		// Nothing ever reached the screen, so there is nothing to fall back to: the process
+		// boots the gen-0 baseline - the code the installed APK already carries - and reports
+		// generation 0, which is what makes CoGo redeploy instead of leaving the app dead.
 		assertThat(store.load(FP)).isNull();
 		assertThat(store.dir().exists()).isFalse();
+	}
+
+	@Test
+	void aQuarantineFallsBackToTheLastGenerationThatRan() throws IOException {
+		// The measured cascade: generation 14 crashed, the app rebooted on install-time code
+		// six saves behind, CoGo re-sent its retained payload onto that baseline, and the
+		// second crash ended at the system's "app keeps stopping" dialog. Landing on 7
+		// instead means the app comes back where the session already is, so nothing is
+		// re-sent and nothing crashes twice.
+		PayloadPersistence store = store();
+		store.persist(7, FP, bytes("dex7"), bytes("arsc7"), null);
+		store.markGood(7);
+		store.persist(8, FP, bytes("dex8"), null, null);
+
+		store.quarantine(8);
+
+		PayloadPersistence.Loaded loaded = store.load(FP);
+		assertThat(loaded).isNotNull();
+		assertThat(loaded.generation).isEqualTo(7);
+		assertThat(loaded.dex).isEqualTo(bytes("dex7"));
+		// Its resources come back with it, not generation 8's.
+		assertThat(loaded.arscFile.getName())
+				.isEqualTo(PayloadPersistence.payloadFileName(PayloadPersistence.KIND_ARSC, 7));
+	}
+
+	@Test
+	void aRestartedGenerationCounterDropsTheFallbackFromTheOldSequence() throws IOException {
+		// The project's state dir was wiped while the app stayed installed, so numbering
+		// restarts. Falling back to 13 from the old sequence would boot an older build under
+		// a higher number - the one mismatch direction the store cannot make safe.
+		PayloadPersistence store = store();
+		store.persist(13, FP, bytes("dex13"), null, null);
+		store.markGood(13);
+
+		store.persist(3, FP, bytes("dex3"), null, null);
+
+		assertThat(new File(store.dir(), PayloadPersistence.GOOD_FILE).exists()).isFalse();
+		store.quarantine(3);
+		assertThat(store.load(FP)).isNull();
 	}
 
 	@Test
@@ -65,6 +148,50 @@ class PayloadPersistenceQuarantineTest {
 
 		assertThat(new File(store.dir(), PayloadPersistence.QUARANTINE_FILE).exists()).isFalse();
 		assertThat(store.load(FP).generation).isEqualTo(8);
+	}
+
+	@Test
+	void markGoodIgnoresAGenerationTheStoreNoLongerPublishes() throws IOException {
+		// A late confirmation for a superseded generation must not record 7's files as the
+		// fallback while the store publishes 8 - the two would disagree about what is live.
+		PayloadPersistence store = store();
+		store.persist(7, FP, bytes("dex7"), null, null);
+		store.persist(8, FP, bytes("dex8"), null, null);
+
+		assertThat(store.markGood(7)).isFalse();
+
+		assertThat(new File(store.dir(), PayloadPersistence.GOOD_FILE).exists()).isFalse();
+	}
+
+	@Test
+	void markGoodNeverThrowsWhenTheStoreCannotBeWritten() throws IOException {
+		File blocked = new File(temp, "payload");
+		Files.write(blocked.toPath(), bytes("not a dir"));
+		PayloadPersistence store = new PayloadPersistence(blocked);
+
+		assertDoesNotThrow(new org.junit.jupiter.api.function.Executable() {
+
+			@Override
+			public void execute() {
+				// Reported as a failure rather than swallowed: the caller keeps treating the
+				// generation as unproven, since nothing was written for a quarantine to reach.
+				assertThat(store.markGood(3)).isFalse();
+			}
+		});
+	}
+
+	@Test
+	void markGoodReportsWhetherTheFallbackNowNamesTheGeneration() throws IOException {
+		// The crash guard stops blaming a generation exactly when this says yes, so "recorded"
+		// and "already recorded" have to answer the same way - a second confirmation writes
+		// nothing and must still mean the fallback is in place.
+		PayloadPersistence store = store();
+		store.persist(7, FP, bytes("dex7"), null, null);
+
+		assertThat(store.markGood(7)).isTrue();
+		assertThat(store.markGood(7)).isTrue();
+
+		assertThat(new File(store.dir(), PayloadPersistence.GOOD_FILE).isFile()).isTrue();
 	}
 
 	@Test
@@ -106,6 +233,46 @@ class PayloadPersistenceQuarantineTest {
 
 		assertThat(store.load(FP)).isNull();
 		assertThat(new File(store.dir(), PayloadPersistence.QUARANTINE_FILE).isFile()).isTrue();
+	}
+
+	@Test
+	void theFallbackIsRepublishedSoLaterBootsAgreeWithThisOne() throws IOException {
+		// Loading 7 while the store still claims 8 would make every later boot walk the
+		// fallback again, and the next deploy inherit files from the quarantined set.
+		PayloadPersistence store = store();
+		store.persist(7, FP, bytes("dex7"), null, null);
+		store.markGood(7);
+		store.persist(8, FP, bytes("dex8"), null, null);
+		store.quarantine(8);
+
+		assertThat(store.load(FP).generation).isEqualTo(7);
+
+		PayloadPersistence reopened = store();
+		PayloadPersistence.Loaded loaded = reopened.load(FP);
+		assertThat(loaded).isNotNull();
+		assertThat(loaded.generation).isEqualTo(7);
+		assertThat(loaded.dex).isEqualTo(bytes("dex7"));
+	}
+
+	@Test
+	void theLastGoodSetSurvivesTheOrphanSweepOfLaterGenerations() throws IOException {
+		// persist() collects every payload file the published meta does not name. The
+		// fallback's files are named only by good.json, so without that being consulted the
+		// fallback would resolve to a meta pointing at files that are gone.
+		PayloadPersistence store = store();
+		store.persist(7, FP, bytes("dex7"), null, null);
+		store.markGood(7);
+		store.persist(8, FP, bytes("dex8"), null, null);
+		store.persist(9, FP, bytes("dex9"), null, null);
+
+		assertThat(new File(store.dir(),
+				PayloadPersistence.payloadFileName(PayloadPersistence.KIND_DEX, 7)).isFile()).isTrue();
+		// Generation 8's is not the fallback and not published, so it still goes.
+		assertThat(new File(store.dir(),
+				PayloadPersistence.payloadFileName(PayloadPersistence.KIND_DEX, 8)).isFile()).isFalse();
+
+		store.quarantine(9);
+		assertThat(store.load(FP).generation).isEqualTo(7);
 	}
 
 	private PayloadPersistence store() {

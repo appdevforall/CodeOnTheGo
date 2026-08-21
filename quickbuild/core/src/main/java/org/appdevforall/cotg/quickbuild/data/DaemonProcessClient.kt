@@ -142,6 +142,7 @@ class DaemonProcessClient(
 				addProperty(RequestKeys.AAPT2, config.aapt2.absolutePath)
 				addProperty(RequestKeys.D8_JAR, config.d8Jar.absolutePath)
 				addProperty(RequestKeys.ANDROID_JAR, config.androidJar.absolutePath)
+				addProperty(RequestKeys.MIN_API, config.minApi)
 				if (config.compilerPlugins.isNotEmpty()) {
 					add(RequestKeys.COMPILER_PLUGINS, config.compilerPlugins.toJsonPaths())
 				}
@@ -369,7 +370,14 @@ class DaemonProcessClient(
 			if (response.get(ResponseKeys.OK)?.takeIf { it.isJsonPrimitive }?.asBoolean == true) {
 				DaemonReply.Ok(response)
 			} else {
-				DaemonReply.BuildFailed(parseDiagnostics(response))
+				// fromValues yields null when the keys are absent, so a failing relink or dex -
+				// which reports no compile counts - carries none rather than a measured zero.
+				DaemonReply.BuildFailed(
+					parseDiagnostics(response),
+					CompileStats.fromValues { key ->
+						response.get(key)?.takeIf { it.isJsonPrimitive }?.asLong
+					},
+				)
 			}
 		}
 

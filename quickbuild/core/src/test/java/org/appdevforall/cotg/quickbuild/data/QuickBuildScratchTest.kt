@@ -2,6 +2,7 @@ package org.appdevforall.cotg.quickbuild.data
 
 import com.google.common.truth.Truth.assertThat
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -147,5 +148,53 @@ class QuickBuildScratchTest {
 		root.deleteRecursively()
 		// Missing root: listFiles() is null; nothing thrown.
 		scratch.sweep()
+	}
+
+	/**
+	 * Pins [dir] shut by clearing its write bit, so nothing inside it can be unlinked and
+	 * the non-empty directory itself cannot go either. Skips the calling test when the runner
+	 * writes into it anyway - root, or a filesystem that ignores the bit - since there is then
+	 * no delete failure to observe.
+	 *
+	 * @param dir the directory to make undeletable; it must already exist and be non-empty.
+	 */
+	private fun pinShut(dir: File) {
+		dir.setWritable(false)
+		assumeTrue(!File(dir, "write-probe").mkdirs(), "the runner can still write into a read-only dir")
+	}
+
+	@Test
+	fun `remove reports an undeletable tree instead of throwing`() {
+		val project = File(projects, "Stuck")
+		val tree = (scratch.prepare(project) as QuickBuildScratch.Preparation.Ready).dir
+		val out = File(tree, "out").apply { mkdirs() }
+		val pinned = File(out, "pinned.class").apply { writeText("bytecode") }
+		pinShut(out)
+
+		// Teardown has to finish, so a tree that will not go is logged, never propagated.
+		scratch.remove(project)
+
+		assertThat(pinned.exists()).isTrue()
+		out.setWritable(true)
+	}
+
+	@Test
+	fun `sweep keeps reclaiming past a tree it cannot delete`() {
+		val stuckTree =
+			(scratch.prepare(File(projects, "Stuck")) as QuickBuildScratch.Preparation.Ready).dir
+		val healthyTree =
+			(scratch.prepare(File(projects, "Healthy")) as QuickBuildScratch.Preparation.Ready).dir
+		val out = File(stuckTree, "out").apply { mkdirs() }
+		val pinned = File(out, "pinned.class").apply { writeText("bytecode") }
+		pinShut(out)
+
+		scratch.sweep()
+
+		// A stuck tree costs its own disk and nothing else. Note this pins the OUTCOME, not
+		// the iteration order: listFiles() decides which tree is visited first, so a sweep
+		// that aborted on the failure would still pass whenever the stuck tree came last.
+		assertThat(pinned.exists()).isTrue()
+		assertThat(healthyTree.exists()).isFalse()
+		out.setWritable(true)
 	}
 }

@@ -218,8 +218,20 @@ class DaemonService(
 			}
 
 			is IncrementalCompiler.Result.Failed -> {
-				log("compile failed: ${result.diagnostics.size} diagnostics in ${durationMillis}ms")
-				DaemonResponse.failure(request.id, result.diagnostics)
+				log(
+					"compile failed: ${result.diagnostics.size} diagnostics in ${durationMillis}ms " +
+						"(ktToCompile=${result.stats.kotlinToCompile} ordinal=${result.stats.compileOrdinal})",
+				)
+				// Built here rather than through DaemonResponse.failure, which hardcodes an empty
+				// values map and is shared with every other failing op. The stats ride the failure
+				// because this is the build they are most needed from; the response stays ok=false
+				// and carries the same diagnostics it always did.
+				DaemonResponse(
+					id = request.id,
+					ok = false,
+					values = mapOf(ResponseKeys.DURATION_MILLIS to durationMillis) + result.stats.toValues(),
+					diagnostics = result.diagnostics,
+				)
 			}
 		}
 	}

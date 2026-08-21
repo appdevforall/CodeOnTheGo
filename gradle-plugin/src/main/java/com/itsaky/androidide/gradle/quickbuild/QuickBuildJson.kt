@@ -85,6 +85,10 @@ object QuickBuildJson {
 	 * @param libraryResourcePaths pre-compiled `.flat` resources from the real AGP resource
 	 *   processing, passed to `aapt2 link` as `-R` overlays so a relink still resolves resources
 	 *   that only a dependency AAR declares
+	 * @param minApi the API level this build dexed the seed payload at. The daemon must dex its
+	 *   increments at the same level, or a project whose effective min API differs from the
+	 *   daemon's own default gets a baseline and increments desugared against different targets.
+	 *   Null writes an explicit JSON null, which reads back as that default.
 	 * @return pretty-printed JSON, ready to write as setup.json
 	 */
 	fun proxyAppReportJson(
@@ -100,6 +104,7 @@ object QuickBuildJson {
 		sourceRoots: List<String> = emptyList(),
 		stableIdsPath: String? = null,
 		libraryResourcePaths: List<String> = emptyList(),
+		minApi: Int? = null,
 	): String {
 		val map =
 			linkedMapOf(
@@ -130,6 +135,10 @@ object QuickBuildJson {
 				"sourceRoots" to sourceRoots,
 				"stableIdsPath" to stableIdsPath,
 				"libraryResourcePaths" to libraryResourcePaths,
+				// The API level this build dexed the seed payload at. Increments patch that
+				// baseline, so the daemon must dex them at the same level rather than fall
+				// back to its own floor.
+				"minApi" to minApi,
 			)
 		return pretty(map)
 	}

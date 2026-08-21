@@ -270,15 +270,21 @@ door. A build that measured no spans reports **no** residual rather than blaming
 build. Known healthy contributors are small: changed-asset packaging, and payload bookkeeping
 before the deploy hand-off.
 
-Each line also carries the daemon's counters - `nAllSources`, `nKotlinCompiled`,
+Each line also carries the daemon's counters - `nAllSources`, `nKotlinDeclaredChanged`,
 `nJavaSources`, `nChangedClasses`, `nClassFiles`, `classBytes` - plus `compileOrdinal` and
 `scratchFs`, without which a timing row cannot be read at all. What each one means, and why
 those last two are context rather than cost:
 [the protocol reference](../protocol/README.md#per-build-statistics-what-the-op-did-not-just-how-long-two-compilers-took).
 
+`nKotlinDeclaredChanged` is the size of the dirty set the daemon **handed** the Kotlin engine,
+not the number of files recompiled. The engine widens that set from its own dependency graph,
+so a build can recompile files this number does not count. Reading it as "recompiled" has
+already cost one investigation a day. Event feeds recorded before 2026-08-18 spell the same
+counter `nKotlinCompiled`, under the old, wrong name.
+
 Two of those are spelled differently on the two wires, so grep for the right one: the daemon
-protocol's `nKotlinToCompile` and `scratchFsType` are written here as `nKotlinCompiled` and
-`scratchFs`.
+protocol's `nKotlinToCompile` and `scratchFsType` are written here as `nKotlinDeclaredChanged`
+and `scratchFs`.
 
 ## 6. You can start a session from adb, but only under the bench flag
 

@@ -84,6 +84,10 @@ class GradleQuickBuildProvisioner(
 	private val nextBaselineGeneration: (File) -> Long = { projectRoot ->
 		GenerationTracker(FileGenerationStore.forProject(projectRoot)).next()
 	},
+	/** Unpacks the bundled proxy-app build inputs into the project. Injectable for tests. */
+	private val stage: (Context, EnvironmentQuickBuildPaths) -> Unit = { ctx, paths ->
+		QuickBuildArtifactStager.stage(ctx, paths)
+	},
 ) : QuickBuildProvisioner {
 	override suspend fun provision(): ProvisionOutcome {
 		unsupportedProjectTypeFailure()?.let { return ProvisionOutcome.Failure(QuickBuildMessage.Literal(context.getString(it))) }
@@ -104,7 +108,10 @@ class GradleQuickBuildProvisioner(
 				}
 
 				ProxyAppBuildResult.SlotBusy -> {
-					return ProvisionOutcome.Failure(QuickBuildMessage.Literal(context.getString(R.string.quick_build_setup_failed)))
+					// Not a setup failure: nothing is wrong with the project, another build just
+					// holds the one Gradle slot. Saying "setup failed" sends the user looking for
+					// a fault that is not there, and the fix is only to wait and tap again.
+					return ProvisionOutcome.Failure(QuickBuildMessage.Literal(context.getString(R.string.quick_build_slot_busy)))
 				}
 			}
 		val (proxyApp, projectRoot, moduleDir) = buildResult
@@ -310,7 +317,18 @@ class GradleQuickBuildProvisioner(
 	 */
 	private suspend fun runProxyAppBuild(purpose: ProxyAppBuildPurpose): ProxyAppBuildResult {
 		try {
-			QuickBuildArtifactStager.stage(context, paths)
+			// Checked BEFORE any work, as well as immediately before executeTasks below. The late
+			// check is the correctness one (it closes the race); this one exists because
+			// everything between here and there has lasting side effects a refused build should
+			// not pay: staging writes into the project, and the baseline generation is persisted
+			// before it is handed out, so a build refused after allocation burns that generation.
+			// Losing one is harmless on its own, but the refusal is also the common case - CoGo's
+			// project sync fires on the same gradle-file edit that invalidates the session.
+			if (Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)?.isBuildInProgress == true) {
+				log.info("A Gradle build is already in progress; not staging for the Quick Build proxy app build")
+				return ProxyAppBuildResult.SlotBusy
+			}
+			stage(context, paths)
 
 			val projectManager = IProjectManager.getInstance()
 			val projectRoot = File(projectManager.projectDirPath)

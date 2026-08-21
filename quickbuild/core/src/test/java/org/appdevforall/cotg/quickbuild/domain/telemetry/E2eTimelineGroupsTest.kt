@@ -80,7 +80,7 @@ class E2eTimelineGroupsTest {
 		val singles =
 			listOf(
 				E2eTimeline.BuildCounts(allSources = 1),
-				E2eTimeline.BuildCounts(kotlinCompiled = 1),
+				E2eTimeline.BuildCounts(kotlinDeclaredChanged = 1),
 				E2eTimeline.BuildCounts(javaSources = 1),
 				E2eTimeline.BuildCounts(changedClasses = 1),
 				E2eTimeline.BuildCounts(classFiles = 1),

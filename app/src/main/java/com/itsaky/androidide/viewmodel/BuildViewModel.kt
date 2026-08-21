@@ -2,6 +2,7 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.activities.editor.QuickBuildClobberConfirmation
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.ApkMetadata
 import com.itsaky.androidide.project.AndroidModels
@@ -31,6 +32,23 @@ class BuildViewModel : ViewModel() {
 	val buildState: StateFlow<BuildState> = _buildState
 
 	/**
+	 * The clobber confirmation this build's Run tap already settled (ADFA-4128), consumed once by
+	 * the install. Held here rather than on the activity so a rotation mid-build does not lose it
+	 * and re-ask; null means nobody asked, which makes the install fall back to asking.
+	 */
+	private var clobberAnswerAtTap: QuickBuildClobberConfirmation? = null
+
+	/**
+	 * Takes the tap's clobber answer, leaving nothing behind so a later build that never asked
+	 * cannot inherit it.
+	 */
+	fun consumeClobberAnswerAtTap(): QuickBuildClobberConfirmation? = clobberAnswerAtTap.also { clobberAnswerAtTap = null }
+
+	/**
+	 * @param clobberAnswerAtTap what the Run tap's clobber check decided, so the install can tell
+	 *   whether the answer has since changed and re-ask only then. Every build states its own,
+	 *   defaulting to "nobody asked" - a build that inherited a previous tap's answer could skip a
+	 *   confirmation that is genuinely owed.
 	 * @param beforeBuild work that must finish BEFORE the build starts but AFTER the
 	 *   in-progress reservation below - flushing unsaved editor buffers, so the build is of
 	 *   what the user sees. It runs here rather than in the caller so three things hold: the
@@ -47,12 +65,14 @@ class BuildViewModel : ViewModel() {
 		launchInDebugMode: Boolean,
 		launchProfilerAfterInstall: Boolean = false,
 		gradleArgs: List<String> = emptyList(),
+		clobberAnswerAtTap: QuickBuildClobberConfirmation? = null,
 		beforeBuild: suspend () -> Unit = {},
 	) {
 		if (_buildState.value is BuildState.InProgress) {
 			log.warn("Build is already in progress. Ignoring new request.")
 			return
 		}
+		this.clobberAnswerAtTap = clobberAnswerAtTap
 
 		viewModelScope.launch {
 			_buildState.value = BuildState.InProgress

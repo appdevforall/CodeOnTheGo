@@ -163,6 +163,72 @@ class DaemonServiceTest {
 	}
 
 	@Test
+	fun `a FAILED compile still reports the stats, which is the build we most need them from`() {
+		// The field that identifies a mixed-language staleness bug is kotlinToCompile: 0 means the
+		// .kt never reached the declared changed set, >= 1 means it did and the staleness is
+		// elsewhere. Those are different fixes. Dropping the stats on the failure path is what
+		// makes them indistinguishable, so this is the build the numbers matter most on.
+		val stdlib = TestSdk.kotlinStdlib()
+		service.configure(
+			ConfigureRequest(
+				id = 1,
+				projectRoot = tempDir.absolutePath,
+				classpath = listOf(stdlib.absolutePath),
+				outDir = File(tempDir, "out").absolutePath,
+				aapt2 = stdlib.absolutePath,
+				d8Jar = stdlib.absolutePath,
+				androidJar = stdlib.absolutePath,
+			),
+		)
+		val kotlin = File(tempDir, "Hello.kt").apply { writeText("package demo\n\nfun hello() = \"hi\"\n") }
+		// Fails in JAVAC, not kotlinc - the branch the mixed-language defect actually takes.
+		val java =
+			File(tempDir, "Broken.java").apply {
+				writeText("package demo;\n\npublic class Broken { public int broken() { return \"nope\"; } }\n")
+			}
+		val sources = listOf(kotlin.absolutePath, java.absolutePath)
+
+		val response = service.compile(CompileRequest(2, sources, sources))
+
+		assertThat(response.ok).isFalse()
+		// fromValues returns null when the keys are ABSENT, so this asserts the stats were
+		// carried at all - the actual defect - rather than that some value is right.
+		val stats = CompileStats.fromValues { key -> (response.values[key] as? Number)?.toLong() }
+		assertThat(stats).isNotNull()
+		assertThat(stats!!.allSources).isEqualTo(2)
+		assertThat(stats.javaSources).isEqualTo(1)
+		assertThat(stats.kotlinToCompile).isEqualTo(1)
+		assertThat(stats.compileOrdinal).isEqualTo(1)
+		// The diagnostics must survive the change that adds the stats.
+		assertThat(response.diagnostics.any { it.file?.endsWith("Broken.java") == true }).isTrue()
+	}
+
+	@Test
+	fun `a compile failing in kotlinc also reports its stats`() {
+		val stdlib = TestSdk.kotlinStdlib()
+		service.configure(
+			ConfigureRequest(
+				id = 1,
+				projectRoot = tempDir.absolutePath,
+				classpath = listOf(stdlib.absolutePath),
+				outDir = File(tempDir, "out").absolutePath,
+				aapt2 = stdlib.absolutePath,
+				d8Jar = stdlib.absolutePath,
+				androidJar = stdlib.absolutePath,
+			),
+		)
+		val broken = File(tempDir, "Broken.kt").apply { writeText("package demo\n\nfun oops(: Int\n") }
+
+		val response = service.compile(CompileRequest(2, listOf(broken.absolutePath), listOf(broken.absolutePath)))
+
+		assertThat(response.ok).isFalse()
+		val stats = CompileStats.fromValues { key -> (response.values[key] as? Number)?.toLong() }
+		assertThat(stats).isNotNull()
+		assertThat(stats!!.allSources).isEqualTo(1)
+		assertThat(stats.kotlinToCompile).isEqualTo(1)
+	}
+
+	@Test
 	fun `a fresh configure restarts the compile ordinal`() {
 		// A respawn re-pays the cold cost, so its next compile is a cold build again.
 		val stdlib = TestSdk.kotlinStdlib()

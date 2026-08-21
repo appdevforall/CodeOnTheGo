@@ -37,7 +37,9 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	}
 
 	/**
-	 * Attaches swapped resources, records the activity, and lets the runtime do its first-activity Context work.
+	 * Records the activity, lets the runtime do its first-activity Context work, then attaches swapped resources.
+	 *
+	 * The runtime call comes first because it is what creates the resource loader when a cold start adopts a persisted generation; attaching before it would be a no-op, leaving this activity resolving against the baseline table for its whole lifetime.
 	 *
 	 * @param activity
 	 *            the activity being created
@@ -46,11 +48,11 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	 */
 	@Override
 	public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
-		ResourceStore.INSTANCE.attachTo(activity.getResources());
 		synchronized (this) {
 			created.add(new WeakReference<Activity>(activity));
 		}
 		runtime.onActivityCreated(activity);
+		ResourceStore.INSTANCE.attachTo(activity.getResources());
 	}
 
 	/**
@@ -98,13 +100,16 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	 *
 	 * Only fires on API 29+; on older devices {@link #onActivityCreated} is the later backstop.
 	 *
+	 * The runtime's Context work runs here too, because this is the only hook that precedes the activity's own inflation: on a cold start that adopts a persisted generation the resources do not exist until it runs, so deferring it to {@link #onActivityCreated} would let the first activity inflate against the baseline table. Every step of it is idempotent.
+	 *
 	 * @param activity
-	 *            the activity about to be created, used only for its Resources
+	 *            the activity about to be created, used for its Resources and as the runtime's first Context
 	 * @param savedInstanceState
 	 *            the framework's saved state; unused here
 	 */
 	@Override
 	public void onActivityPreCreated(Activity activity, Bundle savedInstanceState) {
+		runtime.onActivityCreated(activity);
 		ResourceStore.INSTANCE.attachTo(activity.getResources());
 	}
 
@@ -123,14 +128,36 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 		runtime.onActivityResumed(activity);
 	}
 
+	/**
+	 * @param activity
+	 *            the activity being saved; unused, since what a restart waits for is the stop that follows, not this callback - the framework reports the state to the server from the stop, and killing between the two is what force-removes the record
+	 * @param outState
+	 *            the framework's bundle; untouched
+	 */
 	@Override
 	public void onActivitySaveInstanceState(Activity activity, Bundle outState) {}
 
+	/**
+	 * Counts the activity into the set a restart deploy waits to empty before killing the process.
+	 *
+	 * @param activity
+	 *            the activity being started; unused, since the wait is on the census rather than on any one of them
+	 */
 	@Override
-	public void onActivityStarted(Activity activity) {}
+	public void onActivityStarted(Activity activity) {
+		runtime.onActivityStarted();
+	}
 
+	/**
+	 * Counts the activity back out of that set, which is where ActivityThread captures its state.
+	 *
+	 * @param activity
+	 *            the activity being stopped; unused, as above
+	 */
 	@Override
-	public void onActivityStopped(Activity activity) {}
+	public void onActivityStopped(Activity activity) {
+		runtime.onActivityStopped();
+	}
 
 	/**
 	 * Whether the app is on screen: some live, non-finishing activity is currently resumed.

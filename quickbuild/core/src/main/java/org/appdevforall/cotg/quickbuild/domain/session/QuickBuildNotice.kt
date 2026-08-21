@@ -34,6 +34,16 @@ enum class QuickBuildNotice {
 	STALE_COMPONENT_HELPERS,
 
 	/**
+	 * A save under a test source set (`src/test`, `src/androidTest`, `testFixtures`) was ignored:
+	 * nothing there ships in the variant Quick Build deploys, so no build can carry it.
+	 *
+	 * Not a failure and not something to fix - it says why nothing happened, once per session, so
+	 * the silence does not read as a broken watcher. Every later test save is silent, which is the
+	 * point: the user only needs to learn this once.
+	 */
+	TEST_SOURCE_IGNORED,
+
+	/**
 	 * aapt2 keeps rejecting the project's resources, so every save fails on that same error.
 	 *
 	 * The relink links the whole `res/` tree from disk, not the changed set, so an unlinkable

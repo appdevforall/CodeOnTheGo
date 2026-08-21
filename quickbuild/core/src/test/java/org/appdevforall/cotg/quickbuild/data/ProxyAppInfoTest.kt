@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.data
 
 import com.google.common.truth.Truth.assertThat
+import org.appdevforall.cotg.quickbuild.protocol.ConfigureRequest
 import org.junit.jupiter.api.Test
 import java.io.File
 
@@ -39,6 +40,30 @@ class ProxyAppInfoTest {
 
 		assertThat(info).isNotNull()
 		assertThat(info!!.composeEnabled).isFalse()
+	}
+
+	@Test
+	fun `minApi parses through so increments are dexed like the baseline`() {
+		val info = ProxyAppInfo.parse(json(""","minApi": 33"""), baseDir)
+
+		assertThat(info).isNotNull()
+		assertThat(info!!.minApi).isEqualTo(33)
+	}
+
+	@Test
+	fun `minApi falls back to the protocol floor on a setup json that predates the field`() {
+		val info = ProxyAppInfo.parse(json(), baseDir)
+
+		assertThat(info).isNotNull()
+		assertThat(info!!.minApi).isEqualTo(ConfigureRequest.DEFAULT_MIN_API)
+	}
+
+	@Test
+	fun `minApi tolerates a non-numeric value`() {
+		val info = ProxyAppInfo.parse(json(""","minApi": "thirty""""), baseDir)
+
+		assertThat(info).isNotNull()
+		assertThat(info!!.minApi).isEqualTo(ConfigureRequest.DEFAULT_MIN_API)
 	}
 
 	@Test

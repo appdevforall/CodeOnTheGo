@@ -8,6 +8,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildDiagnostic
+import org.appdevforall.cotg.quickbuild.protocol.ConfigureRequest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -84,7 +85,10 @@ class DaemonProcessClientEdgeTest {
 	private fun okConfigure(extra: String = "") =
 		"""{"id":1,"ok":true,"protocolVersion":${DaemonProcessClient.EXPECTED_PROTOCOL_VERSION}$extra}"""
 
-	private fun config(compilerPlugins: List<File> = emptyList()): DaemonConfig =
+	private fun config(
+		compilerPlugins: List<File> = emptyList(),
+		minApi: Int = ConfigureRequest.DEFAULT_MIN_API,
+	): DaemonConfig =
 		DaemonConfig(
 			projectRoot = tmp,
 			classpath = emptyList(),
@@ -93,6 +97,7 @@ class DaemonProcessClientEdgeTest {
 			d8Jar = File(tmp, "d8.jar"),
 			androidJar = File(tmp, "android.jar"),
 			compilerPlugins = compilerPlugins,
+			minApi = minApi,
 		)
 
 	private fun <T> withClient(
@@ -1115,5 +1120,53 @@ class DaemonProcessClientEdgeTest {
 			runBlocking { client.shutdown() }
 			scope.cancel()
 		}
+	}
+
+	@Test
+	fun `the configure request carries the project's dex min API`() {
+		// The daemon defaults to its own floor when the key is absent, so a project whose
+		// seed payload was dexed at another level needs the value actually on the wire -
+		// a config field that never reaches the daemon leaves the baseline and its
+		// increments desugared against different targets.
+		val paths =
+			scriptedPaths(
+				"""
+				read line
+				printf '%s' "${'$'}line" > '$tmp/configure-request.txt'
+				printf '%s\n' '${okConfigure()}'
+				read line
+				printf '%s\n' '{"id":2,"ok":true}'
+				""".trimIndent(),
+			)
+
+		withClient(paths) { client ->
+			check(client.start(config(minApi = 26)) is DaemonReply.Ok)
+		}
+
+		val configureRequest = File(tmp, "configure-request.txt").readText()
+		assertThat(configureRequest).contains("\"minApi\":26")
+	}
+
+	@Test
+	fun `the configure request states the min API even at the protocol default`() {
+		// Sending it unconditionally is what makes the daemon's own fallback dead code
+		// rather than a second, silently-diverging source of the level.
+		val paths =
+			scriptedPaths(
+				"""
+				read line
+				printf '%s' "${'$'}line" > '$tmp/configure-request.txt'
+				printf '%s\n' '${okConfigure()}'
+				read line
+				printf '%s\n' '{"id":2,"ok":true}'
+				""".trimIndent(),
+			)
+
+		withClient(paths) { client ->
+			check(client.start(config()) is DaemonReply.Ok)
+		}
+
+		assertThat(File(tmp, "configure-request.txt").readText())
+			.contains("\"minApi\":${ConfigureRequest.DEFAULT_MIN_API}")
 	}
 }

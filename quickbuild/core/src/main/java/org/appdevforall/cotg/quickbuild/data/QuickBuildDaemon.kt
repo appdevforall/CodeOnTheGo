@@ -2,6 +2,7 @@ package org.appdevforall.cotg.quickbuild.data
 
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildDiagnostic
 import org.appdevforall.cotg.quickbuild.protocol.CompileStats
+import org.appdevforall.cotg.quickbuild.protocol.ConfigureRequest
 import org.appdevforall.cotg.quickbuild.protocol.DexStats
 import java.io.File
 
@@ -186,6 +187,9 @@ data class RelinkOutput(
  * @property d8Jar d8/r8 jar the daemon dexes with, in-process.
  * @property androidJar `android.jar` of the bundled compile SDK, the bootclasspath for compiles.
  * @property compilerPlugins session-fixed Kotlin compiler plugin jars (-Xplugin), such as Compose.
+ * @property minApi API level the daemon dexes at, taken from the proxy app build's setup.json so
+ *   increments are desugared exactly like the baseline they patch. Defaults to the protocol floor,
+ *   which is what an older setup.json (carrying no such field) means.
  */
 data class DaemonConfig(
 	val projectRoot: File,
@@ -195,6 +199,7 @@ data class DaemonConfig(
 	val d8Jar: File,
 	val androidJar: File,
 	val compilerPlugins: List<File> = emptyList(),
+	val minApi: Int = ConfigureRequest.DEFAULT_MIN_API,
 )
 
 /**
@@ -218,9 +223,13 @@ sealed interface DaemonReply<out T> {
 	 *
 	 * @property diagnostics compiler errors and warnings to show the user, in the order the
 	 *   daemon reported them; empty when it failed without saying why.
+	 * @property stats the failing compile's counts, or null when the op was not a compile or the
+	 *   daemon answered without them. A failing build is the one whose counts matter most:
+	 *   `kotlinToCompile` says whether the edit reached the dirty set the engine was handed.
 	 */
 	data class BuildFailed(
 		val diagnostics: List<BuildDiagnostic>,
+		val stats: CompileStats? = null,
 	) : DaemonReply<Nothing>
 
 	/**

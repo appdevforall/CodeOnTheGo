@@ -143,6 +143,66 @@ class AndroidProjectWatcherTest {
 			assertThat(batches).hasSize(2)
 		}
 
+	@Test
+	fun `a live file inotify fingerprinted mid-walk is not reported as removed`() =
+		runTest {
+			// The sweep's set-diff races the inotify path: fingerprints is written by both, so a
+			// file inotify records after the walk passed its directory is in the map and absent
+			// from the walk while alive on disk. Reproduced deterministically by fingerprinting a
+			// file the walk cannot reach - same state, no threads.
+			val walked = File(tempDir, "walked").apply { mkdirs() }
+			val unwalked =
+				File(tempDir, "unwalked/main/java/Live.kt").apply {
+					parentFile!!.mkdirs()
+					writeText("class Live")
+				}
+			val batches = mutableListOf<ChangedFiles.Known>()
+			val watcher =
+				AndroidProjectWatcher(
+					watchedRoots = listOf(walked),
+					watchedFiles = emptyList(),
+					// Wider than the walked root, so report() accepts a path the sweep never sees.
+					filter = WatchFilter(listOf(tempDir)),
+					scope = backgroundScope,
+					pollIntervalMillis = 3_600_000L,
+					quietMillis = QUIET_MILLIS,
+					maxMillis = MAX_MILLIS,
+					pollDispatcher = StandardTestDispatcher(testScheduler),
+				)
+			watcher.start { batches += it }
+			runCurrent()
+
+			watcher.report(unwalked, fromPoll = false)
+			settle()
+			assertThat(batches.single().files).containsExactly(unwalked)
+
+			watcher.sweep()
+			settle()
+
+			// A phantom removal here is not merely noise: coalescing is last-event-wins, so it
+			// would hand the daemon a REMOVED file that is still in allSources, and the dropped
+			// fingerprint makes the next sweep re-emit the same edit - one save, two builds.
+			assertThat(batches.flatMap { it.removed }).doesNotContain(unwalked)
+			assertThat(unwalked.isFile).isTrue()
+		}
+
+	@Test
+	fun `a created directory tree registers one watch per directory, recursively`() =
+		runTest {
+			// A directory created mid-session used to get a watch whose own CREATE handler did
+			// not recurse, so anything created two levels down fell back to the 2s poll.
+			val root = File(tempDir, "src").apply { mkdirs() }
+			val batches = mutableListOf<ChangedFiles.Known>()
+			val watcher = startWatcher(root, batches)
+			val before = watcher.watchCount()
+
+			File(root, "main/java/com/example").apply { mkdirs() }
+			watcher.registerCreatedTree(File(root, "main"))
+
+			// main, main/java, main/java/com, main/java/com/example.
+			assertThat(watcher.watchCount() - before).isEqualTo(4)
+		}
+
 	private companion object {
 		private const val QUIET_MILLIS = 60L
 		private const val MAX_MILLIS = 500L

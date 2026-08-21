@@ -2,6 +2,7 @@ package com.itsaky.androidide.quickbuild
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.viewmodel.EditorViewModel
 import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildDiagnostic
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
@@ -235,5 +236,26 @@ class QuickBuildFlashesTest {
 		val broken = failed()
 
 		assertThat(flashes.next(broken, broken)).isNull()
+	}
+
+	@Test
+	fun `the ViewModel holds one flash history, so a rotation cannot re-flash a failure`() {
+		// The history was an activity field. A configuration change rebuilds the activity, and
+		// the rebuilt instance has never seen a failure - so the repeat guard resets and the
+		// SAME unfixed failure flashes again, while the recovery this history arms is lost.
+		// Held on the ViewModel it outlives the recreation, which is why this must stay a
+		// stable `val` and not a getter that mints one per read.
+		val viewModel = EditorViewModel()
+		val failure = compileError()
+
+		val first = viewModel.quickBuildFlashes
+		assertThat(first.next(QuickBuildStatus.Building(4L), failed(failure)))
+			.isEqualTo(QuickBuildFlash.Failure(R.string.quick_build_flash_failed))
+
+		// What the activity sees after a rotation: the same ViewModel, so the same history.
+		val afterRecreation = viewModel.quickBuildFlashes
+		assertThat(afterRecreation).isSameInstanceAs(first)
+		afterRecreation.next(failed(failure), QuickBuildStatus.Building(4L))
+		assertThat(afterRecreation.next(QuickBuildStatus.Building(4L), failed(failure))).isNull()
 	}
 }

@@ -150,6 +150,10 @@ internal class PayloadDeployer(
 	 * Only a reconnect at the deployed generation counts as success; anything lower means the
 	 * payload was lost. A disconnect before the ack proceeds to relaunch, which settles it.
 	 *
+	 * The relaunch gets exactly two attempts, because a start can be silently swallowed by the
+	 * task the killed process left behind and a second one then lands (see the retry's comment).
+	 * Two, not a loop: a genuinely dead app must reach the user rather than become a retry storm.
+	 *
 	 * @param restart the decision, whose component class names the thing that forced a
 	 *   restart and appears in every message this path produces
 	 * @param dexFile the payload's classes, or null when no code moved
@@ -203,10 +207,10 @@ internal class PayloadDeployer(
 		}
 
 		val packageName = proxyAppPackage
+		val relauncher = launcher
 		// A null launcherActivity is expected for alias-launched apps; the launcher then
-		// falls back to the default launch intent, which resolves the same alias the OS
-		// would.
-		if (packageName == null || launcher?.launch(packageName, launcherActivity) != true) {
+		// resolves the package's launch intent, which points at the same alias the OS would.
+		if (packageName == null || relauncher?.launch(packageName, launcherActivity) != true) {
 			// The process is gone so nothing runs stale code, but the loop stays broken
 			// until the user opens the app again.
 			return BuildOutcome.DeployFailure(
@@ -214,15 +218,30 @@ internal class PayloadDeployer(
 					"open it manually to load the new code",
 			)
 		}
-		val reconnectGeneration = deploy.awaitReconnect(restartReconnectTimeoutMillis)
+		var reconnectGeneration = deploy.awaitReconnect(restartReconnectTimeoutMillis)
+		if (reconnectGeneration == null) {
+			// A relaunch can be swallowed rather than refused: measured on an A56, an intent
+			// aimed at the task the killed process left behind was handed to that task's dead
+			// activity record and dropped, and the record was then removed with the task. The
+			// second intent finds no task and creates one, which is a live app at its first
+			// screen instead of a dead one - so try exactly once more before giving up.
+			log.info(
+				"Proxy app {} did not come back after the restart relaunch; launching it once more",
+				packageName,
+			)
+			if (relauncher.launch(packageName, launcherActivity)) {
+				reconnectGeneration = deploy.awaitReconnect(restartReconnectTimeoutMillis)
+			}
+		}
 		return when {
 			reconnectGeneration == null -> {
 				// Says the app did not come back, not that it was relaunched: the launch call
 				// only reports that the start was issued, and Android blocks a background
 				// activity start silently, so a start that never took looks identical here.
+				// Two starts have been issued by now, so this is a genuinely dead app.
 				BuildOutcome.DeployFailure(
 					"Proxy app did not come back after restarting for ${restart.componentClass} " +
-						"(waited $restartReconnectTimeoutMillis ms); open it manually",
+						"(relaunched twice, $restartReconnectTimeoutMillis ms each); open it manually",
 				)
 			}
 

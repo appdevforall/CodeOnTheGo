@@ -570,6 +570,46 @@ class IncrementalCompilerTest {
 		assertThat(changed).doesNotContain("demo/TreeNode.class")
 	}
 
+	@Test
+	fun `a kotlin-only edit does not report the untouched java half as changed`() {
+		// javac is not incremental here: it recompiles and rewrites every .java on every build,
+		// byte-identical or not. An mtime-keyed output snapshot therefore reported every
+		// Java-derived class as changed on a Kotlin-only edit, and DeployPolicy restarts the
+		// process whenever the changed set reaches a Service, Provider or Application closure -
+		// so a project with one Java component paid a full restart, and lost app state, on every
+		// save. The snapshot is keyed on content for exactly this.
+		val sources = cyclicSources()
+		val compiler = compiler()
+		assertThat(compiler.compile(sources, changedFiles = sources))
+			.isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+
+		writeSource(
+			"TreeNode.kt",
+			"""
+			package demo
+
+			open class TreeNode(val label: String) {
+				open fun describe() = NodeRenderer.render(this)
+
+				fun depth(): Int = 1
+
+				companion object {
+					fun leaf(label: String): TreeNode = JavaLeafNode(label)
+				}
+			}
+			""".trimIndent(),
+		)
+		val result = compiler.compile(sources, changedFiles = listOf(sources[0]))
+
+		assertThat(result).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		val changed = (result as IncrementalCompiler.Result.Success).changedClassFiles
+		assertThat(changed).contains("demo/TreeNode.class")
+		// Neither Java class's source was touched, so neither may appear - even though javac
+		// rewrote both output files.
+		assertThat(changed).doesNotContain("demo/NodeRenderer.class")
+		assertThat(changed).doesNotContain("demo/JavaLeafNode.class")
+	}
+
 	private fun limitsSources(max: String): List<File> {
 		val limits =
 			writeSource(

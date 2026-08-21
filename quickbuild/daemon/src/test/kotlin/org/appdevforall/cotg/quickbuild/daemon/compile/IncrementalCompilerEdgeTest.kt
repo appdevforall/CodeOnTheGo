@@ -163,6 +163,45 @@ class IncrementalCompilerEdgeTest {
 	}
 
 	@Test
+	fun `a nested class edited out of a surviving java source leaves no stale output`() {
+		// javac deletes nothing for a source it recompiles, so a declaration edited away leaves
+		// its output behind - untouched, therefore invisible to the output diff, and re-dexed into
+		// every later payload. Dead classes then accumulate against the single-dex ceiling, which
+		// is a hard failure, and the removed class still resolves by name through the payload
+		// loader.
+		val widget =
+			writeJava(
+				"main/java/demo/Widget.java",
+				"package demo;\n\npublic class Widget {\n" +
+					"\tpublic class Helper {}\n" +
+					"\tpublic Runnable r = new Runnable() { public void run() {} };\n" +
+					"}\n",
+			)
+		val sibling = writeJava("main/java/demo/Widget2.java", "package demo;\n\npublic class Widget2 {}\n")
+		val compiler = compiler()
+		val first = compiler.compile(listOf(widget, sibling), changedFiles = listOf(widget, sibling))
+		val classesDir = (first as IncrementalCompiler.Result.Success).classesDir
+		assertThat(File(classesDir, "demo/Widget\$Helper.class").isFile).isTrue()
+		assertThat(File(classesDir, "demo/Widget\$1.class").isFile).isTrue()
+
+		widget.writeText("package demo;\n\npublic class Widget {}\n")
+		val result = compiler.compile(listOf(widget, sibling), changedFiles = listOf(widget))
+
+		assertThat(result).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		assertThat(File(classesDir, "demo/Widget\$Helper.class").exists()).isFalse()
+		assertThat(File(classesDir, "demo/Widget\$1.class").exists()).isFalse()
+		// The primary class is swept too, but javac regenerates it in the same build.
+		assertThat(File(classesDir, "demo/Widget.class").isFile).isTrue()
+		// An untouched sibling must not be swept.
+		assertThat(File(classesDir, "demo/Widget2.class").isFile).isTrue()
+		// The deploy policy has to SEE the removals, or it cannot know a component's nested class
+		// went away - which is why the sweep runs after the pre-snapshot.
+		val changed = (result as IncrementalCompiler.Result.Success).changedClassFiles
+		assertThat(changed).contains("demo/Widget\$Helper.class")
+		assertThat(changed).contains("demo/Widget\$1.class")
+	}
+
+	@Test
 	fun `a removed java path with no source-root marker is skipped without touching outputs`() {
 		val widget = widgetJava()
 		val compiler = compiler()

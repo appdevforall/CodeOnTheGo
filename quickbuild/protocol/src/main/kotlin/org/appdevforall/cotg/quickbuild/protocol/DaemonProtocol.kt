@@ -325,8 +325,10 @@ object ResponseKeys {
  * @property javaAbiSnapMillis re-parsing every `.java` source's declarations to decide whether a
  *   Java ABI moved, which forces a full Kotlin recompile.
  * @property allSources size of the source set handed to the compiler.
- * @property kotlinToCompile Kotlin sources actually recompiled - the number that explains a slow
- *   row, since an ABI-changing Java edit recompiles all of them.
+ * @property kotlinToCompile Kotlin sources the daemon DECLARED changed to the Kotlin engine,
+ *   which is not the same as the number recompiled: the engine widens that set from its own
+ *   dependency graph and can recompile files we declared nothing about. Read it as the size of
+ *   the dirty set we handed over - an ABI-changing Java edit hands over all of them.
  * @property javaSources `.java` sources, all of which javac recompiles every build.
  * @property changedClasses `.class` files this build emitted or rewrote.
  * @property compileOrdinal 1-based index of this compile within the session, where `1` is the cold

@@ -51,6 +51,19 @@ class SourceAnnotationScannerEdgeTest {
 	}
 
 	@Test
+	fun `an escaped line break inside a single-quoted literal bails instead of throwing`() {
+		// The backslash masks the newline, so `code` keeps a line the mask lost and every later
+		// mask index is off by one. This used to throw ArrayIndexOutOfBoundsException out of a
+		// scope with no CoroutineExceptionHandler, i.e. it took CoGo down on any KSP project.
+		assertThat(SourceAnnotationScanner.scan("val s = \"a\\\nb\"")).isNull()
+	}
+
+	@Test
+	fun `an escaped line break inside a char literal bails instead of throwing`() {
+		assertThat(SourceAnnotationScanner.scan("val c = '\\\n'")).isNull()
+	}
+
+	@Test
 	fun `an escaped quote does not close the literal`() {
 		val facts = SourceAnnotationScanner.scan("""@Suppress("say \"hi\"") class A""")!!
 

@@ -6,6 +6,11 @@ import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes
+import java.io.File
+import java.nio.file.Files
+import java.util.jar.JarEntry
+import java.util.jar.JarFile
+import java.util.jar.JarOutputStream
 
 class ClassOpenerTest {
 	/** One entry of a class file's InnerClasses attribute, as ASM reports it. */
@@ -112,5 +117,47 @@ class ClassOpenerTest {
 					access = Opcodes.ACC_PUBLIC or Opcodes.ACC_STATIC,
 				),
 			)
+	}
+
+	@Test
+	fun `openJar clears ACC_FINAL on every class entry and copies the rest byte-for-byte`() {
+		// The diverted class DIRECTORIES were opened entry by entry, but a diverted jar reached
+		// the proxy compile classpath and the D8 program inputs unopened - so a user class that
+		// lands in a jar (R.jar, a feature module's classes jar) kept its final flag and the
+		// proxy extending it failed the dex verifier at load.
+		val temp = Files.createTempDirectory("classopener").toFile()
+		val source = File(temp, "payload.jar")
+		val manifestBytes = "Manifest-Version: 1.0\n".toByteArray()
+		JarOutputStream(source.outputStream()).use { out ->
+			out.putNextEntry(JarEntry("META-INF/MANIFEST.MF"))
+			out.write(manifestBytes)
+			out.closeEntry()
+			out.putNextEntry(JarEntry("com/example/app/MainActivity.class"))
+			out.write(classBytes(Opcodes.ACC_PUBLIC or Opcodes.ACC_FINAL))
+			out.closeEntry()
+		}
+
+		val opened = ClassOpener.openJar(source, File(temp, "opened/payload.jar"))
+
+		assertThat(opened.isFile).isTrue()
+		JarFile(opened).use { jar ->
+			val names =
+				jar
+					.entries()
+					.asSequence()
+					.map { it.name }
+					.toList()
+			assertThat(names)
+				.containsExactly("META-INF/MANIFEST.MF", "com/example/app/MainActivity.class")
+			val classEntry = jar.getEntry("com/example/app/MainActivity.class")
+			assertThat(ClassOpener.isFinal(jar.getInputStream(classEntry).use { it.readBytes() }))
+				.isFalse()
+			// Non-class entries are payload, not bytecode: rewriting one would corrupt a
+			// resource or a service-loader registration the app reads at runtime.
+			val manifestEntry = jar.getEntry("META-INF/MANIFEST.MF")
+			assertThat(jar.getInputStream(manifestEntry).use { it.readBytes() })
+				.isEqualTo(manifestBytes)
+		}
+		temp.deleteRecursively()
 	}
 }

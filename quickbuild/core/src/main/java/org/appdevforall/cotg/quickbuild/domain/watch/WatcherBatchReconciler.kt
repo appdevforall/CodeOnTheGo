@@ -7,11 +7,15 @@ import java.io.File
 /**
  * Reconciles a raw watcher batch into the modified/removed split the pipeline builds against.
  *
- * A path reported as modified but already gone is reclassified: with a recognized project-file
- * shape it is a deletion the modify channel caught (a `git checkout` rename whose target was then
- * dropped), and without one it is a rename-tool temp dropped as noise - otherwise a stray temp
- * would push the whole batch to a spurious
+ * A path reported as modified but already gone is reclassified: if it names a project file it is a
+ * deletion the modify channel caught (a `git checkout` rename whose target was then dropped), and
+ * otherwise it is a rename-tool temp dropped as noise - without that, a stray temp would push the
+ * whole batch to a spurious
  * [org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute.FullGradleBuild].
+ *
+ * "Names a project file" is [ChangeClassifier.namesProjectFile], not the narrower recognized-shape
+ * test: an extension-bearing path the classifier calls UNSUPPORTED is still a packaged file, and
+ * dropping its deletion leaves the proxy app serving content the project no longer has.
  */
 object WatcherBatchReconciler {
 	/**
@@ -29,11 +33,11 @@ object WatcherBatchReconciler {
 	): ChangedFiles.Known {
 		val modified = HashSet<File>()
 		val removed = HashSet<File>()
-		batch.removed.filterTo(removed, ChangeClassifier::hasRecognizedShape)
+		batch.removed.filterTo(removed, ChangeClassifier::namesProjectFile)
 		for (file in batch.files) {
 			when {
 				exists(file) -> modified.add(file)
-				ChangeClassifier.hasRecognizedShape(file) -> removed.add(file)
+				ChangeClassifier.namesProjectFile(file) -> removed.add(file)
 				// else: unrecognized vanished temp -> drop as noise.
 			}
 		}

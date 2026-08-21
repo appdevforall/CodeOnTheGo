@@ -11,6 +11,7 @@ import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
+import org.appdevforall.cotg.quickbuild.protocol.ConfigureRequest
 import org.appdevforall.cotg.quickbuild.service.FakeDaemon
 import org.appdevforall.cotg.quickbuild.service.FakePaths
 import org.junit.jupiter.api.Test
@@ -34,7 +35,7 @@ class QuickBuildDaemonControllerTest {
 			paths = FakePaths(projectRoot),
 		)
 
-	private fun proxyApp() =
+	private fun proxyApp(minApi: Int = ConfigureRequest.DEFAULT_MIN_API) =
 		ProxyAppInfo(
 			proxyAppPackage = "com.example.quickbuild",
 			entryActivity = "com.example.MainActivity",
@@ -42,6 +43,7 @@ class QuickBuildDaemonControllerTest {
 			classpath = emptyList(),
 			proxyClassesDir = null,
 			transformedManifest = null,
+			minApi = minApi,
 		)
 
 	private fun layout() = QuickBuildProjectLayout(projectRoot)
@@ -206,5 +208,18 @@ class QuickBuildDaemonControllerTest {
 			controller.shrinkIfPending(buildInFlight = false)
 			assertThat(daemon.shutdownCount).isEqualTo(1)
 			assertThat(controller.epochSnapshot()).isEqualTo(1L)
+		}
+
+	@Test
+	fun `the daemon config takes its min API from the baseline the proxy app build dexed`() =
+		runTest {
+			// A project whose effective dex level is not the protocol default. The daemon
+			// must dex increments the way the seed payload was dexed, so the value has to
+			// travel from setup.json into the config rather than default at each end.
+			val controller = controller()
+
+			controller.respawn(layout(), proxyApp(minApi = 26), controller.epochSnapshot())
+
+			assertThat(daemon.startConfigs.single().minApi).isEqualTo(26)
 		}
 }

@@ -72,6 +72,16 @@ class ChangeClassifier(
 				if (fastPathRoots.isNotEmpty() && fastPathRoots.none { isUnder(file, it) }) {
 					return BuildRoute.FullGradleBuild(InvalidationReason.NON_APP_MODULE_SOURCE_CHANGED)
 				}
+				// Only src/main is on the quick path: allSources, resDirs and assetRoots all read
+				// src/main alone, while the watch scope is the whole src tree. A debug or flavor
+				// source set would otherwise compile and relink nothing while the deploy claimed a
+				// reload the running app cannot show. Those DO ship in the built variant, so a
+				// full build is the honest answer; test source sets do not, and TestSourceFilter
+				// drops them upstream rather than spending a build on an app that cannot differ.
+				val sourceSet = sourceSetName(file)
+				if (sourceSet != null && sourceSet != "main") {
+					return BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED)
+				}
 			}
 			when (kind) {
 				FileKind.GRADLE_CONFIG -> {
@@ -224,6 +234,29 @@ class ChangeClassifier(
 		}
 
 		/**
+		 * The source set [file] sits in - the `<sourceSet>` of `<module>/src/<sourceSet>/...`.
+		 *
+		 * Deliberately NOT folded into [kindOf], which also backs [hasRecognizedShape] and
+		 * [namesResource]: a non-main file must keep its kind so a DELETION still routes rather
+		 * than being dropped as noise, and so a `src/debug/res` diagnostic is still attributed to
+		 * aapt2 instead of kotlinc.
+		 *
+		 * Shared with [TestSourceFilter], which drops test source sets upstream of this class.
+		 *
+		 * @param file the changed path; only its directories are scanned, never its own name.
+		 * @return the innermost `src` child on its parent chain, or null when it has none, so a
+		 *   package named after a source set cannot rename the source set it is in.
+		 */
+		internal fun sourceSetName(file: File): String? {
+			var current: File? = file.parentFile
+			while (current != null) {
+				if (current.parentFile?.name == "src") return current.name
+				current = current.parentFile
+			}
+			return null
+		}
+
+		/**
 		 * True when [file]'s path shape alone names a role this classifier knows (Gradle config,
 		 * manifest, code, resource, asset). No filesystem access - the file need not exist.
 		 *
@@ -235,6 +268,21 @@ class ChangeClassifier(
 		 *   fallback for a deletion - the caller still decides.
 		 */
 		fun hasRecognizedShape(file: File): Boolean = kindOf(file) != FileKind.UNSUPPORTED
+
+		/**
+		 * True when a vanished [file] names a project file rather than a rename tool's temp
+		 * sibling, so its deletion must still route somewhere.
+		 *
+		 * Wider than [hasRecognizedShape] on purpose. An UNSUPPORTED path that carries an
+		 * extension - a `.properties` under `src/main/resources`, a `.so` under `jniLibs` - is a
+		 * real packaged file whose MODIFICATION already forces a Gradle fallback, so dropping its
+		 * DELETION leaves the proxy app serving bytes the project no longer has. What the temps
+		 * this filter exists for lack is any extension at all.
+		 *
+		 * @param file the vanished path to weigh; no filesystem access.
+		 * @return true to keep the deletion, false to drop it as rename noise.
+		 */
+		fun namesProjectFile(file: File): Boolean = hasRecognizedShape(file) || file.extension.isNotEmpty()
 
 		/**
 		 * True when [file]'s path shape says it is an Android resource - under a source set's own

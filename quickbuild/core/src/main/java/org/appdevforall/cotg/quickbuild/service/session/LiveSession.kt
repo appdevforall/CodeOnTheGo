@@ -116,4 +116,8 @@ internal class SwitchableExecutor(
 	@Volatile var delegate: LiveReloadExecutor,
 ) : LiveReloadExecutor {
 	override suspend fun execute(request: BuildRequest): BuildOutcome = delegate.execute(request)
+
+	// Has a no-op default in the interface, so forwarding is not optional: without this a tap
+	// landing on an in-flight save-build is absorbed here and the deploy never goes foreground.
+	override fun markCurrentBuildUserInitiated() = delegate.markCurrentBuildUserInitiated()
 }

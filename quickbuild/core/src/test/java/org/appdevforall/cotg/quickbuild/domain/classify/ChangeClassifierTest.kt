@@ -297,6 +297,60 @@ class ChangeClassifierTest {
 			.isEqualTo(BuildRoute.CodeOnly)
 	}
 
+	// Source sets (Level 1, second axis): only src/main is on the quick path.
+
+	@Test
+	fun `a unit test source is not on the quick path`() {
+		// allSources() reads src/main only, so the daemon would compile nothing and the deploy
+		// would still claim a reload.
+		assertThat(classifyScoped("app/src/test/java/com/example/ATest.kt"))
+			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED))
+	}
+
+	@Test
+	fun `an instrumentation test source is not on the quick path`() {
+		assertThat(classifyScoped("app/src/androidTest/java/com/example/AUiTest.kt"))
+			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED))
+	}
+
+	@Test
+	fun `a debug source set is not on the quick path`() {
+		// Unlike a test source this IS part of the app, so serving a quick build would ship
+		// the running app without the edit.
+		assertThat(classifyScoped("app/src/debug/java/com/example/DebugOnly.kt"))
+			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED))
+	}
+
+	@Test
+	fun `a flavor source set is not on the quick path`() {
+		assertThat(classifyScoped("app/src/free/java/com/example/FreeOnly.kt"))
+			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED))
+	}
+
+	@Test
+	fun `a non-main source set resource is not on the quick path`() {
+		// The res half of the same hole: resDirs() is src/main/res alone, so a relink would
+		// silently drop this overlay. A code-only fix would miss this.
+		assertThat(classifyScoped("app/src/debug/res/values/strings.xml"))
+			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED))
+	}
+
+	@Test
+	fun `a non-main source set asset is not on the quick path`() {
+		assertThat(classifyScoped("app/src/debug/assets/seed.json"))
+			.isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED))
+	}
+
+	@Test
+	fun `a main source beside a debug source rebaselines`() {
+		assertThat(
+			classifyScoped(
+				"app/src/main/java/com/example/A.kt",
+				"app/src/debug/java/com/example/DebugOnly.kt",
+			),
+		).isEqualTo(BuildRoute.FullGradleBuild(InvalidationReason.UNSUPPORTED_FILE_CHANGED))
+	}
+
 	// Assets below API 30: nothing on the device serves a deployed asset payload.
 
 	private val noAssetServing = ChangeClassifier(assetsLiveReloadable = false)

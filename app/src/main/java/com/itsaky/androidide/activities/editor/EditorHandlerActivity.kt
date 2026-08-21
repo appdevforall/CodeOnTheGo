@@ -554,7 +554,10 @@ open class EditorHandlerActivity :
 			}
 
 			content.projectActionsToolbar.addMenuItem(
-				icon = action.icon,
+				// This custom toolbar bypasses DefaultActionsRegistry's menu path, so its
+				// disabled-icon dim (alpha 76 there) must be mirrored here or a disabled
+				// action renders at full strength while refusing the tap.
+				icon = action.icon?.mutate()?.apply { alpha = if (action.enabled) 255 else 76 },
 				hint = getToolbarContentDescription(action, data),
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
@@ -676,11 +679,21 @@ open class EditorHandlerActivity :
 				QuickBuildAction.ID -> {
 					// While a quick build runs this button IS the stop button, so the spoken
 					// label has to move with the icon - a screen reader announcing "Quick
-					// Build" over a stop affordance is a bug the user cannot see around.
-					if (QuickBuildAction.currentTone() == QuickBuildTone.BUILDING) {
-						string.cd_toolbar_cancel_build
-					} else {
-						string.cd_quick_build
+					// Build" over a stop affordance is a bug the user cannot see around. The
+					// same holds for the greyed-out state: "Quick Build" over a button that
+					// does nothing says nothing about why.
+					when {
+						QuickBuildAction.currentTone() == QuickBuildTone.BUILDING -> {
+							string.cd_toolbar_cancel_build
+						}
+
+						QuickBuildAction.isBlockedByStandardBuild() -> {
+							string.quick_build_standard_build_in_progress
+						}
+
+						else -> {
+							string.cd_quick_build
+						}
 					}
 				}
 

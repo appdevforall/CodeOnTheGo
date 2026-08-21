@@ -208,7 +208,7 @@ class AnalyticsQuickBuildMetricsSinkTest {
 		assertThat(metric.javacMs).isEqualTo(3_983)
 		assertThat(metric.walkMs).isEqualTo(250) // the two output-tree walks, summed
 		assertThat(metric.javaAbiSnapMs).isEqualTo(621)
-		assertThat(metric.kotlinCompiled).isEqualTo(0)
+		assertThat(metric.kotlinDeclaredChanged).isEqualTo(0)
 		assertThat(metric.changedClasses).isEqualTo(323)
 		assertThat(metric.compileOrdinal).isEqualTo(2)
 		assertThat(metric.scratchFs).isEqualTo("fuse")
@@ -297,7 +297,7 @@ class AnalyticsQuickBuildMetricsSinkTest {
 			counts =
 				org.appdevforall.cotg.quickbuild.domain.telemetry.E2eTimeline.BuildCounts(
 					allSources = 292,
-					kotlinCompiled = 0,
+					kotlinDeclaredChanged = 0,
 					javaSources = 218,
 					changedClasses = 323,
 					classFiles = 464,

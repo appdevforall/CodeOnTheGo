@@ -52,6 +52,15 @@ class ChangeClassifierEdgeTest {
 	}
 
 	@Test
+	fun `a package named after a source set stays on the quick path`() {
+		// `test` is a legal package name. The source-set guard is anchored at the src child, so
+		// a nested package cannot rename the source set the file is really in - reading this as
+		// src/test would push every edit under it to a needless full Gradle build.
+		assertThat(classify("app/src/main/java/com/example/test/Helper.kt"))
+			.isEqualTo(BuildRoute.CodeOnly)
+	}
+
+	@Test
 	fun `a java file in a package named assets is code, not an asset`() {
 		assertThat(classify("app/src/main/java/com/example/assets/Loader.java"))
 			.isEqualTo(BuildRoute.CodeOnly)

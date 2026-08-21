@@ -220,7 +220,7 @@ Automated coverage: unit
 Steps:
 
 1. Change the FAB's message literal to `A`. Save.
-2. Change it to `B` and save, then `C` through `G`, saving each one while the previous build is still running. A build takes about three seconds, so just do not pause between saves - saves that arrive mid-build merge into the next one.
+2. Change it to `B` and save, then `C` through `G`, saving each one while the previous build is still running. A warm build takes about a second, so save as fast as you can - saves that arrive mid-build merge into the next one. (At a normal hand cadence you may simply get one build per save; that also passes.)
 
 Expected:
 
@@ -321,7 +321,7 @@ Expected:
 
 1. Restart re-provisions cleanly and faster than T1, with no reinstall unless the app's bytes changed.
 2. The icon tracks BUILDING, then READY.
-3. Help opens a popup describing Quick Build. Help that opens nothing at all is a failure, not a missing feature.
+3. Help opens a popup describing Quick Build. Note: the content comes from `documentation.db`, a prebuilt asset owned by the documentation repository - until a row for `EDITOR_TOOLBAR_QUICK_BUILD` ships in it, Help opens the "no tooltip" fallback. That reads as a failure here; the fix is a documentation-repo row, not a code change in this repo.
 4. The dropdown has exactly three items: Quick Build, Restart session, Help.
 
 ### T15 - Backgrounding, daemon survives
@@ -413,7 +413,9 @@ Steps:
 Expected:
 
 1. The Service edit restarts the app process to take effect.
-2. The helper-only edit hot-swaps without a restart.
+2. The helper-only edit also restarts. The restart rule keys on what the app declares, not on
+   what the edit touched: while a Service is declared, every code-bearing deploy restarts
+   (`DeployPolicy`; see `live-reload-alternatives.md`).
 
 ### T21 - Known-slow path, sora-editor-full
 

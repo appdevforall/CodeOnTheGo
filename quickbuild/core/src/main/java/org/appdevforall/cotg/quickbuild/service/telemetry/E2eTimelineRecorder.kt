@@ -125,7 +125,7 @@ internal class E2eTimelineRecorder(
 		counts =
 			counts.copy(
 				allSources = stats?.allSources,
-				kotlinCompiled = stats?.kotlinToCompile,
+				kotlinDeclaredChanged = stats?.kotlinToCompile,
 				javaSources = stats?.javaSources,
 				changedClasses = stats?.changedClasses,
 				compileOrdinal = stats?.compileOrdinal,

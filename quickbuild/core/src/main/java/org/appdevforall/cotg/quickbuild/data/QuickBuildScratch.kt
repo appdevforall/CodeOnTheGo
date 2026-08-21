@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.data
 
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.security.MessageDigest
 
@@ -133,11 +134,23 @@ class QuickBuildScratch(
 	/**
 	 * Deletes the project's tree; a missing tree is a no-op. Session-teardown hook.
 	 *
+	 * Never throws - teardown has to finish. A tree that will not delete is logged at error,
+	 * because the next session for that project reuses whatever is left.
+	 *
 	 * @param projectRoot the project whose tree to delete; its own directory, and the generation
 	 *   counter inside it, are untouched.
 	 */
 	fun remove(projectRoot: File) {
-		treeFor(projectRoot).deleteRecursively()
+		val tree = treeFor(projectRoot)
+		// deleteRecursively() also returns false for a tree that was never there, which is a
+		// documented no-op - so the residue, not the return value alone, is the failure.
+		if (!tree.deleteRecursively() && tree.exists()) {
+			log.error(
+				"Quick Build: could not fully delete the scratch tree {}; the next session for " +
+					"this project reuses what is left, so its build may start from stale intermediates",
+				tree.absolutePath,
+			)
+		}
 	}
 
 	/**
@@ -150,13 +163,21 @@ class QuickBuildScratch(
 	 */
 	fun sweep() {
 		root.listFiles()?.forEach { child ->
-			if (child.isDirectory) {
-				child.deleteRecursively()
+			if (child.isDirectory && !child.deleteRecursively() && child.exists()) {
+				// Not fatal: nothing live depends on a leftover, and the project it belongs
+				// to gets the same reuse behaviour as any warm tree. Logged because a tree
+				// that never clears is disk this class promises to reclaim.
+				log.warn(
+					"Quick Build: could not reclaim the leftover scratch tree {}; it stays on disk",
+					child.absolutePath,
+				)
 			}
 		}
 	}
 
 	companion object {
+		private val log = LoggerFactory.getLogger("QB-Scratch")
+
 		/** See [freeSpaceShortfall] for why a fixed floor, and why this value. */
 		const val DEFAULT_MIN_FREE_BYTES: Long = 100L * 1024 * 1024
 

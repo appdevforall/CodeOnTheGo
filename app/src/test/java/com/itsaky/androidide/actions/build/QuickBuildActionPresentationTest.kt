@@ -91,4 +91,38 @@ class QuickBuildActionPresentationTest {
 					.isNotEqualTo(R.string.title_cancel_build)
 			}
 	}
+
+	@Test
+	fun `a standard build greys the bolt out`() {
+		// A tap that cannot succeed is worse than a button that says so: the tap used to stage
+		// into the user's project and burn a baseline generation before the refusal, and the
+		// refusal then read as "setup failed".
+		QuickBuildTone.entries
+			.filter { it != QuickBuildTone.BUILDING }
+			.forEach { tone ->
+				assertThat(QuickBuildAction.blockedByStandardBuild(tone, standardBuildInProgress = true))
+					.isTrue()
+			}
+	}
+
+	@Test
+	fun `the stop affordance stays tappable while a quick build runs`() {
+		// BUILDING means the button IS the stop button. Greying it would strand the user in a
+		// build they asked to cancel - and a standard build cannot be running then anyway,
+		// since the two share the one Gradle slot.
+		assertThat(
+			QuickBuildAction.blockedByStandardBuild(
+				QuickBuildTone.BUILDING,
+				standardBuildInProgress = true,
+			),
+		).isFalse()
+	}
+
+	@Test
+	fun `nothing is greyed out when no standard build is running`() {
+		QuickBuildTone.entries.forEach { tone ->
+			assertThat(QuickBuildAction.blockedByStandardBuild(tone, standardBuildInProgress = false))
+				.isFalse()
+		}
+	}
 }

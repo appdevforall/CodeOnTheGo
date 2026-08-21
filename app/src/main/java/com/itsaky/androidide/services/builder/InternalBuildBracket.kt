@@ -29,16 +29,21 @@ class InternalBuildBracket(
 
 	/**
 	 * Runs [block] with the bracket held, releasing it however [block] leaves - a value, an
-	 * exception, or a cancellation. Nothing runs between the acquire and the try.
+	 * exception, or a cancellation, and however the acquire itself leaves. The increment is the
+	 * last thing before the try, so no callback can throw while the depth is raised.
 	 *
 	 * [hold] is the only acquire, so the depth can never go negative and needs no clamp.
 	 */
 	suspend fun <T> hold(block: suspend () -> T): T {
-		if (depth.getAndIncrement() == 0) {
-			onFirstAcquire()
-			notifyHeldChanged(true)
-		}
+		val outermost = depth.getAndIncrement() == 0
 		try {
+			// Inside the try, because a throw from onFirstAcquire would otherwise leave the depth
+			// incremented with no matching release - the permanent, silent leak described above.
+			// Failing the acquire releases, which un-suppresses rather than staying suppressed.
+			if (outermost) {
+				onFirstAcquire()
+				notifyHeldChanged(true)
+			}
 			return block()
 		} finally {
 			// The release edge fires from the same finally that drops the depth, so every exit

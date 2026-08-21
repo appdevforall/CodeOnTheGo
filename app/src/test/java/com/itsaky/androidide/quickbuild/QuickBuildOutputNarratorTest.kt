@@ -225,4 +225,24 @@ class QuickBuildOutputNarratorTest {
 			assertThat(written.first()).contains("generation 50 -")
 			assertThat(written.last()).contains("generation 249 -")
 		}
+
+	@Test
+	fun `reset drops queued lines, so a closed project's narration cannot flush into the next one`() =
+		narrating { narrator ->
+			// The narrator is a process-wide singleton and its queue outlives any one editor.
+			// Lines written with no pane bound belong to the project that produced them, so
+			// without a reset the NEXT project's Build Output opens holding the previous
+			// project's progress - attributed to a build it never ran.
+			narrator.narrateProxyAppProgress("> Task :app:mergeV8DebugResources")
+			assertThat(written).isEmpty()
+
+			narrator.reset()
+			narrator.bind(sink)
+
+			assertThat(written).isEmpty()
+
+			// The pane still works afterwards; only the stale queue went away.
+			narrator.narrateProxyAppProgress("> Task :app:compileV8DebugKotlin")
+			assertThat(written.single()).contains(":app:compileV8DebugKotlin")
+		}
 }

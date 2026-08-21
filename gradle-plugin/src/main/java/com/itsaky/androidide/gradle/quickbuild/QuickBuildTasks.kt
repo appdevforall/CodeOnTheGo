@@ -319,6 +319,9 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 				}
 				opened
 			}
+		// Jars get the same treatment as the diverted directories: a user class that lands in a
+		// jar is still a class a proxy has to extend.
+		val openedJars = payloadJars.map { jar -> ClassOpener.openJar(jar, File(openedDir, "jars/${jar.name}")) }
 
 		val runtimeClassesJars = extractRuntimeClasses()
 		val proxyJavaFiles =
@@ -333,7 +336,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 			compileProxies(
 				proxyJavaFiles,
 				classpath =
-					bootClasspath.files + openedRoots + payloadJars +
+					bootClasspath.files + openedRoots + openedJars +
 						runtimeClassesJars + compileClasspath.files,
 				outputDir = proxyClassesDir,
 			)
@@ -342,7 +345,7 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 		val programFiles =
 			openedRoots.flatMap { root -> root.walkTopDown().filter { it.extension == "class" } } +
 				proxyClassesDir.walkTopDown().filter { it.extension == "class" } +
-				payloadJars
+				openedJars
 		if (programFiles.isEmpty()) {
 			logger.warn("Quick Build: no project classes found; skipping baseline payload dex")
 			return
@@ -598,10 +601,25 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	 *
 	 * Disjoint from [mergedResSearchDir], which carries VALUES resources only, and a theme's item
 	 * values reference both kinds. A file collection for the same reason as [sourceRootDirs].
+	 *
+	 * ABSOLUTE, like [sourceRootDirs], because these directories' absolute paths are part of this
+	 * task's OUTPUT - `collectLibraryResourcePaths` writes them into setup.json. Under NONE a
+	 * dependency's compiled-resources artifact could relocate without changing bytes (a Gradle or
+	 * AGP upgrade rehashing `caches/transforms-*`, or a re-download after cache pruning) and leave
+	 * the task UP-TO-DATE with dead paths, so every on-device relink would silently lose
+	 * dependency-provided resources.
 	 */
 	@get:InputFiles
-	@get:PathSensitive(PathSensitivity.NONE)
+	@get:PathSensitive(PathSensitivity.ABSOLUTE)
 	abstract val dependencyResourceDirs: ConfigurableFileCollection
+
+	/**
+	 * The API level [QuickBuildPayloadDexTask] dexed the seed payload at, published so the
+	 * on-device daemon dexes its increments at the same level instead of falling back to the
+	 * protocol's own floor. Set from the same expression as that task's `minApiLevel`.
+	 */
+	@get:Input
+	abstract val minApiLevel: Property<Int>
 
 	/**
 	 * `build/quickbuild/<variant>/setup.json` - the file CoGo reads after the proxy app build,
@@ -672,6 +690,7 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 						.sorted(),
 				stableIdsPath = stableIdsPath,
 				libraryResourcePaths = libraryResourcePaths,
+				minApi = minApiLevel.get(),
 			),
 		)
 		if (stableIdsPath == null) {

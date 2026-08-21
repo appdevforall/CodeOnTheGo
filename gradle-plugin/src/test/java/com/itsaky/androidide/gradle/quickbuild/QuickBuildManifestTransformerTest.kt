@@ -223,9 +223,13 @@ class QuickBuildManifestTransformerTest {
 			.isEqualTo("$proxyPackage.Proxy0Activity")
 		assertThat(byName["com.example.app.TutorialActivity"]!!.getAttributeNS(ns, "targetActivity"))
 			.isEqualTo("$proxyPackage.Proxy1Activity")
-		// Never a wider surface than before the rename: the outside world could not reach the
-		// real name then, so the alias must not export it now.
-		aliases.forEach { assertThat(it.getAttributeNS(ns, "exported")).isEqualTo("false") }
+		// Never a wider surface than the alias's own target: it mirrors that activity's
+		// android:exported, so it can expose no name the target does not already expose.
+		// MainActivity is exported here; TutorialActivity declares nothing, so it reads false.
+		assertThat(byName["com.example.app.MainActivity"]!!.getAttributeNS(ns, "exported"))
+			.isEqualTo("true")
+		assertThat(byName["com.example.app.TutorialActivity"]!!.getAttributeNS(ns, "exported"))
+			.isEqualTo("false")
 		// An alias must FOLLOW its target's declaration, so they are appended after every
 		// <activity> child of <application>.
 		val application = result.document.getElementsByTagName("application").item(0) as Element
@@ -233,6 +237,41 @@ class QuickBuildManifestTransformerTest {
 			(0 until application.childNodes.length)
 				.mapNotNull { (application.childNodes.item(it) as? Element)?.tagName }
 		assertThat(childTags.lastIndexOf("activity")).isLessThan(childTags.indexOf("activity-alias"))
+	}
+
+	@Test
+	fun `the synthetic alias mirrors its target's exported value, never widening it`() {
+		// The alias is the only manifest entry left under the real class name, so forcing it
+		// false rejects a launch the standard run allows: a pinned shortcut or share target the
+		// app published records the real name, and the launcher is a different uid. Mirroring is
+		// safe because the target activity already carries that exact exposure, so the alias can
+		// never reach anything the target does not.
+		val result =
+			transformer().transform(
+				manifest(
+					launcherActivity + "\n" +
+						"<activity android:name=\"com.example.app.PrivateActivity\" android:exported=\"false\" />" +
+						"\n" +
+						"<activity android:name=\"com.example.app.FlaggedActivity\"" +
+						" android:exported=\"@bool/exposePreview\" />",
+				).byteInputStream(),
+			)
+
+		val ns = QuickBuildManifestTransformer.ANDROID_NS
+		val byName =
+			result.document
+				.getElementsByTagName("activity-alias")
+				.let { nodes -> (0 until nodes.length).map { nodes.item(it) as Element } }
+				.associateBy { it.getAttributeNS(ns, "name") }
+
+		assertThat(byName["com.example.app.MainActivity"]!!.getAttributeNS(ns, "exported"))
+			.isEqualTo("true")
+		assertThat(byName["com.example.app.PrivateActivity"]!!.getAttributeNS(ns, "exported"))
+			.isEqualTo("false")
+		// A resource reference resolves at runtime and parses as neither literal, so it has to
+		// be copied through: collapsing it to false would deny a launch the flag allows.
+		assertThat(byName["com.example.app.FlaggedActivity"]!!.getAttributeNS(ns, "exported"))
+			.isEqualTo("@bool/exposePreview")
 	}
 
 	@Test

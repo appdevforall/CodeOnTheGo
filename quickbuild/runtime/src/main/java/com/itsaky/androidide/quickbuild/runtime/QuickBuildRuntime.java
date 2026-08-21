@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.Application;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.MessageQueue;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
 import java.io.File;
@@ -22,6 +23,13 @@ final class QuickBuildRuntime {
 
 	/** Stack frames kept in a crash summary; enough to place the fault, short enough to read. */
 	private static final int MAX_CRASH_SUMMARY_FRAMES = 5;
+
+	/**
+	 * How long a restart deploy waits for the framework to take the app's state, across both phases of the handoff.
+	 *
+	 * Only spent when the app is actually in front, which in the normal loop it is not - the user is typing in CoGo, so every activity is already stopped and both phases pass at once. Bounded well under the host's 5 s disconnect wait, since the kill is owed either way.
+	 */
+	private static final long RESTART_HANDOFF_TIMEOUT_MILLIS = 1500;
 
 	/** Hard cap on a crash summary, since it crosses binder and lands in a banner. */
 	private static final int MAX_CRASH_SUMMARY_LENGTH = 2000;
@@ -137,6 +145,12 @@ final class QuickBuildRuntime {
 	private final QuickBuildClient client = new QuickBuildClient(this);
 	private final StatusOverlay overlay = new StatusOverlay();
 
+	/** Whether the generation this process booted from the store has proved itself yet. */
+	private final BootProbation bootProbation = new BootProbation();
+
+	/** The restart path's wait for the framework to be told the app's state before the process dies. */
+	private final RestartHandoff restartHandoff = new RestartHandoff();
+
 	/** What the overlay should show; written from any thread, rendered on the main one. */
 	private volatile OverlayState overlayState = OverlayState.hidden();
 
@@ -148,6 +162,9 @@ final class QuickBuildRuntime {
 
 	/** Latches the legacy resource-apk cache sweep, which is only safe before the first swap. */
 	private boolean sweptLegacyResourceCache;
+
+	/** Newest generation already recorded as good, so the write happens once rather than per resume. */
+	private volatile long lastMarkedGoodGeneration = -1;
 
 	/**
 	 * @param application
@@ -333,6 +350,20 @@ final class QuickBuildRuntime {
 		} else {
 			overlay.render(activity, overlayState);
 		}
+		// Unconditional, because the point is that an activity of this generation is on
+		// screen - which is true whether it arrived by hot swap or by a fresh process
+		// booting it, and only the first of those leaves a pending generation behind.
+		markLiveGenerationGood();
+	}
+
+	/** Counts an activity into the set a restart deploy waits to empty before killing the process. */
+	void onActivityStarted() {
+		restartHandoff.onActivityStarted();
+	}
+
+	/** Counts an activity out of that set; the last one out is what lets a waiting restart move on. */
+	void onActivityStopped() {
+		restartHandoff.onActivityStopped();
 	}
 
 	/**
@@ -374,8 +405,84 @@ final class QuickBuildRuntime {
 		}
 	}
 
-	/** Kills the process, because a restart deploy's ack promises a fresh boot. */
+	/**
+	 * Asks Android to background the app and waits until the framework has been told the app's state, so the relaunch can put the user back where they were.
+	 *
+	 * Killing a process the server still believes has no saved state for its top activity gets that record force-removed; when it was the task's only entry the task goes too, and the relaunch has nothing to resume. Waiting for the in-process onSaveInstanceState callback, as this did before, ends about one main-thread message too early - the app has written its bundle and the server has not been told, which measured on an A56 as a force-removal 102 ms later and a task collapsed to a single launcher entry.
+	 *
+	 * The gate is any STARTED activity rather than a resumed one, because the record at risk is any the server holds no state for, split screen and a dialog from another app included.
+	 *
+	 * A no-op in the normal loop: the user saves by typing in CoGo, so every activity is already stopped and the framework has what it needs. Never fails the restart - a handoff that does not complete costs the user their place, not their app.
+	 */
+	private void backgroundForRestart() {
+		final Activity top = tracker.topActivity();
+		if (top == null || !restartHandoff.anyActivityStarted()) {
+			return;
+		}
+		// Arm before asking, so nothing from an earlier handoff can answer this one.
+		restartHandoff.arm();
+		mainHandler.post(new Runnable() {
+
+			@Override
+			public void run() {
+				try {
+					// nonRoot, so this works from any activity in the task rather than only
+					// the one that started it.
+					top.moveTaskToBack(true);
+				} catch (Throwable error) {
+					RuntimeLog.w("could not background the task before restarting", error);
+				}
+			}
+		});
+		boolean handedOff = restartHandoff.awaitHandoff(RESTART_HANDOFF_TIMEOUT_MILLIS, new Runnable() {
+
+			@Override
+			public void run() {
+				drainMainLooper();
+			}
+		});
+		if (!handedOff) {
+			RuntimeLog.w("the framework was not told the app's state within "
+					+ RESTART_HANDOFF_TIMEOUT_MILLIS
+					+ " ms; restarting anyway, so the screen and back stack may not come back");
+		}
+	}
+
+	/**
+	 * Ends the handoff once the main looper has run everything the last activity's stop queued behind it.
+	 *
+	 * ActivityThread posts its {@code activityStopped} report - the message carrying the saved state to the server - to the main looper from inside the stop it has just dispatched. A message queued from here can land either side of that post, so it proves nothing; an idle callback cannot, because the looper only looks for one when no message is ready, which is necessarily after the report has run. The empty post is the nudge that makes it look, since adding an idle handler does not wake a looper that is already parked.
+	 *
+	 * A failure here ends the wait rather than stranding it: the kill is owed either way, and a full timeout would cost the user the same place this is protecting.
+	 */
+	private void drainMainLooper() {
+		try {
+			Looper.getMainLooper().getQueue().addIdleHandler(new MessageQueue.IdleHandler() {
+
+				@Override
+				public boolean queueIdle() {
+					restartHandoff.onDrained();
+					return false;
+				}
+			});
+			mainHandler.post(new Runnable() {
+
+				@Override
+				public void run() {}
+			});
+		} catch (Throwable error) {
+			RuntimeLog.w("could not wait for the main looper before restarting", error);
+			restartHandoff.onDrained();
+		}
+	}
+
+	/**
+	 * Backgrounds the app so Android saves its state, then kills the process, because a restart deploy's ack promises a fresh boot.
+	 *
+	 * The kill has to come from inside the app: CoGo binds this app's keep-alive service to keep it out of the cached-app freezer, which also holds it out of the killable bucket, so {@code am kill} reports success and leaves the process running (measured on an A56, 3 of 3).
+	 */
 	private void exitForRestart() {
+		backgroundForRestart();
 		android.os.Process.killProcess(android.os.Process.myPid());
 	}
 
@@ -406,9 +513,11 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Chains a handler that reports a crashing reload to CoGo before the app dies.
+	 * Chains a handler that quarantines and reports the generation a crash belongs to, before the app dies.
 	 *
-	 * A payload crash during render happens outside our call stack - the recreated activity throws in its own lifecycle - so the default uncaught handler is the only interception point. It delegates afterwards, so the process still dies; on relaunch the app reconnects with its old running generation and CoGo decides what to redeploy.
+	 * A payload crash during render happens outside our call stack - the recreated activity throws in its own lifecycle - so the default uncaught handler is the only interception point. It delegates afterwards, so the process still dies; on relaunch the app reconnects with whatever the store then serves and CoGo decides what to redeploy.
+	 *
+	 * Which generation a crash belongs to is {@link BootProbation}'s question, not this handler's, because a restart deploy's crash lands in the process AFTER the one that deployed it, where no reload is pending.
 	 */
 	private void installCrashGuard() {
 		final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
@@ -418,18 +527,19 @@ final class QuickBuildRuntime {
 			 * @param thread
 			 *            the thread that died; forwarded untouched to the previous handler
 			 * @param error
-			 *            the uncaught failure, reported to CoGo only while a reload is pending
+			 *            the uncaught failure, reported to CoGo only when a generation this process adopted is to blame
 			 */
 			@Override
 			public void uncaughtException(Thread thread, Throwable error) {
 				try {
-					long pending = pendingReloadGeneration;
-					if (pending >= 0) {
+					long doomed = bootProbation.generationToBlame(pendingReloadGeneration,
+							PayloadStore.INSTANCE.generation());
+					if (doomed >= 0) {
 						// The store already claims this generation, so a relaunch would
-						// adopt it and die the same way during startup - where no reload
-						// is pending, so nothing reports it and the app crash-loops.
-						quarantine(pending);
-						client.reportCrash(pending, summarize(error));
+						// adopt it and die the same way again - and the marker is what
+						// sends that relaunch to the last generation that ran instead.
+						quarantine(doomed);
+						client.reportCrash(doomed, summarize(error));
 					}
 				} catch (Throwable ignored) {
 					// The crash guard itself must never throw.
@@ -439,6 +549,33 @@ final class QuickBuildRuntime {
 				}
 			}
 		});
+	}
+
+	/**
+	 * Records the running generation as the one a later quarantine should fall back to, and ends its probation.
+	 *
+	 * Called from a resumed activity, which is the bar that matters: the failure a fallback has to survive is a payload that throws on the way to the screen, so a generation that got there is one a fresh process can boot. Without this a quarantine drops the app to install-time code and discards every save since.
+	 *
+	 * The probation ends on the recorded write rather than on the resume that prompted it, so the two facts stay simultaneous: the moment this generation stops being blamed for a crash is the moment there is something to fall back to instead. A write that fails leaves it on probation, which is the safe direction - {@link PayloadPersistence#quarantine} refuses to name a recorded generation, so the cost of blaming one wrongly is a log line.
+	 *
+	 * Written off the main thread, because the write is fsynced and this runs on the frame path; latched per generation, so it costs one short-lived thread per generation rather than one per resume. Losing the write to a process death only makes the fallback one generation older.
+	 */
+	private void markLiveGenerationGood() {
+		final long generation = PayloadStore.INSTANCE.generation();
+		final PayloadPersistence store = PayloadStore.INSTANCE.persistence();
+		if (generation <= 0 || generation == lastMarkedGoodGeneration || store == null) {
+			return;
+		}
+		lastMarkedGoodGeneration = generation;
+		new Thread(new Runnable() {
+
+			@Override
+			public void run() {
+				if (store.markGood(generation)) {
+					bootProbation.proved(generation);
+				}
+			}
+		}, "qb-mark-good").start();
 	}
 
 	/**
@@ -525,10 +662,13 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Wires up the pieces that need no Context: activity tracking and the crash guard.
+	 * Wires up the pieces that need no Context: activity tracking, the boot probation and the crash guard.
+	 *
+	 * The store has already run - {@link QuickBuildAppComponentFactory} calls {@link PayloadStore#ensureBaseline} before it instantiates the Application - so the generation this process booted is known here, which is early enough for the guard to cover the Application's own onCreate.
 	 */
 	private void start() {
 		application.registerActivityLifecycleCallbacks(tracker);
+		bootProbation.bootedFromStore(PayloadStore.INSTANCE.bootedPersistedGeneration());
 		installCrashGuard();
 	}
 

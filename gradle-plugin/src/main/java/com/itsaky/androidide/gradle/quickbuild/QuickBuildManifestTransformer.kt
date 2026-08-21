@@ -192,6 +192,12 @@ class QuickBuildManifestTransformer(
 		unproxied: MutableList<UnproxiedComponent>,
 	): List<ProxiedComponent> {
 		val activities = mutableListOf<ProxiedComponent>()
+		// android:exported per renamed activity, so the back-reference alias below can carry the
+		// target's own value. The raw attribute, not a parsed boolean: the value may be a
+		// resource reference (@bool/...), which parses as neither true nor false and must be
+		// copied through rather than collapsed. Kept local rather than added to
+		// ProxiedComponent, which is shared with the setup.json writer.
+		val exportedByUserClass = mutableMapOf<String, String>()
 		var proxyIndex = 0
 		application.childElements("activity").forEachIndexed { index, activity ->
 			val userClass = requireComponentName(activity, "activity", index, manifestPackage)
@@ -203,6 +209,7 @@ class QuickBuildManifestTransformer(
 			}
 			val proxyClass = "$proxyPackage.${proxySimpleName(proxyIndex, ComponentType.ACTIVITY)}"
 			proxyIndex++
+			exportedByUserClass[userClass] = activity.getAttributeNS(ANDROID_NS, "exported")
 			activity.setAttributeNS(ANDROID_NS, "android:name", proxyClass)
 			activities.add(
 				ProxiedComponent(
@@ -230,15 +237,25 @@ class QuickBuildManifestTransformer(
 		// in-app startActivity(Intent(ctx, SomeActivity::class.java)) throws
 		// ActivityNotFoundException - the rename removed the only manifest entry for that name.
 		// The alias resolves the real name to the proxy, which extends the user class. Appended
-		// after every <activity>, since an alias must follow its target's declaration. Exported
-		// false: same-app explicit intents resolve regardless, and the outside world could not
-		// reach the real name before this alias existed either.
+		// after every <activity>, since an alias must follow its target's declaration.
+		//
+		// The alias carries the TARGET's android:exported rather than a fixed value: an exported
+		// activity was reachable under its real name before the rename, and a pinned shortcut or
+		// share target the app itself published records that name, so forcing false rejects a
+		// launch that works under a standard run. Never widen it - an absent attribute reads as
+		// false, which is also what a merged manifest states explicitly from API 31.
 		val document = application.ownerDocument
 		activities.forEach { component ->
 			val alias = document.createElement("activity-alias")
 			alias.setAttributeNS(ANDROID_NS, "android:name", component.userClass)
 			alias.setAttributeNS(ANDROID_NS, "android:targetActivity", component.proxyClass!!)
-			alias.setAttributeNS(ANDROID_NS, "android:exported", "false")
+			alias.setAttributeNS(
+				ANDROID_NS,
+				"android:exported",
+				// An absent attribute is only implicitly false before API 31, where it is a hard
+				// manifest error, so the alias states it.
+				exportedByUserClass[component.userClass]?.takeIf { it.isNotBlank() } ?: "false",
+			)
 			application.appendChild(alias)
 		}
 		return activities

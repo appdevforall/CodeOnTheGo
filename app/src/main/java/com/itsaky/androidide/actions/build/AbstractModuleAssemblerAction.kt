@@ -7,6 +7,7 @@ import androidx.annotation.StringRes
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.openApplicationModuleChooser
 import com.itsaky.androidide.actions.profiler.ProfilerAction
+import com.itsaky.androidide.activities.editor.QuickBuildClobberConfirmation
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
@@ -50,7 +51,7 @@ abstract class AbstractModuleAssemblerAction(
 			if (module != null) {
 				val variant = module.getSelectedVariant()
 				if (variant != null) {
-					onModuleSelected(data, module, variant)
+					onModuleSelected(data, module, variant, isPluginProject = true)
 					return true
 				}
 			}
@@ -69,15 +70,21 @@ abstract class AbstractModuleAssemblerAction(
 					return@openApplicationModuleChooser
 				}
 
-			onModuleSelected(data, module, variant)
+			onModuleSelected(data, module, variant, isPluginProject = false)
 		}
 		return true
 	}
 
+	/**
+	 * @param isPluginProject a plugin project builds a `.cgp`, not an APK, so nothing it produces
+	 *   can occupy the project's applicationId - the clobber confirm below would be asking about a
+	 *   package this build never installs.
+	 */
 	private fun onModuleSelected(
 		data: ActionData,
 		module: AndroidModule,
 		variant: AndroidModels.AndroidVariant,
+		isPluginProject: Boolean,
 	) {
 		val activity = data.requireActivity()
 		val resolvedVariant = resolveBuildVariant(data, module, variant) ?: return
@@ -85,25 +92,39 @@ abstract class AbstractModuleAssemblerAction(
 		// @MainThread and ViewModelLazy's cache is an unsynchronised field, so touching the
 		// delegate from a background coroutine mutates the activity's ViewModelStore off-main.
 		val buildViewModel: BuildViewModel by activity.viewModels()
-		// Save, THEN build - the build must be of what the user sees. The save runs INSIDE
-		// runQuickBuild's coroutine, after it has reserved BuildState.InProgress, rather than
-		// in actionScope here: a save on emulated storage is slow enough that a second tap
-		// would otherwise slip past the already-in-progress guard, and actionScope dies with
-		// the activity's onPause, which would start a Gradle build from a cancelled coroutine.
-		// A save failure aborts the build rather than quietly building stale content.
-		buildViewModel.runQuickBuild(
-			module,
-			resolvedVariant,
-			launchInDebugMode = id == DebugAction.ID,
-			launchProfilerAfterInstall = id == ProfilerAction.ID,
-			gradleArgs = gradleArgs,
-			beforeBuild = {
-				// The activity can go away during the save; saving through a dead one is
-				// pointless and its editors are already released.
-				if (!activity.isDestroyed && !activity.isFinishing) {
-					activity.saveAllResult()
-				}
-			},
+		val startBuild = { clobberAnswerAtTap: QuickBuildClobberConfirmation? ->
+			// Save, THEN build - the build must be of what the user sees. The save runs INSIDE
+			// runQuickBuild's coroutine, after it has reserved BuildState.InProgress, rather than
+			// in actionScope here: a save on emulated storage is slow enough that a second tap
+			// would otherwise slip past the already-in-progress guard, and actionScope dies with
+			// the activity's onPause, which would start a Gradle build from a cancelled coroutine.
+			// A save failure aborts the build rather than quietly building stale content.
+			buildViewModel.runQuickBuild(
+				module,
+				resolvedVariant,
+				launchInDebugMode = id == DebugAction.ID,
+				launchProfilerAfterInstall = id == ProfilerAction.ID,
+				gradleArgs = gradleArgs,
+				clobberAnswerAtTap = clobberAnswerAtTap,
+				beforeBuild = {
+					// The activity can go away during the save; saving through a dead one is
+					// pointless and its editors are already released.
+					if (!activity.isDestroyed && !activity.isFinishing) {
+						activity.saveAllResult()
+					}
+				},
+			)
+		}
+		if (isPluginProject) {
+			startBuild(null)
+			return
+		}
+		// Confirm-on-switch (ADFA-4128): this Run installs under the project's real applicationId,
+		// so it replaces a Quick Build proxy app sitting there. Asked here rather than at install
+		// time so a user who says no has not already paid for a full Gradle build.
+		activity.ensureStandardRunClobberConfirmed(
+			resolvedVariant.mainArtifact.applicationId?.takeIf { it.isNotBlank() },
+			startBuild,
 		)
 	}
 }

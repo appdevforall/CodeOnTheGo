@@ -14,11 +14,44 @@ class WatcherBatchReconcilerTest {
 	private val source = File("/project/app/src/main/java/com/example/Main.kt")
 	private val resource = File("/project/app/src/main/res/layout/activity_main.xml")
 	private val temp = File("/project/app/src/main/java/com/example/sedAbC123")
+	private val javaResource = File("/project/app/src/main/resources/config.properties")
+	private val nativeLib = File("/project/app/src/main/jniLibs/arm64-v8a/libnativestub.so")
 
 	private fun reconcile(
 		batch: ChangedFiles.Known,
 		existing: Set<File>,
 	): ChangedFiles.Known = WatcherBatchReconciler.reconcile(batch) { it in existing }
+
+	@Test
+	fun `a deleted java resource is kept as a removal, not dropped as noise`() {
+		// Modifying this file routes to FullGradleBuild because the quick path cannot package
+		// it; dropping its DELETION left the proxy app serving the deleted content forever.
+		val result = reconcile(ChangedFiles.Known(files = emptySet(), removed = setOf(javaResource)), existing = emptySet())
+
+		assertThat(result.removed).containsExactly(javaResource)
+	}
+
+	@Test
+	fun `a deleted native library is kept as a removal`() {
+		val result = reconcile(ChangedFiles.Known(files = emptySet(), removed = setOf(nativeLib)), existing = emptySet())
+
+		assertThat(result.removed).containsExactly(nativeLib)
+	}
+
+	@Test
+	fun `a vanished modified java resource becomes a removal rather than noise`() {
+		val result = reconcile(ChangedFiles.Known(setOf(javaResource)), existing = emptySet())
+
+		assertThat(result.files).isEmpty()
+		assertThat(result.removed).containsExactly(javaResource)
+	}
+
+	@Test
+	fun `an extensionless temp is still dropped - the negative control for the packaged-file rule`() {
+		val result = reconcile(ChangedFiles.Known(files = emptySet(), removed = setOf(temp)), existing = emptySet())
+
+		assertThat(result.isEmpty).isTrue()
+	}
 
 	@Test
 	fun `a modified file that still exists stays modified`() {

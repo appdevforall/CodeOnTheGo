@@ -42,6 +42,33 @@ class InternalBuildBracketTest {
 		}
 
 	@Test
+	fun `a throwing onFirstAcquire releases the bracket instead of stranding it held`() =
+		runTest {
+			val bracket = InternalBuildBracket(onFirstAcquire = { throw IllegalStateException("listener blew up") })
+
+			val thrown = runCatching { bracket.hold<Unit> {} }.exceptionOrNull()
+
+			// Stranded held is the worst outcome available: isHeld suppresses the editor's build
+			// listener, so every later build reads the slot as busy until the process restarts.
+			assertThat(thrown).isInstanceOf(IllegalStateException::class.java)
+			assertThat(bracket.isHeld).isFalse()
+		}
+
+	@Test
+	fun `a bracket stranded by a failed acquire still accepts the next hold`() =
+		runTest {
+			var calls = 0
+			val bracket = InternalBuildBracket(onFirstAcquire = { if (++calls == 1) throw IllegalStateException("first only") })
+
+			runCatching { bracket.hold<Unit> {} }
+			val ranSecond = bracket.hold { true }
+
+			// The point of not leaking the depth: the NEXT build has to work.
+			assertThat(ranSecond).isTrue()
+			assertThat(bracket.isHeld).isFalse()
+		}
+
+	@Test
 	fun `work that is cancelled still releases the bracket`() =
 		runTest {
 			val bracket = InternalBuildBracket()

@@ -6,13 +6,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.appdevforall.cotg.quickbuild.data.AndroidProjectWatcher
@@ -26,6 +27,7 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
+import org.appdevforall.cotg.quickbuild.domain.classify.TestSourceFilter
 import org.appdevforall.cotg.quickbuild.domain.classify.recompilesCode
 import org.appdevforall.cotg.quickbuild.domain.reload.ComponentKind
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationStore
@@ -34,7 +36,7 @@ import org.appdevforall.cotg.quickbuild.domain.reload.LiveReloadExecutor
 import org.appdevforall.cotg.quickbuild.domain.reload.LiveReloadOrchestrator
 import org.appdevforall.cotg.quickbuild.domain.reload.LiveReloadRequestOutcome
 import org.appdevforall.cotg.quickbuild.domain.reload.OrchestratorEvent
-import org.appdevforall.cotg.quickbuild.domain.reload.RESTART_SENSITIVE_KINDS
+import org.appdevforall.cotg.quickbuild.domain.reload.isRestartSensitive
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildSessionState
@@ -56,6 +58,17 @@ import org.appdevforall.cotg.quickbuild.service.provision.QuickBuildProvisioner
 import org.appdevforall.cotg.quickbuild.service.telemetry.report
 import org.slf4j.LoggerFactory
 import java.io.File
+
+/**
+ * How many neutral notices wait for a collector before the oldest is dropped.
+ *
+ * Small on purpose: this is the burst the user is flashed on their way back into the editor, and
+ * four stale one-line notices is already at the edge of useful.
+ */
+internal const val NOTICE_QUEUE_DEPTH = 4
+
+/** How many failure messages wait for a collector before the oldest is dropped. */
+internal const val USER_MESSAGE_QUEUE_DEPTH = 8
 
 /**
  * The shell around the domain session machine: owns the [SessionReducer] and the live session,
@@ -187,17 +200,33 @@ class QuickBuildSessionManager(
 			.map(QuickBuildStatus.Companion::from)
 			.stateIn(scope, SharingStarted.Eagerly, QuickBuildStatus.Hidden())
 
+	private val _userMessages =
+		Channel<QuickBuildMessage>(
+			capacity = USER_MESSAGE_QUEUE_DEPTH,
+			onBufferOverflow = BufferOverflow.DROP_OLDEST,
+		)
+
 	/**
 	 * Provisioning and daemon failure text for the host UI to flash. The editor activity
 	 * collects it, since the Koin graph cannot reach an Activity's flash helpers.
+	 *
+	 * A QUEUE, not a broadcast. The only collector lives inside `repeatOnLifecycle(STARTED)`,
+	 * so it is gone for anything raised while the user is in their proxy app - which is where
+	 * most of this text is raised, and `ReinstallReturnToCoGo` by construction: it asks the user
+	 * to come back to CoGo. A message waits until a collector attaches, is handed to exactly one
+	 * of them, and is never replayed. Replay was the cheap fix and was rejected: the collector
+	 * re-subscribes on every STARTED transition, so a replayed message re-flashes on every return
+	 * to the editor.
+	 *
+	 * SINGLE-CONSUMER by contract - a second collector silently steals messages from the first.
 	 */
-	val userMessages: SharedFlow<QuickBuildMessage>
-		get() = _userMessages
+	val userMessages: Flow<QuickBuildMessage> = _userMessages.receiveAsFlow()
 
-	private val _userMessages =
-		MutableSharedFlow<QuickBuildMessage>(
-			extraBufferCapacity = 8,
+	private val _notices =
+		Channel<QuickBuildNotice>(
+			capacity = NOTICE_QUEUE_DEPTH,
 			onBufferOverflow = BufferOverflow.DROP_OLDEST,
+			onUndeliveredElement = ::onNoticeUndelivered,
 		)
 
 	/**
@@ -205,16 +234,10 @@ class QuickBuildSessionManager(
 	 * flashed as errors.
 	 *
 	 * Separate from [userMessages] because that flow is the error channel, and a
-	 * cancellation the user asked for should not read as a red banner.
+	 * cancellation the user asked for should not read as a red banner. Same queue semantics and
+	 * the same single-consumer contract.
 	 */
-	val notices: SharedFlow<QuickBuildNotice>
-		get() = _notices
-
-	private val _notices =
-		MutableSharedFlow<QuickBuildNotice>(
-			extraBufferCapacity = 4,
-			onBufferOverflow = BufferOverflow.DROP_OLDEST,
-		)
+	val notices: Flow<QuickBuildNotice> = _notices.receiveAsFlow()
 
 	private var live: LiveSession? = null
 
@@ -232,6 +255,15 @@ class QuickBuildSessionManager(
 	private var sessionWork: Job? = null
 
 	/**
+	 * Whether [SessionEffect.CancelProxyAppBuild] already cancelled this session's Gradle build,
+	 * so [teardown] does not ask a second time. The stop-tap path emits that effect and a
+	 * teardown; every OTHER teardown (a restart, an invalidation, a project close) emits only the
+	 * teardown, which is the case teardown's own cancel exists for. Cleared in [teardown], which
+	 * always follows the effect.
+	 */
+	private var proxyAppBuildCancelIssued = false
+
+	/**
 	 * [teardown]'s asynchronous tail - the daemon shutdown and the scratch-tree removal.
 	 *
 	 * Awaited by [SessionEffect.TeardownAndProvision] so a user-requested restart cannot start a
@@ -247,9 +279,22 @@ class QuickBuildSessionManager(
 	 * The gap holds for every hot-swap deploy, so re-flashing it on each save would bury the
 	 * notices that report something happening. Cleared by [provision], the one path that can owe
 	 * it again - the next session may be a different project - while a proxy app rebuild does not
-	 * re-arm it, since the fact is about the app being edited. Only touched on [dispatcher].
+	 * re-arm it, since the fact is about the app being edited.
+	 *
+	 * Set on [dispatcher], but also cleared by [onNoticeUndelivered] on whatever thread dropped
+	 * the queued warning, hence `@Volatile`.
 	 */
-	private var staleComponentHelpersNoticed = false
+	@Volatile private var staleComponentHelpersNoticed = false
+
+	/**
+	 * True once [QuickBuildNotice.TEST_SOURCE_IGNORED] has been shown for this session.
+	 *
+	 * Once is the whole design: a user editing tests saves constantly, and repeating "that did not
+	 * deploy" on every one of them is noise that buries the notices which report something
+	 * happening. Same clearing rules and the same `@Volatile` reason as
+	 * [staleComponentHelpersNoticed].
+	 */
+	@Volatile private var testSourceIgnoredNoticed = false
 
 	/**
 	 * When ([nowMillis]) a request to bring the proxy app forward arrived while a full Gradle
@@ -530,15 +575,40 @@ class QuickBuildSessionManager(
 	private fun onWatcherBatch(batch: ChangedFiles.Known) {
 		val reconciled = WatcherBatchReconciler.reconcile(batch, File::isFile)
 		if (reconciled.isEmpty) return
+		// Test sources are watched but never built - see [TestSourceFilter]. Dropped HERE rather
+		// than routed and classified: a route still travels through the orchestrator's pending
+		// set, where the next forced tap would rebuild it, so the only place a save can be truly
+		// ignored is before it becomes pending work.
+		val split = TestSourceFilter.split(reconciled)
+		if (split.droppedTestSources) {
+			noticeTestSourceIgnored()
+		}
+		if (split.buildable.isEmpty) return
+		val buildable = split.buildable
 		log.debug(
 			"Watcher batch: {} modified [{}], {} removed [{}]",
-			reconciled.files.size,
-			describePaths(reconciled.files),
-			reconciled.removed.size,
-			describePaths(reconciled.removed),
+			buildable.files.size,
+			describePaths(buildable.files),
+			buildable.removed.size,
+			describePaths(buildable.removed),
 		)
 		scope.launch {
-			live?.orchestrator?.onFilesChanged(reconciled)
+			live?.orchestrator?.onFilesChanged(buildable)
+		}
+	}
+
+	/**
+	 * Says once per session that a test-source save does not deploy.
+	 *
+	 * Latched on the queue accepting it, not on raising it, for the same reason
+	 * [noticeStaleComponentHelpers] is: the user may be in the proxy app with the editor's
+	 * lifecycle-bound collector gone, and spending the session's one explanation on nobody would
+	 * leave the next test save silently unexplained.
+	 */
+	private fun noticeTestSourceIgnored() {
+		if (testSourceIgnoredNoticed) return
+		if (surfaceNotice(QuickBuildNotice.TEST_SOURCE_IGNORED)) {
+			testSourceIgnoredNoticed = true
 		}
 	}
 
@@ -622,6 +692,7 @@ class QuickBuildSessionManager(
 				// Emitted only from states where this session owns the device's single
 				// Gradle slot; see QuickBuildProvisioner.cancelProxyAppBuild for why
 				// issuing it otherwise would be dangerous.
+				proxyAppBuildCancelIssued = true
 				if (provisioner.cancelProxyAppBuild()) {
 					log.info("Quick Build proxy app build cancelled by the user")
 				} else {
@@ -889,6 +960,7 @@ class QuickBuildSessionManager(
 			is ProxyAppBuildRunner.ProvisionResult.Succeeded -> {
 				live = result.session
 				staleComponentHelpersNoticed = false
+				testSourceIgnoredNoticed = false
 				// A same-project predecessor's scratch tree can survive its teardown (see
 				// [teardown]'s skip when a new session went live mid-shutdown); whatever it
 				// retained belongs to another baseline and must not answer this session's
@@ -959,7 +1031,9 @@ class QuickBuildSessionManager(
 	 *
 	 * The restart closure ([org.appdevforall.cotg.quickbuild.domain.reload.DeployPolicy]) covers a
 	 * component's own code and its supertypes, but not a helper class the component merely calls.
-	 * That gap is accepted, so all that is owed to the user is saying it out loud.
+	 * That gap is accepted, so all that is owed to the user is saying it out loud. CoGo's own
+	 * injected components are exempt here as they are there ([isRestartSensitive]), or every
+	 * ordinary app would get this warning about code the user did not write.
 	 *
 	 * @param event the deploy that landed; a warm compile deployed nothing, a restart deploy
 	 *   already relaunched the process, and a route that moved no class file cannot have
@@ -974,9 +1048,13 @@ class QuickBuildSessionManager(
 		if (staleComponentHelpersNoticed || session == null) return
 		if (event.route is BuildRoute.WarmCompile || !event.route.recompilesCode) return
 		if (event.result.restarted) return
-		if (session.proxyApp.components.none { it.kind in RESTART_SENSITIVE_KINDS }) return
-		staleComponentHelpersNoticed = true
-		surfaceNotice(QuickBuildNotice.STALE_COMPONENT_HELPERS)
+		if (session.proxyApp.components.none { it.isRestartSensitive() }) return
+		// Latch only a warning that is genuinely owed. This fires on a hot-swap deploy, which lands
+		// while the user is in the proxy app, so the editor's lifecycle-bound collector is usually
+		// gone; the queue holds it for their return, and an eviction re-arms the latch.
+		if (surfaceNotice(QuickBuildNotice.STALE_COMPONENT_HELPERS)) {
+			staleComponentHelpersNoticed = true
+		}
 	}
 
 	/**
@@ -1251,6 +1329,15 @@ class QuickBuildSessionManager(
 	private fun teardown() {
 		sessionEpoch++
 		daemonController.markIntentionalTransition()
+		// Cancelling the coroutine abandons the await, not the build: Gradle runs out of process
+		// behind a future, so an uncancelled proxy app build keeps the device's one build slot and
+		// the reprovision behind this teardown fails SlotBusy - a user-requested "Restart session"
+		// reported as a setup failure. The provisioner refuses unless the in-flight build is this
+		// session's own, so calling it whenever there is session work is safe. The stop tap has
+		// its own cancel effect, hence the guard: two cancels for one build is not harmful, but
+		// it is a contract the stop-path tests pin.
+		if (sessionWork != null && !proxyAppBuildCancelIssued) provisioner.cancelProxyAppBuild()
+		proxyAppBuildCancelIssued = false
 		sessionWork?.cancel()
 		sessionWork = null
 		live?.watcher?.stop()
@@ -1272,23 +1359,43 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Sends failure text to [userMessages].
+	 * Queues failure text for [userMessages], for whenever the editor is next on screen.
 	 *
 	 * @param message user-facing failure text; this is the error channel, so anything that
 	 *   is not a failure belongs in [surfaceNotice] instead
 	 */
 	private fun surfaceUserMessage(message: QuickBuildMessage) {
-		_userMessages.tryEmit(message)
+		_userMessages.trySend(message)
 	}
 
 	/**
-	 * Sends a non-failure notice to [notices].
+	 * Queues a non-failure notice for [notices], for whenever the editor is next on screen.
 	 *
-	 * @param notice the neutral notice; dropped silently when the buffer is full, since a
-	 *   stale notice is worth less than the newest one
+	 * @param notice the neutral notice; when the queue is full the OLDEST waiting notice is
+	 *   dropped, since a stale notice is worth less than the newest one
+	 * @return whether the notice is now owed to a collector. Callers that latch a once-per-session
+	 *   notice must gate on this - and [onNoticeUndelivered] re-arms that latch if the queue
+	 *   later drops the notice, so "owed" never quietly becomes "lost".
 	 */
-	private fun surfaceNotice(notice: QuickBuildNotice) {
-		_notices.tryEmit(notice)
+	private fun surfaceNotice(notice: QuickBuildNotice): Boolean = _notices.trySend(notice).isSuccess
+
+	/**
+	 * Re-arms a once-per-session latch for a notice that was queued but never reached anybody:
+	 * either the queue overflowed and dropped it, or a collector was cancelled mid-handoff.
+	 *
+	 * Without this, latching on [surfaceNotice] would spend the session's one warning on a notice
+	 * that was silently evicted - the same defect as latching on an emit nobody heard, moved one
+	 * step later.
+	 *
+	 * Runs on whichever thread lost the element: the sender (on [dispatcher]) for an overflow, the
+	 * collector's thread for a cancelled receive. Hence the `@Volatile` on the latch.
+	 */
+	private fun onNoticeUndelivered(notice: QuickBuildNotice) {
+		when (notice) {
+			QuickBuildNotice.STALE_COMPONENT_HELPERS -> staleComponentHelpersNoticed = false
+			QuickBuildNotice.TEST_SOURCE_IGNORED -> testSourceIgnoredNoticed = false
+			else -> Unit
+		}
 	}
 
 	private companion object {

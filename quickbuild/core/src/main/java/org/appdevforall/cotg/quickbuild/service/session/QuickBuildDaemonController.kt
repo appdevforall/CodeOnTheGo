@@ -197,7 +197,8 @@ internal class QuickBuildDaemonController(
 	 * Builds the daemon config for one project layout and proxy app baseline.
 	 *
 	 * @param layout supplies the project root and the compile classpath
-	 * @param proxyApp supplies whether the Compose compiler plugin must be loaded
+	 * @param proxyApp supplies whether the Compose compiler plugin must be loaded, and the API
+	 *   level the seed payload was dexed at
 	 * @return the config; its output dir is deliberately app-private scratch, never a path
 	 *   under the FUSE-backed project root
 	 */
@@ -217,6 +218,9 @@ internal class QuickBuildDaemonController(
 			androidJar = paths.androidJar,
 			compilerPlugins =
 				if (proxyApp.composeEnabled) listOf(paths.composeCompilerPlugin) else emptyList(),
+			// Not the protocol default: the daemon's increments patch a baseline the proxy app
+			// build already dexed, so they have to be dexed at that build's API level.
+			minApi = proxyApp.minApi,
 		)
 
 	private companion object {

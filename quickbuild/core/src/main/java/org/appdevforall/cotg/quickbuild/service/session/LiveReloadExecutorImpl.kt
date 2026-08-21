@@ -10,7 +10,6 @@ import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildRequest
-import org.appdevforall.cotg.quickbuild.domain.reload.ClassHeader
 import org.appdevforall.cotg.quickbuild.domain.reload.DeployDecision
 import org.appdevforall.cotg.quickbuild.domain.reload.DeployPolicy
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationTracker
@@ -334,9 +333,7 @@ class LiveReloadExecutorImpl(
 	 * Compiles and dexes the changed sources, and decides how the result must be
 	 * deployed.
 	 *
-	 * [ChangedFiles.Unknown] recompiles everything, re-seeding incremental state. On
-	 * success the compile's changed class headers also feed the policy's supertype index,
-	 * which is what catches re-parenting.
+	 * [ChangedFiles.Unknown] recompiles everything, re-seeding incremental state.
 	 *
 	 * @param changes the classified change-set; only `.kt` and `.java` entries reach the
 	 *   compiler, and removed sources travel separately so their outputs get deleted
@@ -387,7 +384,17 @@ class LiveReloadExecutorImpl(
 				}
 
 				is DaemonReply.BuildFailed -> {
-					return Step.Fail(BuildOutcome.CompileError(compileReply.diagnostics))
+					// The counts ride the outcome because this path never reaches the timeline:
+					// reportTimeline runs only from PayloadDeployer's success arms, which need a
+					// generation and a live timestamp a failed compile does not have.
+					return Step.Fail(
+						BuildOutcome.CompileError(
+							compileReply.diagnostics,
+							kotlinDeclaredChanged = compileReply.stats?.kotlinToCompile,
+							allSources = compileReply.stats?.allSources,
+							javaSources = compileReply.stats?.javaSources,
+						),
+					)
 				}
 
 				is DaemonReply.Failed -> {
@@ -396,7 +403,7 @@ class LiveReloadExecutorImpl(
 			}
 		timeline.recordCompileSteps(compiled.kotlinMillis, compiled.javaMillis, compiled.stats)
 
-		val decision = decideDeploy(compiled.classesDir, compiled.changedClassFiles)
+		val decision = decideDeploy(compiled.changedClassFiles)
 		val policyDoneAt = clock()
 		timeline.recordPolicy(policyDoneAt - compileDoneAt)
 
@@ -423,30 +430,14 @@ class LiveReloadExecutorImpl(
 	}
 
 	/**
-	 * Asks the deploy policy for a hot swap or a restart, after teaching it the
-	 * supertypes of every class this compile changed.
+	 * Asks the deploy policy for a hot swap or a restart.
 	 *
-	 * @param classesDir the compile's output root, which [changedClassFiles] is relative to
-	 * @param changedClassFiles the changed classes; null means the compiler could not say,
-	 *   which the policy must treat as "anything may have changed", not as "nothing did"
+	 * @param changedClassFiles the changed classes; the policy reads them only to spot a compile
+	 *   that emitted nothing, since the payload carries the whole class set either way
 	 * @return the route the deploy must take; always recreate when no policy is wired
 	 */
-	private fun decideDeploy(
-		classesDir: File,
-		changedClassFiles: List<String>?,
-	): DeployDecision {
-		val policy = deployPolicy ?: return DeployDecision.Recreate
-		changedClassFiles?.forEach { relative ->
-			val header =
-				runCatching { ClassHeader.parse(File(classesDir, relative).readBytes()) }.getOrNull()
-					?: return@forEach // unreadable class: skip; the closure seed still covers it
-			policy.onClassHierarchy(
-				header.className,
-				listOfNotNull(header.superClassName) + header.interfaceNames,
-			)
-		}
-		return policy.decide(changedClassFiles)
-	}
+	private fun decideDeploy(changedClassFiles: List<String>?): DeployDecision =
+		deployPolicy?.decide(changedClassFiles) ?: DeployDecision.Recreate
 
 	/**
 	 * Rebuilds the resource APK from the project's current resources.

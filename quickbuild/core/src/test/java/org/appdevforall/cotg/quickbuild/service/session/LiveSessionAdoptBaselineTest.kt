@@ -35,10 +35,15 @@ class LiveSessionAdoptBaselineTest {
 
 	private class RecordingExecutor : LiveReloadExecutor {
 		val requests = mutableListOf<BuildRequest>()
+		var userInitiatedMarks = 0
 
 		override suspend fun execute(request: BuildRequest): BuildOutcome {
 			requests += request
 			return BuildOutcome.Success(generation = 1, durationMillis = 0)
+		}
+
+		override fun markCurrentBuildUserInitiated() {
+			userInitiatedMarks++
 		}
 	}
 
@@ -127,6 +132,33 @@ class LiveSessionAdoptBaselineTest {
 			// A reconnect below the new baseline must fall through to the forced rebuild;
 			// re-sending retention from the old baseline would resurrect superseded code.
 			assertThat(session.retainedPayloads.load()).isNull()
+		}
+
+	@Test
+	fun `markCurrentBuildUserInitiated reaches the delegate, before and after a baseline swap`() =
+		runTest {
+			val session = session(backgroundScope)
+			val oldExecutor = session.executor.delegate as RecordingExecutor
+
+			session.executor.markCurrentBuildUserInitiated()
+
+			// The interface gives this a no-op default, so a SwitchableExecutor that forgets to
+			// override it absorbs the call and the real executor never learns the build was
+			// promoted: the tap's deploy then refuses to relaunch a closed proxy app.
+			assertThat(oldExecutor.userInitiatedMarks).isEqualTo(1)
+
+			val newExecutor = RecordingExecutor()
+			session.adoptBaseline(
+				proxyApp("com.example.new"),
+				QuickBuildProjectLayout(projectRoot),
+				newExecutor,
+				FixedAnnotationImpact(active = false),
+				baselineGeneration = 0L,
+			)
+			session.executor.markCurrentBuildUserInitiated()
+
+			assertThat(newExecutor.userInitiatedMarks).isEqualTo(1)
+			assertThat(oldExecutor.userInitiatedMarks).isEqualTo(1)
 		}
 
 	@Test

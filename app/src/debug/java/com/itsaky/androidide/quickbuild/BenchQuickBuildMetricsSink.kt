@@ -42,6 +42,16 @@ class BenchQuickBuildMetricsSink(
 			// Additive: the outcome name alone cannot tell two failures of the same kind
 			// apart, and a gapped run's logcat tail rarely still covers the failure.
 			outcome.failureDetail()?.let { put("detail", it) }
+			// A failing compile's counts ride HERE and never on a reload_timeline:
+			// run_e2e_bench.py:1990 sets status = MEASURED from the mere presence of a
+			// timeline and reads timeline["generation"] at :1981, so emitting one for a
+			// failed build would manufacture a measurement out of a failure, or crash the
+			// harness. Omitted entirely when unreported - absent, never a measured zero.
+			if (outcome is BuildOutcome.CompileError) {
+				outcome.kotlinDeclaredChanged?.let { put("nKotlinCompiled", it) }
+				outcome.allSources?.let { put("nAllSources", it) }
+				outcome.javaSources?.let { put("nJavaSources", it) }
+			}
 		}
 	}
 
@@ -80,7 +90,7 @@ class BenchQuickBuildMetricsSink(
 			}
 			timeline.counts?.let { counts ->
 				counts.allSources?.let { put("nAllSources", it) }
-				counts.kotlinCompiled?.let { put("nKotlinCompiled", it) }
+				counts.kotlinDeclaredChanged?.let { put("nKotlinDeclaredChanged", it) }
 				counts.javaSources?.let { put("nJavaSources", it) }
 				counts.changedClasses?.let { put("nChangedClasses", it) }
 				counts.classFiles?.let { put("nClassFiles", it) }

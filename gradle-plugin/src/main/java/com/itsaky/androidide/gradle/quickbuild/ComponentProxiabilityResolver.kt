@@ -79,8 +79,9 @@ class ComponentProxiabilityResolver(
 		 * reason; everything else is detected from the bytes by [resolve], so this list stays small.
 		 * Detection cannot reach any of them: `InitializationProvider` is not final,
 		 * `ProfileInstallReceiver` is absent from the classpath (indistinguishable from a
-		 * not-yet-compiled project class), and the keep-alive's finality depends on the classpath.
-		 * Excluding them costs nothing - the daemon never recompiles them.
+		 * not-yet-compiled project class), the keep-alive's finality depends on the classpath, and
+		 * Firebase's `ComponentDiscoveryService` is an ordinary non-final class that happens to look
+		 * itself up by name. Excluding them costs nothing - the daemon never recompiles them.
 		 */
 		internal val UNPROXIABLE_BY_NAME =
 			mapOf(
@@ -90,6 +91,8 @@ class ComponentProxiabilityResolver(
 					"not on every proxy compile classpath, so the generated subclass would not compile",
 				"com.itsaky.androidide.quickbuild.runtime.QuickBuildKeepAliveService" to
 					"CoGo binds this keep-alive by component name; a renamed proxy would leave the app freezer-eligible",
+				"com.google.firebase.components.ComponentDiscoveryService" to
+					"Firebase reads this service's own metadata by component name; a renamed proxy makes it discover zero ComponentRegistrars",
 			)
 
 		/**

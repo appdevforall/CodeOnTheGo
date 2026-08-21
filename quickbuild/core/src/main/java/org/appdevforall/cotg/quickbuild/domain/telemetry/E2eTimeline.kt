@@ -147,7 +147,10 @@ data class E2eTimeline(
 	 * How much work the build did. Counters only - no paths, no names, no content.
 	 *
 	 * @property allSources sources handed to the compiler.
-	 * @property kotlinCompiled Kotlin sources actually recompiled.
+	 * @property kotlinDeclaredChanged Kotlin sources the daemon declared changed to the Kotlin
+	 *   engine. NOT the number recompiled - the engine widens the set itself, so a build can
+	 *   recompile files this count does not include. Named for what it measures because reading
+	 *   it as "recompiled" has already sent one investigation the wrong way.
 	 * @property javaSources `.java` sources, all recompiled every build today.
 	 * @property changedClasses `.class` files this build emitted or rewrote.
 	 * @property classFiles classes the dex step stripped and dexed - the whole tree.
@@ -157,7 +160,7 @@ data class E2eTimeline(
 	 */
 	data class BuildCounts(
 		val allSources: Int? = null,
-		val kotlinCompiled: Int? = null,
+		val kotlinDeclaredChanged: Int? = null,
 		val javaSources: Int? = null,
 		val changedClasses: Int? = null,
 		val classFiles: Int? = null,
@@ -171,7 +174,7 @@ data class E2eTimeline(
 		 *   reports zeros, so the two cases stay distinguishable.
 		 */
 		fun isEmpty(): Boolean =
-			allSources == null && kotlinCompiled == null && javaSources == null &&
+			allSources == null && kotlinDeclaredChanged == null && javaSources == null &&
 				changedClasses == null && classFiles == null && classBytes == null &&
 				compileOrdinal == null
 	}

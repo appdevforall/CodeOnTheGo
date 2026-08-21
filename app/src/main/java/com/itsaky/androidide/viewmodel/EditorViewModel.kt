@@ -27,6 +27,7 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.quickbuild.QuickBuildFlashes
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.ILogger
@@ -46,6 +47,14 @@ import java.util.concurrent.atomic.AtomicInteger
 /** ViewModel for data used in [com.itsaky.androidide.activities.editor.EditorActivityKt] */
 @Suppress("PropertyName")
 class EditorViewModel : ViewModel() {
+	/**
+	 * Decides which Quick Build outcomes get a flashbar over the editor (ADFA-4128). Held here
+	 * rather than on the activity because the one bit of history it keeps must survive a
+	 * configuration change: an activity-scoped instance is rebuilt on rotation, and the rebuilt
+	 * one has never seen a failure, so the recovery flash that only fires after one is lost.
+	 */
+	val quickBuildFlashes = QuickBuildFlashes()
+
 	data class SearchResultSection(
 		val title: String?,
 		val results: Map<File, List<SearchResult>>,

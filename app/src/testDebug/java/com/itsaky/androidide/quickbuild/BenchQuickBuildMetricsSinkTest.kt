@@ -135,6 +135,50 @@ class BenchQuickBuildMetricsSinkTest {
 	}
 
 	@Test
+	fun `build_finished carries the compile counts of a FAILING build`() {
+		// The point of the whole change: a failing build is where kotlinDeclaredChanged
+		// decides the fix. 0 means the edited .kt never entered the dirty set we handed the
+		// engine (fix upstream, in changed-set assembly); >= 1 means it did and the staleness
+		// is downstream. Without this the two are indistinguishable from a run.
+		//
+		// NOT emitted as a reload_timeline, deliberately: run_e2e_bench.py:1990 sets
+		// status = MEASURED from the mere PRESENCE of a timeline and reads
+		// timeline["generation"] at :1981, so a timeline on a failing build would either
+		// manufacture a measurement out of a failure or crash the harness.
+		sink.onBuildFinished(
+			11,
+			BuildOutcome.CompileError(
+				listOf(BuildDiagnostic(BuildDiagnostic.Severity.ERROR, "cannot be applied to given types")),
+				kotlinDeclaredChanged = 0,
+				allSources = 5,
+				javaSources = 2,
+			),
+		)
+
+		val o = last()
+		assertThat(o.getString("event")).isEqualTo("build_finished")
+		assertThat(o.getString("outcome")).isEqualTo("CompileError")
+		assertThat(o.getInt("nKotlinCompiled")).isEqualTo(0)
+		// A count without its denominator cannot be read: 0 of how many Kotlin sources?
+		assertThat(o.getInt("nAllSources")).isEqualTo(5)
+		assertThat(o.getInt("nJavaSources")).isEqualTo(2)
+		// The detail must survive alongside the counts, not be traded for them.
+		assertThat(o.getString("detail")).contains("cannot be applied")
+	}
+
+	@Test
+	fun `build_finished omits the compile counts when the daemon did not report them`() {
+		// Absent, not zero. A CompileError raised before the daemon answered has no counts,
+		// and emitting 0 would be a measured zero - the exact ambiguity this exists to remove.
+		sink.onBuildFinished(12, BuildOutcome.CompileError(emptyList()))
+
+		val o = last()
+		assertThat(o.has("nKotlinCompiled")).isFalse()
+		assertThat(o.has("nAllSources")).isFalse()
+		assertThat(o.has("nJavaSources")).isFalse()
+	}
+
+	@Test
 	fun `build_finished quotes the first error of a compile failure, past its warnings`() {
 		sink.onBuildFinished(
 			9,
@@ -245,7 +289,7 @@ class BenchQuickBuildMetricsSinkTest {
 				counts =
 					E2eTimeline.BuildCounts(
 						allSources = 292,
-						kotlinCompiled = 0,
+						kotlinDeclaredChanged = 0,
 						javaSources = 218,
 						changedClasses = 323,
 						classFiles = 464,
@@ -270,7 +314,7 @@ class BenchQuickBuildMetricsSinkTest {
 		assertThat(o.getLong("postSnapMs")).isEqualTo(130)
 		assertThat(o.getLong("javaAbiSnapMs")).isEqualTo(621)
 		assertThat(o.getLong("nAllSources")).isEqualTo(292)
-		assertThat(o.getLong("nKotlinCompiled")).isEqualTo(0)
+		assertThat(o.getLong("nKotlinDeclaredChanged")).isEqualTo(0)
 		assertThat(o.getLong("nJavaSources")).isEqualTo(218)
 		assertThat(o.getLong("nChangedClasses")).isEqualTo(323)
 		assertThat(o.getLong("nClassFiles")).isEqualTo(464)
@@ -317,7 +361,7 @@ class BenchQuickBuildMetricsSinkTest {
 			"dexRpcMs" to 414L,
 			"relinkRpcMs" to 415L,
 			"nAllSources" to 421L,
-			"nKotlinCompiled" to 422L,
+			"nKotlinDeclaredChanged" to 422L,
 			"nJavaSources" to 423L,
 			"nChangedClasses" to 424L,
 			"nClassFiles" to 425L,
@@ -372,7 +416,7 @@ class BenchQuickBuildMetricsSinkTest {
 			counts =
 				E2eTimeline.BuildCounts(
 					allSources = 421,
-					kotlinCompiled = 422,
+					kotlinDeclaredChanged = 422,
 					javaSources = 423,
 					changedClasses = 424,
 					classFiles = 425,

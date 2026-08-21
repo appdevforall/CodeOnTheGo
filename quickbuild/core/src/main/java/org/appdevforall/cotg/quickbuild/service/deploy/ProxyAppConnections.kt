@@ -1,5 +1,6 @@
 package org.appdevforall.cotg.quickbuild.service.deploy
 
+import android.os.IBinder
 import com.itsaky.androidide.quickbuild.IQuickBuildTarget
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -110,8 +111,21 @@ class ProxyAppConnections {
 		expectedPackage?.let { priorityHold?.hold(it) }
 	}
 
-	/** Publishes the loss of the bound proxy app, waking anyone awaiting a verdict. */
-	fun onDisconnected() {
+	/**
+	 * Publishes the loss of the bound proxy app, waking anyone awaiting a verdict.
+	 *
+	 * @param died the binder whose death prompted this, or null to drop unconditionally
+	 *   (session end, or the app's own goodbye). A death notification from a superseded proxy
+	 *   app process arrives after its replacement has already registered, so a non-null value
+	 *   that is not the registered binder is ignored: clearing there would deploy the next
+	 *   save into NotConnected against a healthy bound app, and drop the freezer hold with it.
+	 */
+	fun onDisconnected(died: IBinder? = null) {
+		val current = _target.value
+		if (died != null && current != null && current.target.asBinder() !== died) {
+			log.info("Ignoring death of a superseded proxy app binder; a live one is registered")
+			return
+		}
 		_target.value = null
 		_reports.tryEmit(TargetReport.Disconnected)
 		// No process left to protect. A relaunch reconnects and [onConnected] re-takes it.

@@ -39,19 +39,23 @@ Android instantiates five kinds of class by name from the merged manifest:
 `<activity-alias>` is not instantiated itself, but its `targetActivity` must follow the activity it
 points at, or the alias would reference a component the manifest no longer declares.
 
-The `Application` is instantiated exactly once per process and never re-instantiated, so an edit to
-it (or to one of its user-side supertypes) is in the restart closure: the deploy restarts the
-process rather than hot-swapping. See "Restart vs recreate".
+The `Application` is instantiated exactly once per process and never re-instantiated, so an app
+that declares one restarts the process on every code-bearing deploy rather than hot-swapping.
+See "Restart vs recreate".
 
 ## How: a Gradle plugin rewrites the merged manifest
 
 `QuickBuildPlugin` transforms AGP's merged-manifest artifact: every component's `android:name`
 becomes a generated proxy FQN, a `Proxy<N><Type> extends <user class>` source is generated and
 compiled into the APK, and `<application>` gains the runtime's `android:appComponentFactory`.
-For each proxied activity the transform also synthesizes an `<activity-alias
-exported="false">` under the activity's REAL class name, pointing at the proxy - so an
-explicit in-app `Intent(ctx, SomeActivity::class.java)` still resolves instead of throwing
-`ActivityNotFoundException` (`QuickBuildManifestTransformer.transformActivities`).
+For each proxied activity the transform also synthesizes an `<activity-alias>` under the
+activity's REAL class name, pointing at the proxy - so an explicit in-app
+`Intent(ctx, SomeActivity::class.java)` still resolves instead of throwing
+`ActivityNotFoundException` (`QuickBuildManifestTransformer.transformActivities`). The alias
+copies its target's `android:exported` verbatim (absent reads as `false`): the alias is the
+only manifest entry left under the real name, so pinning it to `false` would reject a launch
+that works under a standard run - a pinned shortcut or a share target the app published records
+that real name, and the launcher is a different uid.
 Everything else - permissions, icon, label, intent filters, `exported`, meta-data - is preserved
 verbatim. A manifest *change* (adding a component, editing an intent filter) still needs a proxy
 app rebuild; see
@@ -147,9 +151,11 @@ order - 1 and 2 are not negotiable against the rest.
   Both the manifest transform and the payload dex task ask it. It reads each component's class
   from the variant's dependency artifacts and skips any `final` one - from any library, named
   nowhere - leaving it under its real manifest name. Only what a class file cannot reveal is
-  listed by name: androidx `InitializationProvider` (resolves itself by hardcoded name) and
+  listed by name: androidx `InitializationProvider` (resolves itself by hardcoded name),
   `ProfileInstallReceiver` (absent from some proxy compile classpaths, and absence is
-  indistinguishable from project-owned before compilation). Reasons live in that class's KDoc.
+  indistinguishable from project-owned before compilation), and Firebase's
+  `ComponentDiscoveryService` (an ordinary non-final class the SDK never instantiates - it reads
+  its own `<meta-data>` by that exact name, so renaming it silently disables SDK discovery). Reasons live in that class's KDoc.
 - **Provider authorities pass through verbatim.** The proxy app installs under the project's real
   `applicationId`, so `${applicationId}` resolves exactly as the real app's would.
 - **Unsupported attributes fail the build with the component and attribute named** - no stripping,
@@ -161,22 +167,58 @@ order - 1 and 2 are not negotiable against the rest.
 
 ## Restart vs recreate
 
-Decided after compilation, from the set of classes the daemon actually recompiled - the
-path-shape classifier runs too early to know it.
+Decided per app, not per edit: if the manifest declares a service, provider or custom
+`Application`, every code-bearing deploy restarts the process.
 
 ```mermaid
 flowchart TD
-    C["recompiled class set<br/>(from the daemon's compile response)"] --> Q{"intersects a service,<br/>provider, the Application,<br/>their user-side supertypes,<br/>or a nested class of those?"}
+    C["code-bearing deploy"] --> Q{"does the app declare a<br/>service, provider, or a<br/>custom Application?"}
     Q -->|no| R["activity recreate<br/>(hot swap)"]
-    Q -->|yes| K["process restart:<br/>persist payload, ack, exit,<br/>CoGo relaunches"]
+    Q -->|yes| K["process restart:<br/>persist payload, ack,<br/>background, exit,<br/>CoGo resumes the task"]
     RES["resource-only / asset-only"] --> R
 ```
 
+**Why not key on the recompiled set.** It was tried, and it is wrong. A payload is never a
+delta: `DexTool.dex` walks the compiler's whole output tree, so every generation ships every
+user class and a hot swap re-defines all of them through a fresh loader. The held instance -
+the `Application`, a live service, a provider - keeps the previous class, and the first cast
+across the two throws `ClassCastException: Foo cannot be cast to Foo`. A rule that asks
+whether the edit *named* the component therefore passes on exactly the edits that break the
+app: measured on an A56, an edit to a string literal in an activity's `onCreate` crashed a
+probe app that declares its own `Application`
+(`spike2-repro-restart-jvmti-2026-08-20.md`).
+
+Keeping every class in place instead - JVMTI `RedefineClasses`, or compile-time dispatch
+injection - is the real answer and is deferred to a follow-up; see
+`hot-swap-correctness-plan-2026-08-20.md`.
+
 - **Receivers are deliberately not in the restart set** - manifest receivers are instantiated
   fresh per delivery, so they already run current code.
+- **Nor are the components CoGo injects.** `LogSenderPlugin` puts the logsender AAR into every
+  debuggable variant, so its `LogSenderService` and `LogSenderInstaller` reach the policy in
+  every app - and without an exemption every app would restart on every save. They are safe
+  because they ship in the base APK dex and never enter a payload, so no generation redefines
+  them; the exemption is keyed on those two exact class names for exactly that reason, since a
+  library class that *did* land in the payload would still be redefined. One predicate
+  (`ComponentInfo.isRestartSensitive`) applies it to both the restart decision and the
+  stale-helpers notice. See `live-reload-alternatives.md`.
 - **The restart is honest, not clever**: the process really dies and reboots from the persisted
-  generation, reusing the never-stale catch-up path rather than inventing one. Cost is the back
-  stack and all in-process state - the same trade Apply Changes makes on structural changes.
+  generation, reusing the never-stale catch-up path rather than inventing one.
+- **It is cooperative, so the user keeps their place.** Before killing, the runtime moves its own
+  task to the back and waits for Android to capture the top activity's state
+  (`RestartHandoff`); CoGo then relaunches with the launcher's own intent, which resumes the
+  surviving task. The user comes back to the screen they were on, with that screen's saved state
+  and the back stack. Measured on an A56: 586 ms against 563 ms for a launcher relaunch that
+  loses all three, 3 of 3 replicates. Two things follow from this and are easy to undo by
+  accident:
+  - **The kill must come from inside the app.** CoGo binds the app's keep-alive service to hold
+    it out of the cached-app freezer, which also holds it out of the killable bucket, so
+    `am kill` reports success and leaves the process running (3 of 3 on an A56).
+  - **The relaunch must be the launcher's intent, not an explicit component.** An explicit one
+    means "start this screen", and against a just-killed task it was delivered to the dead top
+    record and dropped, leaving the app down in 2 of 8 restart deploys.
+  - What is still lost is state outside `onSaveInstanceState`, and, for anyone debugging, the
+    attached session: the process is gone, so the debugger detaches.
 - **Skew guard.** An older installed baseline whose baked runtime predates restart support would
   ignore the restart flag and hot-swap - stale. `setup.json`'s top-level `schema` field gates it:
   below schema 2, a restart-requiring deploy routes to a full proxy app rebuild, which
@@ -193,13 +235,13 @@ flowchart TD
 | Which components can be proxied (the one authority) | `gradle-plugin/.../ComponentProxiabilityResolver.kt` |
 | Proxy source generation | `gradle-plugin/.../ProxySourceGenerator.kt` |
 | `setup.json` shape and schema version | `gradle-plugin/.../QuickBuildJson.kt`, read by `quickbuild/core/.../data/ProxyAppInfo.kt` |
-| Supertype chains for the restart closure | `gradle-plugin/.../SupertypeResolver.kt`, `domain/ClassHeader.kt` |
+| Supertype chains recorded per component (written, not currently read - the restart rule no longer needs them) | `gradle-plugin/.../SupertypeResolver.kt`, `domain/ClassHeader.kt` |
 | Restart-vs-recreate decision | `quickbuild/core/.../domain/DeployPolicy.kt` |
 | Component instantiation on device | `quickbuild/runtime/.../QuickBuildAppComponentFactory` |
 | Payload persistence across process death | `quickbuild/runtime/.../PayloadPersistence` |
 
 Tests sit beside each of those; `DeployPolicyTest` is the one to read first, since it pins the
-closure rule and the skew guard.
+restart rule and the skew guard.
 
 ## Known gaps
 

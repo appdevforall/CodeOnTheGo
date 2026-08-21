@@ -13,11 +13,11 @@ import org.jetbrains.kotlin.buildtools.api.jvm.ClasspathSnapshotBasedIncremental
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.attribute.FileTime
 import java.util.UUID
+import java.util.zip.CRC32
 
-/** One walk of the class-output tree: '/'-separated relative path -> (size, nanosecond mtime). */
-private typealias OutputSnapshot = Map<String, Pair<Long, FileTime>>
+/** One walk of the class-output tree: '/'-separated relative path -> (size, content checksum). */
+private typealias OutputSnapshot = Map<String, Pair<Long, Long>>
 
 /**
  * Compiles a module's Kotlin and Java sources incrementally, so a one-line edit recompiles
@@ -88,9 +88,16 @@ class IncrementalCompiler(
 		 *
 		 * @property diagnostics the errors that stopped the compile plus any warnings collected
 		 *   before it, never empty - an unexplained failure becomes one synthetic error.
+		 * @property stats the phases that RAN before the failure, and this build's counts. A
+		 *   failing build is the one whose numbers are most worth having: `kotlinToCompile` says
+		 *   whether the dirty set we handed the engine contained the edit at all, and 0 vs >= 1
+		 *   separates two different causes of a stale mixed-language output. Phases that never
+		 *   ran stay 0 - `postSnapMillis` and `changedClasses` are both only reachable after a
+		 *   success, so a failure legitimately reports none.
 		 */
 		data class Failed(
 			val diagnostics: List<Diagnostic>,
+			val stats: CompileStats = CompileStats(),
 		) : Result
 	}
 
@@ -178,7 +185,7 @@ class IncrementalCompiler(
 		// stale .class must go before the pre-snapshot - otherwise it survives into the dex,
 		// or is reported as a changed output. Removed .kt outputs are the engine's job, via
 		// SourcesChanges.Known below.
-		val undeleted = deleteRemovedJavaOutputs(removedFiles)
+		val undeleted = deleteJavaOutputs(removedFiles)
 		if (undeleted.isNotEmpty()) {
 			// Proceeding would dex the stale classes of a deleted source, the exact thing the
 			// delete exists to prevent.
@@ -207,10 +214,30 @@ class IncrementalCompiler(
 				diagnostics.ifEmpty {
 					listOf(Diagnostic(Diagnostic.Severity.ERROR, "Kotlin compilation failed: $kotlinResult"))
 				},
+				statsSoFar(preSnapMillis, allSources.size, javaSources = 0),
 			)
 		}
 
 		val javaSources = allSources.filter { it.extension == "java" }
+		// javac rewrites the outputs of the sources it is handed but deletes none whose
+		// declaration is gone, so an edit that drops an anonymous or nested class leaves
+		// Outer$1.class behind - untouched, therefore invisible to the output diff, and dexed into
+		// every later payload. Sweeping the edited sources here, AFTER the pre-snapshot, both
+		// removes it and surfaces the deletion as a changed output for the deploy policy. Scoped
+		// to changedFiles because only an edited file can lose a declaration; javac regenerates
+		// the primary outputs immediately, since it recompiles all of them anyway.
+		val staleNested = deleteJavaOutputs(changedFiles)
+		if (staleNested.isNotEmpty()) {
+			return Result.Failed(
+				staleNested.map { stale ->
+					Diagnostic(
+						Diagnostic.Severity.ERROR,
+						"failed to delete stale class output of a recompiled Java source: ${stale.absolutePath}",
+					)
+				},
+				statsSoFar(preSnapMillis, allSources.size, javaSources.size),
+			)
+		}
 		val javaStartedAt = System.currentTimeMillis()
 		val javaDiagnostics =
 			if (javaSources.isEmpty()) {
@@ -225,7 +252,10 @@ class IncrementalCompiler(
 		val javaMillis = if (javaSources.isEmpty()) 0 else System.currentTimeMillis() - javaStartedAt
 		val warnings = logger.warnings.map { KotlincDiagnosticsParser.parse(it, Diagnostic.Severity.WARNING) }
 		if (!javaDiagnostics.success) {
-			return Result.Failed(javaDiagnostics.diagnostics + warnings)
+			return Result.Failed(
+				javaDiagnostics.diagnostics + warnings,
+				statsSoFar(preSnapMillis, allSources.size, javaSources.size),
+			)
 		}
 		// Only a fully successful compile may become the ABI baseline: a failed compile leaves
 		// output the caller never deployed, so the next compile must still see the Java side
@@ -260,26 +290,43 @@ class IncrementalCompiler(
 	}
 
 	/**
-	 * Snapshots every .class under [classesDir] as relative path -> (size, mtime). Nanosecond
-	 * [java.nio.file.attribute.FileTime], not millis, so a rewrite inside the same millisecond
-	 * still diffs; missing one would let a changed component class skip the restart policy.
+	 * Snapshots every .class under [classesDir] as relative path -> (size, content checksum).
 	 *
-	 * @return '/'-separated relative path -> (size, mtime), empty when the output dir does not
+	 * Content, not mtime. javac is not incremental here - it rewrites every Java-derived .class on
+	 * every build, byte-identical or not - so an mtime diff reported the module's whole Java half
+	 * as changed on a Kotlin-only edit, and the deploy policy then restarted the process for a
+	 * component nothing had touched. It also missed the reverse: a same-size rewrite inside one
+	 * tick of a coarse-granularity filesystem read as unchanged. A checksum answers both.
+	 *
+	 * @return '/'-separated relative path -> (size, checksum), empty when the output dir does not
 	 *   exist yet.
 	 */
 	private fun snapshotClassOutputs(): OutputSnapshot {
 		val root = classesDir
 		if (!Files.isDirectory(root)) return emptyMap()
-		val snapshot = HashMap<String, Pair<Long, FileTime>>()
+		val snapshot = HashMap<String, Pair<Long, Long>>()
 		Files.walk(root).use { paths ->
 			paths.forEach { path ->
 				if (Files.isRegularFile(path) && path.toString().endsWith(".class")) {
 					val rel = root.relativize(path).toString().replace(java.io.File.separatorChar, '/')
-					snapshot[rel] = Files.size(path) to Files.getLastModifiedTime(path)
+					snapshot[rel] = Files.size(path) to checksumOf(path)
 				}
 			}
 		}
 		return snapshot
+	}
+
+	/**
+	 * CRC32 of one class file's content, paired with its size in [OutputSnapshot] so a checksum
+	 * collision alone cannot hide a changed class from the deploy policy.
+	 *
+	 * @param path the .class file to read.
+	 * @return the checksum of its bytes.
+	 */
+	private fun checksumOf(path: Path): Long {
+		val crc = CRC32()
+		crc.update(Files.readAllBytes(path))
+		return crc.value
 	}
 
 	/**
@@ -297,22 +344,36 @@ class IncrementalCompiler(
 	): List<String> = (after.filterKeys { before[it] != after[it] }.keys + (before.keys - after.keys)).sorted()
 
 	/**
-	 * Deletes the `.class` outputs of removed `.java` sources, which javac never cleans up
-	 * itself - without this a deleted class stays in [classesDir] and rides into every later
-	 * dex as stale bytecode. The source is gone, so its package comes from the path (see
-	 * [javaClassStem]); the primary class and any nested `Outer$Inner.class` beside it go too.
+	 * Deletes the `.class` outputs of the given `.java` sources - the primary class and any nested
+	 * `Outer$Inner.class` beside it - which javac never cleans up itself.
 	 *
-	 * @param removedFiles this compile's removals; non-`.java` entries are ignored here, since
-	 *   the IC engine owns Kotlin output deletion.
+	 * Two callers, for the two ways an output goes stale. A REMOVED source, whose whole output
+	 * would otherwise ride into every later dex. And a RECOMPILED source, whose vanished nested and
+	 * anonymous classes javac leaves untouched: edit away an anonymous `Runnable` and `Outer$1.class`
+	 * stays, untouched and therefore invisible to the output diff, dexed into every later payload
+	 * and still resolvable by name.
+	 *
+	 * The source may be gone, so its package comes from the path (see [javaClassStem]). A top-level
+	 * SECONDARY class (`class Helper` beside `public class Widget` in Widget.java) compiles to
+	 * `Helper.class`, which no stem-keyed sweep can reach; closing that needs javac's own
+	 * emitted-file list.
+	 *
+	 * TODO(ADFA-4128): hook javac's emitted-file list (TaskListener/JavaFileManager) to sweep
+	 *  top-level secondary classes too. Until then a deleted one stays in the payload dex until
+	 *  the next rebaseline: dead weight and name-resolvable, but no wrong behavior for code that
+	 *  does not look it up by name.
+	 *
+	 * @param sources the sources to sweep; non-`.java` entries are ignored here, since the IC
+	 *   engine owns Kotlin output deletion.
 	 * @return the `.class` files that could not be deleted, on which [compile] must fail rather
 	 *   than dex a survivor.
 	 */
-	private fun deleteRemovedJavaOutputs(removedFiles: List<File>): List<File> {
+	private fun deleteJavaOutputs(sources: List<File>): List<File> {
 		val classesRoot = classesDir.toFile()
 		if (!classesRoot.isDirectory) return emptyList()
 		val undeleted = mutableListOf<File>()
 		val rootPrefix = classesRoot.canonicalPath + File.separator
-		removedFiles.filter { it.extension == "java" }.forEach { javaFile ->
+		sources.filter { it.extension == "java" }.forEach { javaFile ->
 			val relStem = javaClassStem(javaFile) ?: return@forEach
 			// relStem is a raw join of path segments, so a `..` in the removed source's path
 			// would aim this delete sweep outside the output tree. The paths come from CoGo's
@@ -398,7 +459,7 @@ class IncrementalCompiler(
 		// Removed Kotlin sources go in SourcesChanges.Known's removed slot: the engine deletes
 		// their outputs and recompiles dependents, so a dangling reference surfaces as an
 		// ordinary compile error. The engine tracks only Kotlin outputs, so `.java` removals
-		// are handled separately in deleteRemovedJavaOutputs.
+		// are handled separately in deleteJavaOutputs.
 		val kotlinRemoved = removedFiles.filter { it.extension != "java" }
 		val changes = SourcesChanges.Known(kotlinChanged, kotlinRemoved)
 		config.useIncrementalCompilation(icCachesDir.toFile(), changes, parameters, icConfig)
@@ -419,6 +480,30 @@ class IncrementalCompiler(
 			) + pluginArguments
 		return service.compileJvm(projectId, strategy, config, kotlinSources + javaSources, arguments)
 	}
+
+	/**
+	 * The stats for a build that did not finish: the phases that ran, and the counts already
+	 * decided. Reads fields, computes nothing - a failure path must not do measurable work.
+	 *
+	 * @param preSnapMillis the pre-compile output walk, which always ran by either failure point.
+	 * @param allSources size of the source set this compile was handed.
+	 * @param javaSources `.java` count, or 0 from the Kotlin failure point, where javac never ran
+	 *   and the number is not yet known - 0 there means "did not get that far", not "none".
+	 * @return stats whose unreached phases (`postSnapMillis`, `changedClasses`) are 0.
+	 */
+	private fun statsSoFar(
+		preSnapMillis: Long,
+		allSources: Int,
+		javaSources: Int,
+	): CompileStats =
+		CompileStats(
+			preSnapMillis = preSnapMillis,
+			javaAbiSnapMillis = javaAbiSnapMillis,
+			allSources = allSources,
+			kotlinToCompile = kotlinToCompileCount,
+			javaSources = javaSources,
+			compileOrdinal = compileCount,
+		)
 
 	/**
 	 * Decides which Kotlin sources this compile must treat as changed, given the engine

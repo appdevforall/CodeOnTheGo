@@ -52,6 +52,9 @@ class QuickBuildHostService : Service() {
 	internal class HostBinder(
 		private val connections: ProxyAppConnections,
 	) : IQuickBuildHost.Stub() {
+		/** The binder currently watched and the recipient watching it, so a reconnect can unlink. */
+		private var deathWatch: Pair<IBinder, IBinder.DeathRecipient>? = null
+
 		override fun connect(
 			target: IQuickBuildTarget?,
 			packageName: String?,
@@ -62,14 +65,7 @@ class QuickBuildHostService : Service() {
 				throw SecurityException("connect() with null target or packageName")
 			}
 
-			// Clear the registration if this proxy app process dies so deploys fail
-			// fast as NotConnected instead of timing out on a dead binder.
-			runCatching {
-				target.asBinder().linkToDeath(
-					{ connections.onDisconnected() },
-					0,
-				)
-			}
+			watchForDeath(target.asBinder())
 
 			log.info("Proxy app {} connected at generation {}", packageName, runningGeneration)
 			connections.onConnected(ConnectedTarget(target, packageName, runningGeneration))
@@ -89,6 +85,28 @@ class QuickBuildHostService : Service() {
 		) {
 			enforceCaller("reportCrash")
 			connections.report(TargetReport.Crashed(generation, stackSummary ?: "unknown crash"))
+		}
+
+		/**
+		 * Points the death watch at [binder], dropping the watch a superseded process left.
+		 *
+		 * Clearing the registration on death is what makes a deploy into a dead proxy app fail
+		 * fast as NotConnected instead of timing out on its binder. The unlink matters because a
+		 * recipient would otherwise accumulate one per reconnect, and the binder is passed on so
+		 * a late death from a superseded process cannot wipe the live registration.
+		 *
+		 * @param binder the connecting target's binder; null only for a local (non-binder) target,
+		 *   which cannot die out from under us and so needs no watch
+		 */
+		@Synchronized
+		private fun watchForDeath(binder: IBinder?) {
+			if (binder == null) return
+			deathWatch?.let { (previous, recipient) ->
+				runCatching { previous.unlinkToDeath(recipient, 0) }
+			}
+			val recipient = IBinder.DeathRecipient { connections.onDisconnected(binder) }
+			deathWatch = binder to recipient
+			runCatching { binder.linkToDeath(recipient, 0) }
 		}
 
 		override fun disconnect(packageName: String?) {

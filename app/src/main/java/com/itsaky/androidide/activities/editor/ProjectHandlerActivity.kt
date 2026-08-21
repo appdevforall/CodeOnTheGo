@@ -109,7 +109,7 @@ import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.utils.flashInfoLong
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.onLongPress
@@ -313,7 +313,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						quickBuild.notices.collect { notice ->
 							when (notice) {
 								QuickBuildNotice.BUILD_CANCELLED -> {
-									flashInfo(getString(string.info_build_cancelled))
+									flashInfoLong(getString(string.info_build_cancelled))
 								}
 
 								QuickBuildNotice.RELOAD_CRASHED -> {
@@ -324,9 +324,15 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 									flashError(getString(string.quick_build_relink_stuck))
 								}
 
+								QuickBuildNotice.TEST_SOURCE_IGNORED -> {
+									// Nothing went wrong - the save landed, it just is not
+									// something any build could deploy.
+									flashInfoLong(getString(string.quick_build_test_source_ignored))
+								}
+
 								QuickBuildNotice.STALE_COMPONENT_HELPERS -> {
 									// The deploy worked, so this is advisory, not an error.
-									flashInfo(getString(string.quick_build_stale_component_helpers))
+									flashInfoLong(getString(string.quick_build_stale_component_helpers))
 								}
 
 								QuickBuildNotice.PROXY_APP_WONT_STAY_UP -> {
@@ -511,44 +517,74 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		invalidateOptionsMenu()
 	}
 
+	/**
+	 * Confirm-on-switch (ADFA-4128), install half: Quick Build and Standard Run share the one
+	 * package slot (the real applicationId), so this install replaces whatever holds it.
+	 *
+	 * The Run tap already asked, about the variant it was about to build, so this re-check is
+	 * SILENT unless the answer moved while the build ran - which it can, because the APK names
+	 * its own package and because an install or uninstall can happen in between. Asking about the
+	 * APK rather than the current variant selection is the point: the selection can change during
+	 * the build, and then the tap-time question was about a package this install does not touch.
+	 */
 	private fun installApk(state: BuildState.AwaitingInstall) {
-		// Confirm-on-switch (ADFA-4128): Quick Build and Standard Run share the one package
-		// slot (the real applicationId). When a Quick Build proxy app currently occupies it,
-		// this Standard Run install replaces it, so confirm before clobbering it.
 		val clobberCheck = quickBuildClobberCheck()
 		if (clobberCheck == null) {
 			doInstallApk(state)
 			return
 		}
-		val onConfirmed = {
-			// The Quick Build session's installed baseline is about to be replaced; stop it.
-			quickBuildSessionManager()?.restartSession()
-			doInstallApk(state)
-		}
-		when (
-			val decision =
-				quickBuildClobberConfirmation(
-					projectRealApplicationId(),
-					clobberCheck::standardRunNeedsConfirm,
-				)
-		) {
-			QuickBuildClobberConfirmation.NotNeeded -> {
+		val answerAtTap = buildViewModel.consumeClobberAnswerAtTap()
+		lifecycleScope.launch {
+			// Reading the APK's manifest is disk work, and on emulated storage that is not free.
+			val apkApplicationId = withContext(Dispatchers.IO) { apkApplicationId(state.apkFile) }
+			if (isDestroyed || isFinishing) {
+				return@launch
+			}
+			val now =
+				quickBuildClobberConfirmation(apkApplicationId, clobberCheck::standardRunNeedsConfirm)
+			val onProceed = {
+				// The Quick Build session's installed baseline is about to be replaced; stop it.
+				// Keyed off the re-check rather than off whether a dialog was shown: a tap that
+				// already confirmed this exact clobber skips the dialog but still clobbers.
+				if (now != QuickBuildClobberConfirmation.NotNeeded) {
+					quickBuildSessionManager()?.restartSession()
+				}
 				doInstallApk(state)
 			}
+			when (val decision = installTimeClobberConfirmation(answerAtTap, now)) {
+				QuickBuildClobberConfirmation.NotNeeded -> {
+					onProceed()
+				}
 
-			QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
-				confirmUnknownOccupantSwitch(onConfirmed)
-			}
+				QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
+					confirmUnknownOccupantSwitch(onProceed)
+				}
 
-			is QuickBuildClobberConfirmation.Needed -> {
-				confirmBuildTypeSwitch(
-					getString(string.quick_build_switch_to_standard_title),
-					getString(string.quick_build_switch_to_standard_message, decision.applicationId),
-					onConfirmed,
-				)
+				is QuickBuildClobberConfirmation.Needed -> {
+					confirmBuildTypeSwitch(
+						getString(string.quick_build_switch_to_standard_title),
+						getString(string.quick_build_switch_to_standard_message, decision.applicationId),
+						onProceed,
+					)
+				}
 			}
 		}
 	}
+
+	/**
+	 * The applicationId of the APK about to be installed, read from the archive itself.
+	 *
+	 * This is what makes the install-time check ask about the right package: the build's own
+	 * output names it, so no amount of variant switching during the build can move it. Null when
+	 * the archive cannot be parsed, which the caller treats as an unknown occupant and asks about.
+	 *
+	 * @param apk the built APK; parsed with the package manager, so it must exist on disk.
+	 */
+	private fun apkApplicationId(apk: File): String? =
+		runCatching { packageManager.getPackageArchiveInfo(apk.absolutePath, 0)?.packageName }
+			.onFailure { logger.warn("Could not read the applicationId of {}", apk, it) }
+			.getOrNull()
+			?.takeIf { it.isNotBlank() }
 
 	private fun doInstallApk(state: BuildState.AwaitingInstall) {
 		apkInstallationViewModel.installApk(
@@ -611,9 +647,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	/**
 	 * Decides which Quick Build outcomes get a flashbar over the editor. Holds the one bit of
 	 * history that decision needs (see [QuickBuildFlashes]), so it must outlive a single status
-	 * emission - a per-emission instance would never see a recovery.
+	 * emission - a per-emission instance would never see a recovery - AND a configuration
+	 * change, which is why it lives on the ViewModel rather than here.
 	 */
-	private val quickBuildFlashes = QuickBuildFlashes()
+	private val quickBuildFlashes get() = editorViewModel.quickBuildFlashes
 
 	/**
 	 * Defers the eager Quick Build prebuild past the project-open contention spike (ADFA-4128
@@ -719,6 +756,52 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					getString(string.quick_build_switch_to_quick_message, decision.applicationId),
 					onConfirmed,
 				)
+			}
+		}
+	}
+
+	/**
+	 * Standard Run install gate (ADFA-4128), tap half: asks BEFORE the build rather than after it.
+	 *
+	 * A Run that will replace the Quick Build proxy app is worth knowing about while the choice is
+	 * still cheap - asking only at install time spends a full Gradle build on a run the user then
+	 * cancels. The question is asked about the variant being built as of THIS tap, which is what
+	 * the build will produce, so there is no window in which the selection can drift out from
+	 * under the question.
+	 *
+	 * @param applicationId the applicationId of the variant this tap is about to build; null when
+	 *   the model names none, which asks rather than assuming the slot is empty.
+	 * @param onConfirmed run only if the user accepts, carrying the answer this tap settled so the
+	 *   install can tell whether it has since changed.
+	 */
+	fun ensureStandardRunClobberConfirmed(
+		applicationId: String?,
+		onConfirmed: (QuickBuildClobberConfirmation) -> Unit,
+	) {
+		// No check means the feature is off, and with it off no proxy app can exist to be
+		// replaced - the only branch here that may skip the confirmation.
+		val clobberCheck = quickBuildClobberCheck()
+		if (clobberCheck == null) {
+			onConfirmed(QuickBuildClobberConfirmation.NotNeeded)
+			return
+		}
+		when (
+			val decision =
+				quickBuildClobberConfirmation(applicationId, clobberCheck::standardRunNeedsConfirm)
+		) {
+			QuickBuildClobberConfirmation.NotNeeded -> {
+				onConfirmed(decision)
+			}
+
+			QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
+				confirmUnknownOccupantSwitch { onConfirmed(decision) }
+			}
+
+			is QuickBuildClobberConfirmation.Needed -> {
+				confirmBuildTypeSwitch(
+					getString(string.quick_build_switch_to_standard_title),
+					getString(string.quick_build_switch_to_standard_message, decision.applicationId),
+				) { onConfirmed(decision) }
 			}
 		}
 	}
@@ -859,6 +942,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			// verified no-op when nothing is live (SessionReducerTest: "idle plus
 			// SessionRestartRequested is a no-op").
 			quickBuildSessionManager()?.restartSession()
+			// The narrator is a process-wide singleton and its queue is per-project narration.
+			// Held lines belong to the project being closed, so without this they flush into the
+			// NEXT project's Build Output as that project's progress.
+			quickBuildOutputNarrator()?.reset()
 
 			editorViewModel.isInitializing = false
 			editorViewModel.isBuildInProgress = false
@@ -1754,44 +1841,3 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		return mSearchingProgress
 	}
 }
-
-/**
- * Whether switching build type has to ask the user first (ADFA-4128). Both Quick Build and
- * Standard Run install under the project's real applicationId, so whichever runs second
- * replaces the app the other installed.
- */
-internal sealed interface QuickBuildClobberConfirmation {
-	/** The slot holds nothing this build would overwrite. The only silent case. */
-	data object NotNeeded : QuickBuildClobberConfirmation
-
-	/** [applicationId]'s slot holds the other build type, which this install replaces. */
-	data class Needed(
-		val applicationId: String,
-	) : QuickBuildClobberConfirmation
-
-	/**
-	 * The project's applicationId did not resolve, so what occupies the slot is unknowable.
-	 * Confirm: an unknown occupant is exactly the case a silent install would destroy, and
-	 * this is reachable in normal use - a project whose Gradle model has not published
-	 * `mainArtifact` yet, or a variant switch in flight.
-	 */
-	data object NeededForUnknownAppId : QuickBuildClobberConfirmation
-}
-
-/**
- * Decides the confirmation for one build-type switch. Fails CLOSED: an unresolvable
- * [realApplicationId] confirms rather than installing, because "we cannot tell what is
- * installed" and "nothing is installed" are not the same answer.
- *
- * @param realApplicationId the project's own applicationId, or null when it did not resolve
- * @param needsConfirm asks whether the installed app is the other build type
- */
-internal fun quickBuildClobberConfirmation(
-	realApplicationId: String?,
-	needsConfirm: (String) -> Boolean,
-): QuickBuildClobberConfirmation =
-	when {
-		realApplicationId == null -> QuickBuildClobberConfirmation.NeededForUnknownAppId
-		needsConfirm(realApplicationId) -> QuickBuildClobberConfirmation.Needed(realApplicationId)
-		else -> QuickBuildClobberConfirmation.NotNeeded
-	}

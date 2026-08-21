@@ -83,6 +83,9 @@ final class PayloadStore {
 	/** Persisted resource payloads found at boot, pending application once a Context exists. */
 	private volatile PayloadPersistence.Loaded pendingBootResources;
 
+	/** The persisted generation this process adopted at boot, or -1 when it booted the baked baseline. */
+	private volatile long bootedPersistedGeneration = -1;
+
 	private PayloadStore() {}
 
 	/**
@@ -140,6 +143,17 @@ final class PayloadStore {
 	 */
 	String baselineFingerprint() {
 		return baselineFingerprint;
+	}
+
+	/**
+	 * The generation this process took from the store rather than from the APK.
+	 *
+	 * A restart deploy leaves no reload pending in the process that boots its work, so this is the only handle the crash guard has on what a startup crash is about. The baked baseline is excluded deliberately: it is the code the installed APK carries, so refusing it would leave the app nothing at all to boot.
+	 *
+	 * @return the adopted persisted generation, or -1 when the process booted the baked baseline
+	 */
+	long bootedPersistedGeneration() {
+		return bootedPersistedGeneration;
 	}
 
 	/**
@@ -280,6 +294,9 @@ final class PayloadStore {
 					: new InMemoryDexClassLoader(ByteBuffer.wrap(loaded.dex), apkLoader);
 			current = new Payload(loaded.generation, loader);
 			pendingBootResources = loaded;
+			// The crash guard's only handle on a startup crash: this generation arrived from a
+			// restart deploy, so nothing in this process is pending to pin the blame on.
+			bootedPersistedGeneration = loaded.generation;
 			RuntimeLog.i("booting persisted generation " + loaded.generation);
 		} catch (Throwable error) {
 			RuntimeLog.e("persisted payload unusable; booting the baked baseline", error);

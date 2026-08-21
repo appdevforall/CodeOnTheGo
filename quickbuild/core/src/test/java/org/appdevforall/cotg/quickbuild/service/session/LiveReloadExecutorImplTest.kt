@@ -740,7 +740,7 @@ class LiveReloadExecutorImplTest {
 				.isEqualTo(
 					E2eTimeline.BuildCounts(
 						allSources = 292,
-						kotlinCompiled = 74,
+						kotlinDeclaredChanged = 74,
 						javaSources = 218,
 						changedClasses = 323,
 						classFiles = 464,
@@ -1032,12 +1032,15 @@ class LiveReloadExecutorImplTest {
 	) : ProxyAppLauncher {
 		val calls = mutableListOf<Pair<String, String?>>()
 
+		/** Per-attempt override of [result]; the argument is the 1-based attempt number. */
+		var resultFor: ((attempt: Int) -> Boolean)? = null
+
 		override fun launch(
 			packageName: String,
 			activityClass: String?,
 		): Boolean {
 			calls += packageName to activityClass
-			return result
+			return resultFor?.invoke(calls.size) ?: result
 		}
 	}
 
@@ -1114,10 +1117,49 @@ class LiveReloadExecutorImplTest {
 		}
 
 	@Test
-	fun `helper-only edit hot-swaps - no restart metadata, no relaunch`() =
+	fun `helper-only edit restarts too - the payload redefines the service either way`() =
 		runTest {
+			// This edit names nothing the service inherits from, and the whole pipeline still
+			// has to take the restart route: the dex it ships carries the service class.
 			val launcher = FakeLauncher()
 			val executor = restartExecutor(launcher)
+			daemon.compileReply =
+				DaemonReply.Ok(
+					org.appdevforall.cotg.quickbuild.data
+						.CompileOutput(File("/fake/classes"), listOf("com/example/util/Formatter.class")),
+				)
+
+			val outcome =
+				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 0, restarted = true))
+			assertThat(metadataOf(deploy.calls.single()).get("restart").asString).isEqualTo("true")
+			assertThat(deploy.awaitDisconnectCalls).isNotEmpty()
+			assertThat(launcher.calls)
+				.containsExactly("com.example.quickbuild" to "com.example.quickbuild.proxies.Proxy0Activity")
+		}
+
+	@Test
+	fun `helper-only edit hot-swaps when no service, provider or Application is declared`() =
+		runTest {
+			// The negative control: identical edit and pipeline, an activity-only component
+			// list. Without this the test above would pass on a policy that restarts always.
+			val launcher = FakeLauncher()
+			val executor =
+				restartExecutor(
+					launcher,
+					policy =
+						DeployPolicy(
+							listOf(
+								ComponentInfo(
+									ComponentKind.ACTIVITY,
+									"com.example.MainActivity",
+									proxyClass = "com.example.quickbuild.proxies.Proxy0Activity",
+									launcher = true,
+								),
+							),
+						),
+				)
 			daemon.compileReply =
 				DaemonReply.Ok(
 					org.appdevforall.cotg.quickbuild.data
@@ -1170,7 +1212,7 @@ class LiveReloadExecutorImplTest {
 		}
 
 	@Test
-	fun `restart relaunch that never reconnects is a deploy failure`() =
+	fun `restart relaunch that never reconnects is a deploy failure, after a second try`() =
 		runTest {
 			val launcher = FakeLauncher()
 			val executor = restartExecutor(launcher)
@@ -1187,6 +1229,63 @@ class LiveReloadExecutorImplTest {
 			// message must report what we know - the app never came back - and must not assert
 			// a relaunch that may never have happened.
 			assertThat(message).doesNotContain("was relaunched")
+			// Two attempts, and no more: a dead app has to reach the user rather than become a
+			// retry storm.
+			assertThat(launcher.calls).hasSize(2)
+			assertThat(deploy.awaitReconnectCalls).hasSize(2)
+		}
+
+	@Test
+	fun `a relaunch swallowed by the dead task is recovered by the second one`() =
+		runTest {
+			// The measured defect: the first start is handed to the killed process's own
+			// activity record and dropped, so nothing comes back. The second start finds no
+			// task and creates one. Without the retry this build ends at "open it manually".
+			val launcher = FakeLauncher()
+			val executor = restartExecutor(launcher)
+			serviceRecompiled()
+			var attempt = 0
+			deploy.reconnectGeneration = { deployed ->
+				attempt++
+				if (attempt == 1) null else deployed
+			}
+
+			val outcome =
+				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 0, restarted = true))
+			assertThat(launcher.calls).hasSize(2)
+		}
+
+	@Test
+	fun `a first relaunch that reconnects is not retried`() =
+		runTest {
+			val launcher = FakeLauncher()
+			val executor = restartExecutor(launcher)
+			serviceRecompiled()
+
+			executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(launcher.calls).hasSize(1)
+			assertThat(deploy.awaitReconnectCalls).hasSize(1)
+		}
+
+	@Test
+	fun `a second relaunch that cannot even start is not waited on`() =
+		runTest {
+			// The launcher refusing outright is not the swallowed-start case: nothing ran, so
+			// another reconnect wait would just be 15 s of silence for the user.
+			val launcher = FakeLauncher().apply { resultFor = { attempt -> attempt == 1 } }
+			val executor = restartExecutor(launcher)
+			serviceRecompiled()
+			deploy.reconnectGeneration = { null }
+
+			val outcome =
+				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(outcome).isInstanceOf(BuildOutcome.DeployFailure::class.java)
+			assertThat(launcher.calls).hasSize(2)
+			assertThat(deploy.awaitReconnectCalls).hasSize(1)
 		}
 
 	@Test
@@ -1453,60 +1552,6 @@ class LiveReloadExecutorImplTest {
 			assertThat(deploy.calls).isEmpty()
 		}
 
-	@Test
-	fun `class-header feed reads real class files and extends the restart closure`() =
-		runTest {
-			// Real .class bytes in a real classes dir - the /fake/classes paths the other
-			// tests use skip the header read silently, so this pins the actual file wiring.
-			val classesDir = File(projectRoot, "out/classes").apply { mkdirs() }
-			copyClassFile(classesDir, ExecutorFeedService::class.java)
-			copyClassFile(classesDir, ExecutorFeedBaseService::class.java)
-			val serviceFqn = ExecutorFeedService::class.java.name
-			val servicePath = serviceFqn.replace('.', '/') + ".class"
-			val basePath = ExecutorFeedBaseService::class.java.name.replace('.', '/') + ".class"
-
-			val launcher = FakeLauncher()
-			val executor =
-				LiveReloadExecutorImpl(
-					daemon = daemon,
-					deploy = deploy,
-					layout = QuickBuildProjectLayout(projectRoot),
-					entryActivity = "com.example.MainActivity",
-					generations = tracker,
-					workDir = File(projectRoot, ".androidide/quickbuild"),
-					// No baked supertypes: the base is in the closure ONLY if the real-file
-					// feed reads the service's header (super = ExecutorFeedBaseService).
-					deployPolicy = DeployPolicy(listOf(ComponentInfo(ComponentKind.SERVICE, serviceFqn))),
-					proxyAppPackage = "com.example.quickbuild",
-					launcherActivity = "com.example.quickbuild.proxies.Proxy0Activity",
-					launcher = launcher,
-					clock = { 1000L },
-				)
-
-			// Build 1: the service class itself recompiles (direct hit -> restart) and the
-			// feed records its real superclass edge.
-			daemon.compileReply =
-				DaemonReply.Ok(
-					org.appdevforall.cotg.quickbuild.data
-						.CompileOutput(classesDir, listOf(servicePath)),
-				)
-			assertThat(
-				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)))),
-			).isEqualTo(BuildOutcome.Success(1, 0, restarted = true))
-
-			// Build 2: only the superclass recompiles. With a broken/no-op header read the
-			// seeded closure would be {service} alone -> Recreate; the recorded edge makes
-			// it -> Restart, proving the real file was read.
-			daemon.compileReply =
-				DaemonReply.Ok(
-					org.appdevforall.cotg.quickbuild.data
-						.CompileOutput(classesDir, listOf(basePath)),
-				)
-			assertThat(
-				executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile)))),
-			).isEqualTo(BuildOutcome.Success(2, 0, restarted = true))
-		}
-
 	/**
 	 * Builds an executor wired to a launcher, so the deploy pipeline can actually reach
 	 * the launch decision. The rest of the suite leaves the launcher null, which makes
@@ -1618,18 +1663,4 @@ class LiveReloadExecutorImplTest {
 			assertThat(launchCalls).hasSize(1)
 			assertThat((outcome as BuildOutcome.DeployFailure).proxyAppNotConnected).isFalse()
 		}
-
-	private fun copyClassFile(
-		classesDir: File,
-		clazz: Class<*>,
-	) {
-		val resource = clazz.name.replace('.', '/') + ".class"
-		val bytes = clazz.classLoader.getResourceAsStream(resource)!!.use { it.readBytes() }
-		File(classesDir, resource).apply { parentFile!!.mkdirs() }.writeBytes(bytes)
-	}
 }
-
-/** Fixtures for the class-header feed test: a service whose real superclass is a project class. */
-private open class ExecutorFeedBaseService
-
-private class ExecutorFeedService : ExecutorFeedBaseService()

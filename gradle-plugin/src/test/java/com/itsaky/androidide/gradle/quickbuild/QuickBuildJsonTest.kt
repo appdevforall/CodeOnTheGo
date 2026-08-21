@@ -309,4 +309,23 @@ class QuickBuildJsonTest {
 
 		assertThat(parsed["libraryResourcePaths"]).isEqualTo(emptyList<String>())
 	}
+
+	@Test
+	fun `setup json publishes the API level the seed payload was dexed at`() {
+		// A project whose effective level is above the daemon's own floor: without this key
+		// the daemon dexes its increments at 30 while this build dexed the baseline at 33.
+		val json = QuickBuildJson.proxyAppReportJson(info, "/apk/app-debug.apk", minApi = 33)
+
+		val parsed = JsonSlurper().parseText(json) as Map<*, *>
+		assertThat(parsed["minApi"]).isEqualTo(33)
+	}
+
+	@Test
+	fun `setup json reports a null min API when the build did not publish one`() {
+		val parsed =
+			JsonSlurper().parseText(QuickBuildJson.proxyAppReportJson(info, "/apk/app-debug.apk")) as Map<*, *>
+
+		assertThat(parsed.containsKey("minApi")).isTrue()
+		assertThat(parsed["minApi"]).isNull()
+	}
 }

@@ -129,4 +129,59 @@ class QuickBuildHostBinderTest {
 
 		assertThat(connections.target.value).isNull()
 	}
+
+	@Test
+	fun `a death from a superseded binder leaves the live registration alone`() {
+		beginMatchingSession()
+		val dead = fakeBinder()
+		val live = fakeBinder()
+		binder.connect(targetOn(dead), "com.example.quickbuild", 0)
+		binder.connect(targetOn(live), "com.example.quickbuild", 0)
+
+		connections.onDisconnected(dead)
+
+		// The superseded process's death notification arrives after its replacement has bound.
+		// Clearing here would deploy the next save into NotConnected against a healthy app.
+		assertThat(
+			connections.target.value
+				?.target
+				?.asBinder(),
+		).isSameInstanceAs(live)
+	}
+
+	@Test
+	fun `a death from the registered binder clears the target`() {
+		beginMatchingSession()
+		val live = fakeBinder()
+		binder.connect(targetOn(live), "com.example.quickbuild", 0)
+
+		connections.onDisconnected(live)
+
+		assertThat(connections.target.value).isNull()
+	}
+
+	/**
+	 * A distinct [IBinder] identity. Only reference identity is exercised, so a reflection
+	 * proxy is enough and avoids stubbing the whole interface against an unmocked android.jar.
+	 */
+	private fun fakeBinder(): IBinder =
+		java.lang.reflect.Proxy.newProxyInstance(
+			IBinder::class.java.classLoader,
+			arrayOf(IBinder::class.java),
+		) { _, _, _ -> null } as IBinder
+
+	private fun targetOn(binder: IBinder): IQuickBuildTarget =
+		object : IQuickBuildTarget {
+			override fun asBinder(): IBinder = binder
+
+			override fun onPayload(
+				generation: Long,
+				dexPayload: ParcelFileDescriptor?,
+				resourcesPayload: ParcelFileDescriptor?,
+				assetsPayload: ParcelFileDescriptor?,
+				metadataJson: String?,
+			) = Unit
+
+			override fun onBuildStatus(statusJson: String?) = Unit
+		}
 }

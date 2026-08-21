@@ -109,6 +109,20 @@ class QuickBuildOutputNarrator(
 		}
 	}
 
+	/**
+	 * Drops every line still queued for a pane that never came back.
+	 *
+	 * Called when the project closes: the queue is narration about THAT project, so leaving it
+	 * would flush stale progress into the next project's Build Output. Bound sinks are left
+	 * alone - a currently-visible pane's contents are not this class's to clear.
+	 *
+	 * Only the queue is per-project; anything a still-running session narrates AFTER this will
+	 * queue again, which is why the session is torn down alongside the reset.
+	 */
+	fun reset() {
+		scope.launch { pending.clear() }
+	}
+
 	private fun write(line: String) {
 		val target = sink
 		if (target != null) {

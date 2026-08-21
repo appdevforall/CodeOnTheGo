@@ -14,6 +14,8 @@ import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.actions.getContext
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.resolveAttr
@@ -114,10 +116,20 @@ class QuickBuildAction(
 		val context = data.getContext() ?: return
 		val tone = currentTone()
 		icon = ContextCompat.getDrawable(context, iconResFor(tone))
+		// A Quick Build cannot start while the user's own Gradle build holds the one slot, so
+		// the button says so before the tap rather than after it - staging used to run first and
+		// the refusal read as a failure. The label carries the reason because it is what the
+		// tooltip, the long-press dropdown and the overflow menu all read: a greyed control with
+		// no explanation is the worse half of this trade.
+		val blocked = blockedByStandardBuild(tone, standardBuildInProgress())
+		enabled = !blocked
 		// The label moves with the icon: it is what the long-press dropdown and the
 		// overflow menu read, so leaving it on "Quick Build" while the icon says stop would
 		// offer the user two different actions for one button.
-		label = context.getString(labelResFor(tone))
+		label =
+			context.getString(
+				if (blocked) R.string.quick_build_standard_build_in_progress else labelResFor(tone),
+			)
 	}
 
 	override fun createColorFilter(data: ActionData): ColorFilter? {
@@ -160,6 +172,35 @@ class QuickBuildAction(
 			saveAll()
 			return wroteSomething
 		}
+
+		/**
+		 * Whether the bolt is greyed out because the user's own Gradle build owns the one slot.
+		 *
+		 * @param tone what the button is presenting. [QuickBuildTone.BUILDING] means the button
+		 *   IS the stop button for a Quick Build already running, and a stop affordance that
+		 *   cannot be tapped would strand the user in a build they asked to cancel.
+		 * @param standardBuildInProgress whether a build the USER started is running. Quick
+		 *   Build's own proxy app build also holds the slot, but greying the button for it would
+		 *   name a standard build that is not running - that tap keeps its "another build is
+		 *   running" flash instead.
+		 */
+		internal fun blockedByStandardBuild(
+			tone: QuickBuildTone,
+			standardBuildInProgress: Boolean,
+		): Boolean = standardBuildInProgress && tone != QuickBuildTone.BUILDING
+
+		/**
+		 * The live reading of [blockedByStandardBuild], so the toolbar's spoken label and the
+		 * button's own state cannot disagree about why it is greyed.
+		 */
+		fun isBlockedByStandardBuild(): Boolean = blockedByStandardBuild(currentTone(), standardBuildInProgress())
+
+		/**
+		 * Whether a build the USER started is running - [BuildService.isUserVisibleBuildInProgress],
+		 * not the raw flag, which an internal Quick Build build also sets.
+		 */
+		private fun standardBuildInProgress(): Boolean =
+			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)?.isUserVisibleBuildInProgress == true
 
 		private fun currentSessionManager(): QuickBuildSessionManager? =
 			runCatching { GlobalContext.get().get<QuickBuildSessionManager>() }

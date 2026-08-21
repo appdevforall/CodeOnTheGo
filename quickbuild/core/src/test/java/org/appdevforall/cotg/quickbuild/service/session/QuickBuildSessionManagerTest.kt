@@ -4,6 +4,7 @@ import android.content.ComponentCallbacks2
 import com.google.common.truth.Truth.assertThat
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -256,10 +257,16 @@ class QuickBuildSessionManagerTest {
 		return ProxyAppRebuildOutcome.Success(proxyApp = provision.proxyApp, layout = provision.layout)
 	}
 
+	/**
+	 * @param collectUserMessages whether to attach the shared [userMessages] collector. Pass false
+	 *   to test what a message raised with NOBODY collecting does - the queue is single-consumer,
+	 *   so the shared collector would take the message before the test's own could.
+	 */
 	private fun TestScope.createManager(
 		warmCompileEnabled: () -> Boolean = { true },
 		scratch: QuickBuildScratch = QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot),
 		nowMillis: () -> Long = System::currentTimeMillis,
+		collectUserMessages: Boolean = true,
 	): QuickBuildSessionManager {
 		val provisioner =
 			object : QuickBuildProvisioner {
@@ -345,11 +352,11 @@ class QuickBuildSessionManagerTest {
 				},
 			scratch = scratch,
 		).also { manager ->
-			// Same zero-replay hazard [recordNotices] documents: userMessages replays nothing,
-			// so a StandardTestDispatcher collector can be left unresumed by advanceUntilIdle
-			// and a message that really was emitted would read as none.
-			backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-				manager.userMessages.collect { userMessages += it }
+			// Same hazard [recordNotices] documents, and the same reason for Unconfined.
+			if (collectUserMessages) {
+				backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+					manager.userMessages.collect { userMessages += it }
+				}
 			}
 		}
 	}
@@ -357,11 +364,14 @@ class QuickBuildSessionManagerTest {
 	/**
 	 * Records the neutral notice flow for the whole test; see [QuickBuildNotice].
 	 *
-	 * The collector MUST run on an [UnconfinedTestDispatcher]: [notices] is a zero-replay
-	 * SharedFlow, and on a StandardTestDispatcher the resumed collector is a background task
-	 * that [advanceUntilIdle] considers idle work - once nothing else is queued it returns
-	 * without ever running it, so an emission that really happened reads as "no notice".
-	 * Unconfined resumes the collector inside the emitter's own call stack instead.
+	 * ONE recorder per test: [QuickBuildSessionManager.notices] is a single-consumer queue, so a
+	 * second collector would steal notices from this one.
+	 *
+	 * The collector MUST run on an [UnconfinedTestDispatcher]: on a StandardTestDispatcher the
+	 * resumed collector is a background task that [advanceUntilIdle] considers idle work - once
+	 * nothing else is queued it returns without ever running it, so a notice that really was
+	 * raised reads as "no notice". Unconfined resumes the collector inside the sender's own call
+	 * stack instead.
 	 */
 	private fun TestScope.recordNotices(manager: QuickBuildSessionManager): List<QuickBuildNotice> {
 		val seen = mutableListOf<QuickBuildNotice>()
@@ -972,6 +982,113 @@ class QuickBuildSessionManagerTest {
 
 			assertThat(proxyAppRebuildCount).isEqualTo(1)
 			assertThat(executed).isEmpty()
+		}
+
+	/** A file in a source set the app variant does not include, created on disk like a real save. */
+	private fun sourceIn(
+		sourceSet: String,
+		name: String = "FooTest.kt",
+	): File =
+		File(projectRoot, "app/src/$sourceSet/java/com/example/$name").apply {
+			parentFile!!.mkdirs()
+			writeText("class Foo")
+		}
+
+	@Test
+	fun `a test source save runs no build at all, and explains itself exactly once`() =
+		runTest {
+			val manager = createManager()
+			val notices = recordNotices(manager)
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// Nothing under src/test is in the variant Quick Build deploys, so neither a quick
+			// build nor the honest Gradle fallback can carry it. A full rebuild here would cost
+			// the user ~97 s to produce an app that cannot differ.
+			val unitTest = sourceIn("test")
+			manager.save(unitTest)
+			advanceUntilIdle()
+			manager.save(unitTest)
+			advanceUntilIdle()
+
+			assertThat(executed).isEmpty()
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
+			// Once, not once per save: a user editing tests saves constantly, and repeating it
+			// would bury the notices that report something happening.
+			assertThat(notices).containsExactly(QuickBuildNotice.TEST_SOURCE_IGNORED)
+		}
+
+	@Test
+	fun `an instrumentation test and a testFixtures save are ignored the same way`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.save(sourceIn("androidTest"))
+			advanceUntilIdle()
+			manager.save(sourceIn("testFixtures", name = "Fixtures.kt"))
+			advanceUntilIdle()
+
+			assertThat(executed).isEmpty()
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
+		}
+
+	@Test
+	fun `a save-all writing a test beside a main source still builds the main one`() =
+		runTest {
+			val manager = createManager()
+			val notices = recordNotices(manager)
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// The shape a save-all really produces. Dropping the whole batch would strand the
+			// edit the user can actually see in their running app.
+			manager.save(sourceFile, sourceIn("test"))
+			advanceUntilIdle()
+
+			val request = executed.single()
+			assertThat(request.route).isEqualTo(BuildRoute.CodeOnly)
+			assertThat((request.changes as ChangedFiles.Known).files).containsExactly(sourceFile)
+			assertThat(notices).containsExactly(QuickBuildNotice.TEST_SOURCE_IGNORED)
+		}
+
+	@Test
+	fun `a debug source set still forces the honest Gradle fallback - it ships in the variant`() =
+		runTest {
+			val manager = createManager()
+			val notices = recordNotices(manager)
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// The precision half of this behaviour. src/debug IS compiled into the app the user
+			// runs, so ignoring it would leave the running app silently missing their edit -
+			// the quick path cannot compile it, which is what the full build is for.
+			manager.save(sourceIn("debug", name = "Debug.kt"))
+			advanceUntilIdle()
+
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
+			assertThat(executed).isEmpty()
+			assertThat(notices).isEmpty()
+		}
+
+	@Test
+	fun `a deleted test file triggers no build either`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// Deletions are classified by the same path shape as modifications, and removing a
+			// test deploys no more than saving one.
+			val unitTest = sourceIn("test")
+			assertThat(unitTest.delete()).isTrue()
+
+			manager.deleted(unitTest)
+			advanceUntilIdle()
+
+			assertThat(executed).isEmpty()
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 		}
 
 	@Test
@@ -2701,6 +2818,41 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `a restart mid-provision cancels the Gradle build, not just the coroutine awaiting it`() =
+		runTest {
+			// Cancelling the coroutine abandons the AWAIT; Gradle runs out of process behind a
+			// future and keeps running. It holds the device's single build slot, so the
+			// reprovision behind this teardown is refused SlotBusy - the user taps "Restart
+			// session" and gets a setup failure. Only the stop tap emitted a cancel effect, and a
+			// restart is not a stop tap.
+			provisionGate = kotlinx.coroutines.CompletableDeferred()
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
+
+			manager.restartSession()
+			advanceUntilIdle()
+
+			assertThat(proxyAppBuildCancelCount).isEqualTo(1)
+		}
+
+	@Test
+	fun `an idle teardown cancels nothing - there is no build of ours to stop`() =
+		runTest {
+			// The provisioner refuses a cancel that would kill the user's own Standard Run, but
+			// this must not lean on that: with no session work there is nothing of ours in
+			// flight, so the request is not made at all.
+			val manager = createManager()
+
+			manager.restartSession()
+			advanceUntilIdle()
+
+			assertThat(proxyAppBuildCancelCount).isEqualTo(0)
+		}
+
+	@Test
 	fun `restart during provisioning cancels the in-flight provision - no zombie session`() =
 		runTest {
 			provisionGate = kotlinx.coroutines.CompletableDeferred()
@@ -2782,13 +2934,13 @@ class QuickBuildSessionManagerTest {
 		runTest {
 			provisionOutcome = { ProvisionOutcome.Failure(QuickBuildMessage.Literal("no build service")) }
 			val manager = createManager()
-			val flowMessages = mutableListOf<QuickBuildMessage>()
-			backgroundScope.launch { manager.userMessages.collect { flowMessages += it } }
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 
-			assertThat(flowMessages).containsExactly(QuickBuildMessage.Literal("no build service"))
+			// The shared recorder is the one collector; the queue is single-consumer, so a
+			// second one here would race it for the message.
+			assertThat(userMessages).containsExactly(QuickBuildMessage.Literal("no build service"))
 		}
 
 	@Test
@@ -3697,6 +3849,46 @@ class QuickBuildSessionManagerTest {
 
 	private val syncService = ComponentInfo(ComponentKind.SERVICE, "com.example.SyncService")
 
+	private val logSenderService =
+		ComponentInfo(ComponentKind.SERVICE, "com.itsaky.androidide.logsender.LogSenderService")
+	private val logSenderInstaller =
+		ComponentInfo(ComponentKind.PROVIDER, "com.itsaky.androidide.logsender.utils.LogSenderInstaller")
+
+	@Test
+	fun `a hot swap warns nothing when the only components are the ones CoGo injected`() =
+		runTest {
+			// Logsender is in every debuggable build, so warning on it would fire this notice on
+			// every ordinary app - about code the user did not write and cannot go stale.
+			provisionOutcome = { provisionWithComponents(logSenderInstaller, logSenderService) }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			// The deploy really landed by hot swap - the silence below is a decision, not a no-op.
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+			assertThat(notices).isEmpty()
+		}
+
+	@Test
+	fun `a user service still warns when CoGo's own components are alongside it`() =
+		runTest {
+			provisionOutcome = { provisionWithComponents(logSenderInstaller, syncService) }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+			assertThat(notices).containsExactly(QuickBuildNotice.STALE_COMPONENT_HELPERS)
+		}
+
 	@Test
 	fun `a crashing reload tells the user how to recover, every time it crashes`() =
 		runTest {
@@ -3750,6 +3942,131 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			assertThat(executed).hasSize(2)
 			assertThat(notices).containsExactly(QuickBuildNotice.STALE_COMPONENT_HELPERS)
+		}
+
+	@Test
+	fun `a stale-helper warning nobody heard is still owed - the latch needs a listener`() =
+		runTest {
+			// This warning is raised by a hot-swap deploy, which lands while the user is in the
+			// PROXY APP - so the editor's lifecycle-bound collector is usually gone. The queue
+			// holds it for the collector that attaches next; what must not happen is the latch
+			// being spent on a warning nobody will ever hear, precisely in the case it was most
+			// needed. So: exactly one warning across both saves, and it arrives.
+			provisionOutcome = { provisionWithComponents(syncService) }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// No collector: CoGo is backgrounded, which is the normal state for this deploy.
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			val notices = recordNotices(manager)
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			assertThat(executed).hasSize(2)
+			assertThat(notices).containsExactly(QuickBuildNotice.STALE_COMPONENT_HELPERS)
+		}
+
+	@Test
+	fun `a notice raised while CoGo is backgrounded is delivered when the editor returns`() =
+		runTest {
+			// The whole of C5: the only collector lives inside repeatOnLifecycle(STARTED), so it is
+			// gone for every notice raised while the user is in their proxy app - which is where a
+			// reload crash is raised by construction. The notice waits in the queue instead.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			connections.report(TargetReport.Crashed(0, "NPE in onCreate"))
+			advanceUntilIdle()
+
+			val notices = recordNotices(manager)
+			advanceUntilIdle()
+
+			assertThat(notices).containsExactly(QuickBuildNotice.RELOAD_CRASHED)
+		}
+
+	@Test
+	fun `a notice already delivered is not repeated when the collector reattaches`() =
+		runTest {
+			// Why a queue and not replay = 1: the collector re-subscribes on EVERY transition back
+			// to STARTED, so a replayed notice would re-flash on each return to the editor - the
+			// same defect C22 reports for flashedFailure. Delivered exactly once, to one collector.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			val heard = mutableListOf<QuickBuildNotice>()
+			val collector =
+				backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+					manager.notices.collect { heard += it }
+				}
+			connections.report(TargetReport.Crashed(0, "NPE in onCreate"))
+			advanceUntilIdle()
+			assertThat(heard).containsExactly(QuickBuildNotice.RELOAD_CRASHED)
+
+			// CoGo goes to the background and comes back: a fresh collector on the same queue.
+			collector.cancelAndJoin()
+			val afterReturn = recordNotices(manager)
+			advanceUntilIdle()
+
+			assertThat(afterReturn).isEmpty()
+		}
+
+	@Test
+	fun `a failure raised while CoGo is backgrounded is flashed when the editor returns`() =
+		runTest {
+			// userMessages carries the same fix as notices, and needs it more:
+			// ReinstallReturnToCoGo asks the user to come back to CoGo, so by construction it is
+			// raised while they are not in CoGo.
+			provisionOutcome = { ProvisionOutcome.Failure(QuickBuildMessage.Literal("no build service")) }
+			val manager = createManager(collectUserMessages = false)
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			val heard = mutableListOf<QuickBuildMessage>()
+			backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+				manager.userMessages.collect { heard += it }
+			}
+			advanceUntilIdle()
+
+			assertThat(heard).containsExactly(QuickBuildMessage.Literal("no build service"))
+		}
+
+	@Test
+	fun `a queued warning evicted before anyone hears it is owed again`() =
+		runTest {
+			// The queue is bounded and drops the oldest, so "queued" is not yet "heard". A latch
+			// that stayed set for an evicted warning would spend the one warning per session on
+			// nobody - the bug this fix exists to remove, moved one step later.
+			provisionOutcome = { provisionWithComponents(syncService) }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// Backgrounded hot swap: the warning is queued and the latch is set.
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			// Still backgrounded, the reload now crashes on every redeploy. Four newer notices
+			// fill the queue and push the warning out of it.
+			repeat(NOTICE_QUEUE_DEPTH) { generation ->
+				connections.report(TargetReport.Crashed(generation.toLong(), "NPE in onCreate"))
+				advanceUntilIdle()
+			}
+
+			val notices = recordNotices(manager)
+			advanceUntilIdle()
+			assertThat(notices).doesNotContain(QuickBuildNotice.STALE_COMPONENT_HELPERS)
+			assertThat(notices).hasSize(NOTICE_QUEUE_DEPTH)
+
+			// The eviction re-armed the latch, so the next hot swap warns.
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(notices.last()).isEqualTo(QuickBuildNotice.STALE_COMPONENT_HELPERS)
 		}
 
 	@Test

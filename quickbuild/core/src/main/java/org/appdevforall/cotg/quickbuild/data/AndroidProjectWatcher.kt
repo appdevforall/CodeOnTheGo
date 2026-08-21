@@ -121,64 +121,63 @@ class AndroidProjectWatcher(
 	 * @param dir the directory to watch; the observer is appended to [observers] unstarted, and
 	 *   the caller starts it.
 	 */
-	@Suppress("DEPRECATION") // FileObserver(File,...) is API 29+; minSdk is 28 (B5 targets 28/29).
 	private fun observe(dir: File) {
-		val observer =
-			object : FileObserver(dir.absolutePath, EVENT_MASK) {
-				override fun onEvent(
-					event: Int,
-					path: String?,
-				) {
-					if (path == null) return
-					val changed = File(dir, path)
-					// A new directory (new package, git checkout) needs its own watch, or
-					// files created inside it later are invisible to inotify.
-					if (event and CREATE != 0 && changed.isDirectory) {
-						synchronized(observers) {
-							val fresh = arrayListOf<FileObserver>()
-							changed.walkTopDown().filter(File::isDirectory).forEach { d ->
-								observeInto(d, fresh)
-							}
-							fresh.forEach(FileObserver::startWatching)
-							observers.addAll(fresh)
-						}
-					}
-					if (event and DELETE_MASK != 0) {
-						reportDeletion(changed)
-					} else {
-						report(changed, fromPoll = false)
-					}
-				}
-			}
-		synchronized(observers) { observers.add(observer) }
+		synchronized(observers) { observers.add(newObserver(dir)) }
 	}
 
 	/**
-	 * Builds (but does not start) an observer for [dir], appending it to [into].
+	 * Builds one directory's observer.
 	 *
-	 * @param dir the newly created directory to watch.
-	 * @param into collector the caller starts and then merges into [observers], so a live
-	 *   iteration of [observers] cannot see a half-built batch.
+	 * One factory for every watch, whether registered at start or for a directory that appeared
+	 * mid-session: the CREATE recursion has to be in all of them, or a tree created inside a
+	 * mid-session directory gets no watch below its top level and its files fall back to the poll.
+	 *
+	 * @param dir the directory this observer reports for; unstarted, so the caller starts it.
+	 * @return the observer, not yet watching and not yet in [observers].
 	 */
 	@Suppress("DEPRECATION") // FileObserver(File,...) is API 29+; minSdk is 28 (B5 targets 28/29).
-	private fun observeInto(dir: File, into: MutableList<FileObserver>) {
-		into.add(
-			object : FileObserver(dir.absolutePath, EVENT_MASK) {
-				override fun onEvent(
-					event: Int,
-					path: String?,
-				) {
-					if (path == null) return
-					val changed = File(dir, path)
-					if (event and DELETE_MASK != 0) {
-						reportDeletion(changed)
-					} else {
-						report(changed, fromPoll = false)
-					}
+	private fun newObserver(dir: File): FileObserver =
+		object : FileObserver(dir.absolutePath, EVENT_MASK) {
+			override fun onEvent(
+				event: Int,
+				path: String?,
+			) {
+				if (path == null) return
+				val changed = File(dir, path)
+				// A new directory (new package, git checkout) needs its own watch, or
+				// files created inside it later are invisible to inotify.
+				if (event and CREATE != 0 && changed.isDirectory) {
+					registerCreatedTree(changed)
 				}
-			},
-		)
+				if (event and DELETE_MASK != 0) {
+					reportDeletion(changed)
+				} else {
+					report(changed, fromPoll = false)
+				}
+			}
+		}
+
+	/**
+	 * Watches [dir] and every directory beneath it, then starts them.
+	 *
+	 * Recursive because a tree can arrive whole - a git checkout, an unzip - and watching only its
+	 * top level leaves everything deeper on the poll path.
+	 *
+	 * @param dir the newly created directory; the walk includes it.
+	 */
+	internal fun registerCreatedTree(dir: File) {
+		synchronized(observers) {
+			// Built fully, then published, so a live iteration of observers never sees a
+			// half-built batch.
+			val fresh = arrayListOf<FileObserver>()
+			dir.walkTopDown().filter(File::isDirectory).forEach { d -> fresh.add(newObserver(d)) }
+			fresh.forEach(FileObserver::startWatching)
+			observers.addAll(fresh)
+		}
 	}
+
+	/** Live inotify watch count, so a test can assert the CREATE recursion registered a whole tree. */
+	internal fun watchCount(): Int = synchronized(observers) { observers.size }
 
 	/**
 	 * Sweeps the watched roots on a timer - the safety net that catches whatever inotify
@@ -194,8 +193,11 @@ class AndroidProjectWatcher(
 
 	/**
 	 * Runs one mtime+size sweep: modifications and creations via [report], then deletions as
-	 * the set difference between the paths [fingerprints] tracks and what this walk saw. That
-	 * diff is the reliable deletion floor on sdcardfs, where inotify DELETE can be dropped.
+	 * the set difference between the paths [fingerprints] tracks and what this walk saw, each
+	 * one re-stat'd before it is believed. That diff is the reliable deletion floor on sdcardfs,
+	 * where inotify DELETE can be dropped, but it is only a CANDIDATE list: inotify writes
+	 * [fingerprints] concurrently, so a file created after this walk passed its directory is in
+	 * the map and absent from the walk while very much alive.
 	 * The `filterTo` copy is required - [reportDeletion] mutates the map being walked.
 	 * Internal so tests can drive one sweep instead of racing the timer.
 	 */
@@ -207,7 +209,15 @@ class AndroidProjectWatcher(
 		}
 		fingerprints.keys
 			.filterTo(ArrayList()) { it !in current }
-			.forEach { path -> reportDeletion(File(path)) }
+			.forEach { path ->
+				val file = File(path)
+				// Only a stat proves a deletion. Reporting one for a live file drops its
+				// fingerprint and, because coalescing is last-event-wins, collapses a real
+				// save into a removal - handing the daemon a file it is still compiling and
+				// re-emitting the same change on the next sweep. isFile, not exists, so a path
+				// that turned into a directory still counts as vanished.
+				if (!file.isFile) reportDeletion(file)
+			}
 	}
 
 	/**

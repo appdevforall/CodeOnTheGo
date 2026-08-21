@@ -187,6 +187,10 @@ class QuickBuildPlugin : Plugin<Project> {
 				QuickBuildPayloadTransformTask::outputJar,
 			)
 
+		// One expression, read twice: the seed payload dex and the setup.json the daemon
+		// reads must name the same API level, or the baseline and the increments that
+		// patch it get desugared against different targets.
+		val payloadMinApi = maxOf(variant.minSdk.apiLevel, MIN_PAYLOAD_API)
 		val dex =
 			project.tasks.register(
 				variant.generateTaskName("dex", "QuickBuildPayload"),
@@ -201,7 +205,7 @@ class QuickBuildPlugin : Plugin<Project> {
 				// needs the superclass, so the injected AAR joins the proxy classpath.
 				task.runtimeAar.addRuntimeAars(project, runtimeAar)
 				task.bootClasspath.from(bootClasspath)
-				task.minApiLevel.set(maxOf(variant.minSdk.apiLevel, MIN_PAYLOAD_API))
+				task.minApiLevel.set(payloadMinApi)
 				task.proxyClasses.set(buildDirectory.dir("$variantDir/proxy-classes"))
 			}
 		variant.sources.assets
@@ -273,6 +277,7 @@ class QuickBuildPlugin : Plugin<Project> {
 				// Variant-scoped: a report task is registered per debuggable variant, so a fixed
 				// `quickbuild/setup.json` would make them all declare the same output and CoGo
 				// would install whichever flavor finished last.
+				task.minApiLevel.set(payloadMinApi)
 				task.reportFile.set(buildDirectory.file("$variantDir/setup.json"))
 			}
 
