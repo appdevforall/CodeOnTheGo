@@ -2,6 +2,7 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.activities.editor.QuickBuildClobberConfirmation
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.ApkMetadata
 import com.itsaky.androidide.models.InstallTaskRequest
@@ -35,8 +36,34 @@ class BuildViewModel(
 	val buildState: StateFlow<BuildState> = _buildState
 
 	/**
+	 * The clobber confirmation this build's Run tap already settled (ADFA-4128), consumed once by
+	 * the install. Held here rather than on the activity so a rotation mid-build does not lose it
+	 * and re-ask; null means nobody asked, which makes the install fall back to asking.
+	 */
+	private var clobberAnswerAtTap: QuickBuildClobberConfirmation? = null
+
+	/**
+	 * Takes the tap's clobber answer, leaving nothing behind so a later build that never asked
+	 * cannot inherit it.
+	 */
+	fun consumeClobberAnswerAtTap(): QuickBuildClobberConfirmation? = clobberAnswerAtTap.also { clobberAnswerAtTap = null }
+
+	/**
 	 * Builds the selected variant and hands the result to the installer.
 	 *
+	 * @param clobberAnswerAtTap what the Run tap's clobber check decided, so the install can tell
+	 *   whether the answer has since changed and re-ask only then. Every build states its own,
+	 *   defaulting to "nobody asked" - a build that inherited a previous tap's answer could skip a
+	 *   confirmation that is genuinely owed.
+	 * @param beforeBuild work that must finish BEFORE the build starts but AFTER the
+	 *   in-progress reservation below - flushing unsaved editor buffers, so the build is of
+	 *   what the user sees. It runs here rather than in the caller so three things hold: the
+	 *   reserve-then-work race the guard below closes stays closed (caller-side, two taps can
+	 *   both read Idle during a slow save on emulated storage), the build stays ordered against
+	 *   anything else the caller issued, and the build runs in this ViewModel's scope rather
+	 *   than one the caller's own teardown may already have cancelled.
+	 *   Throwing aborts the build and lands in [BuildState.Error] - building stale on-disk
+	 *   content is exactly what saving first is meant to prevent.
 	 * @param onTerminalState invoked exactly once with the state the run ends on. [buildState] is
 	 *   a conflated flow whose terminal values are transient — the editor resets `AwaitingInstall`
 	 *   to `Idle` the moment it takes the APK — so a caller that must not miss the outcome (a
@@ -48,9 +75,12 @@ class BuildViewModel(
 		launchInDebugMode: Boolean,
 		launchProfilerAfterInstall: Boolean = false,
 		gradleArgs: List<String> = emptyList(),
+		clobberAnswerAtTap: QuickBuildClobberConfirmation? = null,
+		beforeBuild: suspend () -> Unit = {},
 		onTerminalState: ((BuildState) -> Unit)? = null,
 	) {
 		if (!claimBuildSlot(onTerminalState)) return
+		this.clobberAnswerAtTap = clobberAnswerAtTap
 
 		viewModelScope.launch {
 			val reporter = RunReporter(onTerminalState)
@@ -62,6 +92,8 @@ class BuildViewModel(
 			}
 
 			try {
+				beforeBuild()
+
 				val isPluginProject =
 					withContext(Dispatchers.IO) {
 						IProjectManager.getInstance().isPluginProject()
@@ -230,6 +262,13 @@ class BuildViewModel(
 	/** Call this after the installation attempt to reset the state. */
 	fun installationAttempted() {
 		if (_buildState.value is BuildState.AwaitingInstall) {
+			_buildState.value = BuildState.Idle
+		}
+	}
+
+	/** Call this after the error has been shown once, so a lifecycle replay does not re-flash it. */
+	fun errorDisplayed() {
+		if (_buildState.value is BuildState.Error) {
 			_buildState.value = BuildState.Idle
 		}
 	}

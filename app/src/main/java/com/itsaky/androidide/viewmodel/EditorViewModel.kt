@@ -27,6 +27,7 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.quickbuild.QuickBuildFlashes
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.ILogger
@@ -46,6 +47,14 @@ import java.util.concurrent.atomic.AtomicInteger
 /** ViewModel for data used in [com.itsaky.androidide.activities.editor.EditorActivityKt] */
 @Suppress("PropertyName")
 class EditorViewModel : ViewModel() {
+	/**
+	 * Decides which Quick Build outcomes get a flashbar over the editor (ADFA-4128). Held here
+	 * rather than on the activity because the one bit of history it keeps must survive a
+	 * configuration change: an activity-scoped instance is rebuilt on rotation, and the rebuilt
+	 * one has never seen a failure, so the recovery flash that only fires after one is lost.
+	 */
+	val quickBuildFlashes = QuickBuildFlashes()
+
 	data class SearchResultSection(
 		val title: String?,
 		val results: Map<File, List<SearchResult>>,
@@ -56,6 +65,10 @@ class EditorViewModel : ViewModel() {
 	)
 
 	internal val _isBuildInProgress = MutableLiveData(false)
+
+	// A build the user never started (Quick Build's proxy app build). Separate from
+	// _isBuildInProgress so it can show progress without offering to cancel.
+	internal val _isInternalBuildInProgress = MutableLiveData(false)
 	internal val _isInitializing = MutableLiveData(false)
 	internal val _statusText = MutableLiveData<Pair<CharSequence, Int>>("" to CENTER)
 	internal val _displayedFile = MutableLiveData(-1)
@@ -172,6 +185,12 @@ class EditorViewModel : ViewModel() {
 		get() = _isBuildInProgress.value ?: false
 		set(value) {
 			_isBuildInProgress.value = value
+		}
+
+	var isInternalBuildInProgress: Boolean
+		get() = _isInternalBuildInProgress.value ?: false
+		set(value) {
+			_isInternalBuildInProgress.value = value
 		}
 
 	var isInitializing: Boolean
