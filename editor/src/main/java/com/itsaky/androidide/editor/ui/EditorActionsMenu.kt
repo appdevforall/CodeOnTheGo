@@ -468,14 +468,15 @@ open class EditorActionsMenu(
 			button.setOnLongClickListener {
 				if (tag.isEmpty()) {
 					log.warn("No tooltip tag for action '{}'", item.title)
-				} else {
-					TooltipManager.showTooltip(
-						context = editor.context,
-						anchorView = editor,
-						category = category,
-						tag = tag,
-					)
 				}
+				// An empty tag still goes through: a DB miss renders the documentation
+				// fallback (ADFA-4754), which beats a dead long-press.
+				TooltipManager.showTooltip(
+					context = editor.context,
+					anchorView = editor,
+					category = category,
+					tag = tag,
+				)
 				true
 			}
 		}
