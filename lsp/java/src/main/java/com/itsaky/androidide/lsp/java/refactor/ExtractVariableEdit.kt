@@ -81,21 +81,23 @@ internal fun blockPlacementFor(
 			?: return BlockPlacement.Refused
 	val lineStart = lineStartOffset(fileText, anchor.start)
 
-	/*
-	 * Two conditions together are what actually mean "written on one line": something other than
-	 * indentation already precedes the statement on its line (the brace, an arrow, or a prior
-	 * statement), and the block's content itself contains no newline, so re-emitting it as a single
-	 * line loses nothing.
-	 */
 	val linePrefix = fileText.substring(lineStart, anchor.start)
-	val contentIsOneLine = !fileText.substring(form.contentSpan.start, form.contentSpan.end).contains('\n')
-	if (linePrefix.isNotBlank() && contentIsOneLine) return BlockPlacement.ExpandOneLine
+	// Nothing but indentation in front: the declaration can take its own line above, which is the common
+	// case and the only one where the anchor's line needs no rearranging.
+	if (linePrefix.isBlank()) return BlockPlacement.LineAbove(anchor)
 
-	if (form.contentSpan.start > lineStart && fileText.substring(lineStart, form.contentSpan.start).isNotBlank()) {
-		return BlockPlacement.Refused
-	}
-	return BlockPlacement.LineAbove(anchor)
+	// Something shares the line. Expanding is sound only when the whole block is that one line, because
+	// then re-emitting its content loses nothing; otherwise the declaration would have to be threaded
+	// into a line that also holds unrelated statements, and hoisting it above them reorders execution.
+	val contentIsOneLine = !fileText.substring(form.contentSpan.start, form.contentSpan.end).contains('\n')
+	return if (contentIsOneLine) BlockPlacement.ExpandOneLine else BlockPlacement.Refused
 }
+
+/** The block statement holding [target], or null when the plan and the text disagree. */
+private fun anchorOf(
+	form: AnchorForm.ExistingBlock,
+	target: TextSpan,
+): TextSpan? = form.statementSpans.firstOrNull { it.start <= target.start && target.end <= it.end }
 
 /**
  * A replace-all anchors on the *first* served occurrence, so a leading one whose statement shares the
@@ -164,9 +166,17 @@ private fun existingBlockRewrite(
 	val last = targets.last()
 	val anchor =
 		when (val placement = blockPlacementFor(fileText, form, targets.first())) {
-			is BlockPlacement.Refused -> return null
-			is BlockPlacement.ExpandOneLine -> return oneLineBlockRewrite(fileText, form, targets, declaration, name)
-			is BlockPlacement.LineAbove -> placement.anchor
+			is BlockPlacement.Refused -> {
+				return null
+			}
+
+			is BlockPlacement.ExpandOneLine -> {
+				return oneLineBlockRewrite(fileText, form, targets, declaration, name, anchorOf(form, targets.first()))
+			}
+
+			is BlockPlacement.LineAbove -> {
+				placement.anchor
+			}
 		}
 
 	val lineStart = lineStartOffset(fileText, anchor.start)
@@ -188,6 +198,7 @@ private fun oneLineBlockRewrite(
 	targets: List<TextSpan>,
 	declaration: String,
 	name: String,
+	anchor: TextSpan?,
 ): RewriteSpan {
 	val content = form.contentSpan
 	val newline = detectNewline(fileText)
@@ -197,11 +208,17 @@ private fun oneLineBlockRewrite(
 	// Widen over the whitespace on each side of the content so it does not survive the rewrite as a
 	// stray "{ " or " }".
 	val span = TextSpan(startOfWhitespaceBefore(fileText, content.start), endOfWhitespaceAfter(fileText, content.end))
-	val body = replaceOccurrences(fileText, content, targets, name).trim()
+
+	// Anything already in front of the anchor stays in front of it: prepending the declaration to the
+	// whole block would hoist it above statements the expression depends on.
+	val anchorStart = anchor?.start?.coerceIn(content.start, content.end) ?: content.start
+	val before = fileText.substring(content.start, anchorStart).trim()
+	val body = replaceOccurrences(fileText, TextSpan(anchorStart, content.end), targets, name).trim()
 
 	val newText =
 		buildString {
 			append(newline)
+			if (before.isNotEmpty()) append(innerIndent).append(before).append(newline)
 			append(innerIndent).append(declaration).append(newline)
 			append(innerIndent).append(body).append(newline)
 			append(indent)
@@ -243,7 +260,9 @@ private fun convertExpressionBodyRewrite(
 ): RewriteSpan {
 	val bodySpan = TextSpan(form.bodyStart, form.bodyEnd)
 	val newline = detectNewline(fileText)
-	val body = replaceOccurrences(fileText, bodySpan, targets, name)
+	// A switch rule's span reaches past its own `;` (the parser consumes it separately), so strip it
+	// before composing or the block ends up with `yield v;;`.
+	val body = replaceOccurrences(fileText, bodySpan, targets, name).trimEnd().removeSuffix(";")
 	val returned = if (form.needsReturn) "${form.returnKeyword} $body;" else "$body;"
 
 	val newText =
@@ -316,8 +335,13 @@ internal fun detectIndentUnit(text: String): String {
 		if (line.isEmpty()) continue
 		if (line[0] == '\t') return "\t"
 		if (line[0] != ' ') continue
-		val spaces = line.takeWhile { it == ' ' }.length
-		if (spaces in 1 until minSpaces) minSpaces = spaces
+		val trimmed = line.trimStart()
+		// A block-comment continuation (` * text`, ` */`) is alignment, not indentation, and its single
+		// leading space would otherwise win the minimum on virtually every real Java file.
+		if (trimmed.startsWith('*')) continue
+		val spaces = line.length - trimmed.length
+		// A one-space indent unit is not a real style, so it can only be a line this scan misread.
+		if (spaces in 2 until minSpaces) minSpaces = spaces
 	}
 	return if (minSpaces == Int.MAX_VALUE) "\t" else " ".repeat(minSpaces)
 }

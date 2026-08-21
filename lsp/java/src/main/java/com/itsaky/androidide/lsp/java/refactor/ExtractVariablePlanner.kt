@@ -8,11 +8,13 @@ import jdkx.lang.model.type.DeclaredType
 import jdkx.lang.model.type.TypeKind
 import jdkx.lang.model.util.Elements
 import openjdk.source.tree.CompilationUnitTree
+import openjdk.source.util.JavacTask
 import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
 import openjdk.source.util.Trees
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = LoggerFactory.getLogger("JavaExtractVariablePlanner")
 
@@ -48,8 +50,48 @@ fun buildExtractionPlan(
 				},
 		)
 	}.getOrElse { error ->
+		// Cancellation is the coroutine's business, not a failure to degrade from: swallowing it would
+		// leave the action running after its scope was cancelled.
+		if (error is CancellationException) throw error
 		logger.warn("Failed to build a Java extract-variable plan for {}", file, error)
 		ExtractionPlan.empty()
+	}
+
+/**
+ * The pass itself, over an already-attributed unit.
+ *
+ * Split from the [CompileTask] overload so it needs nothing but javac, which is what lets the analysis
+ * be tested against a source string with no project model and no tooling API.
+ *
+ * [fileText] must be the text [root]'s positions were computed against.
+ */
+fun buildExtractionPlan(
+	task: JavacTask,
+	root: CompilationUnitTree,
+	fileText: String,
+	selectionStart: Int,
+	selectionEnd: Int,
+	documentVersion: Int,
+): ExtractionPlan =
+	runCatching {
+		val trees = Trees.instance(task)
+		val positions = trees.sourcePositions
+
+		val syntax = candidateExpressionsAt(task, root, fileText, selectionStart, selectionEnd)
+		if (syntax.paths.isEmpty()) return ExtractionPlan.empty(fileText, documentVersion)
+
+		ExtractionPlan(
+			fileText = fileText,
+			documentVersion = documentVersion,
+			candidates =
+				syntax.paths.mapNotNull { path ->
+					candidateFor(path, task.elements, root, trees, positions, fileText)
+				},
+		)
+	}.getOrElse { error ->
+		if (error is CancellationException) throw error
+		logger.warn("Failed to build a Java extract-variable plan", error)
+		ExtractionPlan.empty(fileText, documentVersion)
 	}
 
 /** Null when the type cannot be written as source, or nothing remains of the legal scope chain. */

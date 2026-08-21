@@ -20,9 +20,11 @@ import openjdk.source.tree.MethodTree
 import openjdk.source.tree.Scope
 import openjdk.source.tree.Tree
 import openjdk.source.tree.UnaryTree
+import openjdk.source.tree.VariableTree
 import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
 import openjdk.source.util.TreePathScanner
+import openjdk.source.util.TreeScanner
 import openjdk.source.util.Trees
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -68,6 +70,9 @@ fun findOccurrences(
 					if (span == candidateSpan) {
 						matches += span
 					} else if (isLegalExtractionTarget(path, trees) &&
+						// Shape alone is not enough: a `case` label matches every structural test and then
+						// fails to compile once the local is substituted in.
+						isExtractionPosition(path) &&
 						normalizeSource(fileText.substring(span.start, span.end)) == candidateText &&
 						referencedElements(path, trees) == candidateElements
 					) {
@@ -167,7 +172,7 @@ fun writeOffsetsFor(
 	return offsets.sorted()
 }
 
-private val INCREMENT_KINDS =
+internal val INCREMENT_KINDS =
 	setOf(
 		Tree.Kind.PREFIX_INCREMENT,
 		Tree.Kind.PREFIX_DECREMENT,
@@ -207,9 +212,17 @@ fun referencedDeclarationCeiling(
 private fun constrainingScopeFor(declaration: TreePath): Tree? =
 	when (val owner = declaration.parentPath?.leaf) {
 		is LambdaExpressionTree -> owner.body
+
 		is MethodTree -> owner.body
+
 		is CatchTree -> owner.block
-		else -> owner?.takeIf { it is BlockTree }
+
+		is BlockTree -> owner
+
+		// A `for`, enhanced-`for`, try-with-resources or `instanceof` pattern variable is scoped to the
+		// construct that declares it. Returning the construct itself is both correct and the safe default
+		// for anything unrecognised: a narrower ceiling only removes rungs, it never adds a bad one.
+		else -> owner
 	}
 
 private val LOCAL_KINDS =
@@ -245,6 +258,8 @@ fun namesInScopeAt(
 	 */
 	val seenScopes = Collections.newSetFromMap(IdentityHashMap<Scope, Boolean>())
 	val seenClasses = mutableSetOf<TypeElement>()
+	names += localNamesInEnclosingBodies(candidatePath)
+
 	var scope = runCatching { trees.getScope(candidatePath) }.getOrNull()
 	while (scope != null && seenScopes.add(scope)) {
 		val current = scope
@@ -259,6 +274,32 @@ fun namesInScopeAt(
 				?.forEach { member -> names += member.simpleName.toString() }
 		}
 		scope = runCatching { current.enclosingScope }.getOrNull()
+	}
+	return names
+}
+
+/**
+ * Every local declared anywhere in the executable bodies enclosing [candidatePath].
+ *
+ * `Trees.getScope` reports only what is in scope *at* the candidate, because javac has attributed the
+ * method only that far. Java forbids two locals of the same name in a block whatever their order, so a
+ * name taken by a declaration further down the same body is still taken -- and it gates the sheet's text
+ * field as well as the suggestion.
+ */
+private fun localNamesInEnclosingBodies(candidatePath: TreePath): Set<String> {
+	val names = mutableSetOf<String>()
+	var body = enclosingExecutableBody(candidatePath)
+	while (body != null) {
+		object : TreeScanner<Unit, Unit>() {
+			override fun visitVariable(
+				node: VariableTree,
+				p: Unit?,
+			): Unit? {
+				names += node.name.toString()
+				return super.visitVariable(node, p)
+			}
+		}.scan(body.leaf, null)
+		body = body.parentPath?.let { enclosingExecutableBody(it) }
 	}
 	return names
 }

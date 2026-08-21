@@ -102,9 +102,7 @@ private fun frameFor(
 			searchRange = blockSpan,
 			anchorForm =
 				AnchorForm.ExistingBlock(
-					// A Java block always owns its braces, unlike a Kotlin lambda body, so the content
-					// span is unconditionally what sits between them.
-					contentSpan = TextSpan(blockSpan.start + 1, blockSpan.end - 1),
+					contentSpan = contentSpanOf(blockSpan, fileText) ?: return null,
 					statementSpans = parent.statements.mapNotNull { spanOf(root, positions, it) },
 				),
 		)
@@ -118,7 +116,10 @@ private fun frameFor(
 
 	if (parent is CaseTree && parent.caseKind == CaseTree.CaseKind.RULE && parent.body === inner) {
 		return if (inner is ExpressionTree) {
-			expressionBodyFrame("switch rule", inner, innerSpan, parent, root, positions, fileText, "yield")
+			// `case A -> value;` parses the body as the expression and takes the `;` separately, so the
+			// span stops short of it. Replacing only the expression would leave `case A -> { ... };`.
+			val withTerminator = TextSpan(innerSpan.start, semicolonAfter(fileText, innerSpan.end))
+			expressionBodyFrame("switch rule", inner, withTerminator, parent, root, positions, fileText, "yield")
 		} else {
 			bracelessFrame("switch rule", innerSpan, parent, root, positions, fileText)
 		}
@@ -240,3 +241,30 @@ private fun bracelessOwnerLabel(
 		is DoWhileLoopTree -> if (parent.statement === inner) "do-while body" else null
 		else -> null
 	}
+
+/**
+ * The region inside a block's braces.
+ *
+ * Derived from the first `{` rather than from `blockSpan.start + 1`, because javac's `JCBlock.pos` is
+ * not always the brace: `JavacParser` takes the position before `modifiersOpt()`, so a `static { ... }`
+ * initializer reports the `s` of `static`. Null when no brace is found, which means the span and the
+ * text disagree and the rung must be declined.
+ */
+private fun contentSpanOf(
+	blockSpan: TextSpan,
+	fileText: String,
+): TextSpan? {
+	val open = fileText.indexOf('{', blockSpan.start)
+	if (open < 0 || open >= blockSpan.end - 1) return null
+	return TextSpan(open + 1, blockSpan.end - 1)
+}
+
+/** The offset just past the `;` following [from], or [from] when there is none. */
+private fun semicolonAfter(
+	fileText: String,
+	from: Int,
+): Int {
+	var i = from
+	while (i < fileText.length && fileText[i].isWhitespace()) i++
+	return if (i < fileText.length && fileText[i] == ';') i + 1 else from
+}

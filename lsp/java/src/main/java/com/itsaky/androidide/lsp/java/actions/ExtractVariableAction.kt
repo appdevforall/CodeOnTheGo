@@ -26,6 +26,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Extracts the expression at the cursor, or the selected one, into a local variable.
@@ -60,8 +61,17 @@ class ExtractVariableAction : BaseJavaCodeAction() {
 		val selectionEnd = maxOf(cursor.left, cursor.right)
 		val version = documentVersionOf(file)
 
-		return data.requireCompiler().compile(file).get { task ->
-			buildExtractionPlan(task, file, selectionStart, selectionEnd, version)
+		// Resolving the compiler and taking its lock can both throw, and neither is inside the planner's
+		// own guard. DefaultActionsRegistry catches only IllegalArgumentException and this runs on a scope
+		// with no exception handler, so anything else would crash the app rather than fail the action.
+		return runCatching {
+			data.requireCompiler().compile(file).get { task ->
+				buildExtractionPlan(task, file, selectionStart, selectionEnd, version)
+			}
+		}.getOrElse { error ->
+			if (error is CancellationException) throw error
+			log.warn("Could not analyse {} for extract variable.", file, error)
+			ExtractionPlan.empty()
 		}
 	}
 

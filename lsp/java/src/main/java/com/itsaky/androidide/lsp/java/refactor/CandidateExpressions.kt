@@ -5,11 +5,17 @@ import openjdk.source.tree.AnnotatedTypeTree
 import openjdk.source.tree.AnnotationTree
 import openjdk.source.tree.ArrayTypeTree
 import openjdk.source.tree.AssignmentTree
+import openjdk.source.tree.BinaryTree
 import openjdk.source.tree.BlockTree
+import openjdk.source.tree.CaseTree
 import openjdk.source.tree.ClassTree
 import openjdk.source.tree.CompilationUnitTree
 import openjdk.source.tree.CompoundAssignmentTree
+import openjdk.source.tree.ConditionalExpressionTree
+import openjdk.source.tree.DoWhileLoopTree
+import openjdk.source.tree.ExpressionStatementTree
 import openjdk.source.tree.ExpressionTree
+import openjdk.source.tree.ForLoopTree
 import openjdk.source.tree.IdentifierTree
 import openjdk.source.tree.IntersectionTypeTree
 import openjdk.source.tree.LambdaExpressionTree
@@ -21,8 +27,11 @@ import openjdk.source.tree.MethodTree
 import openjdk.source.tree.NewClassTree
 import openjdk.source.tree.ParameterizedTypeTree
 import openjdk.source.tree.PrimitiveTypeTree
+import openjdk.source.tree.StatementTree
 import openjdk.source.tree.Tree
+import openjdk.source.tree.UnaryTree
 import openjdk.source.tree.UnionTypeTree
+import openjdk.source.tree.WhileLoopTree
 import openjdk.source.tree.WildcardTree
 import openjdk.source.util.JavacTask
 import openjdk.source.util.SourcePositions
@@ -161,8 +170,67 @@ internal fun isExtractionPosition(path: TreePath): Boolean {
 		if (leaf is MethodInvocationTree && isConstructorDelegation(leaf)) return false
 		current = current.parentPath
 	}
+	if (isCaseLabel(path)) return false
+	if (isConditionallyEvaluated(path)) return false
 	return enclosingExecutableBody(path) != null
 }
+
+/**
+ * A `case` label must be a compile-time constant, so a hoisted local can never stand in for one -- and
+ * an unqualified enum constant only resolves inside the label at all.
+ */
+private fun isCaseLabel(path: TreePath): Boolean {
+	var child: Tree = path.leaf
+	var current: TreePath? = path.parentPath
+	while (current != null) {
+		val leaf = current.leaf
+		if (leaf is StatementTree && leaf !is CaseTree) return false
+		if (leaf is CaseTree) return leaf.body !== child
+		child = leaf
+		current = current.parentPath
+	}
+	return false
+}
+
+/**
+ * Whether the expression is evaluated conditionally or repeatedly, where hoisting it changes *when* it
+ * runs rather than just naming it.
+ *
+ * A loop condition hoisted out of its loop is evaluated once, so `while (it.hasNext())` never
+ * terminates. The right operand of `&&`/`||` hoisted out stops being guarded, so
+ * `s != null && s.length() > 0` throws. A conditional branch is the same shape. None of these has an
+ * inner rung to offer instead -- `frameFor` finds no frame for a condition or an operand -- so the only
+ * placement available is the wrong one, and declining is the honest answer.
+ */
+private fun isConditionallyEvaluated(path: TreePath): Boolean {
+	var child: Tree = path.leaf
+	var current: TreePath? = path.parentPath
+	while (current != null) {
+		val leaf = current.leaf
+		when {
+			leaf is WhileLoopTree && leaf.condition === child -> return true
+
+			leaf is DoWhileLoopTree && leaf.condition === child -> return true
+
+			leaf is ForLoopTree && leaf.condition === child -> return true
+
+			leaf is ConditionalExpressionTree &&
+				(leaf.trueExpression === child || leaf.falseExpression === child) -> return true
+
+			leaf is BinaryTree &&
+				leaf.kind in SHORT_CIRCUIT_KINDS &&
+				leaf.rightOperand === child -> return true
+
+			// A statement boundary means the expression is evaluated exactly where it is written.
+			leaf is StatementTree -> return false
+		}
+		child = leaf
+		current = current.parentPath
+	}
+	return false
+}
+
+private val SHORT_CIRCUIT_KINDS = setOf(Tree.Kind.CONDITIONAL_AND, Tree.Kind.CONDITIONAL_OR)
 
 /** `this(...)` and `super(...)`, whose method select is the bare keyword. */
 private fun isConstructorDelegation(invocation: MethodInvocationTree): Boolean {
@@ -220,6 +288,12 @@ internal fun isLegalExtractionTarget(
 	if (parent is NewClassTree && parent.identifier === leaf) return false
 	if (parent is AssignmentTree && parent.variable === leaf) return false
 	if (parent is CompoundAssignmentTree && parent.variable === leaf) return false
+	// `foo(i++)` with the cursor on `i`: binding it would increment the copy and leave `i` alone, and it
+	// compiles, so nothing would tell the user the behaviour changed.
+	if (parent is UnaryTree && parent.kind in INCREMENT_KINDS && parent.expression === leaf) return false
+	// The whole expression of an expression statement: the source `;` sits outside the candidate's span,
+	// so replacing the expression would leave a bare `v;` behind -- "not a statement".
+	if (parent is ExpressionStatementTree) return false
 	return true
 }
 
