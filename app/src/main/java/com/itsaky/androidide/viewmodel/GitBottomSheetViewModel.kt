@@ -77,6 +77,7 @@ class GitBottomSheetViewModel(
 	private val _mergeState = MutableStateFlow<MergeUiState>(MergeUiState.Idle)
 	val mergeState: StateFlow<MergeUiState> = _mergeState.asStateFlow()
 
+	private var initJob: Job? = null
 	private var pullResetJob: Job? = null
 	private var pushResetJob: Job? = null
 
@@ -95,6 +96,7 @@ class GitBottomSheetViewModel(
 	override fun onCleared() {
 		super.onCleared()
 		EventBus.getDefault().unregister(this)
+		initJob?.cancel()
 		currentRepository?.close()
 	}
 
@@ -106,41 +108,47 @@ class GitBottomSheetViewModel(
 	 * and a new instance is initialized.
 	 */
 	fun initializeRepository(force: Boolean = false) {
-		viewModelScope.launch {
-			try {
-				val projectDirPath = IProjectManager.getInstance().projectDirPath
-				if (projectDirPath.isNullOrBlank()) {
-					currentRepository?.close()
+		if (initJob?.isActive == true && !force) {
+			return
+		}
+		initJob?.cancel()
+		initJob =
+			viewModelScope.launch {
+				try {
+					val projectDirPath = IProjectManager.getInstance().projectDirPath
+					if (projectDirPath.isNullOrBlank()) {
+						val previousRepo = currentRepository
+						currentRepository = null
+						previousRepo?.close()
+						_isGitRepository.value = false
+						_gitStatus.value = GitStatus.EMPTY
+						_currentBranch.value = null
+						_branches.value = BranchesUiState.None
+						_localCommitsCount.value = 0
+						return@launch
+					}
+					val projectDir = File(projectDirPath)
+					val currentRoot = currentRepository?.rootDir
+					if (force || currentRepository == null || currentRoot?.canonicalPath != projectDir.canonicalPath) {
+						val previousRepo = currentRepository
+						currentRepository = null
+						previousRepo?.close()
+						currentRepository = GitRepositoryManager.openRepository(projectDir)
+						_isGitRepository.value = currentRepository != null
+					}
+					refreshStatus()
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to initialize repository", e)
 					currentRepository = null
 					_isGitRepository.value = false
 					_gitStatus.value = GitStatus.EMPTY
 					_currentBranch.value = null
 					_branches.value = BranchesUiState.None
 					_localCommitsCount.value = 0
-					return@launch
 				}
-				val projectDir = File(projectDirPath)
-				val currentRoot = currentRepository?.rootDir
-				if (force || currentRepository == null || currentRoot?.canonicalPath != projectDir.canonicalPath) {
-					val previousRepo = currentRepository
-					currentRepository = null
-					previousRepo?.close()
-					currentRepository = GitRepositoryManager.openRepository(projectDir)
-					_isGitRepository.value = currentRepository != null
-				}
-				refreshStatus()
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.error("Failed to initialize repository", e)
-				currentRepository = null
-				_isGitRepository.value = false
-				_gitStatus.value = GitStatus.EMPTY
-				_currentBranch.value = null
-				_branches.value = BranchesUiState.None
-				_localCommitsCount.value = 0
 			}
-		}
 	}
 
 	/**
