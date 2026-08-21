@@ -128,8 +128,9 @@ sealed interface InlineRefusal {
  *
  * [initializerNeedsParentheses] is decided from the initializer alone during analysis and consumed by
  * the edit builder, which stays pure. [cursorReferenceIndex] is -1 when the cursor was on the
- * declaration. [canDeleteDeclaration] is the conjunction of two conditions -- every reference
- * inlinable *and* the target never written -- and is honoured only by [InlineMode.AllReferences].
+ * declaration. [canDeleteDeclaration] is the conjunction of three conditions -- every reference
+ * inlinable, the target never written, *and* the declaration sitting directly in a block -- and is
+ * honoured only by [InlineMode.AllReferences].
  */
 data class InlineVariablePlan(
 	override val fileText: String,
