@@ -9,8 +9,16 @@ import kotlin.math.min
  */
 object BalancedStrategy : GradleTuningStrategy {
 	const val GRADLE_MEM_TO_XMX_FACTOR = 0.35
-	const val GRADLE_METASPACE_MB = 192
+
+	// AGP + Kotlin class metadata alone needs more than a few hundred MB, so a tighter
+	// cap dies in OutOfMemoryError: Metaspace part-way through :app:assembleDebug even
+	// on 3-4GB devices. Matches HighPerformance.
+	const val GRADLE_METASPACE_MB = 384
 	const val GRADLE_CODE_CACHE_MB = 128
+
+	// 3-6GB devices: 30 min keeps the daemon warm through a normal editing
+	// session, then frees its heap for the quick-build daemon and the IDE.
+	const val GRADLE_DAEMON_IDLE_TIMEOUT_MS = 30 * 60 * 1000
 
 	const val GRADLE_MEM_PER_WORKER = 512
 	const val GRADLE_WORKERS_MAX = 3
@@ -41,6 +49,7 @@ object BalancedStrategy : GradleTuningStrategy {
 		val gradleDaemon =
 			GradleDaemonConfig(
 				daemonEnabled = true,
+				daemonIdleTimeoutMs = GRADLE_DAEMON_IDLE_TIMEOUT_MS,
 				jvm =
 					JvmConfig(
 						xmxMb = gradleXmx,
