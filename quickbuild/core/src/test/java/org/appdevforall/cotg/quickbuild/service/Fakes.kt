@@ -154,6 +154,12 @@ class FakeDeploy : DeploySender {
 	var disconnects: Boolean = true
 
 	/**
+	 * When set, every [deploy] throws it after recording the call. Stands in for a binder
+	 * edge the sender did not classify into a [DeployResult] - the contract is throw-capable.
+	 */
+	var deployError: Throwable? = null
+
+	/**
 	 * Generation the fake "relaunched app" reconnects at, given the last deployed
 	 * generation; return null for a relaunch that never reconnects. Defaults to a
 	 * clean restart (reconnects at the deployed generation).
@@ -168,6 +174,7 @@ class FakeDeploy : DeploySender {
 		metadataJson: String,
 	): DeployResult {
 		calls += Call(generation, dexFile, arscFile, assetsZip, metadataJson)
+		deployError?.let { throw it }
 		return resultQueue.removeFirstOrNull() ?: result
 	}
 
