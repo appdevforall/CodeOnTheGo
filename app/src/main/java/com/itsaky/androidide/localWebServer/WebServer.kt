@@ -319,6 +319,12 @@ class WebServer(
 	 * bookshelf template id, now that the compiled templates live in the source with the swap.
 	 */
 	private fun discardCachesIfDatabaseChanged() {
+		// Apply any pending swap first. The source swaps inside lookup()/withDatabase(), so checking
+		// the generation before those runs reads the generation from before the swap: on the very
+		// request that swaps, this would leave bookshelfTemplateId pointing at the previous
+		// database's template row -- rendering the old bookshelf, or 500ing if that id is absent.
+		contentSource.refreshDatabase()
+
 		if (contentSource.generation == cachedDatabaseGeneration) return
 
 		synchronized(cacheLock) {
@@ -329,6 +335,28 @@ class WebServer(
 			cachedDatabaseGeneration = generation
 		}
 	}
+
+	/**
+	 * Percent-decodes a request target the way the in-process transport does.
+	 *
+	 * `WebResourceRequest.url.path` is already decoded, so the interceptor looks up `a/my file.html`
+	 * while this server, matching the raw target, looked up `a/my%20file.html` and returned 404 for
+	 * a row the interceptor found. Setting the `nointercept` sentinel then changed *which pages
+	 * work*, defeating its purpose of comparing the two transports on equal terms.
+	 *
+	 * `URLDecoder` is used rather than `Uri.decode` so this stays testable off-device, and `+` is
+	 * protected first because `URLDecoder` -- alone among the two -- turns it into a space, which
+	 * would break any stored path containing a literal plus.
+	 */
+	private fun decodeRequestPath(path: String): String =
+		try {
+			URLDecoder.decode(path.replace("+", "%2B"), "UTF-8")
+		} catch (e: IllegalArgumentException) {
+			// A malformed escape ("%zz") is not a reason to fail the request: look it up verbatim
+			// and let the row simply not be found.
+			log.warn("Cannot decode request path '{}', using it as-is: {}", path, e.message)
+			path
+		}
 
 	/** Answers one parsed request. */
 	private fun serveRequest(
@@ -351,7 +379,7 @@ class WebServer(
 			}
 		}
 
-		when (val lookup = contentSource.lookup(path)) {
+		when (val lookup = contentSource.lookup(decodeRequestPath(path))) {
 			is DocumentationLookup.Found -> {
 				sendContent(writer, output, lookup.content)
 			}

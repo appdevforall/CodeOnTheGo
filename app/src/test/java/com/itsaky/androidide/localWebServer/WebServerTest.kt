@@ -306,6 +306,53 @@ class WebServerTest {
 		}
 	}
 
+	// The in-process transport matches on WebResourceRequest.url.path, which is already decoded, so
+	// this one has to decode too or the nointercept sentinel changes which pages resolve.
+	@Test
+	fun `a percent-encoded request path is looked up decoded, as the other transport does`() {
+		assertLookedUpPath(requested = "/a/my%20file.html", expected = "a/my file.html")
+	}
+
+	// URLDecoder turns "+" into a space; a stored path containing a literal plus must survive.
+	@Test
+	fun `a plus in a request path stays a plus`() {
+		assertLookedUpPath(requested = "/a/c++.html", expected = "a/c++.html")
+	}
+
+	// A malformed escape is not a reason to fail the request: look it up verbatim and 404 naturally.
+	@Test
+	fun `a malformed escape is looked up verbatim rather than failing the request`() {
+		assertLookedUpPath(requested = "/a/%zz.html", expected = "a/%zz.html")
+	}
+
+	private fun assertLookedUpPath(
+		requested: String,
+		expected: String,
+	) {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		val queried = mutableListOf<Array<String>>()
+		every { db.rawQuery(match { it.contains("FROM   Content") }, any()) } answers
+			{
+				@Suppress("UNCHECKED_CAST")
+				(secondArg<Array<String>?>())?.let { queried += it as Array<String> }
+				mockk<Cursor>(relaxed = true) { every { count } returns 0 }
+			}
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			sendRawGetRequestAndAwaitClose(port, requested)
+			assertEquals(listOf(expected), queried.map { it.first() })
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
 	// Blocks until the server closes the connection (every response sends "Connection: close"),
 	// so by the time this returns the server has fully finished processing this one request --
 	// making repeated calls a reliable way to serialize several full request/response cycles.

@@ -220,6 +220,20 @@ class DocumentationContentSource(
 	}
 
 	/**
+	 * Applies any pending debug-database swap, so a caller can decide whether its own per-database
+	 * caches are stale *before* it reads.
+	 *
+	 * Without this, a caller that checks [generation] and then calls [lookup] or [withDatabase]
+	 * checks the generation from before the swap those calls perform: on the request that swaps, it
+	 * still believes its caches belong to the new database. Idempotent and throttled by the debug
+	 * check interval, so calling it and then reading costs one extra timestamp comparison.
+	 */
+	fun refreshDatabase() {
+		openIfNeeded()
+		swapDebugDatabaseIfNewer()
+	}
+
+	/**
 	 * Runs [block] against the active database with the read lock held, for the queries this class
 	 * does not own -- the bookshelf join, the template lookup, the developer table dumps.
 	 */
@@ -295,7 +309,17 @@ class DocumentationContentSource(
 		// Primed before the row is read, not inside decompressBrotli, so a database's dictionary is
 		// loaded on its first content fetch (ADFA-5153's contract) rather than on the first fetch
 		// that happens to be Brotli-compressed. Still at most once per database.
-		compressionDictionary(database)
+		//
+		// Best-effort, unlike the call inside the decode: this is an optimisation, and letting a
+		// transient failure here propagate would fail *every* lookup -- including rows with
+		// compression = 'none', which need no dictionary at all. The staleness flag is left set, so
+		// the next read retries, and a brotli row that genuinely cannot resolve its dictionary still
+		// fails loudly from decompressBrotli.
+		try {
+			compressionDictionary(database)
+		} catch (e: Exception) {
+			log.warn("Could not prime the compression dictionary; will retry on the next read: {}", e.message)
+		}
 
 		database.rawQuery(CONTENT_QUERY, arrayOf(path)).use { cursor ->
 			if (cursor.count == 0) return DocumentationLookup.NotFound
