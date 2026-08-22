@@ -2124,6 +2124,14 @@ open class EditorHandlerActivity :
 					if (isFinishing || isDestroyed) {
 						val onClosedDuringTeardown = pendingCloseCallback
 						pendingCloseCallback = null
+						// Logged, not silent: this branch is the one that used to lose the switch, and it
+						// is invisible from the UI -- the only symptom was a project that never opened.
+						log.info(
+							"Save completed during teardown (isFinishing={}, isDestroyed={}); running the close callback anyway: {}.",
+							isFinishing,
+							isDestroyed,
+							onClosedDuringTeardown != null,
+						)
 						onClosedDuringTeardown?.invoke()
 						if (isDestroyed) drainPendingDeepLinkOpen()
 						return@runOnUiThread
