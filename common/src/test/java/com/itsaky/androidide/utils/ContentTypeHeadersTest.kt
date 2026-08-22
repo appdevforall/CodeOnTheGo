@@ -64,6 +64,23 @@ class ContentTypeHeadersTest {
 		assertEquals("text/html; CHARSET=UTF-8", ContentTypeHeaders.headerValue("text/html; CHARSET=UTF-8"))
 	}
 
+	// startsWith("text") would call this a text type. The intent is "text" or "text/", nothing else.
+	@Test
+	fun `a type that merely begins with text is not a text type`() {
+		assertNull(ContentTypeHeaders.charsetFor("textual/example"))
+		assertEquals("textual/example", ContentTypeHeaders.headerValue("textual/example"))
+	}
+
+	// Substring-matching "charset=" would find it inside another parameter's value and suppress the
+	// declaration this response actually needs.
+	@Test
+	fun `charset inside another parameter's value does not count as a declaration`() {
+		assertEquals(
+			"""text/html; note="charset=utf-8"; charset=utf-8""",
+			ContentTypeHeaders.headerValue("""text/html; note="charset=utf-8""""),
+		)
+	}
+
 	@Test
 	fun `parameters and casing on the type itself are tolerated`() {
 		assertEquals("TEXT/HTML; charset=utf-8", ContentTypeHeaders.headerValue("TEXT/HTML"))

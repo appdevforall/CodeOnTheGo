@@ -6,8 +6,8 @@ package com.itsaky.androidide.utils
  * `documentation.db` stores bare MIME types -- no `ContentTypes.value` carries a charset -- so a
  * text response says nothing about its encoding, and a client that does not assume UTF-8 falls back
  * to a legacy single-byte encoding. Two thirds of the database's text rows contain non-ASCII
- * bytes with no BOM, so they render as mojibake wherever that guess goes wrong (ADFA-5241):
- * `↳android.R.id` arrives as `Â Â Â â†³android.R.id`.
+ * bytes with no BOM, so they render as mojibake wherever that guess goes wrong (ADFA-5241): a
+ * page's U+21B3 arrow arriving as the three Latin-1 characters its UTF-8 bytes decode to.
  *
  * This is deliberately *not* fixed by storing the parameter in the database. `ContentTypes.value`
  * doubles as a lookup key matched exactly by the plugin installer
@@ -30,13 +30,14 @@ object ContentTypeHeaders {
 	 * transport-level charset takes precedence and SVG in particular usually omits the declaration.
 	 */
 	fun charsetFor(mimeType: String): String? {
-		if (mimeType.contains("charset=", ignoreCase = true)) {
+		if (declaresCharset(mimeType)) {
 			return null
 		}
 		val type = mimeType.substringBefore(';').trim().lowercase()
 		return when {
-			// Covers every text subtype, plus the database's bare "text" and "text/text" oddities.
-			type.startsWith("text") -> UTF_8
+			// Every text subtype, plus the database's bare "text" oddity. Matched at the boundary:
+			// "textual/example" is not a text type, and startsWith("text") would say it is.
+			type == "text" || type.startsWith("text/") -> UTF_8
 
 			type.endsWith("+xml") || type == "application/xml" -> UTF_8
 
@@ -45,6 +46,17 @@ object ContentTypeHeaders {
 			else -> null
 		}
 	}
+
+	/**
+	 * Whether [mimeType] already carries a `charset` *parameter*. Substring-matching "charset="
+	 * instead would be fooled by another parameter's value -- `note="charset=utf-8"` -- and would
+	 * suppress a declaration the response needs.
+	 */
+	private fun declaresCharset(mimeType: String): Boolean =
+		mimeType
+			.split(';')
+			.drop(1)
+			.any { it.substringBefore('=').trim().equals("charset", ignoreCase = true) }
 
 	/** [mimeType] with a charset appended when [charsetFor] gives one, otherwise unchanged. */
 	fun headerValue(mimeType: String): String {
