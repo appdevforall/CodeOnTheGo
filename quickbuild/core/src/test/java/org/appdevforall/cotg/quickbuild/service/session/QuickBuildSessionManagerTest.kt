@@ -168,6 +168,12 @@ class QuickBuildSessionManagerTest {
 	private var watcher: FakeWatcher? = null
 
 	/**
+	 * When set, the manager-built watcher's [ProjectWatcher.start] throws it. Stands in for a
+	 * real FileObserver/inotify registration failure in provisioning's success tail.
+	 */
+	private var watcherStartError: (() -> Throwable)? = null
+
+	/**
 	 * Every request to bring the proxy app to the foreground, as (package, launcherActivity).
 	 * Behaviours 2/3/4 are exactly "is this list empty, and when did it grow", so it is the
 	 * assertion surface for all three.
@@ -196,6 +202,7 @@ class QuickBuildSessionManagerTest {
 	 */
 	private class FakeWatcher(
 		private val filter: WatchFilter,
+		private val startError: () -> Throwable? = { null },
 	) : ProjectWatcher {
 		private var onBatch: ((ChangedFiles.Known) -> Unit)? = null
 
@@ -203,6 +210,7 @@ class QuickBuildSessionManagerTest {
 		private var lastOnBatch: ((ChangedFiles.Known) -> Unit)? = null
 
 		override fun start(onBatch: (ChangedFiles.Known) -> Unit) {
+			startError()?.let { throw it }
 			this.onBatch = onBatch
 			this.lastOnBatch = onBatch
 		}
@@ -349,7 +357,9 @@ class QuickBuildSessionManagerTest {
 					}
 				}
 			},
-			watcherFactory = { _, _, filter, _ -> FakeWatcher(filter).also { watcher = it } },
+			watcherFactory = { _, _, filter, _ ->
+				FakeWatcher(filter, { watcherStartError?.invoke() }).also { watcher = it }
+			},
 			metrics = recordingMetrics,
 			warmCompileEnabled = warmCompileEnabled,
 			nowMillis = nowMillis,
@@ -2221,6 +2231,39 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `a throwing re-send is contained - catch-up falls back now and stays alive for later reconnects`() =
+		runTest {
+			// deploy() is throw-capable, and the re-send runs inside the reconnect
+			// collector launched once in init: an escaping throw would kill that
+			// collector for the rest of the process, and every later stale reconnect
+			// would run old code silently - the exact failure it exists to prevent.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(executed).hasSize(1)
+
+			seedRetainedPayload(generation = 1L)
+			deploy.deployError = RuntimeException("binder transaction failed")
+			connections.onConnected(connectedAt(0))
+			advanceUntilIdle()
+
+			// Contained like any other failed re-send: attempted once, then the
+			// last-resort forced rebuild of current sources.
+			assertThat(deploy.calls).hasSize(1)
+			assertThat(executed).hasSize(2)
+			assertThat(executed.last().forced).isTrue()
+
+			// The collector survived: the next stale reconnect is still repaired.
+			deploy.deployError = null
+			connections.onConnected(connectedAt(0))
+			advanceUntilIdle()
+			assertThat(executed).hasSize(3)
+			assertThat(executed.last().forced).isTrue()
+		}
+
+	@Test
 	fun `retention from an older deploy is never replayed - the forced build repairs instead`() =
 		runTest {
 			val manager = createManager()
@@ -3831,6 +3874,45 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `a session started after a prebuild-stop still gets its Gradle build cancelled on restart`() =
+		runTest {
+			// The Prebuilding stop above latches the cancel-issued flag with no teardown to
+			// clear it. Left stale, the NEXT session's teardown would skip the Gradle
+			// cancel, the orphaned build would keep the device's one build slot, and the
+			// user's "Restart session" would come back as a SlotBusy setup failure.
+			prebuildGate = CompletableDeferred()
+			val manager = createManager()
+			manager.prebuild()
+			advanceUntilIdle()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.onCancelRequested()
+			advanceUntilIdle()
+			assertThat(proxyAppBuildCancelCount).isEqualTo(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle())
+			prebuildGate!!.complete(Unit)
+			advanceUntilIdle()
+
+			// A fresh tap owns a fresh Gradle proxy app build...
+			provisionGate = CompletableDeferred()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
+
+			// ...so the restart's teardown must reach the Gradle cancel: nothing else
+			// releases the build slot for the reprovision it goes on to run.
+			manager.restartSessionAndReprovision()
+			advanceUntilIdle()
+			assertThat(proxyAppBuildCancelCount).isEqualTo(2)
+
+			// And the reprovision itself still lands.
+			provisionGate!!.complete(Unit)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
 	fun `stopping during provisioning cancels the proxy app build and tears the session down`() =
 		runTest {
 			val gate = CompletableDeferred<Unit>()
@@ -3854,6 +3936,33 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle())
 			assertThat(watcher).isNull()
+		}
+
+	@Test
+	fun `a watcher-start throw in provisioning's success tail fails the session instead of escaping`() =
+		runTest {
+			// The install tail after a successful provision (retention clear, generation
+			// adoption, watcher registration) runs on a scope with no
+			// CoroutineExceptionHandler: an escaping throw would crash CoGo with the
+			// daemon up and the uid session registered, and strand the machine in
+			// Provisioning.
+			watcherStartError = { IllegalStateException("inotify watch limit reached") }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			// Same path as any other failed provision: torn down clean to Idle with the
+			// error surfaced and the daemon down - never a crash or a wedged Provisioning.
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle(lastStartFailed = true))
+			assertThat(userMessages).contains(QuickBuildMessage.Literal("inotify watch limit reached"))
+			assertThat(daemon.isRunning).isFalse()
+
+			// The next tap re-provisions from scratch - not wedged.
+			watcherStartError = null
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(provisionCount).isEqualTo(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
 	/**
