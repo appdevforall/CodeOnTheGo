@@ -54,10 +54,11 @@ class SwitchableAnnotationImpact(
 /**
  * The real [AnnotationImpact]: compares each changed file against the proxy app build's
  * [AnnotationBaseline], rebaselining when a processor-relevant file changes its annotations or
- * declaration surface, is added or deleted, declares an [AnnotationBaseline.anchorNames] type, or
- * cannot be scanned. Edits confined to function or initializer bodies stay on the live reload
- * path: every processor the profile knows generates from declarations and annotation arguments,
- * not statement bodies.
+ * declaration surface, is added or deleted, declares an [AnnotationBaseline.anchorNames] type,
+ * changes declarations while declaring no name the scanner recognizes, or cannot be scanned.
+ * Edits confined to function or initializer bodies stay on the live reload path: every
+ * processor the profile knows generates from declarations and annotation arguments, not
+ * statement bodies.
  *
  * @param profile which annotations this project's processors consume; an unrecognized processor
  *   widens that to nearly everything.
@@ -142,6 +143,12 @@ class AnnotationImpactAnalyzer(
 			(new.declaredTypeNames + old?.declaredTypeNames.orEmpty()).intersect(baseline.anchorNames)
 		if (declaredAnchors.isNotEmpty()) {
 			return "declares ${declaredAnchors.sorted().joinToString()}, read by an annotated declaration"
+		}
+		// Backstop: a declaration-level change in a file whose declared names the scanner could
+		// not recognize (top-level `fun`/`val`, or a shape the regex misses) cannot be proven
+		// outside processor input, so it escalates rather than risk stale generated code.
+		if (new.declaredTypeNames.isEmpty() && old?.declaredTypeNames.orEmpty().isEmpty()) {
+			return "declaration change in a file with no recognized declarations"
 		}
 		return null
 	}
