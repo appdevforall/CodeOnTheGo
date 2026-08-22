@@ -284,6 +284,93 @@ class AnnotationImpactAnalyzerTest {
 		assertThat(analyzer.escalation(listOf(fixture.baseEntity))).contains("BaseEntity")
 	}
 
+	/**
+	 * Regression: `enum class Color` used to capture the literal word "class" as the declared
+	 * name, so adding an entry to an enum a Room entity stores classified as reload-safe and
+	 * shipped a stale generated converter.
+	 */
+	@Test
+	fun `adding an entry to an enum class an entity stores escalates`() {
+		val fixture = fixture()
+		fixture.edit(
+			fixture.user,
+			RoomAppFixture.USER.replace("val name: String,", "val name: String,\n\tval color: Color,"),
+		)
+		val color = fixture.write("Color.kt", COLOR)
+		val baseline = AnnotationBaseline.capture(fixture.all + color, roomProfile)
+		val analyzer = AnnotationImpactAnalyzer(roomProfile, baseline)
+
+		fixture.edit(color, COLOR.replace("GREEN,", "GREEN,\n\tBLUE,"))
+
+		assertThat(analyzer.escalation(listOf(color))).contains("Color")
+	}
+
+	/**
+	 * Regression: `typealias` declared no name at all, so retargeting an alias an entity
+	 * column is typed with stayed on live reload while the generated column affinity went
+	 * stale.
+	 */
+	@Test
+	fun `retargeting a typealias an entity column uses escalates`() {
+		val fixture = fixture()
+		fixture.edit(
+			fixture.user,
+			RoomAppFixture.USER.replace("@PrimaryKey val id: Long,", "@PrimaryKey val id: UserId,"),
+		)
+		val alias = fixture.write("Types.kt", TYPES)
+		val baseline = AnnotationBaseline.capture(fixture.all + alias, roomProfile)
+		val analyzer = AnnotationImpactAnalyzer(roomProfile, baseline)
+
+		fixture.edit(alias, TYPES.replace("= String", "= Long"))
+
+		assertThat(analyzer.escalation(listOf(alias))).contains("UserId")
+	}
+
+	/**
+	 * Regression: a file holding only top-level `const val`s declared nothing, so bumping
+	 * `DB_VERSION` behind `@Database(version = DB_VERSION)` stayed on live reload and the
+	 * installed generated code kept validating the old schema version.
+	 */
+	@Test
+	fun `bumping a top-level const the database version reads escalates`() {
+		val fixture = fixture()
+		fixture.edit(
+			fixture.database,
+			RoomAppFixture.DATABASE.replace("version = 1", "version = DB_VERSION"),
+		)
+		val constants = fixture.write("Constants.kt", CONSTANTS)
+		val baseline = AnnotationBaseline.capture(fixture.all + constants, roomProfile)
+		val analyzer = AnnotationImpactAnalyzer(roomProfile, baseline)
+
+		fixture.edit(constants, CONSTANTS.replace("= 3", "= 4"))
+
+		assertThat(analyzer.escalation(listOf(constants))).contains("DB_VERSION")
+	}
+
+	/**
+	 * Backstop: a declaration-level change in a file the scanner finds no recognized
+	 * declared name in (here, only a top-level `fun`) cannot be proven outside processor
+	 * input, so it escalates rather than risk stale generated code.
+	 */
+	@Test
+	fun `a declaration change in a file declaring no recognized name escalates`() {
+		val fixture = fixture()
+		val analyzer = analyzer(fixture)
+		val helpers =
+			fixture.write(
+				"Helpers.kt",
+				"""
+				package com.example.notes
+
+				fun shout(value: String): String {
+					return value.uppercase()
+				}
+				""".trimIndent(),
+			)
+
+		assertThat(analyzer.escalation(listOf(helpers))).contains("no recognized declarations")
+	}
+
 	@Test
 	fun `a batch escalates when any one file touches processor input`() {
 		val fixture = fixture()
@@ -484,6 +571,30 @@ class AnnotationImpactAnalyzerTest {
 	}
 
 	private companion object {
+		val COLOR =
+			"""
+			package com.example.notes
+
+			enum class Color {
+				RED,
+				GREEN,
+			}
+			""".trimIndent()
+
+		val TYPES =
+			"""
+			package com.example.notes
+
+			typealias UserId = String
+			""".trimIndent()
+
+		val CONSTANTS =
+			"""
+			package com.example.notes
+
+			const val DB_VERSION = 3
+			""".trimIndent()
+
 		val HILT_ACTIVITY =
 			"""
 			package com.example.notes

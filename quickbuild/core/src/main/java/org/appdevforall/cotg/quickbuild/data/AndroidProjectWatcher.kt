@@ -145,8 +145,11 @@ class AndroidProjectWatcher(
 				if (path == null) return
 				val changed = File(dir, path)
 				// A new directory (new package, git checkout) needs its own watch, or
-				// files created inside it later are invisible to inotify.
-				if (event and CREATE != 0 && changed.isDirectory) {
+				// files created inside it later are invisible to inotify. MOVED_TO too: a
+				// renamed/moved-in package arrives as one dir MOVE, and without a watch its
+				// tree stays inotify-blind for the session. Files already inside the moved
+				// tree are not re-reported here; the poll sweep picks them up.
+				if (event and (CREATE or MOVED_TO) != 0 && changed.isDirectory) {
 					registerCreatedTree(changed)
 				}
 				if (event and DELETE_MASK != 0) {
