@@ -27,9 +27,11 @@ object DatabaseVersionResolver {
 		WHERE  type = 'table' AND name = 'DocumentationDatabaseVersion'
 	"""
 
-	// The table is an append-only log -- ADFA-5220 records each change as another INSERT -- so the
-	// current version is the row inserted last, not the highest one ever recorded: rebuilding from
-	// an older content set is a downgrade and has to read as one.
+	// The table holds exactly one row: the version the database *is*, not a history of what it has
+	// been (ADFA-5220), and the pipeline replaces that row rather than appending. So the ORDER BY
+	// here is a defence, not a model -- if a database ever turns up carrying several rows, this
+	// reads the one written last instead of whichever SQLite happens to return, and a downgrade
+	// still reads as a downgrade where MAX(major) would report the highest version ever recorded.
 	private const val QUERY_MAJOR_VERSION = """
 		SELECT major
 		FROM   DocumentationDatabaseVersion

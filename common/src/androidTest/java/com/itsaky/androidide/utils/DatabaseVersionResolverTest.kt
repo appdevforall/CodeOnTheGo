@@ -86,18 +86,12 @@ class DatabaseVersionResolverTest {
 		assertEquals(2, DatabaseVersionResolver.resolveMajorVersion(db))
 	}
 
-	// The table is an append-only log, so the row inserted last is the current version...
+	// The table is meant to hold one row. A database that breaks that has to still read
+	// deterministically -- the row written last -- rather than whichever one SQLite returns first,
+	// and a downgrade has to read as a downgrade where MAX(major) would report the highest version
+	// the file ever declared.
 	@Test
-	fun majorVersionIsTheLastRowInserted() {
-		createVersionTable()
-		insertVersion(2, 0, 0)
-		insertVersion(3, 1, 4)
-		assertEquals(3, DatabaseVersionResolver.resolveMajorVersion(db))
-	}
-
-	// ...including when that row is a downgrade, which MAX(major) would read as still current.
-	@Test
-	fun majorVersionFollowsADowngrade() {
+	fun majorVersionIsTheRowWrittenLast_whenADatabaseCarriesSeveral() {
 		createVersionTable()
 		insertVersion(3, 0, 0)
 		insertVersion(2, 0, 0)
