@@ -75,12 +75,37 @@ class ContentTypeHeadersTest {
 		)
 	}
 
-	// A parameter with no value, or an empty one, declares nothing -- so it must not stop the
-	// default from being added. Treating it as a declaration ships a response with no encoding.
+	// A parameter with no value declares nothing and is dropped during parsing, so appending the
+	// default works and is what the response needs.
 	@Test
-	fun `a valueless or empty charset parameter is not a declaration`() {
+	fun `a valueless charset parameter is not a declaration`() {
 		assertEquals("text/html; charset; charset=utf-8", ContentTypeHeaders.headerValue("text/html; charset"))
-		assertEquals("text/html; charset=; charset=utf-8", ContentTypeHeaders.headerValue("text/html; charset="))
+	}
+
+	// An empty *valued* parameter is kept by recipients, and a repeated name is ignored, so a second
+	// charset would conflict with it and change nothing. Emitting one claims a fix it does not make;
+	// the empty parameter is a defect in the stored value and belongs fixed there.
+	@Test
+	fun `an empty charset parameter is left alone rather than contradicted`() {
+		assertEquals("text/html; charset=", ContentTypeHeaders.headerValue("text/html; charset="))
+		assertEquals(
+			"text/html; charset=; charset=iso-8859-1",
+			ContentTypeHeaders.headerValue("text/html; charset=; charset=iso-8859-1"),
+		)
+	}
+
+	// RFC 9110 quoted-pair. Toggling on every quote ends the value at the escaped one, and then the
+	// charset inside note parses as a declaration -- the same false match this class exists to stop.
+	@Test
+	fun `an escaped quote does not end a quoted parameter value`() {
+		assertEquals(
+			"""text/html; note="a\"; charset=iso-8859-1"; charset=utf-8""",
+			ContentTypeHeaders.headerValue("""text/html; note="a\"; charset=iso-8859-1""""),
+		)
+		assertEquals(
+			"text/html" to "utf-8",
+			ContentTypeHeaders.typeAndCharset("""text/html; note="a\"; charset=iso-8859-1""""),
+		)
 	}
 
 	// Textual application/* types have no syntactic marker in common. application/javascript is the

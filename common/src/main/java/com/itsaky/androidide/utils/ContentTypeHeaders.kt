@@ -42,7 +42,7 @@ object ContentTypeHeaders {
 	 * types are included even though a document may carry its own declaration, because a
 	 * transport-level charset takes precedence and SVG in particular usually omits the declaration.
 	 */
-	fun charsetFor(mimeType: String): String? = if (declaredCharset(mimeType) != null) null else defaultCharsetFor(mimeType)
+	fun charsetFor(mimeType: String): String? = if (carriesCharsetParameter(mimeType)) null else defaultCharsetFor(mimeType)
 
 	/**
 	 * The bare media type and the charset to send with it: whatever [mimeType] already declares,
@@ -85,24 +85,52 @@ object ContentTypeHeaders {
 	 * an empty one (`; charset=`) declares nothing and must not suppress the default -- treating it
 	 * as a declaration is how a response ends up with no encoding at all.
 	 */
-	private fun declaredCharset(mimeType: String): String? =
-		parameters(mimeType)
-			.firstOrNull { (name, _) -> name.equals("charset", ignoreCase = true) }
-			?.second
-			?.ifEmpty { null }
+	private fun declaredCharset(mimeType: String): String? = firstCharsetParameter(mimeType)?.second?.ifEmpty { null }
 
-	/** [mimeType]'s `name=value` parameters, with semicolons inside quoted values left alone. */
-	private fun parameters(mimeType: String): List<Pair<String, String>> {
-		val found = mutableListOf<Pair<String, String>>()
+	/**
+	 * Whether [mimeType] already carries a `charset` parameter *with an `=`*, usable or not -- the
+	 * question [headerValue] has to ask, which is not the same as whether the charset is usable.
+	 *
+	 * `; charset=` (empty) and `; charset` (no value at all) are both useless as declarations, but
+	 * recipients treat them differently. A parameter with no `=` is dropped during parsing, so an
+	 * appended `; charset=utf-8` becomes the only one and takes effect. An empty *valued* parameter
+	 * is kept, and a repeated parameter name is ignored, so appending a second one gets us a header
+	 * carrying two conflicting charsets and, in a first-wins recipient, no change in behaviour. Not
+	 * worth emitting: the empty parameter is a defect in the stored `ContentTypes.value` and belongs
+	 * fixed there. [typeAndCharset] can and does still substitute the default, because it hands the
+	 * charset back as its own value where nothing can conflict with it.
+	 */
+	private fun carriesCharsetParameter(mimeType: String): Boolean = firstCharsetParameter(mimeType)?.second != null
+
+	/**
+	 * [mimeType]'s first `charset` parameter, or null when it has none. First, not first-usable:
+	 * that is the one a recipient keeps when a name repeats, so reading any other would honour a
+	 * parameter the client ignores.
+	 */
+	private fun firstCharsetParameter(mimeType: String): Pair<String, String?>? =
+		parameters(mimeType).firstOrNull { (name, _) -> name.equals("charset", ignoreCase = true) }
+
+	/**
+	 * [mimeType]'s `name=value` parameters, with semicolons inside quoted values left alone. A null
+	 * value means the parameter carried no `=` at all, which recipients drop entirely -- see
+	 * [carriesCharsetParameter].
+	 */
+	private fun parameters(mimeType: String): List<Pair<String, String?>> {
+		val found = mutableListOf<Pair<String, String?>>()
 		val token = StringBuilder()
 		var quoted = false
+
+		// RFC 9110 quoted-pair: inside a quoted string a backslash escapes the next character, so
+		// \" does not end the value. Without this, text/html; note="a\"; charset=iso-8859-1 parses
+		// as two parameters and the charset inside note reads as a declaration.
+		var escaped = false
 
 		fun take() {
 			val text = token.toString().trim()
 			token.setLength(0)
 			if (text.isEmpty()) return
 			val name = text.substringBefore('=').trim()
-			val value = if (text.contains('=')) text.substringAfter('=').trim().trim('"') else ""
+			val value = if (text.contains('=')) text.substringAfter('=').trim().trim('"') else null
 			found += name to value
 		}
 
@@ -111,6 +139,16 @@ object ContentTypeHeaders {
 		while (++index < mimeType.length) {
 			val character = mimeType[index]
 			when {
+				escaped -> {
+					escaped = false
+					token.append(character)
+				}
+
+				quoted && character == '\\' -> {
+					escaped = true
+					token.append(character)
+				}
+
 				character == '"' -> {
 					quoted = !quoted
 					token.append(character)
