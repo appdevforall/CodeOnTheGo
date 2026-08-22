@@ -1,6 +1,7 @@
 package com.itsaky.androidide.utils
 
 import android.os.Environment
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -49,8 +50,25 @@ object FeatureFlags {
 	 */
 	private var loaded = false
 
-	private val downloadsDir =
+	// Lazy so JVM unit tests that install a flagFileResolver never touch android.os.Environment.
+	private val downloadsDir: File by lazy {
 		Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+	}
+
+	/**
+	 * Resolves a flag sentinel file by name. Test seam: unit tests point this at a temp dir
+	 * (or throw from it to exercise the failed-read path); production resolves against the
+	 * shared Downloads dir, which needs a real Android environment.
+	 */
+	@VisibleForTesting
+	internal var flagFileResolver: (String) -> File = { name -> File(downloadsDir, name) }
+
+	/** Drops the cached snapshot and the [loaded] latch so a test starts from process-fresh state. */
+	@VisibleForTesting
+	internal fun resetForTest() {
+		flags = FlagsCache.DEFAULT
+		loaded = false
+	}
 
 	/**
 	 * Whether Code On the Go experiments are enabled.
@@ -133,7 +151,7 @@ object FeatureFlags {
 
 	/** Reads every flag file. Call under [mutex]. */
 	private suspend fun load() {
-		fun checkFlag(fileName: String) = File(downloadsDir, fileName).exists()
+		fun checkFlag(fileName: String) = flagFileResolver(fileName).exists()
 
 		val read =
 			withContext(Dispatchers.IO) {

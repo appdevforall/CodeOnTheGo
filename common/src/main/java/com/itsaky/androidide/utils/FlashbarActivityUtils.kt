@@ -90,8 +90,10 @@ private fun Activity.configureFlashbar(
 		// read as dead with nothing on screen saying why. Measured on an a56: the bar occupied
 		// y 236-371 while the toolbar buttons sat at y 261-383.
 		// So any touch on the bar, and any swipe, gets rid of it - not just the Dismiss button.
-		builder.listenBarTaps { it.dismiss() }
-		builder.enableSwipeToDismiss()
+		if (indefiniteErrorBarDismissesOnTouch()) {
+			builder.listenBarTaps { it.dismiss() }
+			builder.enableSwipeToDismiss()
+		}
 	}
 
 	when (msg) {
