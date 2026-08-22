@@ -1055,11 +1055,15 @@ open class EditorHandlerActivity :
 					// NonCancellable above means this whole block, including this Main-dispatcher hop,
 					// keeps running even after onDestroy() -- unlike before this method wrapped the
 					// entire body in NonCancellable, when that hop was simply dropped on teardown.
-					// runAfter callers (confirmProjectClose's onClosed, notifyFilesUnsaved's) build
-					// window-bound UI (flashError -> WindowManager.BadTokenException on a destroyed
-					// window) and read ViewModels that a real teardown has already cleared - skip the UI
-					// tail there while still having let the write itself complete above.
-					if (isFinishing || isDestroyed) return@withContext
+					//
+					// runAfter is invoked unconditionally, teardown included. A liveness check here used
+					// to skip it wholesale, which silently dropped the *non-UI* half of a callback's
+					// work: confirmProjectClose's onClosed arms a process-wide pending deep-link switch
+					// (ADFA-5067) that has to outlive this instance, so losing it means a confirmed
+					// "Save and close" never opens the project the link asked for, with nothing logged.
+					// Each callback decides for itself what needs a live window -- see the teardown
+					// branches at the two call sites in this file, and GitBottomSheetFragment's own
+					// _binding check.
 					runAfter?.invoke(saveSucceeded)
 				}
 			}
@@ -1407,6 +1411,10 @@ open class EditorHandlerActivity :
 						notify = true,
 						runAfter = { succeeded ->
 							runOnUiThread {
+								// Nothing in this tail survives teardown usefully: flashError needs a live
+								// window, and invokeAfter closes tabs on a binding that is going away. The
+								// write itself already completed in saveAllAsync.
+								if (isFinishing || isDestroyed) return@runOnUiThread
 								// Matches confirmProjectClose's identical check: saveAllAsync's succeeded
 								// only means saveAll() didn't throw, not that every file's write actually
 								// landed (a silent per-file failure, e.g. disk full, leaves isModified
@@ -2108,6 +2116,18 @@ open class EditorHandlerActivity :
 			saveAllAsync(notify = false) { saveSucceeded ->
 				runOnUiThread {
 					confirmCloseInProgress = false
+
+					// Teardown: no window for a message, and no point re-confirming a superseded request
+					// on an instance that is going away -- but the handoff below is process-wide state
+					// that a new instance drains, so it must still happen. Mirrors the contentOrNull ==
+					// null branch further down, which exists for the same reason.
+					if (isFinishing || isDestroyed) {
+						val onClosedDuringTeardown = pendingCloseCallback
+						pendingCloseCallback = null
+						onClosedDuringTeardown?.invoke()
+						if (isDestroyed) drainPendingDeepLinkOpen()
+						return@runOnUiThread
+					}
 					// saveAll()'s return value is gradleSaved (whether a build file changed), not
 					// "everything saved successfully" -- check actual editor state instead, so a
 					// failed write (disk full, permission) doesn't silently discard unsaved changes.

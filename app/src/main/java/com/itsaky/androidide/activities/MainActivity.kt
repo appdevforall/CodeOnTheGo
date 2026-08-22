@@ -40,6 +40,7 @@ import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
+import com.itsaky.androidide.deeplink.ConsumedDeepLinkRequests
 import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -114,7 +115,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	// if the recreate happens before the user actually responds to the confirm dialog, so that dialog
 	// (destroyed along with the old instance) gets a fresh retry on the new one instead of the link
 	// being silently dropped.
-	private var consumedDeepLinkRequest: DeepLinkRequest? = null
+	// Every request consumed in this task, not just the last one -- see the class for why one slot
+	// was not enough.
+	private val consumedDeepLinkRequests = ConsumedDeepLinkRequests()
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -152,19 +155,20 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		val deepLinkRequest =
 			IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
-		consumedDeepLinkRequest =
+		consumedDeepLinkRequests.restore(
 			savedInstanceState?.let {
-				BundleCompat.getParcelable(it, KEY_CONSUMED_DEEP_LINK_REQUEST, DeepLinkRequest::class.java)
-			}
+				BundleCompat.getParcelableArrayList(it, KEY_CONSUMED_DEEP_LINK_REQUESTS, DeepLinkRequest::class.java)
+			},
+		)
 		// A config change this activity doesn't declare (e.g. font scale, day/night) recreates it with
 		// savedInstanceState != null while handleDeepLinkRequest's resolve may still be in flight --
 		// the old instance's lifecycleScope (and its coroutine) is cancelled with it. Gating solely on
 		// savedInstanceState == null would silently lose a not-yet-consumed request instead of
-		// retrying it on the new instance; comparing against consumedDeepLinkRequest (restored above)
+		// retrying it on the new instance; comparing against consumedDeepLinkRequests (restored above)
 		// rather than just checking deepLinkRequest != null is what tells a genuinely new/not-yet-acted-
 		// on request apart from the system redelivering the same original launch Intent verbatim after
-		// this same request was already fully handled (see consumedDeepLinkRequest's own docs).
-		if (deepLinkRequest != null && deepLinkRequest != consumedDeepLinkRequest) {
+		// this same request was already fully handled (see consumedDeepLinkRequests' own docs).
+		if (deepLinkRequest != null && deepLinkRequest !in consumedDeepLinkRequests) {
 			handleDeepLinkRequest(deepLinkRequest)
 		} else if (savedInstanceState == null) {
 			openLastProject()
@@ -446,9 +450,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			return
 		}
 		// No confirmation gate -- opening happens immediately below, so this is "confirm time" for
-		// consumedDeepLinkRequest's purposes.
+		// consumedDeepLinkRequests' purposes.
 		if (isDeepLink) {
-			consumedDeepLinkRequest = latestDeepLinkRequest
+			consumedDeepLinkRequests.add(latestDeepLinkRequest)
 		}
 		openProject(root, pendingFileRequest = pendingFileRequest)
 	}
@@ -485,11 +489,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.setMessage(getString(string.msg_confirm_open_project, root.absolutePath))
 		builder.setCancelable(false)
 		builder.setPositiveButton(string.yes) { _, _ ->
-			// The user has now actually confirmed -- "confirm time" for consumedDeepLinkRequest's
+			// The user has now actually confirmed -- "confirm time" for consumedDeepLinkRequests'
 			// purposes, unlike merely having shown this dialog (see its own docs on why that
 			// distinction matters for a recreate that happens while this dialog is still up).
 			if (isDeepLink) {
-				consumedDeepLinkRequest = latestDeepLinkRequest
+				consumedDeepLinkRequests.add(latestDeepLinkRequest)
 			}
 			openProject(root, pendingFileRequest = pendingFileRequest)
 		}
@@ -589,9 +593,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				// -- this stale, slower request must not now bounce the user back to its own (older)
 				// target after they've already been taken to the newer one.
 				if (latestDeepLinkRequest !== request) return@withContext
-				// consumedDeepLinkRequest is set once this request is actually opened (or confirmed, if
+				// the request is recorded as consumed once this request is actually opened (or confirmed, if
 				// GeneralPreferences.confirmProjectOpen is on) -- see handleOpenProject/
-				// askProjectOpenPermission and consumedDeepLinkRequest's own docs for why marking it
+				// askProjectOpenPermission and consumedDeepLinkRequests' own docs for why marking it
 				// here, before the user has necessarily responded to that confirm dialog, would be too
 				// early.
 				handleOpenProject(projectDir, pendingFileRequest = request.fileRequest, isDeepLink = true)
@@ -609,10 +613,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	override fun onSaveInstanceState(outState: Bundle) {
 		super.onSaveInstanceState(outState)
-		outState.putParcelable(KEY_CONSUMED_DEEP_LINK_REQUEST, consumedDeepLinkRequest)
+		outState.putParcelableArrayList(KEY_CONSUMED_DEEP_LINK_REQUESTS, consumedDeepLinkRequests.toSavedList())
 	}
 
 	companion object {
-		private const val KEY_CONSUMED_DEEP_LINK_REQUEST = "consumedDeepLinkRequest"
+		private const val KEY_CONSUMED_DEEP_LINK_REQUESTS = "consumedDeepLinkRequests"
 	}
 }
