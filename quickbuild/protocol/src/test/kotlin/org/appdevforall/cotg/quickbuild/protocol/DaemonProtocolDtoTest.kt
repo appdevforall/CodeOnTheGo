@@ -12,10 +12,11 @@ import org.junit.jupiter.api.Test
  */
 class DaemonProtocolDtoTest {
 	@Test
-	fun `configure without optional toolchain paths means self-discovery and the v1 minApi floor`() {
+	fun `configure defaults unsupplied toolchain paths to null - which the daemon rejects - and the v1 minApi floor`() {
 		val request = ConfigureRequest(1, "/p", listOf("/a.jar"), "/out")
 
-		// Null here is the "discover from ANDROID_HOME" signal, not an error.
+		// Null means "not supplied": the daemon never discovers tool paths, so configure
+		// answers ok:false with one diagnostic per null/blank path (see the KDoc and README).
 		assertThat(request.aapt2).isNull()
 		assertThat(request.d8Jar).isNull()
 		assertThat(request.androidJar).isNull()
