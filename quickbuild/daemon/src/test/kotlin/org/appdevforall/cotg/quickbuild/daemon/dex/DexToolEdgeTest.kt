@@ -121,6 +121,105 @@ class DexToolEdgeTest {
 		}
 	}
 
+	/**
+	 * Compiles a minimal fake of r8's public API into a directory the [DexTool] class loader
+	 * loads like a jar (a directory URL). The fake's `D8.run` reports one error diagnostic
+	 * through the `DiagnosticsHandler` the command was built with - if any - then throws
+	 * `CompilationFailedException` with the same near-useless message real d8 uses. Real d8 is
+	 * toolchain-gated; this pins the diagnostics plumbing on any host, over the exact
+	 * reflective surface DexTool drives.
+	 */
+	private fun compileFakeD8(): File {
+		val srcDir = File(tempDir, "fake-d8-src/com/android/tools/r8").apply { mkdirs() }
+
+		fun source(
+			name: String,
+			content: String,
+		): File = File(srcDir, name).apply { writeText(content) }
+		val sources =
+			listOf(
+				source(
+					"Diagnostic.java",
+					"package com.android.tools.r8;\n\npublic interface Diagnostic {\n\tString getDiagnosticMessage();\n}\n",
+				),
+				source(
+					"DiagnosticsHandler.java",
+					"package com.android.tools.r8;\n\npublic interface DiagnosticsHandler {\n" +
+						"\tdefault void error(Diagnostic diagnostic) {}\n\n" +
+						"\tdefault void warning(Diagnostic diagnostic) {}\n\n" +
+						"\tdefault void info(Diagnostic diagnostic) {}\n}\n",
+				),
+				source(
+					"CompilationFailedException.java",
+					"package com.android.tools.r8;\n\npublic class CompilationFailedException extends Exception {\n" +
+						"\tpublic CompilationFailedException(String message) {\n\t\tsuper(message);\n\t}\n}\n",
+				),
+				source(
+					"OutputMode.java",
+					"package com.android.tools.r8;\n\npublic enum OutputMode {\n\tDexIndexed\n}\n",
+				),
+				source(
+					"D8Command.java",
+					"package com.android.tools.r8;\n\n" +
+						"import java.nio.file.Path;\n" +
+						"import java.util.Collection;\n\n" +
+						"public class D8Command {\n" +
+						"\tfinal DiagnosticsHandler handler;\n\n" +
+						"\tD8Command(DiagnosticsHandler handler) {\n\t\tthis.handler = handler;\n\t}\n\n" +
+						"\tpublic static Builder builder() {\n\t\treturn new Builder(null);\n\t}\n\n" +
+						"\tpublic static Builder builder(DiagnosticsHandler handler) {\n\t\treturn new Builder(handler);\n\t}\n\n" +
+						"\tpublic static class Builder {\n" +
+						"\t\tprivate final DiagnosticsHandler handler;\n\n" +
+						"\t\tBuilder(DiagnosticsHandler handler) {\n\t\t\tthis.handler = handler;\n\t\t}\n\n" +
+						"\t\tpublic Builder addProgramFiles(Collection<Path> files) {\n\t\t\treturn this;\n\t\t}\n\n" +
+						"\t\tpublic Builder addLibraryFiles(Collection<Path> files) {\n\t\t\treturn this;\n\t\t}\n\n" +
+						"\t\tpublic Builder setMinApiLevel(int minApi) {\n\t\t\treturn this;\n\t\t}\n\n" +
+						"\t\tpublic Builder setOutput(Path path, OutputMode mode) {\n\t\t\treturn this;\n\t\t}\n\n" +
+						"\t\tpublic D8Command build() {\n\t\t\treturn new D8Command(handler);\n\t\t}\n\t}\n}\n",
+				),
+				source(
+					"D8.java",
+					"package com.android.tools.r8;\n\n" +
+						"public class D8 {\n" +
+						"\tpublic static void run(D8Command command) throws CompilationFailedException {\n" +
+						"\t\tif (command.handler != null) {\n" +
+						"\t\t\tcommand.handler.error(new Diagnostic() {\n" +
+						"\t\t\t\t@Override\n" +
+						"\t\t\t\tpublic String getDiagnosticMessage() {\n" +
+						"\t\t\t\t\treturn \"Type demo.Tiny is defined multiple times\";\n" +
+						"\t\t\t\t}\n" +
+						"\t\t\t});\n" +
+						"\t\t}\n" +
+						"\t\tthrow new CompilationFailedException(\"Compilation failed to complete\");\n" +
+						"\t}\n}\n",
+				),
+			)
+		val classesDir = File(tempDir, "fake-d8-classes").apply { mkdirs() }
+		val result = JavaCompileStep.compile(sources, emptyList(), classesDir)
+		check(result.success) { "fake d8 compile failed: ${result.diagnostics}" }
+		return classesDir
+	}
+
+	@Test
+	fun `a d8 failure surfaces d8's own error diagnostics, not only the generic message`() {
+		// Real d8's CompilationFailedException message is just "Compilation failed to complete";
+		// the actual reason (duplicate class, bad class file version, ...) only ever reaches the
+		// DiagnosticsHandler. Without one installed it lands on the daemon's stderr, which the
+		// client merely logs - the user sees a failure with no cause.
+		val fakeD8 = compileFakeD8()
+		val classesDir = compileTinyClass()
+
+		DexTool(fakeD8, File(tempDir, "android.jar"), minApi = 30).use { tool ->
+			val result = tool.dex(listOf(classesDir), File(tempDir, "dex"))
+
+			assertThat(result).isInstanceOf(DexTool.Result.Failed::class.java)
+			val message = (result as DexTool.Result.Failed).message
+			assertThat(message).contains("d8 failed")
+			assertThat(message).contains("Compilation failed to complete")
+			assertThat(message).contains("Type demo.Tiny is defined multiple times")
+		}
+	}
+
 	@Test
 	fun `a payload d8 split across several dex files fails instead of shipping half of it`() {
 		// The split decision is asserted directly: d8 only splits past 64K method references,
