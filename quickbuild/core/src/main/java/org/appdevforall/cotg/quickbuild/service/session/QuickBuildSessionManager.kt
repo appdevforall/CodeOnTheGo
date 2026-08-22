@@ -259,8 +259,10 @@ class QuickBuildSessionManager(
 	 * Whether [SessionEffect.CancelProxyAppBuild] already cancelled this session's Gradle build,
 	 * so [teardown] does not ask a second time. The stop-tap path emits that effect and a
 	 * teardown; every OTHER teardown (a restart, an invalidation, a project close) emits only the
-	 * teardown, which is the case teardown's own cancel exists for. Cleared in [teardown], which
-	 * always follows the effect.
+	 * teardown, which is the case teardown's own cancel exists for. Cleared in [teardown], and
+	 * again whenever an effect launches new session work: the Prebuilding stop drops a queued
+	 * tap with the cancel effect but NO teardown, and left latched the flag would make the next
+	 * session's teardown skip the cancel of a Gradle build it never covered.
 	 */
 	private var proxyAppBuildCancelIssued = false
 
@@ -654,11 +656,16 @@ class QuickBuildSessionManager(
 	private fun runEffect(effect: SessionEffect) {
 		when (effect) {
 			SessionEffect.StartProvisioning -> {
+				// A cancel issued against a previous build does not cover the one starting
+				// here; see [proxyAppBuildCancelIssued] for the Prebuilding stop that
+				// latches it with no teardown to clear it.
+				proxyAppBuildCancelIssued = false
 				val epoch = sessionEpoch
 				sessionWork = scope.launch { provision(epoch) }
 			}
 
 			SessionEffect.StartProxyAppPrebuild -> {
+				proxyAppBuildCancelIssued = false
 				sessionWork = scope.launch { runPrebuild() }
 			}
 
@@ -718,6 +725,7 @@ class QuickBuildSessionManager(
 			}
 
 			SessionEffect.RunProxyAppRebuild -> {
+				proxyAppBuildCancelIssued = false
 				val epoch = sessionEpoch
 				sessionWork = scope.launch { rebuildProxyApp(epoch) }
 			}
@@ -964,22 +972,35 @@ class QuickBuildSessionManager(
 				live = result.session
 				staleComponentHelpersNoticed = false
 				testSourceIgnoredNoticed = false
-				// A same-project predecessor's scratch tree can survive its teardown (see
-				// [teardown]'s skip when a new session went live mid-shutdown); whatever it
-				// retained belongs to another baseline and must not answer this session's
-				// reconnects.
-				result.session.retainedPayloads.clear()
-				// The installed APK boots at the stamped baseline generation (concurrency.md
-				// rule 2): the allocator must stay strictly above it, and adopting it as the
-				// deploy tally makes a reconnect at the stamp read in-sync by construction.
-				result.tracker.adoptAtLeast(result.baselineGeneration)
-				result.session.lastDeployedGeneration = result.baselineGeneration
-				// Build ids restart per session; give the sink its session boundary.
-				report { metrics.onSessionStarted() }
-				// The reload path is change-driven, not save-driven: any source of a
-				// file change triggers it, including Termux, plugins and git.
-				result.session.watcher.start(::onWatcherBatch)
-				dispatch(SessionEvent.ProvisioningSucceeded(result.baselineGeneration))
+				try {
+					// A same-project predecessor's scratch tree can survive its teardown (see
+					// [teardown]'s skip when a new session went live mid-shutdown); whatever it
+					// retained belongs to another baseline and must not answer this session's
+					// reconnects.
+					result.session.retainedPayloads.clear()
+					// The installed APK boots at the stamped baseline generation (concurrency.md
+					// rule 2): the allocator must stay strictly above it, and adopting it as the
+					// deploy tally makes a reconnect at the stamp read in-sync by construction.
+					result.tracker.adoptAtLeast(result.baselineGeneration)
+					result.session.lastDeployedGeneration = result.baselineGeneration
+					// Build ids restart per session; give the sink its session boundary.
+					report { metrics.onSessionStarted() }
+					// The reload path is change-driven, not save-driven: any source of a
+					// file change triggers it, including Termux, plugins and git.
+					result.session.watcher.start(::onWatcherBatch)
+					dispatch(SessionEvent.ProvisioningSucceeded(result.baselineGeneration))
+				} catch (e: kotlinx.coroutines.CancellationException) {
+					throw e
+				} catch (e: Throwable) {
+					// The runner's error boundary ends at its outcome; this tail (retention
+					// IO, the persisted generation store, the FileObserver registration) is
+					// the manager's half of the same assembly, and a throw here would escape
+					// to a scope with no CoroutineExceptionHandler and crash CoGo with the
+					// daemon up and the uid session registered. [live] is already set, so the
+					// failure effect's teardown unwinds both.
+					log.error("Installing the provisioned quick-build session threw", e)
+					dispatch(SessionEvent.ProvisioningFailed(QuickBuildMessage.Literal(e.message ?: e.javaClass.name)))
+				}
 			}
 		}
 	}
@@ -1268,13 +1289,29 @@ class QuickBuildSessionManager(
 			retained.generation,
 		)
 		val result =
-			deploy.deploy(
-				retained.generation,
-				retained.dexFile,
-				retained.arscFile,
-				retained.assetsZip,
-				retained.metadataJson,
-			)
+			try {
+				deploy.deploy(
+					retained.generation,
+					retained.dexFile,
+					retained.arscFile,
+					retained.assetsZip,
+					retained.metadataJson,
+				)
+			} catch (e: kotlinx.coroutines.CancellationException) {
+				throw e
+			} catch (e: Throwable) {
+				// deploy() is throw-capable (see notifyBuilding's guard), and this runs
+				// inside the reconnect collector launched once in [init]: an escaping
+				// throw would kill that collector for the rest of the process, and every
+				// later stale reconnect would run old code silently - the exact failure
+				// the collector exists to prevent. Contain it as a failed re-send.
+				log.warn(
+					"Re-send of retained generation {} threw; falling back to a catch-up build",
+					retained.generation,
+					e,
+				)
+				return false
+			}
 		if (result is DeployResult.Reloaded) return true
 		log.warn(
 			"Re-send of retained generation {} failed ({}); falling back to a catch-up build",
