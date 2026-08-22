@@ -257,9 +257,15 @@ internal class PayloadDeployer(
 			}
 
 			else -> {
-				// Retained with hot-swap metadata, not this deploy's restart flag: a
-				// reconnect catch-up must not ask the just-relaunched app to exit again.
-				retention?.retain(generation, dexFile, arscFile, assets?.zip, metadata(restart = false))
+				// Retain nothing, and drop what is retained: the reconnect catch-up replays
+				// retained bytes as a hot swap, and hot-swapping a code-bearing payload onto
+				// a process holding the live component this deploy restarted for recreates
+				// the cross-loader ClassCastException the restart existed to prevent (see
+				// DeployPolicy). Retaining it with the restart flag is no better - the
+				// re-send has no relaunch behind it, so the app would exit and stay closed.
+				// A below-deployed reconnect after this deploy falls back to the forced
+				// catch-up rebuild, which re-derives the route.
+				retention?.clear()
 				// t3: the relaunched process reconnected at the deployed generation, so
 				// the restart swap is live. Slower than a hot swap by a full process
 				// launch. One clock read feeds both, as on the hot-swap path.
