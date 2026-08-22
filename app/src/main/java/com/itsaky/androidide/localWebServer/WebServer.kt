@@ -158,6 +158,12 @@ class WebServer(
 			.create()
 	private val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
 	private var bookshelfTemplateId: Int = -1
+
+	// Long enough that a descriptor-exhaustion spin cannot flood the log or starve the connections
+	// whose closing would fix it; short enough to be invisible to a user, and never paid on a
+	// successful accept.
+	private val failedAcceptBackoffMs = 50L
+
 	private val httpInternalServerError = 500
 	private val httpNotFound = 404
 
@@ -459,6 +465,35 @@ class WebServer(
 				}
 			}
 			TrafficStats.clearThreadStatsTag()
+		}
+	}
+
+	/**
+	 * Whether an accept failure means the server is shutting down rather than having hit something
+	 * transient. `ServerSocket.accept()` is declared to throw `IOException`, of which
+	 * `SocketException` is one subtype, so only the listening socket closing ends the loop --
+	 * everything else, a `SocketTimeoutException` or a descriptor-exhaustion `IOException` included,
+	 * is retried. Getting this wrong is bad in a different way each way round: treating a transient
+	 * failure as terminal stops serving documentation until the app restarts, and treating the close
+	 * as transient spins the loop against a dead socket.
+	 *
+	 * A closed socket reports itself only in the exception's message, hence the string test.
+	 */
+	internal fun shouldStopAccepting(e: IOException): Boolean =
+		e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true
+
+	/**
+	 * Brief pause after an accept failure that is not the socket closing, so a *persistent* failure
+	 * cannot spin this loop at full tilt while it clears. "Too many open files" is the realistic one,
+	 * and it is self-inflicted in the worst way: the descriptors this server is waiting to reuse are
+	 * the ones its own in-flight connections hold, so retrying flat out both floods the log and
+	 * competes with the work that would free them. Only the failure path ever waits.
+	 */
+	private fun pauseAfterFailedAccept() {
+		try {
+			Thread.sleep(failedAcceptBackoffMs)
+		} catch (e: InterruptedException) {
+			Thread.currentThread().interrupt()
 		}
 	}
 
