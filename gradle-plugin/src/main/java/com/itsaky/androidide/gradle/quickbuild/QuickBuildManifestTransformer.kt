@@ -30,15 +30,16 @@ enum class ComponentType(
 /**
  * One component of the user's merged manifest, paired with the proxy generated for it.
  *
- * The custom Application appears here with a null [proxyClass]: nothing addresses it by manifest
- * name, so it keeps the user FQN and the runtime's instantiateApplication routes it through the
- * payload loader.
+ * The custom Application, services and receivers appear here with a null [proxyClass]: they keep
+ * the user FQN in the manifest and the runtime's instantiate hooks route them through the payload
+ * loader by that real name. For the Application nothing addresses it by manifest name anyway; for
+ * services and receivers the real name IS the addressing - see
+ * [QuickBuildManifestTransformer.transformComponents].
  *
- * @property type which manifest element this came from; the Application is the only type that
- *   gets no proxy.
+ * @property type which manifest element this came from.
  * @property userClass fully-qualified user class.
  * @property proxyClass fully-qualified generated proxy class that replaces it in the
- *   manifest, or null for the Application entry.
+ *   manifest, or null for the Application, service and receiver entries.
  * @property isLauncher whether an activity declares the MAIN/LAUNCHER intent filter.
  */
 data class ProxiedComponent(
@@ -64,8 +65,8 @@ data class UnproxiedComponent(
  * The rewritten manifest plus what the rewrite did to each component.
  *
  * @property document the transformed manifest, mutated in place from the parsed input.
- * @property components every proxied component, in manifest order per type, plus the proxy-less
- *   Application entry when the manifest declares one.
+ * @property components every recorded component, in manifest order per type - proxied or (for
+ *   services, receivers and the Application) kept under its real name with a null proxyClass.
  * @property unproxied components left under their real name, for the caller to log.
  */
 class ManifestTransformResult(
@@ -83,8 +84,9 @@ class ManifestTransformResult(
 }
 
 /**
- * Rewrites a merged Android manifest into the proxy-app manifest: each component's android:name
- * becomes a generated proxy FQN and the `<application>` gains the quick-build runtime's
+ * Rewrites a merged Android manifest into the proxy-app manifest: each activity's and provider's
+ * android:name becomes a generated proxy FQN, services and receivers keep their real name (see
+ * [transformComponents] for why), and the `<application>` gains the quick-build runtime's
  * android:appComponentFactory, everything else verbatim. Components [proxiability] rejects keep
  * their real name and land in [ManifestTransformResult.unproxied]; an attribute the proxy app
  * cannot host yet (android:process, isolated services, multiprocess providers) fails the build.
@@ -148,8 +150,23 @@ class QuickBuildManifestTransformer(
 		val components = mutableListOf<ProxiedComponent>()
 		val unproxied = mutableListOf<UnproxiedComponent>()
 		components += transformActivities(application, manifestPackage, unproxied)
-		components += transformComponents(application, ComponentType.SERVICE, manifestPackage, unproxied, "isolatedProcess")
-		components += transformComponents(application, ComponentType.RECEIVER, manifestPackage, unproxied)
+		components +=
+			transformComponents(
+				application,
+				ComponentType.SERVICE,
+				manifestPackage,
+				unproxied,
+				unsupportedAttribute = "isolatedProcess",
+				proxied = false,
+			)
+		components +=
+			transformComponents(
+				application,
+				ComponentType.RECEIVER,
+				manifestPackage,
+				unproxied,
+				proxied = false,
+			)
 		components += transformComponents(application, ComponentType.PROVIDER, manifestPackage, unproxied, "multiprocess")
 		applicationComponent(application, manifestPackage)?.let { components += it }
 
@@ -262,18 +279,34 @@ class QuickBuildManifestTransformer(
 	}
 
 	/**
-	 * Renames every proxiable component of one non-activity kind to its proxy.
+	 * Renames every proxiable component of one non-activity kind to its proxy - or, when
+	 * [proxied] is false, records it under its real name without renaming.
 	 *
 	 * Activities keep [transformActivities] to themselves: only they carry alias handling.
+	 *
+	 * Services and receivers pass [proxied] = false, because renaming them silently breaks
+	 * explicit-component addressing and Android has no `<service>`/`<receiver>` alias to
+	 * compensate with (activities get exactly that alias in [transformActivities]):
+	 * `startService(Intent(ctx, SyncService::class.java))` resolves the real class name against
+	 * the manifest, finds nothing, and no-ops with only a logcat warning; an AlarmManager
+	 * `PendingIntent.getBroadcast` aimed at a renamed receiver is simply never delivered.
+	 * Keeping the real name costs nothing: the runtime's appComponentFactory instantiates the
+	 * manifest name through the payload loader, exactly as the custom Application already does,
+	 * and neither kind uses the one thing only a proxy can inject (the activity proxies'
+	 * getClassLoader override).
 	 *
 	 * @param application the `<application>` element, mutated in place.
 	 * @param type the kind to rewrite; its [ComponentType.jsonName] is also the manifest tag.
 	 * @param manifestPackage the manifest's package, for expanding android:name shorthand.
-	 * @param unproxied accumulator for components [skipProxy] rejects.
+	 * @param unproxied accumulator for components [skipProxy] rejects; a rejected component is
+	 *   also left out of the returned list, keeping library-owned components (whose classes
+	 *   never travel in the payload) invisible to the deploy policy's restart rule.
 	 * @param unsupportedAttribute an android attribute the proxy app cannot host when it is
 	 *   `"true"` (a service's isolatedProcess, a provider's multiprocess), or null for a kind
 	 *   with none.
-	 * @return the proxied components, in manifest order; skipped ones are absent.
+	 * @param proxied whether this kind is renamed to a generated proxy; false keeps the real
+	 *   name (written fully qualified) and records a null proxyClass.
+	 * @return the recorded components, in manifest order; skipped ones are absent.
 	 * @throws IllegalArgumentException if a component declares [unsupportedAttribute].
 	 */
 	private fun transformComponents(
@@ -282,6 +315,7 @@ class QuickBuildManifestTransformer(
 		manifestPackage: String,
 		unproxied: MutableList<UnproxiedComponent>,
 		unsupportedAttribute: String? = null,
+		proxied: Boolean = true,
 	): List<ProxiedComponent> {
 		val tag = type.jsonName
 		var proxyIndex = 0
@@ -298,6 +332,17 @@ class QuickBuildManifestTransformer(
 			}
 			if (skipProxy(userClass, unproxied)) {
 				return@mapIndexedNotNull null
+			}
+			if (!proxied) {
+				// Keep the user class but write it fully qualified, for the same reason as
+				// applicationComponent: the runtime resolves this name against the payload
+				// dex, so shorthand left verbatim is fragile.
+				element.setAttributeNS(ANDROID_NS, "android:name", userClass)
+				return@mapIndexedNotNull ProxiedComponent(
+					type = type,
+					userClass = userClass,
+					proxyClass = null,
+				)
 			}
 			val proxyClass = "$proxyPackage.${proxySimpleName(proxyIndex, type)}"
 			proxyIndex++

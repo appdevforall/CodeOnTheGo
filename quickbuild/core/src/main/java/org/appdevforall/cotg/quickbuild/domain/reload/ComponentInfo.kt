@@ -45,10 +45,10 @@ val RESTART_SENSITIVE_KINDS: Set<ComponentKind> =
  * Safe because these two classes ship in the BASE APK dex and are absent from every
  * per-generation payload dex, which is exactly the daemon's compile output plus the generated
  * proxy classes. Payload loaders are parent-first with the APK loader as parent, so every
- * generation's proxy resolves the same `Class` object for these supertypes - their identity
+ * generation's loader resolves the same `Class` object for these classes - their identity
  * never changes across a hot swap, and the `ClassCastException` the restart rule exists to
- * prevent cannot arise from them. The proxies themselves hold no state: `ProxySourceGenerator`
- * emits an empty subclass for services and providers.
+ * prevent cannot arise from them. (The service keeps its real manifest name - services are
+ * never renamed - and the provider's proxy is an empty stateless subclass.)
  *
  * Keyed on the EXACT class name, never a package prefix or a "library-provided" test: the
  * safety comes from these specific classes being absent from the payload, and any library class
@@ -81,7 +81,9 @@ fun ComponentInfo.isRestartSensitive(): Boolean = kind in RESTART_SENSITIVE_KIND
  * @property kind which manifest tag declared it, which is what decides restart vs recreate.
  * @property className the USER class FQN declared in the source manifest.
  * @property proxyClass the generated proxy FQN carried in the transformed manifest;
- *   null for the Application entry (nothing addresses it by manifest name).
+ *   null for the Application, service and receiver entries, which keep the user's real
+ *   name (services/receivers are addressed by it via explicit intents, and the
+ *   appComponentFactory instantiates the manifest name through the payload loader).
  * @property launcher true for the launcher activity - its [proxyClass] is the explicit
  *   relaunch target after a restart-deploy.
  * @property supertypes the user-side (project-compiled) superclass chain recorded from
