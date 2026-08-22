@@ -65,10 +65,8 @@ class QuickBuildHostService : Service() {
 				throw SecurityException("connect() with null target or packageName")
 			}
 
-			watchForDeath(target.asBinder())
-
 			log.info("Proxy app {} connected at generation {}", packageName, runningGeneration)
-			connections.onConnected(ConnectedTarget(target, packageName, runningGeneration))
+			register(ConnectedTarget(target, packageName, runningGeneration))
 		}
 
 		override fun reportReloaded(
@@ -88,30 +86,70 @@ class QuickBuildHostService : Service() {
 		}
 
 		/**
-		 * Points the death watch at [binder], dropping the watch a superseded process left.
+		 * Registers [connection] and points the death watch at its binder, as one atomic step.
 		 *
 		 * Clearing the registration on death is what makes a deploy into a dead proxy app fail
 		 * fast as NotConnected instead of timing out on its binder. The unlink matters because a
 		 * recipient would otherwise accumulate one per reconnect, and the binder is passed on so
 		 * a late death from a superseded process cannot wipe the live registration.
 		 *
-		 * @param binder the connecting target's binder; null only for a local (non-binder) target,
-		 *   which cannot die out from under us and so needs no watch
+		 * One synchronized step, not watch-then-register: two racing connects could otherwise
+		 * interleave so the registered target and the watched binder disagree, and a dead target
+		 * would then stay registered with no death notification ever coming. [onBinderDeath]
+		 * shares the lock for the same reason, so a death delivered while a connect is
+		 * mid-registration lands after the registration it must clear, never before it.
 		 */
 		@Synchronized
-		private fun watchForDeath(binder: IBinder?) {
-			if (binder == null) return
+		private fun register(connection: ConnectedTarget) {
+			// Null only for a local (non-binder) target, which cannot die out from under us.
+			val binder = connection.target.asBinder()
+			if (binder == null) {
+				clearDeathWatch()
+				connections.onConnected(connection)
+				return
+			}
+			val recipient = IBinder.DeathRecipient { onBinderDeath(binder) }
+			try {
+				binder.linkToDeath(recipient, 0)
+			} catch (e: Exception) {
+				// Already dead at connect time: registering it would hold a dead target no
+				// death notification can ever clear, so every deploy would ride out its
+				// timeout with the freezer hold kept on a dead package. Report an instant
+				// death instead, and keep any previous watch - the superseded-binder guard
+				// in [ProxyAppConnections.onDisconnected] protects a still-live registration.
+				log.warn("Proxy app {} died before its connect completed", connection.packageName, e)
+				connections.onDisconnected(binder)
+				return
+			}
+			clearDeathWatch()
+			deathWatch = binder to recipient
+			connections.onConnected(connection)
+		}
+
+		/**
+		 * Handles a watched binder's death. Shares [register]'s lock so a death cannot be
+		 * consumed between the link and the registration it should clear.
+		 */
+		@Synchronized
+		private fun onBinderDeath(binder: IBinder) {
+			connections.onDisconnected(binder)
+		}
+
+		/** Drops the current death watch, unlinking its recipient. */
+		@Synchronized
+		private fun clearDeathWatch() {
 			deathWatch?.let { (previous, recipient) ->
 				runCatching { previous.unlinkToDeath(recipient, 0) }
 			}
-			val recipient = IBinder.DeathRecipient { connections.onDisconnected(binder) }
-			deathWatch = binder to recipient
-			runCatching { binder.linkToDeath(recipient, 0) }
+			deathWatch = null
 		}
 
 		override fun disconnect(packageName: String?) {
 			enforceCaller("disconnect")
 			log.info("Proxy app {} disconnected", packageName)
+			// Unlink too: a stale recipient would otherwise fire on the process's eventual
+			// death and report a disconnect against whatever is registered by then.
+			clearDeathWatch()
 			connections.onDisconnected()
 		}
 
