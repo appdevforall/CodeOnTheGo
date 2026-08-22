@@ -31,6 +31,11 @@ private typealias OutputSnapshot = Map<String, Pair<Long, Long>>
  * - The caller must pass ALL sources as changed on the first compile, to seed the IC caches.
  * - `assureNoClasspathSnapshotsChanges(true)` is only safe once the shrunk snapshot exists;
  *   before that the engine needs the full classpath comparison to seed.
+ * - A shrunk snapshot left in [workDir] by a previous session describes THAT session's
+ *   classpath bytes, so `init` fingerprints the jars and discards the snapshot plus the IC
+ *   caches on a mismatch - otherwise the first compile asserts "classpath unchanged" over a
+ *   classpath a standard Gradle build may have rewritten in place, and stale dependents ship
+ *   silently (see [discardStaleIncrementalState]).
  *
  * Java sources take two passes: kotlinc reads them for symbol resolution only, then javac
  * compiles them after Kotlin into the same output dir, which is what compiles Kotlin<->Java
@@ -66,8 +71,11 @@ class IncrementalCompiler(
 		 * @property warnings kotlinc's and javac's warnings, already parsed into the protocol
 		 *   shape; a successful compile can still carry them.
 		 * @property changedClassFiles the .class files this compile emitted, rewrote or deleted,
-		 *   relative to [classesDir]; the deploy policy picks restart vs recreate from it, so it
-		 *   is diffed against the last DEPLOYED state and includes deletions.
+		 *   relative to [classesDir], for the deploy policy to read. Diffed against the LAST
+		 *   SUCCESSFUL COMPILE's tree - no deploy ack reaches the daemon, so that tree is only a
+		 *   proxy for what the device runs. A compile that declares every source changed is a
+		 *   rebaseline and reports the whole tree; a client whose dex or deploy failed recovers
+		 *   "changed vs installed" accuracy exactly that way (see [compile]).
 		 * @property kotlinMillis wall time of the Kotlin pass (0 when there are no Kotlin sources).
 		 * @property javaMillis wall time of the javac pass (0 when there are no Java sources).
 		 * @property stats the phases [kotlinMillis]/[javaMillis] do not cover - the two
@@ -138,16 +146,20 @@ class IncrementalCompiler(
 	private var pendingJavaAbi: Map<File, JavaSourceAbi.FileAbi>? = null
 
 	/**
-	 * The output tree as of the last compile the caller could deploy; null before the first one.
-	 * Held across compiles for the same reason [javaAbi] is: a failed compile leaves output nobody
+	 * The output tree of the last SUCCESSFUL compile; null before the first one. Not the last
+	 * DEPLOYED tree: no deploy ack reaches the daemon, so a compile whose dex or deploy fails
+	 * still promotes here, and the client must rebaseline (declare every source changed, or
+	 * re-configure) before the diff means "changed vs installed" again. Held across FAILED
+	 * compiles for the same reason [javaAbi] is: a failed compile leaves output nobody
 	 * deployed, so re-snapshotting at the top of the next compile would adopt those undeployed
 	 * classes as already-live and drop them from [Result.Success.changedClassFiles].
 	 */
-	private var deployedOutputs: OutputSnapshot? = null
+	private var lastGoodOutputs: OutputSnapshot? = null
 
 	init {
 		Files.createDirectories(icCachesDir)
 		Files.createDirectories(classesDir)
+		discardStaleIncrementalState(classpathJars)
 		val snapshotDir = workDir.resolve("cp-snap")
 		Files.createDirectories(snapshotDir)
 		// Snapshot the fixed session classpath once; a classpath change is a session
@@ -166,11 +178,65 @@ class IncrementalCompiler(
 	}
 
 	/**
+	 * Discards a previous session's shrunk snapshot and IC caches when this session's classpath
+	 * BYTES differ from the ones that produced them.
+	 *
+	 * The shrunk snapshot is keyed by path alone (`<rootProjectDir>/shrunk-classpath-snapshot.bin`),
+	 * so it survives a re-configure into the same [workDir] - and [compileKotlin] then runs
+	 * `assureNoClasspathSnapshotsChanges(true)` over a classpath a standard Gradle build may have
+	 * rewritten in place (same jar paths, new ABI). Any compile trusting that assertion keeps
+	 * dependents of the changed library ABI stale, the worst silent failure this feature has.
+	 * Fingerprinting path+size+CRC of every jar catches the in-place rewrite; a mismatch (or a
+	 * missing fingerprint next to surviving state) wipes both, and the next compile re-seeds from
+	 * the fresh per-jar snapshots. Matching bytes keep the warm caches, which re-configures with
+	 * an unchanged classpath must not lose.
+	 *
+	 * @param classpathJars the session classpath, fingerprinted before the per-jar snapshots are
+	 *   computed over it.
+	 */
+	private fun discardStaleIncrementalState(classpathJars: List<File>) {
+		val fingerprintFile = workDir.resolve("classpath-fingerprint.txt").toFile()
+		val fingerprint =
+			classpathJars.joinToString("\n") { jar ->
+				"${jar.absolutePath}|${jar.length()}|${if (jar.isFile) contentCrc(jar) else -1L}"
+			}
+		val previous = if (fingerprintFile.isFile) fingerprintFile.readText() else null
+		if (previous != fingerprint) {
+			shrunkSnapshot.delete()
+			icCachesDir.toFile().deleteRecursively()
+			Files.createDirectories(icCachesDir)
+		}
+		fingerprintFile.writeText(fingerprint)
+	}
+
+	/**
+	 * CRC32 of a whole file, streamed - classpath jars run tens of MB, so no
+	 * [checksumOf]-style whole-file read on a 2-4 GB phone.
+	 *
+	 * @param file the jar to checksum; must exist.
+	 * @return the CRC32 of its bytes.
+	 */
+	private fun contentCrc(file: File): Long {
+		val crc = CRC32()
+		file.inputStream().use { input ->
+			val buffer = ByteArray(FINGERPRINT_READ_BUFFER_BYTES)
+			while (true) {
+				val read = input.read(buffer)
+				if (read < 0) break
+				crc.update(buffer, 0, read)
+			}
+		}
+		return crc.value
+	}
+
+	/**
 	 * Runs one compile: the incremental Kotlin pass, then javac over any `.java` sources.
 	 *
 	 * @param allSources every source in the module, not just the edited ones.
 	 * @param changedFiles sources edited since the last compile; pass all of [allSources] on
-	 *   the first compile of a session.
+	 *   the first compile of a session. Declaring every source changed is also the REBASELINE
+	 *   signal: the output diff then runs against nothing, reporting the whole tree as changed,
+	 *   which is how a client recovers after a failed dex or deploy (see [lastGoodOutputs]).
 	 * @param removedFiles sources deleted since the last compile, no longer in [allSources];
 	 *   their stale `.class` outputs are cleaned before anything is compiled.
 	 * @return [Result.Failed] on any compile error, and also when a removed source's stale
@@ -201,8 +267,14 @@ class IncrementalCompiler(
 		compileCount++
 		javaAbiSnapMillis = 0
 		kotlinToCompileCount = 0
+		// A compile declaring EVERY source changed is a rebaseline: the session's first compile,
+		// or a client that stopped trusting what the device runs because a dex or deploy failed
+		// (no deploy ack reaches the daemon - see lastGoodOutputs). Diffing it against the last
+		// compile's never-deployed tree would answer "nothing changed" for classes the device
+		// has never received, so it diffs against nothing and reports the whole tree.
+		val rebaseline = allSources.isNotEmpty() && changedFiles.toSet().containsAll(allSources)
 		val preSnapStartedAt = System.currentTimeMillis()
-		val before = deployedOutputs ?: snapshotClassOutputs()
+		val before = if (rebaseline) emptyMap() else (lastGoodOutputs ?: snapshotClassOutputs())
 		val preSnapMillis = System.currentTimeMillis() - preSnapStartedAt
 		val logger = CollectingLogger(compileLog)
 		val kotlinStartedAt = System.currentTimeMillis()
@@ -267,8 +339,9 @@ class IncrementalCompiler(
 		val changedClassFiles = changedClassOutputs(before, after)
 		val postSnapMillis = System.currentTimeMillis() - postSnapStartedAt
 		// Same rule as the ABI above: this output only becomes the baseline because the caller
-		// can now deploy it.
-		deployedOutputs = after
+		// can now deploy it - whether the deploy then LANDS is invisible here, which is why a
+		// client whose deploy failed must rebaseline (see the field).
+		lastGoodOutputs = after
 		return Result.Success(
 			classesDir = classesDir.toFile(),
 			warnings = warnings + javaDiagnostics.diagnostics,
@@ -332,7 +405,7 @@ class IncrementalCompiler(
 	/**
 	 * Diffs two output-tree walks into the paths the deploy has to account for.
 	 *
-	 * @param before the last deployed state.
+	 * @param before the last successful compile's state, or empty on a rebaseline.
 	 * @param after this compile's state.
 	 * @return added, rewritten AND deleted paths - a deletion has to be in here, since dropping a
 	 *   nested class of a restart-sensitive component is a change the deploy policy must see and
@@ -611,5 +684,8 @@ class IncrementalCompiler(
 	companion object {
 		// ART (via d8 desugaring) handles Java-17 bytecode; matches the bundled JDK.
 		private const val JVM_TARGET = "17"
+
+		/** Read-chunk size for [contentCrc]'s streamed jar checksum. */
+		private const val FINGERPRINT_READ_BUFFER_BYTES = 64 * 1024
 	}
 }

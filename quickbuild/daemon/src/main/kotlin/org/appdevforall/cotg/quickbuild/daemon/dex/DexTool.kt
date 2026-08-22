@@ -2,7 +2,10 @@ package org.appdevforall.cotg.quickbuild.daemon.dex
 
 import org.appdevforall.cotg.quickbuild.protocol.DexStats
 import java.io.File
+import java.lang.reflect.InvocationHandler
 import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Method
+import java.lang.reflect.Proxy
 import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
@@ -85,9 +88,10 @@ class DexTool(
 		if (classFiles.isEmpty()) {
 			return Result.Failed("no .class files found under: ${classesDirs.joinToString()}")
 		}
+		val diagnostics = D8DiagnosticsCollector()
 		return try {
 			val d8StartedAt = System.currentTimeMillis()
-			runD8(classFiles, outDir.toPath())
+			runD8(classFiles, outDir.toPath(), diagnostics)
 			val d8Millis = System.currentTimeMillis() - d8StartedAt
 			val dexFiles = dexFilesIn(outDir)
 			val failure = dexFailureReason(dexFiles, outDir)
@@ -102,10 +106,30 @@ class DexTool(
 				)
 			}
 		} catch (e: InvocationTargetException) {
-			Result.Failed("d8 failed: ${e.cause?.message ?: e.cause?.javaClass?.name ?: e.message}")
+			Result.Failed(d8FailureMessage(e, diagnostics.errors))
 		} catch (e: ReflectiveOperationException) {
 			Result.Failed("d8 jar is not usable (wrong build-tools layout?): ${e.message}")
 		}
+	}
+
+	/**
+	 * The caller-facing message for a d8 compilation failure. The exception's own message is
+	 * near-useless (typically just "Compilation failed to complete"); the real reasons -
+	 * duplicate class, unsupported class file version, malformed input - arrive as error
+	 * diagnostics on the [D8DiagnosticsCollector], so they are appended, bounded so one
+	 * pathological run cannot flood the response.
+	 *
+	 * @param e the reflective d8 failure; its cause's message leads.
+	 * @param errors the run's collected error diagnostics, possibly empty.
+	 * @return one message carrying the cause and every collected error, newline-separated.
+	 */
+	private fun d8FailureMessage(
+		e: InvocationTargetException,
+		errors: List<String>,
+	): String {
+		val cause = "d8 failed: ${e.cause?.message ?: e.cause?.javaClass?.name ?: e.message}"
+		if (errors.isEmpty()) return cause
+		return cause + "\n" + errors.joinToString("\n").take(MAX_DIAGNOSTIC_CHARS)
 	}
 
 	/**
@@ -113,18 +137,23 @@ class DexTool(
 	 *
 	 * @param classFiles the already-stripped `.class` copies, passed as d8 program inputs.
 	 * @param outDir d8's output dir, written in `DexIndexed` mode.
+	 * @param diagnostics receives the run's diagnostics; without it d8 prints its real failure
+	 *   reasons to the default handler's stderr, which the client only ever logs.
 	 * @throws java.lang.reflect.InvocationTargetException wrapping any d8 compilation error.
 	 * @throws ReflectiveOperationException when the r8 jar does not expose the expected API.
 	 */
 	private fun runD8(
 		classFiles: List<Path>,
 		outDir: Path,
+		diagnostics: D8DiagnosticsCollector,
 	) {
 		val commandClass = loader.loadClass("com.android.tools.r8.D8Command")
 		val outputModeClass = loader.loadClass("com.android.tools.r8.OutputMode")
+		val handlerClass = loader.loadClass("com.android.tools.r8.DiagnosticsHandler")
 		val dexIndexed = outputModeClass.enumConstants.first { (it as Enum<*>).name == "DexIndexed" }
 
-		val builder = commandClass.getMethod("builder").invoke(null)
+		val handler = Proxy.newProxyInstance(loader, arrayOf(handlerClass), diagnostics)
+		val builder = commandClass.getMethod("builder", handlerClass).invoke(null, handler)
 		val builderClass = builder.javaClass
 		builderClass
 			.getMethod("addProgramFiles", Collection::class.java)
@@ -194,7 +223,92 @@ class DexTool(
 		loader.close()
 	}
 
+	/**
+	 * Stands in for r8's `DiagnosticsHandler` behind a [Proxy], collecting the error messages
+	 * of one d8 run - so a failed dex can surface WHY (duplicate class, unsupported class file
+	 * version, malformed input) instead of the exception's generic "Compilation failed to
+	 * complete". Reflective throughout: it may reference no r8 type, since r8 loads through
+	 * [DexTool]'s private class loader.
+	 *
+	 * `internal` so the reflective message extraction and the pass-through arms are
+	 * unit-testable against fake handler/diagnostic interfaces - real d8 needs a host
+	 * toolchain.
+	 */
+	internal class D8DiagnosticsCollector : InvocationHandler {
+		/** Messages of the run's error diagnostics, in report order. */
+		val errors = mutableListOf<String>()
+
+		override fun invoke(
+			proxy: Any,
+			method: Method,
+			args: Array<out Any>?,
+		): Any? {
+			val argument = args?.firstOrNull()
+			return when (method.name) {
+				"error" -> {
+					if (argument != null) errors += diagnosticMessage(method, argument)
+					null
+				}
+
+				// Keep whatever level d8 proposed - returning null here would NPE inside d8.
+				"modifyDiagnosticsLevel" -> {
+					argument
+				}
+
+				// Object's methods reach the handler too on a Proxy.
+				"hashCode" -> {
+					System.identityHashCode(proxy)
+				}
+
+				"equals" -> {
+					proxy === argument
+				}
+
+				"toString" -> {
+					"D8DiagnosticsCollector"
+				}
+
+				// warning/info, and anything the interface grows later: droppable for a failure
+				// report. Void methods take null; others echo a compatible argument so a future
+				// pass-through default keeps working.
+				else -> {
+					if (method.returnType == Void.TYPE) null else args?.firstOrNull { method.returnType.isInstance(it) }
+				}
+			}
+		}
+
+		/**
+		 * Reads `getDiagnosticMessage()` - and, best-effort, the origin - through the PUBLIC
+		 * r8 `Diagnostic` interface, which is the handler method's parameter type. Never through
+		 * the argument's own class: d8's diagnostic implementations are typically
+		 * package-private, and invoking a public method through a non-public class throws
+		 * `IllegalAccessException`.
+		 *
+		 * @param method the intercepted handler method, whose parameter type is the interface.
+		 * @param diagnostic the reported diagnostic object.
+		 * @return the diagnostic's message, origin-prefixed when one is available.
+		 */
+		private fun diagnosticMessage(
+			method: Method,
+			diagnostic: Any,
+		): String {
+			val diagnosticType = method.parameterTypes.firstOrNull() ?: return diagnostic.toString()
+			val message =
+				runCatching {
+					diagnosticType.getMethod("getDiagnosticMessage").invoke(diagnostic) as? String
+				}.getOrNull() ?: diagnostic.toString()
+			val origin =
+				runCatching {
+					diagnosticType.getMethod("getOrigin").invoke(diagnostic)?.toString()
+				}.getOrNull()
+			return if (origin.isNullOrBlank() || origin == "unknown") message else "$origin: $message"
+		}
+	}
+
 	companion object {
+		/** Cap on the collected-diagnostics tail of a d8 failure message. */
+		private const val MAX_DIAGNOSTIC_CHARS = 4000
+
 		/** `classes.dex`, `classes2.dex`, ... - d8's DexIndexed output names, and nothing else. */
 		private val DEX_FILE_NAME = Regex("""classes\d*\.dex""")
 
