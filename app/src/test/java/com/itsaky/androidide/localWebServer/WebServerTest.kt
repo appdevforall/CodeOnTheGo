@@ -10,6 +10,7 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -376,6 +377,64 @@ class WebServerTest {
 			serverThread.join(2_000)
 		}
 	}
+
+	// ADFA-5241: the helper decides the charset, but only a real response proves the header that
+	// reaches a client. Two thirds of the database's text rows are non-ASCII with no BOM, so an
+	// undeclared encoding renders them as mojibake in any client that does not assume UTF-8.
+	@Test
+	fun `a text response declares utf-8 and a binary one does not`() {
+		assertContentTypeHeader(storedMimeType = "text/html", expected = "text/html; charset=utf-8")
+		assertContentTypeHeader(storedMimeType = "image/png", expected = "image/png")
+	}
+
+	private fun assertContentTypeHeader(
+		storedMimeType: String,
+		expected: String,
+	) {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		stubDeclaredMajorVersion(db, DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY)
+		every {
+			db.rawQuery(match { it.contains("FROM   Content") }, any())
+		} returns
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "payload".toByteArray()
+				every { getString(1) } returns storedMimeType
+				every { getString(2) } returns "none"
+				every { getInt(3) } returns 0
+			}
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			val response = sendRawGetRequest(port, "/some/path")
+			val header = response.lineSequence().first { it.startsWith("Content-Type:", ignoreCase = true) }
+			assertEquals("Content-Type: $expected", header.trim())
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
+	// Same as sendRawGetRequestAndAwaitClose, but hands back what the server actually wrote.
+	private fun sendRawGetRequest(
+		port: Int,
+		path: String,
+	): String =
+		Socket().use { socket ->
+			socket.connect(InetSocketAddress("localhost", port), 2_000)
+			socket.soTimeout = 2_000
+			socket.getOutputStream().apply {
+				write("GET $path HTTP/1.1\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
+				flush()
+			}
+			socket.getInputStream().readBytes().toString(Charsets.ISO_8859_1)
+		}
 
 	// Blocks until the server closes the connection (every response sends "Connection: close"),
 	// so by the time this returns the server has fully finished processing this one request --

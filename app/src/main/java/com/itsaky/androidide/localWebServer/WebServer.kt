@@ -10,6 +10,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
+import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
@@ -658,7 +659,7 @@ class WebServer(
 			}
 
 			writer.println("HTTP/1.1 200 OK")
-			writer.println("Content-Type: $dbMimeType")
+			writer.println("Content-Type: ${ContentTypeHeaders.headerValue(dbMimeType)}")
 			writer.println("Content-Length: ${dbContent.size}")
 			writer.println("Connection: close")
 			writer.println()
