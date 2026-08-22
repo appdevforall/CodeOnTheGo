@@ -833,17 +833,22 @@ ORDER BY BC.category,
 
 		// LinkedHashMap: the query's ORDER BY decides the order categories and books appear in, and
 		// the template renders them in that order.
-		val categories = LinkedHashMap<String, MutableList<BookshelfBook>>()
-		val descriptions = LinkedHashMap<String, String?>()
+		//
+		// Keyed by the *raw* category, null included. The query this replaced grouped by BC.category,
+		// where NULL and a literal "General" are two groups that both render as "General"; coalescing
+		// before grouping merges them and keeps only the first description. This port is meant to
+		// change nothing, so the label is applied at construction instead.
+		val categories = LinkedHashMap<String?, MutableList<BookshelfBook>>()
+		val descriptions = LinkedHashMap<String?, String?>()
 
 		database.rawQuery(query, arrayOf()).use { cursor ->
 			while (cursor.moveToNext()) {
 				val path = cursor.getString(4)
 				// BookCategories.category is nullable, so a book can be linked to a category row that
-				// has no label; it lands under "General", as the old query's IFNULL had it. This is
-				// *not* about a book with no category at all -- the join drops those, exactly as the
-				// query this replaced did.
-				val category = cursor.getString(0) ?: uncategorizedLabel
+				// has no label; it is labelled "General" below, as the old query's IFNULL had it. This
+				// is *not* about a book with no category at all -- the join drops those, exactly as
+				// the query this replaced did.
+				val category = cursor.getString(0)
 
 				descriptions.putIfAbsent(category, cursor.getString(1))
 				categories
@@ -863,7 +868,11 @@ ORDER BY BC.category,
 
 		return Bookshelf(
 			categories.map { (category, books) ->
-				BookshelfCategory(category = category, description = descriptions[category], books = books)
+				BookshelfCategory(
+					category = category ?: uncategorizedLabel,
+					description = descriptions[category],
+					books = books,
+				)
 			},
 		)
 	}

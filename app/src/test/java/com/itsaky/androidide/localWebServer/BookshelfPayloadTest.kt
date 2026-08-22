@@ -115,6 +115,28 @@ class BookshelfPayloadTest {
 		).isEqualTo("A guide")
 	}
 
+	// The old query grouped by BC.category, so an unlabelled category row and a row labelled
+	// "General" were two groups that both rendered as "General" -- each with its own description.
+	// Coalescing before grouping merged them and dropped one description; the payload has to match.
+	@Test
+	fun `an unlabelled category and a literal General stay separate groups`() {
+		val bookshelf =
+			server().readBookshelf(
+				database(
+					arrayOf(null, "No label", "Unlabelled book", null, "u/book.pdf"),
+					arrayOf("General", "Books about computing", "General book", null, "g/book.pdf"),
+				),
+			)
+
+		assertThat(bookshelf.result.map { it.category }).containsExactly("General", "General").inOrder()
+		assertThat(bookshelf.result.map { it.description })
+			.containsExactly("No label", "Books about computing")
+			.inOrder()
+		assertThat(bookshelf.result.map { category -> category.books.single().title })
+			.containsExactly("Unlabelled book", "General book")
+			.inOrder()
+	}
+
 	@Test
 	fun `a book with no title of its own shows its path`() {
 		val bookshelf =
