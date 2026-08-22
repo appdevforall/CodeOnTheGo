@@ -95,6 +95,8 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS = "editor.codeactions.kotlin.organizeimports"
 	const val EDITOR_CODE_ACTIONS_KT_IMPLEMENT_MEMBERS = "editor.codeactions.kotlin.implementmembers"
 	const val EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX = "editor.codeactions.kotlin.nullsafetyfix"
+	const val EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX_DIALOG =
+		"editor.codeactions.kotlin.nullsafetyfix.dialog"
 	const val EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH = "editor.codeactions.kotlin.trycatch"
 	const val EDITOR_CODE_ACTIONS_KT_GOTO_DEF = "editor.codeactions.kotlin.gotodef"
 	const val EDITOR_CODE_ACTIONS_KT_FIND_REFS = "editor.codeactions.kotlin.findrefs"
