@@ -325,7 +325,9 @@ class WebServerTest {
 		val port = freePort()
 		val db = mockk<SQLiteDatabase>(relaxed = true)
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
-		stubDeclaredMajorVersion(db)
+		// Deliberately no version stub: this row is compression = "none", so nothing decodes and no
+		// dictionary is consulted. Declaring one would couple the assertion to a lazy-load path it
+		// does not exercise.
 		every {
 			db.rawQuery(match { it.contains("FROM   Content") }, any())
 		} returns
@@ -344,7 +346,9 @@ class WebServerTest {
 		try {
 			awaitPortBound(port)
 			val response = sendRawGetRequest(port, "/some/path")
-			val header = response.lineSequence().first { it.startsWith("Content-Type:", ignoreCase = true) }
+			val header =
+				response.lineSequence().firstOrNull { it.startsWith("Content-Type:", ignoreCase = true) }
+					?: error("No Content-Type in the response:\n$response")
 			assertEquals("Content-Type: $expected", header.trim())
 		} finally {
 			server.stop()

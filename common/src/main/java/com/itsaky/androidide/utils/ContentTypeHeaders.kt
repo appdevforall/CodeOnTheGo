@@ -5,9 +5,11 @@ package com.itsaky.androidide.utils
  *
  * `documentation.db` stores bare MIME types -- no `ContentTypes.value` carries a charset -- so a
  * text response says nothing about its encoding, and a client that does not assume UTF-8 falls back
- * to a legacy single-byte encoding. Two thirds of the database's text rows contain non-ASCII
- * bytes with no BOM, so they render as mojibake wherever that guess goes wrong (ADFA-5241): a
- * page's U+21B3 arrow arriving as the three Latin-1 characters its UTF-8 bytes decode to.
+ * to a legacy single-byte encoding. 17,903 of the 29,139 text rows in the 21-Aug database --
+ * 61.4%, a full census rather than a sample -- contain non-ASCII bytes with no BOM, so they render
+ * as mojibake wherever that guess goes wrong (ADFA-5241): a page's U+21B3 arrow arriving as the
+ * three Latin-1 characters its UTF-8 bytes decode to. (The rate is per-generation; an older export
+ * measures far lower, so quote the database when quoting the number.)
  *
  * This is deliberately *not* fixed by storing the parameter in the database. `ContentTypes.value`
  * doubles as a lookup key matched exactly by the plugin installer
@@ -20,6 +22,17 @@ package com.itsaky.androidide.utils
 object ContentTypeHeaders {
 	private const val UTF_8 = "utf-8"
 
+	// Textual types outside text/* and the +xml family. application/x-typescript has no rows in the
+	// current database but costs nothing to keep; application/javascript does have rows, and is what
+	// ExtensionToContentTypeResolver maps ".mjs" to, so omitting it served real files undeclared.
+	private val TEXTUAL_APPLICATION_TYPES =
+		setOf(
+			"application/javascript",
+			"application/ecmascript",
+			"application/x-typescript",
+			"application/x-sh",
+		)
+
 	/**
 	 * The charset to declare for [mimeType], or null when the type is binary, when it already
 	 * carries a charset, or when the format defines its encoding itself.
@@ -29,10 +42,22 @@ object ContentTypeHeaders {
 	 * types are included even though a document may carry its own declaration, because a
 	 * transport-level charset takes precedence and SVG in particular usually omits the declaration.
 	 */
-	fun charsetFor(mimeType: String): String? {
-		if (declaresCharset(mimeType)) {
-			return null
-		}
+	fun charsetFor(mimeType: String): String? = if (declaredCharset(mimeType) != null) null else defaultCharsetFor(mimeType)
+
+	/**
+	 * The bare media type and the charset to send with it: whatever [mimeType] already declares,
+	 * otherwise this class's default for that type, otherwise null.
+	 *
+	 * Exists because `WebResourceResponse(type, encoding, stream)` wants the two apart, and the
+	 * in-process transport was re-implementing the parse to get them -- with the naive substring
+	 * match this file warns against below. One parse, both transports.
+	 */
+	fun typeAndCharset(mimeType: String): Pair<String, String?> {
+		val type = mimeType.substringBefore(';').trim()
+		return type to (declaredCharset(mimeType) ?: defaultCharsetFor(mimeType))
+	}
+
+	private fun defaultCharsetFor(mimeType: String): String? {
 		val type = mimeType.substringBefore(';').trim().lowercase()
 		return when {
 			// Every text subtype, plus the database's bare "text" oddity. Matched at the boundary:
@@ -41,22 +66,68 @@ object ContentTypeHeaders {
 
 			type.endsWith("+xml") || type == "application/xml" -> UTF_8
 
-			type == "application/x-typescript" -> UTF_8
+			// Textual application/* types share no syntactic marker, hence a list. application/json
+			// is deliberately absent (see the class KDoc). Anything textual that turns up later and
+			// is not here serves undeclared -- the bug this class exists to prevent -- so add it
+			// rather than assuming the list is complete.
+			type in TEXTUAL_APPLICATION_TYPES -> UTF_8
 
 			else -> null
 		}
 	}
 
 	/**
-	 * Whether [mimeType] already carries a `charset` *parameter*. Substring-matching "charset="
-	 * instead would be fooled by another parameter's value -- `note="charset=utf-8"` -- and would
-	 * suppress a declaration the response needs.
+	 * The charset [mimeType] already declares, or null when it declares none that is usable.
+	 *
+	 * Parsed rather than substring-matched: "charset=" occurs inside other parameters' values
+	 * (`note="charset=utf-8"`), and splitting naively on ';' still finds it when the value itself
+	 * contains a semicolon (`note="x; charset=utf-8"`). A parameter with no value (`; charset`) or
+	 * an empty one (`; charset=`) declares nothing and must not suppress the default -- treating it
+	 * as a declaration is how a response ends up with no encoding at all.
 	 */
-	private fun declaresCharset(mimeType: String): Boolean =
-		mimeType
-			.split(';')
-			.drop(1)
-			.any { it.substringBefore('=').trim().equals("charset", ignoreCase = true) }
+	private fun declaredCharset(mimeType: String): String? =
+		parameters(mimeType)
+			.firstOrNull { (name, _) -> name.equals("charset", ignoreCase = true) }
+			?.second
+			?.ifEmpty { null }
+
+	/** [mimeType]'s `name=value` parameters, with semicolons inside quoted values left alone. */
+	private fun parameters(mimeType: String): List<Pair<String, String>> {
+		val found = mutableListOf<Pair<String, String>>()
+		val token = StringBuilder()
+		var quoted = false
+
+		fun take() {
+			val text = token.toString().trim()
+			token.setLength(0)
+			if (text.isEmpty()) return
+			val name = text.substringBefore('=').trim()
+			val value = if (text.contains('=')) text.substringAfter('=').trim().trim('"') else ""
+			found += name to value
+		}
+
+		var index = mimeType.indexOf(';')
+		if (index < 0) return found
+		while (++index < mimeType.length) {
+			val character = mimeType[index]
+			when {
+				character == '"' -> {
+					quoted = !quoted
+					token.append(character)
+				}
+
+				character == ';' && !quoted -> {
+					take()
+				}
+
+				else -> {
+					token.append(character)
+				}
+			}
+		}
+		take()
+		return found
+	}
 
 	/** [mimeType] with a charset appended when [charsetFor] gives one, otherwise unchanged. */
 	fun headerValue(mimeType: String): String {

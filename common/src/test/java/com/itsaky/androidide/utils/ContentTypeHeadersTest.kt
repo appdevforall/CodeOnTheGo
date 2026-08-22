@@ -65,6 +65,44 @@ class ContentTypeHeadersTest {
 	}
 
 	// startsWith("text") would call this a text type. The intent is "text" or "text/", nothing else.
+	// Splitting on ';' alone still finds "charset=" inside a quoted value that contains a semicolon,
+	// and then suppresses the declaration the response actually needs.
+	@Test
+	fun `a semicolon inside a quoted parameter value does not hide the charset`() {
+		assertEquals(
+			"""text/html; note="x; charset=utf-8"; charset=utf-8""",
+			ContentTypeHeaders.headerValue("""text/html; note="x; charset=utf-8""""),
+		)
+	}
+
+	// A parameter with no value, or an empty one, declares nothing -- so it must not stop the
+	// default from being added. Treating it as a declaration ships a response with no encoding.
+	@Test
+	fun `a valueless or empty charset parameter is not a declaration`() {
+		assertEquals("text/html; charset; charset=utf-8", ContentTypeHeaders.headerValue("text/html; charset"))
+		assertEquals("text/html; charset=; charset=utf-8", ContentTypeHeaders.headerValue("text/html; charset="))
+	}
+
+	// Textual application/* types have no syntactic marker in common. application/javascript is the
+	// one with rows in the database and is what ".mjs" resolves to.
+	@Test
+	fun `textual application types get utf-8 and json still does not`() {
+		assertEquals("application/javascript; charset=utf-8", ContentTypeHeaders.headerValue("application/javascript"))
+		assertEquals("application/ecmascript; charset=utf-8", ContentTypeHeaders.headerValue("application/ecmascript"))
+		assertNull(ContentTypeHeaders.charsetFor("application/json"))
+	}
+
+	// The other transport needs the two apart for WebResourceResponse, and must not re-parse.
+	@Test
+	fun `typeAndCharset splits the type from the charset it should declare`() {
+		assertEquals("text/html" to "utf-8", ContentTypeHeaders.typeAndCharset("text/html"))
+		assertEquals("image/png" to null, ContentTypeHeaders.typeAndCharset("image/png"))
+		assertEquals("text/html" to "iso-8859-1", ContentTypeHeaders.typeAndCharset("text/html; charset=iso-8859-1"))
+		assertEquals("text/html" to "UTF-8", ContentTypeHeaders.typeAndCharset("text/html; CHARSET=UTF-8"))
+		// a declared-but-empty parameter falls back to the default rather than to nothing
+		assertEquals("text/html" to "utf-8", ContentTypeHeaders.typeAndCharset("text/html; charset="))
+	}
+
 	@Test
 	fun `a type that merely begins with text is not a text type`() {
 		assertNull(ContentTypeHeaders.charsetFor("textual/example"))

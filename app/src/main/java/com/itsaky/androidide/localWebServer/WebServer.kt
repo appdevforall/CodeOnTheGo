@@ -390,11 +390,17 @@ class WebServer(
 		output: java.io.OutputStream,
 		content: DocumentationContent,
 	) {
-		try {
-			val bytes = content.bytes
+		val bytes = content.bytes
 
+		// Built before the status line goes out: the writer autoflushes, so everything after the
+		// first println is already on the wire, and a throw past that point would make sendError
+		// append a second status line to a response that already claimed 200 -- which a client
+		// parses as a malformed header rather than as an error.
+		val contentTypeHeader = ContentTypeHeaders.headerValue(content.mimeType)
+
+		try {
 			writer.println("HTTP/1.1 200 OK")
-			writer.println("Content-Type: ${ContentTypeHeaders.headerValue(content.mimeType)}")
+			writer.println("Content-Type: $contentTypeHeader")
 			writer.println("Content-Length: ${bytes.size}")
 			writer.println("Connection: close")
 			writer.println()
@@ -403,7 +409,7 @@ class WebServer(
 			output.flush()
 		} catch (e: Exception) {
 			log.error("Error processing request: {}", e.message)
-			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
+			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "", outputStarted = true)
 		}
 	}
 
