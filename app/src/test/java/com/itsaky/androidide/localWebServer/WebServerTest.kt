@@ -1,16 +1,20 @@
 package com.itsaky.androidide.localWebServer
 
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
+import com.itsaky.androidide.utils.DatabaseVersionResolver
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -53,6 +57,29 @@ class WebServerTest {
 			clearCacheEnablePath = "/nonexistent/cs0-flag",
 			projectDatabasePath = "/nonexistent/recent-projects.db",
 		)
+
+	// ADFA-5153/ADFA-5220: the dictionary is gated on the MAJOR version the database declares, so
+	// every test that expects the dictionary to load has to declare one. A relaxed mock answers the
+	// existence probe with moveToFirst() = false, i.e. "no version table", which would silently turn
+	// the dictionary tests below into no-ops rather than failing them.
+	private fun stubDeclaredMajorVersion(
+		db: SQLiteDatabase,
+		major: Int?,
+	) {
+		every {
+			db.rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
+		} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns (major != null) }
+		if (major != null) {
+			every {
+				db.rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any())
+			} returns
+				mockk<Cursor>(relaxed = true) {
+					every { moveToFirst() } returns true
+					every { isNull(0) } returns false
+					every { getInt(0) } returns major
+				}
+		}
+	}
 
 	private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
@@ -100,6 +127,272 @@ class WebServerTest {
 		}
 
 		assertPortIsFree(port)
+	}
+
+	// ADFA-5153: the compression dictionary is loaded lazily -- not merely from starting the
+	// server -- but only once per database, cached across every subsequent request against that
+	// same database rather than re-fetched per-request.
+	@Test
+	fun `compression dictionary loads lazily on first use, once per database, not once per request`() {
+		val port = freePort()
+
+		val dictionaryExistsCursor =
+			mockk<Cursor>(relaxed = true) {
+				every { moveToFirst() } returns true
+			}
+		val dictionaryDataCursor =
+			mockk<Cursor>(relaxed = true) {
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "test-dictionary-bytes".toByteArray()
+			}
+		val contentCursor =
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "hello".toByteArray()
+				every { getString(1) } returns "text/plain"
+				every { getString(2) } returns "none"
+				every { getInt(3) } returns 0
+			}
+
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		stubDeclaredMajorVersion(db, DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY)
+		every {
+			db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+		} returns dictionaryExistsCursor
+		every {
+			db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+		} returns dictionaryDataCursor
+		every {
+			db.rawQuery(match { it.contains("FROM   Content") }, any())
+		} returns contentCursor
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+
+			// Nothing fetches the dictionary merely from starting the server -- only a content
+			// fetch does, so before any request there should be no dictionary query at all yet --
+			// neither the sqlite_master existence check nor the data fetch.
+			verify(exactly = 0) {
+				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
+			verify(exactly = 0) {
+				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+
+			repeat(3) { sendRawGetRequestAndAwaitClose(port, "/some/path") }
+
+			// Exactly one dictionary load across all 3 requests against the same, unchanged
+			// database -- the first request's lazy load, cached for the other two. Both queries
+			// loadCompressionDictionary issues (the sqlite_master existence check, then the data
+			// fetch) must be checked, or a regression re-running just the existence check on
+			// every request would pass unnoticed.
+			verify(exactly = 1) {
+				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
+			verify(exactly = 1) {
+				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
+	// ADFA-5153: a database swap (the debug-DB override) must invalidate the cached dictionary --
+	// the new database can have a different one, or none -- causing exactly one fresh reload on
+	// the first content fetch against the new database, not a reload on every later request too.
+	@Test
+	fun `database swap invalidates the cached dictionary, reloading it once for the new database`() {
+		val port = freePort()
+		val debugDbFile = File.createTempFile("webserver-test-debug", ".db")
+		debugDbFile.delete() // must not exist yet -- the first request should stay on the primary db
+
+		fun contentCursorFor(marker: String) =
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns marker.toByteArray()
+				every { getString(1) } returns "text/plain"
+				every { getString(2) } returns "none"
+				every { getInt(3) } returns 0
+			}
+
+		fun stubDatabase(
+			db: SQLiteDatabase,
+			dictionaryBytes: String,
+		) {
+			stubDeclaredMajorVersion(db, DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY)
+			every {
+				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns true }
+			every {
+				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			} returns
+				mockk<Cursor>(relaxed = true) {
+					every { moveToFirst() } returns true
+					every { getBlob(0) } returns dictionaryBytes.toByteArray()
+				}
+			every {
+				db.rawQuery(match { it.contains("FROM   Content") }, any())
+			} returns contentCursorFor(dictionaryBytes)
+		}
+
+		val primaryDb = mockk<SQLiteDatabase>(relaxed = true)
+		val debugDb = mockk<SQLiteDatabase>(relaxed = true)
+		stubDatabase(primaryDb, "dict-primary")
+		stubDatabase(debugDb, "dict-debug")
+
+		val config = testConfig(port).copy(debugDatabasePath = debugDbFile.absolutePath)
+		every { SQLiteDatabase.openDatabase(config.databasePath, isNull(), any()) } returns primaryDb
+		every { SQLiteDatabase.openDatabase(config.debugDatabasePath, isNull(), any()) } returns debugDb
+
+		val server = WebServer(config)
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+
+			sendRawGetRequestAndAwaitClose(port, "/some/path")
+			verify(exactly = 1) {
+				primaryDb.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
+			verify(exactly = 1) {
+				primaryDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+			verify(exactly = 0) {
+				debugDb.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
+			verify(exactly = 0) {
+				debugDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+
+			// Now make the debug override newer than the primary database -- the swap check in
+			// handleClient() picks this up on the very next request.
+			debugDbFile.createNewFile()
+			debugDbFile.setLastModified(System.currentTimeMillis() + 60_000)
+
+			repeat(2) { sendRawGetRequestAndAwaitClose(port, "/some/path") }
+
+			// Exactly one reload for the new (debug) database, across both post-swap requests --
+			// not zero (it must invalidate), not two (it must still cache after the first reload).
+			// Both queries loadCompressionDictionary issues must be checked (see the sibling test).
+			verify(exactly = 1) {
+				debugDb.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
+			verify(exactly = 1) {
+				debugDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+			// The primary database's dictionary is never touched again after the swap.
+			verify(exactly = 1) {
+				primaryDb.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
+			verify(exactly = 1) {
+				primaryDb.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+			debugDbFile.delete()
+		}
+	}
+
+	// ADFA-5153/ADFA-5220: below MAJOR 2 the dictionary is neither read nor attached, and the
+	// CompressionDictionary probe does not even run -- table sniffing is precisely what the version
+	// gate replaces, since a database can carry the table while its content is still plain brotli.
+	@Test
+	fun `a database declaring a version below 2 is never asked for a dictionary`() {
+		assertDictionaryLoads(declaredMajor = 1, expected = 0)
+	}
+
+	@Test
+	fun `a database with no version table is never asked for a dictionary`() {
+		assertDictionaryLoads(declaredMajor = null, expected = 0)
+	}
+
+	// A later format is still expected to carry the dictionary, so the gate is a floor, not a match.
+	@Test
+	fun `a database declaring a version above 2 still loads the dictionary`() {
+		assertDictionaryLoads(declaredMajor = 3, expected = 1)
+	}
+
+	// The CompressionDictionary cursors are stubbed as *available* in every case, including the
+	// ones expecting zero queries: that is what makes this a test of the gate rather than of a
+	// missing table -- the queries are not skipped for want of an answer.
+	private fun assertDictionaryLoads(
+		declaredMajor: Int?,
+		expected: Int,
+	) {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		stubDeclaredMajorVersion(db, declaredMajor)
+		every {
+			db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+		} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns true }
+		every {
+			db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+		} returns
+			mockk<Cursor>(relaxed = true) {
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "test-dictionary-bytes".toByteArray()
+			}
+		every {
+			db.rawQuery(match { it.contains("FROM   Content") }, any())
+		} returns
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "hello".toByteArray()
+				every { getString(1) } returns "text/plain"
+				every { getString(2) } returns "none"
+				every { getInt(3) } returns 0
+			}
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			sendRawGetRequestAndAwaitClose(port, "/some/path")
+
+			verify(exactly = expected) {
+				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			}
+			verify(exactly = expected) {
+				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+			}
+			// The version itself is read once per database either way -- the gate is consulted, and
+			// its answer cached, exactly like the dictionary it guards.
+			verify(exactly = 1) {
+				db.rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
+			}
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
+	// Blocks until the server closes the connection (every response sends "Connection: close"),
+	// so by the time this returns the server has fully finished processing this one request --
+	// making repeated calls a reliable way to serialize several full request/response cycles.
+	private fun sendRawGetRequestAndAwaitClose(
+		port: Int,
+		path: String,
+	) {
+		Socket().use { socket ->
+			socket.connect(InetSocketAddress("localhost", port), 2_000)
+			socket.soTimeout = 2_000
+			socket.getOutputStream().apply {
+				write("GET $path HTTP/1.1\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
+				flush()
+			}
+			socket.getInputStream().readBytes()
+		}
 	}
 
 	// Polls by attempting an actual TCP connect rather than sleeping a fixed
