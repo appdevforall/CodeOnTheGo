@@ -259,7 +259,7 @@ Synthetic apps ship with their oracles and results in the `CodeOnTheGo-build-ben
 
 ### The Per-Save Path Does Not Use Gradle
 
-Provisioning runs a real Gradle build, but every save after it does not - the daemon compiles, dexes and swaps resources directly, because a Gradle invocation per save costs seconds that this feature exists to remove. ADR 0002 chose the Gradle Tooling API for on-device builds and still reads as covering all of them, so this branch adds ADR 0012 to record the second path and its limits rather than leave 0002 quietly overstated. Cost: two build paths to keep honest. The proxy app is only ever produced by AGP, and the per-save path is never allowed to produce an installable artifact.
+Provisioning runs a real Gradle build, but every save after it does not - the daemon compiles, dexes and swaps resources directly, because a Gradle invocation per save costs seconds that this feature exists to remove. ADR 0002 chose the Gradle Tooling API for on-device builds and still reads as covering all of them, so this branch adds ADR 0015 to record the second path and its limits rather than leave 0002 quietly overstated. Cost: two build paths to keep honest. The proxy app is only ever produced by AGP, and the per-save path is never allowed to produce an installable artifact.
 
 ### The Proxy App Connection Registry Is a Process-Wide Singleton
 
@@ -276,7 +276,7 @@ Unit and Kaspresso tests cover CoGo itself; anything that crosses into the proxy
 - **Script a session over `adb`.** Under the `CodeOnTheGo.qbbench` flag an exported activity opens a project and fires the first tap in place of a human, so a whole session - including a retry after an install-confirm timeout - runs unattended. Command and options: [`docs/debugging.md` §6](docs/debugging.md).
 - **Run the corpus.** The `CodeOnTheGo-build-benchmark` repo carries the open-source app corpus, realistic edits and the E2E harness. Correctness comes from its two oracles - recompiled-class bounds and output equivalence - not from timings. Commit the results dir for any compile-pipeline change, and cite one for any latency claim.
 
-A new edit class or route needs all three: a classifier test, a corpus edit declaring `expected.route`, and an on-device walk if it deploys. Two traps: the root build sets `ignoreFailures = true` on test tasks, so read `<module>/build/test-results/` rather than trusting `BUILD SUCCESSFUL`; and nothing runs the real daemon jar against the real client ([`DaemonProcessClientTest`](core/src/test/java/org/appdevforall/cotg/quickbuild/data/DaemonProcessClientTest.kt) drives a scripted fake), so a protocol regression that compiles only surfaces on device.
+A new edit class or route needs all three: a classifier test, a corpus edit declaring `expected.route`, and an on-device walk if it deploys. Two traps: the root build sets `ignoreFailures = true` on test tasks only for analysis invocations (`sonar`, `sonarqube`, `jacocoAggregateReport`) - an ordinary test run gates on failures, but on an analysis run read `<module>/build/test-results/` rather than trusting `BUILD SUCCESSFUL`; and nothing runs the real daemon jar against the real client ([`DaemonProcessClientTest`](core/src/test/java/org/appdevforall/cotg/quickbuild/data/DaemonProcessClientTest.kt) drives a scripted fake), so a protocol regression that compiles only surfaces on device.
 
 ### How to Run On Device
 
