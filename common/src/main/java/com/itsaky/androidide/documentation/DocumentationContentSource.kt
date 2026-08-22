@@ -18,6 +18,7 @@
 package com.itsaky.androidide.documentation
 
 import android.database.sqlite.SQLiteDatabase
+import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -158,6 +159,11 @@ class DocumentationContentSource(
 	// A debug database whose swap already failed, so a corrupt or unreadable one is not reopened
 	// on every check. A newer copy has a different timestamp and is retried, which is the case
 	// that matters: replacing the file is exactly how a developer fixes it.
+	// Volatile because the check that reads it happens outside the write lock: without it a second
+	// thread never sees the first's failure marker and re-attempts openDatabase on the broken file
+	// while holding the write lock, serialising every reader behind a failing open -- the exact
+	// behaviour this field exists to prevent. A 64-bit read is not atomic on armeabi-v7a either.
+	@Volatile
 	private var failedDebugSwapTimestamp: Long = -1
 
 	// The dictionary the Content rows are compressed against. Loaded on the first decode that
@@ -386,6 +392,30 @@ class DocumentationContentSource(
 	}
 
 	/**
+	 * Loads brotli4j's native library if nothing else has yet, and turns its absence into a failed
+	 * read rather than a dead app.
+	 *
+	 * Nothing here owns that load: it happens as a side effect of `AssetsInstallationHelper`'s
+	 * install or `ToolsManager`'s tooling-jar update, neither of which runs on an ordinary cold
+	 * start. A process that skips both reaches the first brotli row with the natives unregistered,
+	 * and `DecoderJNI.nativeCreate` raises `UnsatisfiedLinkError` -- an Error, not an Exception, so
+	 * it escapes every `catch (e: Exception)` between here and the accept loop and kills the app
+	 * (observed on-device, 20-Aug). The guard lived in `WebServer.decompressBrotli`; when the decode
+	 * moved here it had to move with it.
+	 *
+	 * Referencing [Brotli4jLoader] triggers the static init that performs the load, so this call is
+	 * the warm-up; afterwards `ensureAvailability` is a single static null-check, cheap enough to
+	 * leave on the per-decode path.
+	 */
+	private fun ensureBrotliAvailable() {
+		try {
+			Brotli4jLoader.ensureAvailability()
+		} catch (e: UnsatisfiedLinkError) {
+			throw IOException("brotli4j's native library is unavailable, so brotli content cannot be decoded", e)
+		}
+	}
+
+	/**
 	 * Decompresses one Brotli row. Tries the shared dictionary first, since every migrated row
 	 * requires it, then falls back to a plain decode for rows that were never dictionary
 	 * compressed: plugin-contributed Tier 3 docs (PluginDocumentationManager/BrotliCompressor
@@ -398,6 +428,7 @@ class DocumentationContentSource(
 		database: SQLiteDatabase,
 		chunks: List<ByteArray>,
 	): ByteArray {
+		ensureBrotliAvailable()
 		val dictionary = compressionDictionary(database)
 		if (dictionary != null) {
 			try {

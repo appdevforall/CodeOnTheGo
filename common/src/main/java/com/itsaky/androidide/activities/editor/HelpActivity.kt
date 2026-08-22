@@ -21,6 +21,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -72,6 +73,8 @@ class HelpActivity : BaseIDEActivity() {
 	private val documentation = DocumentationRequestInterceptor.shared
 
 	// Wall-clock start of the page currently loading, for the ADFA-5176 measurement.
+	// elapsedRealtime, not currentTimeMillis: an NTP correction or a user clock change between
+	// onPageStarted and onPageFinished would otherwise report a negative or absurd duration.
 	private var pageLoadStartMillis = 0L
 
 	@Suppress("ktlint:standard:backing-property-naming")
@@ -129,7 +132,7 @@ class HelpActivity : BaseIDEActivity() {
 						favicon: android.graphics.Bitmap?,
 					) {
 						super.onPageStarted(view, url, favicon)
-						pageLoadStartMillis = System.currentTimeMillis()
+						pageLoadStartMillis = SystemClock.elapsedRealtime()
 					}
 
 					override fun onPageFinished(
@@ -140,10 +143,13 @@ class HelpActivity : BaseIDEActivity() {
 						invalidateOptionsMenu()
 
 						if (pageLoadStartMillis != 0L) {
+							// The summary's counters are process-cumulative, so they are labelled as
+							// such rather than read as this page's -- the tenth page in a session
+							// would otherwise report the whole session's bytes as its own.
 							log.info(
-								"Loaded '{}' in {} ms; {}.",
+								"Loaded '{}' in {} ms; in-process totals so far: {}.",
 								url,
-								System.currentTimeMillis() - pageLoadStartMillis,
+								SystemClock.elapsedRealtime() - pageLoadStartMillis,
 								documentation.servedSummary(),
 							)
 							pageLoadStartMillis = 0L
@@ -185,10 +191,9 @@ class HelpActivity : BaseIDEActivity() {
 					}
 				}
 
-			// Load the HTML file from the assets folder
-			htmlContent?.let { url ->
-				webView.loadUrl(url)
-			}
+			// The page itself is loaded by updateUIFromIntent below -- the one place that does it,
+			// since onNewIntent needs the same path. Loading it here as well made every open pay
+			// two full reads: decode, render and serve the same row twice.
 		}
 
 		// Set up back navigation callback for system back button

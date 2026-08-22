@@ -97,9 +97,6 @@ class IDETooltipWebviewFragment : Fragment() {
 
 		// Set up WebChromeClient to support JavaScript
 //        webView.webChromeClient = WebChromeClient()
-		webView.settings.allowFileAccessFromFileURLs
-		webView.settings.allowFileAccess
-		webView.settings.allowUniversalAccessFromFileURLs
 		webView.scrollBarStyle = WebView.SCROLLBARS_OUTSIDE_OVERLAY
 		webView.scrollBarDefaultDelayBeforeFade = 1000
 

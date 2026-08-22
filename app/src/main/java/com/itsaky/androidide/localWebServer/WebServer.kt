@@ -9,9 +9,7 @@ import com.itsaky.androidide.documentation.DocumentationContentSource
 import com.itsaky.androidide.documentation.DocumentationLookup
 import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.DatabaseVersionResolver
-import okio.ByteString.Companion.toByteString
 import org.slf4j.LoggerFactory
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
@@ -20,12 +18,7 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.RejectedExecutionException
-import java.util.concurrent.SynchronousQueue
-import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 data class ServerConfig(
@@ -93,14 +86,15 @@ class WebServer(
 	// Frozen at startup; restart the server to pick up a change.
 	private val clearCacheEnabled: Boolean = File(config.clearCacheEnablePath).exists()
 
-	// Read and written by any worker; -1 means "not fetched yet". Two workers racing to fetch it
-	// both write the same id, so a plain volatile is enough.
+	// -1 means "not fetched yet". Volatile because the WebView transport shares this server's
+	// process, and the interceptor's reads can run on WebView threads while the accept loop writes.
 	@Volatile
 	private var bookshelfTemplateId: Int = -1
 
 	private val cacheLock = Any()
 
-	// Which of the source's databases templateCache and bookshelfTemplateId were filled from.
+	// Which of the source's databases bookshelfTemplateId was filled from. The compiled templates
+	// themselves live in the source and are dropped by its own swap.
 	@Volatile
 	private var cachedDatabaseGeneration = 0L
 	private val httpInternalServerError = 500
@@ -221,11 +215,11 @@ class WebServer(
 				serverSocket.close()
 			}
 
-			// The database is opened before the stopRequested check that can abort start() early
-			// (and before the accept loop on every other exit path), so it has to be closed here
-			// too, not just serverSocket. Closing an unopened source is a no-op, and the source
-			// closes under its own write lock: awaitTermination above can time out, and a worker
-			// that outlived it finishes its read before the handle goes.
+			// The source is opened before the stopRequested check that can abort start() early (and
+			// before the accept loop on every other exit path), so it has to be closed here too,
+			// not just serverSocket. Closing an unopened source is a no-op, and it closes under its
+			// own write lock, so a read in flight on another thread -- a WebView's, through the
+			// interceptor's separate source -- finishes before any handle goes.
 			contentSource.close()
 			TrafficStats.clearThreadStatsTag()
 		}

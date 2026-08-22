@@ -68,6 +68,76 @@ class DocumentationContentSourceTest {
 			every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns contentCursor
 		}
 
+	/** A database that declares [major] in ADFA-5220's version table, or none when null. */
+	private fun database(
+		contentCursor: Cursor,
+		declaredMajorVersion: Int?,
+		dictionary: ByteArray? = "test-dictionary".toByteArray(),
+	): SQLiteDatabase =
+		mockk<SQLiteDatabase>(relaxed = true) {
+			every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns contentCursor
+			every {
+				rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
+			} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns (declaredMajorVersion != null) }
+			if (declaredMajorVersion != null) {
+				every { rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any()) } returns
+					mockk<Cursor>(relaxed = true) {
+						every { moveToFirst() } returns true
+						every { isNull(0) } returns false
+						every { getInt(0) } returns declaredMajorVersion
+					}
+			}
+			every {
+				rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
+			} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns (dictionary != null) }
+			every { rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null) } returns
+				mockk<Cursor>(relaxed = true) {
+					every { moveToFirst() } returns (dictionary != null)
+					every { getBlob(0) } returns dictionary
+				}
+		}
+
+	// ADFA-5220: the dictionary is gated on the version the database declares, not on whether a
+	// CompressionDictionary table happens to exist. These three cover the gate that WebServerTest
+	// used to own before the decode moved into this class.
+	@Test
+	fun `a database declaring a version below 2 is never asked for a dictionary`() {
+		assertDictionaryRead(declaredMajorVersion = 1, expected = 0)
+	}
+
+	@Test
+	fun `a database with no version table is never asked for a dictionary`() {
+		assertDictionaryRead(declaredMajorVersion = null, expected = 0)
+	}
+
+	// The gate is a floor, not a match: a later format still carries the dictionary.
+	@Test
+	fun `a database declaring a version above 2 still loads the dictionary`() {
+		assertDictionaryRead(declaredMajorVersion = 3, expected = 1)
+	}
+
+	/**
+	 * The dictionary cursors are stubbed as *available* in every case, including the ones expecting
+	 * zero reads: that is what makes this a test of the gate rather than of a missing table.
+	 */
+	private fun assertDictionaryRead(
+		declaredMajorVersion: Int?,
+		expected: Int,
+	) {
+		val database = database(contentCursor(compression = "brotli"), declaredMajorVersion)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		source().use { it.lookup("a/page.html") }
+
+		verify(exactly = expected) {
+			database.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
+		}
+		// The version itself is always consulted -- that is the gate being reached at all.
+		verify(atLeast = 1) {
+			database.rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
+		}
+	}
+
 	@Test
 	fun `lookup returns the row for a path`() {
 		val database = database(contentCursor(bytes = "page".toByteArray(), mimeType = "text/html"))

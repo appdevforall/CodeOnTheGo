@@ -20,7 +20,6 @@ package com.itsaky.androidide.documentation
 import android.os.Environment.getExternalStorageDirectory
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
-import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.Environment
 import org.slf4j.LoggerFactory
@@ -105,22 +104,13 @@ class DocumentationRequestInterceptor(
 		 * charset as its own value. The source hands back decompressed bytes -- a WebView does not
 		 * decode an intercepted response -- so there is no Content-Encoding to declare either.
 		 *
-		 * Which types get a charset is [ContentTypeHeaders]' decision, not this transport's. The two
-		 * transports answering differently about what a response *says* would be worse than either
-		 * answer, and this one used to say `text/` only -- so an SVG served in-process declared no
-		 * encoding while the same row over the socket did (ADFA-5241).
+		 * Both the split and the default come from [ContentTypeHeaders], so the two transports cannot
+		 * disagree about what a response says. This used to parse the charset itself, with the naive
+		 * `substringAfter("charset=")` that ContentTypeHeaders warns against: for
+		 * `text/html; note="charset=iso-8859-1"` it declared iso-8859-1 while the socket declared
+		 * utf-8, and for `; Charset=UTF-8` it missed the parameter entirely (ADFA-5241).
 		 */
-		internal fun mimeAndCharset(mimeType: String): Pair<String, String?> {
-			val type = mimeType.substringBefore(';').trim()
-			val declared =
-				mimeType
-					.substringAfter("charset=", "")
-					.substringBefore(';')
-					.trim()
-					.ifEmpty { null }
-
-			return type to (declared ?: ContentTypeHeaders.charsetFor(mimeType))
-		}
+		internal fun mimeAndCharset(mimeType: String): Pair<String, String?> = ContentTypeHeaders.typeAndCharset(mimeType)
 
 		private const val DISABLE_SENTINEL = "Download/CodeOnTheGo.nointercept"
 		private const val SERVER_HOST = "localhost"
@@ -134,8 +124,6 @@ class DocumentationRequestInterceptor(
 		 * cost of the second handle is SQLite's page cache plus the dictionary, a few MB.
 		 */
 		val shared: DocumentationRequestInterceptor by lazy {
-			Brotli4jLoader.ensureAvailability()
-
 			DocumentationRequestInterceptor(
 				DocumentationContentSource(
 					Environment.DOC_DB,
