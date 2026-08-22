@@ -355,8 +355,13 @@ object SourceAnnotationScanner {
 	private val WHITESPACE = Regex("\\s+")
 	private val IMPORT = Regex("^import\\s+(?:static\\s+)?([\\w.]+(?:\\.\\*)?)")
 	private val PACKAGE = Regex("^package\\s+([\\w.]+)")
+
+	// `enum\s+class` must precede `enum`, or Kotlin's `enum class Color` captures the literal
+	// word "class" as the declared name. `typealias` and top-level `const val` count as
+	// declarations too: both can be anchors an annotated declaration reads (a `typealias`
+	// column type, a `const val` database version).
 	private val TYPE_DECLARATION =
-		Regex("\\b(class|interface|object|enum|record|@interface)\\s+([A-Za-z_][A-Za-z0-9_]*)")
+		Regex("\\b(enum\\s+class|class|interface|object|enum|record|@interface|typealias|const\\s+val)\\s+([A-Za-z_][A-Za-z0-9_]*)")
 	private val CAPITALIZED = Regex("\\b[A-Z][A-Za-z0-9_]*\\b")
 
 	/**
