@@ -179,7 +179,9 @@ class DaemonService(
 	 * Compiles the requested sources and reports the changed class outputs plus phase timings.
 	 *
 	 * @param request must list every module source in `allSources`, not only the edited ones,
-	 *   and repeat them all in `changedFiles` on a session's first compile.
+	 *   and repeat them all in `changedFiles` on a session's first compile - and again to
+	 *   rebaseline after a failed dex or deploy, which makes `classesChanged` report the whole
+	 *   tree instead of a diff against outputs the device never received.
 	 * @return ok with `classesDir`, the phase timings and the `classesChanged` path list, or
 	 *   ok:false carrying the compiler diagnostics; ok:false if no `configure` ran first.
 	 */
@@ -278,6 +280,8 @@ class DaemonService(
 	 *
 	 * @param request `stableIds` and `libraryResources` are optional on the wire but omitting
 	 *   either risks a wrong-id crash or an unresolvable reference - see [Aapt2Link]'s KDoc.
+	 *   A `stableIds` path that is supplied but missing on disk fails the relink rather than
+	 *   silently linking unpinned.
 	 * @return ok with `resourcesArsc` (the full relinked apk) and the aapt2 timings, or ok:false
 	 *   carrying the aapt2 diagnostics; ok:false if no `configure` ran first.
 	 */

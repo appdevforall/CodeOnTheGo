@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIf
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.jar.JarEntry
+import java.util.jar.JarOutputStream
 
 /**
  * End-to-end on the host JVM: real BTA CompilationService, real kotlinc, real IC caches.
@@ -776,5 +778,109 @@ class IncrementalCompilerTest {
 		assertThat(located).isNotNull()
 		assertThat(located!!.severity).isEqualTo(Diagnostic.Severity.ERROR)
 		assertThat(located.line).isEqualTo(4)
+	}
+
+	@Test
+	fun `declaring every source changed rebaselines - the whole output tree is reported changed`() {
+		// A compile can succeed and its deploy still fail (dex split, push, install), and no
+		// deploy ack reaches the daemon. The client's recovery is to declare everything changed
+		// (an untrusted baseline); the daemon must then report the whole tree, not diff against
+		// the last compile's never-deployed outputs and answer "nothing changed".
+		val sources = listOf(greeterKt(), mainKt())
+		val compiler = compiler()
+		assertThat(compiler.compile(sources, changedFiles = sources))
+			.isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+
+		// No edit at all: every output is byte-identical to the baseline's, so a diff against
+		// the last compile's tree would report nothing.
+		val rebaselined = compiler.compile(sources, changedFiles = sources)
+
+		assertThat(rebaselined).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		assertThat((rebaselined as IncrementalCompiler.Result.Success).changedClassFiles)
+			.containsAtLeast("demo/Greeter.class", "demo/MainKt.class")
+	}
+
+	/** Compiles one Java class and jars it at [target] - a library jar AGP rewrites in place. */
+	private fun buildLibJar(
+		target: File,
+		body: String,
+	) {
+		val libSource =
+			File(tempDir, "lib-src/libdemo/Lib.java").apply {
+				parentFile!!.mkdirs()
+				writeText("package libdemo;\n\npublic class Lib {\n\t$body\n}\n")
+			}
+		val libClasses = File(tempDir, "lib-classes-${System.nanoTime()}").apply { mkdirs() }
+		val compiled = JavaCompileStep.compile(listOf(libSource), emptyList(), libClasses)
+		check(compiled.success) { "fixture lib compile failed: ${compiled.diagnostics}" }
+		JarOutputStream(target.outputStream()).use { jar ->
+			libClasses
+				.walkTopDown()
+				.filter { it.isFile && it.extension == "class" }
+				.forEach { classFile ->
+					jar.putNextEntry(JarEntry(classFile.relativeTo(libClasses).invariantSeparatorsPath))
+					jar.write(classFile.readBytes())
+					jar.closeEntry()
+				}
+		}
+	}
+
+	private fun libUserKt(): File =
+		writeSource(
+			"LibUser.kt",
+			"""
+			package demo
+
+			class LibUser {
+				fun total(): Int = libdemo.Lib.answer()
+			}
+			""".trimIndent(),
+		)
+
+	@Test
+	fun `re-configuring over an in-place rewritten classpath jar discards the stale shrunk snapshot`() {
+		// Session A leaves a shrunk snapshot in workDir; a standard Gradle build rewrites a
+		// classpath jar AT THE SAME PATH with a new ABI; session B re-configures into the same
+		// workDir. Trusting the surviving snapshot means asserting "classpath unchanged" over a
+		// classpath that did change - dependents of the moved ABI then ship stale, silently.
+		val libJar = File(tempDir, "lib.jar")
+		buildLibJar(libJar, "public static int answer() { return 41; }")
+		val sources = listOf(libUserKt())
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), libJar), workDir.toPath()).use { sessionA ->
+			assertThat(sessionA.compile(sources, changedFiles = sources))
+				.isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		}
+		val shrunkSnapshot = File(workDir, "shrunk-classpath-snapshot.bin")
+		check(shrunkSnapshot.isFile) { "fixture left no shrunk snapshot" }
+
+		buildLibJar(libJar, "public static int answer2() { return 42; }")
+
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), libJar), workDir.toPath()).use { sessionB ->
+			// The configure-time defense: changed classpath bytes invalidate the snapshot ...
+			assertThat(shrunkSnapshot.exists()).isFalse()
+			// ... and the reseeded compile sees the new ABI: the caller of the removed method
+			// must FAIL, never silently keep bytecode against the old library.
+			assertThat(sessionB.compile(sources, changedFiles = emptyList()))
+				.isInstanceOf(IncrementalCompiler.Result.Failed::class.java)
+		}
+	}
+
+	@Test
+	fun `re-configuring over byte-identical classpath jars keeps the warm shrunk snapshot`() {
+		// The defense must key on CONTENT: wiping on every re-configure would pay a full
+		// engine reseed per session and silently lose the warm-cache win it exists to protect.
+		val libJar = File(tempDir, "lib.jar")
+		buildLibJar(libJar, "public static int answer() { return 41; }")
+		val sources = listOf(libUserKt())
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), libJar), workDir.toPath()).use { sessionA ->
+			assertThat(sessionA.compile(sources, changedFiles = sources))
+				.isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		}
+		val shrunkSnapshot = File(workDir, "shrunk-classpath-snapshot.bin")
+		check(shrunkSnapshot.isFile) { "fixture left no shrunk snapshot" }
+
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), libJar), workDir.toPath()).use {
+			assertThat(shrunkSnapshot.isFile).isTrue()
+		}
 	}
 }
