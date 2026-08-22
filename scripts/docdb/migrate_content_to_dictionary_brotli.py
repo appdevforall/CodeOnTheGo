@@ -71,6 +71,7 @@ dictionaries, so encode and decode both shell out to it with -D.
 from __future__ import annotations
 
 import argparse
+import atexit
 import concurrent.futures as futures
 import os
 import re
@@ -82,6 +83,16 @@ import time
 from dataclasses import dataclass, field
 
 CHUNK_BYTES = 1024 * 1024
+
+
+def is_text_type(value: str) -> bool:
+    """Whether a ContentTypes.value is a text type, matched at the boundary.
+
+    `startswith("text")` also matches `textual/example`; the database's bare `text`
+    oddity is why the exact match is needed alongside `text/`. Same rule as the
+    app's ContentTypeHeaders (ADFA-5241).
+    """
+    return value == "text" or value.startswith("text/")
 CONTINUATION = re.compile(r"^(.*)-(\d+)$")
 ALL_PHASES = ("retype", "renumber", "migrate")
 
@@ -104,6 +115,17 @@ def _init_worker(dictionary: bytes) -> None:
     with os.fdopen(handle, "wb") as out:
         out.write(dictionary)
     _DICTIONARY_PATH = path
+    # One file per worker, so without this a run leaves `--workers` copies of the
+    # dictionary in the temp directory forever. Survives a normal pool shutdown; a
+    # kill -9 of a worker still leaks its file.
+    atexit.register(_remove_quietly, path)
+
+
+def _remove_quietly(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 def _brotli(args: list[str], payload: bytes) -> tuple[bool, bytes, str]:
@@ -139,6 +161,8 @@ def sniff(payload: bytes) -> str:
         return "image/jpeg"
     if payload[:4] == b"RIFF" and payload[8:12] == b"WEBP":
         return "image/webp"
+    if payload[:2] == b"BM":
+        return "image/bmp"
     if payload[:4] == b"\x00\x00\x01\x00":
         return "image/x-icon"
     if payload[:4] == b"%PDF":
@@ -262,7 +286,7 @@ def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only
 
     # Decoding every row here anyway makes a mislabel sweep free: report a
     # text-typed row whose payload is recognisably binary, whatever its name.
-    mislabelled = sniff(plaintext) if item.content_type.startswith("text") else ""
+    mislabelled = sniff(plaintext) if is_text_type(item.content_type) else ""
 
     # A stream that decodes *both* ways is one the compressor never referenced the
     # dictionary for -- small, already-compressed payloads like a 1 KB GIF. It is
@@ -409,6 +433,14 @@ def retype_rows(connection: sqlite3.Connection, item: Item, content_type_id: int
     )
 
 
+def table_exists(connection: sqlite3.Connection, name: str) -> bool:
+    """Whether `name` is a table in this database -- checked the way WebServer does."""
+    found = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)
+    ).fetchone()
+    return found is not None
+
+
 def content_types(connection: sqlite3.Connection) -> dict[str, tuple[int, str]]:
     return {
         value: (type_id, compression)
@@ -452,6 +484,15 @@ def renumber_item(connection: sqlite3.Connection, item: Item, write: bool) -> st
     return ""
 
 
+def report(errors: list[str], notes: list[str], limit: int = 30) -> None:
+    """Print what went wrong and what merely deserves a look, to stderr, labelled."""
+    for label, entries in (("error", errors), ("note", notes)):
+        for entry in entries[:limit]:
+            print(f"  {label}: {entry}", file=sys.stderr)
+        if len(entries) > limit:
+            print(f"  ... and {len(entries) - limit} more {label}s", file=sys.stderr)
+
+
 def human(n: float) -> str:
     for unit in ("B", "KiB", "MiB", "GiB"):
         if abs(n) < 1024 or unit == "GiB":
@@ -460,15 +501,20 @@ def human(n: float) -> str:
     return f"{n:,.1f} GiB"
 
 
-def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[str]]:
-    """Retype rows that claim to be text but hold a recognisable binary payload."""
+def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[str], list[str]]:
+    """Retype rows that claim to be text but hold a recognisable binary payload.
+
+    Returns (retyped paths, errors, notes). Errors are failures of the work this
+    phase exists to do; notes are observations that do not make the run wrong.
+    """
     print(f"[1/3] retype      {len(items):,} text-typed rows with a binary extension")
     if not items:
-        return set(), []
+        return set(), [], []
 
     types = content_types(connection)
     counts: dict[str, int] = {}
-    problems: list[str] = []
+    errors: list[str] = []
+    notes: list[str] = []
     retyped: list[tuple[Item, Inspection, str]] = []
     before_total = after_total = 0
 
@@ -477,11 +523,11 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
         item = pending[future]
         found = future.result()
         if found.status == "error":
-            problems.append(f"{item.base_path}: {found.detail}")
+            errors.append(f"{item.base_path}: {found.detail}")
             continue
         if found.status == "keep":
             counts["left as text"] = counts.get("left as text", 0) + 1
-            problems.append(f"{item.base_path}: {found.detail}")
+            notes.append(f"{item.base_path}: {found.detail}")
             continue
 
         target = found.sniffed
@@ -490,7 +536,7 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
         extension = item.base_path.rsplit(".", 1)[-1].lower()
         if extension not in target and not (extension in ("jpg", "jpeg") and target == "image/jpeg") \
                 and not (extension == "mov" and target.startswith("video/")):
-            problems.append(f"{item.base_path}: named .{extension} but the payload is {found.sniffed}")
+            notes.append(f"{item.base_path}: named .{extension} but the payload is {found.sniffed}")
 
         retyped.append((item, found, target))
         counts[target] = counts.get(target, 0) + 1
@@ -533,12 +579,17 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
           f"({'+' if after_total >= before_total else ''}{human(after_total - before_total)})")
     if write:
         print(f"      rows inserted {inserted_total}   deleted {deleted_total}")
-    return {item.base_path for item, _, _ in retyped}, problems
+    return {item.base_path for item, _, _ in retyped}, errors, notes
 
 
-def phase_renumber(connection, args, write, retyped_paths: set[str]) -> tuple[int, list[str]]:
-    """Shift -2-based continuation numbering down to the -1 the app expects."""
-    items = [item for item in load_items(connection, "1 = 1") if item.continuations]
+def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> tuple[int, list[str], list[str]]:
+    """Shift -2-based continuation numbering down to the -1 the app expects.
+
+    [select] applies --limit and --path here as it does to the other phases. Without
+    it a scoped trial run -- the first thing anyone sensibly tries -- silently
+    rewrote every chunked item in the database.
+    """
+    items = select([item for item in load_items(connection, "1 = 1") if item.continuations])
     if args.renumber_scope == "retyped":
         items = [item for item in items if item.base_path in retyped_paths]
     broken = [item for item in items if item.first_suffix != 1]
@@ -549,12 +600,14 @@ def phase_renumber(connection, args, write, retyped_paths: set[str]) -> tuple[in
               f"{', '.join('-' + str(n) for n in starts)} instead of -1")
     else:
         print(f"[2/3] renumber    all {len(items)} chunked items already start at -1")
-    problems: list[str] = []
+    errors: list[str] = []
+    notes: list[str] = []
     fixed = 0
     for item in broken:
         note = renumber_item(connection, item, write)
         if note:
-            problems.append(f"{item.base_path}: {note}")
+            # A repair this phase exists to make and could not: an error, not an aside.
+            errors.append(f"{item.base_path}: {note}")
         else:
             fixed += 1
     if write:
@@ -562,13 +615,13 @@ def phase_renumber(connection, args, write, retyped_paths: set[str]) -> tuple[in
 
     for item in items:
         if item.base_bytes != CHUNK_BYTES:
-            problems.append(
+            notes.append(
                 f"{item.base_path}: chunked but its base row is {item.base_bytes:,} bytes, not "
                 f"{CHUNK_BYTES:,} -- the app detects chunking by that exact length, so it will not reassemble"
             )
     if fixed:
-        print(f"      renumbered from -1: {fixed}")
-    return fixed, problems
+        print(f"      {'renumbered' if write else 'would renumber'} to start at -1: {fixed}")
+    return fixed, errors, notes
 
 
 def verify_retype(connection, retyped_paths: set[str], mov_type: str) -> list[str]:
@@ -629,11 +682,23 @@ def main() -> int:
     connection = sqlite3.connect(args.database)
     connection.execute("PRAGMA foreign_keys = ON")
 
-    dictionary_row = connection.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
-    if dictionary_row is None or not dictionary_row[0]:
-        print("error: this database has no CompressionDictionary row to migrate against", file=sys.stderr)
-        return 2
-    dictionary = dictionary_row[0]
+    # Only the phases that decode or encode need the dictionary. renumber only moves
+    # paths, so requiring one there refused to run on exactly the old databases whose
+    # numbering most needs repairing.
+    dictionary = b""
+    if any(phase in ("retype", "migrate") for phase in args.phase_list):
+        if not table_exists(connection, "CompressionDictionary"):
+            print(
+                "error: this database has no CompressionDictionary table, so there is nothing to "
+                "migrate against; --phases renumber works without one",
+                file=sys.stderr,
+            )
+            return 2
+        dictionary_row = connection.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
+        if dictionary_row is None or not dictionary_row[0]:
+            print("error: this database has no CompressionDictionary row to migrate against", file=sys.stderr)
+            return 2
+        dictionary = dictionary_row[0]
 
     def select(items: list[Item]) -> list[Item]:
         if args.path:
@@ -641,40 +706,47 @@ def main() -> int:
         return items[: args.limit] if args.limit else items
 
     print(f"database        {args.database}")
-    print(f"dictionary      {human(len(dictionary))}")
+    print(f"dictionary      {human(len(dictionary)) if dictionary else 'not needed for these phases'}")
     print(f"phases          {' -> '.join(args.phase_list)}")
     print(f"workers         {args.workers}   quality {args.quality}   window {args.window}")
     print(f"mode            {'WRITING' if write else 'dry run (pass --yes to write)'}")
     print()
 
-    problems: list[str] = []
+    errors: list[str] = []
+    notes: list[str] = []
     retyped_paths: set[str] = set()
     started = time.time()
 
     with futures.ProcessPoolExecutor(args.workers, initializer=_init_worker, initargs=(dictionary,)) as pool:
         if "retype" in args.phase_list:
             candidates = select([
-                item for item in load_items(connection, "CT.value LIKE 'text%'")
+                item for item in load_items(connection, "(CT.value = 'text' OR CT.value LIKE 'text/%')")
                 if item.base_path.lower().endswith(BINARY_EXTENSIONS)
             ])
-            retyped_paths, notes = phase_retype(connection, pool, args, write, candidates)
-            problems += notes
+            retyped_paths, phase_errors, phase_notes = phase_retype(connection, pool, args, write, candidates)
+            errors += phase_errors
+            notes += phase_notes
             if write:
-                problems += verify_retype(connection, retyped_paths, args.mov_type)
+                # A verification failure means the bytes and their declared type disagree
+                # after we wrote them -- the most serious thing this script can report.
+                errors += verify_retype(connection, retyped_paths, args.mov_type)
             print()
 
         if "renumber" in args.phase_list:
-            _, notes = phase_renumber(connection, args, write, retyped_paths)
-            problems += notes
+            _, phase_errors, phase_notes = phase_renumber(connection, args, write, retyped_paths, select)
+            errors += phase_errors
+            notes += phase_notes
             print()
 
         if "migrate" not in args.phase_list:
             connection.commit() if write else connection.rollback()
             connection.close()
             sys.stdout.flush()
-            for note in problems[:30]:
-                print(f"  note: {note}", file=sys.stderr)
-            return 0
+            report(errors, notes)
+            # Non-zero when something the run set out to do did not happen: this path
+            # used to return 0 whatever it had just printed, so a wrapper script or CI
+            # step could not tell a clean repair from a failed one.
+            return 1 if errors else 0
 
         items = select(load_items(connection, "CT.compression = 'brotli'"))
         chunked = [item for item in items if item.continuations]
@@ -686,7 +758,9 @@ def main() -> int:
         counts = {"migrated": 0, "already": 0, "unchanged": 0, "error": 0}
         before_total = after_total = 0
         inserted_total = deleted_total = 0
-        errors: list[Result] = []
+        # Not named `errors`: that name already holds this run's phase 1 and 2 failures,
+        # and reusing it here would discard them.
+        failed_items: list[Result] = []
         mislabelled: list[Result] = []
 
         for offset in range(0, len(items), args.batch):
@@ -708,7 +782,7 @@ def main() -> int:
                 if result.sniffed:
                     mislabelled.append(result)
                 if result.status == "error":
-                    errors.append(result)
+                    failed_items.append(result)
                 elif result.status == "migrated" and write:
                     inserted, deleted = write_item(connection, item, result.slices, renumber=False)
                     inserted_total += inserted
@@ -749,15 +823,12 @@ def main() -> int:
         if len(mislabelled) > 20:
             print(f"  ... and {len(mislabelled) - 20} more")
 
-    for result in errors[:20]:
+    for result in failed_items[:20]:
         print(f"  error: {result.base_path}: {result.detail}", file=sys.stderr)
-    if len(errors) > 20:
-        print(f"  ... and {len(errors) - 20} more", file=sys.stderr)
+    if len(failed_items) > 20:
+        print(f"  ... and {len(failed_items) - 20} more", file=sys.stderr)
     sys.stdout.flush()
-    for note in problems[:30]:
-        print(f"  note: {note}", file=sys.stderr)
-    if len(problems) > 30:
-        print(f"  ... and {len(problems) - 30} more notes", file=sys.stderr)
+    report(errors, notes)
 
     if write:
         connection.commit()
@@ -767,7 +838,7 @@ def main() -> int:
         print("\nNothing written. Re-run with --yes on a copy to apply.")
 
     connection.close()
-    return 1 if errors else 0
+    return 1 if errors or failed_items else 0
 
 
 if __name__ == "__main__":
