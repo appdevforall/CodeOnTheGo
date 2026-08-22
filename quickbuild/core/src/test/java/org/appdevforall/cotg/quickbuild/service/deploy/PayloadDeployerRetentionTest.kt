@@ -16,9 +16,10 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
 /**
- * Retention side of [PayloadDeployer] (concurrency.md rules 3-4): a deploy the proxy app
- * confirmed leaves its bytes in the [RetainedPayloadStore] for the reconnect re-send, and an
- * unconfirmed one leaves the store exactly as it was.
+ * Retention side of [PayloadDeployer] (concurrency.md rules 3-4): a confirmed hot-swap
+ * deploy leaves its bytes in the [RetainedPayloadStore] for the reconnect re-send, an
+ * unconfirmed one leaves the store exactly as it was, and a confirmed restart deploy clears
+ * it - its payload must never be replayed as a hot swap.
  */
 class PayloadDeployerRetentionTest {
 	@TempDir lateinit var workDir: File
@@ -120,14 +121,23 @@ class PayloadDeployerRetentionTest {
 		}
 
 	@Test
-	fun `a confirmed restart deploy retains hot-swap metadata, not the restart flag`() =
+	fun `a confirmed restart deploy clears the retained payload instead of retaining it`() =
 		runTest {
-			deploy.result = DeployResult.Reloaded(40)
+			val deployer = deployer()
+			deployer.deploy(
+				DeployDecision.Recreate,
+				artifact("built.dex", "gen-1-dex"),
+				null,
+				null,
+				loopStartedAt = 0,
+				recorder = recorder(),
+			)
+			assertThat(store.load()).isNotNull()
 
 			val outcome =
-				deployer().deploy(
+				deployer.deploy(
 					DeployDecision.Restart(ComponentKind.SERVICE, "com.example.app.SyncService"),
-					artifact("built.dex", "dex-bytes"),
+					artifact("built.dex", "gen-2-dex"),
 					null,
 					null,
 					loopStartedAt = 0,
@@ -135,11 +145,11 @@ class PayloadDeployerRetentionTest {
 				)
 
 			assertThat(outcome).isInstanceOf(BuildOutcome.Success::class.java)
-			val retained = store.load()!!
-			// The deploy itself carried restart=true; the re-send must not, or a reconnect
-			// catch-up would ask the just-relaunched app to persist and exit again.
-			assertThat(retained.metadataJson).doesNotContain("restart")
-			assertThat(retained.dexFile!!.readText()).isEqualTo("dex-bytes")
+			// A reconnect catch-up replays retained bytes as a hot swap, which would land on
+			// the live service this deploy restarted for and redefine its classes under it -
+			// the cross-loader CCE the restart existed to prevent. Nothing may stay retained;
+			// a below-deployed reconnect falls back to the forced catch-up rebuild.
+			assertThat(store.load()).isNull()
 		}
 
 	@Test

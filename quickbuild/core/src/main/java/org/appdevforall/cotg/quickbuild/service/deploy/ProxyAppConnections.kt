@@ -91,10 +91,12 @@ class ProxyAppConnections {
 	fun endSession() {
 		expectedPackage = null
 		expectedUid = null
-		_target.value = null
-		// Nothing can deploy to the app now, so stop exempting it from the freezer: a hold
-		// kept past session end would cost the user battery on an app they are just running.
-		priorityHold?.release()
+		// Routed through [onDisconnected] so its Disconnected report answers a deploy still
+		// awaiting its verdict - the session's end settles that deploy now, instead of
+		// leaving it to ride out its full timeout against a target that is already gone.
+		// The unconditional drop also releases the freezer hold: a hold kept past session
+		// end would cost the user battery on an app they are just running.
+		onDisconnected()
 	}
 
 	/**

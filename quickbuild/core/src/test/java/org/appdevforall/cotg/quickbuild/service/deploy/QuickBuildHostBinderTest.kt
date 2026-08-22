@@ -2,6 +2,7 @@ package org.appdevforall.cotg.quickbuild.service.deploy
 
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
+import android.os.RemoteException
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.quickbuild.IQuickBuildTarget
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -14,8 +15,9 @@ import org.junit.jupiter.api.Test
 
 /**
  * The uid trust boundary of [QuickBuildHostService.HostBinder], against a real
- * [ProxyAppConnections]. On the JVM the stubbed `Binder.getCallingUid()` reports uid 0,
- * so a session begun for uid 0 stands in for the matching proxy app and any other
+ * [ProxyAppConnections], and the death-watch wiring that keeps the registered target and
+ * the watched binder in step. On the JVM the stubbed `Binder.getCallingUid()` reports
+ * uid 0, so a session begun for uid 0 stands in for the matching proxy app and any other
  * `expectedUid` stands in for a foreign caller.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -158,6 +160,131 @@ class QuickBuildHostBinderTest {
 		connections.onDisconnected(live)
 
 		assertThat(connections.target.value).isNull()
+	}
+
+	@Test
+	fun `a binder that is dead at connect is not left registered`() {
+		beginMatchingSession()
+		val dead = WatchableBinder(onLink = { _, _ -> throw RemoteException("already dead") })
+
+		binder.connect(targetOn(dead.binder), "com.example.quickbuild", 0)
+
+		// A dead target no death notification can ever clear would turn every deploy into
+		// a full timeout; the failed link must fail fast to no registration instead.
+		assertThat(connections.target.value).isNull()
+	}
+
+	@Test
+	fun `a dead binder's stale connect retry does not clobber a live registration`() {
+		beginMatchingSession()
+		val live = WatchableBinder()
+		binder.connect(targetOn(live.binder), "com.example.quickbuild", 0)
+		val dead = WatchableBinder(onLink = { _, _ -> throw RemoteException("already dead") })
+
+		binder.connect(targetOn(dead.binder), "com.example.quickbuild", 0)
+
+		// The superseded process's retry lost the race to the fresh process's bind; the
+		// fresh registration must survive it, and stay watched.
+		assertThat(
+			connections.target.value
+				?.target
+				?.asBinder(),
+		).isSameInstanceAs(live.binder)
+		assertThat(live.watching()).hasSize(1)
+	}
+
+	@Test
+	fun `a death delivered while connect is registering still clears the target`() {
+		beginMatchingSession()
+		// linkToDeath delivers the death on another thread immediately, the way a proxy app
+		// crashing right after its connect() call does. The helper returns once that
+		// delivery has either completed or parked against the binder's registration lock,
+		// so both orderings are exercised deterministically rather than raced.
+		var death: Thread? = null
+		val dying =
+			WatchableBinder(
+				onLink = { _, recipient ->
+					val delivery = Thread { recipient.binderDied() }.also { it.start() }
+					death = delivery
+					while (delivery.state != Thread.State.TERMINATED && delivery.state != Thread.State.BLOCKED) {
+						Thread.sleep(1)
+					}
+				},
+			)
+
+		binder.connect(targetOn(dying.binder), "com.example.quickbuild", 0)
+		death!!.join(5_000)
+
+		// Registration and death watch are one atomic step, so the death lands after the
+		// registration and clears it - a dead target must never stay registered.
+		assertThat(connections.target.value).isNull()
+	}
+
+	@Test
+	fun `a reconnect moves the watch, and firing it clears the registration`() {
+		beginMatchingSession()
+		val first = WatchableBinder()
+		val second = WatchableBinder()
+		binder.connect(targetOn(first.binder), "com.example.quickbuild", 0)
+		binder.connect(targetOn(second.binder), "com.example.quickbuild", 1)
+
+		assertThat(first.watching()).isEmpty()
+		val recipient = second.watching().single()
+
+		recipient.binderDied()
+
+		assertThat(connections.target.value).isNull()
+	}
+
+	@Test
+	fun `a graceful disconnect unlinks the death watch`() {
+		beginMatchingSession()
+		val live = WatchableBinder()
+		binder.connect(targetOn(live.binder), "com.example.quickbuild", 0)
+
+		binder.disconnect("com.example.quickbuild")
+
+		// No stale recipient stays linked to fire on the process's eventual death.
+		assertThat(live.watching()).isEmpty()
+	}
+
+	/**
+	 * An [IBinder] that records link/unlink traffic and can script [IBinder.linkToDeath],
+	 * so the death-watch wiring is exercised for real. Only the two death-watch methods
+	 * are live; everything else no-ops through the reflection proxy.
+	 */
+	private class WatchableBinder(
+		private val onLink: (WatchableBinder, IBinder.DeathRecipient) -> Unit = { _, _ -> },
+	) {
+		val linked = mutableListOf<IBinder.DeathRecipient>()
+		val unlinked = mutableListOf<IBinder.DeathRecipient>()
+
+		val binder: IBinder =
+			java.lang.reflect.Proxy.newProxyInstance(
+				IBinder::class.java.classLoader,
+				arrayOf(IBinder::class.java),
+			) { _, method, args ->
+				when (method.name) {
+					"linkToDeath" -> {
+						val recipient = args!![0] as IBinder.DeathRecipient
+						onLink(this, recipient)
+						linked += recipient
+						null
+					}
+
+					"unlinkToDeath" -> {
+						unlinked += args!![0] as IBinder.DeathRecipient
+						true
+					}
+
+					else -> {
+						null
+					}
+				}
+			} as IBinder
+
+		/** The recipients still linked, in link order. */
+		fun watching(): List<IBinder.DeathRecipient> = linked.filterNot { it in unlinked }
 	}
 
 	/**
