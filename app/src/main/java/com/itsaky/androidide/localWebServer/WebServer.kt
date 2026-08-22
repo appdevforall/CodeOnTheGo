@@ -658,8 +658,15 @@ class WebServer(
 				dbContent = instantiatePebbleTemplate(templateId, dbContent, path, dbMimeType, compression)
 			}
 
+			// Built before the status line goes out: everything after the first println is on the
+			// wire (the writer autoflushes), so a throw past that point makes sendError append a
+			// second status line to a response that already claimed 200, which a client parses as a
+			// malformed header rather than as an error. dbMimeType is a platform type from
+			// Cursor.getString, so a NULL ContentTypes.value throws here rather than there.
+			val contentTypeHeader = ContentTypeHeaders.headerValue(dbMimeType)
+
 			writer.println("HTTP/1.1 200 OK")
-			writer.println("Content-Type: ${ContentTypeHeaders.headerValue(dbMimeType)}")
+			writer.println("Content-Type: $contentTypeHeader")
 			writer.println("Content-Length: ${dbContent.size}")
 			writer.println("Connection: close")
 			writer.println()
