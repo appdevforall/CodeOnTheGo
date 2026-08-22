@@ -4,9 +4,12 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildDiagnostic
 import org.appdevforall.cotg.quickbuild.protocol.ConfigureRequest
 import org.junit.jupiter.api.Test
@@ -437,6 +440,207 @@ class DaemonProcessClientEdgeTest {
 		// "3" is a JSON primitive; gson coerces it - the guard is about non-primitives.
 		assertThat(oddShapes.line).isEqualTo(3)
 		assertThat(oddShapes.column).isNull()
+	}
+
+	@Test
+	fun `a non-primitive severity or message degrades instead of throwing out of compile`() {
+		// asString on an object or array throws UnsupportedOperationException, which unguarded
+		// escaped parseDiagnostics straight out of compile() - the facade's no-throw contract
+		// says a malformed diagnostic must degrade (severity -> ERROR, message -> the default).
+		val diagnostics =
+			"""[
+				{"severity":{"level":"WARNING"},"message":"kept"},
+				{"severity":"ERROR","message":["broken","in","parts"]}
+			]""".replace(Regex("\\s+"), "")
+		val paths =
+			scriptedPaths(
+				"""
+				read line
+				printf '%s\n' '${okConfigure()}'
+				read line
+				printf '%s\n' '{"id":2,"ok":false,"diagnostics":$diagnostics}'
+				read line
+				printf '%s\n' '{"id":3,"ok":true}'
+				""".trimIndent(),
+			)
+
+		val reply =
+			withClient(paths) { client ->
+				check(client.start(config()) is DaemonReply.Ok)
+				client.compile(emptyList(), emptyList())
+			}
+
+		val failure = reply as DaemonReply.BuildFailed
+		assertThat(failure.diagnostics).hasSize(2)
+		val (objectSeverity, arrayMessage) = failure.diagnostics
+		assertThat(objectSeverity.severity).isEqualTo(BuildDiagnostic.Severity.ERROR)
+		assertThat(objectSeverity.message).isEqualTo("kept")
+		assertThat(arrayMessage.severity).isEqualTo(BuildDiagnostic.Severity.ERROR)
+		assertThat(arrayMessage.message).isEqualTo("unknown error")
+	}
+
+	@Test
+	fun `a non-numeric line or column string reads as absent instead of throwing`() {
+		// "abc" IS a JSON primitive, so the isJsonPrimitive guard passes and asInt throws
+		// NumberFormatException - the crash path the "odd shapes" test stopped short of
+		// (its "3" coerces cleanly). The message must still come through untouched.
+		val diagnostics =
+			"""[{"severity":"ERROR","message":"bad positions","file":"A.kt","line":"abc","column":"1.5"}]"""
+		val paths =
+			scriptedPaths(
+				"""
+				read line
+				printf '%s\n' '${okConfigure()}'
+				read line
+				printf '%s\n' '{"id":2,"ok":false,"diagnostics":$diagnostics}'
+				read line
+				printf '%s\n' '{"id":3,"ok":true}'
+				""".trimIndent(),
+			)
+
+		val reply =
+			withClient(paths) { client ->
+				check(client.start(config()) is DaemonReply.Ok)
+				client.compile(emptyList(), emptyList())
+			}
+
+		val failure = reply as DaemonReply.BuildFailed
+		assertThat(failure.diagnostics).hasSize(1)
+		val diagnostic = failure.diagnostics.single()
+		assertThat(diagnostic.message).isEqualTo("bad positions")
+		assertThat(diagnostic.file).isEqualTo("A.kt")
+		assertThat(diagnostic.line).isNull()
+		assertThat(diagnostic.column).isNull()
+	}
+
+	@Test
+	fun `a malformed stats value on a build failure degrades instead of throwing`() {
+		// Same crash class as line/column: "slow" IS a JSON primitive, so a primitive guard
+		// alone lets asLong throw NumberFormatException out of the BuildFailed arm; a
+		// non-primitive value must degrade too. The readable key still comes through.
+		val paths =
+			scriptedPaths(
+				"""
+				read line
+				printf '%s\n' '${okConfigure()}'
+				read line
+				printf '%s\n' '{"id":2,"ok":false,"diagnostics":[],"preSnapMillis":"slow","nKotlinToCompile":[3],"compileOrdinal":2}'
+				read line
+				printf '%s\n' '{"id":3,"ok":true}'
+				""".trimIndent(),
+			)
+
+		val reply =
+			withClient(paths) { client ->
+				check(client.start(config()) is DaemonReply.Ok)
+				client.compile(emptyList(), emptyList())
+			}
+
+		val failure = reply as DaemonReply.BuildFailed
+		val stats = failure.stats
+		assertThat(stats).isNotNull()
+		assertThat(stats!!.compileOrdinal).isEqualTo(2)
+		assertThat(stats.preSnapMillis).isEqualTo(0)
+		assertThat(stats.kotlinToCompile).isEqualTo(0)
+	}
+
+	@Test
+	fun `a request the daemon never reads times out instead of wedging the client`() {
+		// After configure the script stops reading stdin, so a request larger than the pipe
+		// buffer blocks the write forever while it holds the request mutex - unfixed, every
+		// later request parks on the mutex and shutdown() deadlocks on the writer's monitor.
+		// The client must bound the write, kill the wedged child, and report a Failed reply.
+		val paths =
+			scriptedPaths(
+				"""
+				printf '%s' "${'$'}${'$'}" > '$tmp/daemon.pid'
+				read line
+				printf '%s\n' '${okConfigure()}'
+				exec sleep 120
+				""".trimIndent(),
+			)
+		// ~4MB of source paths: far past any pipe buffer, so the write reliably blocks.
+		val bigSources = (1..40_000).map { File(tmp, "src/deeply/nested/pkg/SourceFile$it.kt") }
+		val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+		val client = DaemonProcessClient(paths, scope, requestTimeoutMillis = 500)
+		var reply: DaemonReply<CompileOutput>? = null
+
+		try {
+			runBlocking {
+				check(client.start(config()) is DaemonReply.Ok)
+				// On [scope], not runBlocking's: unfixed, the call never returns, and a
+				// structured child would deadlock runBlocking itself on the way out.
+				val call = scope.async { client.compile(bigSources, emptyList()) }
+				reply = withTimeoutOrNull(30_000) { call.await() }
+			}
+			// null means the client sat on the wedged write - the hang this test pins.
+			assertThat(reply).isNotNull()
+			assertThat(reply).isInstanceOf(DaemonReply.Failed::class.java)
+			val failed = reply as DaemonReply.Failed
+			assertThat(failed.message).contains("compile")
+			assertThat(failed.message).contains("write timed out")
+			assertThat(failed.daemonDied).isTrue()
+		} finally {
+			// Unwedge a stuck writer before shutdown: killing the child closes the pipe, so
+			// a still-blocked write (the unfixed case) throws instead of deadlocking
+			// writer.close() and hanging the test run in teardown.
+			runCatching {
+				val pid = File(tmp, "daemon.pid").readText().trim()
+				ProcessBuilder("/bin/sh", "-c", "kill -9 $pid 2>/dev/null").start().waitFor()
+			}
+			runBlocking { client.shutdown() }
+			scope.cancel()
+		}
+	}
+
+	@Test
+	fun `shutdown is not deadlocked by a write the daemon never reads`() {
+		// The wedged-write scenario again, but teardown-first: with the write still blocked
+		// (its own timeout deliberately far off), shutdown() used to park on the
+		// BufferedWriter monitor in writer.close() and never reach destroyForcibly.
+		val paths =
+			scriptedPaths(
+				"""
+				printf '%s' "${'$'}${'$'}" > '$tmp/daemon.pid'
+				read line
+				printf '%s\n' '${okConfigure()}'
+				exec sleep 120
+				""".trimIndent(),
+			)
+		val bigSources = (1..40_000).map { File(tmp, "src/deeply/nested/pkg/SourceFile$it.kt") }
+		val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+		val client = DaemonProcessClient(paths, scope, requestTimeoutMillis = 120_000)
+
+		try {
+			val completed =
+				runBlocking {
+					check(client.start(config()) is DaemonReply.Ok)
+					scope.async { client.compile(bigSources, emptyList()) }
+					// Long enough for the compile write to fill the pipe and block; a
+					// shutdown that won the race to the writer would close it cleanly
+					// and pass even unfixed.
+					delay(2_000)
+					// On [scope]: unfixed, shutdown never returns, and neither a structured
+					// child nor withTimeoutOrNull could pull the test out of it.
+					val shutdownJob = scope.async { client.shutdown() }
+					withTimeoutOrNull(30_000) {
+						shutdownJob.await()
+						true
+					}
+				}
+			// null means shutdown deadlocked behind the wedged writer.
+			assertThat(completed).isNotNull()
+			assertThat(client.isRunning).isFalse()
+		} finally {
+			// Frees the blocked write in the unfixed case so teardown can finish - see the
+			// wedged-request test above.
+			runCatching {
+				val pid = File(tmp, "daemon.pid").readText().trim()
+				ProcessBuilder("/bin/sh", "-c", "kill -9 $pid 2>/dev/null").start().waitFor()
+			}
+			runBlocking { client.shutdown() }
+			scope.cancel()
+		}
 	}
 
 	@Test
