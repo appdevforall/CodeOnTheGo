@@ -7,6 +7,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -26,6 +28,7 @@ import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.coroutineContext
 
 /**
  * Runs the quick-build daemon as a child JVM and speaks its line-delimited JSON protocol.
@@ -301,8 +304,13 @@ class DaemonProcessClient(
 		configured = false
 		// Best effort polite stop; the protocol also treats stdin EOF as shutdown.
 		withTimeoutOrNull(SHUTDOWN_TIMEOUT_MILLIS) { request(DaemonOps.SHUTDOWN) {} }
+		val out = writer
 		withContext(Dispatchers.IO) {
-			runCatching { writer?.close() }
+			// EOF is the second polite signal, but close() blocks on the BufferedWriter
+			// monitor while a wedged write holds it - so it runs on [scope] rather than
+			// inline, and the kill path below (which closes the pipe and thereby frees any
+			// such writer) is always reached instead of deadlocking teardown.
+			scope.launch(Dispatchers.IO) { runCatching { out?.close() } }
 			if (proc.isAlive && !proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
 				proc.destroyForcibly()
 			}
@@ -313,8 +321,9 @@ class DaemonProcessClient(
 
 	/**
 	 * Sends one request and awaits the matching-id response. Failure of the transport
-	 * (dead process, EOF, timeout) is a [DaemonReply.Failed]; a well-formed
-	 * `ok=false` response is a [DaemonReply.BuildFailed] with parsed diagnostics.
+	 * (dead process, EOF, timeout - on the response, or on a write the child never drains)
+	 * is a [DaemonReply.Failed]; a well-formed `ok=false` response is a
+	 * [DaemonReply.BuildFailed] with parsed diagnostics.
 	 *
 	 * @param op protocol op name, sent as `op` and echoed in timeout messages.
 	 * @param fill adds the op's own keys to the request object; `id` and `op` are already set
@@ -339,15 +348,44 @@ class DaemonProcessClient(
 					fill()
 				}
 
-			try {
-				withContext(Dispatchers.IO) {
-					out.write(requestJson.toString())
-					out.newLine()
-					out.flush()
+			// The write runs on [scope], not the caller's context: a blocking pipe write to a
+			// child that stopped reading stdin cannot be cancelled, only abandoned, and it must
+			// not park the caller (and [requestMutex]) forever while it blocks.
+			val writeJob =
+				scope.async(Dispatchers.IO) {
+					runCatching {
+						out.write(requestJson.toString())
+						out.newLine()
+						out.flush()
+					}
 				}
-			} catch (e: IOException) {
+			val writeOutcome =
+				try {
+					withTimeoutOrNull(requestTimeoutMillis) { writeJob.await() }
+				} catch (e: CancellationException) {
+					pending.remove(id)
+					// The caller's own cancellation propagates; a dead [scope] (client torn
+					// down under the caller) degrades to a reply instead.
+					if (coroutineContext.isActive) {
+						return DaemonReply.Failed("Daemon is not running", daemonDied = true)
+					}
+					throw e
+				}
+			if (writeOutcome == null) {
+				// The child wedged with a full stdin pipe. Only closing the pipe frees the
+				// blocked thread, so the daemon is killed; its death watcher then fails any
+				// pending requests and fires the respawn flow.
 				pending.remove(id)
-				return DaemonReply.Failed("Daemon write failed: ${e.message}", daemonDied = true)
+				process?.destroyForcibly()
+				return DaemonReply.Failed(
+					"Daemon stopped reading requests ('$op' write timed out)",
+					daemonDied = true,
+				)
+			}
+			val writeError = writeOutcome.exceptionOrNull()
+			if (writeError != null) {
+				pending.remove(id)
+				return DaemonReply.Failed("Daemon write failed: ${writeError.message}", daemonDied = true)
 			}
 
 			val response =
@@ -374,9 +412,9 @@ class DaemonProcessClient(
 				// which reports no compile counts - carries none rather than a measured zero.
 				DaemonReply.BuildFailed(
 					parseDiagnostics(response),
-					CompileStats.fromValues { key ->
-						response.get(key)?.takeIf { it.isJsonPrimitive }?.asLong
-					},
+					// longOrNull, not a bare asLong: a malformed stats value degrades to
+					// absent instead of throwing out of the facade's no-throw contract.
+					CompileStats.fromValues { key -> response.longOrNull(key) },
 				)
 			}
 		}
@@ -450,24 +488,48 @@ class DaemonProcessClient(
 	 *
 	 * @param response the `ok=false` response object.
 	 * @return one [BuildDiagnostic] per well-formed entry, empty when the key is absent or not an
-	 *   array; anything but an explicit `WARNING` reads as an error and a missing message becomes
-	 *   "unknown error", so a diagnostic is never dropped for being thin.
+	 *   array; anything but an explicit `WARNING` reads as an error, a missing or non-primitive
+	 *   message becomes "unknown error", and a non-numeric line or column reads as absent, so a
+	 *   diagnostic is never dropped - and never thrown on - for being thin or oddly shaped.
 	 */
 	private fun parseDiagnostics(response: JsonObject): List<BuildDiagnostic> {
 		val array = response.get(ResponseKeys.DIAGNOSTICS) as? JsonArray ?: return emptyList()
 		return array.mapNotNull { element ->
 			val obj = element as? JsonObject ?: return@mapNotNull null
 			BuildDiagnostic(
+				// Primitive-guarded like every other read in this file: asString on an object
+				// or array throws, and this facade promises never to throw for a build problem.
 				severity =
-					if (obj.get(ResponseKeys.Diagnostics.SEVERITY)?.asString.equals("WARNING", ignoreCase = true)) {
+					if (obj
+							.get(ResponseKeys.Diagnostics.SEVERITY)
+							?.takeIf { it.isJsonPrimitive }
+							?.asString
+							.equals("WARNING", ignoreCase = true)
+					) {
 						BuildDiagnostic.Severity.WARNING
 					} else {
 						BuildDiagnostic.Severity.ERROR
 					},
-				message = obj.get(ResponseKeys.Diagnostics.MESSAGE)?.asString ?: "unknown error",
+				message =
+					obj
+						.get(ResponseKeys.Diagnostics.MESSAGE)
+						?.takeIf { it.isJsonPrimitive }
+						?.asString ?: "unknown error",
 				file = obj.get(ResponseKeys.Diagnostics.FILE)?.takeIf { it.isJsonPrimitive }?.asString,
-				line = obj.get(ResponseKeys.Diagnostics.LINE)?.takeIf { it.isJsonPrimitive }?.asInt,
-				column = obj.get(ResponseKeys.Diagnostics.COLUMN)?.takeIf { it.isJsonPrimitive }?.asInt,
+				// The primitive guard alone does not stop asInt throwing NumberFormatException
+				// on a non-numeric string primitive ("line":"abc"); runCatching does.
+				line =
+					obj
+						.get(ResponseKeys.Diagnostics.LINE)
+						?.takeIf { it.isJsonPrimitive }
+						?.runCatching { asInt }
+						?.getOrNull(),
+				column =
+					obj
+						.get(ResponseKeys.Diagnostics.COLUMN)
+						?.takeIf { it.isJsonPrimitive }
+						?.runCatching { asInt }
+						?.getOrNull(),
 			)
 		}
 	}
