@@ -296,8 +296,8 @@ class ProjectManagerImpl :
 	 *
 	 * @return whether the tasks were actually dispatched. False means the request did nothing:
 	 *   no build service, no tooling server, or a Gradle build already in progress. Callers that
-	 *   owe the request a retry - [com.itsaky.androidide.quickbuild.GenerateSourcesDeferral] - key
-	 *   off this, because the in-progress refusal is silent and transient.
+	 *   owe the request a retry (the Quick Build generate-sources deferral, added later in this
+	 *   stack) key off this, because the in-progress refusal is silent and transient.
 	 */
 	@JvmOverloads
 	fun generateSources(builder: BuildService? = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)): Boolean {
