@@ -10,7 +10,15 @@ import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import org.slf4j.LoggerFactory
 
-/** @author Akash Yadav */
+/**
+ * Applies to EVERY Gradle build, Quick Build experiments flag on or off - deliberately NOT
+ * gated behind FeatureFlags.isExperimentsEnabled: the 384m Metaspace floor fixes builds that
+ * previously died in OutOfMemoryError: Metaspace (see BalancedStrategy.GRADLE_METASPACE_MB),
+ * and the tiered daemon idle timeouts are what keep the IDE itself (and, flag on, the
+ * quick-build daemon) resident on low-RAM devices after the user stops building.
+ *
+ * @author Akash Yadav
+ */
 object GradleBuildTuner {
 	private val logger = LoggerFactory.getLogger(GradleBuildTuner::class.java)
 
