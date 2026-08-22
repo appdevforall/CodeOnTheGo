@@ -73,16 +73,9 @@ CREATE TABLE Tooltips (
 
 All three sites below open the file with `SQLiteDatabase.openDatabase(..., OPEN_READONLY)` — no writes, ever, from this app (see ADR 0001 for why raw SQLite is justified here instead of Room).
 
-- **`app/.../localWebServer/WebServer.kt`** — serves Tier 3. On each `GET`, runs:
-
-  ```sql
-  SELECT C.content, CT.value, CT.compression, C.templateId
-  FROM   Content C, ContentTypes CT
-  WHERE  C.contentTypeID = CT.id
-  AND    C.path = ?
-  ```
-
-  then reassembles chunked blobs, always decompresses Brotli content (attaching `CompressionDictionary`'s bytes first, if loaded — see above) since this server never negotiates `Content-Encoding` with the client, and instantiates the template if `templateId > 0`. Also serves a Dynamic Bookshelf JSON payload (joining `Content`/`Bookshelf`/`BookCategories`, rendered through the `bookshelf` template) and debug-only HTML dumps at `/pr/db` (`LastChange`, last 20 rows) and `/pr/pr` (recent projects, from a *different* database).
+- **`common/.../documentation/DocumentationContentSource.kt`** — the one pipeline that reads this database: row lookup, chunked-row reassembly, dictionary-aware Brotli decode gated on the declared documentation version, and the sdcard debug-database swap, under a read/write lock so several threads can read while a swap cannot close the handle under them. It also renders the rows that are Pebble template contexts (`templateId > 0`, the Kotlin doc set's pages), so both transports below serve finished pages and neither needs the template engine itself. All of that logic exists once (ADFA-5176).
+- **`common/.../documentation/DocumentationRequestInterceptor.kt`** — serves Tier 3 *in-process* for the app's WebViews (`HelpActivity`, the tooltip fragment, `FAQActivity`), through `WebViewClient.shouldInterceptRequest`, so a page's assets cost a database read instead of a TCP connection each (ADFA-5176). It matches the same `http://localhost:6174/...` URL space, so the strings.xml entries, `ToolTipManager`'s link builder and the `DocumentationExtension` contract need no changes; anything it declines — a `/pr/` endpoint, an unknown path, a failed read — falls through to `WebServer` unchanged. Both transports get their `Content-Type` charset from the same place, `ContentTypeHeaders` (ADFA-5241), so a row does not describe itself differently depending on which one served it. Set `/sdcard/Download/CodeOnTheGo.nointercept` to force documentation back onto the server.
+- **`app/.../localWebServer/WebServer.kt`** — serves Tier 3 over HTTP on port 6174, for WebViews that are not wired to the interceptor above and for the `/pr/` developer endpoints. It reads through `DocumentationContentSource`, so it holds no database, template engine or decode logic of its own; what remains here is HTTP: request parsing, the `/pr/` pages, error responses, and the CSS/asset shortcuts. Also serves a Dynamic Bookshelf JSON payload (joining `Content`/`Bookshelf`/`BookCategories`, rendered through the `bookshelf` template) and debug-only HTML dumps at `/pr/db` (`LastChange`, last 20 rows) and `/pr/pr` (recent projects, from a *different* database).
 - **`idetooltips/.../ToolTipManager.kt`** — serves Tier 1/2. Looks up `Tooltips` joined to `TooltipCategories` by `(category, tag)`, then `TooltipButtons` for the Tier 3 links shown at the bottom.
 - **`plugin-manager/.../documentation/PluginDocumentationManager.kt`** (with `Tier3AssetWalker.kt`, and the `DocumentationExtension` contract in `plugin-api`) — lets plugins contribute their own help content into the same lookup paths.
 

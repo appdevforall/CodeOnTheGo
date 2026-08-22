@@ -431,9 +431,6 @@ dependencies {
 	implementation(libs.androidx.lifecycle.process)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
-
-	// Pebble template engine
-	implementation("io.pebbletemplates:pebble:4.1.1")
 }
 
 tasks.register("downloadDocDb") {
