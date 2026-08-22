@@ -71,6 +71,15 @@ class BootProbationTest {
 	}
 
 	@Test
+	void aPendingReloadAheadOfTheStoreIsStillBlamed() {
+		// The failure path's window: gen 11 failed, the store was just restored to 10, and the
+		// pending slot has not been cleared yet. A crash here is still gen 11's doing.
+		BootProbation probation = new BootProbation();
+
+		assertThat(probation.generationToBlame(11, 10)).isEqualTo(11);
+	}
+
+	@Test
 	void aPendingReloadOutranksTheGenerationThisProcessBooted() {
 		// Both are live claims on the screen; the hot swap is the newer one, and it is the one
 		// whose classes the activity that just died was built from.
@@ -78,6 +87,17 @@ class BootProbationTest {
 		probation.bootedFromStore(9);
 
 		assertThat(probation.generationToBlame(11, 11)).isEqualTo(11);
+	}
+
+	@Test
+	void aPendingReloadTheStoreMovedPastIsNotBlamed() {
+		// Deploy 9 lands foreground and is left pending its first frame; the user backgrounds,
+		// deploy 10 applies and acks in the background. A crash now is gen 10's: blaming stale
+		// 9 would quarantine working code, mislead CoGo, AND let 10 boot again on relaunch -
+		// the exact startup crash-loop the quarantine machinery exists to break.
+		BootProbation probation = new BootProbation();
+
+		assertThat(probation.generationToBlame(9, 10)).isEqualTo(NO_PENDING_RELOAD);
 	}
 
 	@Test

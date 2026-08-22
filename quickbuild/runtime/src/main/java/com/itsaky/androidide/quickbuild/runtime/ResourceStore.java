@@ -6,6 +6,8 @@ import android.content.res.Resources;
 import android.content.res.loader.ResourcesLoader;
 import android.content.res.loader.ResourcesProvider;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import java.io.File;
 import java.io.IOException;
@@ -209,13 +211,19 @@ final class ResourceStore {
 	@TargetApi(30)
 	private void applyTableWithLoader(ParcelFileDescriptor tableFd) throws IOException {
 		try {
-			ResourcesProvider next = ResourcesProvider.loadFromApk(tableFd, null);
-			synchronized (this) {
-				ResourcesProvider previous = provider;
-				provider = next;
-				installProviders();
-				Streams.closeQuietly(previous);
-			}
+			final ResourcesProvider next = ResourcesProvider.loadFromApk(tableFd, null);
+			swapProvidersOnMain(new Runnable() {
+
+				@Override
+				public void run() {
+					synchronized (ResourceStore.this) {
+						ResourcesProvider previous = provider;
+						provider = next;
+						installProviders();
+						Streams.closeQuietly(previous);
+					}
+				}
+			});
 		} finally {
 			// loadFromApk dups the fd internally; ours must be closed either way.
 			Streams.closeQuietly(tableFd);
@@ -275,16 +283,54 @@ final class ResourceStore {
 	 */
 	@TargetApi(30)
 	private void refreshAssetsProvider(File dir) throws IOException {
-		DirectoryAssetsProvider nextDir = new DirectoryAssetsProvider(dir);
-		ResourcesProvider next = ResourcesProvider.empty(nextDir);
-		synchronized (this) {
-			ResourcesProvider previous = assetsProvider;
-			DirectoryAssetsProvider previousDir = assetsDirProvider;
-			assetsProvider = next;
-			assetsDirProvider = nextDir;
-			installProviders();
-			Streams.closeQuietly(previous);
-			Streams.closeQuietly(previousDir);
+		final DirectoryAssetsProvider nextDir = new DirectoryAssetsProvider(dir);
+		final ResourcesProvider next = ResourcesProvider.empty(nextDir);
+		swapProvidersOnMain(new Runnable() {
+
+			@Override
+			public void run() {
+				synchronized (ResourceStore.this) {
+					ResourcesProvider previous = assetsProvider;
+					DirectoryAssetsProvider previousDir = assetsDirProvider;
+					assetsProvider = next;
+					assetsDirProvider = nextDir;
+					installProviders();
+					Streams.closeQuietly(previous);
+					Streams.closeQuietly(previousDir);
+				}
+			}
+		});
+	}
+
+	/**
+	 * Runs a provider swap on the main thread, inline when already there.
+	 *
+	 * The swap must not run on the binder thread the deploy arrives on: setProviders rebuilds every attached Resources in place and the swap then closes the replaced provider's ApkAssets, either of which can race an inflation already in progress on the main thread - a lookup straddling the swap mixes old and new values, or touches a just-closed provider. Serializing with the main thread removes both races, and Looper FIFO keeps a posted swap ahead of the recreate the deploy posts right after it.
+	 *
+	 * Inline on the main thread, not posted, because the boot restore path runs during the first activity's creation and its swap must land before anything inflates.
+	 *
+	 * A swap failure is logged rather than thrown: on the posted path no caller is left to catch it, and the previous provider set stays live either way, which the next deploy replaces.
+	 *
+	 * @param swap
+	 *            the field swap + setProviders + close of the replaced provider, taking the store's monitor itself
+	 */
+	private void swapProvidersOnMain(final Runnable swap) {
+		Runnable guarded = new Runnable() {
+
+			@Override
+			public void run() {
+				try {
+					swap.run();
+				} catch (Throwable error) {
+					RuntimeLog.e("resource provider swap failed; previous set stays live", error);
+				}
+			}
+		};
+		Looper main = Looper.getMainLooper();
+		if (Looper.myLooper() == main) {
+			guarded.run();
+		} else {
+			new Handler(main).post(guarded);
 		}
 	}
 }
