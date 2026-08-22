@@ -180,7 +180,7 @@ Five `DefaultTask` classes, all in one file, [QuickBuildTasks.kt](../../gradle-p
 
 | Task                             | What it produces                                             |
 | -------------------------------- | ------------------------------------------------------------ |
-| `QuickBuildGenerateSourcesTask`  | transforms AGP's `MERGED_MANIFEST` in place, and emits the proxy `.java` sources, the `components.json` asset and `manifest-info.json` from that one input |
+| `QuickBuildGenerateSourcesTask`  | transforms AGP's `MERGED_MANIFEST` in place, and emits the proxy `.java` sources and the `manifest-info.json` intermediate (read by the later tasks, not shipped in the APK) from that one input |
 | `QuickBuildPayloadTransformTask` | diverts every PROJECT-scope class out of the APK's classes pipeline into `payload-classes/`, handing the pipeline back a jar carrying only the R classes |
 | `QuickBuildPayloadDexTask`       | javac's the proxy sources, then dexes proxies plus diverted classes into `assets/quickbuild/gen-0.dex` |
 | `QuickBuildBaselineGenerationTask` | writes `assets/quickbuild/baseline-generation.txt`, the generation the host allocated for this baseline (`-Pcotg.quickbuild.baselineGeneration`; unset stamps 0). Its own task so the per-provision stamp never invalidates the dex work |

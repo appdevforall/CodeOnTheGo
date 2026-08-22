@@ -204,8 +204,9 @@ Four traps in that table:
 - **`resources.arsc` is not a resource table.** It holds the whole relinked resource apk;
   the filename is historical
   ([`PayloadPersistence.java`](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/PayloadPersistence.java)).
-- **The baseline is inside the APK, not on disk** - `assets/quickbuild/gen-0.dex`, with the
-  component name map at `assets/quickbuild/components.json`.
+- **The baseline is inside the APK, not on disk** - `assets/quickbuild/gen-0.dex`, with its
+  stamped generation beside it at `assets/quickbuild/baseline-generation.txt`. Component names
+  reach CoGo through the `manifest-info.json`/`setup.json` build intermediates, not an APK asset.
 
 ## 5. bench-events.jsonl is the session as data, and needs the bench flag
 
