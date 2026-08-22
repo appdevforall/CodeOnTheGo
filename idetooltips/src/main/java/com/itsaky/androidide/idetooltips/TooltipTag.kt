@@ -71,6 +71,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_GOTO_DEF = "editor.codeactions.gotodef"
 	const val EDITOR_CODE_ACTIONS_FIND_REFS = "editor.codeactions.findrefs"
 	const val EDITOR_CODE_ACTIONS_FIX_IMPORTS = "editor.codeactions.fiximports"
+	const val EDITOR_CODE_ACTIONS_FIX_IMPORTS_DIALOG = "editor.codeactions.fiximports.dialog"
 	const val EDITOR_CODE_ACTIONS_SETTER_GETTER = "editor.codeactions.settergetter"
 	const val EDITOR_CODE_ACTIONS_SETTER_GETTER_DIALOG = "editor.codeactions.settergetter.dialog"
 	const val EDITOR_CODE_ACTIONS_OVERRIDE_SUPER = "editor.codeactions.overridesuper"
