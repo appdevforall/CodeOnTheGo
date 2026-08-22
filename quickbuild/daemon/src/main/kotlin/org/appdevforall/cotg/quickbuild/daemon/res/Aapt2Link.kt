@@ -96,13 +96,15 @@ class Aapt2Link(
 	 * @param workDir the daemon-owned scratch dir; its `res-compiled` subdir is wiped on every
 	 *   call and `linked-res.apk` is overwritten.
 	 * @param stableIds AGP's `stableIds.txt` mapping (`pkg:type/name = 0x7f0xxxxx`) from the proxy
-	 *   app build, passed as `--stable-ids` when readable; null falls back to unpinned
-	 *   declaration-order ids (see class KDoc).
+	 *   app build, passed as `--stable-ids`. A non-null path that is missing on disk FAILS the
+	 *   relink (see class KDoc, rule 1); only an explicit null links unpinned,
+	 *   declaration-order ids.
 	 * @param libraryResources pre-compiled `.flat` units from the proxy app build - the
 	 *   `intermediates/merged_res/` closure plus each AAR's separately-compiled file-based
 	 *   resources - without which a library-provided reference fails to link (see class KDoc).
-	 * @return [Result.Failed] when the scratch dir could not be reset, when either aapt2 phase
-	 *   exited non-zero, or when the output carries no resource table.
+	 * @return [Result.Failed] when a named [stableIds] file is absent, when the scratch dir could
+	 *   not be reset, when either aapt2 phase exited non-zero, or when the output carries no
+	 *   resource table.
 	 */
 	fun relink(
 		resDirs: List<File>,
@@ -111,6 +113,22 @@ class Aapt2Link(
 		stableIds: File? = null,
 		libraryResources: List<File> = emptyList(),
 	): Result {
+		// Rule 1 makes stable-ids mandatory whenever the session has one. A named-but-missing
+		// file (a stale or moved AGP intermediate path) must not silently degrade to an unpinned
+		// link: that exits 0 and only fails ON DEVICE, as a crash or the wrong resource, with
+		// nothing in the daemon log distinguishing it from a pinned link. Only an explicit null
+		// - no stable-ids known at all - may link unpinned.
+		if (stableIds != null && !stableIds.isFile) {
+			return Result.Failed(
+				listOf(
+					Diagnostic(
+						Diagnostic.Severity.ERROR,
+						"stable-ids file is missing: ${stableIds.absolutePath} - refusing to relink " +
+							"unpinned, which would let resource ids shift under the installed baseline",
+					),
+				),
+			)
+		}
 		// The compiled dir must start empty: the link globs every .flat in it, so a leftover
 		// from a previous run - a since-deleted resource's .flat, say - would be linked in as
 		// a stale resource. A failed reset therefore fails the relink.
@@ -177,7 +195,8 @@ class Aapt2Link(
 	 * @param manifest the proxy app's manifest, passed verbatim as `--manifest`; neither read
 	 *   nor rewritten here.
 	 * @param flatFiles this run's freshly compiled `.flat` units, appended last so they win.
-	 * @param stableIds null, or a path that does not exist, omits `--stable-ids` entirely.
+	 * @param stableIds null omits `--stable-ids` entirely; a missing path is omitted too, as
+	 *   defense in depth, but [relink] fails a named-but-missing file before reaching here.
 	 * @param libraryResources baseline `-R` inputs, emitted ahead of [flatFiles].
 	 * @return the full argv, aapt2's own path included as element 0.
 	 */

@@ -118,6 +118,26 @@ class Aapt2LinkEdgeTest {
 	}
 
 	@Test
+	fun `a named but missing stable-ids file fails the relink instead of silently linking unpinned`() {
+		// Class KDoc rule 1: stable-ids is what pins type ids to the baseline manifest's fixed
+		// numeric ids. A stale path (AGP moved the intermediate between versions) must not
+		// degrade to an unpinned link that exits 0 here and fails only on device as a crash or
+		// the wrong resource - and aapt2 must not even run.
+		val ranMarker = File(tempDir, "aapt2-ran")
+		val link = Aapt2Link(fakeAapt2("touch '${ranMarker.absolutePath}'\nexit 0"), File(tempDir, "android.jar"))
+		val missing = File(tempDir, "no-such-stableIds.txt")
+
+		val result = link.relink(listOf(resDir), manifest, workDir, stableIds = missing)
+
+		assertThat(result).isInstanceOf(Aapt2Link.Result.Failed::class.java)
+		val diagnostic = (result as Aapt2Link.Result.Failed).diagnostics.single()
+		assertThat(diagnostic.severity).isEqualTo(Diagnostic.Severity.ERROR)
+		assertThat(diagnostic.message).contains("stable-ids")
+		assertThat(diagnostic.message).contains(missing.absolutePath)
+		assertThat(ranMarker.exists()).isFalse()
+	}
+
+	@Test
 	fun `a wedged aapt2 is killed at the timeout instead of hanging the daemon loop`() {
 		// `exec`, so the sleeping process IS the child: a wrapping shell would leave a
 		// grandchild holding the stdout pipe open, and the output drain would outlive the kill.

@@ -241,6 +241,8 @@ class Aapt2LinkTest {
 
 	@Test
 	fun `link arguments omit --stable-ids when the file does not exist`() {
+		// Defense in depth only: relink() rejects a named-but-missing stable-ids file before
+		// argument assembly (see Aapt2LinkEdgeTest), so this arm never runs an unpinned link.
 		val link = Aapt2Link(File(tempDir, "aapt2"), File(tempDir, "android.jar"))
 
 		val arguments =
