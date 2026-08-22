@@ -116,6 +116,9 @@ class WebServer(
 	// socket then binds anyway a moment later, orphaned, and holds the port until the process
 	// dies. The next start() attempt on that port then fails with "Address already in use."
 	private val lifecycleLock = Any()
+	// @Volatile: written under lifecycleLock by stop(), but read by the accept loop without it --
+	// see acceptLoop, which has to see a stop that happened on another thread.
+	@Volatile
 	private var stopRequested = false
 	private lateinit var serverSocket: ServerSocket
 	private lateinit var database: SQLiteDatabase
@@ -159,10 +162,16 @@ class WebServer(
 	private val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
 	private var bookshelfTemplateId: Int = -1
 
-	// Long enough that a descriptor-exhaustion spin cannot flood the log or starve the connections
-	// whose closing would fix it; short enough to be invisible to a user, and never paid on a
-	// successful accept.
+	// Long enough to stop a descriptor-exhaustion spin starving the connections whose closing would
+	// fix it; short enough to be invisible to a user, and never paid on a successful accept.
 	private val failedAcceptBackoffMs = 50L
+
+	// A backoff alone does not bound anything: 50 ms between attempts is 20 log lines a second, for
+	// as long as the failure lasts, which on a 5 MiB logcat buffer is every other diagnostic on the
+	// device gone within the hour. After this many consecutive failures the loop gives up, having
+	// said so once -- a listener that cannot accept is not serving anyway, and stop()/start() is the
+	// recovery. Reset by any successful accept.
+	private val maxConsecutiveAcceptFailures = 20
 
 	private val httpInternalServerError = 500
 	private val httpNotFound = 404
@@ -372,12 +381,14 @@ class WebServer(
 	 * loop needs neither. The bug it fixes was invisible precisely because nothing could reach here.
 	 */
 	internal fun acceptLoop(socket: ServerSocket) {
+		var consecutiveFailures = 0
 		while (true) {
 			var clientSocket: Socket? = null
 			try {
 				try {
 					if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", socket)
 					clientSocket = socket.accept()
+					consecutiveFailures = 0
 
 					if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
 				} catch (e: IOException) {
@@ -388,8 +399,22 @@ class WebServer(
 					// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
 					if (debugEnabled) log.debug("Caught IOException '$e'.")
 
-					if (shouldStopAccepting(e)) {
+					// stopRequested first: it is authoritative and message-independent, where
+					// shouldStopAccepting reads the exception text. If a platform ever words a closed
+					// socket differently, matching on the text alone would spin here forever -- the
+					// thread never exiting, so start()'s finally never closing the database or freeing
+					// the port, which is worse than the failure this method exists to survive.
+					if (stopRequested || shouldStopAccepting(e)) {
 						if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
+						break
+					}
+					consecutiveFailures++
+					if (consecutiveFailures >= maxConsecutiveAcceptFailures) {
+						log.error(
+							"Accept() failed {} times in a row, last error '{}'; giving up on this listener.",
+							consecutiveFailures,
+							e.message,
+						)
 						break
 					}
 					log.error("Accept() failed: {}", e.message)

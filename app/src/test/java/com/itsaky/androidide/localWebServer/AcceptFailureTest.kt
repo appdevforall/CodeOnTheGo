@@ -75,16 +75,57 @@ class AcceptFailureTest {
 		assertThat(socket.acceptCalls).isEqualTo(1)
 	}
 
-	/** Fails accept() [failures] times with a retryable error, then reports the socket closed. */
+	// stop() is authoritative where the exception text is not. If a platform words a closed socket
+	// differently, matching on the message alone would spin here until the cap instead of exiting,
+	// leaving start()'s finally unrun -- the database open and the port held.
+	@Test
+	fun `a requested stop ends the loop whatever the exception says`() {
+		val server = server()
+		// No socket is bound yet, so this only records that a stop was asked for.
+		server.stop()
+
+		val socket = ScriptedServerSocket(failures = Int.MAX_VALUE, message = "unexpected wording")
+		socket.use { server.acceptLoop(it) }
+
+		assertThat(socket.acceptCalls).isEqualTo(1)
+	}
+
+	// A backoff bounds CPU, not volume: without a cap this loop retries a permanent failure forever,
+	// logging every 50 ms. Giving up leaves a listener that was not serving anyway, and says so once.
+	@Test
+	fun `a permanent failure is abandoned rather than retried forever`() {
+		val socket = ScriptedServerSocket(failures = Int.MAX_VALUE)
+		socket.use { server().acceptLoop(it) }
+
+		assertThat(socket.acceptCalls).isEqualTo(20)
+	}
+
+	// A successful accept means the condition cleared, so the count towards the cap starts over --
+	// otherwise a server up for long enough accumulates unrelated failures and stops on the twentieth.
+	@Test
+	fun `a success between failures resets the count`() {
+		val socket = ScriptedServerSocket(failures = Int.MAX_VALUE, succeedAt = setOf(5, 10))
+		socket.use { server().acceptLoop(it) }
+
+		// 4 failures, a success, 4 more, a success, then a full run of 20 to the cap.
+		assertThat(socket.acceptCalls).isEqualTo(30)
+	}
+
+		/** Fails accept() [failures] times with a retryable error, then reports the socket closed. */
 	private class ScriptedServerSocket(
 		private val failures: Int,
+		private val succeedAt: Set<Int> = emptySet(),
+		private val message: String = "Too many open files",
 	) : ServerSocket() {
 		var acceptCalls = 0
 			private set
 
 		override fun accept(): Socket {
 			acceptCalls++
-			if (acceptCalls <= failures) throw IOException("Too many open files")
+			// A returned socket would send the loop into handleClient, which needs a database; the
+			// loop only reads it for null, so an unconnected one is enough to count as a success.
+			if (acceptCalls in succeedAt) return Socket()
+			if (acceptCalls <= failures) throw IOException(message)
 			throw SocketException("Socket closed")
 		}
 	}
