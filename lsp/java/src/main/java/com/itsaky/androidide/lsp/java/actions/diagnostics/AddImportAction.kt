@@ -40,144 +40,144 @@ import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 class AddImportAction : BaseJavaCodeAction() {
+	override val id: String = "ide.editor.lsp.java.diagnostics.addImport"
+	override var label: String = ""
+	private val diagnosticCode = DiagnosticCode.NOT_IMPORTED.id
 
-  override val id: String = "ide.editor.lsp.java.diagnostics.addImport"
-  override var label: String = ""
-  private val diagnosticCode = DiagnosticCode.NOT_IMPORTED.id
+	override val titleTextRes: Int = R.string.action_import_classes
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
 
-  override val titleTextRes: Int = R.string.action_import_classes
-  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
+	companion object {
+		private val log = LoggerFactory.getLogger(AddImportAction::class.java)
+	}
 
-  companion object {
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-    private val log = LoggerFactory.getLogger(AddImportAction::class.java)
-  }
+		if (!visible || !data.hasRequiredData(DiagnosticItem::class.java)) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		val diagnostic = data.get(DiagnosticItem::class.java)!!
+		if (diagnosticCode != diagnostic.code || diagnostic.extra !is Diagnostic<*>) {
+			markInvisible()
+			return
+		}
 
-    if (!visible || !data.hasRequiredData(DiagnosticItem::class.java)) {
-      markInvisible()
-      return
-    }
+		val file = data.requireFile()
+		val module =
+			IProjectManager.getInstance().findModuleForFile(file, false)
+				?: run {
+					markInvisible()
+					return
+				}
 
-    val diagnostic = data.get(DiagnosticItem::class.java)!!
-    if (diagnosticCode != diagnostic.code || diagnostic.extra !is Diagnostic<*>) {
-      markInvisible()
-      return
-    }
+		val compiler = JavaCompilerProvider.get(module)
 
-    val file = data.requireFile()
-    val module =
-      IProjectManager.getInstance().findModuleForFile(file, false)
-        ?: run {
-          markInvisible()
-          return
-        }
+		@Suppress("UNCHECKED_CAST")
+		val jcDiagnostic =
+			JavaDiagnosticUtils.asJCDiagnostic(diagnostic.extra as Diagnostic<out JavaFileObject>)
+		if (jcDiagnostic == null) {
+			markInvisible()
+			return
+		}
 
-    val compiler = JavaCompilerProvider.get(module)
+		val found =
+			jcDiagnostic.args[1]?.toString()?.let { compiler.findQualifiedNames(it, true).isNotEmpty() }
+				?: false
 
-    @Suppress("UNCHECKED_CAST")
-    val jcDiagnostic =
-      JavaDiagnosticUtils.asJCDiagnostic(diagnostic.extra as Diagnostic<out JavaFileObject>)
-    if (jcDiagnostic == null) {
-      markInvisible()
-      return
-    }
+		visible = found
+		enabled = found
+	}
 
-    val found =
-      jcDiagnostic.args[1]?.toString()?.let { compiler.findQualifiedNames(it, true).isNotEmpty() }
-        ?: false
+	override suspend fun execAction(data: ActionData): Any {
+		@Suppress("UNCHECKED_CAST")
+		val diagnostic =
+			JavaDiagnosticUtils.asUnwrapper(
+				data.get(DiagnosticItem::class.java)!!.extra as Diagnostic<out JavaFileObject>,
+			)!!
+		val file = data.requireFile()
+		val module =
+			IProjectManager.getInstance().findModuleForFile(file, false)
+				?: run {
+					markInvisible()
+					return Any()
+				}
 
-    visible = found
-    enabled = found
-  }
+		val compiler = JavaCompilerProvider.get(module)
 
-  override suspend fun execAction(data: ActionData): Any {
-    @Suppress("UNCHECKED_CAST")
-    val diagnostic =
-      JavaDiagnosticUtils.asUnwrapper(
-        data.get(DiagnosticItem::class.java)!!.extra as Diagnostic<out JavaFileObject>
-      )!!
-    val file = data.requireFile()
-    val module =
-      IProjectManager.getInstance().findModuleForFile(file, false)
-        ?: run {
-          markInvisible()
-          return Any()
-        }
+		val titles = mutableListOf<String>()
+		val rewrites = mutableListOf<AddImport>()
+		val simpleName = diagnostic.d.args[1]
+		for (name in compiler.publicTopLevelTypes()) {
+			var klass = name
+			if (klass.contains('/')) {
+				klass = klass.replace('/', '.')
+			}
 
-    val compiler = JavaCompilerProvider.get(module)
+			if (!klass.endsWith(".$simpleName")) {
+				continue
+			}
 
-    val titles = mutableListOf<String>()
-    val rewrites = mutableListOf<AddImport>()
-    val simpleName = diagnostic.d.args[1]
-    for (name in compiler.publicTopLevelTypes()) {
-      var klass = name
-      if (klass.contains('/')) {
-        klass = klass.replace('/', '.')
-      }
+			titles.add(klass)
+			rewrites.add(AddImport(data.requirePath(), klass))
+		}
 
-      if (!klass.endsWith(".$simpleName")) {
-        continue
-      }
+		if (rewrites.isEmpty()) {
+			return false
+		}
 
-      titles.add(klass)
-      rewrites.add(AddImport(data.requirePath(), klass))
-    }
+		return Pair(titles, rewrites)
+	}
 
-    if (rewrites.isEmpty()) {
-      return false
-    }
+	@Suppress("UNCHECKED_CAST")
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is Pair<*, *>) {
+			return
+		}
 
-    return Pair(titles, rewrites)
-  }
+		val file = data.requireFile()
+		val module =
+			IProjectManager.getInstance().findModuleForFile(file, false)
+				?: run {
+					markInvisible()
+					return
+				}
 
-  @Suppress("UNCHECKED_CAST")
-  override fun postExec(data: ActionData, result: Any) {
+		val compiler = JavaCompilerProvider.get(module)
+		val client = data.getLanguageClient() ?: return
+		val actions = mutableListOf<CodeActionItem>()
+		val titles = result.first as List<String>
+		val rewrites = result.second as List<Rewrite>
 
-    if (result !is Pair<*, *>) {
-      return
-    }
+		for (index in rewrites.indices) {
+			val name = titles[index]
+			val rewrite = rewrites[index]
+			rewrite.asCodeActions(compiler, name)?.let { actions.add(it) }
+		}
 
-    val file = data.requireFile()
-    val module =
-      IProjectManager.getInstance().findModuleForFile(file, false)
-        ?: run {
-          markInvisible()
-          return
-        }
+		when (actions.size) {
+			0 -> {
+				log.warn("No rewrites found. Cannot perform action")
+			}
 
-    val compiler = JavaCompilerProvider.get(module)
-    val client = data.getLanguageClient() ?: return
-    val actions = mutableListOf<CodeActionItem>()
-    val titles = result.first as List<String>
-    val rewrites = result.second as List<Rewrite>
+			1 -> {
+				client.performCodeAction(actions[0])
+			}
 
-    for (index in rewrites.indices) {
-      val name = titles[index]
-      val rewrite = rewrites[index]
-      rewrite.asCodeActions(compiler, name)?.let { actions.add(it) }
-    }
-
-    when (actions.size) {
-      0 -> {
-        log.warn("No rewrites found. Cannot perform action")
-      }
-
-      1 -> {
-        client.performCodeAction(actions[0])
-      }
-
-      else -> {
-        val builder = newDialogBuilder(data)
-        builder.setTitle(label)
-        builder.setItems(toArray(titles, String::class.java)) { d, w ->
-          d.dismiss()
-          client.performCodeAction(actions[w])
-        }
-        builder.show()
-      }
-    }
-  }
+			else -> {
+				val builder = newDialogBuilder(data)
+				builder.setTitle(label)
+				builder.setItems(toArray(titles, String::class.java)) { d, w ->
+					d.dismiss()
+					client.performCodeAction(actions[w])
+				}
+				builder.show()
+			}
+		}
+	}
 }
