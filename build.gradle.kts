@@ -188,6 +188,10 @@ spotless {
 			"**/.flox",
 			"**/.git",
 			"**/.gradle",
+			// ADFA-5244: tooling-api-model:copyToTestDir writes a jar into this directory, which
+			// lives in the source tree. Walking it makes spotlessJava consume another task's
+			// output, so Gradle fails any build that both compiles and checks formatting.
+			"tests/test-home",
 		)
 
 	// Gradle build-output dirs (root + subprojects), relative to rootDir. Not
