@@ -29,8 +29,10 @@ internal class RetainedPayloadStore(
 	 * @property generation the generation the deploy claimed; a re-send replays it unchanged,
 	 *   and the runtime's strictly-newer gate accepts it because the reconnected app runs
 	 *   something older
-	 * @property metadataJson metadata for the re-send; always the hot-swap variant, since a
-	 *   reconnect catch-up must not ask the just-relaunched app to persist and exit again
+	 * @property metadataJson metadata for the re-send; always the hot-swap variant, because
+	 *   only hot-swap deploys are retained - a restart deploy [clear]s the store instead,
+	 *   since replaying its payload as a hot swap would land on the live restart-sensitive
+	 *   component the restart existed to protect
 	 * @property dexFile the retained classes, or null when the deploy carried none
 	 * @property arscFile the retained resource APK, or null when the deploy carried none
 	 * @property assetsZip the retained changed-assets zip, or null when the deploy carried none
@@ -117,8 +119,9 @@ internal class RetainedPayloadStore(
 	}
 
 	/**
-	 * Drops the retained set. Call whenever the baseline changes: the old baseline's bytes
-	 * must never be replayed onto a new one.
+	 * Drops the retained set. Call whenever the baseline changes - the old baseline's bytes
+	 * must never be replayed onto a new one - and after a confirmed restart deploy, whose
+	 * generation supersedes the retained one but must never be replayed as a hot swap.
 	 */
 	fun clear() {
 		dir.deleteRecursively()

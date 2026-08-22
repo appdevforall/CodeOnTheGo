@@ -123,6 +123,21 @@ class DeployChannelDeployTest {
 		}
 
 	@Test
+	fun `ending the session answers a deploy awaiting its verdict as Disconnected`() =
+		runTest {
+			val target = ScriptedTarget()
+			connect(target)
+
+			val deploy = async { channel.deploy(3, null, null, null, "{}") }
+			runCurrent()
+			connections.endSession()
+
+			// Session teardown settles the in-flight deploy now; without the Disconnected
+			// report it would ride out the full 5 s timeout and read as TimedOut.
+			assertThat(deploy.await()).isEqualTo(DeployResult.Disconnected)
+		}
+
+	@Test
 	fun `a binder failure during onPayload reports Failed naming the binder`() =
 		runTest {
 			connect(ScriptedTarget(onPayloadThrow = { RemoteException("binder gone") }))
