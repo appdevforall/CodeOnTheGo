@@ -28,13 +28,13 @@ final class BootProbation {
 	 * The generation a crash happening right now should be quarantined against.
 	 *
 	 * @param pendingReloadGeneration
-	 *            the hot-swapped generation awaiting its first frame, or -1; it outranks the booted one, being the newer claim on the screen that just died
+	 *            the hot-swapped generation awaiting its first frame, or -1; it outranks the booted one, being the newer claim on the screen that just died - unless the store has already moved past it, which means the value is stale (a later deploy acked while backgrounded) and the crash belongs to whatever runs now, not to it
 	 * @param liveGeneration
 	 *            the generation the store currently serves, which is how a booted generation superseded by a later deploy stops being blamed for that deploy's crash
 	 * @return the generation to quarantine, or -1 when nothing this process adopted is to blame
 	 */
 	synchronized long generationToBlame(long pendingReloadGeneration, long liveGeneration) {
-		if (pendingReloadGeneration >= 0) {
+		if (pendingReloadGeneration >= 0 && pendingReloadGeneration >= liveGeneration) {
 			return pendingReloadGeneration;
 		}
 		if (unprovenGeneration >= 0 && unprovenGeneration == liveGeneration) {
