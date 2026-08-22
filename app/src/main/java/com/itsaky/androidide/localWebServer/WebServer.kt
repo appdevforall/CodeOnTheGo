@@ -364,6 +364,68 @@ class WebServer(
 		}
 	}
 
+	/**
+	 * Accepts connections on [socket] until it closes.
+	 *
+	 * Extracted from [start] so ADFA-5242's retry path can be driven by a socket whose accept()
+	 * fails: the rest of start() needs a live Android runtime -- TrafficStats, SQLite -- and this
+	 * loop needs neither. The bug it fixes was invisible precisely because nothing could reach here.
+	 */
+	internal fun acceptLoop(socket: ServerSocket) {
+		while (true) {
+			var clientSocket: Socket? = null
+			try {
+				try {
+					if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", socket)
+					clientSocket = socket.accept()
+
+					if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
+				} catch (e: IOException) {
+					// IOException, not SocketException: accept() is declared to throw the wider
+					// type, and "Too many open files" arrives as a bare IOException. Catching only
+					// the subtype let that one unwind to start()'s outermost handler, whose finally
+					// closes the listening socket and the database (ADFA-5242).
+					// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
+					if (debugEnabled) log.debug("Caught IOException '$e'.")
+
+					if (shouldStopAccepting(e)) {
+						if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
+						break
+					}
+					log.error("Accept() failed: {}", e.message)
+					pauseAfterFailedAccept()
+					continue
+				}
+				try {
+					clientSocket?.let { handleClient(it) }
+				} catch (e: Exception) {
+					// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
+					if (debugEnabled) log.debug("Caught exception '$e'.")
+
+					if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
+						if (debugEnabled) log.debug("Client disconnected: {}", e.message)
+					} else {
+						log.error("Error handling client: {}", e.message)
+						clientSocket?.let { client ->
+							try {
+								val output = client.outputStream
+
+								sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
+							} catch (e2: Exception) {
+								log.error("Error sending error response: {}", e2.message)
+							}
+						}
+					}
+				}
+			} finally {
+				clientSocket?.close()
+
+				// CodeRabbit objects to the following line because clientSocket may print out as "null." This is intentional. --DS
+				if (debugEnabled) log.debug("clientSocket was {}.", clientSocket)
+			}
+		}
+	}
+
 	fun start() {
 		//  Hal Eisen: Required to fix StrictMode.VmPolicy.Builder.detectUntaggedSockets()
 		TrafficStats.setThreadStatsTag(0xC0DE)
@@ -400,53 +462,7 @@ class WebServer(
 			}
 			log.info("WebServer started successfully on '{}', port {}.", config.bindName, config.port)
 
-			while (true) {
-				var clientSocket: Socket? = null
-				try {
-					try {
-						if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", serverSocket)
-						clientSocket = serverSocket.accept()
-
-						if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
-					} catch (e: java.net.SocketException) {
-						// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-						if (debugEnabled) log.debug("Caught java.net.SocketException '$e'.")
-
-						if (e.message?.contains("Closed", ignoreCase = true) == true) {
-							if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
-							break
-						}
-						log.error("Accept() failed: {}", e.message)
-						continue
-					}
-					try {
-						clientSocket?.let { handleClient(it) }
-					} catch (e: Exception) {
-						// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-						if (debugEnabled) log.debug("Caught exception '$e'.")
-
-						if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
-							if (debugEnabled) log.debug("Client disconnected: {}", e.message)
-						} else {
-							log.error("Error handling client: {}", e.message)
-							clientSocket?.let { socket ->
-								try {
-									val output = socket.outputStream
-
-									sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
-								} catch (e2: Exception) {
-									log.error("Error sending error response: {}", e2.message)
-								}
-							}
-						}
-					}
-				} finally {
-					clientSocket?.close()
-
-					// CodeRabbit objects to the following line because clientSocket may print out as "null." This is intentional. --DS
-					if (debugEnabled) log.debug("clientSocket was {}.", clientSocket)
-				}
-			}
+			acceptLoop(serverSocket)
 		} catch (e: Exception) {
 			log.error("Error: {}", e.message)
 		} finally {
