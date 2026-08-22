@@ -89,6 +89,8 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_KT_COMMENT = "editor.codeactions.kotlin.comment"
 	const val EDITOR_CODE_ACTIONS_KT_UNCOMMENT = "editor.codeactions.kotlin.uncomment"
 	const val EDITOR_CODE_ACTIONS_KT_IMPORT_CLASS = "editor.codeactions.kotlin.importclass"
+	const val EDITOR_CODE_ACTIONS_KT_IMPORT_CLASS_DIALOG =
+		"editor.codeactions.kotlin.importclass.dialog"
 	const val EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS = "editor.codeactions.kotlin.organizeimports"
 	const val EDITOR_CODE_ACTIONS_KT_IMPLEMENT_MEMBERS = "editor.codeactions.kotlin.implementmembers"
 	const val EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX = "editor.codeactions.kotlin.nullsafetyfix"
