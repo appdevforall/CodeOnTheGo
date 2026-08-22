@@ -409,13 +409,17 @@ class QuickBuildManifestTransformerTest {
 		assertThat(written).contains("""android:enabled="true"""")
 		// Ordinary app-local resource refs are untouched.
 		assertThat(written).contains("@mipmap/ic_launcher")
-		// The injected (library) service is proxied like any other - uniform rule.
+		// The injected (library) service is recorded like any other - uniform rule.
 		assertThat(result.components.single { it.type == ComponentType.SERVICE }.userClass)
 			.isEqualTo("com.itsaky.androidide.logsender.LogSenderService")
 	}
 
 	@Test
-	fun `rewrites service names to per-type proxies in manifest order`() {
+	fun `services keep their real manifest names so explicit start-service intents still resolve`() {
+		// Android has no <service> alias, so a renamed service silently breaks
+		// startService(Intent(ctx, SyncService::class.java)): system_server resolves the
+		// real class name against the manifest, finds nothing, and no-ops. The real name
+		// stays and the appComponentFactory instantiates it through the payload loader.
 		val result =
 			transformer().transform(
 				manifest(
@@ -432,17 +436,35 @@ class QuickBuildManifestTransformerTest {
 				ProxiedComponent(
 					ComponentType.SERVICE,
 					"com.example.app.SyncService",
-					"$proxyPackage.Proxy0Service",
+					proxyClass = null,
 				),
 				ProxiedComponent(
 					ComponentType.SERVICE,
 					"com.example.app.MusicService",
-					"$proxyPackage.Proxy1Service",
+					proxyClass = null,
 				),
 			).inOrder()
 		assertThat(componentNames(result, "service"))
-			.containsExactly("$proxyPackage.Proxy0Service", "$proxyPackage.Proxy1Service")
+			.containsExactly("com.example.app.SyncService", "com.example.app.MusicService")
 			.inOrder()
+	}
+
+	@Test
+	fun `fully qualifies a shorthand service name while keeping it unrenamed`() {
+		// The kept name is what the runtime resolves against the payload dex, so shorthand
+		// must not survive - same rule as the Application's name.
+		val result =
+			transformer().transform(
+				manifest(
+					"""<service android:name=".SyncService" />""",
+					packageName = "com.example.app",
+				).byteInputStream(),
+			)
+
+		assertThat(componentNames(result, "service"))
+			.containsExactly("com.example.app.SyncService")
+		assertThat(result.components.single { it.type == ComponentType.SERVICE }.userClass)
+			.isEqualTo("com.example.app.SyncService")
 	}
 
 	@Test
@@ -467,6 +489,7 @@ class QuickBuildManifestTransformerTest {
 
 		val service = result.document.getElementsByTagName("service").item(0) as Element
 		val ns = QuickBuildManifestTransformer.ANDROID_NS
+		assertThat(service.getAttributeNS(ns, "name")).isEqualTo("com.example.app.SyncService")
 		assertThat(service.getAttributeNS(ns, "exported")).isEqualTo("false")
 		assertThat(service.getAttributeNS(ns, "permission")).isEqualTo("com.example.app.BIND")
 		assertThat(service.getAttributeNS(ns, "directBootAware")).isEqualTo("true")
@@ -476,7 +499,11 @@ class QuickBuildManifestTransformerTest {
 	}
 
 	@Test
-	fun `rewrites receiver names and keeps their filters and permission`() {
+	fun `receivers keep their real name - fully qualified - with filters and permission verbatim`() {
+		// A renamed receiver breaks every explicit broadcast at it: an AlarmManager
+		// PendingIntent.getBroadcast(ctx, 0, Intent(ctx, BootReceiver::class.java), ...)
+		// delivers to a component the manifest would no longer declare, so the alarm
+		// silently never fires. The real name stays; only shorthand gets expanded.
 		val result =
 			transformer().transform(
 				manifest(
@@ -493,11 +520,11 @@ class QuickBuildManifestTransformerTest {
 
 		val receiver = result.components.single { it.type == ComponentType.RECEIVER }
 		assertThat(receiver.userClass).isEqualTo("com.example.app.quickbuild.BootReceiver")
-		assertThat(receiver.proxyClass).isEqualTo("$proxyPackage.Proxy0Receiver")
+		assertThat(receiver.proxyClass).isNull()
 
 		val element = result.document.getElementsByTagName("receiver").item(0) as Element
 		val ns = QuickBuildManifestTransformer.ANDROID_NS
-		assertThat(element.getAttributeNS(ns, "name")).isEqualTo("$proxyPackage.Proxy0Receiver")
+		assertThat(element.getAttributeNS(ns, "name")).isEqualTo("com.example.app.quickbuild.BootReceiver")
 		assertThat(element.getAttributeNS(ns, "exported")).isEqualTo("true")
 		assertThat(element.getAttributeNS(ns, "permission"))
 			.isEqualTo("android.permission.RECEIVE_BOOT_COMPLETED")
@@ -712,13 +739,13 @@ class QuickBuildManifestTransformerTest {
 
 		assertThat(result.components.none { it.userClass == keepAlive }).isTrue()
 		assertThat(result.unproxied.single().userClass).isEqualTo(keepAlive)
-		// The project's own service still proxies, numbered from zero: the keep-alive must not
-		// consume a proxy-index slot or every later service of the user's shifts.
+		// The project's own service is still recorded (the restart rule needs to see it),
+		// while the runtime-owned keep-alive stays out of the component list.
 		val services = result.components.filter { it.type == ComponentType.SERVICE }
 		assertThat(services.single().userClass).isEqualTo("com.example.app.SyncService")
-		assertThat(services.single().proxyClass).isEqualTo("$proxyPackage.Proxy0Service")
+		assertThat(services.single().proxyClass).isNull()
 		assertThat(componentNames(result, "service"))
-			.containsExactly(keepAlive, "$proxyPackage.Proxy0Service")
+			.containsExactly(keepAlive, "com.example.app.SyncService")
 	}
 
 	@Test
@@ -741,20 +768,20 @@ class QuickBuildManifestTransformerTest {
 		assertThat(result.components.none { it.userClass == unknown }).isTrue()
 		assertThat(result.unproxied.single().userClass).isEqualTo(unknown)
 		assertThat(result.unproxied.single().reason).contains("final")
-		// The project's own service still proxies, and the skipped one took no index slot.
+		// The project's own service is still recorded; the skipped one is not.
 		val services = result.components.filter { it.type == ComponentType.SERVICE }
 		assertThat(services.single().userClass).isEqualTo("com.example.app.SyncService")
-		assertThat(services.single().proxyClass).isEqualTo("$proxyPackage.Proxy0Service")
+		assertThat(services.single().proxyClass).isNull()
 		assertThat(componentNames(result, "service"))
-			.containsExactly(unknown, "$proxyPackage.Proxy0Service")
+			.containsExactly(unknown, "com.example.app.SyncService")
 			.inOrder()
 	}
 
 	@Test
-	fun `a non-final library component is proxied like any other`() {
+	fun `a non-final library service is still recorded as a component`() {
 		// The complement of the test above: the resolver finds the class and it is ordinary,
-		// so nothing changes. Guards against a skip rule that fires on "found" rather than
-		// "found and final".
+		// so it stays in the component list (the restart rule keys off it). Guards against a
+		// skip rule that fires on "found" rather than "found and final".
 		val libraryService = "com.thirdparty.sync.OrdinaryService"
 
 		val result =
@@ -763,12 +790,13 @@ class QuickBuildManifestTransformerTest {
 			)
 
 		assertThat(result.unproxied).isEmpty()
-		assertThat(result.components.single { it.type == ComponentType.SERVICE }.proxyClass)
-			.isEqualTo("$proxyPackage.Proxy0Service")
+		val service = result.components.single { it.type == ComponentType.SERVICE }
+		assertThat(service.userClass).isEqualTo(libraryService)
+		assertThat(service.proxyClass).isNull()
 	}
 
 	@Test
-	fun `a normal receiver alongside ProfileInstallReceiver still proxies, numbered from zero`() {
+	fun `a normal receiver alongside ProfileInstallReceiver is recorded, the androidx one is not`() {
 		val result =
 			transformer().transform(
 				manifest(
@@ -783,7 +811,12 @@ class QuickBuildManifestTransformerTest {
 		val receivers = result.components.filter { it.type == ComponentType.RECEIVER }
 		assertThat(receivers).hasSize(1)
 		assertThat(receivers.single().userClass).isEqualTo("com.example.app.BootReceiver")
-		assertThat(receivers.single().proxyClass).isEqualTo("$proxyPackage.Proxy0Receiver")
+		assertThat(receivers.single().proxyClass).isNull()
+		assertThat(componentNames(result, "receiver"))
+			.containsExactly(
+				"androidx.profileinstaller.ProfileInstallReceiver",
+				"com.example.app.BootReceiver",
+			).inOrder()
 	}
 
 	@Test
@@ -984,7 +1017,11 @@ class QuickBuildManifestTransformerTest {
 				).byteInputStream(),
 			)
 
-		assertThat(result.components.filter { it.proxyClass != null }).hasSize(2)
+		// Both recorded; only the provider carries a proxy (services keep their real name).
+		assertThat(result.components).hasSize(2)
+		assertThat(result.components.single { it.type == ComponentType.SERVICE }.proxyClass).isNull()
+		assertThat(result.components.single { it.type == ComponentType.PROVIDER }.proxyClass)
+			.isEqualTo("$proxyPackage.Proxy0Provider")
 	}
 
 	@Test
@@ -1136,7 +1173,7 @@ class QuickBuildManifestTransformerTest {
 					ProxiedComponent(
 						ComponentType.SERVICE,
 						"com.example.app.SyncService",
-						"$proxyPackage.Proxy0Service",
+						proxyClass = null,
 					),
 					ProxiedComponent(
 						ComponentType.ACTIVITY,
@@ -1163,11 +1200,11 @@ class QuickBuildManifestTransformerTest {
 	 * The benchmark corpus' `service-app`, component-for-component: the only corpus app whose edits
 	 * take the restart route. Its services are Kotlin (so final in their own bytes) but
 	 * project-owned, so they are absent from the dependency classpath the real task searches - and
-	 * absence must read as proxiable. A service that lost its proxy would silently drop off the
-	 * restart closure.
+	 * absence must read as project-owned. A service that dropped out of the component list would
+	 * silently drop off the restart closure.
 	 */
 	@Test
-	fun `project-owned services stay proxied when the dependency classpath does not hold them`() {
+	fun `project-owned services stay recorded when the dependency classpath does not hold them`() {
 		val serviceApp =
 			manifest(
 				packageName = "org.appdevforall.cotg.corpus.serviceapp",
@@ -1201,9 +1238,13 @@ class QuickBuildManifestTransformerTest {
 				"org.appdevforall.cotg.corpus.serviceapp.CounterService",
 				"org.appdevforall.cotg.corpus.serviceapp.TickBinderService",
 			).inOrder()
-		assertThat(services.map { it.proxyClass })
-			.containsExactly("$proxyPackage.Proxy0Service", "$proxyPackage.Proxy1Service")
-			.inOrder()
+		// Recorded for the restart closure, kept under their real (explicitly startable) names.
+		assertThat(services.map { it.proxyClass }).containsExactly(null, null)
+		assertThat(componentNames(result, "service"))
+			.containsExactly(
+				"org.appdevforall.cotg.corpus.serviceapp.CounterService",
+				"org.appdevforall.cotg.corpus.serviceapp.TickBinderService",
+			).inOrder()
 		assertThat(result.entryActivity).isEqualTo("org.appdevforall.cotg.corpus.serviceapp.MainActivity")
 	}
 }
