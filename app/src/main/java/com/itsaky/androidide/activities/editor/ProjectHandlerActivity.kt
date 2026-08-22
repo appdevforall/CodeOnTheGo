@@ -554,37 +554,50 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 		val answerAtTap = buildViewModel.consumeClobberAnswerAtTap()
 		lifecycleScope.launch {
-			// Reading the APK's manifest is disk work, and on emulated storage that is not free.
-			val apkApplicationId = withContext(Dispatchers.IO) { apkApplicationId(state.apkFile) }
-			if (isDestroyed || isFinishing) {
-				return@launch
-			}
-			val now =
-				quickBuildClobberConfirmation(apkApplicationId, clobberCheck::standardRunNeedsConfirm)
-			val onProceed = {
-				// The Quick Build session's installed baseline is about to be replaced; stop it.
-				// Keyed off the re-check rather than off whether a dialog was shown: a tap that
-				// already confirmed this exact clobber skips the dialog but still clobbers.
-				if (now != QuickBuildClobberConfirmation.NotNeeded) {
-					quickBuildSessionManager()?.restartSession()
+			// installationAttempted() has already reset the build state, so an activity destroyed
+			// (rotation) during the IO parse below cancels this coroutine and would silently drop
+			// the whole install - a successful build with no install and no message. Until the
+			// install (or its confirm dialog) is actually dispatched, the drop path re-arms
+			// AwaitingInstall in the surviving ViewModel so the recreated activity retries.
+			var dispatched = false
+			try {
+				// Reading the APK's manifest is disk work, and on emulated storage that is not free.
+				val apkApplicationId = withContext(Dispatchers.IO) { apkApplicationId(state.apkFile) }
+				if (isDestroyed || isFinishing) {
+					return@launch
 				}
-				doInstallApk(state)
-			}
-			when (val decision = installTimeClobberConfirmation(answerAtTap, now)) {
-				QuickBuildClobberConfirmation.NotNeeded -> {
-					onProceed()
+				dispatched = true
+				val now =
+					quickBuildClobberConfirmation(apkApplicationId, clobberCheck::standardRunNeedsConfirm)
+				val onProceed = {
+					// The Quick Build session's installed baseline is about to be replaced; stop it.
+					// Keyed off the re-check rather than off whether a dialog was shown: a tap that
+					// already confirmed this exact clobber skips the dialog but still clobbers.
+					if (now != QuickBuildClobberConfirmation.NotNeeded) {
+						quickBuildSessionManager()?.restartSession()
+					}
+					doInstallApk(state)
 				}
+				when (val decision = installTimeClobberConfirmation(answerAtTap, now)) {
+					QuickBuildClobberConfirmation.NotNeeded -> {
+						onProceed()
+					}
 
-				QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
-					confirmUnknownOccupantSwitch(onProceed)
-				}
+					QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
+						confirmUnknownOccupantSwitch(onProceed)
+					}
 
-				is QuickBuildClobberConfirmation.Needed -> {
-					confirmBuildTypeSwitch(
-						getString(string.quick_build_switch_to_standard_title),
-						getString(string.quick_build_switch_to_standard_message, decision.applicationId),
-						onProceed,
-					)
+					is QuickBuildClobberConfirmation.Needed -> {
+						confirmBuildTypeSwitch(
+							getString(string.quick_build_switch_to_standard_title),
+							getString(string.quick_build_switch_to_standard_message, decision.applicationId),
+							onProceed,
+						)
+					}
+				}
+			} finally {
+				if (!dispatched) {
+					buildViewModel.reArmInstall(state)
 				}
 			}
 		}

@@ -117,11 +117,11 @@ class GradleBuildService :
 		private set
 
 	/**
-	 * Gradle output captured while the editor's listener is suppressed, oldest line first. Bounded
-	 * by [MAX_INTERNAL_OUTPUT_LINES]; guarded by itself, since it is written from the tooling
-	 * API's thread and drained from the caller's.
+	 * Gradle output captured while the editor's listener is suppressed, oldest line first.
+	 * Bounded by [MAX_INTERNAL_OUTPUT_LINES]; the routing/capture/drain logic lives in
+	 * [InternalBuildOutputCapture] so it is JVM-testable without this service.
 	 */
-	private val internalBuildOutput = ArrayDeque<String>()
+	private val internalBuildOutput = InternalBuildOutputCapture(MAX_INTERNAL_OUTPUT_LINES)
 
 	/**
 	 * Whether an INTERNAL build is running - a build the user never asked for that goes through the
@@ -134,7 +134,7 @@ class GradleBuildService :
 		InternalBuildBracket(
 			// Outermost internal build: drop any tail a previous one left unread, so a failure
 			// report quotes this build and not the last one.
-			onFirstAcquire = { synchronized(internalBuildOutput) { internalBuildOutput.clear() } },
+			onFirstAcquire = { internalBuildOutput.clear() },
 			// postValue, not setValue: the bracket releases on the tooling API's thread.
 			onHeldChanged = { held -> _internalBuildInProgress.postValue(held) },
 		)
@@ -453,27 +453,10 @@ class GradleBuildService :
 	}
 
 	override fun logOutput(line: String) {
-		val listener = editorListener()
-		if (listener != null) {
-			listener.onOutput(line)
-			return
-		}
-		// Suppressed because an internal build is running. Keep a bounded tail anyway: if that
-		// build FAILS this is the only copy of Gradle's reason, since the tooling API's own
-		// failure is a bare enum. See takeInternalBuildOutput.
-		synchronized(internalBuildOutput) {
-			if (internalBuildOutput.size >= MAX_INTERNAL_OUTPUT_LINES) {
-				internalBuildOutput.removeFirst()
-			}
-			internalBuildOutput.addLast(line)
-		}
-		internalBuildProgress?.let { report ->
-			try {
-				report(line)
-			} catch (e: Exception) {
-				log.warn("Internal build progress listener threw", e)
-			}
-		}
+		// When the editor's listener is suppressed (an internal build is running), a bounded
+		// tail is kept anyway: if that build FAILS it is the only copy of Gradle's reason,
+		// since the tooling API's own failure is a bare enum. See takeInternalBuildOutput.
+		internalBuildOutput.onLine(line, editorListener(), internalBuildProgress)
 	}
 
 	/**
@@ -484,12 +467,7 @@ class GradleBuildService :
 	 *
 	 * @return the captured lines, oldest first; empty when nothing was captured.
 	 */
-	fun takeInternalBuildOutput(): List<String> =
-		synchronized(internalBuildOutput) {
-			val captured = internalBuildOutput.toList()
-			internalBuildOutput.clear()
-			captured
-		}
+	fun takeInternalBuildOutput(): List<String> = internalBuildOutput.drain()
 
 	override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> =
 		CompletableFuture.supplyAsync {

@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.io.InputStream
 import java.util.zip.ZipInputStream
 
 /**
@@ -52,8 +53,25 @@ object QuickBuildArtifactStager {
 		}
 		Environment.mkdirIfNotExists(daemonDir)
 
+		val count = extractDaemonZip(context.assets.open(ASSET_DAEMON_ZIP).buffered(), daemonDir)
+		log.info("Staged {} daemon files into {}", count, daemonDir)
+	}
+
+	/**
+	 * Unpacks the daemon zip from [input] into [daemonDir]. Internal so the JVM test can watch
+	 * the zip-slip guard go red without an Android [Context].
+	 *
+	 * @return the number of files extracted.
+	 * @throws IOException on a zip entry escaping [daemonDir].
+	 * @throws FileNotFoundException when the zip contains no files.
+	 */
+	@Throws(IOException::class)
+	internal fun extractDaemonZip(
+		input: InputStream,
+		daemonDir: File,
+	): Int {
 		val canonicalRoot = daemonDir.canonicalFile
-		ZipInputStream(context.assets.open(ASSET_DAEMON_ZIP).buffered()).use { zip ->
+		ZipInputStream(input).use { zip ->
 			var entry = zip.nextEntry
 			var count = 0
 			while (entry != null) {
@@ -75,7 +93,7 @@ object QuickBuildArtifactStager {
 			if (count == 0) {
 				throw FileNotFoundException("Daemon zip contained no files")
 			}
-			log.info("Staged {} daemon files into {}", count, daemonDir)
+			return count
 		}
 	}
 }
