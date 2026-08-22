@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
  *
  * Installed once per process by {@link QuickBuildAppComponentFactory} at application instantiation; Context work - binding to CoGo, cache dirs - waits for the first activity, since the Application has no base context yet.
  *
- * Failure policy throughout: a reload failure reports the crash and rolls back, so the app keeps running the last working code rather than crash-looping or silently claiming the new generation.
+ * Failure policy throughout: a reload failure reports the crash, and rolls back when the store adopted the failed generation, so the app keeps running the last working code rather than crash-looping or silently claiming the new generation. Only a failure superseded by a newer live generation stays silent.
  */
 final class QuickBuildRuntime {
 
@@ -273,10 +273,13 @@ final class QuickBuildRuntime {
 						PayloadStore.INSTANCE.baselineFingerprint(),
 						application.getCacheDir());
 			}
-			if (tracker.hasResumedActivity()) {
-				pendingReloadStartUptime = startUptime;
-				pendingReloadGeneration = generation;
-			} else {
+			boolean resumed = tracker.hasResumedActivity();
+			pendingReloadStartUptime = startUptime;
+			// Assigned on BOTH branches: the backgrounded ack must also clear any older
+			// generation still pending, or the crash guard keeps blaming it for this
+			// generation's crashes - and this generation escapes quarantine.
+			pendingReloadGeneration = Generations.pendingAfterApply(resumed, generation);
+			if (!resumed) {
 				// Backgrounded: no resumed activity to hang a frame callback on, so
 				// waiting for render-proof would time out a deploy that worked. Ack at
 				// apply+persist, like the restart path.
@@ -487,7 +490,9 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Rolls back to {@code rollback}, reports the crash to CoGo, and shows the banner; the app stays on the old generation.
+	 * Reports the failure to CoGo and shows the banner; rolls back only when the store adopted the failed generation, so the app stays on the old one either way.
+	 *
+	 * A failure before the apply took - an oversize payload, a persist failure, a restart deploy missing its dex - leaves the store on the previous generation, so there is nothing to restore or quarantine; the report and banner still fire, or the host's only signal would be its deploy timeout. Only a failure superseded by a newer live generation stays silent, since that generation owns the store, the pending ack and the screen.
 	 *
 	 * @param generation
 	 *            the generation that failed, which CoGo marks bad
@@ -497,16 +502,20 @@ final class QuickBuildRuntime {
 	 *            the failure, summarized into both the report and the banner
 	 */
 	private void failReload(long generation, PayloadStore.Payload rollback, Throwable error) {
-		if (!Generations.rollbackApplies(PayloadStore.INSTANCE.generation(), generation)) {
+		Generations.FailureAction action = Generations.onReloadFailure(
+				PayloadStore.INSTANCE.generation(), generation);
+		if (action == Generations.FailureAction.LEAVE_ALONE) {
 			// A newer payload landed while this one was failing, so it owns the store, the
 			// pending ack and the screen. Rolling back here would undo a deploy that worked.
 			RuntimeLog.w("gen " + generation + " failed but gen "
 					+ PayloadStore.INSTANCE.generation() + " is live; leaving it alone", error);
 			return;
 		}
-		PayloadStore.INSTANCE.restore(rollback);
-		quarantine(generation);
-		pendingReloadGeneration = -1;
+		if (action == Generations.FailureAction.ROLLBACK_AND_REPORT) {
+			PayloadStore.INSTANCE.restore(rollback);
+			quarantine(generation);
+			pendingReloadGeneration = -1;
+		}
 		String summary = summarize(error);
 		setOverlayState(OverlayState.crashed(summary));
 		client.reportCrash(generation, summary);
