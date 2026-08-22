@@ -116,6 +116,7 @@ class WebServer(
 	// socket then binds anyway a moment later, orphaned, and holds the port until the process
 	// dies. The next start() attempt on that port then fails with "Address already in use."
 	private val lifecycleLock = Any()
+
 	// @Volatile: written under lifecycleLock by stop(), but read by the accept loop without it --
 	// see acceptLoop, which has to see a stop that happened on another thread.
 	@Volatile

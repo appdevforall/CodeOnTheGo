@@ -111,7 +111,7 @@ class AcceptFailureTest {
 		assertThat(socket.acceptCalls).isEqualTo(30)
 	}
 
-		/** Fails accept() [failures] times with a retryable error, then reports the socket closed. */
+	/** Fails accept() [failures] times with a retryable error, then reports the socket closed. */
 	private class ScriptedServerSocket(
 		private val failures: Int,
 		private val succeedAt: Set<Int> = emptySet(),
