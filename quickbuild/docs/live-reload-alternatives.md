@@ -56,10 +56,11 @@ proxy classes. The AAR reaches the build only as a runtime dependency and a comp
 entry - never as a project artifact, and the class divert (`QuickBuildPayloadTransformTask`)
 is registered at `ScopedArtifacts.Scope.PROJECT`, which covers the project's own classes only
 (`component-proxying-design.md`) - so it is never dexed into a payload. Payload loaders are parent-first with the APK loader as parent, so
-every generation's `Proxy0Service` resolves the **same** `LogSenderService` class object. Their
+every generation's loader resolves the **same** `LogSenderService` class object (the service
+keeps its real manifest name; services are never renamed to proxies). Their
 identity cannot change across a deploy, and the crash the restart rule exists to prevent cannot
-arise from them. The proxies hold no state of their own: `ProxySourceGenerator` emits an empty
-subclass for services and providers.
+arise from them. The installer provider's proxy holds no state of its own: `ProxySourceGenerator`
+emits an empty subclass for providers.
 
 Why it is keyed on **exact** class names, and must stay that way: the safety comes from these
 specific classes being absent from the payload, not from being "library code". Any library class
