@@ -2,6 +2,9 @@ package com.itsaky.androidide.localWebServer
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
+import java.io.IOException
+import java.net.SocketException
+import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -32,6 +35,23 @@ class AcceptWaitReportingTest {
 	private fun millis(value: Long) = TimeUnit.MILLISECONDS.toNanos(value)
 
 	private val noPreviousIteration = -1L
+
+	// accept() is declared to throw IOException; SocketException is only one subtype. Only the
+	// socket closing may end the loop -- anything else has to be retried, or one transient failure
+	// takes documentation down for the rest of the session.
+	@Test
+	fun `only the listening socket closing stops the accept loop`() {
+		assertThat(server().shouldStopAccepting(SocketException("Socket closed"))).isTrue()
+		assertThat(server().shouldStopAccepting(SocketException("socket is CLOSED"))).isTrue()
+	}
+
+	@Test
+	fun `a transient accept failure is retried, whatever its type`() {
+		assertThat(server().shouldStopAccepting(SocketException("Connection reset by peer"))).isFalse()
+		assertThat(server().shouldStopAccepting(SocketTimeoutException("Accept timed out"))).isFalse()
+		assertThat(server().shouldStopAccepting(IOException("Too many open files"))).isFalse()
+		assertThat(server().shouldStopAccepting(IOException(null as String?))).isFalse()
+	}
 
 	@Test
 	fun `a one second wait between promptly served requests is the stall being hunted`() {

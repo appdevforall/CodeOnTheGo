@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -112,6 +113,11 @@ class WebServer(
 	// A park longer than this is an idle server, not a lost handshake: Linux's SYN retransmission
 	// ladder is 1 s, 3 s, 7 s, so anything past it is nobody browsing rather than ADFA-5172.
 	private val maxReportedAcceptWaitNanos = TimeUnit.SECONDS.toNanos(10)
+
+	// Long enough that a descriptor-exhaustion spin cannot flood the log or starve the connections
+	// whose closing would fix it; short enough to be invisible against the ~1 s stall ADFA-5172 is
+	// chasing, and never paid on a successful accept.
+	private val failedAcceptBackoffMs = 50L
 
 	// How long handleClient()'s last stat of config.debugDatabasePath took, and how long the last
 	// accept() waited. Plain vars are safe: the accept loop is serial and single-threaded, and it is
@@ -255,15 +261,16 @@ class WebServer(
 
 				if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
 				return clientSocket
-			} catch (e: java.net.SocketException) {
+			} catch (e: IOException) {
 				// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-				if (debugEnabled) log.debug("Caught java.net.SocketException '$e'.")
+				if (debugEnabled) log.debug("Caught ${e.javaClass.name} '$e'.")
 
-				if (isSocketClosed(e)) {
+				if (shouldStopAccepting(e)) {
 					if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
 					return null
 				}
-				log.error("Accept() failed: {}", e.message)
+				log.error("Accept() failed with {}: {}", e.javaClass.simpleName, e.message)
+				pauseAfterFailedAccept()
 			}
 		}
 	}
@@ -310,6 +317,33 @@ class WebServer(
 			log.error("Cannot close client socket: {}", e.message)
 		}
 	}
+
+	/**
+	 * Brief pause after an accept failure that is not the socket closing, so a *persistent* failure
+	 * cannot spin this loop at full tilt while it clears. "Too many open files" is the realistic
+	 * one, and it is self-inflicted in the worst way: the descriptors this server is waiting to
+	 * reuse are the ones its own in-flight connections hold, so retrying flat out both floods the
+	 * log and competes with the work that would free them. Only the failure path waits; a
+	 * successful accept never does, which is the latency ADFA-5172 is about.
+	 */
+	private fun pauseAfterFailedAccept() {
+		try {
+			Thread.sleep(failedAcceptBackoffMs)
+		} catch (e: InterruptedException) {
+			Thread.currentThread().interrupt()
+		}
+	}
+
+	/**
+	 * Whether an accept failure means the server is shutting down rather than having hit a
+	 * transient problem. `ServerSocket.accept()` is declared to throw `IOException`, of which
+	 * `SocketException` is one subtype, so only the socket closing ends the loop -- everything
+	 * else, including a `SocketTimeoutException` or a descriptor-exhaustion `IOException`, is
+	 * retried. Getting this backwards in either direction is bad in a different way: treating a
+	 * transient failure as terminal silently stops serving documentation, and treating the close
+	 * as transient spins the loop against a dead socket.
+	 */
+	internal fun shouldStopAccepting(e: IOException): Boolean = e is java.net.SocketException && isSocketClosed(e)
 
 	/** A closed socket reports itself only in the exception's message, hence the string test. */
 	private fun isSocketClosed(e: java.net.SocketException): Boolean = e.message?.contains("Closed", ignoreCase = true) == true
