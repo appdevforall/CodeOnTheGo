@@ -1,0 +1,104 @@
+package com.itsaky.androidide.quickbuild
+
+import com.google.common.truth.Truth.assertThat
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
+/**
+ * The zip-slip guard is a security control: the daemon zip is a bundled asset today, but the
+ * extraction must never write outside the daemon dir no matter what the archive says. These
+ * tests watch the guard go red - a `../` entry must throw BEFORE any byte lands outside.
+ */
+class QuickBuildArtifactStagerTest {
+	@get:Rule
+	val tmp = TemporaryFolder()
+
+	private fun zipOf(vararg entries: Pair<String, ByteArray?>): ByteArrayInputStream {
+		val bytes = ByteArrayOutputStream()
+		ZipOutputStream(bytes).use { zip ->
+			for ((name, content) in entries) {
+				zip.putNextEntry(ZipEntry(name))
+				content?.let(zip::write)
+				zip.closeEntry()
+			}
+		}
+		return ByteArrayInputStream(bytes.toByteArray())
+	}
+
+	@Test
+	fun `a well-formed zip extracts its files under the daemon dir`() {
+		val daemonDir = tmp.newFolder("daemon")
+
+		val count =
+			QuickBuildArtifactStager.extractDaemonZip(
+				zipOf(
+					"daemon.jar" to byteArrayOf(1, 2, 3),
+					"lib/" to null,
+					"lib/runtime.jar" to byteArrayOf(4, 5),
+				),
+				daemonDir,
+			)
+
+		assertThat(count).isEqualTo(2)
+		assertThat(File(daemonDir, "daemon.jar").readBytes()).isEqualTo(byteArrayOf(1, 2, 3))
+		assertThat(File(daemonDir, "lib/runtime.jar").readBytes()).isEqualTo(byteArrayOf(4, 5))
+	}
+
+	@Test
+	fun `a zip entry escaping the daemon dir throws and writes nothing outside it`() {
+		val root = tmp.newFolder("root")
+		val daemonDir = File(root, "daemon").also { it.mkdirs() }
+
+		val thrown =
+			runCatching {
+				QuickBuildArtifactStager.extractDaemonZip(
+					zipOf("../evil.txt" to byteArrayOf(7)),
+					daemonDir,
+				)
+			}.exceptionOrNull()
+
+		assertThat(thrown).isInstanceOf(IOException::class.java)
+		assertThat(thrown).hasMessageThat().contains("evil.txt")
+		assertThat(File(root, "evil.txt").exists()).isFalse()
+	}
+
+	@Test
+	fun `the guard rejects an escaping entry even after well-formed ones`() {
+		val root = tmp.newFolder("root2")
+		val daemonDir = File(root, "daemon").also { it.mkdirs() }
+
+		val thrown =
+			runCatching {
+				QuickBuildArtifactStager.extractDaemonZip(
+					zipOf(
+						"ok.jar" to byteArrayOf(1),
+						"nested/../../evil.txt" to byteArrayOf(7),
+					),
+					daemonDir,
+				)
+			}.exceptionOrNull()
+
+		assertThat(thrown).isInstanceOf(IOException::class.java)
+		assertThat(File(root, "evil.txt").exists()).isFalse()
+	}
+
+	@Test
+	fun `a zip with no files throws instead of reporting a staged daemon`() {
+		val daemonDir = tmp.newFolder("empty-daemon")
+
+		val thrown =
+			runCatching {
+				QuickBuildArtifactStager.extractDaemonZip(zipOf("lib/" to null), daemonDir)
+			}.exceptionOrNull()
+
+		assertThat(thrown).isInstanceOf(FileNotFoundException::class.java)
+	}
+}

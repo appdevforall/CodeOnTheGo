@@ -198,6 +198,21 @@ class BuildViewModel : ViewModel() {
 		}
 	}
 
+	/**
+	 * Re-arms [BuildState.AwaitingInstall] when an install dispatch was dropped before anything
+	 * user-visible happened (ADFA-4128): the flag-on install path parses the APK on IO after
+	 * [installationAttempted] has already reset the state, so a configuration change mid-parse
+	 * cancels the dispatch and would otherwise turn a successful build into no install and no
+	 * message. This ViewModel outlives the activity, so the recreated activity's collector sees
+	 * the re-armed state and retries. Only fires from [BuildState.Idle], so it cannot stomp a
+	 * build the user started in the meantime.
+	 */
+	fun reArmInstall(state: BuildState.AwaitingInstall) {
+		if (_buildState.value is BuildState.Idle) {
+			_buildState.value = state
+		}
+	}
+
 	/** Call this after the error has been shown once, so a lifecycle replay does not re-flash it. */
 	fun errorDisplayed() {
 		if (_buildState.value is BuildState.Error) {

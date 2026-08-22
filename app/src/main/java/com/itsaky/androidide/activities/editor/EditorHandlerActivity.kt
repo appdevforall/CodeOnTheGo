@@ -1301,6 +1301,10 @@ open class EditorHandlerActivity :
 
 		// Only a resource save can change R, so only it warrants the Gradle generateSources run
 		// (Java R.jar freshness + ViewBinding accessors - see SaveResult.resourceXmlSaved).
+		// Deliberately un-gated (experiments flag off included): previously this ran after EVERY
+		// save here, so skipping it on Kotlin/Java and non-resource saves is a save-latency win
+		// for every user. Known trade: a manifest-only edit no longer refreshes the generated
+		// Manifest/R intermediates until the next resource save or build.
 		// Routed through the deferral: immediate with no Quick Build session, parked and
 		// coalesced until the session pipeline settles with one (see GenerateSourcesDeferral).
 		if (processResources && result.resourceXmlSaved) {
