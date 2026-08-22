@@ -71,6 +71,42 @@ class QuickBuildPlugin : Plugin<Project> {
 		 * jar dependency. AGP-internal like the constant above, so the raw string is used directly.
 		 */
 		internal const val CLASSES_JAR_ARTIFACT_TYPE = "android-classes-jar"
+
+		/**
+		 * The variant's runtime-classpath [Configuration], reached through AGP-internal variant
+		 * types, or null when the variant is neither known impl - i.e. an AGP this plugin has not
+		 * been taught about.
+		 *
+		 * @param variant the variant AGP handed to `onVariants`, possibly analytics-wrapped.
+		 * @return the runtime classpath configuration, or null for an unrecognized variant type.
+		 */
+		internal fun runtimeConfigurationOrNull(variant: ApplicationVariant): Configuration? =
+			when (variant) {
+				is ApplicationVariantImpl -> variant.variantDependencies.runtimeClasspath
+				is AnalyticsEnabledApplicationVariant -> runtimeConfigurationOrNull(variant.delegate)
+				else -> null
+			}
+
+		/**
+		 * [runtimeConfigurationOrNull] for the runtime-AAR injection, which must never fail quiet:
+		 * without the injected AAR the proxy APK still names [APP_COMPONENT_FACTORY] in its
+		 * manifest, so the app dies at launch with ClassNotFoundException, on device, far from the
+		 * cause. An AGP whose variant impl this lookup does not recognize therefore fails the
+		 * build here, where the message can say what actually broke.
+		 *
+		 * @param variant the variant AGP handed to `onVariants`, possibly analytics-wrapped.
+		 * @return the runtime classpath configuration, never null.
+		 * @throws GradleException when the variant type is unrecognized.
+		 */
+		internal fun requireRuntimeConfiguration(variant: ApplicationVariant): Configuration =
+			runtimeConfigurationOrNull(variant)
+				?: throw GradleException(
+					"Quick Build cannot inject its runtime into variant '${variant.name}': " +
+						"unrecognized AGP variant type '${variant.javaClass.name}'. Without the " +
+						"runtime AAR the proxy app would crash at launch, so the build stops " +
+						"here; this AGP version needs QuickBuildPlugin.runtimeConfigurationOrNull " +
+						"taught about its variant type. Use a Standard Run meanwhile.",
+				)
 	}
 
 	override fun apply(target: Project) {
@@ -143,9 +179,9 @@ class QuickBuildPlugin : Plugin<Project> {
 			project.path,
 		)
 
-		variant.withRuntimeConfiguration {
-			dependencies.add(project.dependencies.create(project.fileTree(runtimeAar)))
-		}
+		requireRuntimeConfiguration(variant)
+			.dependencies
+			.add(project.dependencies.create(project.fileTree(runtimeAar)))
 
 		val buildDirectory = project.layout.buildDirectory
 		val variantDir = "quickbuild/${variant.name}"
@@ -200,9 +236,9 @@ class QuickBuildPlugin : Plugin<Project> {
 				task.proxySources.set(generate.flatMap { it.proxySources })
 				task.manifestInfoFile.set(generate.flatMap { it.manifestInfoFile })
 				task.compileClasspath.from(variant.compileClasspath)
-				// Components are proxied uniformly, including ones whose class arrives on
-				// the RUNTIME-only classpath (CoGo's injected LogSender service): javac
-				// needs the superclass, so the injected AAR joins the proxy classpath.
+				// A proxied component's class can arrive on the RUNTIME-only classpath
+				// (CoGo's injected LogSender AAR carries the LogSenderInstaller provider):
+				// javac needs the superclass, so the injected AAR joins the proxy classpath.
 				task.runtimeAar.addRuntimeAars(project, runtimeAar)
 				task.bootClasspath.from(bootClasspath)
 				task.minApiLevel.set(payloadMinApi)
@@ -324,14 +360,6 @@ class QuickBuildPlugin : Plugin<Project> {
 		}
 	}
 
-	private fun ApplicationVariant.withRuntimeConfiguration(action: Configuration.() -> Unit) {
-		if (this is ApplicationVariantImpl) {
-			variantDependencies.runtimeClasspath.action()
-		} else if (this is AnalyticsEnabledApplicationVariant) {
-			delegate.withRuntimeConfiguration(action)
-		}
-	}
-
 	/**
 	 * Every dependency's classes as jars: a lenient `ArtifactView` over the variant's COMPILE
 	 * configuration filtered to [CLASSES_JAR_ARTIFACT_TYPE].
@@ -365,9 +393,10 @@ class QuickBuildPlugin : Plugin<Project> {
 		variant: ApplicationVariant,
 		project: Project,
 	): FileCollection {
-		var configuration: Configuration? = null
-		variant.withRuntimeConfiguration { configuration = this }
-		val resolvedConfiguration = configuration ?: return project.files()
+		// Graceful here, unlike the runtime-AAR injection: missing .flat overlays only
+		// degrade resource relinks, and the injection above already failed the build for
+		// any variant type this cannot resolve.
+		val resolvedConfiguration = runtimeConfigurationOrNull(variant) ?: return project.files()
 		return resolvedConfiguration.incoming
 			.artifactView { view ->
 				view.attributes {
