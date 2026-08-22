@@ -7,14 +7,54 @@ import org.junit.jupiter.api.Test;
 class GenerationsTest {
 
 	@Test
+	void aBackgroundedApplyClearsThePendingSlotItAlreadyAcked() {
+		// The regression: deploy 9 lands foreground and is left pending, the user backgrounds
+		// before its first resumed frame, deploy 10 applies and acks in the background. The
+		// backgrounded apply must still assign the slot - skipping it left stale 9 behind, so
+		// the crash guard blamed 9 for gen 10's crashes and 10 escaped quarantine.
+		assertThat(Generations.pendingAfterApply(false, 10)).isEqualTo(-1);
+	}
+
+	// The stamped-baseline boot gate is pinned in PersistedSelectionTest, against the real
+	// PayloadStore seam - re-numbering accepts() cases here could not fail on that caller.
+
+	@Test
 	void acceptsStrictlyNewerGeneration() {
 		assertThat(Generations.accepts(0, 1)).isTrue();
 		assertThat(Generations.accepts(41, 42)).isTrue();
 		assertThat(Generations.accepts(41, 100)).isTrue();
 	}
 
-	// The stamped-baseline boot gate is pinned in PersistedSelectionTest, against the real
-	// PayloadStore seam - re-numbering accepts() cases here could not fail on that caller.
+	@Test
+	void aFailureSupersededByANewerLiveGenerationStaysSilent() {
+		// Gen 6's posted recreate throws after gen 7 already applied: gen 7 owns the store,
+		// the pending ack and the screen, so gen 6's failure must touch and say nothing.
+		assertThat(Generations.onReloadFailure(7, 6))
+				.isEqualTo(Generations.FailureAction.LEAVE_ALONE);
+	}
+
+	@Test
+	void aFailureTheStoreNeverAdoptedStillReports() {
+		// An oversize payload, a persist failure, a restart deploy missing its dex: the store
+		// still runs the previous generation, so there is nothing to roll back or quarantine -
+		// but the report and banner must fire, or the failure's only trace is the host's
+		// deploy timeout and the developer sees nothing on device.
+		assertThat(Generations.onReloadFailure(5, 6))
+				.isEqualTo(Generations.FailureAction.REPORT_ONLY);
+		assertThat(Generations.onReloadFailure(0, 1))
+				.isEqualTo(Generations.FailureAction.REPORT_ONLY);
+	}
+
+	@Test
+	void aFailureWhileTheFailedGenerationOwnsTheStoreRollsBackAndReports() {
+		assertThat(Generations.onReloadFailure(6, 6))
+				.isEqualTo(Generations.FailureAction.ROLLBACK_AND_REPORT);
+	}
+
+	@Test
+	void aForegroundApplyLeavesItsGenerationPendingItsFirstFrame() {
+		assertThat(Generations.pendingAfterApply(true, 10)).isEqualTo(10);
+	}
 
 	@Test
 	void rejectsEqualGeneration() {
