@@ -98,7 +98,7 @@ How `:quickbuild:core` gets a compiled change into the running app - the step th
 
 ### Proxy-App Architecture
 
-What gets proxied: every **manifest-declared** activity, service, receiver, and provider gets a generated `Proxy<N><Type> extends <user class>` compiled into the APK; the `Application` keeps the user's class (the runtime already hooks process start), and runtime-registered receivers are ordinary objects needing nothing.
+What gets proxied: every **manifest-declared** activity and provider gets a generated `Proxy<N><Type> extends <user class>` compiled into the APK. Services, receivers, and the `Application` keep the user's class name - explicit intents address services and receivers by that real name and Android has no alias to compensate a rename with, while the `AppComponentFactory` instantiates whatever the manifest names through the payload loader anyway. Runtime-registered receivers are ordinary objects needing nothing.
 
 What the installed proxy app is made of:
 
@@ -107,7 +107,7 @@ flowchart LR
     subgraph apk["Installed proxy app APK - under the user's real applicationId"]
         rt["The runtime AAR"]
         libs["The user's libraries and resources"]
-        man["A manifest naming proxy components<br/>(Proxy0Activity, Proxy1Service, ...)"]
+        man["A manifest naming proxy activities/providers<br/>(Proxy0Activity, ...) and the real<br/>service/receiver names"]
         gen0["gen-0.dex - a baseline copy<br/>of the user's classes"]
     end
 
