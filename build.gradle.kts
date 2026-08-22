@@ -338,6 +338,10 @@ spotless {
 			// and every .py already here is space-indented. Only the ratchet has been hiding
 			// that mismatch: an edit to one of them would silently convert the whole file.
 			"**/*.py",
+			// Python bytecode: binary, generated, and Spotless fails the whole task (and so the
+			// pre-push hook) on one stray file rather than skipping it.
+			"**/__pycache__/**",
+			"**/*.pyc",
 		)
 	}
 }

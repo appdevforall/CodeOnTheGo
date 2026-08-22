@@ -193,3 +193,7 @@ NATIVE_*.md
 TEST_*.md
 assets-*.zip
 dynamic_libs/*.aar.br
+
+# Python bytecode from scripts/
+__pycache__/
+*.pyc
