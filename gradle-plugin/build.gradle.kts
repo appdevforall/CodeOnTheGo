@@ -17,8 +17,10 @@
 
 @file:Suppress("UnstableApiUsage")
 
+import com.itsaky.androidide.build.config.AGP_VERSION_MINIMUM
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.ProjectConfig
+import org.gradle.api.file.SourceDirectorySet
 
 plugins {
 	id("org.jetbrains.kotlin.jvm")
@@ -81,7 +83,8 @@ dependencies {
 	// shipped inside AGP's builder artifact, so this module compiles against the repo's
 	// AGP instead of AGP_VERSION_MINIMUM. Projects on older AGPs are unaffected at
 	// runtime: QuickBuildPlugin's classes load only when quick build is enabled, and the
-	// other plugins stick to APIs that exist since the minimum supported version.
+	// other plugins stick to APIs that exist since the minimum supported version - a
+	// claim the minAgpCheck guard below keeps honest by recompiling them against it.
 	add("androidBuildTool", libs.android.gradle.plugin)
 
 	testImplementation(gradleTestKit())
@@ -90,6 +93,36 @@ dependencies {
 	testImplementation(projects.shared)
 
 	testRuntimeOnly(libs.tests.junit.platformLauncher)
+}
+
+// Min-AGP compatibility guard (restored after review). The main compile moved to the repo's
+// AGP for Quick Build (above), which deleted the old red light: an innocent AGP-8-only API
+// in LogSenderPlugin or AndroidIDEGradlePlugin would compile green and then fail every user
+// project on an older AGP at configuration time, with Quick Build off. This source set
+// recompiles the non-Quick-Build sources against AGP_VERSION_MINIMUM so that mistake goes
+// red in `check`. The Quick Build sources are excluded on purpose: they genuinely need the
+// newer AGP and only load when quick build is enabled (AndroidIDEGradlePlugin applies
+// QuickBuildPlugin by name, not by class literal, to keep this compile honest).
+val minAgpCheck: SourceSet =
+	sourceSets.create("minAgpCheck") {
+		java.setSrcDirs(emptyList<String>())
+		resources.setSrcDirs(emptyList<String>())
+	}
+(minAgpCheck.extensions.getByName("kotlin") as SourceDirectorySet).apply {
+	setSrcDirs(listOf("src/main/java"))
+	exclude("**/QuickBuildPlugin.kt", "**/quickbuild/**")
+}
+
+dependencies {
+	"minAgpCheckCompileOnly"(gradleApi())
+	"minAgpCheckCompileOnly"("com.android.tools.build:gradle:$AGP_VERSION_MINIMUM")
+	"minAgpCheckImplementation"(libs.composite.constants)
+	"minAgpCheckImplementation"(projects.gradlePluginConfig)
+	"minAgpCheckImplementation"(projects.buildInfo)
+}
+
+tasks.named("check") {
+	dependsOn(tasks.named("minAgpCheckClasses"))
 }
 
 gradlePlugin {

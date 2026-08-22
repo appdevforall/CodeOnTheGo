@@ -32,6 +32,15 @@ import org.gradle.api.logging.Logging
 class AndroidIDEGradlePlugin : Plugin<Project> {
 	companion object {
 		private val logger = Logging.getLogger(AndroidIDEGradlePlugin::class.java)
+
+		/**
+		 * QuickBuildPlugin's FQN, applied reflectively below so this file carries no
+		 * compile-time reference to it: the minAgpCheck guard (see build.gradle.kts)
+		 * recompiles every non-Quick-Build source against AGP_VERSION_MINIMUM, and only
+		 * the Quick Build sources are allowed newer AGP APIs. Pinned to the real class by
+		 * `QuickBuildPluginTest`.
+		 */
+		internal const val QUICK_BUILD_PLUGIN_CLASS = "com.itsaky.androidide.gradle.QuickBuildPlugin"
 	}
 
 	override fun apply(target: Project) {
@@ -57,7 +66,9 @@ class AndroidIDEGradlePlugin : Plugin<Project> {
 
 			val isQuickBuildEnabled = findProperty(PROPERTY_QUICK_BUILD_ENABLED) == "true"
 			if (isQuickBuildEnabled) {
-				pluginManager.apply(QuickBuildPlugin::class.java)
+				// By name, not ::class: Quick Build classes load (and touch newer AGP APIs)
+				// only when the property enables them - see QUICK_BUILD_PLUGIN_CLASS.
+				pluginManager.apply(Class.forName(QUICK_BUILD_PLUGIN_CLASS))
 			}
 		}
 	}
