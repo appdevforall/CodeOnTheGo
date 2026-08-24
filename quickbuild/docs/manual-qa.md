@@ -22,6 +22,18 @@ Cases are organized in the following groups:
   3. Flags are read once per process. After creating or deleting any flag file, force-stop CoGo and reopen it.
 3. CoGo asks for the install permission during onboarding. If you skipped it, the first provisioning bounces you to a Settings screen and the session quietly reverts to idle. An automated run that cannot tap that Settings toggle can pre-grant it: `adb shell cmd appops set com.itsaky.androidide REQUEST_INSTALL_PACKAGES allow`
 
+## Traps that make the product look broken
+
+Each of these cost a real walk time or produced a wrong finding. They are method errors, not product defects - but every one of them reads as a product defect from the outside.
+
+- **Never tap the geometric centre of a view that extends under a system bar.** `uiautomator` reports a view's full bounds regardless of which window is drawn on top, so `clickable=true` at those bounds does not mean the centre is reachable - the tap lands on the navigation bar and nothing happens. Both common input harnesses compute the centre the same way, so they miss *identically*, and the second one looks like corroboration. Aim above the bottom inset.
+- **Find-in-file is a regex search.** A literal query containing `(`, `)`, `{`, `}` or `+` matches nothing, and Replace all then silently does nothing. Escape the metacharacters, or pick a query without them.
+- **Relaunch CoGo by explicit component**, never with `monkey -c LAUNCHER`. CoGo declares two LAUNCHER activities, so `monkey` picks one at random and can land you in LeakCanary:
+  ```bash
+  adb shell am start -n com.itsaky.androidide/.activities.SplashActivity
+  ```
+- **The wrapped corpus copies are branch-specific, and the newest is the wrong one.** Several worktrees hold wrapped copies; the most recently modified are pinned to AGP 9.3.1 / Gradle 9.6.1 from the benchmark's AGP-9 lineage, while this CoGo bundles Gradle 8.14.3. Selecting by modification time - the obvious heuristic - picks a project that fails at configure time inside CoGo and reads as a Quick Build defect. Match the wrapped copy's AGP/Gradle pin to the CoGo under test.
+
 ## Reading the lightning button
 
 The button is a split button and the session's status display. Every tone has its own icon shape as well as its own colour, so the state reads without relying on colour. There are five.
@@ -83,6 +95,7 @@ Steps:
 1. Open `mybasic` and wait for the Gradle sync to finish.
 2. Tap the lightning button once.
 3. Approve the OS install prompt when it appears (allow up to 180 s for it).
+4. Tap the FAB once and confirm it responds. This is a baseline, not a Quick Build check.
 
 Expected:
 
@@ -90,6 +103,11 @@ Expected:
 2. The install prompt appears.
 3. The test app launches, showing "Hello user!" and a floating action button.
 4. The lightning button returns to READY (solid bolt).
+5. The FAB responds to a tap.
+
+Note the FAB baseline in step 4: T2, T3, T5, T6 and T9 all assert through the FAB, so a FAB that cannot be tapped fails five later tests with no way to tell when it broke. Establish here that it works. (The Basic Activity template draws under the navigation bar, so see the geometric-centre trap above before concluding the FAB is dead.)
+
+Note on timing: creating the project already ran a Quick Build setup build automatically. It builds the proxy APK but does not install it, so this first tap is measuring a **warm** provisioning, not cold. Do not quote T1's elapsed time as cold-start cost.
 
 ### T2 - Code-only edit
 
@@ -185,15 +203,14 @@ Steps:
 1. Open `app/build.gradle.kts` and make a harmless change - edit a comment.
 2. Save, and approve the reinstall dialog.
 3. Change the FAB's message literal again. Save.
-4. Tap the lightning button once.
 
 Expected:
 
 1. The save runs a real Gradle build, visibly longer than T2, and never hot-reloads.
 2. CoGo stays in the foreground.
 3. Narration reads "a full build is needed", then "rebuilding your app" - never "initial full build".
-4. After the reinstall, the code save alone does not redeploy.
-5. The one tap relaunches the app with the edit deployed.
+4. The rebaseline relaunches the app itself - no tap is needed to get it running again.
+5. The following code save deploys onto that relaunched app, showing the new message.
 
 ### T7b - A failed rebaseline recovers on save
 
@@ -202,7 +219,7 @@ Automated coverage: unit (partial)
 Steps:
 
 1. In `app/build.gradle.kts`, set `compileSdk` to a version the device does not have - 99. Save.
-2. Set it back to its original value. Save, and do not tap anything.
+2. Set it back to its original value. Save. Approve the OS reinstall prompt when it appears, but tap nothing else - the retry itself must not need a tap.
 
 Expected:
 
@@ -264,8 +281,8 @@ Automated coverage: none
 Steps:
 
 1. Force-stop CoGo: `adb shell am force-stop com.itsaky.androidide`.
-2. Reopen CoGo on `mybasic`.
-3. Tap the lightning button.
+2. Reopen CoGo on `mybasic` (`adb shell am start -n com.itsaky.androidide/.activities.SplashActivity`).
+3. Tap the lightning button, and approve the OS reinstall prompt when it appears.
 4. Change the FAB's message literal. Save.
 
 Expected:
@@ -319,7 +336,7 @@ Steps:
 
 Expected:
 
-1. Restart re-provisions cleanly and faster than T1, with no reinstall unless the app's bytes changed.
+1. Restart re-provisions cleanly and faster than T1. It **does** reinstall, every time: the generation stamp lives inside the APK, so a restart mints a new generation and therefore new bytes. Approve the install prompt. A restart that did *not* reinstall would be the surprising outcome.
 2. The icon tracks BUILDING, then READY.
 3. Help opens a popup describing Quick Build. Note: the content comes from `documentation.db`, a prebuilt asset owned by the documentation repository - until a row for `EDITOR_TOOLBAR_QUICK_BUILD` ships in it, Help opens the "no tooltip" fallback. That reads as a failure here; the fix is a documentation-repo row, not a code change in this repo.
 4. The dropdown has exactly three items: Quick Build, Restart session, Help.
@@ -406,7 +423,7 @@ Automated coverage: unit
 
 Steps:
 
-1. Open a real app that declares a Service.
+1. Open `service-app` from the wrapped corpus - a purpose-built fixture carrying both a Service and a helper class the Service calls, which is exactly what the two edits below need. Only 4 of the 30 corpus apps declare a Service at all, so pick this one rather than hunting.
 2. Edit the Service class. Tap the lightning button.
 3. Edit a helper class the Service calls. Tap the lightning button.
 
@@ -423,7 +440,7 @@ Automated coverage: none
 
 Steps:
 
-1. Wrap and push `sora-editor-full` first - it is not one of the bundled templates.
+1. Open `sora-editor-full` from the wrapped corpus - it is already wrapped there, with all 288 source files, so no wrap-and-push step is needed. Check its AGP/Gradle pin against the trap noted at the top before opening it.
 2. Start a session, make a warm code edit, and save.
 
 Expected:
