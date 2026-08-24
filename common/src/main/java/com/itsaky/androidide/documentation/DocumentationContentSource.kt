@@ -87,17 +87,19 @@ fun joinChunks(chunks: List<ByteArray>): ByteArray {
 	return joined
 }
 
-/** One row of documentation content, decoded and rendered, ready to send. */
-data class DocumentationContent(
+/**
+ * One row of documentation content, decoded and rendered, ready to send.
+ *
+ * Deliberately not a `data class`. Generated equality over a [ByteArray] compares identity, which is
+ * never what a caller means, and comparing multi-megabyte content is not what it wants either -- so
+ * this used to be a data class with `equals`/`hashCode` overridden back to identity. That left
+ * `copy()` behind, returning an object unequal to the one it was copied from. Nothing needs
+ * value semantics here, so the class simply does not offer them.
+ */
+class DocumentationContent(
 	val bytes: ByteArray,
 	val mimeType: String,
-) {
-	// Data class equality over a ByteArray would compare identity, which is never what a caller
-	// means; content equality on a multi-megabyte blob is not what it wants either.
-	override fun equals(other: Any?): Boolean = this === other
-
-	override fun hashCode(): Int = System.identityHashCode(this)
-}
+)
 
 /** What a [DocumentationContentSource.lookup] found for a path. */
 sealed interface DocumentationLookup {
