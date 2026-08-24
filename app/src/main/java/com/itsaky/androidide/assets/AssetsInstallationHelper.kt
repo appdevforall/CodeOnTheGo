@@ -6,6 +6,7 @@ import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.ContainedPathResolver
 import com.itsaky.androidide.utils.Environment.DEFAULT_ROOT
 import com.itsaky.androidide.utils.useEntriesEach
 import kotlinx.coroutines.Dispatchers
@@ -254,59 +255,40 @@ object AssetsInstallationHelper {
 		destDir: Path,
 	) = extractZipToDir(Files.newInputStream(srcFile), destDir)
 
+	/**
+	 * Containment is [ContainedPathResolver]'s, shared with `ZipUtils.unzipFile` and the deep-link
+	 * reader. It also carries the caching this loop used to do by hand: bootstrap archives cluster
+	 * thousands of entries under a handful of directories, and the resolver memoizes an ancestor once
+	 * it is proven contained.
+	 *
+	 * What stays local is the policy: this refuses to write through *any* existing symlink at an
+	 * entry's target, even one pointing inside destDir. An installer directory reused across runs is
+	 * the case that matters, and unlike unzipping a user's project there is no legitimate reason for
+	 * a symlink to be there.
+	 */
 	@WorkerThread
 	internal fun extractZipToDir(
 		srcStream: InputStream,
 		destDir: Path,
 	) {
 		Files.createDirectories(destDir)
-		// Normalize and make destDir absolute for secure path validation
-		val normalizedDestDir = destDir.toAbsolutePath().normalize()
-		val realDestDir = normalizedDestDir.toRealPath()
-
-		// Zip entries are commonly clustered by directory (e.g. dozens of files
-		// under the same build-tools/<version>/ prefix); cache the last-verified
-		// parent so consecutive entries under it skip a redundant toRealPath() call.
-		// Nothing below can turn an already-verified real directory into a symlink
-		// mid-run, so caching by lexical parent equality is safe.
-		var lastVerifiedParent: Path? = null
+		val contained = ContainedPathResolver(destDir.toFile())
 
 		ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
-			// Validate entry name doesn't contain dangerous patterns
-			if (entry.name.contains("..") || entry.name.startsWith("/") || entry.name.startsWith("\\")) {
-				throw IllegalStateException("Zip entry contains dangerous path components: ${entry.name}")
-			}
+			val destFile =
+				contained.resolve(entry.name)?.toPath()
+					?: throw IllegalStateException("Zip entry escapes the target dir: ${entry.name}")
 
-			val destFile = normalizedDestDir.resolve(entry.name).normalize()
-
-			// Use Path.startsWith() for proper path validation instead of string comparison
-			if (!destFile.startsWith(normalizedDestDir)) {
-				// DO NOT allow extraction to outside of the target dir
-				throw IllegalStateException("Entry is outside of the target dir: ${entry.name}")
-			}
-
-			// The checks above are lexical (entry name only) and don't catch a symlink
-			// already present on disk (e.g. destDir merged/reused across installer
-			// runs). Reject writing through an existing symlink up front, then
-			// re-check containment against the real, on-disk path once created.
+			// Policy, not containment: the resolver allows a symlink whose target is still inside
+			// destDir, and this caller does not.
 			if (Files.isSymbolicLink(destFile)) {
 				throw IllegalStateException("Refusing to extract over an existing symlink: ${entry.name}")
 			}
 
 			if (entry.isDirectory) {
 				Files.createDirectories(destFile)
-				if (!destFile.toRealPath().startsWith(realDestDir)) {
-					throw IllegalStateException("Entry escapes the target dir via symlink: ${entry.name}")
-				}
 			} else {
 				Files.createDirectories(destFile.parent)
-				if (destFile.parent != lastVerifiedParent) {
-					if (!destFile.parent.toRealPath().startsWith(realDestDir)) {
-						throw IllegalStateException("Entry parent escapes the target dir via symlink: ${entry.name}")
-					}
-					lastVerifiedParent = destFile.parent
-				}
-
 				Files.newOutputStream(destFile).use { dest ->
 					zipInput.copyTo(dest)
 				}

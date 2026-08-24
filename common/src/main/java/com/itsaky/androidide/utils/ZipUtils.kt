@@ -19,6 +19,7 @@ package com.itsaky.androidide.utils
 
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 import java.util.zip.ZipFile
 
 object ZipUtils {
@@ -34,18 +35,29 @@ object ZipUtils {
 		destDir: File,
 	): List<File> {
 		destDir.mkdirs()
-		val destDirPath = destDir.canonicalPath + File.separator
+		val contained = ContainedPathResolver(destDir)
 		val result = mutableListOf<File>()
 
 		ZipFile(zipFile).use { zip ->
 			val entries = zip.entries()
 			while (entries.hasMoreElements()) {
 				val entry = entries.nextElement()
-				val outFile = File(destDir, entry.name)
 
-				if (!outFile.canonicalPath.startsWith(destDirPath)) {
-					throw IOException("Zip entry is outside of the target directory: ${entry.name}")
+				// Policy before containment, deliberately: a user's own symlink inside their project
+				// -- gradlew, or gradle/wrapper pointed at a shared location -- is legitimate, so the
+				// entry is skipped and the symlink left alone, where asking the resolver first would
+				// reject one pointing outside destDir and abort the whole archive. Reading a path's
+				// link status cannot itself escape.
+				if (Files.isSymbolicLink(File(destDir, entry.name).toPath())) {
+					continue
 				}
+
+				// Containment is ContainedPathResolver's, shared with the asset installer: a canonical
+				// path prefix alone accepted a "..", and could not tell a symlinked ancestor from a
+				// real directory (ADFA-5257).
+				val outFile =
+					contained.resolve(entry.name)
+						?: throw IOException("Zip entry escapes the target directory: ${entry.name}")
 
 				if (entry.isDirectory) {
 					outFile.mkdirs()
