@@ -77,7 +77,11 @@ And the thing that buys is only the dex step:
   `CAPABILITY-MATRIX.md`: anything the OS reads from the manifest *before your code runs*
   (activities, permissions, icon/label, exported components, custom `Application`) belongs to the
   installed shell; everything the payload's code touches at runtime - views, resources, themes,
-  native libs, Compose, Fragments - is hot-loadable. Quick Build draws its line there.
+  Compose, Fragments - is hot-loadable. Quick Build draws its line there. Native libraries are the
+  exception worth stating separately: the payload's code can *call* into a `.so` the installed
+  shell already carries, but **changing** one routes to a full Gradle fallback rather than a live
+  reload (`ChangeClassifier.kt`: a `.so` under `jniLibs` "already forces a Gradle fallback"). Loadable
+  at runtime and changeable via live reload are not the same property.
 
 ## What would reopen the question
 
