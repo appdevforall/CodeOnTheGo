@@ -98,6 +98,8 @@ class IdeEditorServiceImpl(
 
 		fun saveCurrentFile(): Boolean = false
 
+		suspend fun saveFile(file: File): Boolean = false
+
 		fun insertTextAtCursor(text: String): Boolean = false
 
 		fun replaceSelection(text: String): Boolean = false
@@ -315,6 +317,12 @@ class IdeEditorServiceImpl(
 	override fun saveCurrentFile(): Boolean {
 		if (!writableCurrentFile()) return false
 		return editorProvider.saveCurrentFile()
+	}
+
+	override suspend fun saveFile(file: File): Boolean {
+		requireWrite()
+		ensureFileAccessible(file)
+		return editorProvider.saveFile(file)
 	}
 
 	override fun insertTextAtCursor(text: String): Boolean {

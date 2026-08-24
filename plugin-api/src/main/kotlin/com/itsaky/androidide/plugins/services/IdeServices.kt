@@ -172,9 +172,27 @@ interface IdeEditorService {
 	/**
 	 * Schedules a save of the active editor tab. Runs asynchronously; a `true` return means
 	 * the save was dispatched, not that the buffer has been flushed to disk. Poll
-	 * [isFileModified] on the current file to confirm completion.
+	 * [isFileModified] on the current file to confirm completion. Prefer [saveFile] when you
+	 * know which file you want persisted - this one follows focus, which the user controls.
 	 */
 	fun saveCurrentFile(): Boolean
+
+	/**
+	 * Saves [file]'s open buffer to disk, whatever tab currently has focus, and suspends until
+	 * the write completes - unlike [saveCurrentFile], which only reports that a save was
+	 * dispatched for the focused tab.
+	 *
+	 * Safe to call from any dispatcher, the main one included: the write is marshalled to the
+	 * editor thread and nothing blocks while it runs. Wrap the call in `withTimeout` if your
+	 * plugin needs to bound how long it waits.
+	 *
+	 * Returns `true` when the buffer is on disk (including "was already clean"), `false` when
+	 * the file has no open editor, the caller lacks FILESYSTEM_WRITE, the path is outside the
+	 * plugin's allowed roots, or the write failed.
+	 *
+	 * Default-implemented (no-op) so adding it is a backward-compatible interface extension.
+	 */
+	suspend fun saveFile(file: File): Boolean = false
 
 	fun insertTextAtCursor(text: String): Boolean
 

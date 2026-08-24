@@ -114,6 +114,7 @@ import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 
 /**
@@ -135,6 +136,9 @@ open class EditorHandlerActivity :
 	protected val isOpenedFilesSaved = AtomicBoolean(false)
 
 	private val fileTimestamps = ConcurrentHashMap<String, Long>()
+
+	/** Number of saves in flight; see [performFileSave]. */
+	private val activeSaveCount = AtomicInteger(0)
 
 	private val pluginTabIndices = mutableMapOf<String, Int>()
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
@@ -938,6 +942,35 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	/**
+	 * Saves the buffer for [file] regardless of which tab has focus, and reports whether the
+	 * bytes reached disk. Returns `false` when no open editor holds [file].
+	 *
+	 * A clean buffer counts as saved: [CodeEditorView.save] reports "nothing to do" and
+	 * "write failed" with the same `false`, so the two are separated here.
+	 *
+	 * Resolution and the write share one main-thread continuation, so a tab close cannot shift
+	 * the index out from under the save.
+	 */
+	suspend fun saveFileResult(file: File): Boolean =
+		try {
+			performFileSave {
+				withContext(Dispatchers.Main.immediate) {
+					val view = getEditorForFile(file) ?: return@withContext false
+					if (!view.isModified && file.exists()) return@withContext true
+					val index = findIndexOfEditorByFile(file)
+					index >= 0 && saveResultInternal(index, SaveResult()) && file.exists()
+				}
+			}
+		} catch (err: CancellationException) {
+			throw err
+		} catch (err: Exception) {
+			// ContentReadWrite.writeTo reports a failed write by throwing; that must not escape
+			// into the plugin coroutine awaiting this call.
+			log.error("Failed to save {}", file.name, err)
+			false
+		}
+
 	override fun onConfigurationChanged(newConfig: Configuration) {
 		super.onConfigurationChanged(newConfig)
 
@@ -1011,17 +1044,29 @@ open class EditorHandlerActivity :
 			getEditorForFile(file)?.isModified == true
 		}
 
+	/**
+	 * Runs [action] with the "files are saving" flag raised.
+	 *
+	 * Counted rather than a plain boolean: a plugin-thread save can overlap a UI save, and the
+	 * first one to finish must not clear the flag while the other is still writing.
+	 */
 	private suspend inline fun <T : Any?> performFileSave(crossinline action: suspend () -> T): T {
-		setFilesSaving(true)
+		if (activeSaveCount.incrementAndGet() == 1) {
+			setFilesSaving(true)
+		}
 		try {
 			return action()
 		} finally {
-			setFilesSaving(false)
+			if (activeSaveCount.decrementAndGet() == 0) {
+				setFilesSaving(false)
+			}
 		}
 	}
 
 	private suspend fun setFilesSaving(saving: Boolean) {
-		withContext(Dispatchers.Main.immediate) {
+		// NonCancellable: a cancelled save (e.g. a plugin-side timeout) must still clear the
+		// flag, or SaveFileAction stays disabled for the rest of the session.
+		withContext(NonCancellable + Dispatchers.Main.immediate) {
 			editorViewModel.areFilesSaving = saving
 		}
 	}

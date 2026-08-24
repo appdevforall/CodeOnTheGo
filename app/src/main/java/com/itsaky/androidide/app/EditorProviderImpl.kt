@@ -254,6 +254,17 @@ class EditorProviderImpl(
 		return true
 	}
 
+	/**
+	 * Saves [file]'s buffer whatever tab has focus, suspending until the bytes are on disk.
+	 *
+	 * Suspending rather than blocking is what makes this safe to call from the main thread:
+	 * the write itself runs there, so a blocking bridge would deadlock against it.
+	 */
+	override suspend fun saveFile(file: File): Boolean {
+		val activity = activity() ?: return false
+		return activity.saveFileResult(file)
+	}
+
 	// --- Buffer edits -------------------------------------------------------
 
 	override fun insertTextAtCursor(text: String): Boolean =
