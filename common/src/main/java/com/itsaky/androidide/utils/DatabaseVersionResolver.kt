@@ -32,8 +32,11 @@ object DatabaseVersionResolver {
 	// here is a defence, not a model -- if a database ever turns up carrying several rows, this
 	// reads the one written last instead of whichever SQLite happens to return, and a downgrade
 	// still reads as a downgrade where MAX(major) would report the highest version ever recorded.
+	// The row count comes back with the version so a file that breaks the one-row contract can be
+	// reported rather than silently papered over: the ORDER BY makes the answer deterministic, but a
+	// database carrying several rows is malformed and whoever produced it should hear about it.
 	private const val QUERY_MAJOR_VERSION = """
-		SELECT major
+		SELECT major, (SELECT COUNT(*) FROM DocumentationDatabaseVersion)
 		FROM   DocumentationDatabaseVersion
 		ORDER BY rowid DESC
 		LIMIT  1
@@ -97,7 +100,19 @@ object DatabaseVersionResolver {
 			return null
 		}
 		return db.rawQuery(QUERY_MAJOR_VERSION, arrayOf()).use { cursor ->
-			if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getInt(0) else null
+			if (!cursor.moveToFirst() || cursor.isNull(0)) {
+				return@use null
+			}
+			val rows = cursor.getInt(1)
+			if (rows > 1) {
+				Log.w(
+					TAG,
+					"DocumentationDatabaseVersion holds $rows rows; it is meant to hold one. " +
+						"Using the row written last (major ${cursor.getInt(0)}); the database was built by " +
+						"something that appended instead of replacing.",
+				)
+			}
+			cursor.getInt(0)
 		}
 	}
 

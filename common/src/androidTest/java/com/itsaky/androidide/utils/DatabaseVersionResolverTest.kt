@@ -98,6 +98,15 @@ class DatabaseVersionResolverTest {
 		assertEquals(2, DatabaseVersionResolver.resolveMajorVersion(db))
 	}
 
+	// The count query rides along with the version, so a one-row file must still read correctly --
+	// the case that matters most, and the one a malformed-file check could most easily break.
+	@Test
+	fun majorVersionIsReadFromASingleRowUnchanged() {
+		createVersionTable()
+		insertVersion(4, 1, 2)
+		assertEquals(4, DatabaseVersionResolver.resolveMajorVersion(db))
+	}
+
 	@Test
 	fun returnsWholedbRow_whenPresent() {
 		createTable()
