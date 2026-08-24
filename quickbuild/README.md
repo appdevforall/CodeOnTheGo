@@ -2,20 +2,13 @@
 
 Quick Build makes the on-device edit loop much faster. Tap the lightning-bolt button once and **CoGo** (Code On The Go, this IDE) installs a generated **proxy app** - a live-reloading build of the user's project. From then on every compatible save reaches the running app in seconds, with no Gradle build and no reinstall. The whole loop runs on device - edit, watch, compile, dex, deploy, reload.
 
-From the ADFA-4128 benchmark pass of 2026-08-11, on CoGo dev build `C-d-0810-2347` - realistic edits drawn from a corpus of open-source apps, comparing Quick Build's save-to-live-reload against a standard *incremental* Gradle build of the same edit:
-
-| Device                                                       | Warm edits     | Median save to live | Median incremental Gradle build | Speedup   | p25-p75       |
-| ------------------------------------------------------------ | -------------- | ------------------- | ------------------------------- | --------- | ------------- |
-| **Galaxy A06** - 3.5 GB, entry-level (eight Cortex-A55 cores, no big core) | 79 over 24 apps | 2822 ms            | 18401 ms                        | **6.53x** | 4.53x - 9.10x |
-| **Galaxy A56** - 8 GB, current mid-range; our reference device | 76 over 23 apps | 1094 ms            | 4662 ms                         | **4.35x** | 3.28x - 5.84x |
-
-Both devices together: **5.12x** over 155 edits, p25-p75 3.92x - 7.75x `[measured on a56, a06]`. Speedup is the median of per-edit paired ratios - each edit's standard build divided by its own Quick Build, same edit, same app, same device - which is the correct paired statistic and differs from dividing the two median columns. The speedup is largest on the slowest device.
+Measured against a standard incremental Gradle build of the same edit on real devices, Quick Build gives **about a 5x median speedup** on a warm edit. The gain is bigger on slower phones.
 
 Three things that number does not say:
 
-- **It is conditional on a save that live-reloaded.** Quick Build produced a reload on 155 of 192 attempted edits, 80.7% `[measured on a56, a06]`: 21 misses were its own compile or deploy failing, 12 were provisioning, and 4 were the classifier declining by design.
+- **It is conditional on a save that live-reloaded.** Not every attempted edit produces one: compile or deploy can fail, provisioning can fail, and the classifier declines some edits by design.
 - **The Gradle side excludes the install and launch it needs**, which biases the comparison against Quick Build.
-- **It is not always faster.** 2 of 155 edits lost, both a Java ABI change in `sora-editor-full`, at 0.65x on the A06 and 0.76x on the A56. And the first project open is slower, once per session: 70.3 s against 50.3 s for a standard Run on the A56 (1.40x slower), 262.2 s against 165.4 s on the A06 (1.59x slower) `[measured on a56, a06]`.
+- **It is not always faster.** A Java ABI change in a Java-heavy app can lose to a standard build, and the first project open is slower, once per session.
 
 ## Goals
 
@@ -24,7 +17,7 @@ Three things that number does not say:
 3. **Avoid modifying the user's code.** We use a Gradle plugin to create the proxy app that works as a wrapper, and try not to modify any of the user's app otherwise.
 4. **Good enough, but no need to be 100% compatible.** Where the proxy app cannot match the real app, make that clear to the user - see [the boundary](#edit-types-that-can-live-reload) and [Known limitations](#known-limitations-v1). We're not trying to match a Gradle build exactly, just to be useful.
 5. **Accept some tradeoffs to make live reload fast, but try to reduce tradeoffs**
-  1. A reasonable amount of extra time at project open is OK - today the first open costs ~20 s more than a standard Run's first build on the A56 `[measured on a56]`.
+  1. A reasonable amount of extra time at project open is OK - today the first open costs noticeably more than a standard Run's first build.
   2. We need some memory to keep Quick Build's compile daemon resident and available.
 6. **Runs offline, on device.** Same standard as Code on the Go.
 
@@ -210,7 +203,7 @@ How the triggers get sequenced:
 - **One build in flight.** Starting a build *moves* the pending set into it; the set clears only on success and a failed batch is unioned back, so saves arriving mid-build simply join the next one. New work never cancels a running compile - it waits.
 - **Stale work cannot apply itself.** Every result carries its build id, and two epochs (session and daemon) guard every async result, so a build superseded by a teardown or a baseline reset is discarded rather than rendered.
 - **A deploy racing a reconnect is safe**, because the proxy app takes a payload only if it is strictly newer than what it runs.
-- **The warm compile is what makes the first save fast** - worth 6.1x on it `[measured on a56]` ([`docs/perf-roadmap.md`](docs/perf-roadmap.md)). It starts only after `Ready` is reached, so it costs nothing on the way there.
+- **The warm compile is what makes the first save fast** ([`docs/perf-roadmap.md`](docs/perf-roadmap.md)). It starts only after `Ready` is reached, so it costs nothing on the way there.
 - **Standard Run contention is gated, not locked.** The one Gradle slot answers `SlotBusy` as a distinct outcome rather than a build failure, and the device's single install slot (one install per `applicationId`, shared by the proxy app and a Standard Run install) is confirmed statelessly before either side clobbers the other. It goes both ways: any completed Standard Run build hands state back to a live session, refreshing or invalidating its baseline.
 
 Which threads exist, what each gate does, the mid-build sequence in full, and the reliability-mechanism table: [`docs/concurrency.md`](docs/concurrency.md).
@@ -251,7 +244,7 @@ A reload swaps the payload classloader plus the resource apk and restarts compon
 
 ### Build Scratch Lives in Faster Private Storage
 
-The daemon's work and out trees live in CoGo's `noBackupFilesDir`, not the project tree: the project sits on FUSE-backed shared storage, and moving off it cut warm edits by ~36% subset-median `[measured on a56]`. Cost: not user-browsable, so the tree carries a 100 MB guard, teardown deletion and a stale sweep. The generation counter deliberately stays in the project tree so it survives scratch cleanup.
+The daemon's work and out trees live in CoGo's `noBackupFilesDir`, not the project tree: the project sits on FUSE-backed shared storage, and moving off it measurably cut warm-edit time `[measured on a56]`. Cost: not user-browsable, so the tree carries a 100 MB guard, teardown deletion and a stale sweep. The generation counter deliberately stays in the project tree so it survives scratch cleanup.
 
 ### Benchmarking Corpus Lives in Separate Repo
 
@@ -274,7 +267,7 @@ Unit and Kaspresso tests cover CoGo itself; anything that crosses into the proxy
 - **Run the unit tests.** They live in each module's `src/test` - `:quickbuild:core` carries most of them (the domain layer is pure JVM by design), with more in `:quickbuild:daemon` and `:gradle-plugin`. Run them with `flox activate -d flox/local -- ./gradlew :quickbuild:core:test :quickbuild:daemon:test :gradle-plugin:test`.
 
 - **Script a session over `adb`.** Under the `CodeOnTheGo.qbbench` flag an exported activity opens a project and fires the first tap in place of a human, so a whole session - including a retry after an install-confirm timeout - runs unattended. Command and options: [`docs/debugging.md` §6](docs/debugging.md).
-- **Run the corpus.** The `CodeOnTheGo-build-benchmark` repo carries the open-source app corpus, realistic edits and the E2E harness. Correctness comes from its two oracles - recompiled-class bounds and output equivalence - not from timings. Commit the results dir for any compile-pipeline change, and cite one for any latency claim.
+- **Run the corpus.** The `CodeOnTheGo-build-benchmark` repo carries the open-source app corpus, realistic edits and the E2E harness. Correctness comes from its two oracles - recompiled-class bounds and output equivalence - not from timings. Commit the results dir for any compile-pipeline change.
 
 A new edit class or route needs all three: a classifier test, a corpus edit declaring `expected.route`, and an on-device walk if it deploys. Two traps: the root build sets `ignoreFailures = true` on test tasks only for analysis invocations (`sonar`, `sonarqube`, `jacocoAggregateReport`) - an ordinary test run gates on failures, but on an analysis run read `<module>/build/test-results/` rather than trusting `BUILD SUCCESSFUL`; and nothing runs the real daemon jar against the real client ([`DaemonProcessClientTest`](core/src/test/java/org/appdevforall/cotg/quickbuild/data/DaemonProcessClientTest.kt) drives a scripted fake), so a protocol regression that compiles only surfaces on device.
 
@@ -332,7 +325,7 @@ Everything ships as an APK asset - **there is no push-a-jar shortcut for any com
 | **The API 28/29 resource-swap path has never run on a device** | Android 9/10 take the legacy `addAssetPath` shim instead of `ResourcesLoader`. Only its failure branch is JVM-tested; the success path needs a real 28/29 device and none of our test devices is one `[unverified on device]`. Candidate for closing it: a targeted instrumented test on the farm's `SM_J737A` (API 28, arm32). |
 | **A deleted asset stays readable until the next proxy app rebuild** | The API 30+ asset overlay (a `DirectoryAssetsProvider` on the shared `ResourcesLoader`) can add and replace but cannot hide baked-in assets, so new and modified assets live-reload while a deletion lands only on the next proxy app rebuild. Content an app read and cached before the recreate stays stale until its process restarts, same as resources. On API 28/29 nothing serves a deployed asset payload, so asset-bearing edits route to the standard Gradle build instead - never stale, at full-build cost `[unverified on device]`. |
 | **A Gradle 9 start-up failure, contested and never re-run**  | The setup build threw `UnknownPluginException` from CoGo's init-script plugin injection against a Gradle 9 project. This was **not** an incidental one-off: the corpus work isolated the variable, substituting Gradle 9.5.1 into `gradle-plugin`'s own AGP 8.11.0 fixture and reproducing the same failure, and concluded it blocks the setup build for **any** project pinned to Gradle 9+. Against that, `AndroidIDEInitScriptPluginTest` is now parameterized on 8.14.3 and 9.5.1 and passes. So either the wall is fixed or the TestKit fixture does not reproduce real injection against a real multi-module project - **no Gradle 9 project has been re-tried since the test went green** `[unverified]`. Matters beyond the corpus: sora-editor pins Gradle 9.5.1 / AGP 9.2.1 and KISS pins 9.4.1, and new projects increasingly pin 9. |
-| **A library-module edit takes a full rebuild and an install tap** | ~25 s plus an install tap, against ~2.55 s for an app-module edit measured the same way - both from an earlier pass, not the one in the table above `[measured on a56, earlier pass]` (the 2026-08-11 pass medians 1094 ms for an app-module edit); the prompt fires per out-of-scope edit rather than once per session. Every module's `src` stays watched, so nothing is silently dropped. |
+| **A library-module edit takes a full rebuild and an install tap** | ~25 s plus an install tap, against ~2.55 s for an app-module edit measured the same way, both from an earlier pass `[measured on a56, earlier pass]`; the prompt fires per out-of-scope edit rather than once per session. Every module's `src` stays watched, so nothing is silently dropped. |
 | **A Kotlin/Java corpus failure the tests contradict**        | `IncrementalCompilerTest` compiles the same cycle cleanly, yet a sora-editor corpus run failed on this axis. A cross-*module* relationship would route to a rebuild anyway, which may be what was really seen. Not re-run `[unverified]`. |
 | **Quick Build needs more RAM than CoGo itself**              | Works on both 4 GB-tier devices we own; at 1.9 GB it never provisions, and what fails is the Gradle build every session starts with `[measured on itel]`. The live reload loop has never failed on its own at any tier. Detail: [`docs/low-spec-devices.md`](docs/low-spec-devices.md). |
 | **Room-template apps cannot build offline at all**           | A CoGo bundle dependency gap that fires before Quick Build is involved, so it is a bundle fix, not one here. The worst gap for an offline-first product `[measured on a56]`. |
@@ -366,5 +359,5 @@ Design notes live in [`docs/`](docs/); repo-level ADRs are elsewhere, at [`docs/
 
 Three things live outside this repo:
 
-- **The benchmark corpus, harness and results**, in the standalone `CodeOnTheGo-build-benchmark` repo - every `corpus/...` path above maps into it. It drives CoGo only through the declared interfaces, so it cannot mask a break in them. Methodology and the QA records (low-spec runbook, template sweep, commit survey) are there too.
+- **The benchmark corpus, harness and results**, in the standalone `CodeOnTheGo-build-benchmark` repo. It drives CoGo only through the declared interfaces, so it cannot mask a break in them. Methodology and the QA records (low-spec runbook, template sweep, commit survey) are there too.
 - **History** - earlier revisions of these docs in the archived tag `adfa-4128-history-20260731`, design history in Jira ADFA-4128.

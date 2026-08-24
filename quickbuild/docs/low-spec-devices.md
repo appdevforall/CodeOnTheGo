@@ -13,9 +13,8 @@ devices now measure at 4 GB nominal and both run a full session, so that tier is
 effort pays off. The Gradle-free-provisioning spike below is the 1.9 GB answer and is not being
 scoped now - it stays on this page as the evidence for whoever picks that ticket up.
 
-Primary evidence, with the full runbook and cost tables:
-`corpus/results/analysis/c107-lowend-report-2026-07-25.md` in the `CodeOnTheGo-build-benchmark`
-repo.
+Primary evidence, with the full runbook and cost tables, lives in the
+`CodeOnTheGo-build-benchmark` repo.
 
 ## What was actually measured
 
@@ -34,10 +33,8 @@ repo.
   measured on both, its speedup is higher on all 19 (median 1.77x), saving a median 17.5 s per
   edit against 3.1 s on the A56 `[measured on c107, earlier pass]`. The C107 has not been in a pass
   since, so this row is historical - no current-pass C107 data exists.
-- **The A06 shows the same pattern, and it holds in the current pass.** In the ADFA-4128 benchmark
-  pass of 2026-08-11 (CoGo build `C-d-0810-2347`), Quick Build beats the standard incremental build
-  by a median **6.53x** over 79 edits across 24 apps on the A06, against **4.35x** over 76 edits
-  across 23 apps on the A56 `[measured on a06, a56]`.
+- **The A06 shows the same pattern, and it holds in the current pass.** Quick Build beats the
+  standard incremental build by a wider margin on the A06 than on the A56 `[measured on a06, a56]`.
 - **At the 4 GB tier, CPU decides the experience, not RAM** - but the two 4 GB devices have never
   been measured against each other on comparable terms. Each was compared to the A56 instead, and
   the two comparisons sit in different eras. Both rows are from earlier passes, superseded as
@@ -46,16 +43,15 @@ repo.
 
   | Comparison | Build | Apps matched | Result |
   | --- | --- | --- | --- |
-  | C107 vs A56 | earlier pass, `C-d-0728-1154`, scratch on FUSE | 21 of 21 | C107 **3.5x** slower `[measured on c107, a56; earlier pass]` |
-  | A06 vs A56 | earlier passes, scratch off FUSE, `C-d-0802-0824` / `C-d-0731-2251` | 7 of 7 | A06 **2.5x** slower `[measured on a06, a56; earlier passes]` |
+  | C107 vs A56 | earlier pass, scratch on FUSE | 21 of 21 | C107 **3.5x** slower `[measured on c107, a56; earlier pass]` |
+  | A06 vs A56 | earlier passes, scratch off FUSE | 7 of 7 | A06 **2.5x** slower `[measured on a06, a56; earlier passes]` |
 
-  For scale in the current pass, unmatched: the A06's median save to live is 2822 ms against the
-  A56's 1094 ms, and its median standard incremental build 18401 ms against 4662 ms
-  `[measured on a06, a56]`. Different app sets, so this is not a paired cross-device ratio.
+  For scale in the current pass, unmatched: both the A06's median save to live and its median
+  standard incremental build are several times the A56's `[measured on a06, a56]`. Different app
+  sets, so this is not a paired cross-device ratio.
 
   Chaining those through the A56 puts the C107 at ~1.4x the A06, but the chain crosses the
-  scratch-off-FUSE change - worth 1.38x on the A56 alone across the same 7 apps
-  `[measured on a56]` - so treat the A06-vs-C107 gap as `[inferred]`, not measured. What is solid
+  scratch-off-FUSE change, so treat the A06-vs-C107 gap as `[inferred]`, not measured. What is solid
   is the ordering and that both 4 GB devices are usable. The A06's eight Cortex-A55 cores with no
   big core are the likely reason it still trails the A56 `[inferred]`. So "4 GB device" is not a
   performance class on its own - do not treat one 4 GB measurement as covering the tier.

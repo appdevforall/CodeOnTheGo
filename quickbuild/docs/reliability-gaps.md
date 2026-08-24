@@ -73,8 +73,7 @@ flowchart LR
   `ChangeClassifier.kt:47` then escalates unconditionally on `annotationImpact.active` ("project
   has any processor", not "this edit touched processor input"). Unnecessary: the changed-file set,
   the annotation baseline and on-disk sources are all still intact at that point.
-- **Evidence** `[measured on a56, 2026-07-28]`: 3/3 reproductions,
-  `corpus/results/20260728T113213Z-task32-roomksp-online/DEVICE-FINDINGS.md:46-57`.
+- **Evidence** `[measured on a56, 2026-07-28]`: reproduced 3 times out of 3.
 - **Likely fix:** reclassify from the preserved set instead of falling back to `Unknown` - must
   still distinguish "lost the daemon" from "lost track of files", since a genuinely unenumerable
   change has to escalate.
