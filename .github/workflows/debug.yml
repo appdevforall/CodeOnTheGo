@@ -197,9 +197,13 @@ jobs:
         run: |
           flox activate -d flox/base -- ./gradlew :plugin-api:apiCheck --no-daemon
 
-      - name: Run spotlessCheck
+      # Combined with a compile task on purpose: spotlessCheck alone never pulls a
+      # source-tree-writing task into the graph, so the implicit-dependency failure ADFA-5244 fixed
+      # cannot reproduce in a standalone run. Without this step a regression of that exclude is
+      # invisible to CI and shows up only on a developer's machine at push time.
+      - name: Run spotlessCheck alongside a compile task
         run: |
-          flox activate -d flox/base -- ./gradlew spotlessCheck --no-daemon || {
+          flox activate -d flox/base -- ./gradlew :common:compileV8DebugKotlin spotlessCheck --no-daemon || {
             echo "::error::Spotless found formatting violations in this branch. Run './gradlew spotlessApply' locally, then commit and push the formatted files."
             exit 1
           }

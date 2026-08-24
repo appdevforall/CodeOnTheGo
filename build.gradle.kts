@@ -179,19 +179,22 @@ spotless {
 	// Spotless's auto-prune of .git/.gradle/build, so restore them. flox is the
 	// ADFA-4816 fix: its /nix/store symlinks (millions of files) made
 	// spotlessCheck take 12+ minutes.
-	// Bare dir names required: Gradle prunes a subtree only when an exclude
-	// matches the dir node itself; `dir/**` matches contents and forces a
-	// descend-and-filter (no pruning).
+	// The pattern must match the directory node itself -- a bare name or a rooted path both do --
+	// because Gradle prunes a subtree only then; `dir/**` matches the contents instead and forces a
+	// descend-and-filter. A bare name also matches that name at any depth, which is why the entries
+	// below say what they mean: "tests" is rooted, where "test-home" would also prune
+	// testing/resources/test-home.
 	val traversalExcludes =
 		arrayOf(
 			"flox",
 			"**/.flox",
 			"**/.git",
 			"**/.gradle",
-			// ADFA-5244: tooling-api-model:copyToTestDir writes a jar into this directory, which
-			// lives in the source tree. Walking it makes spotlessJava consume another task's
-			// output, so Gradle fails any build that both compiles and checks formatting.
-			"tests/test-home",
+			// ADFA-5244: generated, and inside the source tree, so walking it makes Spotless consume
+			// another task's output and Gradle fails any build that both compiles and checks
+			// formatting. The whole subtree, not just tests/test-home: .gitignore reserves
+			// tests/**/.cg/init/model.jar, and nothing under tests/ is tracked at all.
+			"tests",
 		)
 
 	// Gradle build-output dirs (root + subprojects), relative to rootDir. Not
