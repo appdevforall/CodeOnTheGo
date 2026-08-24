@@ -96,7 +96,15 @@ fun quickBuildStatusBarUpdate(
 				// The build succeeded and only the delivery failed, which is what the Build
 				// Output pane says; BUILD FAILED here sends the reader looking for a compile
 				// error that does not exist.
-				QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_deploy_failed)
+				//
+				// When the app simply is not open, the whole fix is one tap - so say that
+				// here rather than spend the bar pointing at Build Output for a sentence
+				// short enough to fit on the bar.
+				if (transition.failure.appNotRunning) {
+					QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_app_not_running)
+				} else {
+					QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_deploy_failed)
+				}
 			} else {
 				QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_failed)
 			}
