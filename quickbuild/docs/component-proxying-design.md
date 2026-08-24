@@ -268,9 +268,8 @@ restart rule and the skew guard.
   `PROXY_APP_WONT_STAY_UP`, none of which fit), so the only account of it is the build log
   `[inferred]`.
 
-  Evidence: corpus app `notes` on both devices
-  (`corpus/results/20260725T161105Z-e2e-bench/notes__provision.logcat.txt`). Its *standard*
-  build succeeds on the A56, which proves this is a Quick Build limitation and not an app defect
+  Evidence: a corpus app whose *standard* build succeeds on the A56 but whose provisioning fails,
+  which proves this is a Quick Build limitation and not an app defect
   `[measured on a56, measured on c107]`.
 - **A runtime-only library component still has to be excluded by name.** The manifest transform
   searches the variant's DEPENDENCY artifacts, which resolve without compiling anything;
