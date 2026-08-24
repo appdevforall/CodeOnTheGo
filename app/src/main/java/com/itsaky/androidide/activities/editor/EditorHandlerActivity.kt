@@ -120,6 +120,7 @@ import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
 import com.itsaky.androidide.utils.resolveDeepLinkProject
 import com.itsaky.androidide.utils.resolveWithinDirectory
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -179,6 +180,10 @@ open class EditorHandlerActivity :
 	private val analyticsManager: IAnalyticsManager by inject()
 	private val recentProjectRepository: RecentProjectRepository by inject()
 	private val pendingDeepLinkOpen: PendingDeepLinkOpen by inject()
+
+	// The process-wide scope from AppModule, used only by saveAllAsync -- see there for why the
+	// activity's own scope is not enough.
+	private val appScope: CoroutineScope by inject()
 
 	private var pluginEditorProvider: EditorProviderImpl? = null
 
@@ -1028,9 +1033,15 @@ open class EditorHandlerActivity :
 		progressConsumer: ((Int, Int) -> Unit)?,
 		runAfter: ((Boolean) -> Unit)?,
 	) {
-		lifecycleScope.launch(Dispatchers.IO) {
-			// The whole body -- not just saveAll() -- runs NonCancellable. onDestroy() cancels
-			// lifecycleScope's Job as soon as it runs; leaving NonCancellable partway through (e.g.
+		// Not lifecycleScope: NonCancellable protects the body only once it has started running, and
+		// a launch on the IO dispatcher can still be queued when onDestroy() cancels the activity's
+		// scope -- in which case the body never starts and runAfter never runs, losing a confirmed
+		// deep-link project switch exactly as if the guard that used to skip it were still there
+		// (found in review). The application scope has no such window. The activity is retained for
+		// the duration of the save, which is what NonCancellable already implied.
+		appScope.launch(Dispatchers.IO) {
+			// The whole body -- not just saveAll() -- runs NonCancellable. onDestroy() cancels the
+			// activity's Job as soon as it runs; leaving NonCancellable partway through (e.g.
 			// right before invoking runAfter) would let that cancellation surface at the next
 			// suspension point and drop runAfter entirely instead of running it. Callers rely on it
 			// always running (e.g. confirmProjectClose's onClosed, which arms a pending deep-link
