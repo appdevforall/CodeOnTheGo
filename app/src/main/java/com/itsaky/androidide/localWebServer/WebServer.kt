@@ -481,6 +481,10 @@ class WebServer(
 	}
 
 	private fun handleClient(clientSocket: Socket) {
+		// Whether the client has already been told 200. Read by the error path, which must not put a
+		// second status line on a response that has already started (see the assignment below).
+		var responseStarted = false
+
 		if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
 
 		val input = clientSocket.getInputStream()
@@ -626,6 +630,8 @@ class WebServer(
 				while (nextChunk.size == contentChunkSize) {
 					val path2 = "$path-$fragmentNumber"
 					val cursor2 = database.rawQuery(query2, arrayOf(path2))
+					// Whether the client has already been told 200; see the assignment below.
+					var responseStarted = false
 					try {
 						if (cursor2.moveToFirst()) {
 							nextChunk = cursor2.getBlob(0)
@@ -659,13 +665,17 @@ class WebServer(
 			}
 
 			// Built before the status line goes out: everything after the first println is on the
-			// wire (the writer autoflushes), so a throw past that point makes sendError append a
-			// second status line to a response that already claimed 200, which a client parses as a
-			// malformed header rather than as an error. dbMimeType is a platform type from
-			// Cursor.getString, so a NULL ContentTypes.value throws here rather than there.
+			// wire (the writer autoflushes), so a throw past that point cannot be answered with a
+			// fresh error response. dbMimeType is a platform type from Cursor.getString, so a NULL
+			// ContentTypes.value throws here rather than there.
 			val contentTypeHeader = ContentTypeHeaders.headerValue(dbMimeType)
 
 			writer.println("HTTP/1.1 200 OK")
+			// From here on the client has been told 200. A failure while writing the body -- a
+			// dropped connection is the common one -- must not append a second status line to that
+			// response; sendError writes nothing at all when told the output has started, which is
+			// the only honest thing left to do with a half-sent reply.
+			responseStarted = true
 			writer.println("Content-Type: $contentTypeHeader")
 			writer.println("Content-Length: ${dbContent.size}")
 			writer.println("Connection: close")
@@ -674,8 +684,15 @@ class WebServer(
 			output.write(dbContent)
 			output.flush()
 		} catch (e: Exception) {
-			log.error("Error processing request: {}", e.message)
-			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
+			log.error("Error processing request: {}", e.message, e)
+			sendError(
+				writer,
+				output,
+				httpInternalServerError,
+				"Internal Server Error",
+				e.message ?: "",
+				outputStarted = responseStarted,
+			)
 		} finally {
 			cursor.close()
 		}

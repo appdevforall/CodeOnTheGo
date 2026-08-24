@@ -21,6 +21,10 @@ package com.itsaky.androidide.utils
  */
 object ContentTypeHeaders {
 	private const val UTF_8 = "utf-8"
+	private const val TEXT_PLAIN = "text/plain"
+
+	// What a value carrying a control character becomes: renders nothing, injects nothing.
+	private const val OCTET_STREAM = "application/octet-stream"
 
 	// Textual types outside text/* and the +xml family. application/x-typescript has no rows in the
 	// current database but costs nothing to keep; application/javascript does have rows, and is what
@@ -34,43 +38,65 @@ object ContentTypeHeaders {
 		)
 
 	/**
-	 * The charset to *append* to [mimeType], or null when there is nothing to add: the type is
-	 * binary, the format defines its own encoding, or a `charset` parameter is already present.
-	 *
-	 * "Already present" includes an unusable one -- `text/html; charset=` gets nothing appended,
-	 * because a recipient keeps that empty parameter and ignores a repeated name, so a second
-	 * charset would conflict with it and change nothing. [typeAndCharset] deliberately answers
-	 * differently for the same input: it returns the charset as its own value, where nothing can
-	 * conflict with it, so it substitutes the default. The asymmetry is the point.
+	 * The charset to send with [mimeType], or null when there is none to send: the type is binary, or
+	 * the format fixes its own encoding.
 	 *
 	 * `application/json` is deliberately absent: RFC 8259 defines no charset parameter for it and
 	 * fixes the encoding as UTF-8, so declaring one is meaningless rather than helpful. XML-based
 	 * types are included even though a document may carry its own declaration, because a
-	 * transport-level charset takes precedence and SVG in particular usually omits the declaration.
+	 * transport-level charset takes precedence and SVG in particular usually omits it.
 	 */
-	fun charsetFor(mimeType: String): String? = if (carriesCharsetParameter(mimeType)) null else defaultCharsetFor(mimeType)
+	internal fun charsetFor(mimeType: String): String? = typeAndCharset(mimeType).second
 
 	/**
-	 * The bare media type and the charset to send with it: whatever [mimeType] already declares,
-	 * otherwise this class's default for that type, otherwise null. An empty `charset=` counts as
-	 * declaring nothing, so the default applies -- unlike [charsetFor], which cannot append past one
-	 * without contradicting it.
+	 * The media type and the charset to send with it, which is what
+	 * `WebResourceResponse(type, encoding, stream)` wants and what [headerValue] builds its header
+	 * from. One decision, so the two documentation transports cannot disagree.
 	 *
-	 * Exists because `WebResourceResponse(type, encoding, stream)` wants the two apart, and the
-	 * in-process transport was re-implementing the parse to get them -- with the naive substring
-	 * match this file warns against below. One parse, both transports.
+	 * The type is normalized, not passed through: the database stores a bare `text` and a
+	 * `text/text`, neither of which is a media type (`type "/" subtype` is required), and a client
+	 * that cannot parse the type discards the charset with it -- which would have made this whole
+	 * change a no-op on exactly those rows. A value carrying a control character is refused outright;
+	 * see [safeType].
+	 *
+	 * An unusable `charset=` counts as declaring nothing, so the default applies. [headerValue]
+	 * rebuilds the header rather than appending to the stored string, so that substitution reaches
+	 * both transports instead of only this one.
 	 */
-	fun typeAndCharset(mimeType: String): Pair<String, String?> {
-		val type = mimeType.substringBefore(';').trim()
-		return type to (declaredCharset(mimeType) ?: defaultCharsetFor(mimeType))
+	internal fun typeAndCharset(mimeType: String): Pair<String, String?> {
+		val type = safeType(mimeType)
+		return type to (declaredCharset(mimeType) ?: defaultCharsetFor(type))
 	}
 
-	private fun defaultCharsetFor(mimeType: String): String? {
-		val type = mimeType.substringBefore(';').trim().lowercase()
+	/**
+	 * [mimeType]'s media type, normalized and safe to put in a header.
+	 *
+	 * A control character makes the whole value untrustworthy: `ContentTypes.value` comes from a
+	 * database that a debug build will swap in from shared storage (`WebServer`'s
+	 * `debugDatabasePath`), and a stored `text/html\r\n\r\n...` would otherwise be written
+	 * straight into the response by `println`, splitting it into two. Such a value is not repaired,
+	 * it is refused: `application/octet-stream` renders nothing and injects nothing.
+	 */
+	private fun safeType(mimeType: String): String {
+		val type = mimeType.substringBefore(';').trim()
+		if (type.isEmpty() || type.any { it.isISOControl() }) {
+			return OCTET_STREAM
+		}
+		// "text" and "text/text" are the database's own spellings for plain text, and neither parses
+		// as a media type.
+		return if (type.equals("text", ignoreCase = true) || type.equals("text/text", ignoreCase = true)) {
+			TEXT_PLAIN
+		} else {
+			type
+		}
+	}
+
+	private fun defaultCharsetFor(safeType: String): String? {
+		val type = safeType.lowercase()
 		return when {
-			// Every text subtype, plus the database's bare "text" oddity. Matched at the boundary:
-			// "textual/example" is not a text type, and startsWith("text") would say it is.
-			type == "text" || type.startsWith("text/") -> UTF_8
+			// Matched at the boundary: "textual/example" is not a text type, and startsWith("text")
+			// would say it is.
+			type.startsWith("text/") -> UTF_8
 
 			type.endsWith("+xml") || type == "application/xml" -> UTF_8
 
@@ -92,31 +118,18 @@ object ContentTypeHeaders {
 	 * contains a semicolon (`note="x; charset=utf-8"`). A parameter with no value (`; charset`) or
 	 * an empty one (`; charset=`) declares nothing and must not suppress the default -- treating it
 	 * as a declaration is how a response ends up with no encoding at all.
-	 */
-	private fun declaredCharset(mimeType: String): String? = firstCharsetParameter(mimeType)?.second?.ifEmpty { null }
-
-	/**
-	 * Whether [mimeType] already carries a `charset` parameter *with an `=`*, usable or not -- the
-	 * question [headerValue] has to ask, which is not the same as whether the charset is usable.
 	 *
-	 * `; charset=` (empty) and `; charset` (no value at all) are both useless as declarations, but
-	 * recipients treat them differently. A parameter with no `=` is dropped during parsing, so an
-	 * appended `; charset=utf-8` becomes the only one and takes effect. An empty *valued* parameter
-	 * is kept, and a repeated parameter name is ignored, so appending a second one gets us a header
-	 * carrying two conflicting charsets and, in a first-wins recipient, no change in behaviour. Not
-	 * worth emitting: the empty parameter is a defect in the stored `ContentTypes.value` and belongs
-	 * fixed there. [typeAndCharset] can and does still substitute the default, because it hands the
-	 * charset back as its own value where nothing can conflict with it.
+	 * The first *usable* one, not simply the first. While this class appended to the stored string,
+	 * reading the first mattered -- that is the one a recipient keeps when a name repeats, so
+	 * honouring a later one would have meant acting on a parameter the client ignores. [headerValue]
+	 * rebuilds the header now and emits exactly one charset, so that no longer applies, and reading
+	 * past an unusable parameter is what keeps `charset=; charset=iso-8859-1` from being served as
+	 * utf-8 -- which would garble a page that says plainly what it is.
 	 */
-	private fun carriesCharsetParameter(mimeType: String): Boolean = firstCharsetParameter(mimeType)?.second != null
-
-	/**
-	 * [mimeType]'s first `charset` parameter, or null when it has none. First, not first-usable:
-	 * that is the one a recipient keeps when a name repeats, so reading any other would honour a
-	 * parameter the client ignores.
-	 */
-	private fun firstCharsetParameter(mimeType: String): Pair<String, String?>? =
-		parameters(mimeType).firstOrNull { (name, _) -> name.equals("charset", ignoreCase = true) }
+	private fun declaredCharset(mimeType: String): String? =
+		parameters(mimeType)
+			.firstOrNull { (name, value) -> name.equals("charset", ignoreCase = true) && !value.isNullOrEmpty() }
+			?.second
 
 	/**
 	 * [mimeType]'s `name=value` parameters, with semicolons inside quoted values left alone. A null
@@ -175,9 +188,37 @@ object ContentTypeHeaders {
 		return found
 	}
 
-	/** [mimeType] with a charset appended when [charsetFor] gives one, otherwise unchanged. */
+	/**
+	 * The `Content-Type` header value for a row stored as [mimeType].
+	 *
+	 * Rebuilt from the parsed parts rather than appended to. Appending produced a header no stricter
+	 * than what the database happened to hold: a bare `text` stayed unparseable, an unusable
+	 * `charset=` stayed and contradicted the one added after it, and a valueless `charset` was left
+	 * beside its replacement. Rebuilding emits one normalized type, the other parameters as they
+	 * were, and exactly one charset -- the same one [typeAndCharset] hands the other transport.
+	 */
 	fun headerValue(mimeType: String): String {
-		val charset = charsetFor(mimeType) ?: return mimeType
-		return "$mimeType; charset=$charset"
+		val (type, charset) = typeAndCharset(mimeType)
+		return buildString {
+			append(type)
+			for ((name, value) in parameters(mimeType)) {
+				if (name.equals("charset", ignoreCase = true)) continue
+				append("; ").append(name)
+				if (value != null) append('=').append(quoteIfNeeded(value))
+			}
+			if (charset != null) append("; charset=").append(charset)
+		}
 	}
+
+	/**
+	 * Re-quotes a parameter value that needed quoting in the first place. [parameters] strips the
+	 * quotes it parsed, so a value containing a space or a separator has to get them back or the
+	 * rebuilt header means something different from the stored one.
+	 */
+	private fun quoteIfNeeded(value: String): String =
+		if (value.isNotEmpty() && value.none { it.isWhitespace() || it in "\"(),/:;<=>?@[\\]{}" }) {
+			value
+		} else {
+			"\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+		}
 }
