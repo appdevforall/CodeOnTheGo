@@ -12,9 +12,10 @@ object HighPerformanceStrategy : GradleTuningStrategy {
 	const val GRADLE_METASPACE_MB = 384
 	const val GRADLE_CODE_CACHE_MB = 256
 
-	// 6GB+ devices can afford a generous timeout (warm daemon ~= 6x faster
-	// builds). 2h instead of Gradle's 3h default so the value is provably ours
-	// in the daemon log, while still outliving any realistic editing pause.
+	// 6GB+ devices can afford a generous timeout: a warm daemon skips the
+	// cold start, which dominates a short rebuild. 2h instead of Gradle's 3h
+	// default so the value is provably ours in the daemon log, while still
+	// outliving any realistic editing pause.
 	const val GRADLE_DAEMON_IDLE_TIMEOUT_MS = 2 * 60 * 60 * 1000
 
 	const val GRADLE_MEM_PER_WORKER = 512
