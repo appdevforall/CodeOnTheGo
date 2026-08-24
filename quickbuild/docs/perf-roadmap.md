@@ -1,6 +1,6 @@
 # Performance roadmap
 
-Where the remaining Quick Build latency lives, and which levers are worth pulling next. Everything here is stage timings, not the headline speedup - that lives in the [README's benchmark table](../README.md), from the ADFA-4128 benchmark pass of 2026-08-11 on CoGo build `C-d-0810-2347`. Lever 1 has shipped; the rest are ranked by ROI.
+Where the remaining Quick Build latency lives, and which levers are worth pulling next. Everything here is stage timings, not the headline speedup - that lives in the [README](../README.md). Lever 1 has shipped; the rest are ranked by ROI.
 
 | #   | Fix                                               | Affects                        | Payoff per warm edit                           | Effort | Risk | Status      |
 | --- | ------------------------------------------------- | ------------------------------ | ---------------------------------------------- | ------ | ---- | ----------- |
@@ -31,7 +31,7 @@ Levers 3a/3b are designed in [`incremental-javac-design.md`](incremental-javac-d
 
 Nothing in the Quick Build compile path asks for a core count. The daemon is spawned as a bare `java -jar daemon.jar` with no JVM args and never goes through `GradleBuildTuner`, and d8 is invoked as the single-argument `D8.run(command)` with no `ExecutorService` and no `setThreadCount`. So the parallelism we get is whatever each tool defaults to, and nobody has checked what that is.
 
-It ranks last because the stage that dominates a median warm edit is the one least able to use a second core: `kotlinc` is 53-60% of it (749 ms A56, 1500 ms A06 `[measured on a56, a06; CoGo build C-d-0809-0940]`), and single-file frontend analysis is largely serial. Two places it plausibly does pay, and they are what to investigate:
+It ranks last because the stage that dominates a median warm edit is the one least able to use a second core: `kotlinc` is 53-60% of it (749 ms A56, 1500 ms A06 `[measured on a56, a06]`), and single-file frontend analysis is largely serial. Two places it plausibly does pay, and they are what to investigate:
 
 - **aapt2 link on resource edits - 1027 ms on the A56, 2074 ms on the A06**, larger than an entire
 
@@ -85,9 +85,9 @@ Reference workload: `sora-editor-full` (288 sources: 214 `.java` + 74 `.kt`, 464
 - The "53 s per edit" figure was never a per-edit cost. It was the session's first build, which now
 
   runs as a background warm compile before the user can save.
-- The warm compile is what makes the *first* save fast, and it is worth **6.1x** on that save:
+- The warm compile is what makes the *first* save fast: a warmed first save costs a fraction of an
 
-  **1.9 s warmed vs 11.5 s unwarmed**, almost all of it cold `kotlinc`. Matched on/off A/B, 3 trials per arm, one build, `hello-kotlin` (`corpus/results/20260728T153938Z-seed-ab/`) `[measured on a56]`. Tap-to-`Ready` is unchanged, because the warm compile starts after `Ready`.
+  unwarmed one, almost all of the difference cold `kotlinc`. Matched on/off A/B, 3 trials per arm, one build, `hello-kotlin` `[measured on a56]`. Tap-to-`Ready` is unchanged, because the warm compile starts after `Ready`.
 
 ## Not covered here
 
@@ -100,5 +100,3 @@ Reference workload: `sora-editor-full` (288 sources: 214 `.java` + 74 `.kt`, 464
 - **`readyou`** - a pure-Kotlin 6-file module measuring 13.7 s / 15.2 s before dropping to 2.9 s
 
   `[measured on a56]`. No javac, no large class tree; nothing above explains it.
-
-Evidence: `20260728T172912Z-sora-deepdive/` and `results/analysis/offfuse-comparison-2026-07-31.md` in `CodeOnTheGo-build-benchmark`.
