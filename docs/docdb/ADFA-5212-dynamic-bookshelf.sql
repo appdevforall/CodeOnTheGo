@@ -144,10 +144,22 @@ UPDATE BookCategories
 -- ---------------------------------------------------------------------
 -- Rebuilt rather than merged. The 14-Aug database's rows are unusable (NULL
 -- bookCategoryID, datetime-placeholder titles; see ADFA-5204), and adding to
--- them leaves real books beside placeholder ones. If a database ever carries
--- bookshelf rows from another source, narrow this DELETE to the seeded paths.
+-- them leaves real books beside placeholder ones.
+--
+-- Scoped to what this migration owns, not "everything". A plugin can contribute
+-- non-PDF books to this catalog (see docs/documentation-database.md), and those
+-- rows are none of this script's business: DELETE FROM Bookshelf would have taken
+-- them out and the checks below would still have passed, because they counted only
+-- the seeded rows they expected to find.
+--
+-- Two things go: rows this migration is about to re-seed, and the ADFA-5204
+-- placeholder rows, which are identifiable by having no category to join to. A
+-- plugin row keeps a real bookCategoryID and a contentID outside BookSeed, so it
+-- survives both clauses.
 
-DELETE FROM Bookshelf;
+DELETE FROM Bookshelf
+ WHERE bookCategoryID IS NULL
+    OR contentID IN (SELECT C.id FROM Content C JOIN BookSeed S ON C.path = S.path);
 
 INSERT INTO Bookshelf (contentID, title, description, bookCategoryID)
 SELECT C.id, S.title, S.description, BC.id
@@ -201,19 +213,24 @@ SELECT 'these seeded book paths are missing from Content: ' || GROUP_CONCAT(path
 -- is NULL, and the insert fails where nothing is wrong.
 HAVING COUNT(*) > 0;
 
--- The bookshelf holds exactly the seeded books.
+-- Every seeded book is on the shelf. Counted over the seeded rows rather than the
+-- whole table, so a plugin's own books neither satisfy this check nor break it.
 INSERT INTO Problems (problem)
-SELECT 'Bookshelf has ' || (SELECT COUNT(*) FROM Bookshelf) || ' rows, expected ' || (SELECT COUNT(*) FROM BookSeed)
- WHERE (SELECT COUNT(*) FROM Bookshelf) <> (SELECT COUNT(*) FROM BookSeed);
+SELECT 'Bookshelf holds ' || (SELECT COUNT(*) FROM Bookshelf B, Content C, BookSeed S
+                               WHERE C.id = B.contentID AND C.path = S.path)
+       || ' of the ' || (SELECT COUNT(*) FROM BookSeed) || ' seeded books'
+ WHERE (SELECT COUNT(*) FROM Bookshelf B, Content C, BookSeed S
+         WHERE C.id = B.contentID AND C.path = S.path) <> (SELECT COUNT(*) FROM BookSeed);
 
--- ...and every one joins through to a category, which is what the ADFA-5204
+-- ...and every seeded one joins through to a category, which is what the ADFA-5204
 -- breakage failed: rows present, join empty.
 INSERT INTO Problems (problem)
-SELECT 'only ' || (SELECT COUNT(*) FROM Content C, Bookshelf B, BookCategories BC
-                    WHERE C.id = B.contentID AND B.bookCategoryID = BC.id)
-       || ' of ' || (SELECT COUNT(*) FROM BookSeed) || ' books join to a category'
- WHERE (SELECT COUNT(*) FROM Content C, Bookshelf B, BookCategories BC
-         WHERE C.id = B.contentID AND B.bookCategoryID = BC.id) <> (SELECT COUNT(*) FROM BookSeed);
+SELECT 'only ' || (SELECT COUNT(*) FROM Content C, Bookshelf B, BookCategories BC, BookSeed S
+                    WHERE C.id = B.contentID AND B.bookCategoryID = BC.id AND C.path = S.path)
+       || ' of ' || (SELECT COUNT(*) FROM BookSeed) || ' seeded books join to a category'
+ WHERE (SELECT COUNT(*) FROM Content C, Bookshelf B, BookCategories BC, BookSeed S
+         WHERE C.id = B.contentID AND B.bookCategoryID = BC.id AND C.path = S.path)
+       <> (SELECT COUNT(*) FROM BookSeed);
 
 -- Every seeded category exists.
 INSERT INTO Problems (problem)
