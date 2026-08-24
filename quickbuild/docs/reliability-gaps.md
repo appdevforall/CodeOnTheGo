@@ -6,9 +6,13 @@ What is at stake is trust: a live reload path that goes slow, dead, or quiet. Th
 is the evidence for that call, one section per gap - symptom, root cause with file references,
 likely fix.
 
-Device testing (2026-07-25..28) surfaced five user-facing defects. Three are fixed on this branch
-(see the last section, which also closes the relink-stuck gap); three are open, alongside the
-relink-crash recovery gap.
+Device testing (2026-07-25..28) surfaced **seven** user-facing defects. **Three are fixed on this
+branch** - the relink-stuck gap, #88 and #90, all in the last section. **Four are open**: #87, #89,
+#91 and the relink-crash recovery gap, which are the four this page asks a decision about.
+
+The table below lists the four open gaps plus relink-stuck, whose fix is what closed it; #88 and #90
+appear only in the last section. `Blocks v1?` reads `TBD` because the answer at the top of this page
+is a **proposal** awaiting confirmation - once it is confirmed those four cells become "No".
 
 | Gap | What the user sees | Frequency | Blocks v1? |
 | --- | --- | --- | --- |
