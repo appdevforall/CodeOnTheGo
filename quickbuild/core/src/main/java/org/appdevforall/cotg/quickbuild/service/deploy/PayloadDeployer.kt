@@ -393,6 +393,7 @@ internal class PayloadDeployer(
 				BuildOutcome.DeployFailure(
 					"Your app is not running. Tap Quick Build to start it with your changes.",
 					proxyAppNotConnected = launchAttempted,
+					appNotRunning = !launchAttempted,
 				)
 			}
 

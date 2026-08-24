@@ -904,6 +904,10 @@ open class EditorHandlerActivity :
 					// Build" over a stop affordance is a bug the user cannot see around. The
 					// same holds for the greyed-out state: "Quick Build" over a button that
 					// does nothing says nothing about why.
+					// Every tone has its own icon shape, so a sighted user can tell them
+					// apart; collapsing them all to "Quick Build" hides that distinction
+					// from exactly the user who cannot see the icon. ERROR is the costly
+					// one - it reads identically to READY while the bolt shows a failure.
 					when {
 						QuickBuildAction.currentTone() == QuickBuildTone.BUILDING -> {
 							string.cd_toolbar_cancel_build
@@ -911,6 +915,18 @@ open class EditorHandlerActivity :
 
 						QuickBuildAction.isBlockedByStandardBuild() -> {
 							string.quick_build_standard_build_in_progress
+						}
+
+						QuickBuildAction.currentTone() == QuickBuildTone.ERROR -> {
+							string.cd_quick_build_error
+						}
+
+						QuickBuildAction.currentTone() == QuickBuildTone.SLOW -> {
+							string.cd_quick_build_slow
+						}
+
+						QuickBuildAction.currentTone() == QuickBuildTone.RECONNECTING -> {
+							string.cd_quick_build_reconnecting
 						}
 
 						else -> {

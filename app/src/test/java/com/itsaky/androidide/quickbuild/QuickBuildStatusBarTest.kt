@@ -52,6 +52,25 @@ class QuickBuildStatusBarTest {
 	}
 
 	@Test
+	fun `an app that is merely not running names the tap that fixes it`() {
+		// The actionable sentence used to live only in Build Output, so the bar spent its
+		// whole width pointing at a fix that would have fitted on the bar.
+		val shown =
+			update(
+				QuickBuildStatus.Building(4L),
+				QuickBuildStatus.Failed(
+					4L,
+					SessionFailure.DeployError(
+						"Your app is not running. Tap Quick Build to start it with your changes.",
+						appNotRunning = true,
+					),
+				),
+			)
+		assertThat(shown)
+			.isEqualTo(QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_app_not_running))
+	}
+
+	@Test
 	fun `the same deploy failure settling does not rewrite the bar`() {
 		val failed = QuickBuildStatus.Failed(4L, SessionFailure.DeployError("gone"))
 		assertThat(update(failed, failed)).isNull()
