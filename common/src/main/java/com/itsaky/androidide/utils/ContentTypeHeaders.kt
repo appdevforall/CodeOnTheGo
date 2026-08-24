@@ -34,8 +34,14 @@ object ContentTypeHeaders {
 		)
 
 	/**
-	 * The charset to declare for [mimeType], or null when the type is binary, when it already
-	 * carries a charset, or when the format defines its encoding itself.
+	 * The charset to *append* to [mimeType], or null when there is nothing to add: the type is
+	 * binary, the format defines its own encoding, or a `charset` parameter is already present.
+	 *
+	 * "Already present" includes an unusable one -- `text/html; charset=` gets nothing appended,
+	 * because a recipient keeps that empty parameter and ignores a repeated name, so a second
+	 * charset would conflict with it and change nothing. [typeAndCharset] deliberately answers
+	 * differently for the same input: it returns the charset as its own value, where nothing can
+	 * conflict with it, so it substitutes the default. The asymmetry is the point.
 	 *
 	 * `application/json` is deliberately absent: RFC 8259 defines no charset parameter for it and
 	 * fixes the encoding as UTF-8, so declaring one is meaningless rather than helpful. XML-based
@@ -46,7 +52,9 @@ object ContentTypeHeaders {
 
 	/**
 	 * The bare media type and the charset to send with it: whatever [mimeType] already declares,
-	 * otherwise this class's default for that type, otherwise null.
+	 * otherwise this class's default for that type, otherwise null. An empty `charset=` counts as
+	 * declaring nothing, so the default applies -- unlike [charsetFor], which cannot append past one
+	 * without contradicting it.
 	 *
 	 * Exists because `WebResourceResponse(type, encoding, stream)` wants the two apart, and the
 	 * in-process transport was re-implementing the parse to get them -- with the naive substring
