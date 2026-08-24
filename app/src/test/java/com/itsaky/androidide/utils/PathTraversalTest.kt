@@ -81,12 +81,37 @@ class PathTraversalTest {
 		assertThat(resolveWithinDirectory(baseDir, "foo" + nulCharacter + ".txt")).isNull()
 	}
 
+	// This used to be rejected, on the reasoning that project files never legitimately need
+	// consecutive dots. They do -- and a deep link to one failing with no explanation is a bug, not
+	// a safe trade-off. Nothing is given up: only a literal ".." *segment* can name a parent, and
+	// the tests below cover every way of writing one.
 	@Test
-	fun `a filename merely containing dot-dot as a substring is rejected too`() {
-		// Intentionally the stricter, simpler substring reject rather than a proper per-segment
-		// check -- project files never legitimately need consecutive dots in a name, so treating
-		// "a..b.txt" the same as an actual ".." traversal segment is an acceptable, safe trade-off.
-		assertThat(resolveWithinDirectory(baseDir, "a..b.txt")).isNull()
+	fun `a filename containing dot-dot is resolved, not rejected`() {
+		assertThat(resolveWithinDirectory(baseDir, "notes..txt"))
+			.isEqualTo(File(baseDir, "notes..txt").absoluteFile)
+		assertThat(resolveWithinDirectory(baseDir, "a..b/c.kt"))
+			.isEqualTo(File(baseDir, "a..b/c.kt").absoluteFile)
+		assertThat(resolveWithinDirectory(baseDir, "....gitignore"))
+			.isEqualTo(File(baseDir, "....gitignore").absoluteFile)
+	}
+
+	// The segment itself, in every position, is still refused.
+	@Test
+	fun `a dot-dot segment is rejected wherever it appears`() {
+		assertThat(resolveWithinDirectory(baseDir, "..")).isNull()
+		assertThat(resolveWithinDirectory(baseDir, "../x")).isNull()
+		assertThat(resolveWithinDirectory(baseDir, "a/../b")).isNull()
+		assertThat(resolveWithinDirectory(baseDir, "a/..")).isNull()
+		assertThat(resolveWithinDirectory(baseDir, "a\\..\\b")).isNull()
+	}
+
+	// Percent-decoding happens in Uri.pathSegments before this function sees the string, so an
+	// encoded traversal arrives as a literal ".." segment and is caught above. A double-encoded one
+	// arrives as the harmless filename "%2e%2e", which cannot name a parent directory.
+	@Test
+	fun `a double-encoded dot-dot is an ordinary filename`() {
+		assertThat(resolveWithinDirectory(baseDir, "%2e%2e/x"))
+			.isEqualTo(File(baseDir, "%2e%2e/x").absoluteFile)
 	}
 
 	@Test

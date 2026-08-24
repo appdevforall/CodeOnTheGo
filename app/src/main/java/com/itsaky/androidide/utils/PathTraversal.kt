@@ -33,10 +33,15 @@ import java.nio.file.LinkOption
  * `com.itsaky.androidide.utils.ZipUtils.unzipFile` (the `common` module's own copy, needed since
  * it can't depend on `app` to call this function directly). Any future fix to the containment
  * algorithm below must be applied in all three places:
- * 1. A lexical reject of an empty string, `..`, or a leading `/` or `\` -- cheap, catches the
- *    common case outright. An empty string is rejected explicitly: [java.nio.file.Path.resolve]
- *    treats it as a no-op and returns [baseDir] itself unchanged, which would otherwise trivially
- *    pass the containment check below and violate this function's own "returns null" contract.
+ * 1. A lexical reject of an empty string, a `..` *segment*, or a leading `/` or `\` -- cheap,
+ *    catches the common case outright. Per segment, not as a substring: `notes..txt` and
+ *    `a..b/c.kt` are legitimate filenames, and a deep link to one has no business failing. Only a
+ *    literal `..` segment can name a parent directory, so nothing is lost -- and layers 2 and 3
+ *    below are what actually enforce containment in any case. (The sibling zip guards reached the
+ *    same conclusion for the same reason; `ZipUtils.unzipFile` spells it out.) An empty string is
+ *    rejected explicitly: [java.nio.file.Path.resolve] treats it as a no-op and returns [baseDir]
+ *    itself unchanged, which would otherwise trivially pass the containment check below and violate
+ *    this function's own "returns null" contract.
  * 2. Resolve + normalize against [baseDir] and verify with [java.nio.file.Path.startsWith] (not
  *    string prefix matching, which would wrongly accept `/project` as inside `/project-evil`) --
  *    this operates on Java's own resolved path, so it isn't fooled by however `..` made it into the
@@ -59,7 +64,13 @@ fun resolveWithinDirectory(
 	baseDir: File,
 	relativePath: String,
 ): File? {
-	if (relativePath.isEmpty() || relativePath.contains("..") || relativePath.startsWith("/") || relativePath.startsWith("\\")) {
+	// Split on both separators: '\' is not a path separator on Android, but a caller handing over a
+	// Windows-style path should not have it silently treated as one long filename.
+	if (relativePath.isEmpty() ||
+		relativePath.startsWith("/") ||
+		relativePath.startsWith("\\") ||
+		relativePath.split('/', '\\').any { it == ".." }
+	) {
 		return null
 	}
 
