@@ -27,14 +27,10 @@ object DatabaseVersionResolver {
 		WHERE  type = 'table' AND name = 'DocumentationDatabaseVersion'
 	"""
 
-	// The table holds exactly one row: the version the database *is*, not a history of what it has
-	// been (ADFA-5220), and the pipeline replaces that row rather than appending. So the ORDER BY
-	// here is a defence, not a model -- if a database ever turns up carrying several rows, this
-	// reads the one written last instead of whichever SQLite happens to return, and a downgrade
-	// still reads as a downgrade where MAX(major) would report the highest version ever recorded.
-	// The row count comes back with the version so a file that breaks the one-row contract can be
-	// reported rather than silently papered over: the ORDER BY makes the answer deterministic, but a
-	// database carrying several rows is malformed and whoever produced it should hear about it.
+	// One row by contract (ADFA-5220); the ORDER BY is the defence for a file that breaks it, and
+	// MAX(major) is the tempting wrong answer -- a rebuild from an older content set has to read as
+	// the downgrade it is. The count rides along so the breach can be reported rather than papered
+	// over.
 	private const val QUERY_MAJOR_VERSION = """
 		SELECT major, (SELECT COUNT(*) FROM DocumentationDatabaseVersion)
 		FROM   DocumentationDatabaseVersion
@@ -86,8 +82,13 @@ object DatabaseVersionResolver {
 
 	/**
 	 * The MAJOR version [db] declares in `DocumentationDatabaseVersion` (ADFA-5220), or null when
-	 * that table is absent or empty -- which is how every database built before it existed
-	 * identifies itself.
+	 * that table is absent, empty, or holds a NULL major -- the first of which is how every database
+	 * built before it existed identifies itself.
+	 *
+	 * The table is contractually a single row. A file carrying several is accepted rather than
+	 * rejected -- the row with the highest `rowid` wins, so the answer stays deterministic and a
+	 * downgrade still reads as one -- and logs a warning, since this reader cannot repair the file
+	 * and refusing to serve documentation over it would be a worse outcome than serving it.
 	 *
 	 * Deliberately does *not* catch exceptions, unlike [resolveDatabaseVersion]: callers cache the
 	 * answer for the lifetime of a database (see `WebServer.loadCompressionDictionary`), so a
@@ -100,19 +101,21 @@ object DatabaseVersionResolver {
 			return null
 		}
 		return db.rawQuery(QUERY_MAJOR_VERSION, arrayOf()).use { cursor ->
-			if (!cursor.moveToFirst() || cursor.isNull(0)) {
+			if (!cursor.moveToFirst()) {
 				return@use null
 			}
+			// Counted before the NULL check, not after: a file that is both multi-row *and* ends in a
+			// NULL major would otherwise return null with nothing logged -- the most malformed case
+			// there is, reported as if the table simply did not exist.
 			val rows = cursor.getInt(1)
 			if (rows > 1) {
 				Log.w(
 					TAG,
-					"DocumentationDatabaseVersion holds $rows rows; it is meant to hold one. " +
-						"Using the row written last (major ${cursor.getInt(0)}); the database was built by " +
-						"something that appended instead of replacing.",
+					"DocumentationDatabaseVersion holds $rows rows; it is meant to hold one. Using the row " +
+						"written last; the database was built by something that appended instead of replacing.",
 				)
 			}
-			cursor.getInt(0)
+			if (cursor.isNull(0)) null else cursor.getInt(0)
 		}
 	}
 

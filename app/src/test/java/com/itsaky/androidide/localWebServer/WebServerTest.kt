@@ -77,6 +77,10 @@ class WebServerTest {
 					every { moveToFirst() } returns true
 					every { isNull(0) } returns false
 					every { getInt(0) } returns major
+					// The row count the query carries. Left unstubbed, a relaxed mock answers 0 -- a
+					// state the production code has just excluded by getting a row back at all, so
+					// these tests would be exercising something that cannot happen.
+					every { getInt(1) } returns 1
 				}
 		}
 	}
