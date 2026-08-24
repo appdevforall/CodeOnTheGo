@@ -1,6 +1,6 @@
 # How resource updates are handled
 
-What happens when the user saves a resource file while Quick Build is running, who consumes each result, and the design decisions around it. Terms (proxy app, payload, rebaseline, orchestrator) are defined in the [README](../README.md); the reload steps are in [pipeline.md](pipeline.md). Behavior verified on-device 2026-08-13 UTC (A56, CoGo C-d-0812-1737).
+What happens when the user saves a resource file while Quick Build is running, who consumes each result, and the design decisions around it. Terms (proxy app, payload, rebaseline, orchestrator) are defined in the [README](../README.md); the reload steps are in [pipeline.md](pipeline.md). Behavior verified on-device 2026-08-13 UTC (A56).
 
 ## Two independent pipelines fire on a resource save
 
