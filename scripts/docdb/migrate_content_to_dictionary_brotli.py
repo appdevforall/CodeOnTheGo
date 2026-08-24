@@ -427,8 +427,12 @@ def write_item(
             inserted += 1
         else:
             connection.execute(
-                "UPDATE Content SET content = ?, contentTypeID = ? WHERE id = ?",
-                (payload, type_id, row_id),
+                # languageID too, not just the bytes: a continuation row that predates this script
+                # can carry the base row's language, and WebServer's continuation query filters on
+                # languageId = 1 -- so reusing the row without normalising it leaves the page
+                # truncated exactly as an unnumbered continuation would.
+                "UPDATE Content SET content = ?, contentTypeID = ?, languageID = ? WHERE id = ?",
+                (payload, type_id, CONTINUATION_LANGUAGE_ID, row_id),
             )
 
     # Whatever is left over described slices the new stream no longer needs.
@@ -586,6 +590,12 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
 
     # Batched like phase 3, and for the same reason: this holds every candidate's decoded
     # plaintext resident until the write loop, and one row in this database is 23 MB.
+    inserted_total = deleted_total = 0
+    kept: set[str] = set()
+
+    # Each batch is inspected *and written* before the next one starts. Batching only the
+    # submissions still held every decoded plaintext until a write loop at the end, so --batch
+    # bounded the workers and not the memory, which is the thing that runs out.
     for offset in range(0, len(items), args.batch):
         pending = {}
         for item in items[offset : offset + args.batch]:
@@ -614,48 +624,46 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
                     and not (extension == "mov" and target.startswith("video/")):
                 notes.append(f"{item.base_path}: named .{extension} but the payload is {found.sniffed}")
 
-            retyped.append((item, found, target))
+            if target not in types:
+                if write:
+                    cursor = connection.execute(
+                        "INSERT INTO ContentTypes (value, compression) VALUES (?, 'none')", (value := target,)
+                    )
+                    types[value] = (cursor.lastrowid, "none")
+                    print(f"      ContentTypes  + id {cursor.lastrowid} {value} (compression none)")
+                else:
+                    types[target] = (-1, "none")
+                    print(f"      ContentTypes  would insert {target} (compression none)")
+
+            type_id, compression = types[target]
+            # A target type whose own compression is not 'none' cannot receive plaintext. Retyping
+            # into it would leave the bytes compressed under a type they are not, which the verifier
+            # then reports twice -- and if WebServer does not handle that compression at all, the row
+            # serves raw compressed bytes to a browser.
+            if compression != "none":
+                errors.append(
+                    f"{item.base_path}: {target} is registered with compression '{compression}', not 'none'; "
+                    f"left as {item.content_type}. Fix the ContentTypes row, then re-run"
+                )
+                continue
+
             counts[target] = counts.get(target, 0) + 1
             before_total += found.before
             after_total += found.after
+            kept.add(item.base_path)
 
-    missing = sorted({target for _, _, target in retyped if target not in types})
-    for value in missing:
+            if write:
+                inserted, deleted = write_item(
+                    connection, item, found.slices, renumber="renumber" in args.phase_list, content_type_id=type_id
+                )
+                inserted_total += inserted
+                deleted_total += deleted
+            # found.slices is the only large thing here; dropping the reference lets this batch's
+            # plaintext be collected before the next batch decodes its own.
+            found.slices = []
+
         if write:
-            cursor = connection.execute(
-                "INSERT INTO ContentTypes (value, compression) VALUES (?, 'none')", (value,)
-            )
-            types[value] = (cursor.lastrowid, "none")
-            print(f"      ContentTypes  + id {cursor.lastrowid} {value} (compression none)")
-        else:
-            types[value] = (-1, "none")
-            print(f"      ContentTypes  would insert {value} (compression none)")
-
-    inserted_total = deleted_total = 0
-    kept = []
-    for item, found, target in retyped:
-        type_id, compression = types[target]
-        # A target type whose own compression is not 'none' cannot receive plaintext. Retyping
-        # into it used to leave the bytes compressed and the row declaring a type they are not,
-        # which the verifier below then reported twice -- and if WebServer does not handle that
-        # compression at all, the row would serve raw compressed bytes to a browser.
-        if compression != "none":
-            errors.append(
-                f"{item.base_path}: {target} is registered with compression '{compression}', not 'none'; "
-                f"left as {item.content_type}. Fix the ContentTypes row, then re-run"
-            )
-            counts[target] = counts.get(target, 0) - 1
-            continue
-        kept.append((item, found, target))
-        if not write:
-            continue
-        inserted, deleted = write_item(
-            connection, item, found.slices, renumber="renumber" in args.phase_list, content_type_id=type_id
-        )
-        inserted_total += inserted
-        deleted_total += deleted
-    if write:
-        connection.commit()
+            connection.commit()
 
     for target, count in sorted(counts.items(), key=lambda kv: -kv[1]):
         print(f"      {target:22} {count:>4}")
@@ -663,7 +671,7 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
           f"({'+' if after_total >= before_total else ''}{human(after_total - before_total)})")
     if write:
         print(f"      rows inserted {inserted_total}   deleted {deleted_total}")
-    return {item.base_path for item, _, _ in kept}, errors, notes
+    return kept, errors, notes
 
 
 def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> tuple[int, list[str], list[str]]:
@@ -844,6 +852,8 @@ def main() -> int:
         print()
 
         counts = {"migrated": 0, "already": 0, "unchanged": 0, "error": 0}
+        wrote_migrated_content = False
+        version_declared = False
         before_total = after_total = 0
         inserted_total = deleted_total = 0
         # Not named `errors`: that name already holds this run's phase 1 and 2 failures,
@@ -885,8 +895,23 @@ def main() -> int:
                     inserted, deleted = write_item(connection, item, result.slices, renumber=False)
                     inserted_total += inserted
                     deleted_total += deleted
+                    wrote_migrated_content = True
 
             if write:
+                # In the same transaction as the first batch of migrated content, not after the last
+                # one. A run interrupted between two committed batches would otherwise leave the
+                # database holding dictionary-compressed rows while declaring a version below the one
+                # the app requires -- so it would decline the dictionary and every committed row
+                # would fail to decode. Declaring first means the worst an interruption leaves is a
+                # partly migrated database that still serves, since the app falls back to a plain
+                # decode per row.
+                if wrote_migrated_content and not version_declared:
+                    before = declared_major(connection)
+                    if before is None or before < DICTIONARY_MAJOR_VERSION:
+                        declare_dictionary_version(connection)
+                        print(f"\ndeclared        database version {DICTIONARY_MAJOR_VERSION}.0.0 "
+                              f"(was {'none' if before is None else before})")
+                    version_declared = True
                 connection.commit()
 
             done = min(offset + args.batch, len(items))
@@ -935,8 +960,10 @@ def main() -> int:
         # row just migrated fails to decode. Declared even on a partly failed run -- WebServer
         # tries the dictionary first and falls back to a plain decode, so a row that did not
         # migrate still serves, while the ones that did only serve with this row present.
+        # Anything already dictionary-compressed still needs the declaration, even when this run
+        # migrated nothing itself (every row came back "already").
         before = declared_major(connection)
-        if before is None or before < DICTIONARY_MAJOR_VERSION:
+        if not version_declared and (before is None or before < DICTIONARY_MAJOR_VERSION):
             declare_dictionary_version(connection)
             print(f"declared        database version {DICTIONARY_MAJOR_VERSION}.0.0 "
                   f"(was {'none' if before is None else before})")
