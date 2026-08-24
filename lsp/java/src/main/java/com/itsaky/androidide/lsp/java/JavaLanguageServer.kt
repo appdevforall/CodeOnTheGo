@@ -17,6 +17,7 @@
 package com.itsaky.androidide.lsp.java
 
 import androidx.annotation.RestrictTo
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
@@ -112,6 +113,15 @@ class JavaLanguageServer : ILanguageServer {
 	private var pendingWorkspace: Workspace? = null
 	private var compilerLifecycle = CompilerLifecycle.PENDING
 
+	/**
+	 * Whether [shutdown] has run. Exposed because the lifecycle is otherwise unobservable from
+	 * outside -- every path returns `NO_MODULE_COMPILER` for its own reasons, so a test cannot tell
+	 * "refused because shut down" from "no module for this file" without it.
+	 */
+	@VisibleForTesting
+	internal val isShutDown: Boolean
+		get() = compilerLifecycleLock.withLock { compilerLifecycle == CompilerLifecycle.SHUTDOWN }
+
 	val settings: IServerSettings
 		get() {
 			return _settings ?: JavaServerSettings
@@ -201,6 +211,13 @@ class JavaLanguageServer : ILanguageServer {
 		// construct real javac machinery plus a full android.jar scan at class-init, merely by
 		// being referenced (ADFA-5052, mirrors ADFA-5010's KotlinLanguageServer fix).
 		compilerLifecycleLock.withLock {
+			// SHUTDOWN is terminal. A server whose javac state has been destroyed does not come
+			// back because a project happened to open afterwards; reviving it here would rebuild
+			// compilers nothing is going to shut down again (found in review).
+			if (compilerLifecycle == CompilerLifecycle.SHUTDOWN) {
+				log.debug("setupWithProject() ignored: this server has been shut down.")
+				return
+			}
 			pendingWorkspace = workspace
 			// Leave RESETTING alone: ensureProjectReset()'s own finally block re-checks
 			// pendingWorkspace once it re-acquires the lock, so a project switch mid-reset is
@@ -219,6 +236,7 @@ class JavaLanguageServer : ILanguageServer {
 	 */
 	private fun ensureProjectReset() {
 		compilerLifecycleLock.withLock {
+			// PENDING is the only state a reset starts from; SHUTDOWN in particular is terminal.
 			if (compilerLifecycle != CompilerLifecycle.PENDING) return
 			val workspace = pendingWorkspace ?: return
 			pendingWorkspace = null
@@ -372,6 +390,12 @@ class JavaLanguageServer : ILanguageServer {
 		// reset for a newer project could destroy() the provider's compilers in the gap between
 		// this thread's reset finishing and its JavaCompilerProvider.get() call.
 		return compilerLifecycleLock.withLock {
+			// Nothing to hand out once the javac state is gone: NO_MODULE_COMPILER is the same
+			// answer this returns for a non-Java file, and it does not resurrect what shutdown()
+			// destroyed.
+			if (compilerLifecycle == CompilerLifecycle.SHUTDOWN) {
+				return@withLock JavaCompilerService.NO_MODULE_COMPILER
+			}
 			ensureProjectReset()
 			val module =
 				ProjectManagerImpl.getInstance().findModuleForFile(file!!)
@@ -406,6 +430,10 @@ class JavaLanguageServer : ILanguageServer {
 		// See getCompiler(): held across the reset *and* the provider lookup/use so a concurrent
 		// reset can't destroy() these compilers in between.
 		compilerLifecycleLock.withLock {
+			// A document change after shutdown has no compiler to tell, and must not rebuild one.
+			if (compilerLifecycle == CompilerLifecycle.SHUTDOWN) {
+				return
+			}
 			ensureProjectReset()
 
 			// TODO Find an alternative to efficiently update changeDelta in JavaCompilerService instance
