@@ -84,6 +84,9 @@ from dataclasses import dataclass, field
 
 CHUNK_BYTES = 1024 * 1024
 
+# WebServer looks continuations up with "languageId = 1" hardcoded, whatever the base row says.
+CONTINUATION_LANGUAGE_ID = 1
+
 
 def is_text_type(value: str) -> bool:
     """Whether a ContentTypes.value is a text type, matched at the boundary.
@@ -322,7 +325,9 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
     rows = connection.execute(
         f"""
         SELECT C.id, C.path, C.languageID, C.contentTypeID, C.templateId,
-               LENGTH(C.content), CT.value, CT.compression
+               -- IFNULL: a row with NULL content has NULL length, which made the byte totals
+               -- (and so the phase summary) throw before read_blobs could report the row.
+               IFNULL(LENGTH(C.content), 0), CT.value, CT.compression
           FROM Content C
           JOIN ContentTypes CT ON CT.id = C.contentTypeID
          WHERE {predicate}
@@ -362,11 +367,17 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
     return sorted(items.values(), key=lambda item: item.base_path)
 
 
-def read_blobs(connection: sqlite3.Connection, item: Item) -> list[bytes]:
+def read_blobs(connection: sqlite3.Connection, item: Item) -> list[bytes] | None:
+    """An item's slices in order, or None when a row has vanished or holds NULL content.
+
+    None rather than an exception: a single unreadable row used to abort the whole run from
+    inside a worker, leaving earlier batches committed and printing no summary at all.
+    """
     ids = [item.base_id] + [row_id for row_id, _, _ in item.continuations]
     placeholders = ",".join("?" * len(ids))
     found = dict(connection.execute(f"SELECT id, content FROM Content WHERE id IN ({placeholders})", ids).fetchall())
-    return [found[row_id] for row_id in ids]
+    blobs = [found.get(row_id) for row_id in ids]
+    return None if any(blob is None for blob in blobs) else blobs
 
 
 def write_item(
@@ -406,7 +417,12 @@ def write_item(
                 INSERT INTO Content (path, languageID, content, contentTypeID, templateId)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (f"{item.base_path}-{suffix}", item.language_id, payload, type_id, item.template_id),
+                # languageID 1, not the base row's: WebServer's continuation query is
+                # "WHERE path = ? AND languageId = 1" (documented in
+                # docs/documentation-database.md), so a continuation inserted under any other
+                # language is invisible and the page truncates at its first 1 MiB -- the exact
+                # ADFA-5171 symptom this script exists to remove.
+                (f"{item.base_path}-{suffix}", CONTINUATION_LANGUAGE_ID, payload, type_id, item.template_id),
             )
             inserted += 1
         else:
@@ -430,6 +446,58 @@ def retype_rows(connection: sqlite3.Connection, item: Item, content_type_id: int
     connection.execute(
         f"UPDATE Content SET contentTypeID = ? WHERE id IN ({placeholders})",
         [content_type_id, *ids],
+    )
+
+
+# The MAJOR the app requires before it will attach the dictionary at all
+# (DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY). Migrating content without
+# declaring this leaves a database whose every brotli row fails to decode: WebServer gates on the
+# declared version, not on the presence of CompressionDictionary, so it never attaches the
+# dictionary and the plain decode then throws "corrupted input" on every migrated row.
+DICTIONARY_MAJOR_VERSION = 2
+
+VERSION_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS DocumentationDatabaseVersion (
+  major      INT NOT NULL,
+  minor      INT NOT NULL,
+  patch      INT NOT NULL,
+  who        TEXT NOT NULL,
+  comment    TEXT NOT NULL,
+  changeTime TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
+
+def declared_major(connection: sqlite3.Connection) -> int | None:
+    """The MAJOR this database declares, or None when it declares none.
+
+    Reads the row with the highest rowid: the table holds exactly one row by contract, and this is
+    the row both the app's DatabaseVersionResolver and docdb-studio read (ADFA-5220).
+    """
+    if not table_exists(connection, "DocumentationDatabaseVersion"):
+        return None
+    row = connection.execute(
+        "SELECT major FROM DocumentationDatabaseVersion ORDER BY rowid DESC LIMIT 1"
+    ).fetchone()
+    return row[0] if row is not None and row[0] is not None else None
+
+
+def declare_dictionary_version(connection: sqlite3.Connection) -> None:
+    """Records that this database's brotli content is dictionary-compressed.
+
+    Written in the same transaction as the last batch of content, because the two facts have to
+    travel together: content compressed against the dictionary, and a version saying so. Exactly
+    one row, replaced rather than appended, matching populate_db.py.
+    """
+    connection.execute(VERSION_TABLE_SQL)
+    connection.execute("DELETE FROM DocumentationDatabaseVersion")
+    connection.execute(
+        "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, 0, 0, ?, ?)",
+        (
+            DICTIONARY_MAJOR_VERSION,
+            "migrate_content_to_dictionary_brotli.py",
+            "Content rows compressed against CompressionDictionary",
+        ),
     )
 
 
@@ -468,15 +536,13 @@ def renumber_item(connection: sqlite3.Connection, item: Item, write: bool) -> st
             return f"{target} already exists and belongs to another row; left alone"
 
     if write:
-        # Two passes: park every row under a name nothing can collide with, then
-        # settle them into their new slots. One ascending pass would be enough only
-        # if the target were always already free, and for a shift of 1 it never is.
-        for row_id, suffix, _ in item.continuations:
-            connection.execute(
-                "UPDATE Content SET path = ? WHERE id = ?",
-                (f"{item.base_path}-renumbering-{suffix}", row_id),
-            )
-        for row_id, suffix, _ in item.continuations:
+        # One ascending pass, no temporary names. The suffixes were just verified
+        # contiguous, so the lowest target (first_suffix - shift) is free -- nothing
+        # occupies a suffix below first_suffix -- and every later target was vacated by
+        # the move before it. The parking pass this replaces invented
+        # "{base}-renumbering-{n}" paths that a real row could already hold, which would
+        # fail on UNIQUE(path) after the collision checks above had passed.
+        for row_id, suffix, _ in sorted(item.continuations, key=lambda entry: entry[1]):
             connection.execute(
                 "UPDATE Content SET path = ? WHERE id = ?",
                 (f"{item.base_path}-{suffix - shift}", row_id),
@@ -518,30 +584,40 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
     retyped: list[tuple[Item, Inspection, str]] = []
     before_total = after_total = 0
 
-    pending = {pool.submit(inspect_item, item, read_blobs(connection, item)): item for item in items}
-    for future in futures.as_completed(pending):
-        item = pending[future]
-        found = future.result()
-        if found.status == "error":
-            errors.append(f"{item.base_path}: {found.detail}")
-            continue
-        if found.status == "keep":
-            counts["left as text"] = counts.get("left as text", 0) + 1
-            notes.append(f"{item.base_path}: {found.detail}")
-            continue
+    # Batched like phase 3, and for the same reason: this holds every candidate's decoded
+    # plaintext resident until the write loop, and one row in this database is 23 MB.
+    for offset in range(0, len(items), args.batch):
+        pending = {}
+        for item in items[offset : offset + args.batch]:
+            blobs = read_blobs(connection, item)
+            if blobs is None:
+                errors.append(f"{item.base_path}: a row is missing or holds NULL content; left alone")
+                continue
+            pending[pool.submit(inspect_item, item, blobs)] = item
 
-        target = found.sniffed
-        if target == "video/quicktime" and args.mov_type == "mp4":
-            target = "video/mp4"
-        extension = item.base_path.rsplit(".", 1)[-1].lower()
-        if extension not in target and not (extension in ("jpg", "jpeg") and target == "image/jpeg") \
-                and not (extension == "mov" and target.startswith("video/")):
-            notes.append(f"{item.base_path}: named .{extension} but the payload is {found.sniffed}")
+        for future in futures.as_completed(pending):
+            item = pending[future]
+            found = future.result()
+            if found.status == "error":
+                errors.append(f"{item.base_path}: {found.detail}")
+                continue
+            if found.status == "keep":
+                counts["left as text"] = counts.get("left as text", 0) + 1
+                notes.append(f"{item.base_path}: {found.detail}")
+                continue
 
-        retyped.append((item, found, target))
-        counts[target] = counts.get(target, 0) + 1
-        before_total += found.before
-        after_total += found.after
+            target = found.sniffed
+            if target == "video/quicktime" and args.mov_type == "mp4":
+                target = "video/mp4"
+            extension = item.base_path.rsplit(".", 1)[-1].lower()
+            if extension not in target and not (extension in ("jpg", "jpeg") and target == "image/jpeg") \
+                    and not (extension == "mov" and target.startswith("video/")):
+                notes.append(f"{item.base_path}: named .{extension} but the payload is {found.sniffed}")
+
+            retyped.append((item, found, target))
+            counts[target] = counts.get(target, 0) + 1
+            before_total += found.before
+            after_total += found.after
 
     missing = sorted({target for _, _, target in retyped if target not in types})
     for value in missing:
@@ -556,20 +632,28 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
             print(f"      ContentTypes  would insert {value} (compression none)")
 
     inserted_total = deleted_total = 0
+    kept = []
     for item, found, target in retyped:
         type_id, compression = types[target]
+        # A target type whose own compression is not 'none' cannot receive plaintext. Retyping
+        # into it used to leave the bytes compressed and the row declaring a type they are not,
+        # which the verifier below then reported twice -- and if WebServer does not handle that
+        # compression at all, the row would serve raw compressed bytes to a browser.
+        if compression != "none":
+            errors.append(
+                f"{item.base_path}: {target} is registered with compression '{compression}', not 'none'; "
+                f"left as {item.content_type}. Fix the ContentTypes row, then re-run"
+            )
+            counts[target] = counts.get(target, 0) - 1
+            continue
+        kept.append((item, found, target))
         if not write:
             continue
-        if compression == "none":
-            inserted, deleted = write_item(
-                connection, item, found.slices, renumber="renumber" in args.phase_list, content_type_id=type_id
-            )
-            inserted_total += inserted
-            deleted_total += deleted
-        else:
-            # The honest type is itself a compressed one, so the stored bytes stay
-            # as they are and phase 3 picks the row up.
-            retype_rows(connection, item, type_id)
+        inserted, deleted = write_item(
+            connection, item, found.slices, renumber="renumber" in args.phase_list, content_type_id=type_id
+        )
+        inserted_total += inserted
+        deleted_total += deleted
     if write:
         connection.commit()
 
@@ -579,7 +663,7 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
           f"({'+' if after_total >= before_total else ''}{human(after_total - before_total)})")
     if write:
         print(f"      rows inserted {inserted_total}   deleted {deleted_total}")
-    return {item.base_path for item, _, _ in retyped}, errors, notes
+    return {item.base_path for item, _, _ in kept}, errors, notes
 
 
 def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> tuple[int, list[str], list[str]]:
@@ -624,7 +708,7 @@ def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> 
     return fixed, errors, notes
 
 
-def verify_retype(connection, retyped_paths: set[str], mov_type: str) -> list[str]:
+def verify_retype(connection, retyped_paths: set[str], mov_type: str, expect_renumbered: bool) -> list[str]:
     """Re-read what phase 1 wrote and confirm the bytes match the declared type."""
     problems: list[str] = []
     written = {item.base_path: item for item in load_items(connection, "1 = 1")}
@@ -642,7 +726,9 @@ def verify_retype(connection, retyped_paths: set[str], mov_type: str) -> list[st
             problems.append(f"{path}: declared {expected} but the stored bytes sniff as {found or 'unknown'}")
         if item.compression != "none":
             problems.append(f"{path}: retyped to {expected}, whose compression is {item.compression}")
-        if item.continuations and item.suffixes != list(range(1, len(item.continuations) + 1)):
+        # Only when this run was asked to renumber: a retype-only run legitimately leaves
+        # -2-based numbering alone, and reporting it as an error made a successful run exit 1.
+        if expect_renumbered and item.continuations and item.suffixes != list(range(1, len(item.continuations) + 1)):
             problems.append(f"{path}: continuations numbered {item.suffixes}, expected 1..n")
     return problems
 
@@ -729,7 +815,9 @@ def main() -> int:
             if write:
                 # A verification failure means the bytes and their declared type disagree
                 # after we wrote them -- the most serious thing this script can report.
-                errors += verify_retype(connection, retyped_paths, args.mov_type)
+                errors += verify_retype(
+                    connection, retyped_paths, args.mov_type, expect_renumbered="renumber" in args.phase_list
+                )
             print()
 
         if "renumber" in args.phase_list:
@@ -765,12 +853,22 @@ def main() -> int:
 
         for offset in range(0, len(items), args.batch):
             batch = items[offset : offset + args.batch]
-            pending = {
-                pool.submit(
-                    migrate_item, item, read_blobs(connection, item), args.quality, args.window, args.only_if_smaller
-                ): item
-                for item in batch
-            }
+            pending = {}
+            for item in batch:
+                blobs = read_blobs(connection, item)
+                if blobs is None:
+                    # Reported, not raised: this used to surface as a TypeError inside a worker
+                    # and abort the run with earlier batches already committed and no summary.
+                    counts["error"] += 1
+                    failed_items.append(
+                        Result(item.base_path, "error", detail="a row is missing or holds NULL content")
+                    )
+                    continue
+                pending[
+                    pool.submit(
+                        migrate_item, item, blobs, args.quality, args.window, args.only_if_smaller
+                    )
+                ] = item
 
             for future in futures.as_completed(pending):
                 item = pending[future]
@@ -831,10 +929,26 @@ def main() -> int:
     report(errors, notes)
 
     if write:
+        # The version goes in with the content, not after it: a database holding
+        # dictionary-compressed rows while declaring anything below
+        # DICTIONARY_MAJOR_VERSION is one the app refuses to attach the dictionary for, so every
+        # row just migrated fails to decode. Declared even on a partly failed run -- WebServer
+        # tries the dictionary first and falls back to a plain decode, so a row that did not
+        # migrate still serves, while the ones that did only serve with this row present.
+        before = declared_major(connection)
+        if before is None or before < DICTIONARY_MAJOR_VERSION:
+            declare_dictionary_version(connection)
+            print(f"declared        database version {DICTIONARY_MAJOR_VERSION}.0.0 "
+                  f"(was {'none' if before is None else before})")
         connection.commit()
         print("\nRun VACUUM to reclaim the freed pages:  sqlite3 %s 'VACUUM;'" % args.database)
     else:
         connection.rollback()
+        before = declared_major(connection)
+        if before is None or before < DICTIONARY_MAJOR_VERSION:
+            print(f"would declare   database version {DICTIONARY_MAJOR_VERSION}.0.0 "
+                  f"(currently {'none' if before is None else before}) -- without it the app will not "
+                  f"attach the dictionary and every migrated row fails to decode")
         print("\nNothing written. Re-run with --yes on a copy to apply.")
 
     connection.close()
