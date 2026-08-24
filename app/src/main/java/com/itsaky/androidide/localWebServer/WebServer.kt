@@ -384,71 +384,68 @@ class WebServer(
 	internal fun acceptLoop(socket: ServerSocket) {
 		var consecutiveFailures = 0
 		while (true) {
-			var clientSocket: Socket? = null
-			try {
+			val client =
 				try {
 					if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", socket)
-					clientSocket = socket.accept()
-					consecutiveFailures = 0
-
-					if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
+					socket.accept().also { consecutiveFailures = 0 }
 				} catch (e: IOException) {
-					// IOException, not SocketException: accept() is declared to throw the wider
-					// type, and "Too many open files" arrives as a bare IOException. Catching only
-					// the subtype let that one unwind to start()'s outermost handler, whose finally
-					// closes the listening socket and the database (ADFA-5242).
-					// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-					if (debugEnabled) log.debug("Caught IOException '$e'.")
+					// IOException, not SocketException: accept() is declared to throw the wider type, and
+					// "Too many open files" arrives as a bare IOException. Catching only the subtype let
+					// that one unwind to start()'s outermost handler, whose finally closes the listening
+					// socket and the database (ADFA-5242).
+					if (debugEnabled) log.debug("Caught IOException from accept().", e)
 
-					// stopRequested first: it is authoritative and message-independent, where
-					// shouldStopAccepting reads the exception text. If a platform ever words a closed
-					// socket differently, matching on the text alone would spin here forever -- the
-					// thread never exiting, so start()'s finally never closing the database or freeing
-					// the port, which is worse than the failure this method exists to survive.
-					if (stopRequested || shouldStopAccepting(e)) {
+					if (shouldStopAccepting(socket)) {
 						if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
 						break
 					}
-					consecutiveFailures++
-					if (consecutiveFailures >= maxConsecutiveAcceptFailures) {
+					if (++consecutiveFailures >= maxConsecutiveAcceptFailures) {
 						log.error(
-							"Accept() failed {} times in a row, last error '{}'; giving up on this listener.",
+							"Accept() failed {} times in a row; giving up on this listener.",
 							consecutiveFailures,
-							e.message,
+							e,
 						)
 						break
 					}
-					log.error("Accept() failed: {}", e.message)
+					log.error("Accept() failed: {}", e.message, e)
 					pauseAfterFailedAccept()
 					continue
 				}
-				try {
-					clientSocket?.let { handleClient(it) }
-				} catch (e: Exception) {
-					// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-					if (debugEnabled) log.debug("Caught exception '$e'.")
 
-					if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
-						if (debugEnabled) log.debug("Client disconnected: {}", e.message)
-					} else {
-						log.error("Error handling client: {}", e.message)
-						clientSocket?.let { client ->
-							try {
-								val output = client.outputStream
+			serveThenClose(client)
+		}
+	}
 
-								sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
-							} catch (e2: Exception) {
-								log.error("Error sending error response: {}", e2.message)
-							}
-						}
-					}
-				}
-			} finally {
-				clientSocket?.close()
+	/** Serves one connection and closes it, whatever happened. */
+	private fun serveThenClose(client: Socket) {
+		try {
+			handleClient(client)
+		} catch (e: Exception) {
+			reportClientFailure(client, e)
+		} finally {
+			client.close()
+			if (debugEnabled) log.debug("clientSocket was {}.", client)
+		}
+	}
 
-				// CodeRabbit objects to the following line because clientSocket may print out as "null." This is intentional. --DS
-				if (debugEnabled) log.debug("clientSocket was {}.", clientSocket)
-			}
+	/** A client that went wrong: a disconnect is unremarkable, anything else earns a 500 if it can. */
+	private fun reportClientFailure(
+		client: Socket,
+		e: Exception,
+	) {
+		if (debugEnabled) log.debug("Caught exception while handling a client.", e)
+
+		if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
+			if (debugEnabled) log.debug("Client disconnected: {}", e.message)
+			return
+		}
+		log.error("Error handling client: {}", e.message, e)
+		try {
+			val output = client.outputStream
+
+			sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
+		} catch (e2: Exception) {
+			log.error("Error sending error response: {}", e2.message, e2)
 		}
 	}
 
@@ -519,10 +516,13 @@ class WebServer(
 	 * failure as terminal stops serving documentation until the app restarts, and treating the close
 	 * as transient spins the loop against a dead socket.
 	 *
-	 * A closed socket reports itself only in the exception's message, hence the string test.
+	 * Decided from state, not from the exception's message: [ServerSocket.close] sets the closed flag
+	 * before accept() unblocks, and [stopRequested] records a stop that arrived before the socket was
+	 * even bound. Matching the message instead -- as this used to -- would spin forever against a
+	 * platform that worded a closed socket differently, never exiting the thread, so start()'s finally
+	 * would never close the database or free the port.
 	 */
-	internal fun shouldStopAccepting(e: IOException): Boolean =
-		e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true
+	internal fun shouldStopAccepting(socket: ServerSocket): Boolean = stopRequested || socket.isClosed
 
 	/**
 	 * Brief pause after an accept failure that is not the socket closing, so a *persistent* failure
