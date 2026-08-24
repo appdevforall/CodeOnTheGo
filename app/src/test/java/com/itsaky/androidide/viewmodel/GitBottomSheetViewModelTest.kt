@@ -70,7 +70,7 @@ class GitBottomSheetViewModelTest {
 	@Test
 	fun `checkoutBranch success updates checkoutState to Success until consumed`() =
 		runTest {
-			coEvery { repository.checkout("feature", false, null) } returns Unit
+			coEvery { repository.checkout("feature", false, null) } returns "feature"
 			coEvery { repository.getStatus() } returns mockk(relaxed = true)
 
 			var successCalled = false

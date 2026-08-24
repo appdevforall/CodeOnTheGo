@@ -232,9 +232,9 @@ class GitBottomSheetViewModel(
 			val repository = currentRepository ?: return@launch
 			_checkoutState.value = CheckoutUiState.CheckingOut
 			try {
-				repository.checkout(branchName, createNew, startPoint)
+				val resolvedBranch = repository.checkout(branchName, createNew, startPoint)
 				refreshStatus()
-				_checkoutState.value = CheckoutUiState.Success(branchName)
+				_checkoutState.value = CheckoutUiState.Success(resolvedBranch)
 				onSuccess?.invoke()
 			} catch (e: CheckoutConflictException) {
 				log.error("Checkout conflict occurred", e)

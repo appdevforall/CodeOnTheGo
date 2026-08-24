@@ -83,5 +83,5 @@ interface GitRepository : Closeable {
 		branchName: String,
 		createNew: Boolean = false,
 		startPoint: String? = null,
-	)
+	): String
 }

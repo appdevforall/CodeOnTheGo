@@ -7,6 +7,7 @@ import com.itsaky.androidide.git.core.models.GitCommit
 import com.itsaky.androidide.git.core.models.GitStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.eclipse.jgit.api.CheckoutCommand
 import org.eclipse.jgit.api.CreateBranchCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand.ListMode
@@ -345,83 +346,147 @@ class JGitRepository(
 		branchName: String,
 		createNew: Boolean,
 		startPoint: String?,
-	) {
+	): String =
 		withContext(Dispatchers.IO) {
-			val checkoutCommand = git.checkout()
+			val command = git.checkout()
+
 			if (createNew) {
-				checkoutCommand.setCreateBranch(true)
-				checkoutCommand.setName(branchName)
-				if (!startPoint.isNullOrBlank()) {
-					checkoutCommand.setStartPoint(startPoint)
-				}
+				configureNewBranchCheckout(command, branchName, startPoint)
 			} else {
-				val fullRemoteRef =
-					when {
-						branchName.startsWith(Constants.R_REMOTES) -> branchName
-						repository.findRef("${Constants.R_REMOTES}$branchName") != null -> "${Constants.R_REMOTES}$branchName"
-						else -> null
-					}
-				if (fullRemoteRef != null) {
-					val shortRemote = Repository.shortenRefName(fullRemoteRef)
-					val localName = shortRemote.substringAfter('/')
-					val localRef = repository.findRef("${Constants.R_HEADS}$localName")
-					val trackingBranch = BranchConfig(repository.config, localName).trackingBranch
-
-					val isLocalTracking =
-						trackingBranch == null || trackingBranch == fullRemoteRef || trackingBranch == shortRemote
-					if (localRef != null && isLocalTracking) {
-						checkoutCommand.setName(localName)
-					} else if (localRef != null) {
-						val scopedLocalName = shortRemote.replace('/', '-')
-						val scopedRef = repository.findRef("${Constants.R_HEADS}$scopedLocalName")
-						val scopedTracking = BranchConfig(repository.config, scopedLocalName).trackingBranch
-						val isScopedTracking =
-							scopedTracking == null || scopedTracking == fullRemoteRef || scopedTracking == shortRemote
-
-						if (scopedRef != null && isScopedTracking) {
-							checkoutCommand.setName(scopedLocalName)
-						} else if (scopedRef != null) {
-							var suffix = 1
-							var candidate = "$scopedLocalName-$suffix"
-							while (repository.findRef("${Constants.R_HEADS}$candidate") != null) {
-								val candTracking = BranchConfig(repository.config, candidate).trackingBranch
-								if (candTracking == null || candTracking == fullRemoteRef || candTracking == shortRemote) {
-									break
-								}
-								suffix++
-								candidate = "$scopedLocalName-$suffix"
-							}
-							val candRef = repository.findRef("${Constants.R_HEADS}$candidate")
-							if (candRef != null) {
-								checkoutCommand.setName(candidate)
-							} else {
-								checkoutCommand
-									.setCreateBranch(true)
-									.setName(candidate)
-									.setStartPoint(fullRemoteRef)
-									.setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK)
-							}
-						} else {
-							checkoutCommand
-								.setCreateBranch(true)
-								.setName(scopedLocalName)
-								.setStartPoint(fullRemoteRef)
-								.setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK)
-						}
-					} else {
-						checkoutCommand
-							.setCreateBranch(true)
-							.setName(localName)
-							.setStartPoint(fullRemoteRef)
-							.setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK)
-					}
-				} else {
-					checkoutCommand.setName(branchName)
-				}
+				configureExistingBranchCheckout(command, branchName)
 			}
-			checkoutCommand.call()
+
+			command.call()
+			Repository.shortenRefName(repository.fullBranch)
+		}
+
+	private fun configureNewBranchCheckout(
+		command: CheckoutCommand,
+		branchName: String,
+		startPoint: String?,
+	) {
+		command
+			.setCreateBranch(true)
+			.setName(branchName)
+
+		if (!startPoint.isNullOrBlank()) {
+			command.setStartPoint(startPoint)
 		}
 	}
+
+	private fun configureExistingBranchCheckout(
+		command: CheckoutCommand,
+		branchName: String,
+	) {
+		val isExistingLocal = repository.findRef("${Constants.R_HEADS}$branchName") != null
+		val remoteRef = if (isExistingLocal) null else resolveRemoteRef(branchName)
+
+		if (remoteRef == null) {
+			command.setName(branchName)
+			return
+		}
+
+		when (val resolution = resolveLocalBranch(remoteRef)) {
+			is LocalBranch -> {
+				command.setName(resolution.name)
+			}
+
+			is NewBranch -> {
+				configureNewTrackingBranch(
+					command,
+					resolution.name,
+					remoteRef,
+				)
+			}
+		}
+	}
+
+	private fun resolveRemoteRef(branchName: String): String? {
+		if (branchName.startsWith(Constants.R_REMOTES)) {
+			return branchName
+		}
+
+		return "${Constants.R_REMOTES}$branchName"
+			.takeIf { repository.findRef(it) != null }
+	}
+
+	private fun resolveLocalBranch(remoteRef: String): BranchResolution {
+		val shortRemoteName = Repository.shortenRefName(remoteRef)
+		val localName = shortRemoteName.substringAfter('/')
+
+		repository.findRef("${Constants.R_HEADS}$localName") ?: return NewBranch(localName)
+		if (isTrackingRemote(localName, remoteRef, shortRemoteName)) {
+			return LocalBranch(localName)
+		}
+
+		val scopedName = shortRemoteName.replace('/', '-')
+		repository.findRef("${Constants.R_HEADS}$scopedName") ?: return NewBranch(scopedName)
+		if (isTrackingRemote(scopedName, remoteRef, shortRemoteName)) {
+			return LocalBranch(scopedName)
+		}
+
+		return NewBranch(
+			findAvailableBranchName(
+				scopedName,
+				remoteRef,
+				shortRemoteName,
+			),
+		)
+	}
+
+	private fun isTrackingRemote(
+		name: String,
+		remoteRef: String,
+		shortRemoteName: String,
+	): Boolean {
+		val trackingBranch = BranchConfig(repository.config, name).trackingBranch
+
+		return trackingBranch == null ||
+			trackingBranch == remoteRef ||
+			trackingBranch == shortRemoteName
+	}
+
+	private fun findAvailableBranchName(
+		baseName: String,
+		remoteRef: String,
+		shortRemoteName: String,
+	): String {
+		var suffix = 1
+		var candidate = "$baseName-$suffix"
+
+		while (repository.findRef("${Constants.R_HEADS}$candidate") != null) {
+			if (isTrackingRemote(candidate, remoteRef, shortRemoteName)) {
+				return candidate
+			}
+
+			suffix++
+			candidate = "$baseName-$suffix"
+		}
+
+		return candidate
+	}
+
+	private fun configureNewTrackingBranch(
+		command: CheckoutCommand,
+		name: String,
+		remoteRef: String,
+	) {
+		command
+			.setCreateBranch(true)
+			.setName(name)
+			.setStartPoint(remoteRef)
+			.setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK)
+	}
+
+	private sealed interface BranchResolution
+
+	private data class LocalBranch(
+		val name: String,
+	) : BranchResolution
+
+	private data class NewBranch(
+		val name: String,
+	) : BranchResolution
 
 	override fun close() {
 		repository.close()
