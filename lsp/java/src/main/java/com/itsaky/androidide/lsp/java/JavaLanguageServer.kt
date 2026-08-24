@@ -226,6 +226,13 @@ class JavaLanguageServer : ILanguageServer {
 				compilerLifecycle = CompilerLifecycle.PENDING
 			}
 		}
+
+		// Re-armed here as well as in ensureProjectReset(). A .java tab restored from the tab cache
+		// opens before the Gradle sync posts this event, and AnalyzeTimer fires once: that shot lands
+		// while pendingWorkspace is still null, finds no module, and returns NO_UPDATE. Without this
+		// the restored file then shows no diagnostics until the user types. Arming the timer builds
+		// no javac -- analyze() is gated on isJavaFile and now on the lifecycle too.
+		startOrRestartAnalyzeTimer()
 	}
 
 	/**
@@ -267,7 +274,13 @@ class JavaLanguageServer : ILanguageServer {
 					SourceFileManager.forModule(subModule)
 				}
 				startOrRestartAnalyzeTimer()
-			} catch (e: Exception) {
+			} catch (e: Throwable) {
+				// Throwable, not Exception: the class-init this whole change defers is exactly what
+				// fails as an Error -- OutOfMemoryError, or ExceptionInInitializerError /
+				// NoClassDefFoundError out of the android.jar top-level scan. Catching only Exception
+				// left compilerLifecycle stuck at RESETTING with the workspace already discarded, so
+				// every later reset returned early and Java support stayed dead for the session.
+				//
 				// Re-queue the workspace so the next real .java-file interaction retries the
 				// reset, instead of a half-destroyed/half-rebuilt state being silently claimed as
 				// INITIALIZED (pendingWorkspace is already null by this point).
@@ -349,6 +362,15 @@ class JavaLanguageServer : ILanguageServer {
 
 	override suspend fun analyze(file: Path): DiagnosticResult {
 		if (!settings.diagnosticsEnabled() || !DocumentUtils.isJavaFile(file)) {
+			return DiagnosticResult.NO_UPDATE
+		}
+
+		// The third javac entry point, and the one that was missing this: diagnosticProvider.analyze()
+		// constructs its own JavaCompilerService, so an analysis already in flight when shutdown()
+		// lands would rebuild everything shutdown just destroyed -- and SHUTDOWN is terminal, so
+		// nothing would ever tear it down again. Reachable: analyzeSelected() launches on
+		// Dispatchers.Default and the timer callback cannot be recalled once dispatched.
+		if (isShutDown) {
 			return DiagnosticResult.NO_UPDATE
 		}
 

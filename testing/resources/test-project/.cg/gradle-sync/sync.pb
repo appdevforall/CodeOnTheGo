@@ -1,14 +1,14 @@
 
-1L/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project1787609802637"»
+1L/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project1787615622102"»
 settings.gradle\/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/settings.gradle§ ÈÄÀÌû3*@117d4a4a030028d040f47e37cbe9035ae8c5d647d8eaae87d7b8ae5299c769f1"å
 $another-android-library/build.gradleq/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/another-android-library/build.gradle ˆÄÀÌû3*@5402147ec86ff784e20993dcd6e3c3ea44d12ce19080074fe2226f527a888073"ˆ
 5another-java-library/nested-java-library/build.gradle‚/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/another-java-library/nested-java-library/build.gradle¹ ˆÄÀÌû3*@85c6cbc9d6fd247f630c416af4dcd78d376cb6b71d481adb893ea395fa9bb747"ß
 !another-java-library/build.gradlen/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/another-java-library/build.gradle– ˆÄÀÌû3*@85b6448ea59f0a7d7ccd65480d3e39b8c74452b5b7bbdff11fedcba22ee220f3"½
-app/build.gradle]/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/app/build.gradle¼ Å±ã®ƒ4*@6bc0acd25b3856d9902a22dd39af0967fae7c1fd23687d76c65bbe975df4810d"Û
+app/build.gradle]/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/app/build.gradle¼ ÕÄ±ƒ4*@6bc0acd25b3856d9902a22dd39af0967fae7c1fd23687d76c65bbe975df4810d"Û
 other-java-library/build.gradlel/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/other-java-library/build.gradleÏ ÈÄÀÌû3*@c25eded2af3131d1d62a75b9c5c09ca063781b191c0c05957b86aa6d5956b55a"÷
 -java-library/nested-java-library/build.gradlez/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/java-library/nested-java-library/build.gradle¹ ÈÄÀÌû3*@85c6cbc9d6fd247f630c416af4dcd78d376cb6b71d481adb893ea395fa9bb747"Ï
 java-library/build.gradlef/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/java-library/build.gradle¹ ÈÄÀÌû3*@d01681ec8f736d858ef64789286b4c2c7f738427a3bcdd76e35ae4680081df1b"¾
 gradle.properties^/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/gradle.propertiesR ÇÄÀÌû3*@274d1aac5a469b1d085614b75e38d439237f5f1defd6ad59a8f95d58286c95b1"µ
-build.gradleY/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/build.gradleµ Ä±ã®ƒ4*@aefd03f7322bcde9d5916aa5595b15dde3aa5426fcee485ade8016f2790f2b76"Õ
+build.gradleY/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/build.gradleµ ÔÄ±ƒ4*@aefd03f7322bcde9d5916aa5595b15dde3aa5426fcee485ade8016f2790f2b76"Õ
 android-library/build.gradlei/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/android-library/build.gradleã ˆÄÀÌû3*@dfccb9e9718ecb268ea4ab1cf32038d9403f334cd942d08abf7081596c69787b*«
 g/home/david/AndroidStudioProjects/CodeOnTheGo/testing/resources/test-project/.cg/gradle-sync/project.pb@662efc23402ccdc9ec20f0307ebec79ffe021f49fdeb1fdf67e5cc8eca468257
