@@ -134,10 +134,15 @@ sealed interface BuildOutcome {
 	 *   app was not connected after a launch was already attempted, typed rather than matched on
 	 *   [message] because repeating it is the evidence that the app cannot stay up at all (a
 	 *   baseline that crashes in `onCreate`), which no edit fixes and no relaunch clears.
+	 * @property appNotRunning true when the payload had nowhere to land simply because the user's
+	 *   app is not open, which one tap fixes. Typed rather than matched on [message] for the same
+	 *   reason as above, and kept separate from [proxyAppNotConnected] because that one means the
+	 *   opposite: we launched it and it still did not arrive.
 	 */
 	data class DeployFailure(
 		val message: String,
 		val proxyAppNotConnected: Boolean = false,
+		val appNotRunning: Boolean = false,
 	) : BuildOutcome
 
 	/**
