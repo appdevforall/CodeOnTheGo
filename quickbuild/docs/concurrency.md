@@ -133,9 +133,11 @@ sequenceDiagram
 
 On failure the batch is unioned back into pending, so the only way a save leaves the set is a build that succeeded with it.
 
-**The Quick Build tap races its own save.** `[measured on a56, 2026-08-13 manual QA; redesign implemented 2026-08-13, unverified on device]`
+**The Quick Build tap raced its own save - before the 2026-08-13 redesign.** `[measured on a56, 2026-08-13 manual QA; redesign implemented 2026-08-13, unverified on device]`
 
-The tap awaits a save-all, then triggers ([`QuickBuildAction`](../../app/src/main/java/com/itsaky/androidide/actions/build/QuickBuildAction.kt)). The coalescer emits 150 ms after the last event - so at tap time the save is on disk but its batch is still inside the quiet window, and pending is empty. This is deterministic, not a race that sometimes wins: every tap with a dirty buffer sees an empty pending set. Four consequences, all observed in one QA run:
+Everything in this subsection down to "The redesign (implemented 2026-08-13)" describes the **superseded** behaviour. It is kept because the redesign below only makes sense against it - do not read it as a live defect.
+
+The tap awaited a save-all, then triggered ([`QuickBuildAction`](../../app/src/main/java/com/itsaky/androidide/actions/build/QuickBuildAction.kt)). The coalescer emits 150 ms after the last event - so at tap time the save is on disk but its batch is still inside the quiet window, and pending is empty. This is deterministic, not a race that sometimes wins: every tap with a dirty buffer sees an empty pending set. Four consequences, all observed in one QA run:
 
 - the tap routes as a forced `NoOp` - a whole-module blind recompile where an incremental would do;
 - the batch (the very files the tap saved) lands mid-build and rebuilds identical bytes behind it (7 echo pairs, 38.9 s of duplicated build time in a 20-minute session);

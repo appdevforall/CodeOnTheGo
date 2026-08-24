@@ -87,7 +87,7 @@ Reference workload: `sora-editor-full` (288 sources: 214 `.java` + 74 `.kt`, 464
   runs as a background warm compile before the user can save.
 - The warm compile is what makes the *first* save fast: a warmed first save costs a fraction of an
 
-  unwarmed one, almost all of the difference cold `kotlinc`. Matched on/off A/B, 3 trials per arm, one build, `hello-kotlin` `[measured on a56]`. Tap-to-`Ready` is unchanged, because the warm compile starts after `Ready`.
+  unwarmed one, and almost all of that difference is cold `kotlinc` startup. Matched on/off A/B, 3 trials per arm, one build, `hello-kotlin` `[measured on a56]`. Tap-to-`Ready` is unchanged, because the warm compile starts after `Ready`.
 
 ## Not covered here
 
