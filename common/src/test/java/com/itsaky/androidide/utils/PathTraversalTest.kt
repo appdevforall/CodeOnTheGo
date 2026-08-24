@@ -148,8 +148,11 @@ class PathTraversalTest {
 				false
 			} catch (e: FileSystemException) {
 				// Windows NTFS supports symlinks but requires an elevated/Developer Mode privilege to
-				// create them -- without it, creation fails with this (a permission error), not
-				// UnsupportedOperationException.
+				// create them -- without it, creation fails with this specific reason (a permission
+				// error), not UnsupportedOperationException. Any other reason is a real, unexpected
+				// failure and must not be silently swallowed into a skipped test, which would take
+				// the symlink-escape assertion out of CI without anyone noticing.
+				if (e.reason?.contains("privilege", ignoreCase = true) != true) throw e
 				false
 			}
 		// Report as skipped, not silently passed, when this environment can't create symlinks.

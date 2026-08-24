@@ -20,6 +20,7 @@ package com.itsaky.androidide.utils
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.InvalidPathException
 import java.util.zip.ZipFile
 
 object ZipUtils {
@@ -48,7 +49,16 @@ object ZipUtils {
 				// entry is skipped and the symlink left alone, where asking the resolver first would
 				// reject one pointing outside destDir and abort the whole archive. Reading a path's
 				// link status cannot itself escape.
-				if (Files.isSymbolicLink(File(destDir, entry.name).toPath())) {
+				// toPath() throws InvalidPathException for a name the platform cannot represent (an
+				// embedded NUL, say) -- an unchecked exception that would escape unzipFile's declared
+				// IOException contract before the resolver ever saw the entry.
+				val target =
+					try {
+						File(destDir, entry.name).toPath()
+					} catch (e: InvalidPathException) {
+						throw IOException("Zip entry has an unusable path: ${entry.name}", e)
+					}
+				if (Files.isSymbolicLink(target)) {
 					continue
 				}
 

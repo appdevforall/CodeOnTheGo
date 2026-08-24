@@ -54,8 +54,8 @@ import java.nio.file.Path
  * deep-link reader is content to follow one. That is policy, and it stays visible at each call site
  * rather than being buried here.
  *
- * Not thread-safe: [resolve] memoizes verified ancestors, which is what makes it usable per zip
- * entry. Extraction is single-threaded; construct one per operation.
+ * Holds no state beyond the base directory, and verifies against the filesystem on every call --
+ * see [resolve] for why it does not memoize what it has already proven.
  */
 class ContainedPathResolver(
 	baseDir: File,
@@ -69,11 +69,6 @@ class ContainedPathResolver(
 		} catch (_: IOException) {
 			null
 		}
-
-	// Zip entries cluster by directory (dozens of files under one build-tools/<version>/), so the
-	// same ancestor is otherwise re-resolved for each of them. Only ever holds directories already
-	// proven contained, and nothing here can turn a verified real directory into a symlink mid-run.
-	private val verifiedAncestors = HashSet<Path>()
 
 	/**
 	 * The resolved file [relativePath] names inside the base directory, or null when it is invalid
@@ -109,14 +104,15 @@ class ContainedPathResolver(
 			while (!Files.exists(ancestor, LinkOption.NOFOLLOW_LINKS)) {
 				ancestor = ancestor.parent ?: return null
 			}
-			if (ancestor in verifiedAncestors) {
-				return resolved.toFile()
-			}
+			// Re-resolved on every call, deliberately. Caching a directory once proven contained saves
+			// a toRealPath() per entry, but it answers later paths under that directory without
+			// looking -- so if anything replaces it with a symlink in between, the answer is stale and
+			// the caller writes through the link. The cache was measured against a real 1.8 GB asset
+			// installation on device and bought nothing: 48.0 s without it, 51.4 s with it, 51.3 s for
+			// the hand-rolled cache it replaced. Extraction is I/O and inflate; this is noise
+			// (ADFA-5257 review).
 			if (!ancestor.toRealPath().startsWith(realBase)) {
 				return null
-			}
-			if (Files.isDirectory(ancestor)) {
-				verifiedAncestors.add(ancestor)
 			}
 			resolved.toFile()
 		} catch (_: InvalidPathException) {

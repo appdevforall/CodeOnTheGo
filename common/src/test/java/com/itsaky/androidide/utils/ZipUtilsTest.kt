@@ -127,4 +127,21 @@ class ZipUtilsTest {
 		assertThat(File(destDir, "notes..txt").readText()).isEqualTo("note content")
 		assertThat(File(destDir, "a..b/c.txt").readText()).isEqualTo("nested content")
 	}
+
+	// An entry name the platform cannot turn into a path is a broken archive, not a crash: it has to
+	// arrive as the IOException this function declares, rather than an unchecked InvalidPathException
+	// escaping from the link check.
+	@Test
+	fun `unzipFile reports an entry whose name is not a usable path`() {
+		val zip = tempFolder.newFile("bad-name.zip")
+		ZipOutputStream(zip.outputStream()).use { out ->
+			out.putNextEntry(ZipEntry("bad\u0000name.txt"))
+			out.write("x".toByteArray())
+			out.closeEntry()
+		}
+
+		val destDir = tempFolder.newFolder("out-bad-name")
+		val thrown = assertThrows(IOException::class.java) { ZipUtils.unzipFile(zip, destDir) }
+		assertThat(thrown).hasMessageThat().contains("bad")
+	}
 }
