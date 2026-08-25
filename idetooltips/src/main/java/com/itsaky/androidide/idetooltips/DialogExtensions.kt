@@ -1,4 +1,4 @@
-package com.itsaky.androidide.utils
+package com.itsaky.androidide.idetooltips
 
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -10,18 +10,27 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
 import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.utils.forEachViewRecursively
+import com.itsaky.androidide.utils.onLongPress
+import androidx.appcompat.R as AndroidR
 
+/**
+ * Attaches an IDE category tooltip listener to an [AlertDialog] when any part of the
+ * dialog surface is long-pressed.
+ *
+ * Also configures soft keyboard auto-show/hide if an [EditText] is present in the
+ * dialog's custom panel.
+ *
+ * @param tooltipTag The tag for the tooltip to display.
+ * @param context Optional context override (defaults to dialog's context).
+ * @return The [AlertDialog] instance for chaining.
+ */
 @SuppressLint("ClickableViewAccessibility")
-fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
-	context: Context,
+fun AlertDialog.attachTooltip(
 	tooltipTag: String,
+	context: Context = this.context,
 ): AlertDialog {
-	val dialog = this.create()
-	dialog.show()
-
-	fun longPressAction() {
+	fun showTooltip() {
 		val anchor = (context as? Activity)?.window?.decorView ?: return
 		TooltipManager.showIdeCategoryTooltip(
 			context = context,
@@ -30,37 +39,36 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
 		)
 	}
 
-	dialog.onLongPress {
-		longPressAction()
+	this.onLongPress {
+		showTooltip()
 		true
 	}
 
-	dialog.listView?.onItemLongClickListener =
+	this.listView?.onItemLongClickListener =
 		AdapterView.OnItemLongClickListener { _, _, _, _ ->
-			longPressAction()
+			showTooltip()
 			true
 		}
 
-	val customPanel: ViewGroup? = dialog.findViewById(androidx.appcompat.R.id.customPanel)
-
+	val customPanel: ViewGroup? = this.findViewById(AndroidR.id.customPanel)
 	customPanel?.forEachViewRecursively { view ->
 		if (view is EditText) {
-			dialog.setOnShowListener {
+			this.setOnShowListener {
 				view.requestFocus()
 				val imm =
 					context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 				imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
 			}
 
-			dialog.window?.decorView?.setOnTouchListener { v, event ->
+			this.window?.decorView?.setOnTouchListener { _, event ->
 				if (event.action == MotionEvent.ACTION_DOWN) {
 					val outRect = Rect()
 					view.getGlobalVisibleRect(outRect)
 					if (!outRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
 						view.clearFocus()
-						val imm =
+						val inputMethodManager =
 							view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-						imm.hideSoftInputFromWindow(view.windowToken, 0)
+						inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
 					}
 				}
 				false
@@ -68,5 +76,5 @@ fun MaterialAlertDialogBuilder.showWithLongPressTooltip(
 		}
 	}
 
-	return dialog
+	return this
 }
