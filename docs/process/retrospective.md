@@ -3,6 +3,7 @@
 ## 2026-08-24 - Documentation transports, the Brotli dictionary migration, and 24 review threads
 
 ### Time Breakdown
+
 | Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
 |---------|-------|-----------------|---------------|----------|
 | Aug 18 04:42 | Migration script, dictionary re-mint, ODT work | ██████████████████████ 221m | ███████████████████████████████████████████ 422m | ⚠ ProcessPool/forkserver, adb-push mtime trap |
@@ -14,6 +15,7 @@
 | Aug 24 22:36 | Four code reviews of my own PRs, and their fixes | ███████████████ 154m | █████████ 89m | ⚠ every review found real defects |
 
 ### Metrics
+
 | Metric | Duration |
 |--------|----------|
 | Total wall-clock | Aug 18 -> Aug 25 (~163h calendar span) |
@@ -38,6 +40,7 @@ Caveat on the last phase: 154m of "hands-on" counts ~6,900 words of machine-gene
 **Do differently:** "Give me more feedback on long-running tasks so I know if the task is stuck."
 
 ### Actions Taken
+
 | Issue | Action Type | Change |
 |-------|-------------|--------|
 | Long commands run silently | CLAUDE.md | "Build & test": background anything over ~60s (including `git push`, which runs Spotless via the hook) and report elapsed time, last output line, and whether it is still progressing |
@@ -96,6 +99,7 @@ Caveat on the last phase: 154m of "hands-on" counts ~6,900 words of machine-gene
 ## 2026-07-24 - LeakCanary icon shrink (ADFA-4843), JAXP/PDF.js investigations (ADFA-1491/ADFA-3304), and full blankj:utilcodex removal (ADFA-4649)
 
 ### Time Breakdown
+
 | Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
 |---------|-------|-----------------|---------------|----------|
 | Jul 24 7:52pm | LeakCanary (ADFA-4843): investigate → decide → build → PR | ██ 4m | ██ 18m | |
@@ -106,6 +110,7 @@ Caveat on the last phase: 154m of "hands-on" counts ~6,900 words of machine-gene
 | Jul 24 11:44pm | Jira progress, retro resume | █ 1m | | |
 
 ### Metrics
+
 | Metric | Duration |
 |--------|----------|
 | Total wall-clock | ~3h 52m |
@@ -126,6 +131,7 @@ Caveat on the last phase: 154m of "hands-on" counts ~6,900 words of machine-gene
 **What didn't:** Waiting for the build system to create an APK — inherent friction in this multi-module Android project, not a request to change approach.
 
 ### Actions Taken
+
 | Issue | Action Type | Change |
 |-------|-------------|--------|
 | No standing guidance to prefer targeted compiles over full assembles during iteration | CLAUDE.md | Added a "Fast iteration" bullet to Build & test: batch targeted `:module:compileV8DebugKotlin` calls during iteration, reserve `:app:assembleV8Debug` for final verification |

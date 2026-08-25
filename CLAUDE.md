@@ -18,7 +18,9 @@ flox activate -d flox/local -- ./gradlew <task>
 - **Single unit test:** `flox activate -d flox/local -- ./gradlew :module:test --tests "com.itsaky.androidide.SomeTest"`
 - **Module unit tests:** `flox activate -d flox/local -- ./gradlew :testing:unit:test`
 - **Fast iteration:** during multi-file/multi-module changes, verify with targeted `:module:compileV8DebugKotlin`/`compileV8DebugJavaWithJavac` invocations (batch several modules into one Gradle call) rather than a full assemble. Reserve `:app:assembleV8Debug` for final end-to-end verification — it's slow (multi-minute) in this multi-module project, and running it after every small change adds up.
-- **Long-running commands: background them and narrate.** Anything that can exceed ~60s — `spotlessApply`/`spotlessCheck` (~4.5 min here), `assembleV8Debug`, a full test sweep, and `git push` (the pre-push hook runs Spotless, so a push is itself a multi-minute silent command) — runs in the background, not the foreground. While it runs, say what you see every couple of minutes: elapsed time, the last output line, whether it is still progressing. A silent terminal is indistinguishable from a hang, and saying which it is is your job, not the user's to ask.
+- **Long-running commands: narrate them, and background only the read-only ones.** Anything that can exceed ~60s — `spotlessApply`/`spotlessCheck` (~4.5 min here), `assembleV8Debug`, a full test sweep, and `git push` (the pre-push hook runs Spotless, so a push is itself a multi-minute silent command) — gets a line before it starts saying what is running and roughly how long it takes, and a status line every couple of minutes while it runs: elapsed time, the last output line, whether it is still progressing. A silent terminal is indistinguishable from a hang, and saying which it is is your job, not the user's to ask.
+
+	Background a command only if it does **not** write to the worktree. A build, a test run, or `spotlessCheck` is safe to background. `spotlessApply` and `git push` (which runs it through the hook) rewrite tracked files, so editing or staging while one is in flight races it — keep those in the foreground and narrate the wait instead.
 
 When the user names a CI/CD job ("the sonar job", "the analyze workflow"), read `.github/workflows/*.yml` — the YAML is the authoritative gradle/shell invocation. Don't reverse-engineer it from gradle tasks or build files.
 
@@ -110,7 +112,7 @@ The sonarqube MCP server runs in Docker, so Docker must be up before launching C
 
 ### Staging commits — no `git add -A`
 
-Stage by explicit path (`git add path/one path/two`). `git add -A` / `git add -u` sweeps in whatever else the working tree happens to hold — regenerated test fixtures, multi-MB binaries, files carrying machine-local absolute paths — and buries them in an unrelated commit. This repo has tracked fixtures that a test run rewrites, so the risk is live rather than theoretical. Run `git status --short` first and account for every line; if a regenerated file genuinely belongs in the change, say so in the commit message.
+Stage by explicit path (`git add path/one path/two`). `git add -A` sweeps in whatever else the working tree happens to hold, untracked files included — regenerated test fixtures, multi-MB binaries, files carrying machine-local absolute paths — and buries them in an unrelated commit. `git add -u` is narrower (tracked paths only, and it stages deletions), but it still picks up any tracked file something rewrote behind your back, which is how a 12 MB regenerated fixture reached a commit here. This repo has tracked fixtures that a test run rewrites, so the risk is live rather than theoretical. Run `git status --short` first and account for every line; if a regenerated file genuinely belongs in the change, say so in the commit message.
 
 ### Multi-line git/gh messages
 

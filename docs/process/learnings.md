@@ -7,7 +7,7 @@
 - The `.githooks/pre-push/0001-run-spotless` hook runs `spotlessCheck`/`spotlessApply` locally and blocks a push on violations — but only if git hooks are actually enabled: no conflicting global `core.hooksPath` (it silently overrides `.git/hooks`), and a portable dispatcher (`find -executable` is GNU-only and no-ops on macOS BSD find — see ADFA-4833).
 
 ## Git / GitHub
-- **An `APPROVED` badge does not mean the current code was approved.** This repo does not dismiss stale reviews on push, so an approval can predate the commits it appears to cover — five PRs at once, in one case, one of them approved two weeks before the code it labelled. Compare the approval's `submittedAt` with the last commit's date (`gh pr view <n> --json latestReviews,commits`) before treating anything as merge-ready.
+- **An `APPROVED` badge does not mean the current code was approved.** This repo does not dismiss stale reviews on push, so an approval can predate the commits it appears to cover — five PRs at once, in one case, one of them approved two weeks before the code it labelled. Compare the commit each approval points at with the PR head: `gh pr view <n> --json reviews,headRefOid` and check the approving review's `commit.oid` against `headRefOid`. Timestamps are a weaker proxy, and `latestReviews` can come back with an empty `commit.oid`, so use `reviews`.
 - Before pushing a follow-up commit to a community PR, check `gh pr view <n> --json headRepositoryOwner` — the PR head is usually on the contributor's **fork**, so a same-named push to `origin` doesn't touch the PR and just creates a confusing dead branch that has to be deleted.
 
 ## Android / Kotlin
