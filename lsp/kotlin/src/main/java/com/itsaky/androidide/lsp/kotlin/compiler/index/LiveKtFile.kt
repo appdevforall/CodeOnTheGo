@@ -29,7 +29,9 @@ internal annotation class UnpinnedKtFileAccess
  * analysis can never see its own declarations twice.
  *
  * The file is deliberately not exposed as a value: obtain it for the duration of a [read] or
- * [analyzing] block instead. Returning it from such a block defeats the pin and is rejected.
+ * [analyzing] block instead. Returning it *directly* from such a block defeats the pin and is rejected.
+ * Only that shape is detected - returning it wrapped (in a collection, or as one of its child elements)
+ * escapes the check and is just as unsafe.
  *
  * Only [KtSymbolIndex.withLiveKtFile] and [KtSymbolIndex.withLiveKtFileAsync] can produce one.
  */

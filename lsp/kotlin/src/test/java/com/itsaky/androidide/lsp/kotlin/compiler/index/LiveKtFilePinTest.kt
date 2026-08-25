@@ -135,6 +135,26 @@ internal class LiveKtFilePinTest : KtLspTest() {
 	}
 
 	@Test
+	fun `an inner scope release does not unpin the path for the outer scope`() {
+		val path = openDocument()
+
+		val stillPinned =
+			env.ktSymbolIndex.withLiveKtFile(path) { outer ->
+				/*
+				 * Dropping the current-file cache (what CompilationEnvironment does on a close or a move) is
+				 * what makes the registry entry observable from the resolution side at all: while that cache
+				 * still holds the instance, its peek answers with the pinned object whether or not the path
+				 * is pinned. With it gone, an unpinned door loads a separate disk instance instead.
+				 */
+				env.ktSymbolIndex.invalidateCurrent(path)
+				env.ktSymbolIndex.withLiveKtFile(path) { inner -> inner.read { it.name } }
+				outer.read { it === env.ktSymbolIndex.getKtFile(path) }
+			}!!
+
+		assertThat(stillPinned).isTrue()
+	}
+
+	@Test
 	fun `a refresh owed during a pin is applied after release`() {
 		val path = openDocument()
 
