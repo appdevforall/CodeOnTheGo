@@ -43,28 +43,19 @@ import java.util.concurrent.ConcurrentHashMap
  * @author Akash Yadav
  */
 object FileManager {
-
 	private val log = LoggerFactory.getLogger(FileManager::class.java)
 	private val _activeDocuments = ConcurrentHashMap<Path, ActiveDocument>()
 
 	val activeDocuments: Collection<ActiveDocument>
 		get() = _activeDocuments.values.toSet()
 
-	fun isActive(uri: URI): Boolean {
-		return isActive(Paths.get(uri))
-	}
+	fun isActive(uri: URI): Boolean = isActive(Paths.get(uri))
 
-	fun isActive(file: Path): Boolean {
-		return this._activeDocuments.containsKey(file.normalize())
-	}
+	fun isActive(file: Path): Boolean = this._activeDocuments.containsKey(file.normalize())
 
-	fun getActiveDocument(file: Path): ActiveDocument? {
-		return this._activeDocuments[file.normalize()]
-	}
+	fun getActiveDocument(file: Path): ActiveDocument? = this._activeDocuments[file.normalize()]
 
-	fun getActiveDocumentCount(): Int {
-		return this._activeDocuments.size
-	}
+	fun getActiveDocumentCount(): Int = this._activeDocuments.size
 
 	fun getDocumentContents(file: Path): String {
 		val document = getActiveDocument(file)
@@ -115,14 +106,19 @@ object FileManager {
 			_activeDocuments[event.changedFile.normalize()] = createDocument(event)
 			log.warn(
 				"Document change event received before open event for file {}",
-				event.changedFile
+				event.changedFile,
 			)
 			return
 		}
 
-		document.version = event.version
-		document.modified = Instant.now()
-		document.content = event.newText!!
+		if (!document.update(event.version, event.newText!!)) {
+			log.debug(
+				"Ignoring out-of-order change for {}: event version {} is older than {}",
+				event.changedFile,
+				event.version,
+				document.version,
+			)
+		}
 		event.newText = null
 	}
 
@@ -142,26 +138,24 @@ object FileManager {
 		_activeDocuments.remove(event.file.toPath().normalize())
 	}
 
-	private fun createDocument(event: DocumentOpenEvent): ActiveDocument {
-		return ActiveDocument(
+	private fun createDocument(event: DocumentOpenEvent): ActiveDocument =
+		ActiveDocument(
 			file = event.openedFile,
 			version = event.version,
 			modified = Instant.now(),
-			content = event.text
+			content = event.text,
 		)
-	}
 
-	private fun createDocument(event: DocumentChangeEvent): ActiveDocument {
-		return ActiveDocument(
+	private fun createDocument(event: DocumentChangeEvent): ActiveDocument =
+		ActiveDocument(
 			file = event.changedFile,
 			version = event.version,
 			modified = Instant.now(),
-			content = event.changedText
+			content = event.changedText,
 		)
-	}
 
-	private fun createFileReader(file: Path): BufferedReader {
-		return try {
+	private fun createFileReader(file: Path): BufferedReader =
+		try {
 			Files.newBufferedReader(file)
 		} catch (noFile: java.nio.file.NoSuchFileException) {
 			log.warn("No such file", noFile)
@@ -169,10 +163,9 @@ object FileManager {
 		} catch (cancelled: CancellationException) {
 			"".reader().buffered()
 		}
-	}
 
-	private fun createFileInputStream(file: Path): InputStream {
-		return try {
+	private fun createFileInputStream(file: Path): InputStream =
+		try {
 			Files.newInputStream(file)
 		} catch (noFile: java.nio.file.NoSuchFileException) {
 			log.warn("No such file", noFile)
@@ -180,14 +173,11 @@ object FileManager {
 		} catch (cancelled: CancellationException) {
 			"".byteInputStream()
 		}
-	}
 
-	private fun getLastModifiedFromDisk(file: Path): Instant {
-		return Files.getLastModifiedTime(file).toInstant()
-	}
+	private fun getLastModifiedFromDisk(file: Path): Instant = Files.getLastModifiedTime(file).toInstant()
 
-	private fun getFileContents(file: Path): String {
-		return try {
+	private fun getFileContents(file: Path): String =
+		try {
 			ProgressManager.abortIfCancelled()
 			FileUtils.readFileToString(file.toFile(), Charset.defaultCharset())
 		} catch (noFile: java.nio.file.NoSuchFileException) {
@@ -196,5 +186,4 @@ object FileManager {
 		} catch (cancelled: CancellationException) {
 			""
 		}
-	}
 }
