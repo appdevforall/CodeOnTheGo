@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
+import androidx.annotation.StringRes
+import com.itsaky.androidide.resources.R
 import openjdk.source.tree.BlockTree
 import openjdk.source.tree.CaseTree
 import openjdk.source.tree.CatchTree
@@ -25,7 +27,7 @@ import openjdk.source.util.TreePath
  * [truncateAtCeiling]. [searchRange] bounds the occurrence search for this rung.
  */
 data class ScopeFrame(
-	val label: String,
+	val label: ScopeLabel,
 	val scopeTree: Tree,
 	val scopeSpan: TextSpan,
 	val searchRange: TextSpan,
@@ -41,19 +43,23 @@ data class ScopeFrame(
  *
  * An old-style `case X:` group is deliberately not a rung -- its statements have no owning braces, so
  * the block geometry the rewrite reasons about does not exist. `case X: { ... }` works normally.
+ *
+ * [indentUnit] is passed in rather than derived here: it is a property of the whole file, and deriving it
+ * per rung re-scanned the entire source once for every ancestor of every candidate.
  */
-fun enclosingScopeFrames(
+internal fun enclosingScopeFrames(
 	candidatePath: TreePath,
 	root: CompilationUnitTree,
 	positions: SourcePositions,
 	fileText: String,
+	indentUnit: String,
 ): List<ScopeFrame> {
 	val frames = mutableListOf<ScopeFrame>()
 	var path: TreePath = candidatePath
 
 	while (true) {
 		val parentPath = path.parentPath ?: break
-		val frame = frameFor(path.leaf, parentPath, root, positions, fileText)
+		val frame = frameFor(path.leaf, parentPath, root, positions, fileText, indentUnit)
 		if (frame == null) {
 			// Most nodes are not themselves anchorable -- an argument, an argument list, a member
 			// select. Keep climbing rather than stopping, otherwise the chain would end at the first
@@ -74,7 +80,7 @@ fun enclosingScopeFrames(
  * uses a lambda parameter, that lambda's body is the ceiling and every outer rung disappears. Truncating
  * to nothing keeps the innermost rung, so this step never empties a chain on its own.
  */
-fun truncateAtCeiling(
+internal fun truncateAtCeiling(
 	frames: List<ScopeFrame>,
 	ceiling: TextSpan?,
 ): List<ScopeFrame> {
@@ -90,6 +96,7 @@ private fun frameFor(
 	root: CompilationUnitTree,
 	positions: SourcePositions,
 	fileText: String,
+	indentUnit: String,
 ): ScopeFrame? {
 	val parent = parentPath.leaf
 
@@ -111,7 +118,7 @@ private fun frameFor(
 	val innerSpan = spanOf(root, positions, inner) ?: return null
 
 	if (inner is ExpressionTree && parent is LambdaExpressionTree && parent.body === inner) {
-		return expressionBodyFrame("lambda", inner, innerSpan, parent, root, positions, fileText, "return")
+		return expressionBodyFrame(LAMBDA, inner, innerSpan, parent, root, positions, fileText, indentUnit, "return")
 	}
 
 	if (parent is CaseTree && parent.caseKind == CaseTree.CaseKind.RULE && parent.body === inner) {
@@ -119,15 +126,15 @@ private fun frameFor(
 			// `case A -> value;` parses the body as the expression and takes the `;` separately, so the
 			// span stops short of it. Replacing only the expression would leave `case A -> { ... };`.
 			val withTerminator = TextSpan(innerSpan.start, semicolonAfter(fileText, innerSpan.end))
-			expressionBodyFrame("switch rule", inner, withTerminator, parent, root, positions, fileText, "yield")
+			expressionBodyFrame(SWITCH_RULE, inner, withTerminator, parent, root, positions, fileText, indentUnit, "yield")
 		} else {
-			bracelessFrame("switch rule", innerSpan, parent, root, positions, fileText)
+			bracelessFrame(SWITCH_RULE, innerSpan, parent, root, positions, fileText, indentUnit)
 		}
 	}
 
 	if (inner is StatementTree && inner !is BlockTree) {
 		val label = bracelessOwnerLabel(inner, parent) ?: return null
-		return bracelessFrame(label, innerSpan, parent, root, positions, fileText)
+		return bracelessFrame(label, innerSpan, parent, root, positions, fileText, indentUnit)
 	}
 
 	return null
@@ -135,12 +142,13 @@ private fun frameFor(
 
 /** The statement is replaced by a braced block holding both lines. */
 private fun bracelessFrame(
-	label: String,
+	label: ScopeLabel,
 	innerSpan: TextSpan,
 	owner: Tree,
 	root: CompilationUnitTree,
 	positions: SourcePositions,
 	fileText: String,
+	indentUnit: String,
 ): ScopeFrame? {
 	val ownerSpan = spanOf(root, positions, owner) ?: return null
 	val indent = leadingIndentAt(fileText, ownerSpan.start)
@@ -154,7 +162,7 @@ private fun bracelessFrame(
 				bodyStart = innerSpan.start,
 				bodyEnd = innerSpan.end,
 				indent = indent,
-				innerIndent = indent + detectIndentUnit(fileText),
+				innerIndent = indent + indentUnit,
 			),
 	)
 }
@@ -164,13 +172,14 @@ private fun bracelessFrame(
  * type's abstract method.
  */
 private fun expressionBodyFrame(
-	label: String,
+	label: ScopeLabel,
 	inner: Tree,
 	innerSpan: TextSpan,
 	owner: Tree,
 	root: CompilationUnitTree,
 	positions: SourcePositions,
 	fileText: String,
+	indentUnit: String,
 	returnKeyword: String,
 ): ScopeFrame? {
 	val ownerSpan = spanOf(root, positions, owner) ?: return null
@@ -185,7 +194,7 @@ private fun expressionBodyFrame(
 				bodyStart = innerSpan.start,
 				bodyEnd = innerSpan.end,
 				indent = indent,
-				innerIndent = indent + detectIndentUnit(fileText),
+				innerIndent = indent + indentUnit,
 				needsReturn = true,
 				returnKeyword = returnKeyword,
 			),
@@ -206,41 +215,86 @@ private fun isCeilingBlock(
 private fun blockLabel(
 	block: BlockTree,
 	blockPath: TreePath,
-): String =
+): ScopeLabel =
 	when (val owner = blockPath.parentPath?.leaf) {
-		is MethodTree -> if (owner.name.contentEquals("<init>")) "constructor" else "method ${owner.name}"
-		is ClassTree -> if (block.isStatic) "static initializer" else "initializer"
-		is LambdaExpressionTree -> "lambda"
-		is IfTree -> if (owner.thenStatement === block) "if block" else "else block"
-		is ForLoopTree, is EnhancedForLoopTree -> "for loop"
-		is WhileLoopTree -> "while loop"
-		is DoWhileLoopTree -> "do-while loop"
-		is TryTree -> if (owner.finallyBlock === block) "finally block" else "try block"
-		is CatchTree -> "catch block"
-		is SynchronizedTree -> "synchronized block"
-		is CaseTree -> "switch rule"
-		else -> "block"
+		is MethodTree ->
+			if (owner.name.contentEquals("<init>")) {
+				ScopeLabel(R.string.label_extract_scope_constructor)
+			} else {
+				ScopeLabel(R.string.label_extract_scope_method, owner.name.toString())
+			}
+
+		is ClassTree ->
+			ScopeLabel(
+				if (block.isStatic) {
+					R.string.label_extract_scope_static_initializer
+				} else {
+					R.string.label_extract_scope_initializer
+				},
+			)
+
+		is LambdaExpressionTree -> LAMBDA
+
+		is IfTree ->
+			ScopeLabel(
+				if (owner.thenStatement === block) {
+					R.string.label_extract_scope_if_block
+				} else {
+					R.string.label_extract_scope_else_block
+				},
+			)
+
+		is ForLoopTree, is EnhancedForLoopTree -> ScopeLabel(R.string.label_extract_scope_for_loop)
+
+		is WhileLoopTree -> ScopeLabel(R.string.label_extract_scope_while_loop)
+
+		is DoWhileLoopTree -> ScopeLabel(R.string.label_extract_scope_do_while_loop)
+
+		is TryTree ->
+			ScopeLabel(
+				if (owner.finallyBlock === block) {
+					R.string.label_extract_scope_finally_block
+				} else {
+					R.string.label_extract_scope_try_block
+				},
+			)
+
+		is CatchTree -> ScopeLabel(R.string.label_extract_scope_catch_block)
+
+		is SynchronizedTree -> ScopeLabel(R.string.label_extract_scope_synchronized_block)
+
+		is CaseTree -> SWITCH_RULE
+
+		else -> ScopeLabel(R.string.label_extract_scope_block)
 	}
 
 /** A label when [inner] is a braceless body of [parent], else null. */
 private fun bracelessOwnerLabel(
 	inner: Tree,
 	parent: Tree,
-): String? =
+): ScopeLabel? =
 	when (parent) {
 		is IfTree ->
 			when {
-				parent.thenStatement === inner -> "if branch"
-				parent.elseStatement === inner -> "else branch"
+				parent.thenStatement === inner -> ScopeLabel(R.string.label_extract_scope_if_branch)
+				parent.elseStatement === inner -> ScopeLabel(R.string.label_extract_scope_else_branch)
 				else -> null
 			}
 
-		is ForLoopTree -> if (parent.statement === inner) "for body" else null
-		is EnhancedForLoopTree -> if (parent.statement === inner) "for body" else null
-		is WhileLoopTree -> if (parent.statement === inner) "while body" else null
-		is DoWhileLoopTree -> if (parent.statement === inner) "do-while body" else null
+		is ForLoopTree -> bodyLabel(parent.statement === inner, R.string.label_extract_scope_for_body)
+		is EnhancedForLoopTree -> bodyLabel(parent.statement === inner, R.string.label_extract_scope_for_body)
+		is WhileLoopTree -> bodyLabel(parent.statement === inner, R.string.label_extract_scope_while_body)
+		is DoWhileLoopTree -> bodyLabel(parent.statement === inner, R.string.label_extract_scope_do_while_body)
 		else -> null
 	}
+
+private fun bodyLabel(
+	isBody: Boolean,
+	@StringRes res: Int,
+): ScopeLabel? = if (isBody) ScopeLabel(res) else null
+
+private val LAMBDA = ScopeLabel(R.string.label_extract_scope_lambda)
+private val SWITCH_RULE = ScopeLabel(R.string.label_extract_scope_switch_rule)
 
 /**
  * The region inside a block's braces.

@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
+import androidx.annotation.StringRes
+
 /** How many candidate expressions are ever offered. Keeps the chooser scannable on a phone. */
 const val MAX_CANDIDATES = 3
 
@@ -60,6 +62,18 @@ sealed interface AnchorForm {
 }
 
 /**
+ * A rung's name for the chooser, as a resource id rather than text.
+ *
+ * These render in the sheet, so the copy and its word order belong in `strings.xml` where a translator
+ * can reach them -- `"method $name"` fixes an English word order in code. [argument] is the one variable
+ * part, filled positionally.
+ */
+data class ScopeLabel(
+	@StringRes val res: Int,
+	val argument: String? = null,
+)
+
+/**
  * A place the declaration may go, with the occurrences that are sound to replace there.
  *
  * [occurrences] always contains the candidate's own span, so its size is the count shown as "Replace
@@ -68,7 +82,7 @@ sealed interface AnchorForm {
  * refuse the whole rewrite. Lowering N is the point -- it stays achievable.
  */
 data class ScopeOption(
-	val label: String,
+	val label: ScopeLabel,
 	val anchorForm: AnchorForm,
 	val occurrences: List<TextSpan>,
 )
@@ -95,11 +109,13 @@ data class CandidateExpression(
  *
  * [fileText] is the *compiled* unit's own content, never the editor's buffer read a moment later, since
  * every span here was computed against it. [documentVersion] is re-read on confirm: a plan computed
- * against text the user has since edited is discarded rather than applied against shifted offsets.
+ * against text the user has since edited is discarded rather than applied against shifted offsets. It is
+ * null when the document was not open at plan time -- nullable rather than a sentinel, because a sentinel
+ * compares equal to itself and so passes the very guard it exists to fail.
  */
 data class ExtractionPlan(
 	val fileText: String,
-	val documentVersion: Int,
+	val documentVersion: Int?,
 	val candidates: List<CandidateExpression>,
 ) {
 	val isEmpty: Boolean get() = candidates.isEmpty()
@@ -107,7 +123,7 @@ data class ExtractionPlan(
 	companion object {
 		fun empty(
 			fileText: String = "",
-			documentVersion: Int = -1,
+			documentVersion: Int? = null,
 		) = ExtractionPlan(fileText, documentVersion, emptyList())
 	}
 }

@@ -141,4 +141,25 @@ class ExtractMethodViewModelTest {
 		assertEquals(NameProblem.Blank, model.uiState.value.nameProblem)
 		assertNull(model.choice())
 	}
+
+	@Test
+	fun `a hard keyword blocks confirmation`() {
+		val model = ExtractMethodViewModel(plan(listOf(candidate("a + b", "total"))))
+
+		model.onEvent(ExtractMethodUiEvent.NameChanged("when"))
+
+		assertEquals(NameProblem.Keyword, model.uiState.value.nameProblem)
+		assertFalse(model.uiState.value.canConfirm)
+		assertNull(model.choice())
+	}
+
+	@Test
+	fun `a name that only looks like a keyword is accepted`() {
+		val model = ExtractMethodViewModel(plan(listOf(candidate("a + b", "total"))))
+
+		model.onEvent(ExtractMethodUiEvent.NameChanged("whenever"))
+
+		assertNull(model.uiState.value.nameProblem)
+		assertTrue(model.uiState.value.canConfirm)
+	}
 }

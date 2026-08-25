@@ -94,7 +94,7 @@ internal fun blockPlacementFor(
 }
 
 /** The block statement holding [target], or null when the plan and the text disagree. */
-private fun anchorOf(
+internal fun anchorOf(
 	form: AnchorForm.ExistingBlock,
 	target: TextSpan,
 ): TextSpan? = form.statementSpans.firstOrNull { it.start <= target.start && target.end <= it.end }
@@ -118,9 +118,14 @@ internal fun servableOccurrences(
  * Restricts [occurrences] to a contiguous run no write to a referenced mutable interrupts, since
  * `foo(limit + 1); limit = 5; foo(limit + 1);` is the same expression holding two different values.
  *
- * Unsound sites are excluded rather than warned about, so replace-all can never produce wrong code. The
- * walk grows outward from the candidate, never dropping the user's own site, and stops in each
- * direction at the first write it would cross.
+ * Unsound sites are excluded rather than warned about. The walk grows outward from the candidate, never
+ * dropping the user's own site, and stops in each direction at the first write it would cross.
+ *
+ * The guarantee is bounded to **variable writes**, which is what [writeOffsetsFor] can see. Collapsing
+ * repeated evaluations of an effectful expression is left alone deliberately -- it is what Extract
+ * Variable means, and it is what every IDE does -- so `foo(items.size()); items.add(x);
+ * bar(items.size());` does fold to one read, and `foo(it.next()); bar(it.next());` to one advance. What
+ * this function rules out is the case where the *same* text provably names two different values.
  */
 internal fun excludeUnsoundOccurrences(
 	occurrences: List<TextSpan>,

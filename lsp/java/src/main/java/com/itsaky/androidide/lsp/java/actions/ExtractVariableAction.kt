@@ -87,8 +87,9 @@ class ExtractVariableAction : BaseJavaCodeAction() {
 			return
 		}
 
+		val context = data.requireContext()
 		val activity =
-			data.requireContext().findFragmentActivity()
+			context.findFragmentActivity()
 				?: run {
 					// A wiring problem rather than a user path: the editor is always hosted by one.
 					log.warn("No FragmentActivity for the editor context. Cannot show the extract sheet.")
@@ -99,7 +100,7 @@ class ExtractVariableAction : BaseJavaCodeAction() {
 		val shown =
 			ExtractVariableSheet.show(
 				activity,
-				result.toCandidateViews(),
+				result.toCandidateViews(context),
 				JAVA_KEYWORDS,
 				JAVA_NAME_MESSAGES,
 			) { selection -> applySelection(data, result, selection) }
@@ -121,7 +122,9 @@ class ExtractVariableAction : BaseJavaCodeAction() {
 		selection: ExtractVariableSelection,
 	) {
 		val file = data.requireFile().toPath()
-		if (documentVersionOf(file) != plan.documentVersion) {
+		// A plan built while the document was closed carries no version to compare, so there is nothing
+		// to prove the text still matches: refuse rather than apply spans on trust.
+		if (plan.documentVersion == null || documentVersionOf(file) != plan.documentVersion) {
 			flashInfo(R.string.msg_extract_variable_file_changed)
 			return
 		}
@@ -165,6 +168,6 @@ class ExtractVariableAction : BaseJavaCodeAction() {
 		)
 	}
 
-	/** -1 when the document is not open, which never matches a real version and so fails the guard. */
-	private fun documentVersionOf(path: Path): Int = FileManager.getActiveDocument(path)?.version ?: -1
+	/** Null when the document is not open, which the confirm guard treats as unverifiable and refuses. */
+	private fun documentVersionOf(path: Path): Int? = FileManager.getActiveDocument(path)?.version
 }

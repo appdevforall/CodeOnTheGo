@@ -2,6 +2,8 @@ package com.itsaky.androidide.lsp.java.refactor
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import com.itsaky.androidide.resources.R
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -42,7 +44,7 @@ class ExtractVariableSoundnessTest {
 			fixture(
 				"""	int m(int x, int a, int b) {${'\n'}		return switch (x) {${'\n'}			case 1 -> a + b;${'\n'}			default -> 0;${'\n'}		};${'\n'}	}""",
 			)
-		val out = f.applyAfter("case 1 -> a +", "v", scope = "switch rule")
+		val out = f.applyAfter("case 1 -> a +", "v", scope = SWITCH_RULE)
 		assertThat(out).doesNotContain("};;")
 		assertWithMessage(out).that(compiles(out)).isTrue()
 	}
@@ -59,7 +61,7 @@ class ExtractVariableSoundnessTest {
 			)
 		val plan = f.planAfter("it.hashCode() +")
 		val rungs = plan.candidates.flatMap { it.scopes }.map { it.label }
-		assertThat(rungs).doesNotContain("method m")
+		assertThat(rungs).doesNotContain(METHOD_M)
 	}
 
 	@Test
@@ -95,7 +97,7 @@ class ExtractVariableSoundnessTest {
 				.first()
 				.scopes
 				.map { it.label }
-		assertThat(scopes).doesNotContain("method m")
+		assertThat(scopes).doesNotContain(METHOD_M)
 	}
 
 	@Test
@@ -111,7 +113,7 @@ class ExtractVariableSoundnessTest {
 				.first()
 				.scopes
 				.map { it.label }
-		assertThat(scopes).doesNotContain("method m")
+		assertThat(scopes).doesNotContain(METHOD_M)
 	}
 
 	@Test
@@ -186,6 +188,94 @@ class ExtractVariableSoundnessTest {
 		assertThat(normalizeSource("items.size()+1")).isEqualTo(normalizeSource("items.size() + 1"))
 	}
 
+	// --- This round: the second review pass ---
+
+	@Test
+	fun `a for update expression is not offered`() {
+		// coderabbit, CandidateExpressions.kt:231 -- a `for` update is an ExpressionStatementTree, so the
+		// statement boundary read it as a fixed evaluation point and the only rung was outside the loop.
+		val f =
+			fixture(
+				"""	void m(int n) {${'\n'}		for (int i = 0; i < n; i = step(i + 1)) {${'\n'}			tail();${'\n'}		}${'\n'}	}${'\n'}	static int step(int v) { return v; }${'\n'}	void tail() {}""",
+			)
+		assertThat(f.planAfter("i = step(i +").candidates.map { it.label }).doesNotContain("i + 1")
+	}
+
+	@Test
+	fun `hoisting out of a loop past a write to a read variable is refused`() {
+		// hal, ExtractVariablePlanner.kt:162 -- the outer rung froze the value at its first iteration.
+		val f =
+			fixture(
+				"""	void m() {${'\n'}		int limit = 0;${'\n'}		while (limit < 10) {${'\n'}			use(limit + 1);${'\n'}			limit++;${'\n'}		}${'\n'}	}""",
+			)
+		val rungs =
+			f
+				.planAfter("use(limit +")
+				.candidates
+				.first()
+				.scopes
+				.map { it.label }
+		assertThat(rungs).doesNotContain(METHOD_M)
+		// The rung inside the loop is still offered, so the action stays usable.
+		assertThat(rungs).contains(WHILE_LOOP)
+	}
+
+	@Test
+	fun `hoisting over a write on the way to an outer rung is refused`() {
+		// The same defect one shape along: the anchor is the `if`, so the declaration would land before
+		// the assignment the expression reads.
+		val f =
+			fixture(
+				"""	void m(boolean c) {${'\n'}		int limit = 0;${'\n'}		if (c) {${'\n'}			limit = 5;${'\n'}			use(limit + 1);${'\n'}		}${'\n'}	}""",
+			)
+		val rungs =
+			f
+				.planAfter("use(limit +")
+				.candidates
+				.first()
+				.scopes
+				.map { it.label }
+		assertThat(rungs).doesNotContain(METHOD_M)
+	}
+
+	@Test
+	fun `a plan built with no open document carries no version to compare`() {
+		// hal, ExtractVariableAction.kt:169 -- a -1 sentinel compared equal to itself and so passed the
+		// staleness guard it existed to fail.
+		val f = fixture("""	void m(int a, int b) {${'\n'}		use(a + b);${'\n'}	}""")
+		val cursor = f.cursorAfter("a +")
+		val plan = buildExtractionPlan(f.task, f.root, f.text, cursor, cursor, documentVersion = null)
+		assertThat(plan.candidates).isNotEmpty()
+		assertThat(plan.documentVersion).isNull()
+	}
+
+	@Test
+	fun `an occurrence search does not reach past the rung it was asked about`() {
+		// hal, Occurrences.kt:85 -- the walk covered the whole compilation unit per rung per candidate.
+		val f =
+			fixture(
+				"""	void m(java.util.List<String> items) {${'\n'}		use(items.size());${'\n'}	}${'\n'}	void other(java.util.List<String> items) {${'\n'}		use(items.size());${'\n'}	}""",
+			)
+		val scopes =
+			f
+				.planAfter("use(items.siz")
+				.candidates
+				.first { it.label == "items.size()" }
+				.scopes
+		// `other` spells the same expression over a different `items`, and is outside the rung anyway.
+		assertThat(scopes.map { it.occurrences.size }).containsExactly(1)
+	}
+
+	@After
+	fun closeFixtures() {
+		fixtures.forEach(JavacFixture::close)
+		fixtures.clear()
+	}
+
+	private val fixtures = mutableListOf<JavacFixture>()
+
+	// Registered rather than `use`d so each case still reads as a straight line; the fixture holds a
+	// JavaFileManager, so it has to be closed either way.
 	private fun fixture(body: String) =
 		JavacFixture(
 			"""
@@ -195,5 +285,11 @@ class ExtractVariableSoundnessTest {
 			|	static void use(Object value) {}
 			|}
 			""".trimMargin(),
-		)
+		).also { fixtures += it }
+
+	private companion object {
+		val METHOD_M = ScopeLabel(R.string.label_extract_scope_method, "m")
+		val SWITCH_RULE = ScopeLabel(R.string.label_extract_scope_switch_rule)
+		val WHILE_LOOP = ScopeLabel(R.string.label_extract_scope_while_loop)
+	}
 }

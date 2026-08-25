@@ -37,10 +37,16 @@ import java.util.IdentityHashMap
  *
  * Matches must themselves be legal targets: in `a.a`, a candidate of `a` matches the selector too, and
  * rewriting it would produce `v.v`. Overlaps are dropped so no site is rewritten twice.
+ *
+ * [scopePath] is the rung's own subtree, so the walk covers what [ScopeFrame.searchRange] names rather
+ * than the whole compilation unit -- this runs once per rung per candidate, on the coroutine the user is
+ * waiting on. [candidateElements] is resolved once by the caller for the same reason.
  */
-fun findOccurrences(
+internal fun findOccurrences(
 	candidatePath: TreePath,
+	candidateElements: List<Element?>,
 	frame: ScopeFrame,
+	scopePath: TreePath,
 	root: CompilationUnitTree,
 	positions: SourcePositions,
 	fileText: String,
@@ -49,9 +55,29 @@ fun findOccurrences(
 	val candidateSpan = spanOf(root, positions, candidatePath.leaf) ?: return emptyList()
 	val candidateKind = candidatePath.leaf.kind
 	val candidateText = normalizeSource(fileText.substring(candidateSpan.start, candidateSpan.end))
-	val candidateElements = referencedElements(candidatePath, trees)
 
 	val matches = mutableListOf<TextSpan>()
+
+	fun consider(path: TreePath) {
+		val tree = path.leaf
+		if (tree !is ExpressionTree || tree.kind != candidateKind) return
+		val span = spanOf(root, positions, tree) ?: return
+		if (span.start < frame.searchRange.start || span.end > frame.searchRange.end) return
+		if (span == candidateSpan) {
+			matches += span
+			return
+		}
+		if (isLegalExtractionTarget(path, trees) &&
+			// Shape alone is not enough: a `case` label matches every structural test and then fails to
+			// compile once the local is substituted in.
+			isExtractionPosition(path) &&
+			normalizeSource(fileText.substring(span.start, span.end)) == candidateText &&
+			referencedElements(path, trees) == candidateElements
+		) {
+			matches += span
+		}
+	}
+
 	val scanner =
 		object : TreePathScanner<Unit, Unit>() {
 			override fun scan(
@@ -59,30 +85,15 @@ fun findOccurrences(
 				p: Unit?,
 			): Unit? {
 				if (tree == null) return null
-				val span = spanOf(root, positions, tree)
-				if (span != null &&
-					span.start >= frame.searchRange.start &&
-					span.end <= frame.searchRange.end &&
-					tree.kind == candidateKind &&
-					tree is ExpressionTree
-				) {
-					val path = TreePath(currentPath, tree)
-					if (span == candidateSpan) {
-						matches += span
-					} else if (isLegalExtractionTarget(path, trees) &&
-						// Shape alone is not enough: a `case` label matches every structural test and then
-						// fails to compile once the local is substituted in.
-						isExtractionPosition(path) &&
-						normalizeSource(fileText.substring(span.start, span.end)) == candidateText &&
-						referencedElements(path, trees) == candidateElements
-					) {
-						matches += span
-					}
-				}
+				consider(TreePath(currentPath, tree))
 				return super.scan(tree, p)
 			}
 		}
-	scanner.scan(TreePath(root), null)
+	// `TreePathScanner.scan(TreePath, P)` dispatches straight to the leaf's visitor, so the subtree's own
+	// root never reaches the override above -- and for an expression-bodied rung that root can *be* the
+	// candidate.
+	consider(scopePath)
+	scanner.scan(scopePath, null)
 
 	val accepted = mutableListOf<TextSpan>()
 	for (match in matches.sortedBy { it.start }) {
@@ -96,7 +107,7 @@ fun findOccurrences(
  * "the same declarations?" exactly. An unresolvable reference contributes null, making two identical
  * expressions compare unequal -- the safe answer, since it cannot be shown to hold the same value.
  */
-private fun referencedElements(
+internal fun referencedElements(
 	path: TreePath,
 	trees: Trees,
 ): List<Element?> {
@@ -127,22 +138,42 @@ private fun referencedElements(
  * Writes to any non-`final` variable the candidate reads, feeding [excludeUnsoundOccurrences]. A `final`
  * variable cannot be written, which is the role Kotlin's `val` check plays. Effectively-final locals need
  * no special case: a local that is never written has no write to find.
+ *
+ * Bounded to [scopePath]'s subtree for the same reason as [findOccurrences], and given the candidate's
+ * already-resolved elements rather than resolving them again.
  */
-fun writeOffsetsFor(
-	candidatePath: TreePath,
+internal fun writeOffsetsFor(
+	candidateElements: List<Element?>,
 	frame: ScopeFrame,
+	scopePath: TreePath,
 	root: CompilationUnitTree,
 	positions: SourcePositions,
 	trees: Trees,
 ): List<Int> {
 	val mutables =
-		referencedElements(candidatePath, trees)
+		candidateElements
 			.filterIsInstance<VariableElement>()
 			.filterNot { Modifier.FINAL in it.modifiers }
 			.toSet()
 	if (mutables.isEmpty()) return emptyList()
 
 	val offsets = mutableListOf<Int>()
+
+	fun consider(path: TreePath) {
+		val tree = path.leaf
+		val target =
+			when (tree) {
+				is AssignmentTree -> tree.variable
+				is CompoundAssignmentTree -> tree.variable
+				is UnaryTree -> if (tree.kind in INCREMENT_KINDS) tree.expression else null
+				else -> null
+			} ?: return
+		val span = spanOf(root, positions, target) ?: return
+		if (span.start < frame.searchRange.start || span.end > frame.searchRange.end) return
+		val element = runCatching { trees.getElement(TreePath(path, target)) }.getOrNull()
+		if (element in mutables) offsets += span.start
+	}
+
 	val scanner =
 		object : TreePathScanner<Unit, Unit>() {
 			override fun scan(
@@ -150,25 +181,12 @@ fun writeOffsetsFor(
 				p: Unit?,
 			): Unit? {
 				if (tree == null) return null
-				val target =
-					when (tree) {
-						is AssignmentTree -> tree.variable
-						is CompoundAssignmentTree -> tree.variable
-						is UnaryTree -> if (tree.kind in INCREMENT_KINDS) tree.expression else null
-						else -> null
-					}
-				if (target != null) {
-					val span = spanOf(root, positions, target)
-					if (span != null && span.start >= frame.searchRange.start && span.end <= frame.searchRange.end) {
-						val element =
-							runCatching { trees.getElement(TreePath(TreePath(currentPath, tree), target)) }.getOrNull()
-						if (element in mutables) offsets += span.start
-					}
-				}
+				consider(TreePath(currentPath, tree))
 				return super.scan(tree, p)
 			}
 		}
-	scanner.scan(TreePath(root), null)
+	consider(scopePath)
+	scanner.scan(scopePath, null)
 	return offsets.sorted()
 }
 
@@ -186,14 +204,14 @@ internal val INCREMENT_KINDS =
  * parameters, exception parameters and resource variables constrain anything -- a field or a library
  * declaration does not.
  */
-fun referencedDeclarationCeiling(
-	candidatePath: TreePath,
+internal fun referencedDeclarationCeiling(
+	candidateElements: List<Element?>,
 	root: CompilationUnitTree,
 	positions: SourcePositions,
 	trees: Trees,
 ): TextSpan? {
 	var narrowest: TextSpan? = null
-	for (element in referencedElements(candidatePath, trees)) {
+	for (element in candidateElements) {
 		if (element == null || element.kind !in LOCAL_KINDS) continue
 		val declaration = runCatching { trees.getPath(element) }.getOrNull() ?: continue
 		if (declaration.compilationUnit !== root) continue

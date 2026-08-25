@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
+import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.ExecutableElement
 import jdkx.lang.model.element.Modifier
@@ -8,6 +9,10 @@ import jdkx.lang.model.type.DeclaredType
 import jdkx.lang.model.type.TypeKind
 import jdkx.lang.model.util.Elements
 import openjdk.source.tree.CompilationUnitTree
+import openjdk.source.tree.DoWhileLoopTree
+import openjdk.source.tree.EnhancedForLoopTree
+import openjdk.source.tree.ForLoopTree
+import openjdk.source.tree.WhileLoopTree
 import openjdk.source.util.JavacTask
 import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
@@ -30,7 +35,7 @@ fun buildExtractionPlan(
 	file: Path,
 	selectionStart: Int,
 	selectionEnd: Int,
-	documentVersion: Int,
+	documentVersion: Int?,
 ): ExtractionPlan =
 	runCatching {
 		val root = task.root(file)
@@ -41,12 +46,16 @@ fun buildExtractionPlan(
 		val syntax = candidateExpressionsAt(task.task, root, fileText, selectionStart, selectionEnd)
 		if (syntax.paths.isEmpty()) return ExtractionPlan.empty(fileText, documentVersion)
 
+		// A property of the file, not of a rung: derived once here rather than re-scanning the whole
+		// source for every ancestor of every candidate.
+		val indentUnit = detectIndentUnit(fileText)
+
 		ExtractionPlan(
 			fileText = fileText,
 			documentVersion = documentVersion,
 			candidates =
 				syntax.paths.mapNotNull { path ->
-					candidateFor(path, task.task.elements, root, trees, positions, fileText)
+					candidateFor(path, task.task.elements, root, trees, positions, fileText, indentUnit)
 				},
 		)
 	}.getOrElse { error ->
@@ -71,7 +80,7 @@ fun buildExtractionPlan(
 	fileText: String,
 	selectionStart: Int,
 	selectionEnd: Int,
-	documentVersion: Int,
+	documentVersion: Int?,
 ): ExtractionPlan =
 	runCatching {
 		val trees = Trees.instance(task)
@@ -80,12 +89,14 @@ fun buildExtractionPlan(
 		val syntax = candidateExpressionsAt(task, root, fileText, selectionStart, selectionEnd)
 		if (syntax.paths.isEmpty()) return ExtractionPlan.empty(fileText, documentVersion)
 
+		val indentUnit = detectIndentUnit(fileText)
+
 		ExtractionPlan(
 			fileText = fileText,
 			documentVersion = documentVersion,
 			candidates =
 				syntax.paths.mapNotNull { path ->
-					candidateFor(path, task.elements, root, trees, positions, fileText)
+					candidateFor(path, task.elements, root, trees, positions, fileText, indentUnit)
 				},
 		)
 	}.getOrElse { error ->
@@ -102,18 +113,26 @@ private fun candidateFor(
 	trees: Trees,
 	positions: SourcePositions,
 	fileText: String,
+	indentUnit: String,
 ): CandidateExpression? {
 	val declaredType = declaredTypeTextFor(path, trees, root) ?: return null
 	val span = spanOf(root, positions, path.leaf) ?: return null
 
+	// Resolved once and threaded down: the ceiling, the occurrence search and the write search all ask
+	// the same question, and each answer costs a scan of the candidate plus a getElement per name.
+	val candidateElements = referencedElements(path, trees)
+
 	val frames =
 		truncateAtCeiling(
-			enclosingScopeFrames(path, root, positions, fileText),
-			referencedDeclarationCeiling(path, root, positions, trees),
+			enclosingScopeFrames(path, root, positions, fileText, indentUnit),
+			referencedDeclarationCeiling(candidateElements, root, positions, trees),
 		)
 	if (frames.isEmpty()) return null
 
-	val scopes = frames.mapNotNull { scopeOptionFor(path, span, it, root, trees, positions, fileText) }
+	val scopes =
+		frames.mapNotNull {
+			scopeOptionFor(path, candidateElements, span, it, root, trees, positions, fileText)
+		}
 	if (scopes.isEmpty()) return null
 
 	val takenNames = namesInScopeAt(path, root, trees, elements)
@@ -135,6 +154,7 @@ private fun candidateFor(
  */
 private fun scopeOptionFor(
 	candidatePath: TreePath,
+	candidateElements: List<Element?>,
 	span: TextSpan,
 	frame: ScopeFrame,
 	root: CompilationUnitTree,
@@ -142,6 +162,10 @@ private fun scopeOptionFor(
 	positions: SourcePositions,
 	fileText: String,
 ): ScopeOption? {
+	// javac has no parent pointers, so every getPath is a full-unit walk. One here serves both scans
+	// below and the lambda-target lookup, and bounds them to this rung's subtree.
+	val scopePath = TreePath.getPath(root, frame.scopeTree) ?: return null
+
 	val anchorForm =
 		when (val form = frame.anchorForm) {
 			is AnchorForm.ExistingBlock -> {
@@ -150,7 +174,7 @@ private fun scopeOptionFor(
 			}
 
 			is AnchorForm.ConvertExpressionBody -> {
-				convertExpressionBodyForm(form, frame, root, trees) ?: return null
+				convertExpressionBodyForm(form, scopePath, trees) ?: return null
 			}
 
 			is AnchorForm.WrapInBraces -> {
@@ -158,12 +182,57 @@ private fun scopeOptionFor(
 			}
 		}
 
-	val matches = findOccurrences(candidatePath, frame, root, positions, fileText, trees)
-	val writes = writeOffsetsFor(candidatePath, frame, root, positions, trees)
+	val matches =
+		findOccurrences(candidatePath, candidateElements, frame, scopePath, root, positions, fileText, trees)
+	val writes = writeOffsetsFor(candidateElements, frame, scopePath, root, positions, trees)
+	if (hoistSkipsWrite(candidatePath, span, frame, anchorForm, root, positions, writes)) return null
 	val sound = excludeUnsoundOccurrences(matches, span, writes)
 	val occurrences = servableOccurrences(fileText, anchorForm, sound, span)
 
 	return ScopeOption(label = frame.label, anchorForm = anchorForm, occurrences = occurrences)
+}
+
+/**
+ * Whether hoisting to this rung would carry the declaration over a write to something the expression
+ * reads -- which compiles, and silently freezes the value, so declining the rung is the only signal
+ * available. The inner rungs survive, so the user is never left with nothing.
+ *
+ * Two shapes. A write between the anchor statement and the occurrence is simply skipped: extracting
+ * `limit + 1` from `if (c) { limit = 5; foo(limit + 1); }` at the method rung anchors on the `if` and
+ * reads the pre-assignment value. A write inside a loop the occurrence sits in but the anchor does not
+ * is worse: `while (limit < 10) { foo(limit + 1); limit++; }` hoisted out of the loop evaluates once and
+ * feeds every iteration the same value.
+ */
+private fun hoistSkipsWrite(
+	candidatePath: TreePath,
+	span: TextSpan,
+	frame: ScopeFrame,
+	anchorForm: AnchorForm,
+	root: CompilationUnitTree,
+	positions: SourcePositions,
+	writes: List<Int>,
+): Boolean {
+	if (writes.isEmpty()) return false
+
+	if (anchorForm is AnchorForm.ExistingBlock) {
+		val anchor = anchorOf(anchorForm, span)
+		if (anchor != null && writes.any { it in anchor.start until span.start }) return true
+	}
+
+	var current: TreePath? = candidatePath.parentPath
+	while (current != null) {
+		val loop = current.leaf
+		if (loop is WhileLoopTree || loop is DoWhileLoopTree || loop is ForLoopTree || loop is EnhancedForLoopTree) {
+			// No span means the plan and the tree disagree about this loop, so its containment cannot be
+			// checked either way.
+			val loopSpan = spanOf(root, positions, loop) ?: return true
+			// The rung is itself inside the loop, so the declaration re-runs with every iteration.
+			if (loopSpan.start <= frame.scopeSpan.start && frame.scopeSpan.end <= loopSpan.end) return false
+			if (writes.any { it in loopSpan.start until loopSpan.end }) return true
+		}
+		current = current.parentPath
+	}
+	return false
 }
 
 /**
@@ -173,15 +242,13 @@ private fun scopeOptionFor(
  */
 private fun convertExpressionBodyForm(
 	form: AnchorForm.ConvertExpressionBody,
-	frame: ScopeFrame,
-	root: CompilationUnitTree,
+	scopePath: TreePath,
 	trees: Trees,
 ): AnchorForm.ConvertExpressionBody? {
 	if (form.returnKeyword == "yield") return form
 
-	// frame.scopeTree is the body expression, so the lambda is its parent. TreePath.getPath walks the
-	// unit once, which is what javac offers in the absence of parent pointers.
-	val lambdaPath = TreePath.getPath(root, frame.scopeTree)?.parentPath ?: return null
+	// scopePath's leaf is the body expression, so the lambda is its parent.
+	val lambdaPath = scopePath.parentPath ?: return null
 	val target = runCatching { trees.getTypeMirror(lambdaPath) }.getOrNull() ?: return null
 	if (target !is DeclaredType) return null
 	val abstractMethod = singleAbstractMethodOf(target) ?: return null
