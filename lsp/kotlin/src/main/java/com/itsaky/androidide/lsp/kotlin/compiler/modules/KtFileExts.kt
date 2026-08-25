@@ -31,7 +31,9 @@ private val logger = LoggerFactory.getLogger("KtFileExts")
  * (`KaInaccessibleLifetimeOwnerAccessException: ... Called outside an \`analyze\` context.`).
  * [AnalysisScheduler] serializes access; it is priority-aware, preemptive (via [cancelChecker]) and
  * reentrant. **All** Analysis API access must go through this helper (or [analyzeMaybeDangling]); never
- * call `analyze` / `analyzeCopy` directly, or the serialization guarantee is lost.
+ * call `analyze` / `analyzeCopy` directly, or the serialization guarantee is lost. For an open file this
+ * is no longer only a convention: the only route to a live `KtFile` is `LiveKtFile.analyzing`, which
+ * calls this helper for you.
  *
  * **Cancellation.** [action] runs with a [kotlinx.coroutines.Job] installed in the thread's IntelliJ
  * context; the compiler's dense `checkCanceled()` calls throw once that Job is cancelled, aborting
