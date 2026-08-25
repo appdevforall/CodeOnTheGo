@@ -1,25 +1,26 @@
-# Decision: do the open Quick Build recovery gaps block v1?
+# Decision: the open Quick Build recovery gaps do not block v1
 
-**Decision: do #87, #89, #91 and the relink-crash recovery gap block v1? Proposed: no - all go to
-v1.1.** Correctness is not at risk in any of them - the never-stale invariant holds throughout.
+**Decision: no - #87, #89, #91 and the relink-crash recovery gap all go to v1.1.** Confirmed
+2026-08-25. Correctness is not at risk in any of them - the never-stale invariant holds
+throughout.
 What is at stake is trust: a live reload path that goes slow, dead, or quiet. The rest of this page
 is the evidence for that call, one section per gap - symptom, root cause with file references,
 likely fix.
 
 Device testing (2026-07-25..28) surfaced **seven** user-facing defects. **Three are fixed on this
 branch** - the relink-stuck gap, #88 and #90, all in the last section. **Four are open**: #87, #89,
-#91 and the relink-crash recovery gap, which are the four this page asks a decision about.
+#91 and the relink-crash recovery gap, which are the four this decision covers.
 
 The table below lists the four open gaps plus relink-stuck, whose fix is what closed it; #88 and #90
-appear only in the last section. `Blocks v1?` reads `TBD` because the answer at the top of this page
-is a **proposal** awaiting confirmation - once it is confirmed those four cells become "No".
+appear only in the last section. `Blocks v1?` reads `No` on all four open gaps - they are
+scheduled for v1.1.
 
 | Gap | What the user sees | Frequency | Blocks v1? |
 | --- | --- | --- | --- |
-| #89 | Red-alert icon; tapping Quick Build does nothing until "Restart session" | No device repro `[inferred]` | TBD |
-| #91 | Their own app crash is never surfaced; CoGo blames deploy infra | `[unmeasured]` | ADFA-5466 |
-| #87 | A one-line edit in a Room/KSP project runs a full ~200s rebuild + reinstall | 3/3 when attempted | TBD |
-| Relink crash | A reload that crashes the app repeats the crash at every process boot | Trigger fixed; net still absent | TBD |
+| #89 | Red-alert icon; tapping Quick Build does nothing until "Restart session" | No device repro `[inferred]` | No - v1.1 |
+| #91 | Their own app crash is never surfaced; CoGo blames deploy infra | `[unmeasured]` | No - v1.1 (ADFA-5466) |
+| #87 | A one-line edit in a Room/KSP project runs a full ~200s rebuild + reinstall | 3/3 when attempted | No - v1.1 |
+| Relink crash | A reload that crashes the app repeats the crash at every process boot | Trigger fixed; net still absent | No - v1.1 |
 | Relink stuck | A failed relink re-fails on every later save until a gradle-file touch | `[unmeasured]` | No - fixed below |
 
 Provenance: `[measured on a56]` = Samsung A56. Untagged prose is code reading against `75483b6eb`.
