@@ -190,11 +190,6 @@ spotless {
 			"**/.flox",
 			"**/.git",
 			"**/.gradle",
-			// ADFA-5244: generated, and inside the source tree, so walking it makes Spotless consume
-			// another task's output and Gradle fails any build that both compiles and checks
-			// formatting. The whole subtree, not just tests/test-home: .gitignore reserves
-			// tests/**/.cg/init/model.jar, and nothing under tests/ is tracked at all.
-			"tests",
 		)
 
 	// Gradle build-output dirs (root + subprojects), relative to rootDir. Not
