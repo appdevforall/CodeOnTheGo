@@ -59,5 +59,7 @@ dependencies {
 	implementation(projects.idetooltips)
 
 	testImplementation(projects.testing.unit)
-	androidTestImplementation(projects.testing.android)
+	androidTestImplementation(projects.testing.android) {
+		exclude(group = "org.jetbrains.kotlin", module = "kotlin-reflect")
+	}
 }
