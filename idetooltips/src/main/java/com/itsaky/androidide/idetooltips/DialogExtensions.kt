@@ -3,6 +3,8 @@ package com.itsaky.androidide.idetooltips
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.DialogInterface
 import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.ViewGroup
@@ -10,9 +12,16 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
 import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.forEachViewRecursively
-import com.itsaky.androidide.utils.onLongPress
 import androidx.appcompat.R as AndroidR
+
+private tailrec fun Context.findActivity(): Activity? =
+	when (this) {
+		is Activity -> this
+		is ContextWrapper -> baseContext?.findActivity()
+		else -> null
+	}
 
 /**
  * Attaches an IDE category tooltip listener to an [AlertDialog] when any part of the
@@ -31,29 +40,28 @@ fun AlertDialog.attachTooltip(
 	context: Context = this.context,
 ): AlertDialog {
 	fun showTooltip() {
-		val anchor = (context as? Activity)?.window?.decorView ?: return
+		val activity = context.findActivity()
+		val anchor = this.window?.decorView ?: activity?.window?.decorView ?: return
 		TooltipManager.showIdeCategoryTooltip(
-			context = context,
+			context = activity ?: context,
 			anchorView = anchor,
 			tag = tooltipTag,
 		)
 	}
 
-	this.onLongPress {
-		showTooltip()
-		true
-	}
+	val onShowActions = mutableListOf<(DialogInterface) -> Unit>()
 
-	this.listView?.onItemLongClickListener =
-		AdapterView.OnItemLongClickListener { _, _, _, _ ->
+	onShowActions.add {
+		this.window?.decorView?.applyLongPressRecursively(emptyList(), includeEditTexts = false) {
 			showTooltip()
 			true
 		}
+	}
 
 	val customPanel: ViewGroup? = this.findViewById(AndroidR.id.customPanel)
 	customPanel?.forEachViewRecursively { view ->
 		if (view is EditText) {
-			this.setOnShowListener {
+			onShowActions.add {
 				view.requestFocus()
 				val imm =
 					context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -75,6 +83,18 @@ fun AlertDialog.attachTooltip(
 			}
 		}
 	}
+
+	this.setOnShowListener { dialog ->
+		for (action in onShowActions) {
+			action(dialog)
+		}
+	}
+
+	this.listView?.onItemLongClickListener =
+		AdapterView.OnItemLongClickListener { _, _, _, _ ->
+			showTooltip()
+			true
+		}
 
 	return this
 }
