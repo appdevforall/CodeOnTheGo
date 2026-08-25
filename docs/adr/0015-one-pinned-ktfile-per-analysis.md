@@ -14,27 +14,30 @@ top-level declaration twice - once as the analysis's own PSI, once through the p
 conflicting with itself. That is what reaches the editor as "Redeclaration" / "Conflicting overloads" underlines
 on every declaration.
 
-This is not a new failure. ADFA-4165 established the one-instance invariant and enforced it with a runtime
-`KeyedDebouncingAction` check. ADFA-3322 (`Signature help for Kotlin LSP`, PR #1484) replaced the file-handling
-path with a per-version `currentFiles` cache (`KtSymbolIndex.getCurrentVersionedKtFile`) that mints a fresh `KtFile`
-every time the open document's version changes, and the check did not carry forward. The regression this ADR
-fixes is that gap: `getCurrentVersionedKtFile` and `getKtFile` could each answer a lookup for the same path with a
-different instance if a refresh landed between them, and an analysis rooted at the older one saw its own
-declarations doubled through the provider. `StaleKtFileInstanceDiagnosticsTest`
+This is not a new failure. ADFA-4165 established the one-instance invariant: `CompilationEnvironment.onFileContentChanged`
+captured the `KtFile` being replaced, then atomically invalidated its FIR session and installed the replacement
+under `project.write`, and a companion fix to `KeyedDebouncingAction` stopped two refreshes for the same key from
+running concurrently and installing out of order (commit `975d23fdfc`). ADFA-3322 (`Signature help for Kotlin LSP`,
+PR #1484) replaced that file-handling path with a per-version `currentFiles` cache
+(`KtSymbolIndex.getCurrentVersionedKtFile`) that mints a fresh `KtFile` every time the open document's version
+changes, and neither the atomic install nor the serialization carried forward. The regression this ADR fixes is
+that gap: `getCurrentVersionedKtFile` and `getKtFile` could each answer a lookup for the same path with a different
+instance if a refresh landed between them, and an analysis rooted at the older one saw its own declarations doubled
+through the provider. `StaleKtFileInstanceDiagnosticsTest`
 (`lsp/kotlin/src/test/java/com/itsaky/androidide/lsp/kotlin/compiler/index/StaleKtFileInstanceDiagnosticsTest.kt`)
 reproduces it directly.
 
-The history is the argument for the decision below: a runtime check enforced the invariant once, and the next
-refactor of the same file quietly dropped it. A property that has to be remembered gets lost the next time someone
-who does not know the history touches the code. The fix has to be something the next refactor cannot drop without
-the code failing to compile.
+The history is the argument for the decision below: a runtime mechanism enforced the invariant once, tied to code
+that the next refactor replaced wholesale without carrying the discipline forward. A property that has to be
+remembered gets lost the next time someone who does not know the history touches the code. The fix has to be
+something the next refactor cannot drop without the code failing to compile.
 
 ## Decision
 
 **A `KtFile` for an open path may only be obtained as a pinned handle, and only one instance is pinned to a path
 at a time.** `LiveKtFile` (`lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/index/LiveKtFile.kt`)
-is a `sealed interface` whose only implementation, `KtSymbolIndex.PinnedKtFile`, is `private`. The only way to
-obtain one is `KtSymbolIndex.withLiveKtFile` / `withLiveKtFileAsync`
+is an `internal sealed interface` whose only implementation, `KtSymbolIndex.PinnedKtFile`, is `private`. The only
+way to obtain one is `KtSymbolIndex.withLiveKtFile` / `withLiveKtFileAsync`
 (`lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/index/KtSymbolIndex.kt`), which:
 
 1. Acquire the path's `Pin` - join one already open (`joinExistingPin`, reference-counted), or resolve the current
@@ -68,7 +71,7 @@ Pinning there would block the UI thread on a refresh that a background analysis 
 
 - The invariant is now enforced by the compiler: code that reaches for a live `KtFile` outside `withLiveKtFile` /
   `withLiveKtFileAsync` does not compile. The class of bug ADFA-4165 fixed and ADFA-3322 silently reintroduced
-  cannot come back from a refactor that simply forgets a check.
+  cannot come back from a refactor that simply forgets the discipline the old fix depended on.
 - The pin makes explicit what was previously only inferred from two call sites happening to agree: an analysis and
   the declaration provider see the same PSI for the whole scope, by construction.
 
@@ -77,12 +80,15 @@ Pinning there would block the UI thread on a refresh that a background analysis 
 - **A pin is process-wide, not per-caller.** A second request for a pinned path joins the pin and sees that
   scope's text, which can already be older than the buffer. Pin duration is a cross-request staleness window for
   everyone, not just the request that opened it.
-- Every site whose output is an edit therefore checks `LiveKtFile.isStale` and refuses rather than compute offsets
-  against frozen text: `ExtractVariablePlanner`, `ExtractMethodPlanner`, `KotlinCompletions`, `OrganizeImportsAction`,
-  `ImplementMembersAction`, `AddImportAction`, `NullSafetyAction`. A refusal is recoverable; a wrong edit to the
-  user's source is not. Navigation and info sites - go-to-definition, find usages, signature help - deliberately
-  still tolerate being one edit behind (see the comment at `GoToDefinition.kt:215`), because their failure mode is
-  a wrong jump, not a corrupted file.
+- Callers that consult `LiveKtFile.isStale` fall into three buckets, not two. Sites whose output is an edit refuse
+  rather than compute offsets against frozen text: `ExtractVariablePlanner`, `ExtractMethodPlanner`,
+  `KotlinCompletions`, `OrganizeImportsAction`, `ImplementMembersAction`, `AddImportAction`, `NullSafetyAction`. A
+  refusal is recoverable; a wrong edit to the user's source is not. `KotlinDiagnosticProvider.doAnalyze` discards
+  and reschedules instead: it has nothing safe to hand the user in the moment, so it drops the computed diagnostics
+  and re-queues the file through `env.fileAnalyzer.schedule` rather than paint the editor with squiggles for text
+  the user has already replaced. Navigation and info sites - go-to-definition, find usages, signature help -
+  deliberately tolerate being one edit behind (see the comment at `GoToDefinition.kt:215`) and do not check
+  `isStale` at all, because their failure mode is a wrong jump, not a corrupted file or a dropped result.
 - **Known parked consequence:** while background diagnostics hold a pin and the user keeps typing, a completion
   request joins the stale pin and returns no items until the next keystroke closes it. Fixing this needs
   acquisition to be priority-aware - an interactive request preempting a lower-priority holder instead of joining
@@ -102,10 +108,10 @@ Pinning there would block the UI thread on a refresh that a background analysis 
 
 ## Alternatives considered
 
-- **A runtime check that drops a superseded result before publishing** - what ADFA-4165 did, and roughly what the
-  diagnostics staleness check still does today. Cheap, but it is exactly the shape of fix that did not survive the
-  next refactor: nothing stops a later change from adding a second way to reach a `KtFile` and forgetting to wire
-  the check into it. That is precisely how this regression happened.
+- **A runtime mechanism that keeps the invariant true without a type gate** - what ADFA-4165 did: atomically
+  invalidate the superseded FIR session and install the replacement under `project.write`, serialized so two
+  refreshes for the same key cannot race. It worked, until ADFA-3322 replaced the code path it lived in without
+  carrying the same discipline forward. That is precisely how this regression happened.
 - **One mutable `KtFile` per open path, reparsed in place instead of minting a new instance per version** -
   strictly the deeper fix: it removes the multiple-identities problem instead of gating access to it. Not taken.
   In-place reparse (`BlockSupport.reparseRange` against a `LightVirtualFile`) is unproven in this standalone/mock
@@ -118,7 +124,8 @@ Pinning there would block the UI thread on a refresh that a background analysis 
 
 ## Related
 
-- ADFA-4165 - established and once enforced the one-live-KtFile-per-path invariant with a runtime check.
+- ADFA-4165 - established the one-live-KtFile-per-path invariant, once enforced by an atomic install-and-invalidate
+  under `project.write` rather than by the type system.
 - ADFA-3322 (PR #1484) - introduced the per-version `currentFiles` cache that reintroduced the bug.
 - [ADR 0010](0010-navigation-resolves-via-analysis-api.md) - why navigation resolves through the Analysis API,
   the pipeline this pin protects.
