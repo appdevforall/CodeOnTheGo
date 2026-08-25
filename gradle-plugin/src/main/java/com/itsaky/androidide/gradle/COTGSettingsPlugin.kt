@@ -116,8 +116,13 @@ private fun RepositoryHandler.addMavenRepoIfMissing(
 	logger: Logger,
 	uri: URI,
 ) {
-	if (none { it is MavenArtifactRepository && it.url == uri }) {
-		logger.info("Adding maven repository: $uri")
-		maven { it.url = uri }
+	if (any { it is MavenArtifactRepository && it.url == uri }) {
+		return
 	}
+
+	logger.info("Adding maven repository: $uri")
+	val repo = maven { it.url = uri }
+
+	remove(repo)
+	add(0, repo)
 }
