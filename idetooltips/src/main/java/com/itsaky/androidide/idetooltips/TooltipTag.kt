@@ -152,6 +152,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_GOTO_DEF = "editor.codeactions.gotodef"
 	const val EDITOR_CODE_ACTIONS_FIND_REFS = "editor.codeactions.findrefs"
 	const val EDITOR_CODE_ACTIONS_FIX_IMPORTS = "editor.codeactions.fiximports"
+	const val EDITOR_CODE_ACTIONS_FIX_IMPORTS_DIALOG = "editor.codeactions.fiximports.dialog"
 	const val EDITOR_CODE_ACTIONS_SETTER_GETTER = "editor.codeactions.settergetter"
 	const val EDITOR_CODE_ACTIONS_SETTER_GETTER_DIALOG = "editor.codeactions.settergetter.dialog"
 	const val EDITOR_CODE_ACTIONS_OVERRIDE_SUPER = "editor.codeactions.overridesuper"
@@ -170,9 +171,13 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_KT_COMMENT = "editor.codeactions.kotlin.comment"
 	const val EDITOR_CODE_ACTIONS_KT_UNCOMMENT = "editor.codeactions.kotlin.uncomment"
 	const val EDITOR_CODE_ACTIONS_KT_IMPORT_CLASS = "editor.codeactions.kotlin.importclass"
+	const val EDITOR_CODE_ACTIONS_KT_IMPORT_CLASS_DIALOG =
+		"editor.codeactions.kotlin.importclass.dialog"
 	const val EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS = "editor.codeactions.kotlin.organizeimports"
 	const val EDITOR_CODE_ACTIONS_KT_IMPLEMENT_MEMBERS = "editor.codeactions.kotlin.implementmembers"
 	const val EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX = "editor.codeactions.kotlin.nullsafetyfix"
+	const val EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX_DIALOG =
+		"editor.codeactions.kotlin.nullsafetyfix.dialog"
 	const val EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH = "editor.codeactions.kotlin.trycatch"
 	const val EDITOR_CODE_ACTIONS_KT_GOTO_DEF = "editor.codeactions.kotlin.gotodef"
 	const val EDITOR_CODE_ACTIONS_KT_FIND_REFS = "editor.codeactions.kotlin.findrefs"
