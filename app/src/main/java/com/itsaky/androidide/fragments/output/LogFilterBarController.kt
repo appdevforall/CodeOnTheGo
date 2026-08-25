@@ -21,6 +21,7 @@ import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
 import com.itsaky.androidide.utils.ILogger
+import com.itsaky.androidide.utils.KeyboardUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -34,6 +35,7 @@ import java.util.EnumSet
  * @param showLevelChips Whether the level chip row is shown (outputs without level
  *   metadata, like the build output, only get the text filter).
  * @param onFilterChanged Called with the enabled levels and the (untrimmed) filter text.
+ * @param onVisibilityChanged Called after the bar is shown or hidden with the new visibility.
  */
 class LogFilterBarController(
 	private val binding: LayoutLogFilterBarBinding,
@@ -41,6 +43,7 @@ class LogFilterBarController(
 	showLevelChips: Boolean,
 	initialText: String,
 	initialLevels: Set<ILogger.Level>,
+	private val onVisibilityChanged: ((Boolean) -> Unit)? = null,
 	private val onFilterChanged: (levels: Set<ILogger.Level>, text: String) -> Unit,
 ) {
 	companion object {
@@ -60,6 +63,11 @@ class LogFilterBarController(
 
 	init {
 		binding.levelChipsScroll.isVisible = showLevelChips
+
+		chipsByLevel.values.forEach { chip ->
+			chip.isVisible = showLevelChips
+		}
+
 		binding.filterInput.setText(initialText)
 		chipsByLevel.forEach { (level, chip) ->
 			chip.isChecked = level in initialLevels
@@ -76,12 +84,22 @@ class LogFilterBarController(
 		binding.closeFilterBar.setOnClickListener { hide() }
 	}
 
+	val isVisible: Boolean
+		get() = binding.root.isVisible
+
 	fun toggle() {
-		binding.root.isVisible = !binding.root.isVisible
+		if (binding.root.isVisible) {
+			hide()
+		} else {
+			binding.root.isVisible = true
+			onVisibilityChanged?.invoke(true)
+		}
 	}
 
 	fun hide() {
+		KeyboardUtils.hideSoftInput(binding.filterInput)
 		binding.root.isVisible = false
+		onVisibilityChanged?.invoke(false)
 	}
 
 	private fun notifyFilterChanged() {

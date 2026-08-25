@@ -1,5 +1,50 @@
 # Retrospective Log
 
+## 2026-08-13 - ADFA-5088: individual Preferences/Plugin Manager tooltips + docdb SQL scripts
+
+### Time Breakdown
+
+| Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
+|---------|-------|-----------------|---------------|----------|
+| Aug 12, 7:38am | Setup & research (branch, ticket, docdb schema + Preferences tag investigation via 2 background agents) | ▏ ~3m | ████ 42m | |
+| Aug 13, 5:12am | Implement fixup commits + fold in Plugin Manager screen (investigated via background agent, then implemented) | ▌ ~5m | █████ 45m | ⚠ mid-session scope addition |
+| Aug 13, 6:01am | Architecture review + open PR + Jira update | ▏ ~1m | ███ 28m | |
+| Aug 13, 6:30am | Code review response — verified findings, discovered stale local DB, rewrote SQL scripts | ▋ ~6m | █ 13m | ⚠ near-miss: caught mid-review only because the user pushed back |
+| Aug 13, 6:49am | Fixups, ADFA-5121 follow-up ticket, wrap-up | ▎ ~2m | ▋ 7m | |
+| Aug 13, ~7:00am | Second review round: fail-fast SQL fix (`.bail on` + guard table), validated against user-supplied real DB copies (est.) | ▌ ~8m | ████ 35m | ⚠ `.system` shell-parsing rabbit hole before finding the right fix |
+| Aug 13, ~8:00am | Retro + 2 follow-up PRs (docdb doc gotchas, CLAUDE.md provenance rule) (est.) | ▊ ~10m | ███ 25m | |
+
+*(A ~20.9h overnight gap between the first two phases is excluded from the bars/percentages below as idle time, not work. The last two rows are estimated from context, not re-run through the transcript-analysis script.)*
+
+### Metrics
+
+| Metric | Duration |
+|--------|----------|
+| Total active wall-clock | ~4h |
+| Hands-on | ~35 min (15%) |
+| Automated agent time | ~195 min (85%) |
+| Idle (overnight, between sessions) | ~20.9h (excluded above) |
+| Retro analysis time | ~3 min (script run) + manual extension for later phases |
+
+### Key Observations
+- **The one real near-miss**: a SQL script was built and validated against `assets/documentation.db` — a 213MB file that's `.gitignore`d and downloaded by a Gradle task, not a committed repo asset. Its schema and content were treated as ground truth (including writing "confirmed via sqlite3" claims into the script's own header) without ever running `git ls-files`/`git check-ignore` on it. The local copy was stale; the real database already had curated production content for 5 of the tags the script was about to write to, which would have been silently overwritten. Caught only because the user independently checked the schema and pushed back.
+- **Second review round found a related, second-order bug**: a `BEGIN;...COMMIT;` wrapper without `.bail on` doesn't actually give atomicity — verified empirically that a mid-script SQL error still lets `COMMIT` through with whatever succeeded before it. Fixed with `.bail on` plus a temp-table `CHECK` constraint that turns a silently-empty Brotli payload into a catchable SQL error.
+- **A costly (but ultimately abandoned) detour**: significant time went into reverse-engineering a content-dependent shell-parsing failure in the sqlite3 CLI's `.system` dot-command (some strings triggered a dash syntax error, most didn't, with no clean single hypothesis found). The eventual fix sidestepped the problem entirely — kept `.system` lines simple and did the fail-fast check in SQL instead of shell chaining — rather than continuing to chase the CLI quirk's root cause.
+- **Good pattern reinforced twice**: both times a bulk SQL rewrite was needed under time pressure, it was done via a small Python script parsing and regenerating the statements programmatically, rather than hand-editing 60+ lines — this avoided introducing new content errors while doing a structural change.
+- **Real-world validation loop with the user**: the user independently ran the scripts against copies of the real database (`.save`, current, `.new`) and handed back concrete artifacts (file paths, MD5 comparison) rather than descriptions — this was more useful than any amount of scratch-DB testing alone, and surfaced that an earlier script version had already partially, successfully applied to the "before" copy.
+
+### Feedback
+**What worked:** Not directly stated this session — inferred from the user's engagement pattern (quick short replies, handing over real artifacts to check rather than describing them).
+**What didn't:** "Don't make assumptions about large binary files. They may be maintained and updated outside the repository." (direct user feedback, in response to the stale-DB near-miss)
+
+### Actions Taken
+
+| Issue | Action Type | Change |
+|-------|-------------|--------|
+| No standing guidance against treating a large binary asset's on-disk content as ground truth without checking provenance | CLAUDE.md | Added a bullet to "Project-specific constraints": check `git ls-files`/`git check-ignore` and how an asset is provisioned before trusting its schema/content — generalizes beyond docdb to ~6 other gitignored, externally-fetched assets in `app/build.gradle.kts` |
+| `documentation.db`-specific provenance and SQL-authoring gotchas (`.system` chaining, `.bail on` + guard-table pattern) not documented anywhere a future SQL-script author would find them | Doc | `docs/documentation-database.md` updated via PR #1666 (ADFA-5123): provenance warning in "Where it lives", new "Writing one-off SQL scripts against this database" subsection |
+| Dead `UseSytemShell` preference (class never instantiated, underlying setting never read elsewhere) found while auditing for tooltip coverage | Ticket | Filed ADFA-5121 |
+
 ## 2026-07-24 - LeakCanary icon shrink (ADFA-4843), JAXP/PDF.js investigations (ADFA-1491/ADFA-3304), and full blankj:utilcodex removal (ADFA-4649)
 
 ### Time Breakdown

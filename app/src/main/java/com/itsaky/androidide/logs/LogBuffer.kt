@@ -73,12 +73,15 @@ class LogBuffer(
 	 * Render all entries matching [filter] into a single string.
 	 *
 	 * @return The rendered text and the sequence number of the newest entry in the
-	 *   buffer at snapshot time (0 if the buffer is empty), regardless of whether
-	 *   that entry matched the filter.
+	 *   buffer at snapshot time, regardless of whether that entry matched the filter.
+	 *   When the buffer is empty, this is the last seq ever issued: an empty buffer
+	 *   means every issued entry has been discarded (e.g. by [clear]), so none of
+	 *   them may stitch in after the snapshot -- returning 0 here would let a live
+	 *   stream's replay cache re-deliver cleared lines.
 	 */
 	@Synchronized
 	fun snapshotFiltered(filter: LogFilter): Pair<String, Long> {
-		val lastSeq = entries.lastOrNull()?.seq ?: 0L
+		val lastSeq = entries.lastOrNull()?.seq ?: (nextSeq - 1)
 		val text =
 			buildString {
 				for (entry in entries) {
@@ -97,6 +100,9 @@ class LogBuffer(
 				append(entry.text)
 			}
 		}
+
+	val isEmpty: Boolean
+		@Synchronized get() = entries.isEmpty()
 
 	@Synchronized
 	fun clear() {

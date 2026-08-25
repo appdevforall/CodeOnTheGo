@@ -43,6 +43,7 @@ sealed class TemplateManagerUiEffect {
 
 	data class ShowSuccess(
 		@StringRes val messageResId: Int,
+		val formatArgs: List<Any> = emptyList(),
 	) : TemplateManagerUiEffect()
 
 	data class ShowDeleteConfirmation(

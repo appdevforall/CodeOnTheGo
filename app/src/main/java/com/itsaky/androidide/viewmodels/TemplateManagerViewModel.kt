@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.repositories.TemplateRepository
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
+import com.itsaky.androidide.templates.manager.models.displayName
 import com.itsaky.androidide.ui.models.TemplateManagerUiEffect
 import com.itsaky.androidide.ui.models.TemplateManagerUiEvent
 import com.itsaky.androidide.ui.models.TemplateManagerUiState
@@ -77,7 +78,12 @@ class TemplateManagerViewModel(
 				.installTemplate(item)
 				.onSuccess {
 					Log.d(TAG, "Template installed successfully: ${item.name}")
-					_uiEffect.send(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_installed))
+					_uiEffect.send(
+						TemplateManagerUiEffect.ShowSuccess(
+							R.string.msg_template_installed,
+							listOf(item.displayName),
+						),
+					)
 					// loadTemplates() clears isLoading once the post-install rescan completes, so the
 					// indicator stays up continuously across both phases instead of flickering off
 					// between them.

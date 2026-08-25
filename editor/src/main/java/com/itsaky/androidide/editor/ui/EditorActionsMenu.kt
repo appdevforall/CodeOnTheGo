@@ -36,6 +36,7 @@ import androidx.transition.ChangeBounds
 import androidx.transition.TransitionManager
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
+import com.itsaky.androidide.actions.ActionMenu
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.EditorActionItem
@@ -44,6 +45,7 @@ import com.itsaky.androidide.actions.TextTarget
 import com.itsaky.androidide.editor.adapters.IdeEditorAdapter
 import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import com.itsaky.androidide.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
+import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
@@ -63,6 +65,7 @@ import io.github.rosemoe.sora.event.SubscriptionReceipt
 import io.github.rosemoe.sora.text.Cursor
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.EditorTouchEventHandler
+import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
@@ -80,6 +83,8 @@ open class EditorActionsMenu(
 	MenuBuilder.Callback {
 	companion object {
 		const val DELAY: Long = 200
+
+		private val log = LoggerFactory.getLogger(EditorActionsMenu::class.java)
 	}
 
 	private val touchHandler: EditorTouchEventHandler = editor.eventHandler
@@ -152,33 +157,43 @@ open class EditorActionsMenu(
 		getInstance().unregisterActionExecListener(this)
 	}
 
+	private fun shouldSuppressActionsMenu(): Boolean {
+		val searcher = editor.searcher
+		return searcher.isSearching || searcher.hasQuery()
+	}
+
 	protected open fun onSelectionChanged(event: SelectionChangeEvent) {
-		if (touchHandler.hasAnyHeldHandle()) {
+		if (shouldSuppressActionsMenu()) {
+			dismiss()
 			return
 		}
+
+		if (touchHandler.hasAnyHeldHandle()) return
+
 		if (event.isSelected) {
 			editor.post { displayWindow(isShowing) }
 			mLastPosition = -1
-		} else {
-			var show = false
-			if (
-				event.cause == SelectionChangeEvent.CAUSE_TAP &&
+			return
+		}
+
+		val shouldShow =
+			event.cause == SelectionChangeEvent.CAUSE_TAP &&
 				event.left.index == mLastPosition &&
 				!isShowing &&
 				!editor.text.isInBatchEdit
-			) {
-				editor.post(::displayWindow)
-				show = true
-			} else {
-				dismiss()
-			}
-			mLastPosition =
-				if (event.cause == SelectionChangeEvent.CAUSE_TAP && !show) {
-					event.left.index
-				} else {
-					-1
-				}
+
+		if (shouldShow) {
+			editor.post(::displayWindow)
+		} else {
+			dismiss()
 		}
+
+		mLastPosition =
+			if (event.cause == SelectionChangeEvent.CAUSE_TAP && !shouldShow) {
+				event.left.index
+			} else {
+				-1
+			}
 	}
 
 	protected open fun onScrollEvent() {
@@ -209,7 +224,7 @@ open class EditorActionsMenu(
 			return
 		}
 		dismiss()
-		if (!editor.cursor.isSelected) {
+		if (!editor.cursor.isSelected || shouldSuppressActionsMenu()) {
 			return
 		}
 		editor.postDelayed(
@@ -243,6 +258,11 @@ open class EditorActionsMenu(
 
 	@JvmOverloads
 	open fun displayWindow(update: Boolean = false) {
+		if (shouldSuppressActionsMenu()) {
+			dismiss()
+
+			return
+		}
 		var top: Int
 		val cursor = editor.cursor
 		top =
@@ -391,6 +411,9 @@ open class EditorActionsMenu(
 		val forceShowTitle: Boolean = false,
 		val editor: IDEEditor,
 		val location: ActionItem.Location,
+		// Children of a submenu are not registered with the ActionsRegistry, so they can only be
+		// resolved through their parent menu (ADFA-4510). Null for the top-level actions row.
+		val actionMenu: ActionMenu? = null,
 	) : RecyclerView.Adapter<VH>() {
 		override fun getItemCount(): Int = menu?.size() ?: 0
 
@@ -414,9 +437,11 @@ open class EditorActionsMenu(
 		) {
 			val item = getItem(position) ?: return
 
-			val action = getInstance().findAction(location, item.itemId)
-			val tooltipTag = action?.retrieveTooltipTag(false) ?: ""
-			val tag = tooltipTag.ifEmpty { item.contentDescription?.toString() ?: "" }
+			val action =
+				actionMenu?.findAction(item.itemId)
+					?: getInstance().findAction(location, item.itemId)
+			val tag = action?.retrieveTooltipTag(false) ?: ""
+			val category = action?.retrieveTooltipCategory() ?: TooltipCategory.CATEGORY_IDE
 
 			val button = holder.binding.root
 			button.text = if (forceShowTitle) item.title else ""
@@ -441,13 +466,17 @@ open class EditorActionsMenu(
 			}
 
 			button.setOnLongClickListener {
-				if (tag.isNotEmpty()) {
-					TooltipManager.showIdeCategoryTooltip(
-						context = editor.context,
-						anchorView = editor,
-						tag = tag,
-					)
+				if (tag.isEmpty()) {
+					log.warn("No tooltip tag for action '{}'", item.title)
 				}
+				// An empty tag still goes through: a DB miss renders the documentation
+				// fallback (ADFA-4754), which beats a dead long-press.
+				TooltipManager.showTooltip(
+					context = editor.context,
+					anchorView = editor,
+					category = category,
+					tag = tag,
+				)
 				true
 			}
 		}
@@ -474,8 +503,15 @@ open class EditorActionsMenu(
 		this.editor.post {
 			TransitionManager.beginDelayedTransition(this.list, ChangeBounds())
 			this.list.layoutManager = LinearLayoutManager(editor.context)
+			val parentMenu = getInstance().findAction(onGetActionLocation(), item.itemId) as? ActionMenu
 			this.list.adapter =
-				ActionsListAdapter(item.subMenu, true, editor, location = onGetActionLocation())
+				ActionsListAdapter(
+					item.subMenu,
+					true,
+					editor,
+					location = onGetActionLocation(),
+					actionMenu = parentMenu,
+				)
 
 			this.list.post {
 				measureActionsList()

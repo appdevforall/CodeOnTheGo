@@ -55,7 +55,13 @@ fun FileImage(
 ) {
 	val maxDimensionPx = with(LocalDensity.current) { maxDimension.roundToPx() }
 
-	val bitmap by produceState<ImageBitmap?>(initialValue = null, file, maxDimensionPx) {
+	// File.equals() compares paths, so `file` alone would not re-decode when a plugin is
+	// reinstalled and rewrites its icon at the same path - the stale bitmap would stick. Keying
+	// on the mtime too is the Compose equivalent of the Glide ObjectKey(lastModified) signature
+	// the View-based adapter used (ADFA-4446).
+	val lastModified = file?.lastModified() ?: 0L
+
+	val bitmap by produceState<ImageBitmap?>(initialValue = null, file, lastModified, maxDimensionPx) {
 		value =
 			file?.let { candidate ->
 				withContext(Dispatchers.IO) {

@@ -67,6 +67,16 @@ buildscript {
 	}
 }
 
+// `jacocoAggregateReport` dependsOn every subproject's `testV8DebugUnitTest` and `sonarqube`
+// dependsOn that, so a hard test failure skips both - even under `--continue` - and the analysis
+// run uploads an empty coverage artifact with no Sonar analysis at all. That, not any individual
+// module's broken suite, is the only reason `ignoreFailures` exists here: keep test failures
+// non-fatal when the analysis chain is what was asked for, and let every ordinary build gate on them.
+val analysisRun =
+	gradle.startParameter.taskNames.any {
+		it.substringAfterLast(':') in setOf("sonar", "sonarqube", "jacocoAggregateReport")
+	}
+
 subprojects {
 	plugins.apply("jacoco")
 
@@ -78,13 +88,27 @@ subprojects {
 	FDroidConfig.load(project)
 
 	tasks.withType<Test> {
-		// Continue even if tests fail, so coverage data is written
-		ignoreFailures = true
+		ignoreFailures = analysisRun
+
+		// Gradle's default test-worker heap is 512m, too small for the Robolectric +
+		// Kotlin Analysis API suites (:lsp:kotlin peaks near 240m and keeps growing).
+		// Keep it explicit so the suites fail on a real regression, not on the default.
+		maxHeapSize = "1g"
 
 		// Backstop: kill any individual Test task that runs longer than 10 minutes.
 		// Prevents a single hung test JVM (e.g. the Tooling API child) from burning
 		// the entire CI job budget.
 		timeout.set(Duration.ofMinutes(10))
+
+		// A test worker's default working dir is the module directory, so an unpathed
+		// -XX:+HeapDumpOnOutOfMemoryError drops a heap dump of up to maxHeapSize into the source
+		// tree, untracked and not gitignored. Keep dumps under build/ instead, one per task.
+		val heapDumpFile =
+			layout.buildDirectory
+				.file("test-heapdumps/$name.hprof")
+				.get()
+				.asFile
+		doFirst { heapDumpFile.parentFile.mkdirs() }
 
 		// JPMS opens required by the unit-test stack on JDK 17+:
 		//   - jdk.unsupported/sun.misc: HiddenApiBypass.<clinit> reflectively
@@ -105,6 +129,14 @@ subprojects {
 			"--add-opens=java.base/java.util=ALL-UNNAMED",
 			"--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
 			"--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
+			// An OutOfMemoryError inside a test deadlocks Gradle's TestWorker: the
+			// OOM unwinds the runQueue.take() loop, whose finally needs the TestWorker
+			// monitor that the in-flight stop() already holds while blocked on
+			// runQueue.put() (capacity 1). The worker then never exits and the build
+			// hangs. Exiting on the first OOM turns that hang into a task failure.
+			"-XX:+ExitOnOutOfMemoryError",
+			"-XX:+HeapDumpOnOutOfMemoryError",
+			"-XX:HeapDumpPath=${heapDumpFile.absolutePath}",
 		)
 
 		// Attach jacoco agent
@@ -266,11 +298,18 @@ spotless {
 		trimTrailingWhitespace()
 		endWithNewline()
 
-		// Eclipse WTP splits strings.xml entries across lines, so exclude it.
+		// Eclipse WTP splits strings.xml entries across lines, so exclude it. LSP test
+		// fixtures (testing/resources/test-project/**/*_template.xml) embed an
+		// "@@cursor@@" marker inside attribute-like text; the formatter splits it
+		// across lines too, breaking the marker lookup, so exclude those as well.
 		target(
 			spotlessTarget(
 				"**/src/*/res/**/*.xml",
-				extraExcludes = arrayOf("**/src/*/res/values*/strings.xml"),
+				extraExcludes =
+					arrayOf(
+						"**/src/*/res/values*/strings.xml",
+						"testing/resources/test-project/**/*_template.xml",
+					),
 			),
 		)
 	}

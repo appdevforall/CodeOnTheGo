@@ -3,6 +3,9 @@ package com.itsaky.androidide.di
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.repositories.PluginRepositoryImpl
+import com.itsaky.androidide.repositories.TemplateCollectionRepository
+import com.itsaky.androidide.repositories.TemplateCollectionRepositoryImpl
+import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
@@ -23,10 +26,23 @@ val pluginModule =
 			)
 		}
 
+		single<TemplateCollectionRepository> {
+			TemplateCollectionRepositoryImpl()
+		}
+
 		// ViewModel
 		viewModel {
 			PluginManagerViewModel(
 				pluginRepository = get(),
+				contentResolver = androidContext().contentResolver,
+				filesDir = IDEApplication.cachedFilesDir,
+			)
+		}
+
+		viewModel {
+			ExternalFileInstallViewModel(
+				pluginRepository = get(),
+				templateCollectionRepository = get(),
 				contentResolver = androidContext().contentResolver,
 				filesDir = IDEApplication.cachedFilesDir,
 			)

@@ -9,14 +9,20 @@ import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.ui.models.PluginInstallSource
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.PluginManagerUiState
 import com.itsaky.androidide.ui.models.PluginOperation
 import com.itsaky.androidide.utils.EditorDecorationBridge
+import com.itsaky.androidide.utils.InstallTempFiles
+import com.itsaky.androidide.utils.LastValueGate
 import com.itsaky.androidide.utils.UriFileImporter
 import com.itsaky.androidide.utils.getFileName
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +31,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 
 /**
@@ -38,7 +45,48 @@ class PluginManagerViewModel(
 ) : ViewModel() {
 	private companion object {
 		private const val TAG = "PluginManagerViewModel"
-		private const val PLUGIN_EXTENSION = ".cgp"
+	}
+
+	// Tracks the last forwarded-install file path (from ExternalFileInstallActivity) this
+	// instance has already shown a dialog for. Survives rotation (same ViewModel instance, via
+	// the ViewModelStore) so the dialog isn't re-popped on every rotation, but resets on process
+	// death (a fresh instance is created), so a process-death-recreated PluginManagerActivity
+	// still shows the dialog instead of silently dropping the forwarded install.
+	private val pendingInstallGate = LastValueGate<String>()
+
+	// Completed once the first loadPlugins() call (from init{}) has concluded, successfully or
+	// not. resolveInstallConflict() awaits this before consulting _uiState.value.plugins, so an
+	// install confirmed immediately after a cold start can't race the async plugin-list load and
+	// skip the same-ID signature check by seeing an still-empty list.
+	private val initialLoadCompleted = CompletableDeferred<Unit>()
+
+	/**
+	 * Entry point for a `.cgp` forwarded from
+	 * [com.itsaky.androidide.activities.ExternalFileInstallActivity], by absolute path.
+	 *
+	 * Emits [PluginManagerUiEffect.ShowInstallConfirmation] with a
+	 * [PluginInstallSource.LocalFile], so the forwarded install reuses the same confirmation
+	 * dialog the SAF pick does rather than a second, parallel one.
+	 *
+	 * [pendingInstallGate] is the idempotency check rather than an Activity `savedInstanceState`
+	 * check, because it is what correctly distinguishes "already shown after a rotation" (same
+	 * ViewModel instance, gate still holds the path) from "never shown because the process died"
+	 * (fresh ViewModel, gate empty, dialog must still appear). The `exists()` probe runs on IO:
+	 * this is called from `onCreate`/`onNewIntent`, and a missing file is legitimate if
+	 * `InstallTempFiles`' stale-file sweep already removed the temp copy.
+	 */
+	fun onPendingInstallFile(filePath: String) {
+		if (!pendingInstallGate.consume(filePath)) return
+		viewModelScope.launch {
+			val file = File(filePath)
+			if (withContext(Dispatchers.IO) { file.exists() }) {
+				_uiEffect.send(
+					PluginManagerUiEffect.ShowInstallConfirmation(PluginInstallSource.LocalFile(file)),
+				)
+			} else {
+				_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_file_not_found))
+			}
+		}
 	}
 
 	// Mutable state for internal updates
@@ -52,8 +100,11 @@ class PluginManagerViewModel(
 	// Public read-only state
 	val uiState: StateFlow<PluginManagerUiState> = _uiState.asStateFlow()
 
-	// Channel for one-time UI effects
-	private val _uiEffect = Channel<PluginManagerUiEffect>(Channel.BUFFERED)
+	// Channel for one-time UI effects. Buffered (not rendezvous): a synchronous decision path
+	// (e.g. handlePendingInstallExtra()'s effect right after onCreate()/onNewIntent()) can
+	// otherwise complete before the Activity's collector actually attaches, silently dropping the
+	// effect - see ExternalFileInstallViewModel's identical reasoning for its own uiEffect.
+	private val _uiEffect = Channel<PluginManagerUiEffect>(capacity = Channel.BUFFERED)
 	val uiEffect = _uiEffect.receiveAsFlow()
 
 	// Current operation tracking
@@ -87,17 +138,26 @@ class PluginManagerViewModel(
 
 			is PluginManagerUiEvent.InstallPlugin -> {
 				installPlugin(
-					event.uri,
+					event.source,
 					event.deleteSourceAfterInstall,
 				)
 			}
 
 			is PluginManagerUiEvent.ConfirmOverwrite -> {
 				installPlugin(
-					event.uri,
+					event.source,
 					event.deleteSourceAfterInstall,
 					checkConflict = false,
 				)
+			}
+
+			is PluginManagerUiEvent.CancelPendingInstall -> {
+				// Only a forwarded LocalFile (our own disposable temp copy) is cleaned up here -
+				// nothing was installed, so a user-picked ContentUri source is never touched on
+				// decline (deletion there only ever happens after a *successful* install,
+				// matching the "delete after install" checkbox's label - there's no flag to
+				// consult here since a decline never installs anything).
+				viewModelScope.launch { deleteIfLocalFile(event.source) }
 			}
 
 			is PluginManagerUiEvent.OpenFilePicker -> {
@@ -120,6 +180,7 @@ class PluginManagerViewModel(
 	private fun loadPlugins() {
 		if (!pluginRepository.isPluginManagerAvailable()) {
 			_uiState.update { it.copy(isPluginManagerAvailable = false) }
+			initialLoadCompleted.complete(Unit)
 			return
 		}
 
@@ -155,6 +216,9 @@ class PluginManagerViewModel(
 			EditorDecorationBridge.refresh()
 
 			_currentOperation.value = PluginOperation.None
+			// A no-op if already completed by an earlier loadPlugins() call - only the first
+			// call's outcome matters for initialLoadCompleted's purpose.
+			initialLoadCompleted.complete(Unit)
 		}
 	}
 
@@ -268,7 +332,7 @@ class PluginManagerViewModel(
 	}
 
 	private fun installPlugin(
-		uri: Uri,
+		source: PluginInstallSource,
 		deleteSourceAfterInstall: Boolean,
 		checkConflict: Boolean = true,
 	) {
@@ -276,38 +340,64 @@ class PluginManagerViewModel(
 			_currentOperation.value = PluginOperation.Installing
 			_uiState.update { it.copy(isInstalling = true) }
 
-			var tempFile: File? = null
+			// ownedTempFile (the ContentUri case's own temp copy) is what the `finally` block
+			// below cleans up unconditionally. Note pluginRepository.installPluginFromFile()
+			// itself unconditionally deletes whatever `pluginFile` it's given once that's copied
+			// into the plugins directory - that's pre-existing behavior this function doesn't
+			// control (it also affects InstallFileAction.kt's direct callers). What
+			// deleteSourceAfterInstall/deleteInstallSource governs below is the *original*
+			// source's lifecycle instead: a user-picked ContentUri is only ever deleted after a
+			// successful install (see the onSuccess/onFailure split below), while a forwarded
+			// LocalFile temp copy is always cleaned up regardless of outcome.
+			var ownedTempFile: File? = null
+			var pluginFile: File? = null
 
 			try {
-				tempFile =
-					withContext(Dispatchers.IO) {
-						val fileName = UriFileImporter.getDisplayName(contentResolver, uri)
-						val extension =
-							if (fileName?.endsWith(
-									".cgp",
-									ignoreCase = true,
-								) == true
-							) {
-								".cgp"
-							} else {
-								".apk"
-							}
-						val tempFileName = "temp_plugin_${System.currentTimeMillis()}$extension"
-						val tempDir = File(filesDir, "temp").apply { mkdirs() }
-						val tempFile = File(tempDir, tempFileName)
+				if (checkConflict) {
+					// See initialLoadCompleted's kdoc: guarantees _uiState.value.plugins reflects
+					// the real installed set before resolveInstallConflict() checks it below.
+					initialLoadCompleted.await()
+				}
 
-						UriFileImporter.copyUriToFile(contentResolver, uri, tempFile) {
-							Exception("Cannot open file")
+				pluginFile =
+					when (source) {
+						is PluginInstallSource.LocalFile -> {
+							source.file
 						}
-						tempFile
+
+						is PluginInstallSource.ContentUri -> {
+							withContext(Dispatchers.IO) {
+								val fileName = UriFileImporter.getDisplayName(contentResolver, source.uri)
+								val extension =
+									if (fileName?.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) == true) {
+										PLUGIN_ARCHIVE_EXTENSION
+									} else {
+										"apk"
+									}
+								val tempFile = InstallTempFiles.newTempFile(filesDir, "temp_plugin", extension)
+								// Assigned immediately (a plain, non-suspending write), before the
+								// suspending copy below - so a cancellation landing mid-copy still
+								// leaves ownedTempFile pointing at the file for `finally` to clean
+								// up. Assigning only after this whole block returns (e.g. via
+								// `.also{}` on the block's result) would miss that window: a
+								// cancellation right as the block finishes makes withContext throw
+								// instead of returning, so the assignment would never run.
+								ownedTempFile = tempFile
+
+								UriFileImporter.copyUriToFile(contentResolver, source.uri, tempFile) {
+									Exception("Cannot open file")
+								}
+								tempFile
+							}
+						}
 					}
 
-				if (checkConflict && resolveInstallConflict(tempFile, uri, deleteSourceAfterInstall)) {
+				if (checkConflict && resolveInstallConflict(pluginFile, source, deleteSourceAfterInstall)) {
 					return@launch
 				}
 
 				pluginRepository
-					.installPluginFromFile(tempFile)
+					.installPluginFromFile(pluginFile)
 					.onSuccess {
 						Log.d(TAG, "Plugin installed successfully")
 						_uiEffect.send(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_installed))
@@ -315,7 +405,7 @@ class PluginManagerViewModel(
 						_uiEffect.send(PluginManagerUiEffect.ShowRestartPrompt)
 
 						if (deleteSourceAfterInstall) {
-							deleteSourceDocument(uri)
+							deleteInstallSource(source)
 						}
 					}.onFailure { exception ->
 						Log.e(TAG, "Failed to install plugin", exception)
@@ -325,7 +415,16 @@ class PluginManagerViewModel(
 								listOf(exception.message ?: ""),
 							),
 						)
+						// A failed install deletes nothing but our own disposable temp copy - a
+						// user-picked ContentUri is preserved so they can retry, matching
+						// deleteSourceAfterInstall's "delete after install [succeeds]" meaning.
+						deleteIfLocalFile(source)
 					}
+			} catch (e: CancellationException) {
+				// Matches the "always cleaned up regardless of outcome" comment above: cancellation
+				// is itself an outcome the forwarded temp file must not survive.
+				withContext(NonCancellable) { deleteIfLocalFile(source) }
+				throw e
 			} catch (exception: Exception) {
 				Log.e(TAG, "Error installing plugin from URI", exception)
 				_uiEffect.send(
@@ -334,9 +433,10 @@ class PluginManagerViewModel(
 						listOf(exception.message ?: ""),
 					),
 				)
+				deleteIfLocalFile(source)
 			} finally {
-				tempFile?.let { file ->
-					withContext(Dispatchers.IO) {
+				ownedTempFile?.let { file ->
+					withContext(NonCancellable + Dispatchers.IO) {
 						if (file.exists()) {
 							file.delete()
 						}
@@ -349,14 +449,15 @@ class PluginManagerViewModel(
 	}
 
 	private suspend fun resolveInstallConflict(
-		tempFile: File,
-		uri: Uri,
+		pluginFile: File,
+		source: PluginInstallSource,
 		deleteSourceAfterInstall: Boolean,
 	): Boolean {
-		val incoming = pluginRepository.getPluginMetadataFromFile(tempFile).getOrNull()
+		val incoming = pluginRepository.getPluginMetadataFromFile(pluginFile).getOrNull()
 		if (incoming == null) {
-			Log.w(TAG, "Failed to read plugin metadata from ${tempFile.name}; aborting install")
+			Log.w(TAG, "Failed to read plugin metadata from ${pluginFile.name}; aborting install")
 			_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
+			deleteIfLocalFile(source)
 			return true
 		}
 
@@ -366,36 +467,69 @@ class PluginManagerViewModel(
 
 		val signaturesMatch =
 			pluginRepository
-				.haveMatchingSignatures(tempFile, existing.metadata.id)
+				.haveMatchingSignatures(pluginFile, existing.metadata.id)
 				.getOrDefault(false)
 
-		val effect =
-			if (!signaturesMatch) {
+		if (!signaturesMatch) {
+			_uiEffect.send(
 				PluginManagerUiEffect.ShowError(
 					R.string.msg_plugin_signature_mismatch,
 					listOf(existing.metadata.name),
-				)
-			} else {
-				PluginManagerUiEffect.ShowOverwriteConfirmation(
-					existing = existing,
-					incomingMetadata = incoming,
-					uri = uri,
-					deleteSourceAfterInstall = deleteSourceAfterInstall,
-				)
-			}
-		_uiEffect.send(effect)
+				),
+			)
+			deleteIfLocalFile(source)
+			return true
+		}
+
+		// Deliberately don't delete the source yet: the user still needs to choose Replace or
+		// Cancel. ConfirmOverwrite re-runs installPlugin() to consume it on Replace;
+		// CancelPendingInstall cleans it up if they back out instead.
+		_uiEffect.send(
+			PluginManagerUiEffect.ShowOverwriteConfirmation(
+				existing = existing,
+				incomingMetadata = incoming,
+				source = source,
+				deleteSourceAfterInstall = deleteSourceAfterInstall,
+			),
+		)
 		return true
+	}
+
+	/** A user-picked ContentUri is only ever deleted after a successful install (matching the
+	 * "delete after install" checkbox's label) - a forwarded LocalFile temp copy is disposable
+	 * regardless of outcome, so it's the only source type any non-success path cleans up here. */
+	private suspend fun deleteIfLocalFile(source: PluginInstallSource) {
+		if (source is PluginInstallSource.LocalFile) {
+			deleteInstallSource(source)
+		}
+	}
+
+	private suspend fun deleteInstallSource(source: PluginInstallSource) {
+		when (source) {
+			is PluginInstallSource.LocalFile -> {
+				withContext(Dispatchers.IO) {
+					if (source.file.exists() && !source.file.delete()) {
+						Log.w(TAG, "Failed to delete forwarded install file: ${source.file.absolutePath}")
+					}
+				}
+			}
+
+			is PluginInstallSource.ContentUri -> {
+				deleteSourceDocument(source.uri)
+			}
+		}
 	}
 
 	private suspend fun deleteSourceDocument(uri: Uri) {
 		withContext(Dispatchers.IO) {
 			try {
-				val deleted = DocumentsContract.deleteDocument(contentResolver, uri)
-				if (!deleted) {
+				if (!DocumentsContract.deleteDocument(contentResolver, uri)) {
 					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
 					)
 				}
+			} catch (e: CancellationException) {
+				throw e
 			} catch (e: Exception) {
 				Log.w(TAG, "Failed to delete source document", e)
 				_uiEffect.send(
@@ -417,16 +551,22 @@ class PluginManagerViewModel(
 	/**
 	 * Validate the picked plugin file's name off the main thread (querying a `content://` URI's
 	 * display name is a `ContentResolver` IPC call) and route to install confirmation or an error.
+	 *
+	 * A SAF pick is always a `content://` URI, so it becomes a [PluginInstallSource.ContentUri];
+	 * the forwarded-file path emits [PluginManagerUiEffect.ShowInstallConfirmation] with a
+	 * [PluginInstallSource.LocalFile] directly and never comes through here.
 	 */
 	private fun handleFileSelected(uri: Uri) {
 		viewModelScope.launch {
 			val isSupported =
 				withContext(Dispatchers.IO) {
-					uri.getFileName(contentResolver).endsWith(PLUGIN_EXTENSION, ignoreCase = true)
+					uri.getFileName(contentResolver).endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
 				}
 
 			if (isSupported) {
-				_uiEffect.send(PluginManagerUiEffect.ShowInstallConfirmation(uri))
+				_uiEffect.send(
+					PluginManagerUiEffect.ShowInstallConfirmation(PluginInstallSource.ContentUri(uri)),
+				)
 			} else {
 				_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_unsupported_plugin_file))
 			}

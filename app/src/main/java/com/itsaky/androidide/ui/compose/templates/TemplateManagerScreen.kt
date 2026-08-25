@@ -144,7 +144,9 @@ fun TemplateManagerScreen(
 					}
 
 					is TemplateManagerUiEffect.ShowSuccess -> {
-						activity.flashSuccess(activity.getString(effect.messageResId))
+						activity.flashSuccess(
+							activity.getString(effect.messageResId, *effect.formatArgs.toTypedArray()),
+						)
 					}
 
 					is TemplateManagerUiEffect.ShowDeleteConfirmation -> {

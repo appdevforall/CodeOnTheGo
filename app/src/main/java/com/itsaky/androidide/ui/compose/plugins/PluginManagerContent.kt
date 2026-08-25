@@ -42,6 +42,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.PluginMetadata
+import com.itsaky.androidide.ui.models.PluginInstallSource
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
@@ -74,14 +75,14 @@ private sealed interface PluginManagerDialogState : Parcelable {
 
 	@Parcelize
 	data class InstallConfirm(
-		val uri: Uri,
+		val source: PluginInstallSource,
 	) : PluginManagerDialogState
 
 	@Parcelize
 	data class OverwriteConfirm(
 		val existingId: String,
 		val incomingMetadata: PluginMetadata,
-		val uri: Uri,
+		val source: PluginInstallSource,
 		val deleteSourceAfterInstall: Boolean,
 	) : PluginManagerDialogState
 
@@ -192,7 +193,7 @@ fun PluginManagerContent(
 					}
 
 					is PluginManagerUiEffect.ShowInstallConfirmation -> {
-						dialogState = PluginManagerDialogState.InstallConfirm(effect.uri)
+						dialogState = PluginManagerDialogState.InstallConfirm(effect.source)
 					}
 
 					is PluginManagerUiEffect.ShowUninstallConfirmation -> {
@@ -208,7 +209,7 @@ fun PluginManagerContent(
 							PluginManagerDialogState.OverwriteConfirm(
 								existingId = effect.existing.metadata.id,
 								incomingMetadata = effect.incomingMetadata,
-								uri = effect.uri,
+								source = effect.source,
 								deleteSourceAfterInstall = effect.deleteSourceAfterInstall,
 							)
 					}
@@ -248,10 +249,16 @@ fun PluginManagerContent(
 		is PluginManagerDialogState.InstallConfirm -> {
 			InstallConfirmationDialog(
 				onConfirm = { deleteSource ->
-					viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(dialog.uri, deleteSource))
+					viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(dialog.source, deleteSource))
 					dialogState = PluginManagerDialogState.None
 				},
-				onDismiss = { dialogState = PluginManagerDialogState.None },
+				onDismiss = {
+					// Declining a forwarded install must dispose of the temp copy
+					// ExternalFileInstallActivity made for us; a user-picked ContentUri is left
+					// untouched. CancelPendingInstall encapsulates that distinction.
+					viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(dialog.source))
+					dialogState = PluginManagerDialogState.None
+				},
 			)
 		}
 
@@ -262,7 +269,9 @@ fun PluginManagerContent(
 					existing = existing,
 					incomingMetadata = dialog.incomingMetadata,
 					onConfirm = {
-						viewModel.onEvent(PluginManagerUiEvent.ConfirmOverwrite(dialog.uri, dialog.deleteSourceAfterInstall))
+						viewModel.onEvent(
+							PluginManagerUiEvent.ConfirmOverwrite(dialog.source, dialog.deleteSourceAfterInstall),
+						)
 						dialogState = PluginManagerDialogState.None
 					},
 					onDismiss = { dialogState = PluginManagerDialogState.None },

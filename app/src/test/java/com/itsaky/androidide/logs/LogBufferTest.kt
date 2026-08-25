@@ -20,6 +20,7 @@ package com.itsaky.androidide.logs
 import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.utils.ILogger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -64,6 +65,19 @@ class LogBufferTest {
 	}
 
 	@Test
+	fun `cleared buffer snapshots to the last issued seq, not 0`() {
+		val buffer = LogBuffer(trimOnEntryCount = 10, maxEntryCount = 5)
+		val last = buffer.append(null, "discarded\n")
+		buffer.clear()
+
+		// Discarded entries must not stitch in after the snapshot: reporting 0 here
+		// would let a live stream's replay cache re-deliver cleared lines.
+		val (text, lastSeq) = buffer.snapshotFiltered(LogFilter.NONE)
+		assertEquals("", text)
+		assertEquals(last.seq, lastSeq)
+	}
+
+	@Test
 	fun `buffer trims to maxEntryCount once trimOnEntryCount is exceeded`() {
 		val buffer = LogBuffer(trimOnEntryCount = 10, maxEntryCount = 5)
 		repeat(11) { buffer.append(null, "line$it\n") }
@@ -92,5 +106,17 @@ class LogBufferTest {
 		buffer.append(ILogger.Level.DEBUG, "debug\n")
 		buffer.append(ILogger.Level.ERROR, "error\n")
 		assertEquals("debug\nerror\n", buffer.snapshotAll())
+	}
+
+	@Test
+	fun `isEmpty reflects appends and clears`() {
+		val buffer = LogBuffer(trimOnEntryCount = 10, maxEntryCount = 5)
+		assertTrue(buffer.isEmpty)
+
+		buffer.append(null, "a\n")
+		assertFalse(buffer.isEmpty)
+
+		buffer.clear()
+		assertTrue(buffer.isEmpty)
 	}
 }

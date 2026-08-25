@@ -2,9 +2,11 @@
 
 set -e
 
-red=$(tput setaf 1)
-green=$(tput setaf 2)
-reset=$(tput sgr0)
+# Guard tput: GUI git clients (e.g GitHub Desktop) run hooks without TERM,
+# where tput exits non-zero and set -e would kill the hook before Spotless runs
+red=$(tput setaf 1 2>/dev/null || true)
+green=$(tput setaf 2 2>/dev/null || true)
+reset=$(tput sgr0 2>/dev/null || true)
 
 ##### SPOTLESS HOOK START #####
 REPO_ROOT="$(git rev-parse --show-toplevel)"

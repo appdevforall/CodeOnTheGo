@@ -38,8 +38,10 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.resources.databinding.SearchOptionsPopupMenuBinding
+import com.itsaky.androidide.utils.KeyboardUtils
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.applyLongPressRecursively
+import com.itsaky.androidide.utils.flashInfo
 import io.github.rosemoe.sora.widget.EditorSearcher.SearchOptions
 import java.util.regex.Pattern
 import java.util.regex.PatternSyntaxException
@@ -240,6 +242,8 @@ class EditorSearchLayout(
 		findInFileBinding.root.visibility = VISIBLE
 		onSearchModeChanged?.invoke(true)
 
+		refreshSearch()
+
 		findInFileBinding.searchInput.requestFocus()
 		findInFileBinding.searchInput.post {
 			ViewCompat.getWindowInsetsController(findInFileBinding.searchInput)?.show(WindowInsetsCompat.Type.ime())
@@ -280,6 +284,7 @@ class EditorSearchLayout(
 	private fun onSearchActionClick(v: View) {
 		val searcher = editor.searcher
 		if (v.id == findInFileBinding.close.id) {
+			KeyboardUtils.hideSoftInput(findInFileBinding.searchInput)
 			if (this.searchInputTextWatcher == null) {
 				return
 			}
@@ -290,14 +295,21 @@ class EditorSearchLayout(
 			onSearchModeChanged?.invoke(false)
 		}
 		if (!searcher.hasQuery()) {
+			refreshSearch()
+		}
+		if (!searcher.hasQuery()) {
 			return
 		}
 		if (v.id == findInFileBinding.prev.id) {
-			searcher.gotoPrevious()
+			if (!searcher.gotoPrevious() && searcher.isSearchCompleteWithNoMatches()) {
+				flashInfo(R.string.msg_no_search_matches)
+			}
 			return
 		}
 		if (v.id == findInFileBinding.next.id) {
-			searcher.gotoNext()
+			if (!searcher.gotoNext() && searcher.isSearchCompleteWithNoMatches()) {
+				flashInfo(R.string.msg_no_search_matches)
+			}
 			return
 		}
 		if (v.id == findInFileBinding.replace.id) {
