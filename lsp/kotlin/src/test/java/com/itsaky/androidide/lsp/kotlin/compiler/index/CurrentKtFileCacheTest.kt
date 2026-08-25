@@ -215,7 +215,7 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 		assertTrue(samePinnedInstance!!)
 	}
 
-	@OptIn(UnpinnedKtFileAccess::class)
+	@OptIn(UnpinnedKtFileAccess::class, ResolutionSideKtFileAccess::class)
 	@Test
 	fun `getKtFile returns the current cached instance for an active document instead of reloading from disk`() {
 		createSourceFile("I.kt", "fun i() {}")

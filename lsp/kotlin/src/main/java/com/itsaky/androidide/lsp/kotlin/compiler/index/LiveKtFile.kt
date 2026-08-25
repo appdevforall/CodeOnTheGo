@@ -22,6 +22,23 @@ import java.nio.file.Path
 internal annotation class UnpinnedKtFileAccess
 
 /**
+ * Marks the resolution-side door: what the Analysis API service providers answer "what PSI is at this
+ * path" with.
+ *
+ * For an open path it hands back the live instance (the pinned one while a pin is held, otherwise
+ * whatever the current-file cache holds), so it is a reference that can be superseded. Analysing what
+ * it returns without a pin is exactly what ADFA-3322 did, and it makes FIR see every top-level
+ * declaration twice. Opting in is for service providers that only need to name the PSI for a path;
+ * anything that analyses must use [KtSymbolIndex.withLiveKtFile].
+ */
+@RequiresOptIn(
+	level = RequiresOptIn.Level.ERROR,
+	message = "Resolution-side KtFile access. Use KtSymbolIndex.withLiveKtFile for anything that analyses.",
+)
+@Retention(AnnotationRetention.BINARY)
+internal annotation class ResolutionSideKtFileAccess
+
+/**
  * A [KtFile] pinned to its path for the lifetime of the scope that produced it.
  *
  * Every door into the index - the analysis root here, and `getKtFile` as used by the Analysis API
