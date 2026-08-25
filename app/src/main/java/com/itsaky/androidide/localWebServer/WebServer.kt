@@ -108,6 +108,9 @@ internal fun joinChunks(chunks: List<ByteArray>): ByteArray {
 
 class WebServer(
 	private val config: ServerConfig,
+	// Seam for the accept-retry tests, which drive thousands of simulated failures and must not
+	// actually sleep for them. Production always gets Thread.sleep.
+	internal val sleepMs: (Long) -> Unit = { Thread.sleep(it) },
 ) {
 	// Guards serverSocket's creation/bind (in start(), on a background thread) against a
 	// concurrent close (in stop(), typically from the main thread on Activity#onDestroy()).
@@ -119,6 +122,12 @@ class WebServer(
 
 	// @Volatile: written under lifecycleLock by stop(), but read by the accept loop without it --
 	// see acceptLoop, which has to see a stop that happened on another thread.
+	//
+	// Never cleared, deliberately: a stop that arrives before the socket is bound has to keep
+	// start() from binding an orphaned listener, so this is one-way and a stopped instance is
+	// finished. Restarting means a new WebServer, which is what MainActivity.startWebServer does
+	// -- it constructs one per start. stop() then start() on the same instance is not a recovery
+	// path and never was.
 	@Volatile
 	private var stopRequested = false
 	private lateinit var serverSocket: ServerSocket
@@ -165,14 +174,16 @@ class WebServer(
 
 	// Long enough to stop a descriptor-exhaustion spin starving the connections whose closing would
 	// fix it; short enough to be invisible to a user, and never paid on a successful accept.
-	private val failedAcceptBackoffMs = 50L
+	private val initialAcceptBackoffMs = 50L
 
-	// A backoff alone does not bound anything: 50 ms between attempts is 20 log lines a second, for
-	// as long as the failure lasts, which on a 5 MiB logcat buffer is every other diagnostic on the
-	// device gone within the hour. After this many consecutive failures the loop gives up, having
-	// said so once -- a listener that cannot accept is not serving anyway, and stop()/start() is the
-	// recovery. Reset by any successful accept.
-	private val maxConsecutiveAcceptFailures = 20
+	// Doubling from 50 ms, the interval reaches this in eight failures, so a failure that persists
+	// costs well under a line a second instead of twenty. That is what bounds the log volume; an
+	// earlier version capped the retries instead and gave up after twenty, which closed the listener
+	// and the database and left documentation dead for the rest of the process -- the ADFA-5242
+	// symptom, delayed by a second. A listener that cannot accept now keeps trying: the descriptor
+	// pressure that causes this comes from the rest of the process (Gradle, Termux, the editor) and
+	// clears on its own timescale, not ours.
+	private val maxAcceptBackoffMs = 2_000L
 
 	private val httpInternalServerError = 500
 	private val httpNotFound = 404
@@ -382,12 +393,16 @@ class WebServer(
 	 * loop needs neither. The bug it fixes was invisible precisely because nothing could reach here.
 	 */
 	internal fun acceptLoop(socket: ServerSocket) {
-		var consecutiveFailures = 0
+		// 0 means the last accept() succeeded; any other value is the interval the next retry waits.
+		var backoffMs = 0L
 		while (true) {
 			val client =
 				try {
 					if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", socket)
-					socket.accept().also { consecutiveFailures = 0 }
+					socket.accept().also {
+						backoffMs = 0L
+						if (debugEnabled) log.debug("Returned from accept(), clientSocket is {}.", it)
+					}
 				} catch (e: IOException) {
 					// IOException, not SocketException: accept() is declared to throw the wider type, and
 					// "Too many open files" arrives as a bare IOException. Catching only the subtype let
@@ -399,20 +414,37 @@ class WebServer(
 						if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
 						break
 					}
-					if (++consecutiveFailures >= maxConsecutiveAcceptFailures) {
-						log.error(
-							"Accept() failed {} times in a row; giving up on this listener.",
-							consecutiveFailures,
-							e,
-						)
+
+					val previous = backoffMs
+					backoffMs =
+						if (previous == 0L) {
+							initialAcceptBackoffMs
+						} else {
+							minOf(previous * 2, maxAcceptBackoffMs)
+						}
+					// The stack trace goes out once per burst, on the first failure. Repeats say only
+					// that it is still failing, and only when the interval changes: nineteen identical
+					// traces told nobody anything the first one had not.
+					if (previous == 0L) {
+						log.error("Accept() failed, retrying in {} ms: {}", backoffMs, e.message, e)
+					} else if (backoffMs != previous) {
+						log.error("Accept() still failing, backing off to {} ms: {}", backoffMs, e.message)
+					}
+
+					if (!pauseAfterFailedAccept(backoffMs)) {
+						log.info("Accept loop interrupted while backing off; shutting down.")
 						break
 					}
-					log.error("Accept() failed: {}", e.message, e)
-					pauseAfterFailedAccept()
 					continue
 				}
 
-			serveThenClose(client)
+			// A client cannot be allowed to end the loop: anything escaping here reaches start()'s
+			// handler, whose finally closes the listener and the database for everyone.
+			try {
+				serveThenClose(client)
+			} catch (e: Exception) {
+				log.error("Serving a client threw past its own handler; the listener stays up: {}", e.message, e)
+			}
 		}
 	}
 
@@ -423,7 +455,15 @@ class WebServer(
 		} catch (e: Exception) {
 			reportClientFailure(client, e)
 		} finally {
-			client.close()
+			// close() is declared to throw, and a client that reset mid-response makes it do so. That
+			// exception used to leave this function -- from a finally, so it replaced any in-flight one
+			// -- and unwound past the accept loop into start(), taking the listener and the database
+			// down with it. "Whatever happened" includes this.
+			try {
+				client.close()
+			} catch (e: IOException) {
+				if (debugEnabled) log.debug("Cannot close the client socket; it is being discarded anyway.", e)
+			}
 			if (debugEnabled) log.debug("clientSocket was {}.", client)
 		}
 	}
@@ -516,28 +556,37 @@ class WebServer(
 	 * failure as terminal stops serving documentation until the app restarts, and treating the close
 	 * as transient spins the loop against a dead socket.
 	 *
-	 * Decided from state, not from the exception's message: [ServerSocket.close] sets the closed flag
-	 * before accept() unblocks, and [stopRequested] records a stop that arrived before the socket was
-	 * even bound. Matching the message instead -- as this used to -- would spin forever against a
-	 * platform that worded a closed socket differently, never exiting the thread, so start()'s finally
-	 * would never close the database or free the port.
+	 * Decided from state, not from the exception's message, which would spin forever against a
+	 * platform that worded a closed socket differently. [stopRequested] is what carries the decision:
+	 * libcore's [ServerSocket.close] calls `impl.close()` *before* setting its closed flag, so
+	 * accept() can unblock while [ServerSocket.isClosed] is still false, and [stop] sets
+	 * [stopRequested] before closing for exactly that reason. `isClosed` is the belt to that braces
+	 * -- it also covers a close that did not come through [stop] at all.
 	 */
 	internal fun shouldStopAccepting(socket: ServerSocket): Boolean = stopRequested || socket.isClosed
 
 	/**
-	 * Brief pause after an accept failure that is not the socket closing, so a *persistent* failure
-	 * cannot spin this loop at full tilt while it clears. "Too many open files" is the realistic one,
-	 * and it is self-inflicted in the worst way: the descriptors this server is waiting to reuse are
-	 * the ones its own in-flight connections hold, so retrying flat out both floods the log and
-	 * competes with the work that would free them. Only the failure path ever waits.
+	 * Waits [delayMs] before the next accept() attempt, so a persistent failure cannot spin this loop
+	 * at full tilt while it clears. Only the failure path ever waits.
+	 *
+	 * "Too many open files" is the realistic cause, and it is not this server's own doing:
+	 * [handleClient] runs inline on this thread, so exactly one client socket is ever open and the
+	 * listener holds two descriptors in total. The pressure comes from the rest of the process --
+	 * Gradle, Termux, the editor -- and clears on its timescale, which is why the interval escalates
+	 * rather than the retries running out.
+	 *
+	 * Returns false if the wait was interrupted, which the caller must treat as shutdown: re-arming
+	 * the flag and carrying on made every later sleep throw at once, turning the backoff into a hot
+	 * spin -- the opposite of its purpose.
 	 */
-	private fun pauseAfterFailedAccept() {
+	private fun pauseAfterFailedAccept(delayMs: Long): Boolean =
 		try {
-			Thread.sleep(failedAcceptBackoffMs)
+			sleepMs(delayMs)
+			true
 		} catch (e: InterruptedException) {
 			Thread.currentThread().interrupt()
+			false
 		}
-	}
 
 	/**
 	 * Reads a single line from the stream (bytes until newline). Same stream is used for headers
