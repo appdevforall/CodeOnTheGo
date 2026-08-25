@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.java.refactor
 
+import com.itsaky.androidide.lsp.refactor.RewriteSpan
 import jdkx.tools.JavaFileManager
 import jdkx.tools.JavaFileObject
 import jdkx.tools.SimpleJavaFileObject

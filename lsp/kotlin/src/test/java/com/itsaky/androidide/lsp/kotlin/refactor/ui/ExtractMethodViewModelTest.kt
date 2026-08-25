@@ -5,7 +5,7 @@ import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractMethodCandidate
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractMethodPlan
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractedBody
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.MethodParameter
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.TextSpan
 import com.itsaky.androidide.lsp.ui.NameProblem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

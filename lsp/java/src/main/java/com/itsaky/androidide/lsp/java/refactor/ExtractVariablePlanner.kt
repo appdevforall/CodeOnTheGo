@@ -1,6 +1,13 @@
 package com.itsaky.androidide.lsp.java.refactor
 
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
+import com.itsaky.androidide.lsp.refactor.BlockPlacement
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.anchorOf
+import com.itsaky.androidide.lsp.refactor.blockPlacementFor
+import com.itsaky.androidide.lsp.refactor.detectIndentUnit
+import com.itsaky.androidide.lsp.refactor.excludeUnsoundOccurrences
+import com.itsaky.androidide.lsp.refactor.servableOccurrences
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.ExecutableElement
@@ -169,7 +176,7 @@ private fun scopeOptionFor(
 	val anchorForm =
 		when (val form = frame.anchorForm) {
 			is AnchorForm.ExistingBlock -> {
-				if (blockPlacementFor(fileText, form, span) is BlockPlacement.Refused) return null
+				if (blockPlacementFor(fileText, form.block, span) is BlockPlacement.Refused) return null
 				form
 			}
 
@@ -187,7 +194,8 @@ private fun scopeOptionFor(
 	val writes = writeOffsetsFor(candidateElements, frame, scopePath, root, positions, trees)
 	if (hoistSkipsWrite(candidatePath, span, frame, anchorForm, root, positions, writes)) return null
 	val sound = excludeUnsoundOccurrences(matches, span, writes)
-	val occurrences = servableOccurrences(fileText, anchorForm, sound, span)
+	val occurrences =
+		servableOccurrences(fileText, (anchorForm as? AnchorForm.ExistingBlock)?.block, sound, span)
 
 	return ScopeOption(label = frame.label, anchorForm = anchorForm, occurrences = occurrences)
 }
@@ -215,7 +223,7 @@ private fun hoistSkipsWrite(
 	if (writes.isEmpty()) return false
 
 	if (anchorForm is AnchorForm.ExistingBlock) {
-		val anchor = anchorOf(anchorForm, span)
+		val anchor = anchorOf(anchorForm.block, span)
 		if (anchor != null && writes.any { it in anchor.start until span.start }) return true
 	}
 

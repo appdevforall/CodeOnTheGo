@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
 import android.content.Context
+import com.itsaky.androidide.lsp.refactor.TextSpan
 import com.itsaky.androidide.lsp.ui.CandidateView
 import com.itsaky.androidide.lsp.ui.ExtractVariableSelection
 import com.itsaky.androidide.lsp.ui.NameMessages

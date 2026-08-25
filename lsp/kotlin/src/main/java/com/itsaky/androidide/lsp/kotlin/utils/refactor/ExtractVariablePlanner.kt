@@ -6,6 +6,11 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.renderName
+import com.itsaky.androidide.lsp.refactor.BlockPlacement
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.blockPlacementFor
+import com.itsaky.androidide.lsp.refactor.excludeUnsoundOccurrences
+import com.itsaky.androidide.lsp.refactor.servableOccurrences
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
@@ -120,7 +125,7 @@ private fun KaSession.scopeOptionFor(
 				 * tested here; servableOccurrences is what makes the first served target placeable when
 				 * replace-all is on.
 				 */
-				if (blockPlacementFor(fileText, form, span) is BlockPlacement.Refused) return null
+				if (blockPlacementFor(fileText, form.block, span) is BlockPlacement.Refused) return null
 				form
 			}
 
@@ -136,7 +141,8 @@ private fun KaSession.scopeOptionFor(
 	val matches = findOccurrences(expression, frame.scopeElement, frame.searchRange)
 	val writes = writeOffsetsFor(expression, frame.scopeElement)
 	val sound = excludeUnsoundOccurrences(matches, span, writes)
-	val occurrences = servableOccurrences(fileText, anchorForm, sound, span)
+	val occurrences =
+		servableOccurrences(fileText, (anchorForm as? AnchorForm.ExistingBlock)?.block, sound, span)
 
 	return ScopeOption(label = frame.label, anchorForm = anchorForm, occurrences = occurrences)
 }

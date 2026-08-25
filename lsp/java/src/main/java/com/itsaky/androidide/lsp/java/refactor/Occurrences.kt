@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.java.refactor
 
+import com.itsaky.androidide.lsp.refactor.TextSpan
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.Modifier

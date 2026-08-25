@@ -1,46 +1,20 @@
 package com.itsaky.androidide.lsp.java.refactor
 
 import androidx.annotation.StringRes
-
-/** How many candidate expressions are ever offered. Keeps the chooser scannable on a phone. */
-const val MAX_CANDIDATES = 3
-
-/** Used when neither the expression's shape nor its type suggests anything better. */
-const val FALLBACK_NAME = "value"
-
-/** A half-open offset range `[start, end)` into the analysed file's text. */
-data class TextSpan(
-	val start: Int,
-	val end: Int,
-) {
-	init {
-		require(start <= end) { "start=$start > end=$end" }
-	}
-
-	val length: Int get() = end - start
-
-	fun overlaps(other: TextSpan): Boolean = start < other.end && other.start < end
-}
+import com.itsaky.androidide.lsp.refactor.BlockAnchor
+import com.itsaky.androidide.lsp.refactor.BracelessBody
+import com.itsaky.androidide.lsp.refactor.TextSpan
 
 /** Not every Java scope is a block: a lambda and a `->` switch rule can have an expression body. */
 sealed interface AnchorForm {
-	/**
-	 * The anchor point is the first of [statementSpans] containing the first served occurrence, which is
-	 * what makes an outer rung differ from an inner one -- anchoring on the occurrence's own line would
-	 * make every rung of a chain produce the same edit. [contentSpan] is the region inside the braces,
-	 * which is what tells a one-line block from a multi-line one.
-	 */
+	/** A scope that already has braces, described by [BlockAnchor]. */
 	data class ExistingBlock(
-		val contentSpan: TextSpan,
-		val statementSpans: List<TextSpan>,
+		val block: BlockAnchor,
 	) : AnchorForm
 
 	/** A braceless position: `if (c) foo();`, a braceless loop body, a single-statement switch rule. */
 	data class WrapInBraces(
-		val bodyStart: Int,
-		val bodyEnd: Int,
-		val indent: String,
-		val innerIndent: String,
+		val body: BracelessBody,
 	) : AnchorForm
 
 	/**

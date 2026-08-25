@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.java.refactor
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import com.itsaky.androidide.lsp.refactor.RewriteSpan
 import com.itsaky.androidide.resources.R
 import org.junit.After
 import org.junit.Test

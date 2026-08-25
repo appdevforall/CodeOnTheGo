@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.lsp.refactor.detectIndentUnit
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4

@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
+import com.itsaky.androidide.lsp.refactor.MAX_CANDIDATES
+import com.itsaky.androidide.lsp.refactor.TextSpan
 import jdkx.lang.model.element.ElementKind
 import openjdk.source.tree.AnnotatedTypeTree
 import openjdk.source.tree.AnnotationTree

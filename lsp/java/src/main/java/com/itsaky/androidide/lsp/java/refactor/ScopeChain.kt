@@ -1,5 +1,10 @@
 package com.itsaky.androidide.lsp.java.refactor
 
+import com.itsaky.androidide.lsp.refactor.BlockAnchor
+import com.itsaky.androidide.lsp.refactor.BracelessBody
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.leadingIndentAt
+
 import androidx.annotation.StringRes
 import com.itsaky.androidide.resources.R
 import openjdk.source.tree.BlockTree
@@ -109,8 +114,10 @@ private fun frameFor(
 			searchRange = blockSpan,
 			anchorForm =
 				AnchorForm.ExistingBlock(
-					contentSpan = contentSpanOf(blockSpan, fileText) ?: return null,
-					statementSpans = parent.statements.mapNotNull { spanOf(root, positions, it) },
+					BlockAnchor(
+						contentSpan = contentSpanOf(blockSpan, fileText) ?: return null,
+						statementSpans = parent.statements.mapNotNull { spanOf(root, positions, it) },
+					),
 				),
 		)
 	}
@@ -159,10 +166,12 @@ private fun bracelessFrame(
 		searchRange = innerSpan,
 		anchorForm =
 			AnchorForm.WrapInBraces(
-				bodyStart = innerSpan.start,
-				bodyEnd = innerSpan.end,
-				indent = indent,
-				innerIndent = indent + indentUnit,
+				BracelessBody(
+					bodyStart = innerSpan.start,
+					bodyEnd = innerSpan.end,
+					indent = indent,
+					innerIndent = indent + indentUnit,
+				),
 			),
 	)
 }

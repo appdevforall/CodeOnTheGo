@@ -12,11 +12,11 @@ import com.itsaky.androidide.lsp.java.refactor.buildExtractVariableRewrite
 import com.itsaky.androidide.lsp.java.refactor.buildExtractionPlan
 import com.itsaky.androidide.lsp.java.refactor.candidateAndScopeFor
 import com.itsaky.androidide.lsp.java.refactor.toCandidateViews
-import com.itsaky.androidide.lsp.java.refactor.toTextEdit
 import com.itsaky.androidide.lsp.models.CodeActionItem
 import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
+import com.itsaky.androidide.lsp.refactor.toTextEdit
 import com.itsaky.androidide.lsp.ui.ExtractVariableSelection
 import com.itsaky.androidide.lsp.ui.ExtractVariableSheet
 import com.itsaky.androidide.lsp.ui.findFragmentActivity

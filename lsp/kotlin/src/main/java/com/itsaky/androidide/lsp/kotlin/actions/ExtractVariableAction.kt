@@ -15,11 +15,11 @@ import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionPlan
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.HARD_KEYWORDS
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractVariableRewrite
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractionPlan
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.toTextEdit
 import com.itsaky.androidide.lsp.models.CodeActionItem
 import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
+import com.itsaky.androidide.lsp.refactor.toTextEdit
 import com.itsaky.androidide.lsp.ui.ExtractVariableSelection
 import com.itsaky.androidide.lsp.ui.ExtractVariableSheet
 import com.itsaky.androidide.lsp.ui.findFragmentActivity

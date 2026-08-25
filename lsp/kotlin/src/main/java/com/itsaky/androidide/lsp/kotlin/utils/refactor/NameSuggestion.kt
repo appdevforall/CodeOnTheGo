@@ -1,5 +1,9 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.FALLBACK_NAME
+import com.itsaky.androidide.lsp.refactor.nameFromType
+import com.itsaky.androidide.lsp.refactor.stripAccessorPrefix
+import com.itsaky.androidide.lsp.refactor.uniqueName
 import com.itsaky.androidide.lsp.ui.isIdentifier
 import org.jetbrains.kotlin.psi.KtArrayAccessExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
@@ -8,9 +12,6 @@ import org.jetbrains.kotlin.psi.KtNameReferenceExpression
 import org.jetbrains.kotlin.psi.KtParenthesizedExpression
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
-
-/** Used when neither the expression's shape nor its type suggests anything better. */
-const val FALLBACK_NAME = "value"
 
 /**
  * Kotlin's hard keywords -- the ones that are never valid identifiers. Soft and modifier keywords
@@ -85,40 +86,3 @@ private fun nameFromShape(expression: KtExpression): String? =
 		is KtArrayAccessExpression -> expression.arrayExpression?.let(::nameFromShape)
 		else -> null
 	}?.takeIf { it.isNotBlank() }
-
-/** `getFoo` -> `foo`, `isReady` -> `ready`. Leaves anything else alone. */
-private fun stripAccessorPrefix(name: String): String {
-	for (prefix in ACCESSOR_PREFIXES) {
-		if (name.length > prefix.length &&
-			name.startsWith(prefix) &&
-			name[prefix.length].isUpperCase()
-		) {
-			return name.substring(prefix.length).decapitaliseFirst()
-		}
-	}
-	return name
-}
-
-private val ACCESSOR_PREFIXES = listOf("get", "is", "has")
-
-/** `List<Foo>` -> `list`, `kotlin.time.Duration` -> `duration`, `Array<String>` -> `array`. */
-private fun nameFromType(typeName: String): String? =
-	typeName
-		.substringBefore('<')
-		.substringAfterLast('.')
-		.trimEnd('?', '!')
-		.takeIf { it.isNotBlank() }
-		?.decapitaliseFirst()
-
-private fun String.decapitaliseFirst(): String = if (isEmpty()) this else this[0].lowercaseChar() + substring(1)
-
-/** `size` -> `size1` -> `size2` until nothing in [takenNames] matches. */
-internal fun uniqueName(
-	base: String,
-	takenNames: Set<String>,
-): String {
-	if (base !in takenNames) return base
-	var suffix = 1
-	while ("$base$suffix" in takenNames) suffix++
-	return "$base$suffix"
-}
