@@ -144,6 +144,15 @@ open class IDEEditor
 		private var actionsMenu: EditorActionsMenu? = null
 		private var _signatureHelpWindow: SignatureHelpWindow? = null
 		private var _diagnosticWindow: DiagnosticWindow? = null
+
+		/**
+		 * [documentChangeMutex] only serialises change dispatches against each other; the resets in
+		 * [release] and [dispatchDocumentOpenEvent] run outside it, so a reset can race an in-flight
+		 * [dispatchDocumentChangeEvent]'s `incrementAndGet()` and stamp a low version right after a
+		 * newly-opened file's counter is zeroed. This is tolerated: it is bounded (self-heals on the
+		 * next edit) and distinct from the same-document backwards-version bug this ticket fixes,
+		 * which `ActiveDocument.update` now guards regardless of how `fileVersion` got there.
+		 */
 		private val fileVersion = AtomicInteger(0)
 		private val documentChangeMutex = Mutex()
 		internal var isModified = false
