@@ -23,6 +23,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 import java.nio.file.FileSystemException
 import java.nio.file.Files
 
@@ -116,6 +117,11 @@ class PathTraversalTest {
 
 	@Test
 	fun `multi-segment path resolves and normalizes redundant separators`() {
+		// Actually redundant: a doubled separator and a "." segment, which the old input had neither
+		// of -- so the normalization this test is named for went unpinned.
+		assertThat(resolveWithinDirectory(baseDir, "app//src/./main/Main.kt"))
+			.isEqualTo(File("/project/root/app/src/main/Main.kt"))
+
 		val resolved = resolveWithinDirectory(baseDir, "app/src/main/Main.kt")
 		assertThat(resolved).isEqualTo(File("/project/root/app/src/main/Main.kt"))
 	}
@@ -159,5 +165,63 @@ class PathTraversalTest {
 		Assume.assumeTrue("Symlinks are not supported/permitted on this filesystem", symlinkCreated)
 
 		assertThat(resolveWithinDirectory(root, "evil/secret.txt")).isNull()
+	}
+
+	// A containment check must fail closed. Resolving the base used to happen once in the constructor,
+	// catching the IOException and nulling the field, which permanently downgraded every later
+	// resolve() to lexical containment alone -- weaker than the canonical-prefix check this class
+	// replaced, and silent about it.
+	@Test
+	fun `a base that cannot be resolved rejects everything`() {
+		val root = tempFolder.newFolder("unresolvable-root")
+		val base = File(root, "base").apply { mkdirs() }
+		val resolver = ContainedPathResolver(base)
+		assertThat(resolver.resolve("child.txt")).isNotNull()
+
+		// Make the base unresolvable by removing traverse permission on its parent, then check that
+		// this environment actually produced the failure -- as root, or on a filesystem that ignores
+		// the mode, it will not, and the test has nothing to assert.
+		root.setExecutable(false, false)
+		try {
+			val reallyUnresolvable =
+				try {
+					base.toPath().toRealPath()
+					false
+				} catch (_: IOException) {
+					true
+				}
+			Assume.assumeTrue("This environment still resolves a base under a non-traversable parent", reallyUnresolvable)
+
+			// Both the resolver built while the base was fine and a fresh one: the check is per call.
+			assertThat(resolver.resolve("child.txt")).isNull()
+			assertThat(ContainedPathResolver(base).resolve("child.txt")).isNull()
+		} finally {
+			root.setExecutable(true, false)
+		}
+	}
+
+	// Layer 3 is skipped only when the base is *confirmed* absent. Pinning the base at construction
+	// meant a resolver built before its directory existed -- which is exactly how the asset installer
+	// builds one -- skipped the symlink check forever, including for the tree extraction then created.
+	@Test
+	fun `a symlink planted after the resolver was built is still caught`() {
+		val root = tempFolder.newFolder("late-symlink")
+		val base = File(root, "base")
+		val resolver = ContainedPathResolver(base)
+
+		val outside = File(root, "outside").apply { mkdirs() }
+		File(outside, "secret.txt").writeText("secret")
+		base.mkdirs()
+		Files.createSymbolicLink(File(base, "link").toPath(), outside.toPath())
+
+		assertThat(resolver.resolve("link/secret.txt")).isNull()
+	}
+
+	// The narrowing this class deliberately makes over ZipUtils' old canonical-prefix check: an entry
+	// that normalizes back inside the base is still refused, because a ".." segment is refused before
+	// anything is resolved. Stated here so the behaviour change is pinned rather than incidental.
+	@Test
+	fun `a dot-dot segment is refused even when it normalizes back inside`() {
+		assertThat(resolveWithinDirectory(baseDir, "a/../b.txt")).isNull()
 	}
 }

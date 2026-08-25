@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.utils
 
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -25,14 +26,19 @@ import java.nio.file.LinkOption
 import java.nio.file.Path
 
 /**
- * Decides whether a relative path is safely inside a base directory -- the one containment
- * algorithm in the codebase, and the only place it should be implemented.
+ * Decides whether a relative path is safely inside a base directory.
  *
  * Built for attacker-controllable input: the `{filename}` segment of a deep-link URL, and the entry
  * names in a zip. It lives in `common` because it is plain `java.io`/`java.nio` with no Android
- * dependency, so both the app and this module's own [ZipUtils] can call it. Three near-copies used
- * to exist, each with a comment asking whoever fixed one to remember the other two; they had
- * already drifted apart on the `..` rule by the time this replaced them.
+ * dependency, so both the app and this module's own [ZipUtils] can call it. It replaces the copies
+ * in [ZipUtils] and `AssetsInstallationHelper`, which had already drifted apart on the `..` rule.
+ * Two hand-rolled containment checks remain unmigrated -- `ZipRecipeExecutor` and `PluginLoader`
+ * (ADFA-5266) -- so this is not yet the only implementation in the tree.
+ *
+ * A `..` segment is rejected outright, which is stricter than the canonical-prefix check [ZipUtils]
+ * used to apply: an entry like `a/../b.txt` normalizes back inside the base and used to extract, and
+ * now fails the archive. That is a deliberate narrowing, matching what the asset installer already
+ * enforced, and it fails loudly rather than silently.
  *
  * Three layers:
  * 1. A lexical reject of an empty string, a `..` *segment*, or a leading `/` or `\`. Per segment,
@@ -41,18 +47,19 @@ import java.nio.file.Path
  * 2. Resolve + normalize against the base and verify with [java.nio.file.Path.startsWith] (not
  *    string prefix matching, which would wrongly accept `/project` as inside `/project-evil`). This
  *    operates on Java's own resolved path, so it is not fooled by however `..` reached the string.
- * 3. Resolve the nearest *existing* ancestor of that path to its real, on-disk path via
+ * 3. Resolve the base and the nearest *existing* ancestor of that path to its real, on-disk path via
  *    [java.nio.file.Path.toRealPath] and re-verify containment -- layer 2 is purely lexical and
  *    will not catch a symlink already present inside the base (a project cloned with git, an
  *    installer directory reused across runs). Walking up to the nearest existing ancestor handles a
- *    path that does not exist yet. Skipped when the base itself does not exist: there is nothing on
- *    disk to symlink-escape through.
+ *    path that does not exist yet. Skipped only when the base is *confirmed* absent -- there is then
+ *    nothing on disk to symlink-escape through. A base that cannot be resolved is refused outright,
+ *    never quietly downgraded to layer 2.
  *
  * What this deliberately does *not* decide is what to do about an existing symlink *at the target*
- * whose destination is still inside the base. Callers disagree: unzipping leaves a user's own
- * `gradlew` symlink alone, the asset installer refuses to write through any symlink at all, and the
- * deep-link reader is content to follow one. That is policy, and it stays visible at each call site
- * rather than being buried here.
+ * whose destination is still inside the base. The two callers disagree -- unzipping leaves a user's
+ * own `gradlew` symlink alone, the asset installer refuses to write through any symlink -- so that
+ * check stays visible at each call site rather than being buried here. Each caller applies it
+ * *after* asking this class, so the check only ever sees a path already proven contained.
  *
  * Holds no state beyond the base directory, and verifies against the filesystem on every call --
  * see [resolve] for why it does not memoize what it has already proven.
@@ -60,15 +67,9 @@ import java.nio.file.Path
 class ContainedPathResolver(
 	baseDir: File,
 ) {
-	private val base: Path = baseDir.toPath().toAbsolutePath().normalize()
+	private val log = LoggerFactory.getLogger(ContainedPathResolver::class.java)
 
-	// Null when the base does not exist on disk, which makes layer 3 unnecessary.
-	private val realBase: Path? =
-		try {
-			if (Files.exists(base)) base.toRealPath() else null
-		} catch (_: IOException) {
-			null
-		}
+	private val base: Path = baseDir.toPath().toAbsolutePath().normalize()
 
 	/**
 	 * The resolved file [relativePath] names inside the base directory, or null when it is invalid
@@ -93,7 +94,30 @@ class ContainedPathResolver(
 				return null
 			}
 
-			val realBase = realBase ?: return resolved.toFile()
+			// Resolved per call, not once in a constructor. Two reasons, both of which bit this class:
+			// the asset installer builds its resolver *before* the directory exists, so a base pinned at
+			// construction stays null for the resolver's whole life and layer 3 never runs again even
+			// once extraction has created the tree; and notExists() is not !exists() -- both are false
+			// when the answer cannot be determined (a parent denying execute), and treating that as
+			// "absent, nothing to symlink through" is the same silent downgrade to lexical containment.
+			// Confirmed-absent skips layer 3; anything else must resolve or be refused.
+			val realBase =
+				try {
+					base.toRealPath()
+					// Fully qualified on purpose: Kotlin auto-imports kotlin.io.NoSuchFileException, which
+					// toRealPath() never throws, so catching that one would quietly disable this branch.
+				} catch (_: java.nio.file.NoSuchFileException) {
+					// Confirmed absent, so there is nothing on disk to symlink through and layer 3 has
+					// nothing to check. (A base that is itself a dangling symlink lands here too; a write
+					// under it fails at the write, and layer 2 still holds.) Distinguished from a failure
+					// this way rather than via a separate notExists() probe, which costs a second stat and
+					// answers "false" for both absent and undeterminable.
+					null
+				} catch (e: IOException) {
+					log.warn("Cannot resolve {} to a real path; refusing every path under it", base, e)
+					return null
+				}
+			realBase ?: return resolved.toFile()
 
 			var ancestor = resolved
 			// NOFOLLOW_LINKS: plain Files.exists() follows symlinks, so a *dangling* symlink (one
@@ -126,6 +150,10 @@ class ContainedPathResolver(
 /**
  * [ContainedPathResolver.resolve] for a single path, where there is nothing to reuse a resolver for.
  * Prefer the class when validating many paths against one base -- a zip's entries, say.
+ *
+ * Nothing in `common` calls this yet; the caller is the deep-link handler in the app module (#1651),
+ * which validates one `{filename}` per request. Kept here rather than landing with that PR so both
+ * entry points ship as one reviewed unit.
  */
 fun resolveWithinDirectory(
 	baseDir: File,

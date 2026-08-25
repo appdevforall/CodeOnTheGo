@@ -256,10 +256,10 @@ object AssetsInstallationHelper {
 	) = extractZipToDir(Files.newInputStream(srcFile), destDir)
 
 	/**
-	 * Containment is [ContainedPathResolver]'s, shared with `ZipUtils.unzipFile` and the deep-link
-	 * reader. It also carries the caching this loop used to do by hand: bootstrap archives cluster
-	 * thousands of entries under a handful of directories, and the resolver memoizes an ancestor once
-	 * it is proven contained.
+	 * Containment is [ContainedPathResolver]'s, shared with `ZipUtils.unzipFile`. It does *not*
+	 * memoize: the per-parent cache this loop used to keep was measured against a real 1.8 GB asset
+	 * installation and bought nothing (48.0s without it, 51.4s with), so every path is re-verified
+	 * against the filesystem rather than trusting an ancestor proven earlier.
 	 *
 	 * What stays local is the policy: this refuses to write through *any* existing symlink at an
 	 * entry's target, even one pointing inside destDir. An installer directory reused across runs is

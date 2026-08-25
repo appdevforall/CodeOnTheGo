@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.utils
 
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -24,10 +25,18 @@ import java.nio.file.InvalidPathException
 import java.util.zip.ZipFile
 
 object ZipUtils {
+	private val log = LoggerFactory.getLogger(ZipUtils::class.java)
+
 	/**
-	 * Extracts every entry of [zipFile] into [destDir], preserving directory structure, and
-	 * returns the list of extracted files. Rejects entries that would extract outside [destDir]
-	 * (zip-slip).
+	 * Extracts [zipFile] into [destDir], preserving directory structure, and returns the list of
+	 * files it wrote.
+	 *
+	 * Two kinds of entry do not appear in that list. An entry that would land outside [destDir]
+	 * (zip-slip) fails the whole call with an [IOException] -- containment is checked before
+	 * anything else, so a malicious entry cannot be quietly turned into a skip by the rule below.
+	 * An entry whose target is an existing symlink is skipped and extraction continues: the target
+	 * is already proven contained by then, and this keeps a user's own symlink (a `gradlew`, an SDK
+	 * link) from being overwritten by an archive.
 	 */
 	@JvmStatic
 	@Throws(IOException::class)
@@ -44,30 +53,31 @@ object ZipUtils {
 			while (entries.hasMoreElements()) {
 				val entry = entries.nextElement()
 
-				// Policy before containment, deliberately: a user's own symlink inside their project
-				// -- gradlew, or gradle/wrapper pointed at a shared location -- is legitimate, so the
-				// entry is skipped and the symlink left alone, where asking the resolver first would
-				// reject one pointing outside destDir and abort the whole archive. Reading a path's
-				// link status cannot itself escape.
-				// toPath() throws InvalidPathException for a name the platform cannot represent (an
-				// embedded NUL, say) -- an unchecked exception that would escape unzipFile's declared
-				// IOException contract before the resolver ever saw the entry.
-				val target =
+				// Containment first, then policy. The order used to be reversed, which meant
+				// Files.isSymbolicLink ran on an unnormalized File(destDir, entry.name): for an entry
+				// like ../../etc/x the kernel resolved the .. segments, the stat landed on a path
+				// outside destDir, and if that happened to be a symlink the entry was skipped -- a
+				// zip-slip attempt discarded quietly, where the same entry naming a regular file
+				// correctly threw. Resolving first means the link check only ever sees a path already
+				// proven to be inside destDir (ADFA-5257).
+				val outFile =
 					try {
-						File(destDir, entry.name).toPath()
+						contained.resolve(entry.name)
 					} catch (e: InvalidPathException) {
+						// A name the platform cannot represent (an embedded NUL). Unchecked, and it
+						// would otherwise escape this function's declared IOException contract.
 						throw IOException("Zip entry has an unusable path: ${entry.name}", e)
-					}
-				if (Files.isSymbolicLink(target)) {
+					} ?: throw IOException("Zip entry escapes the target directory: ${entry.name}")
+
+				// Policy, not containment: a user's own symlink inside their own project -- gradlew, or
+				// gradle/wrapper pointed at a shared location -- is legitimate, so the entry is skipped
+				// and their symlink left alone rather than written through. Logged, because the caller
+				// is told the archive extracted and would otherwise have no way to know an entry did
+				// not.
+				if (Files.isSymbolicLink(outFile.toPath())) {
+					log.info("Leaving the existing symlink at {} alone; that zip entry was not extracted", outFile)
 					continue
 				}
-
-				// Containment is ContainedPathResolver's, shared with the asset installer: a canonical
-				// path prefix alone accepted a "..", and could not tell a symlinked ancestor from a
-				// real directory (ADFA-5257).
-				val outFile =
-					contained.resolve(entry.name)
-						?: throw IOException("Zip entry escapes the target directory: ${entry.name}")
 
 				if (entry.isDirectory) {
 					outFile.mkdirs()

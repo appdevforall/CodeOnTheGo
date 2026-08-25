@@ -124,8 +124,8 @@ class ExtractZipToDirMergeTest {
 	}
 
 	// The lexical guard used to be a bare substring reject, so an entry legitimately named with
-	// consecutive dots aborted the whole installation. Sharing ContainedPathResolver with ZipUtils
-	// and the deep-link reader brought the per-segment rule here too.
+	// consecutive dots aborted the whole installation. The shared resolver rejects a ".." *segment*
+	// instead, which lets a name like this through.
 	@Test
 	fun `extracts an entry whose name merely contains a double dot`() {
 		val destDir = Files.createTempDirectory("assets-dots")
@@ -138,7 +138,7 @@ class ExtractZipToDirMergeTest {
 			assertEquals("kept", destDir.resolve("lib/notes..txt").toFile().readText())
 			assertEquals("also kept", destDir.resolve("lib/a..b/c.txt").toFile().readText())
 		} finally {
-			destDir.toFile().deleteRecursively()
+			destDir.deleteRecursivelyWithoutFollowingLinks()
 		}
 	}
 
