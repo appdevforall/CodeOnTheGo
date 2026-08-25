@@ -11,6 +11,7 @@ import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.api.ILanguageClient
+import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.diagnostic.DiagnosticAction
 import com.itsaky.androidide.lsp.kotlin.utils.NullSafetyKind
 import com.itsaky.androidide.lsp.kotlin.utils.NullSafetyVariant
@@ -25,6 +26,7 @@ import com.itsaky.androidide.utils.applyLongPressRecursively
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.nio.file.Path
 
 /**
  * Offers null-safety quick fixes on an UNSAFE_CALL diagnostic (`receiver.selector` where `receiver`
@@ -68,23 +70,45 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 
 			// Off the main thread: acquiring the pin resolves the file first, which can block on a refresh.
 			withContext(Dispatchers.IO) {
-				extra.compilationEnv.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
-					live.read { ktFile ->
-						val qe =
-							findNullableMemberAccess(
-								ktFile,
-								diagnostic.range.start.requireIndex(),
-								diagnostic.range.end.requireIndex(),
-							) ?: return@read emptyList()
-						nullSafetyVariants(qe)
-					}
-				} ?: emptyList()
+				computeNullSafetyVariants(
+					extra.compilationEnv,
+					nioPath,
+					diagnostic.range.start.requireIndex(),
+					diagnostic.range.end.requireIndex(),
+				)
 			}
 		}.getOrElse { e ->
 			if (e is CancellationException) throw e
 			logger.warn("Failed to compute null-safety fixes", e)
 			emptyList()
 		}
+
+	/**
+	 * The null-safety rewrites for the nullable member access spanning [startOffset] to [endOffset].
+	 *
+	 * Blocking: pinning the file resolves it first, so callers must stay off the main thread
+	 * ([execAction] wraps it in [Dispatchers.IO]). Returns an empty list when the span names no
+	 * nullable access, and when the pinned text is behind the buffer.
+	 */
+	internal fun computeNullSafetyVariants(
+		env: AbstractCompilationEnvironment,
+		nioPath: Path,
+		startOffset: Int,
+		endOffset: Int,
+	): List<NullSafetyVariant> =
+		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+			if (live.isStale) {
+				// Joining another feature's scope hands over text older than the buffer, and these variants
+				// carry raw PSI offsets that nothing downstream re-checks against the document.
+				logger.debug("skipping null-safety fixes for {}: pinned text is behind the buffer", nioPath)
+				return@withLiveKtFile emptyList()
+			}
+
+			live.read { ktFile ->
+				val qe = findNullableMemberAccess(ktFile, startOffset, endOffset) ?: return@read emptyList()
+				nullSafetyVariants(qe)
+			}
+		} ?: emptyList()
 
 	override fun postExec(
 		data: ActionData,
