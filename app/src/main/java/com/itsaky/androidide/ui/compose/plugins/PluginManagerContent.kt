@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Parcelable
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,7 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,7 +41,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
-import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.plugins.PluginMetadata
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
@@ -52,30 +52,47 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.showOnUiThread
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
+import kotlinx.parcelize.Parcelize
 import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger("PluginManagerContent")
 
-private sealed interface PluginManagerDialogState {
+/**
+ * Keyed on the plugin's id rather than holding a [com.itsaky.androidide.plugins.PluginInfo]
+ * directly: `PluginInfo` isn't Parcelable, so an id is what makes this `rememberSaveable`-able
+ * across rotation/tab-switch (`HorizontalPager` disposes the off-screen page's state) without
+ * changing `plugin-api`'s public API surface. Resolved back to the live `PluginInfo` from
+ * [com.itsaky.androidide.ui.models.PluginManagerUiState.plugins] at the point of use; an id with
+ * no match (e.g. the plugin was uninstalled elsewhere) is treated as "nothing to show" rather than
+ * rendered with stale data. [PluginMetadata] (already Parcelable) is kept inline for
+ * [OverwriteConfirm.incomingMetadata], which describes a plugin not yet installed and so has no id
+ * to look up.
+ */
+private sealed interface PluginManagerDialogState : Parcelable {
+	@Parcelize
 	data object None : PluginManagerDialogState
 
+	@Parcelize
 	data class InstallConfirm(
 		val uri: Uri,
 	) : PluginManagerDialogState
 
+	@Parcelize
 	data class OverwriteConfirm(
-		val existing: PluginInfo,
+		val existingId: String,
 		val incomingMetadata: PluginMetadata,
 		val uri: Uri,
 		val deleteSourceAfterInstall: Boolean,
 	) : PluginManagerDialogState
 
+	@Parcelize
 	data class UninstallConfirm(
-		val plugin: PluginInfo,
+		val pluginId: String,
 	) : PluginManagerDialogState
 
+	@Parcelize
 	data class Details(
-		val plugin: PluginInfo,
+		val pluginId: String,
 	) : PluginManagerDialogState
 }
 
@@ -102,7 +119,7 @@ fun PluginManagerContent(
 	modifier: Modifier = Modifier,
 ) {
 	val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-	var dialogState by remember { mutableStateOf<PluginManagerDialogState>(PluginManagerDialogState.None) }
+	var dialogState by rememberSaveable { mutableStateOf<PluginManagerDialogState>(PluginManagerDialogState.None) }
 	val rootView = LocalView.current
 	val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -154,18 +171,20 @@ fun PluginManagerContent(
 					}
 
 					is PluginManagerUiEffect.ShowPluginDetails -> {
-						dialogState = PluginManagerDialogState.Details(effect.plugin)
+						dialogState = PluginManagerDialogState.Details(effect.plugin.metadata.id)
 					}
 
 					is PluginManagerUiEffect.OpenFilePicker -> {
 						try {
 							// SAF filters by MIME type, not extension, and .cgp has no registered MIME
-							// type. "application/octet-stream" is what document providers report for
-							// files with an unrecognized extension, so this hides files with a known
-							// type (images, zips, apks, ...) without excluding .cgp files. The
-							// FileSelected event still validates the actual pick, since this is an
-							// approximation.
-							filePickerLauncher.launch(arrayOf("application/octet-stream"))
+							// type. Document providers report unrecognized extensions as
+							// "application/octet-stream", but a .cgp is a zip, and some providers (and
+							// most cloud providers' own mappings) report "application/zip" instead - an
+							// octet-stream-only filter hides those with no way to reach them. "*/*"
+							// keeps every provider's mapping reachable; SAF still honors this ordering
+							// for the initial filter. The FileSelected event still validates the actual
+							// pick, since this is only an approximation.
+							filePickerLauncher.launch(arrayOf("application/octet-stream", "application/zip", "*/*"))
 						} catch (e: ActivityNotFoundException) {
 							log.warn("No document provider available for the plugin file picker", e)
 							activity.flashError(activity.getString(R.string.msg_no_file_manager))
@@ -177,7 +196,7 @@ fun PluginManagerContent(
 					}
 
 					is PluginManagerUiEffect.ShowUninstallConfirmation -> {
-						dialogState = PluginManagerDialogState.UninstallConfirm(effect.plugin)
+						dialogState = PluginManagerDialogState.UninstallConfirm(effect.plugin.metadata.id)
 					}
 
 					is PluginManagerUiEffect.ShowRestartPrompt -> {
@@ -187,7 +206,7 @@ fun PluginManagerContent(
 					is PluginManagerUiEffect.ShowOverwriteConfirmation -> {
 						dialogState =
 							PluginManagerDialogState.OverwriteConfirm(
-								existing = effect.existing,
+								existingId = effect.existing.metadata.id,
 								incomingMetadata = effect.incomingMetadata,
 								uri = effect.uri,
 								deleteSourceAfterInstall = effect.deleteSourceAfterInstall,
@@ -237,33 +256,42 @@ fun PluginManagerContent(
 		}
 
 		is PluginManagerDialogState.OverwriteConfirm -> {
-			OverwriteConfirmationDialog(
-				existing = dialog.existing,
-				incomingMetadata = dialog.incomingMetadata,
-				onConfirm = {
-					viewModel.onEvent(PluginManagerUiEvent.ConfirmOverwrite(dialog.uri, dialog.deleteSourceAfterInstall))
-					dialogState = PluginManagerDialogState.None
-				},
-				onDismiss = { dialogState = PluginManagerDialogState.None },
-			)
+			val existing = uiState.plugins.firstOrNull { it.metadata.id == dialog.existingId }
+			if (existing != null) {
+				OverwriteConfirmationDialog(
+					existing = existing,
+					incomingMetadata = dialog.incomingMetadata,
+					onConfirm = {
+						viewModel.onEvent(PluginManagerUiEvent.ConfirmOverwrite(dialog.uri, dialog.deleteSourceAfterInstall))
+						dialogState = PluginManagerDialogState.None
+					},
+					onDismiss = { dialogState = PluginManagerDialogState.None },
+				)
+			}
 		}
 
 		is PluginManagerDialogState.UninstallConfirm -> {
-			UninstallConfirmationDialog(
-				plugin = dialog.plugin,
-				onConfirm = {
-					viewModel.confirmUninstallPlugin(dialog.plugin.metadata.id)
-					dialogState = PluginManagerDialogState.None
-				},
-				onDismiss = { dialogState = PluginManagerDialogState.None },
-			)
+			val plugin = uiState.plugins.firstOrNull { it.metadata.id == dialog.pluginId }
+			if (plugin != null) {
+				UninstallConfirmationDialog(
+					plugin = plugin,
+					onConfirm = {
+						viewModel.confirmUninstallPlugin(plugin.metadata.id)
+						dialogState = PluginManagerDialogState.None
+					},
+					onDismiss = { dialogState = PluginManagerDialogState.None },
+				)
+			}
 		}
 
 		is PluginManagerDialogState.Details -> {
-			PluginDetailsDialog(
-				plugin = dialog.plugin,
-				onDismiss = { dialogState = PluginManagerDialogState.None },
-			)
+			val plugin = uiState.plugins.firstOrNull { it.metadata.id == dialog.pluginId }
+			if (plugin != null) {
+				PluginDetailsDialog(
+					plugin = plugin,
+					onDismiss = { dialogState = PluginManagerDialogState.None },
+				)
+			}
 		}
 	}
 }

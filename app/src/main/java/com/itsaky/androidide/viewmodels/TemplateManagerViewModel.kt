@@ -72,14 +72,19 @@ class TemplateManagerViewModel(
 
 	private fun installTemplate(item: CgtFileItem) {
 		viewModelScope.launch {
+			_uiState.update { it.copy(isLoading = true) }
 			templateRepository
 				.installTemplate(item)
 				.onSuccess {
 					Log.d(TAG, "Template installed successfully: ${item.name}")
 					_uiEffect.send(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_installed))
+					// loadTemplates() clears isLoading once the post-install rescan completes, so the
+					// indicator stays up continuously across both phases instead of flickering off
+					// between them.
 					loadTemplates()
 				}.onFailure { exception ->
 					Log.e(TAG, "Failed to install template: ${item.name}", exception)
+					_uiState.update { it.copy(isLoading = false) }
 					_uiEffect.send(
 						TemplateManagerUiEffect.ShowError(
 							R.string.msg_template_install_failed,
@@ -92,6 +97,7 @@ class TemplateManagerViewModel(
 
 	private fun uninstallTemplate(item: CgtFileItem) {
 		viewModelScope.launch {
+			_uiState.update { it.copy(isLoading = true) }
 			templateRepository
 				.uninstallTemplate(item)
 				.onSuccess {
@@ -100,6 +106,7 @@ class TemplateManagerViewModel(
 					loadTemplates()
 				}.onFailure { exception ->
 					Log.e(TAG, "Failed to uninstall template: ${item.name}", exception)
+					_uiState.update { it.copy(isLoading = false) }
 					_uiEffect.send(
 						TemplateManagerUiEffect.ShowError(
 							R.string.msg_template_uninstall_failed,
@@ -119,6 +126,7 @@ class TemplateManagerViewModel(
 	/** Deletes a not-installed template's Downloads file (called after confirmation). */
 	fun confirmDeleteDownloadFile(item: CgtFileItem) {
 		viewModelScope.launch {
+			_uiState.update { it.copy(isLoading = true) }
 			templateRepository
 				.deleteDownloadFile(item)
 				.onSuccess {
@@ -127,6 +135,7 @@ class TemplateManagerViewModel(
 					loadTemplates()
 				}.onFailure { exception ->
 					Log.e(TAG, "Failed to delete download file: ${item.name}", exception)
+					_uiState.update { it.copy(isLoading = false) }
 					_uiEffect.send(
 						TemplateManagerUiEffect.ShowError(
 							R.string.msg_template_delete_failed,

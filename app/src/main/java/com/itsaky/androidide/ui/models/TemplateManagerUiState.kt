@@ -57,21 +57,3 @@ sealed class TemplateManagerUiEffect {
 		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()
 }
-
-sealed class TemplateOperation {
-	object None : TemplateOperation()
-
-	object Loading : TemplateOperation()
-
-	data class Installing(
-		val file: java.io.File,
-	) : TemplateOperation()
-
-	data class Uninstalling(
-		val file: java.io.File,
-	) : TemplateOperation()
-
-	data class Deleting(
-		val file: java.io.File,
-	) : TemplateOperation()
-}

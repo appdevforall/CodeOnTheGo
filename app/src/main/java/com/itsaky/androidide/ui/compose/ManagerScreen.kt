@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.itsaky.androidide.R
@@ -84,6 +85,13 @@ private fun rememberLongPressInteractionSource(onLongPress: () -> Unit): LongPre
 	val suppressNextClick = remember { mutableStateOf(false) }
 	LaunchedEffect(isPressed) {
 		if (isPressed) {
+			// Reset at press start, not dependent on a click to clear it: a long press that
+			// doesn't end in a tap-up (slide off before lifting, or a focusable tooltip popup
+			// stealing the gesture) never reaches consumeIfSuppressed(), which would otherwise
+			// leave the flag latched and silently eat the next real tap. The previous gesture's
+			// onTap always fires on its own lift, strictly before this ACTION_DOWN, so a click
+			// that legitimately needs suppressing can never be un-suppressed by this reset.
+			suppressNextClick.value = false
 			delay(longPressTimeoutMillis)
 			suppressNextClick.value = true
 			currentOnLongPress()
@@ -161,6 +169,8 @@ fun ManagerScreen(
 									.size(48.dp)
 									.clip(CircleShape)
 									.combinedClickable(
+										role = Role.Button,
+										onLongClickLabel = stringResource(R.string.cd_show_tooltip),
 										onClick = {
 											UrlManager.openUrl(activity.getString(R.string.url_discover_plugins), null, activity)
 										},

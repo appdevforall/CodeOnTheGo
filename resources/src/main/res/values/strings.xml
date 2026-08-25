@@ -1006,6 +1006,7 @@
 	<string name="cd_delete">Delete</string>
 	<string name="cd_add">Add</string>
 	<string name="cd_navigate_back">Navigate back</string>
+	<string name="cd_show_tooltip">Show help tooltip</string>
 	<string name="cd_search">Search</string>
 	<string name="cd_diagnostic_error">Error</string>
 	<string name="cd_diagnostic_warning">Warning</string>
