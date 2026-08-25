@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.completion
 
+import com.itsaky.androidide.lsp.kotlin.compiler.index.UnpinnedKtFileAccess
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.models.CompletionItem
 import io.github.rosemoe.sora.text.Content
@@ -10,20 +11,22 @@ import org.slf4j.LoggerFactory
 internal abstract class AdvancedKotlinEditHandler(
 	protected val analysisContext: AnalysisContext,
 ) : BaseKotlinEditHandler() {
-
 	companion object {
 		private val logger = LoggerFactory.getLogger(AdvancedKotlinEditHandler::class.java)
 	}
 
+	@OptIn(UnpinnedKtFileAccess::class)
 	override fun performEdits(
 		item: CompletionItem,
 		editor: CodeEditor,
 		text: Content,
 		line: Int,
 		column: Int,
-		index: Int
+		index: Int,
 	) {
-		val managedFile = analysisContext.env.ktSymbolIndex.getCurrentKtFileIfPresent(analysisContext.file)
+		// PSI-only, on the UI thread, after completion has already returned: there is no analysis to
+		// keep coherent, and pinning here would block the UI thread on a refresh.
+		val managedFile = analysisContext.env.ktSymbolIndex.peekLiveKtFile(analysisContext.file)
 		if (managedFile == null) {
 			logger.error("Unable to perform edit. File not open.")
 			return
@@ -42,6 +45,6 @@ internal abstract class AdvancedKotlinEditHandler(
 	abstract fun performEdits(
 		ktFile: KtFile,
 		editor: CodeEditor,
-		item: CompletionItem
+		item: CompletionItem,
 	)
 }

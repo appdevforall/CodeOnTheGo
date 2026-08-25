@@ -5,11 +5,11 @@ import com.itsaky.androidide.eventbus.events.editor.ChangeType
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
-import org.jetbrains.kotlin.psi.KtFile
 import org.junit.After
 import org.junit.Test
 import java.nio.file.Path
@@ -23,6 +23,9 @@ import java.nio.file.Path
  * analysis that started against an older instance therefore sees every declaration in the file
  * twice - once as its own PSI, once through the provider - and reports the whole file as
  * conflicting. That is what reaches the editor as red squiggles over every declaration.
+ *
+ * Pinning the path for the duration of the analysis is what closes that: while a scope is open, no
+ * second instance can be installed, so both doors answer with the same PSI.
  */
 internal class StaleKtFileInstanceDiagnosticsTest : KtLspTest() {
 	override val enableParserEventSystem = true
@@ -46,33 +49,54 @@ internal class StaleKtFileInstanceDiagnosticsTest : KtLspTest() {
 		private fun extracted(b: Int, a: Int): Int = b * a
 		""".trimIndent()
 
-	private fun diagnosticsOf(ktFile: KtFile): List<String> =
-		env.analyze(ktFile) {
-			ktFile
-				.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
-				.map { "${it.factoryName}: ${it.defaultMessage}" }
-		}
-
-	@Test
-	fun `an analysis holding a superseded instance does not see the file twice`() {
+	private fun openDocument(): Path {
 		createSourceFile("Main.kt", content)
 		val path = env.sourceRoots.first().resolve("Main.kt")
 		FileManager.onDocumentOpen(DocumentOpenEvent(path, content, 1))
 		openedPaths.add(path)
+		return path
+	}
 
-		val inFlight = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
-		assertThat(diagnosticsOf(inFlight)).isEmpty()
-
-		// Another request observes a different document version and installs a second instance for the
-		// same path - identical text, new identity. In production this is any of the twelve
-		// getCurrentKtFile call sites (the refresh scheduler, completion, a code action) running while
-		// the diagnostics pass for `inFlight` is still going.
+	private fun bumpVersion(
+		path: Path,
+		version: Int,
+	) {
 		FileManager.onDocumentContentChange(
-			DocumentChangeEvent(path, content, content, 2, ChangeType.NEW_TEXT, 0, Range.NONE),
+			DocumentChangeEvent(path, content, content, version, ChangeType.NEW_TEXT, 0, Range.NONE),
 		)
-		val superseding = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
-		assertThat(superseding).isNotSameInstanceAs(inFlight)
+	}
 
-		assertThat(diagnosticsOf(inFlight)).isEmpty()
+	@Test
+	fun `a version bump inside a pin cannot install a second instance`() {
+		val path = openDocument()
+
+		val sameInstance =
+			env.ktSymbolIndex.withLiveKtFile(path) { live ->
+				live.read { pinned ->
+					bumpVersion(path, 2)
+					// getKtFile is the door DeclarationProvider takes; unpinned it would answer with the
+					// instance the bump installs, which is what makes the file conflict with itself.
+					env.ktSymbolIndex.getKtFile(path) === pinned
+				}
+			}!!
+
+		assertThat(sameInstance).isTrue()
+	}
+
+	@Test
+	fun `diagnostics stay clean across a version bump during analysis`() {
+		val path = openDocument()
+
+		val diagnostics =
+			env.ktSymbolIndex.withLiveKtFile(path) { live ->
+				bumpVersion(path, 2)
+				live.analyzing(AnalysisPriority.DIAGNOSTICS, noopCancelChecker()) { ktFile ->
+					ktFile
+						.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+						.map { "${it.factoryName}: ${it.defaultMessage}" }
+				}
+			}!!
+
+		assertThat(diagnostics).isEmpty()
 	}
 }

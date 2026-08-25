@@ -76,24 +76,25 @@ class AddImportAction : BaseKotlinCodeAction() {
 	 * [postExec] shows in the chooser -- so two index entries for the same class collapse into one
 	 * entry instead of duplicating it.
 	 *
-	 * Blocking: does the `getCurrentKtFile` `.get()` and a SQLite-backed index query, so callers must
-	 * stay off the main thread ([execAction] wraps it in [Dispatchers.IO]).
+	 * Blocking: pinning the file resolves it first, and the index query is SQLite-backed, so callers
+	 * must stay off the main thread ([execAction] wraps it in [Dispatchers.IO]).
 	 */
 	internal fun computeImportCandidates(
 		env: AbstractCompilationEnvironment,
 		nioPath: Path,
 		referenceName: String,
-	): Map<String, List<TextEdit>> {
-		val ktFile =
-			env.ktSymbolIndex
-				.getCurrentKtFile(nioPath)
-				.get() ?: return emptyMap()
+	): Map<String, List<TextEdit>> =
+		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+			// The index query stays outside `read`, so the disk hit does not hold the project read lock.
+			val classifiers =
+				env.ktSymbolIndex
+					.findSymbolBySimpleName(referenceName, limit = 0)
+					.filter { it.kind.isClassifier }
 
-		return env.ktSymbolIndex
-			.findSymbolBySimpleName(referenceName, limit = 0)
-			.filter { it.kind.isClassifier }
-			.associate { it.fqName to insertImport(ktFile, it.fqName) }
-	}
+			live.read { ktFile ->
+				classifiers.associate { it.fqName to insertImport(ktFile, it.fqName) }
+			}
+		} ?: emptyMap()
 
 	override fun postExec(
 		data: ActionData,
