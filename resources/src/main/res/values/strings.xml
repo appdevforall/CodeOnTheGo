@@ -1514,4 +1514,11 @@
 	<string name="floating_window_action_dock">Dock to editor</string>
 	<string name="floating_window_action_close">Close</string>
 
+  <string name="title_document_outline">Outline</string>
+  <string name="outline_no_file_open">No file open</string>
+  <string name="outline_unsupported">No outline available for %1$s</string>
+  <string name="outline_empty">No symbols found in this file</string>
+  <string name="outline_loading">Building outline...</string>
+  <string name="cd_outline_expand">Expand</string>
+  <string name="cd_outline_collapse">Collapse</string>
 </resources>
