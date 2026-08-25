@@ -1,21 +1,23 @@
 package com.itsaky.androidide.di
 
-
 import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.analytics.AnalyticsManager
 import com.itsaky.androidide.analytics.IAnalyticsManager
+import com.itsaky.androidide.editor.language.outline.OutlineProvider
+import com.itsaky.androidide.editor.language.outline.TreeSitterOutlineProvider
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel
+import com.itsaky.androidide.viewmodel.OutlineViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
-import org.koin.dsl.module
 import org.koin.core.module.dsl.viewModel
+import org.koin.dsl.module
 
 val coreModule =
 	module {
@@ -25,24 +27,24 @@ val coreModule =
 		single<IAnalyticsManager> { AnalyticsManager() }
 
 		viewModel {
-            GitBottomSheetViewModel(get())
+			GitBottomSheetViewModel(get())
 		}
-        viewModel { MainViewModel(get()) }
-        viewModel { CloneRepositoryViewModel(get(), get()) }
+		viewModel { MainViewModel(get()) }
+		viewModel { CloneRepositoryViewModel(get(), get()) }
+		single<OutlineProvider> { TreeSitterOutlineProvider(androidContext()) }
+		viewModel { OutlineViewModel(get()) }
 
+		single<CoroutineScope> {
+			CoroutineScope(SupervisorJob() + Dispatchers.IO)
+		}
 
-        single<CoroutineScope> {
-            CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        }
+		single {
+			RecentProjectRoomDatabase.getDatabase(androidApplication(), get())
+		}
 
-        single {
-            RecentProjectRoomDatabase.getDatabase(androidApplication(), get())
-        }
+		single {
+			get<RecentProjectRoomDatabase>().recentProjectDao()
+		}
 
-        single {
-            get<RecentProjectRoomDatabase>().recentProjectDao()
-        }
-
-        single { GitCredentialsManager(get()) }
-
+		single { GitCredentialsManager(get()) }
 	}
