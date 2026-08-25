@@ -123,13 +123,28 @@ class DocumentationRequestInterceptor(
 		 * a WebView can outlive that, and neither should be able to close the other's handle. The
 		 * cost of the second handle is SQLite's page cache plus the dictionary, a few MB.
 		 */
-		val shared: DocumentationRequestInterceptor by lazy {
-			DocumentationRequestInterceptor(
-				DocumentationContentSource(
-					Environment.DOC_DB,
-					File(getExternalStorageDirectory(), "Download/documentation.db"),
-				),
-			)
+		val shared: DocumentationRequestInterceptor? by lazy {
+			// Null when Environment.init() has not run, which is a real state, not a defensive
+			// nicety: DeviceProtectedApplicationLoader wraps that call in runCatching, and the
+			// credential-protected loader returns before it when storage is not ready. DOC_DB is a
+			// plain static File with no initializer, so it is null in both cases, and the non-null
+			// parameter below turns that into an NPE at the first touch of this property. Declining
+			// instead puts the request on the local web server, which is exactly what a null return
+			// from intercept() already means everywhere else.
+			val database = Environment.DOC_DB
+			if (database == null) {
+				LoggerFactory
+					.getLogger(DocumentationRequestInterceptor::class.java)
+					.warn("Environment.DOC_DB is not set; documentation requests stay on the web server.")
+				null
+			} else {
+				DocumentationRequestInterceptor(
+					DocumentationContentSource(
+						database,
+						File(getExternalStorageDirectory(), "Download/documentation.db"),
+					),
+				)
+			}
 		}
 	}
 }

@@ -38,7 +38,10 @@ import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
 class IDETooltipWebviewFragment : Fragment() {
 	private lateinit var webView: WebView
 	private lateinit var website : String
-	private val documentation = DocumentationRequestInterceptor.shared
+	// by lazy: an initializer here runs during Fragment construction on the main thread, where the
+	// interceptor's sentinel check is a disk read StrictMode reports and a missing database is a
+	// crash before the view exists. See HelpActivity for the same note.
+	private val documentation by lazy { DocumentationRequestInterceptor.shared }
 
 	//This warning is unnecessary because we control the content
 	@SuppressLint("SetJavaScriptEnabled")
@@ -83,7 +86,7 @@ class IDETooltipWebviewFragment : Fragment() {
 			override fun shouldInterceptRequest(
 				view: WebView,
 				request: WebResourceRequest,
-			): WebResourceResponse? = documentation.intercept(request) ?: super.shouldInterceptRequest(view, request)
+			): WebResourceResponse? = documentation?.intercept(request) ?: super.shouldInterceptRequest(view, request)
 
 			override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
 				// Allow loading of local assets files

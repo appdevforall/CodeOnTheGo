@@ -71,7 +71,7 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
 						view: WebView,
 						request: WebResourceRequest,
 					): WebResourceResponse? =
-						DocumentationRequestInterceptor.shared.intercept(request)
+						DocumentationRequestInterceptor.shared?.intercept(request)
 							?: super.shouldInterceptRequest(view, request)
 				}
 

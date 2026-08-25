@@ -70,7 +70,13 @@ class HelpActivity : BaseIDEActivity() {
 
 	// ADFA-5176: answers documentation requests from the database in-process, so loading a page
 	// no longer opens a TCP connection per asset to the local web server.
-	private val documentation = DocumentationRequestInterceptor.shared
+	//
+	// by lazy, not an initializer: forcing it here runs during Activity construction, before
+	// onCreate, on the main thread -- which both stats external storage for the sentinel under a
+	// StrictMode policy that reports it, and dies before this screen exists if the shared
+	// interceptor cannot be built. Touched from shouldInterceptRequest instead, on a WebView
+	// thread, the way FAQActivity does it.
+	private val documentation by lazy { DocumentationRequestInterceptor.shared }
 
 	// Wall-clock start of the page currently loading, for the ADFA-5176 measurement.
 	// elapsedRealtime, not currentTimeMillis: an NTP correction or a user clock change between
@@ -124,7 +130,10 @@ class HelpActivity : BaseIDEActivity() {
 					override fun shouldInterceptRequest(
 						view: android.webkit.WebView,
 						request: android.webkit.WebResourceRequest,
-					): android.webkit.WebResourceResponse? = documentation.intercept(request) ?: super.shouldInterceptRequest(view, request)
+					): android.webkit.WebResourceResponse? {
+						val intercepted = documentation?.intercept(request)
+						return intercepted ?: super.shouldInterceptRequest(view, request)
+					}
 
 					override fun onPageStarted(
 						view: android.webkit.WebView?,
@@ -150,7 +159,7 @@ class HelpActivity : BaseIDEActivity() {
 								"Loaded '{}' in {} ms; in-process totals so far: {}.",
 								url,
 								SystemClock.elapsedRealtime() - pageLoadStartMillis,
-								documentation.servedSummary(),
+								documentation?.servedSummary(),
 							)
 							pageLoadStartMillis = 0L
 						}
