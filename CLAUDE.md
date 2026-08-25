@@ -18,6 +18,7 @@ flox activate -d flox/local -- ./gradlew <task>
 - **Single unit test:** `flox activate -d flox/local -- ./gradlew :module:test --tests "com.itsaky.androidide.SomeTest"`
 - **Module unit tests:** `flox activate -d flox/local -- ./gradlew :testing:unit:test`
 - **Fast iteration:** during multi-file/multi-module changes, verify with targeted `:module:compileV8DebugKotlin`/`compileV8DebugJavaWithJavac` invocations (batch several modules into one Gradle call) rather than a full assemble. Reserve `:app:assembleV8Debug` for final end-to-end verification — it's slow (multi-minute) in this multi-module project, and running it after every small change adds up.
+- **Long-running commands: background them and narrate.** Anything that can exceed ~60s — `spotlessApply`/`spotlessCheck` (~4.5 min here), `assembleV8Debug`, a full test sweep, and `git push` (the pre-push hook runs Spotless, so a push is itself a multi-minute silent command) — runs in the background, not the foreground. While it runs, say what you see every couple of minutes: elapsed time, the last output line, whether it is still progressing. A silent terminal is indistinguishable from a hang, and saying which it is is your job, not the user's to ask.
 
 When the user names a CI/CD job ("the sonar job", "the analyze workflow"), read `.github/workflows/*.yml` — the YAML is the authoritative gradle/shell invocation. Don't reverse-engineer it from gradle tasks or build files.
 
@@ -61,11 +62,22 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for th
 - `.androidide_root` is a sentinel file tests use to locate the project root — don't delete it.
 - Avoid http or https links which go off-device. When such links are unavoidable, warn the user beforehand and offer to cancel the action.
 
+## Verify before you claim
+
+Four independent reviews of work already reported as verified each found a real defect in it. Before calling a change done, verified, or behaviour-neutral:
+
+- **Sweep the siblings, not just the site in front of you.** After a fix, grep for the other places the same pattern lives — the `UPDATE` beside the `INSERT` you fixed, the third entry point beside the two you guarded, the `Content-Type` *parameters* beside the media type you sanitised. Say in the PR which sites you checked, and which you deliberately left alone.
+- **Prove the regression test fails without the fix.** Revert the fix, run the new test, confirm it fails *for the reason it is named for*, then restore. A test that passes against the unfixed code pins nothing. Watch for expectations that all coincide with one boundary value: if every case equals the minimum, a `MIN()` stub passes the whole suite.
+- **Match the handler to the failure the change exists to fix.** `catch (Exception)` does not catch an `Error`. A guard on two of three call sites is not a guard.
+- **Every claim needs its check.** "No behaviour change", "this MIME type has rows in the shipped database", "that tool logs a warning" are all testable — run the query, read the sibling repo's source, diff the commits — or don't write them. Re-read the PR body before pushing: a description that was true at commit 1 is often false by commit 3.
+
 ## Code style
 
 **Tabs** for indentation, **LF** line endings — enforced by **Spotless**. The `ratchetFrom = origin/stage` ratchet is **file-level, not line-level**: it checks every file that differs from `origin/stage` and reformats each such file *in full*, so editing even one line of a file whose existing indentation doesn't conform (e.g. a layout XML using 4 spaces) pulls the **whole file** under the ratchet and requires reindenting it to tabs — a one-line edit can become a whole-file reformat. Java uses the **Eclipse** formatter (`spotless.eclipse-java.xml`, with member sorting + import ordering); Kotlin and `*.gradle.kts` use **ktlint**; XML uses the **Eclipse WTP** formatter. Run `./gradlew spotlessApply` to fix formatting before pushing — the `.githooks` pre-push hook does this automatically once hooks are installed and enabled (`sh ./scripts/install-git-hooks.sh`, no conflicting `core.hooksPath`). Branch names must match `.../ADFA-#####` (3–5 digits) — see CONTRIBUTING.md; a pre-commit hook enforces it (`sh ./scripts/install-git-hooks.sh`).
 
 Keep docs, tickets, commit messages, and PR descriptions crisp — say it once, lead with the point, cut hedging and restated context. Brevity is the soul of wit; a reader's attention is the scarce resource.
+
+Brevity governs the artifact, not the reasoning. When you recommend something to the user — a design choice, a library, a way to split a PR — give the one-line *why* and the alternative you rejected, not the conclusion alone. A bare recommendation costs a round-trip of "tell me more", and the user should never have to ask twice to see the trade-off.
 
 **Code comments** follow the same discipline:
 - Short and to-the-point: comment the non-obvious *why* (a workaround, a constraint, a subtle invariant), not what the code already states. Cut restated context.
@@ -95,6 +107,10 @@ Read tickets with the local authenticated `jira` CLI (e.g. `jira issue view ADFA
 ### SonarQube MCP server
 
 The sonarqube MCP server runs in Docker, so Docker must be up before launching Claude Code. Its first launch pulls a ~225MB image (`mcp/sonarqube:latest`) that exceeds Claude Code's 30s MCP handshake timeout — so the first connect reports a timeout though nothing is broken. Pre-pull the image (or let one launch finish) so later `/mcp` reconnects succeed. `docker system prune` removes it and brings back the slow first launch.
+
+### Staging commits — no `git add -A`
+
+Stage by explicit path (`git add path/one path/two`). `git add -A` / `git add -u` sweeps in whatever else the working tree happens to hold — regenerated test fixtures, multi-MB binaries, files carrying machine-local absolute paths — and buries them in an unrelated commit. This repo has tracked fixtures that a test run rewrites, so the risk is live rather than theoretical. Run `git status --short` first and account for every line; if a regenerated file genuinely belongs in the change, say so in the commit message.
 
 ### Multi-line git/gh messages
 
