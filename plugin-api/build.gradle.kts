@@ -44,6 +44,11 @@ dependencies {
 
 	// Test dependencies
 	testImplementation("junit:junit:4.13.2")
+
+	// KeystoreSecretStore reaches for android.util.Base64/Log and a real SharedPreferences, so its
+	// tests need the framework on the JVM.
+	testImplementation(libs.tests.robolectric)
+	testImplementation(libs.tests.google.truth)
 }
 
 tasks.register<Copy>("createPluginApiJar") {

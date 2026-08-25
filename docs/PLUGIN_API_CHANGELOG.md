@@ -58,6 +58,28 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   against an older `plugin-api` — the latter gets `AbstractMethodError`. Only the
   host's own implementers benefit, and they are recompiled with it.
 
+- **added — Keystore-backed secret storage for plugins** _(ADFA-5269)_ **[verified]**
+  A plugin that stores a credential can encrypt it with AES/GCM under a hardware-backed
+  Android Keystore key instead of carrying its own copy of the cipher. Three AI plugins
+  had already grown near-identical copies that were starting to diverge (only one zeroed
+  its plaintext buffers, only one told "no secret stored" apart from "stored but no longer
+  decryptable"), and the host's own `git-core/CryptoManager` is a fourth. Duplicating the
+  source into each `.cgp` would not fix that: `compileOnly` against the host means one
+  implementation in the process, loaded by the host's class loader.
+  `KeystoreSecretStore(alias, tag)` (`encrypt`, `decrypt`, `write`, `readAndMigrate`) and
+  `KeystoreSecretStore.Stored` / `.Absent` / `.Value` / `.Unreadable`. The `enc:v1:` marker
+  it writes is deliberately **not** part of the surface: the on-disk format is the store's
+  business, both formats are handled for the caller, and keeping it private is what leaves
+  room for an `enc:v2:` later.
+  A class a plugin **instantiates**, not an interface it implements, so later additions to
+  it are additive. The `alias` is a constructor parameter and must stay **distinct per
+  plugin**: plugins share the host's process, UID and therefore its Keystore, so a shared
+  alias would let one plugin's invalidated-key recovery (`deleteEntry`) destroy another's
+  stored secret. It must also stay stable across releases, since a secret encrypted under
+  one alias cannot be read under another. `readAndMigrate` re-encrypts a legacy plaintext
+  value in place, so a plugin adopting this keeps working for users who configured a
+  credential before it existed.
+
 ### 26.33 — 2026-08-12
 - **added — Plugin-contributed agent tools** _(ADFA-2592)_ **[verified]**
   Any `.cgp` can add tools to the AI agent, whose tool set was previously fixed at

@@ -1213,6 +1213,42 @@ public final class com/itsaky/androidide/plugins/extensions/UIExtension$DefaultI
 	public static fun getToolbarActions (Lcom/itsaky/androidide/plugins/extensions/UIExtension;)Ljava/util/List;
 }
 
+public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun decrypt (Ljava/lang/String;)Ljava/lang/String;
+	public final fun encrypt (Ljava/lang/String;)Ljava/lang/String;
+	public final fun readAndMigrate (Landroid/content/SharedPreferences;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored;
+	public final fun write (Landroid/content/SharedPreferences;Ljava/lang/String;Ljava/lang/String;)Z
+}
+
+public abstract interface class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
+}
+
+public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Absent : com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Absent;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Unreadable : com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Unreadable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Value : com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Value;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Value;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Value;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPlain ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/itsaky/androidide/plugins/services/ArchiveFormat : java/lang/Enum {
 	public static final field GZIP Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
 	public static final field TAR Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
