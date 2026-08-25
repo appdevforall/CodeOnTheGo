@@ -65,7 +65,7 @@ internal class LiveKtFilePinTest : KtLspTest() {
 		)
 	}
 
-	@OptIn(UnpinnedKtFileAccess::class)
+	@OptIn(UnpinnedKtFileAccess::class, ResolutionSideKtFileAccess::class)
 	@Test
 	fun `a version bump inside a pin does not install a second instance`() {
 		val path = openDocument()
@@ -87,6 +87,7 @@ internal class LiveKtFilePinTest : KtLspTest() {
 		assertThat(doorsAgree).isTrue()
 	}
 
+	@OptIn(ResolutionSideKtFileAccess::class)
 	@Test
 	fun `the resolution door keeps the pinned instance after the document is closed`() {
 		val path = openDocument()
@@ -137,6 +138,7 @@ internal class LiveKtFilePinTest : KtLspTest() {
 		assertThat(instances.second).isEqualTo(instances.first)
 	}
 
+	@OptIn(ResolutionSideKtFileAccess::class)
 	@Test
 	fun `an inner scope release does not unpin the path for the outer scope`() {
 		val path = openDocument()

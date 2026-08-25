@@ -75,6 +75,7 @@ internal class StaleKtFileInstanceDiagnosticsTest : KtLspTest() {
 		runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
 	}
 
+	@OptIn(ResolutionSideKtFileAccess::class)
 	@Test
 	fun `a version bump inside a pin cannot install a second instance`() {
 		val path = openDocument()

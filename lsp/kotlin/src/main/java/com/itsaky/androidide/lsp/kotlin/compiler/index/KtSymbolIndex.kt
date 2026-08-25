@@ -239,6 +239,7 @@ internal class KtSymbolIndex(
 	 * pin with a version its PSI does not have, which makes [LiveKtFile.isStale] claim a superseded
 	 * instance is current.
 	 */
+	@OptIn(ResolutionSideKtFileAccess::class)
 	private fun getCurrentVersionedKtFile(path: Path): CompletableFuture<VersionedKtFile>? {
 		if (!DocumentUtils.isKotlinFile(path)) return null
 
@@ -510,6 +511,7 @@ internal class KtSymbolIndex(
 	}
 
 	/** [getKtFile] for [vf], keyed by the path it maps to. */
+	@ResolutionSideKtFileAccess
 	internal fun getKtFile(vf: VirtualFile): KtFile? = getKtFile(vf.toNioPath(), vf)
 
 	/**
@@ -517,8 +519,9 @@ internal class KtSymbolIndex(
 	 *
 	 * A pinned path resolves to the pinned instance, so an open analysis and the declaration provider
 	 * cannot disagree about which instance is the file. Otherwise the live cache is peeked, then the
-	 * on-disk instance is loaded.
+	 * on-disk instance is loaded. See [ResolutionSideKtFileAccess] for why this is opt-in.
 	 */
+	@ResolutionSideKtFileAccess
 	internal fun getKtFile(
 		path: Path,
 		virtualFile: VirtualFile? = null,
