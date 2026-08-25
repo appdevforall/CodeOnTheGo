@@ -157,7 +157,13 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 			// current file.
 			val originalText = live.read { it.text }
 			val requestPosition = params.position
-			val completionOffset = requestPosition.requireIndex()
+			/*
+			 * Clamped because the guard above compares the pin to the current document version, not to the
+			 * version params.position was measured against - CompletionParams carries none. A request
+			 * measured before a deletion, processed against a pin resolved after it, has an offset past the
+			 * end of this text, and the splice below would throw rather than return no items.
+			 */
+			val completionOffset = requestPosition.requireIndex().coerceAtMost(originalText.length)
 			val prefix = params.requirePrefix()
 			val partial = partialIdentifier(prefix)
 

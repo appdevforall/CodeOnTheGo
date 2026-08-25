@@ -6,6 +6,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
+import com.itsaky.androidide.lsp.kotlin.actions.NullSafetyAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionRefusal
@@ -22,6 +23,7 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Path
@@ -61,19 +63,21 @@ internal class StalePinEditRefusalTest : KtLspTest() {
 	}
 
 	/**
-	 * Runs [block] inside an open scope on [path] whose document has since moved on.
+	 * Runs [block] inside an open scope on [path] whose document has since moved to [newContent].
 	 *
 	 * This is the production shape: some other feature holds the pin, the user types, and [block]'s
-	 * acquisition joins the frozen instance instead of resolving the current one.
+	 * acquisition joins the frozen instance instead of resolving the current one. Passing the file's
+	 * existing text is enough to make the pin version-stale, which is what the guards test; the
+	 * changed-content case is covered separately below.
 	 */
 	private fun <R> whileHoldingAStalePin(
 		path: Path,
-		content: String,
+		newContent: String,
 		block: () -> R,
 	): R =
 		env.ktSymbolIndex.withLiveKtFile(path) { live ->
 			FileManager.onDocumentContentChange(
-				DocumentChangeEvent(path, content, content, 2, ChangeType.NEW_TEXT, 0, Range.NONE),
+				DocumentChangeEvent(path, newContent, newContent, 2, ChangeType.NEW_TEXT, 0, Range.NONE),
 			)
 			assertTrue("the pin must be stale for this test to mean anything", live.isStale)
 			block()
@@ -176,5 +180,60 @@ internal class StalePinEditRefusalTest : KtLspTest() {
 		assertFalse(candidates().isEmpty())
 
 		assertTrue(whileHoldingAStalePin(path, content, candidates).isEmpty())
+	}
+
+	@Test
+	fun `null-safety offers no variant on a joined stale pin`() {
+		val content =
+			"""
+			package p
+			class Box { val prop: Int = 0 }
+			fun f(b: Box?) { val x = b.prop }
+			""".trimIndent()
+		val path = openDocument("NullSafety.kt", content)
+		val start = content.indexOf("b.prop")
+		val variants = { NullSafetyAction().computeNullSafetyVariants(env, path, start, start + "b.prop".length) }
+
+		assertFalse(variants().isEmpty())
+
+		assertTrue(whileHoldingAStalePin(path, content, variants).isEmpty())
+	}
+
+	/**
+	 * The version-stale tests above hold the text constant, which is all [LiveKtFile.isStale] looks at.
+	 * This one moves the text too, and shows what the guard is actually for: the plan the site would
+	 * otherwise have produced carries the *old* file text under the *new* version's stamp, so its spans
+	 * name different source in the buffer the edit would be applied to - and the apply-time guard
+	 * compares only the stamp, so nothing downstream can catch it.
+	 */
+	@Test
+	fun `extract-method refuses rather than planning against text the user has replaced`() {
+		val original =
+			"""
+			package p
+			fun demo(a: Int, b: Int): Int {
+				return b * a + a
+			}
+			""".trimIndent()
+		// The user adds an import, shifting every offset below it.
+		val edited = original.replaceFirst("package p\n", "package p\nimport kotlin.math.max\n")
+		val path = openDocument("Shifted.kt", original)
+		val offset = original.indexOf("b * a") + 1
+		val plan = { buildExtractMethodPlan(env, path, offset, offset, 2, noopCancelChecker()) }
+
+		val stalePlan = plan()
+		assertFalse(stalePlan.candidates.isEmpty())
+
+		val refused = whileHoldingAStalePin(path, edited) { plan() }
+
+		assertEquals(ExtractionRefusal.CouldNotAnalyse, refused.refusal)
+		assertTrue(refused.candidates.isEmpty())
+
+		// What the suppressed plan would have replaced: a span that names "b * a" in the pinned text and
+		// something else entirely at the same offsets in the buffer the edit would land in.
+		val span = stalePlan.candidates.first { it.label == "b * a" }.span
+		assertEquals(original, stalePlan.fileText)
+		assertEquals("b * a", original.substring(span.start, span.end))
+		assertNotEquals("b * a", edited.substring(span.start, span.end))
 	}
 }
