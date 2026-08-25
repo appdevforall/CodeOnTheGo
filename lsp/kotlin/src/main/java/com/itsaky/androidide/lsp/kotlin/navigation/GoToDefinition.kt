@@ -195,19 +195,25 @@ internal suspend fun findDefinitionAt(params: DefinitionParams): DefinitionResul
 	return try {
 		val offset = params.position.requireIndex()
 
-		// Navigation is a user-invoked command: AnalysisPriority.COMMAND preempts background
-		// diagnostics/indexing but yields to keystroke-driven completion, and is never discarded by
-		// another command. It can still be preempted by INTERACTIVE, so it retries once (see
-		// retryingOnPreemption, and ADR 0011). params.cancelChecker is request-scoped
-		// (CancellableRequestParams), so it is the delegate the per-attempt checker wraps.
+		/*
+		 * Navigation is a user-invoked command: AnalysisPriority.COMMAND preempts background
+		 * diagnostics/indexing but yields to keystroke-driven completion, and is never discarded by
+		 * another command. It can still be preempted by INTERACTIVE, so it retries once (see
+		 * retryingOnPreemption, and ADR 0011). params.cancelChecker is request-scoped
+		 * (CancellableRequestParams), so it is the delegate the per-attempt checker wraps.
+		 */
 		val locations =
 			retryingOnPreemption(params.cancelChecker, "Definition lookup for ${params.file}") { cancelChecker ->
-				// Pinned per attempt, not once: whatever preempted the first attempt also refreshed the
-				// live PSI, unregistering the KtFile that attempt held, and analyzing it again would fail.
-				// Pinned to the open document's current version, so the caret offset and the PSI it indexes
-				// into come from the same text - a stale snapshot points at the wrong element.
-				// (params.position is fixed by the request, so a retry after the user typed can still be one
-				// edit behind; that resolves to the wrong element or to nothing, never to a crash.)
+				/*
+				 * Pinned per attempt, not once: whatever preempted the first attempt also refreshed the
+				 * live PSI, unregistering the KtFile that attempt held, and analyzing it again would fail.
+				 *
+				 * The pinned text is not guaranteed to be the buffer's: joining another feature's open scope
+				 * hands over its instance, however old, and params.position is fixed by the request anyway,
+				 * so the caret offset can index into text one or more edits behind. Deliberately tolerated
+				 * here - the worst outcome is resolving to the wrong element or to nothing, never a bad edit.
+				 * Sites that emit edits check LiveKtFile.isStale instead.
+				 */
 				env.ktSymbolIndex.withLiveKtFileAsync(params.file) { live ->
 					cancelChecker.abortIfCancelled()
 					live.read { ktFile ->

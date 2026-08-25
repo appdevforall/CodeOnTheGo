@@ -72,12 +72,21 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 		cancelChecker: ICancelChecker,
 	): List<TextEdit> =
 		runCatching {
-			// A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
-			// preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and the
-			// action silently inserted nothing. The file is re-pinned per attempt because the preemptor
-			// also refreshed the live PSI.
+			/*
+			 * A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
+			 * preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and the
+			 * action silently inserted nothing. The file is re-pinned per attempt because the preemptor
+			 * also refreshed the live PSI.
+			 */
 			retryingOnPreemption(cancelChecker, "Implement members for $nioPath") { checker ->
 				env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+					if (live.isStale) {
+						// Joining another feature's scope hands over text older than the buffer, so both the
+						// caret offset and the computed insertion point would land in the wrong place.
+						logger.debug("skipping implement-members for {}: pinned text is behind the buffer", nioPath)
+						return@withLiveKtFile emptyList()
+					}
+
 					live.read { ktFile ->
 						val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
 						live.analyzing(AnalysisPriority.COMMAND, checker) {

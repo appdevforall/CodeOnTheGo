@@ -101,6 +101,13 @@ class AddImportAction : BaseKotlinCodeAction() {
 		}
 
 		return env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+			if (live.isStale) {
+				// Joining another feature's scope hands over text older than the buffer, so the import
+				// insertion point computed from it would land in the wrong place.
+				logger.debug("skipping import candidates for {}: pinned text is behind the buffer", nioPath)
+				return@withLiveKtFile emptyMap()
+			}
+
 			live.read { ktFile ->
 				classifiers.associate { it.fqName to insertImport(ktFile, it.fqName) }
 			}

@@ -59,12 +59,21 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 		cancelChecker: ICancelChecker,
 	): List<TextEdit> =
 		runCatching {
-			// A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
-			// preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and
-			// organize-imports silently did nothing. The file is re-pinned per attempt because the
-			// preemptor also refreshed the live PSI.
+			/*
+			 * A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
+			 * preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and
+			 * organize-imports silently did nothing. The file is re-pinned per attempt because the
+			 * preemptor also refreshed the live PSI.
+			 */
 			retryingOnPreemption(cancelChecker, "Organize imports for $nioPath") { checker ->
 				env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+					if (live.isStale) {
+						// Joining another feature's scope hands over text older than the buffer, and the
+						// import-list range computed from it would replace the wrong span.
+						logger.debug("skipping organize-imports for {}: pinned text is behind the buffer", nioPath)
+						return@withLiveKtFile emptyList()
+					}
+
 					live.read { ktFile ->
 						if (ktFile.importDirectives.isEmpty()) return@read emptyList()
 						val usage = live.analyzing(AnalysisPriority.COMMAND, checker) { collectImportUsage(it) }

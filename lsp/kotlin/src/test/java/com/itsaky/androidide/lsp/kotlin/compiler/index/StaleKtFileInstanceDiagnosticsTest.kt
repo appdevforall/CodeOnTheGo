@@ -9,6 +9,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.junit.After
 import org.junit.Test
@@ -57,13 +58,21 @@ internal class StaleKtFileInstanceDiagnosticsTest : KtLspTest() {
 		return path
 	}
 
-	private fun bumpVersion(
+	/**
+	 * Moves the document to [version] and lets a competing request observe it.
+	 *
+	 * The bump alone only updates [FileManager]: a second `KtFile` for the path is installed by the
+	 * index's own current-file refresh, so without that request there is nothing for the pin to hold
+	 * back and both tests below would pass unpinned.
+	 */
+	private fun bumpVersionAndRefresh(
 		path: Path,
 		version: Int,
 	) {
 		FileManager.onDocumentContentChange(
 			DocumentChangeEvent(path, content, content, version, ChangeType.NEW_TEXT, 0, Range.NONE),
 		)
+		runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
 	}
 
 	@Test
@@ -72,12 +81,12 @@ internal class StaleKtFileInstanceDiagnosticsTest : KtLspTest() {
 
 		val sameInstance =
 			env.ktSymbolIndex.withLiveKtFile(path) { live ->
-				live.read { pinned ->
-					bumpVersion(path, 2)
-					// getKtFile is the door DeclarationProvider takes; unpinned it would answer with the
-					// instance the bump installs, which is what makes the file conflict with itself.
-					env.ktSymbolIndex.getKtFile(path) === pinned
-				}
+				// Outside `read`: unpinned, the competing refresh needs project.write, which cannot be
+				// granted while this thread holds the read lock.
+				bumpVersionAndRefresh(path, 2)
+				// getKtFile is the door DeclarationProvider takes; unpinned it would answer with the
+				// instance the competing refresh installs, which is what makes the file conflict with itself.
+				live.read { pinned -> env.ktSymbolIndex.getKtFile(path) === pinned }
 			}!!
 
 		assertThat(sameInstance).isTrue()
@@ -89,7 +98,7 @@ internal class StaleKtFileInstanceDiagnosticsTest : KtLspTest() {
 
 		val diagnostics =
 			env.ktSymbolIndex.withLiveKtFile(path) { live ->
-				bumpVersion(path, 2)
+				bumpVersionAndRefresh(path, 2)
 				live.analyzing(AnalysisPriority.DIAGNOSTICS, noopCancelChecker()) { ktFile ->
 					ktFile
 						.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
