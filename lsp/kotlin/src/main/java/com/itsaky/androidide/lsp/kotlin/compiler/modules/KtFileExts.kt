@@ -32,8 +32,10 @@ private val logger = LoggerFactory.getLogger("KtFileExts")
  * [AnalysisScheduler] serializes access; it is priority-aware, preemptive (via [cancelChecker]) and
  * reentrant. **All** Analysis API access must go through this helper (or [analyzeMaybeDangling]); never
  * call `analyze` / `analyzeCopy` directly, or the serialization guarantee is lost. For an open file this
- * is no longer only a convention: the only route to a live `KtFile` is `LiveKtFile.analyzing`, which
- * calls this helper for you.
+ * is no longer only a convention: every route to a live `KtFile` is either `LiveKtFile.analyzing`, which
+ * calls this helper for you, or gated behind an opt-in marker - with one known exception, the
+ * modified-file indexer, which is handed a raw instance through `IndexCommand.IndexModifiedFile` and
+ * analyses it unpinned (tracked as a follow-up).
  *
  * **Cancellation.** [action] runs with a [kotlinx.coroutines.Job] installed in the thread's IntelliJ
  * context; the compiler's dense `checkCanceled()` calls throw once that Job is cancelled, aborting
