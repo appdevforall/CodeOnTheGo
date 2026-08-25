@@ -104,12 +104,15 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 
 fun interface OnEditorLongPressListener {
@@ -141,7 +144,8 @@ open class IDEEditor
 		private var actionsMenu: EditorActionsMenu? = null
 		private var _signatureHelpWindow: SignatureHelpWindow? = null
 		private var _diagnosticWindow: DiagnosticWindow? = null
-		private var fileVersion = 0
+		private val fileVersion = AtomicInteger(0)
+		private val documentChangeMutex = Mutex()
 		internal var isModified = false
 
 		// Length and content hash of the content the last time the file was loaded or saved.
@@ -570,7 +574,7 @@ open class IDEEditor
 			languageClient = null
 
 			_file = null
-			fileVersion = 0
+			fileVersion.set(0)
 			markUnmodified()
 
 			editorFeatures.editor = null
@@ -960,7 +964,9 @@ open class IDEEditor
 				file ?: return@subscribeEvent
 
 				editorScope.launch {
-					dispatchDocumentChangeEvent(event)
+					// Serialised so the version a change is stamped with is never older than the text
+					// snapshot taken with it: two edits in one frame land here as two coroutines.
+					documentChangeMutex.withLock { dispatchDocumentChangeEvent(event) }
 					checkForSignatureHelp(event)
 					handleCustomTextReplacement(event)
 				}
@@ -1242,9 +1248,9 @@ open class IDEEditor
 
 			val file = this.file ?: return
 
-			this.fileVersion = 0
+			this.fileVersion.set(0)
 
-			val openEvent = DocumentOpenEvent(file.toPath(), text.toString(), fileVersion)
+			val openEvent = DocumentOpenEvent(file.toPath(), text.toString(), fileVersion.get())
 
 			eventDispatcher.dispatch(openEvent)
 		}
@@ -1278,7 +1284,7 @@ open class IDEEditor
 					file,
 					changedText,
 					text.toString(),
-					++fileVersion,
+					fileVersion.incrementAndGet(),
 					type,
 					changeDelta,
 					changeRange,

@@ -29,19 +29,52 @@ import java.time.Instant
  */
 open class ActiveDocument(
 	val file: Path,
-	var version: Int,
-	var modified: Instant,
-	content: String = ""
+	version: Int,
+	modified: Instant,
+	content: String = "",
 ) {
+	private data class Snapshot(
+		val version: Int,
+		val modified: Instant,
+		val content: String,
+	)
 
-	var content: String = content
-		internal set
+	/*
+	 * One volatile reference, so a reader can never pair a new version with the old content. The editor
+	 * dispatches change events from a background coroutine per edit, so two edits in one frame do reach
+	 * this concurrently.
+	 */
+	@Volatile
+	private var snapshot = Snapshot(version, modified, content)
 
-	fun inputStream(): BufferedInputStream {
-		return content.byteInputStream().buffered()
+	val version: Int
+		get() = snapshot.version
+
+	val modified: Instant
+		get() = snapshot.modified
+
+	val content: String
+		get() = snapshot.content
+
+	/**
+	 * Publishes [content] at [version], or returns false if [version] is older than what is already
+	 * published.
+	 *
+	 * A version that moves backwards makes the Kotlin index mint a second `KtFile` for text that never
+	 * changed, which is what surfaced as redeclaration errors across a whole file (ADFA-5231).
+	 */
+	internal fun update(
+		version: Int,
+		content: String,
+	): Boolean {
+		synchronized(this) {
+			if (version < snapshot.version) return false
+			snapshot = Snapshot(version, Instant.now(), content)
+			return true
+		}
 	}
 
-	fun reader(): BufferedReader {
-		return content.reader().buffered()
-	}
+	fun inputStream(): BufferedInputStream = content.byteInputStream().buffered()
+
+	fun reader(): BufferedReader = content.reader().buffered()
 }
