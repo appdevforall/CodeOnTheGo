@@ -66,9 +66,11 @@ private fun doAnalyze(
 	file: Path,
 	cancelChecker: ICancelChecker,
 ): DiagnosticResult {
-	// Diagnostics yield to completion but preempt indexing. The wrapped checker turns a scheduler
-	// preemption into an AnalysisPreemptedException, which CompilationEnvironment's fileAnalyzer catches
-	// to re-schedule this run once the higher-priority work finishes.
+	/*
+	 * Diagnostics yield to completion but preempt indexing. The wrapped checker turns a scheduler
+	 * preemption into an AnalysisPreemptedException, which CompilationEnvironment's fileAnalyzer catches
+	 * to re-schedule this run once the higher-priority work finishes.
+	 */
 	val checker = ScheduledCancelChecker(cancelChecker)
 
 	var superseded = false
@@ -91,9 +93,11 @@ private fun doAnalyze(
 								)
 							}
 
-						// analyzeMaybeDangling installs a CancelCheckerProgressIndicator, so this is cancellable
-						// mid-`analyze`: it aborts at the compiler's internal checkCanceled() once `checker` reports
-						// preemption/cancellation. (Previously this analysis was not cancellable at all.)
+						/*
+						 * analyzeMaybeDangling installs a CancelCheckerProgressIndicator, so this is cancellable
+						 * mid-`analyze`: it aborts at the compiler's internal checkCanceled() once `checker` reports
+						 * preemption/cancellation. (Previously this analysis was not cancellable at all.)
+						 */
 						ktFile
 							.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
 							.forEach { diagnostic ->

@@ -85,6 +85,13 @@ class AddImportAction : BaseKotlinCodeAction() {
 		referenceName: String,
 	): Map<String, List<TextEdit>> =
 		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+			if (live.isStale) {
+				// Joining another feature's scope hands over text older than the buffer, so the import
+				// insertion point computed from it would land in the wrong place.
+				logger.debug("skipping import candidates for {}: pinned text is behind the buffer", nioPath)
+				return@withLiveKtFile emptyMap()
+			}
+
 			// The index query stays outside `read`, so the disk hit does not hold the project read lock.
 			val classifiers =
 				env.ktSymbolIndex

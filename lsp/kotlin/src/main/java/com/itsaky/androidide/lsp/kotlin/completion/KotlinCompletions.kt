@@ -142,6 +142,17 @@ context(env: CompilationEnvironment)
 internal fun doComplete(params: CompletionParams): CompletionResult {
 	val result =
 		env.ktSymbolIndex.withLiveKtFile(params.file) { live ->
+			if (live.isStale) {
+				/*
+				 * Joining another feature's scope hands over its text, which can be older than the buffer the
+				 * request's offset was measured against. Splicing the placeholder at that offset would insert
+				 * it in the wrong place, and past the end of the older text it throws outright. The next
+				 * keystroke's completion supersedes this one anyway.
+				 */
+				logger.debug("skipping completion for {}: pinned text is behind the buffer", params.file)
+				return@withLiveKtFile CompletionResult.EMPTY
+			}
+
 			// Completion still parses its own placeholder variant (text differs), anchored to the
 			// current file.
 			val originalText = live.read { it.text }
@@ -162,9 +173,11 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 
 			abortIfCancelled()
 
-			// Use the request-scoped checker on params, not the global Lookup: Lookup holds one ICancelChecker
-			// updated per request, so with concurrent completions an older request could read a newer request's
-			// checker and never observe its own cancellation. Fall back to Lookup only for a NOOP checker (tests).
+			/*
+			 * Use the request-scoped checker on params, not the global Lookup: Lookup holds one ICancelChecker
+			 * updated per request, so with concurrent completions an older request could read a newer request's
+			 * checker and never observe its own cancellation. Fall back to Lookup only for a NOOP checker (tests).
+			 */
 			val delegate =
 				params.cancelChecker.takeUnless { it === ICancelChecker.NOOP }
 					?: Lookup.getDefault().lookup(ICancelChecker::class.java)
