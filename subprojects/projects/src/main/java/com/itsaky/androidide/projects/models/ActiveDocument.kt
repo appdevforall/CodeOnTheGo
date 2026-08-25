@@ -47,12 +47,15 @@ open class ActiveDocument(
 	@Volatile
 	private var snapshot = Snapshot(version, modified, content)
 
+	/** The version last published via [update]. Always consistent with [content] and [modified]. */
 	val version: Int
 		get() = snapshot.version
 
+	/** The timestamp of the last [update]. Always consistent with [version] and [content]. */
 	val modified: Instant
 		get() = snapshot.modified
 
+	/** The content last published via [update]. Always consistent with [version] and [modified]. */
 	val content: String
 		get() = snapshot.content
 
@@ -62,6 +65,11 @@ open class ActiveDocument(
 	 *
 	 * A version that moves backwards makes the Kotlin index mint a second `KtFile` for text that never
 	 * changed, which is what surfaced as redeclaration errors across a whole file (ADFA-5231).
+	 *
+	 * An equal version is accepted and overwrites, rather than being rejected like an older one. The
+	 * only writer, `IDEEditor`, stamps versions from a single serialised `AtomicInteger.incrementAndGet()`
+	 * per document, so distinct edits never share a version - an equal version is a re-delivery of the
+	 * same edit, and taking its (identical) content is harmless.
 	 */
 	internal fun update(
 		version: Int,
