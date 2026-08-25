@@ -4,17 +4,27 @@ import com.itsaky.androidide.eventbus.events.editor.ChangeType
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
+import kotlinx.coroutines.runBlocking
+import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Path
 
+/**
+ * The current-file cache, exercised through the pin API that is now the only way to acquire an
+ * instance. The pinned file may not leave its scope, so identity is compared inside the block, or
+ * through an identity hash captured inside it.
+ */
 internal class CurrentKtFileCacheTest : KtLspTest() {
 	private val openedPaths = mutableListOf<Path>()
 
@@ -48,16 +58,23 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 		)
 	}
 
+	/** The identity of the instance one pin on [path] resolves to, since the instance itself cannot escape. */
+	private fun pinnedIdentity(path: Path): Int? =
+		env.ktSymbolIndex.withLiveKtFile(path) { live ->
+			live.read { System.identityHashCode(it) }
+		}
+
 	@Test
 	fun `same version returns same instance`() {
 		createSourceFile("A.kt", "fun a() {}")
 		val path = sourcePath("A.kt")
 		openDocument(path, "fun a() {}")
 
-		val first = env.ktSymbolIndex.getCurrentKtFile(path).get()
-		val second = env.ktSymbolIndex.getCurrentKtFile(path).get()
+		val first = pinnedIdentity(path)
+		val second = pinnedIdentity(path)
 
-		assertSame(first, second)
+		assertNotNull(first)
+		assertEquals(first, second)
 	}
 
 	@Test
@@ -65,25 +82,28 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 		createSourceFile("B.kt", "fun b() {}")
 		val path = sourcePath("B.kt")
 		openDocument(path, "fun b() {}")
-		val v1 = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+		val v1 = pinnedIdentity(path)
 
 		changeDocument(path, "fun b() {}\nfun c() {}", 2)
-		val v2 = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+		val v2 =
+			env.ktSymbolIndex.withLiveKtFile(path) { live ->
+				live.read { System.identityHashCode(it) to it.text }
+			}!!
 
-		assertNotSame(v1, v2)
-		assertEquals("fun b() {}\nfun c() {}", v2.text)
+		assertNotEquals(v1, v2.first)
+		assertEquals("fun b() {}\nfun c() {}", v2.second)
 	}
 
 	@Test
-	fun `concurrent requests at same version parse once`() {
+	fun `repeated requests at the same version reuse one instance`() {
 		createSourceFile("D.kt", "fun d() {}")
 		val path = sourcePath("D.kt")
 		openDocument(path, "fun d() {}")
 
-		val futures = (1..16).map { env.ktSymbolIndex.getCurrentKtFile(path) }
-		val results = futures.map { it.get() }
+		val identities = (1..16).map { pinnedIdentity(path) }
 
-		results.forEach { assertSame(results.first(), it) }
+		assertNotNull(identities.first())
+		identities.forEach { assertEquals(identities.first(), it) }
 	}
 
 	@Test
@@ -91,69 +111,77 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 		createSourceFile("E.kt", "fun e(): Int = 1")
 		val path = sourcePath("E.kt")
 		openDocument(path, "fun e(): Int = 1")
-		env.ktSymbolIndex.getCurrentKtFile(path).get()
+		pinnedIdentity(path)
 
 		changeDocument(path, "fun e(): Int = 1\nfun f(): Int = e()", 2)
-		val v2 = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
 
-		// `f` calling `e` must resolve (no UNRESOLVED_REFERENCE). Keep `.defaultMessage` inside
-		// `env.analyze {}`: reading a diagnostic outside its analysis session throws
-		// KaInaccessibleLifetimeOwnerAccessException instead of a clean assertion diff.
+		// `f` calling `e` must resolve (no UNRESOLVED_REFERENCE). Keep `.defaultMessage` inside the
+		// analysis: reading a diagnostic outside its session throws KaInaccessibleLifetimeOwnerAccessException
+		// instead of a clean assertion diff.
 		val diagnosticMessages =
-			env.analyze(v2) {
-				v2
-					.collectDiagnostics(
-						org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS,
-					).map { it.defaultMessage }
+			env.ktSymbolIndex.withLiveKtFile(path) { live ->
+				live.analyzing(AnalysisPriority.DIAGNOSTICS, noopCancelChecker()) { ktFile ->
+					ktFile
+						.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+						.map { it.defaultMessage }
+				}
 			}
 		assertEquals(emptyList<String>(), diagnosticMessages)
 	}
 
 	@Test
-	fun `invalidateCurrent then getCurrentKtFile reparses`() {
+	fun `invalidateCurrent then a new pin reparses`() {
 		createSourceFile("G.kt", "fun g() {}")
 		val path = sourcePath("G.kt")
 		openDocument(path, "fun g() {}")
-		val first = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+		val first = pinnedIdentity(path)
 
 		env.ktSymbolIndex.invalidateCurrent(path)
-		val second = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+		val second = pinnedIdentity(path)
 
-		assertNotSame(first, second)
+		assertNotNull(first)
+		assertNotEquals(first, second)
 	}
 
+	@OptIn(UnpinnedKtFileAccess::class)
 	@Test
-	fun `getCurrentKtFileIfPresent returns the same instance after a completed refresh`() {
+	fun `peekLiveKtFile returns the same instance after a completed refresh`() {
 		createSourceFile("H.kt", "fun h() {}")
 		val path = sourcePath("H.kt")
 		openDocument(path, "fun h() {}")
-		val current = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+		runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
 
-		val peeked = env.ktSymbolIndex.getCurrentKtFileIfPresent(path)
+		val peeked = env.ktSymbolIndex.peekLiveKtFile(path)
 
-		assertSame(current, peeked)
+		assertNotNull(peeked)
+		val samePinnedInstance = env.ktSymbolIndex.withLiveKtFile(path) { live -> live.read { it === peeked } }
+		assertTrue(samePinnedInstance!!)
 	}
 
+	@OptIn(UnpinnedKtFileAccess::class)
 	@Test
 	fun `getKtFile returns the current cached instance for an active document instead of reloading from disk`() {
 		createSourceFile("I.kt", "fun i() {}")
 		val path = sourcePath("I.kt")
 		openDocument(path, "fun i() {}")
-		val current = env.ktSymbolIndex.getCurrentKtFile(path).get()!!
+		runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
+		val current = env.ktSymbolIndex.peekLiveKtFile(path)
 
 		val viaGetKtFile = env.ktSymbolIndex.getKtFile(path)
 
+		assertNotNull(current)
 		assertSame(current, viaGetKtFile)
 	}
 
+	@OptIn(UnpinnedKtFileAccess::class)
 	@Test
-	fun `getCurrentKtFileIfPresent returns null for an active document whose refresh has not been triggered`() {
+	fun `peekLiveKtFile returns null for an active document whose refresh has not been triggered`() {
 		createSourceFile("J.kt", "fun j() {}")
 		val path = sourcePath("J.kt")
 		openDocument(path, "fun j() {}")
-		// getCurrentKtFile is deliberately never called, so no refresh has been launched for this path.
+		// Nothing acquires or refreshes this path, so no refresh has been launched for it.
 
-		val peeked = env.ktSymbolIndex.getCurrentKtFileIfPresent(path)
+		val peeked = env.ktSymbolIndex.peekLiveKtFile(path)
 
 		assertNull(peeked)
 	}

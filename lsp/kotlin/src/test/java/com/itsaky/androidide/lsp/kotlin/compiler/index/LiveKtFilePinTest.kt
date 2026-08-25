@@ -8,6 +8,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Test
 import java.nio.file.Path
@@ -64,6 +65,7 @@ internal class LiveKtFilePinTest : KtLspTest() {
 		)
 	}
 
+	@OptIn(UnpinnedKtFileAccess::class)
 	@Test
 	fun `a version bump inside a pin does not install a second instance`() {
 		val path = openDocument()
@@ -72,12 +74,13 @@ internal class LiveKtFilePinTest : KtLspTest() {
 			env.ktSymbolIndex.withLiveKtFile(path) { live ->
 				bumpVersion(path, 2)
 				/*
-				 * In production this second request is any other getCurrentKtFile caller - the refresh
-				 * scheduler, completion, a code action - running while the pinned analysis is still going;
-				 * unpinned it installs a superseding instance for the same path. getKtFile is the
-				 * resolution-side door DeclarationProvider takes. Both must answer with the pinned instance.
+				 * In production this second request is any other acquisition - the refresh scheduler,
+				 * completion, a code action - running while the pinned analysis is still going; unpinned it
+				 * installs a superseding instance for the same path. getKtFile is the resolution-side door
+				 * DeclarationProvider takes. Both must answer with the pinned instance.
 				 */
-				val superseding = env.ktSymbolIndex.getCurrentKtFile(path).get()
+				runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
+				val superseding = env.ktSymbolIndex.peekLiveKtFile(path)
 				live.read { it === superseding && it === env.ktSymbolIndex.getKtFile(path) }
 			}!!
 
@@ -154,6 +157,7 @@ internal class LiveKtFilePinTest : KtLspTest() {
 		assertThat(stillPinned).isTrue()
 	}
 
+	@OptIn(UnpinnedKtFileAccess::class)
 	@Test
 	fun `a refresh owed during a pin is applied after release`() {
 		val path = openDocument()
@@ -162,9 +166,9 @@ internal class LiveKtFilePinTest : KtLspTest() {
 			env.ktSymbolIndex.withLiveKtFile(path) { live ->
 				bumpVersion(path, 2)
 				// Answered from the pin, which leaves the refresh for the new version owed.
-				env.ktSymbolIndex.getCurrentKtFile(path).get()
+				runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
 				val id = live.read { System.identityHashCode(it) }
-				val cached = env.ktSymbolIndex.getCurrentKtFileIfPresent(path)
+				val cached = env.ktSymbolIndex.peekLiveKtFile(path)
 				assertThat(System.identityHashCode(cached)).isEqualTo(id)
 				id
 			}!!
@@ -174,13 +178,14 @@ internal class LiveKtFilePinTest : KtLspTest() {
 		assertThat(awaitInstanceChange(path, pinnedId)).isTrue()
 	}
 
+	@OptIn(UnpinnedKtFileAccess::class)
 	private fun awaitInstanceChange(
 		path: Path,
 		staleId: Int,
 	): Boolean {
 		val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(REFRESH_TIMEOUT_SECONDS)
 		while (System.nanoTime() < deadline) {
-			val current = env.ktSymbolIndex.getCurrentKtFileIfPresent(path)
+			val current = env.ktSymbolIndex.peekLiveKtFile(path)
 			if (current != null && System.identityHashCode(current) != staleId) return true
 			Thread.sleep(POLL_INTERVAL_MILLIS)
 		}

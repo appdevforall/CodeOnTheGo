@@ -3,8 +3,6 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.renderName
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
@@ -24,9 +22,6 @@ private val logger = LoggerFactory.getLogger("ExtractVariablePlanner")
 /**
  * Computes the whole [ExtractionPlan] in one background analysis pass.
  *
- * The current [KtFile] is fetched *before* entering [read] -- blocking on
- * `getCurrentKtFile(...).get()` inside `project.read` deadlocks.
- *
  * Returns an empty plan both when there is genuinely nothing to extract and whenever anything in
  * this pipeline throws: the action framework only catches [IllegalArgumentException] and this runs on
  * a scope with no exception handler, so an uncaught throw would crash the app. Degrading to an empty
@@ -41,22 +36,23 @@ internal fun buildExtractionPlan(
 	cancelChecker: ScheduledCancelChecker,
 ): ExtractionPlan =
 	runCatching {
-		val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return ExtractionPlan.empty()
-		env.project.read {
-			val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
-			if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
+		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+			live.read { ktFile ->
+				val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
+				if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
 
-			/* PsiFileImpl.getText() allocates a fresh String each call, so the plan pass reads it once and
-			 * threads it down to every candidate and rung. */
-			val fileText = ktFile.text
-			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
-				ExtractionPlan(
-					fileText = fileText,
-					documentVersion = documentVersion,
-					candidates = syntax.expressions.mapNotNull { candidateFor(it, fileText) },
-				)
+				/* PsiFileImpl.getText() allocates a fresh String each call, so the plan pass reads it once and
+				 * threads it down to every candidate and rung. */
+				val fileText = ktFile.text
+				live.analyzing(AnalysisPriority.INTERACTIVE, cancelChecker) {
+					ExtractionPlan(
+						fileText = fileText,
+						documentVersion = documentVersion,
+						candidates = syntax.expressions.mapNotNull { candidateFor(it, fileText) },
+					)
+				}
 			}
-		}
+		} ?: ExtractionPlan.empty()
 	}.getOrElse { error ->
 		logger.warn("Failed to build extract-variable plan for {}", nioPath, error)
 		ExtractionPlan.empty()
