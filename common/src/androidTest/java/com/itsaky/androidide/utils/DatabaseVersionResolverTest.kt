@@ -119,8 +119,8 @@ class DatabaseVersionResolverTest {
 		)
 		insertVersion(2, 0, 0)
 		db.execSQL(
-			"INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) " +
-				"VALUES (NULL, 0, 0, 'test', 'test')",
+			"INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, ?, ?, ?, ?)",
+			arrayOf<Any?>(null, 0, 0, "test", "test"),
 		)
 
 		assertNull(DatabaseVersionResolver.resolveMajorVersion(db))

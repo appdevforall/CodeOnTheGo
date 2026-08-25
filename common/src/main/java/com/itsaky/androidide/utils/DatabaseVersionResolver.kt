@@ -1,12 +1,12 @@
 package com.itsaky.androidide.utils
 
 import android.database.sqlite.SQLiteDatabase
-import android.util.Log
+import org.slf4j.LoggerFactory
 
 object DatabaseVersionResolver {
 	const val VERSION_UNKNOWN = "Version Unknown"
 
-	private const val TAG = "DatabaseVersionResolver"
+	private val log = LoggerFactory.getLogger(DatabaseVersionResolver::class.java)
 
 	private const val QUERY_WHOLEDB = """
 		SELECT changeTime, who
@@ -64,18 +64,15 @@ object DatabaseVersionResolver {
 							who = c.getString(2),
 							documentationSet = c.getString(1),
 						)
-					Log.e(
-						TAG,
-						"Missing 'wholedb' record in LastChange table; falling back to $result",
-					)
+					log.error("Missing 'wholedb' record in LastChange table; falling back to {}", result)
 					return result
 				}
 			}
 
-			Log.e(TAG, "No versioning information available")
+			log.error("No versioning information available")
 			VERSION_UNKNOWN
 		} catch (e: Exception) {
-			Log.e(TAG, "No versioning information available", e)
+			log.error("No versioning information available", e)
 			VERSION_UNKNOWN
 		}
 	}
@@ -109,10 +106,10 @@ object DatabaseVersionResolver {
 			// there is, reported as if the table simply did not exist.
 			val rows = cursor.getInt(1)
 			if (rows > 1) {
-				Log.w(
-					TAG,
-					"DocumentationDatabaseVersion holds $rows rows; it is meant to hold one. Using the row " +
-						"written last; the database was built by something that appended instead of replacing.",
+				log.warn(
+					"DocumentationDatabaseVersion holds {} rows; it is meant to hold one. Using the row written " +
+						"last; the database was built by something that appended instead of replacing.",
+					rows,
 				)
 			}
 			if (cursor.isNull(0)) null else cursor.getInt(0)
