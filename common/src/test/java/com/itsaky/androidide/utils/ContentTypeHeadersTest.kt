@@ -38,6 +38,16 @@ class ContentTypeHeadersTest {
 		assertThat(ContentTypeHeaders.headerValue("")).isEqualTo("application/octet-stream")
 	}
 
+	// The type segment being clean is not enough: a parameter is just as much a part of the header
+	// line, so a CR/LF there splits the response exactly the same way.
+	@Test
+	fun `a control character in a parameter is refused too`() {
+		val injected = "text/html; note=x\r\nX-Injected: y"
+
+		assertThat(ContentTypeHeaders.headerValue(injected)).isEqualTo("application/octet-stream")
+		assertThat(ContentTypeHeaders.typeAndCharset(injected)).isEqualTo("application/octet-stream" to null)
+	}
+
 	@Test
 	fun `binary types are left alone`() {
 		for (type in listOf("image/png", "image/gif", "application/pdf", "font/woff2", "video/mp4")) {

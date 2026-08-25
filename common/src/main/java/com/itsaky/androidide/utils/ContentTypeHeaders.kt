@@ -78,8 +78,15 @@ object ContentTypeHeaders {
 	 * it is refused: `application/octet-stream` renders nothing and injects nothing.
 	 */
 	private fun safeType(mimeType: String): String {
+		// The *whole* stored value, not just the segment before the first ';'. A control character in
+		// a parameter -- text/html; note=x<CR><LF>X-Injected: y -- would otherwise pass this check and
+		// then be written into the header by the parameter loop in headerValue, which is the same
+		// response splitting, one segment further along.
+		if (mimeType.any { it.isISOControl() }) {
+			return OCTET_STREAM
+		}
 		val type = mimeType.substringBefore(';').trim()
-		if (type.isEmpty() || type.any { it.isISOControl() }) {
+		if (type.isEmpty()) {
 			return OCTET_STREAM
 		}
 		// "text" and "text/text" are the database's own spellings for plain text, and neither parses
@@ -199,6 +206,11 @@ object ContentTypeHeaders {
 	 */
 	fun headerValue(mimeType: String): String {
 		val (type, charset) = typeAndCharset(mimeType)
+		// Nothing from a refused value is re-emitted: its parameters are exactly where the control
+		// characters would have been.
+		if (type == OCTET_STREAM && charset == null) {
+			return OCTET_STREAM
+		}
 		return buildString {
 			append(type)
 			for ((name, value) in parameters(mimeType)) {
