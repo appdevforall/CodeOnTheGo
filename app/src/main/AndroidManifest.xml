@@ -91,10 +91,16 @@
             android:name=".activities.OnboardingActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="false" />
+        <!--
+            Not exported: this activity has no intent-filter, so nothing outside the app ever needs
+            to launch it, and DeepLinkActivity (same app) still can. Exported, any co-installed app
+            could send it a forged DEEP_LINK_REQUEST extra directly, skipping DeepLinkActivity's URI
+            validation, to force an arbitrary project open and navigate to a file inside it.
+        -->
         <activity
             android:name=".activities.MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.AndroidIDE" />
         <activity
             android:name=".activities.DeepLinkActivity"

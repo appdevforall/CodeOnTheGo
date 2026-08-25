@@ -570,13 +570,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	 * Resolves [request]'s project name to an on-disk project directory and opens it -- called when
 	 * [DeepLinkActivity] has already determined no project is currently loaded.
 	 *
-	 * This still goes through [handleOpenProject] (honoring [GeneralPreferences.confirmProjectOpen])
-	 * rather than calling [openProject] directly: [MainActivity] is `exported="true"` -- not because
-	 * anything requires it to be (`SplashActivity` holds the actual MAIN/LAUNCHER intent-filter;
-	 * [MainActivity] has none of its own), which is exactly why any co-installed app can target it
-	 * directly with this same extra, bypassing [DeepLinkActivity]'s own URI re-validation entirely.
-	 * Skipping the confirmation gate here would let such an app silently force a project open with no
-	 * user interaction at all.
+	 * This still goes through [handleOpenProject] rather than calling [openProject] directly, so an
+	 * open arriving by link is gated the same way as one from the project list when the user has
+	 * asked for that gate ([GeneralPreferences.confirmProjectOpen]).
+	 *
+	 * That preference is *not* what makes this extra safe to trust -- it defaults to `false`. The
+	 * boundary is the manifest: [MainActivity] is not exported, so this extra can only have come
+	 * from [DeepLinkActivity], which parsed and validated the URI it came from. It was previously
+	 * exported despite declaring no intent-filter of its own (`SplashActivity` holds the actual
+	 * MAIN/LAUNCHER), which let any co-installed app send this extra directly and force an arbitrary
+	 * project open with no user interaction at all. `DeepLinkTargetsNotExportedTest` pins that.
 	 */
 	private fun handleDeepLinkRequest(request: DeepLinkRequest) {
 		latestDeepLinkRequest = request
