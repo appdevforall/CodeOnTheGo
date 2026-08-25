@@ -49,15 +49,21 @@ way to obtain one is `KtSymbolIndex.withLiveKtFile` / `withLiveKtFileAsync`
 3. A version bump observed while the pin is open is recorded (`Pin.refreshOwed`) rather than acted on, and applied
    once the last scope releases (`releasePin`), so the pin defers the refresh instead of losing it.
 
-`getCurrentKtFile`, `getCurrentVersionedKtFile` and `getCurrentKtFileIfPresent` are `private`; `getKtFile` is
-`internal`, documented as the resolution-side door for the Analysis API service providers, not a general
-accessor. `LiveKtFile` never exposes the `KtFile` as a value - `read` and `analyzing` take a lambda instead of
-returning the file - so a caller cannot hold a reference past the scope that pinned it. `analyzing` routes through
-`analyzeMaybeDangling`, which is `withAnalysisLock` under the hood
+`getCurrentKtFile`, `getCurrentVersionedKtFile` and `getCurrentKtFileIfPresent` are `private`; `getKtFile` stays
+`internal` but is gated behind its own `@RequiresOptIn(ERROR)` marker, `ResolutionSideKtFileAccess`, because
+`internal` alone still let any file in the module - including the test source set and whatever the next refactor
+adds - take the live instance and analyse it, which is exactly the shape of the ADFA-3322 regression. Its three
+production opt-ins are the Analysis API service providers that only need to name the PSI for a path
+(`DeclarationProvider.ktFilesForPackage`, `AnnotationsResolver.allDeclarations`,
+`DirectInheritorsProvider.computeIndex`). `LiveKtFile` never exposes the `KtFile` as a value - `read` and
+`analyzing` take a lambda instead of returning the file - so a caller cannot hold a reference past the scope that
+pinned it. `analyzing` routes through `analyzeMaybeDangling`, which is `withAnalysisLock` under the hood
 (`lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/modules/KtFileExts.kt`), so pinning also
 closes the last direct route to `analyze`/`analyzeCopy` that its doc comment could previously only ask callers not
-to take. For an open path, using the shared serialization lock is no longer just a convention - it is the only way
-to reach a live `KtFile` at all.
+to take. For an open path, using the shared serialization lock is no longer just a convention - it is the only
+un-gated way to reach a live `KtFile`, with one known exception: `refreshToCurrent` hands the freshly minted
+instance to `queueOnFileChangedAsync`, which carries the raw `KtFile` through `IndexCommand.IndexModifiedFile` to
+`SourceFileIndexer.indexSourceFile`, where it is analysed with no pin (pre-existing, tracked as a follow-up).
 
 **One escape hatch:** `KtSymbolIndex.peekLiveKtFile`, gated behind `@RequiresOptIn(ERROR)` `UnpinnedKtFileAccess`.
 Its one production caller is `AdvancedKotlinEditHandler`
@@ -65,13 +71,24 @@ Its one production caller is `AdvancedKotlinEditHandler`
 on the UI thread after completion has already returned, does PSI-only work, and opens no analysis session.
 Pinning there would block the UI thread on a refresh that a background analysis might be holding up.
 
+That justification covers *analysis* coherence only, and the hatch is not safe in the sense the `isStale` guards
+above address. `AdvancedKotlinEditHandler.performEdits` passes the unpinned instance to
+`KotlinAutoImportEditHandler`, which computes offset-based `TextEdit`s from its import-directive text ranges
+(`utils/EditExts.kt`, `insertImport`) and applies them to the editor buffer through `RewriteHelper.performEdits`.
+Nothing compares that instance's text or version against the `Content` being edited, and `peekLiveKtFile` returns
+whatever the current-file cache holds, which lags the buffer by however long the refresh takes - so this site does
+hand offsets from possibly-stale PSI into an edit. The behaviour is unchanged by this ADR's change and the fix is
+tracked separately; widening the hatch to a second caller has to weigh that, not just the analysis argument.
+
 ## Consequences
 
 **Positive**
 
 - The invariant is now enforced by the compiler: code that reaches for a live `KtFile` outside `withLiveKtFile` /
-  `withLiveKtFileAsync` does not compile. The class of bug ADFA-4165 fixed and ADFA-3322 silently reintroduced
-  cannot come back from a refactor that simply forgets the discipline the old fix depended on.
+  `withLiveKtFileAsync` does not compile without an explicit `@OptIn` on one of the two markers, which makes every
+  exemption visible in review rather than reachable by autocomplete. The class of bug ADFA-4165 fixed and
+  ADFA-3322 silently reintroduced cannot come back from a refactor that simply forgets the discipline the old fix
+  depended on.
 - The pin makes explicit what was previously only inferred from two call sites happening to agree: an analysis and
   the declaration provider see the same PSI for the whole scope, by construction.
 
