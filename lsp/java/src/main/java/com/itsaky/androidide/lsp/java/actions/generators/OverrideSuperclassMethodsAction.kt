@@ -210,7 +210,7 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
 
 		val listView = dialog.listView
 		listView.setOnItemLongClickListener { _, view, position, _ ->
-			showTooltip(context, view, tooltipTag)
+			showTooltip(context, view, TooltipTag.EDITOR_CODE_ACTIONS_OVERRIDE_SUPER_DIALOG)
 			true
 		}
 
@@ -218,7 +218,7 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
 			val root = dialog.window?.decorView ?: return@setOnShowListener
 
 			root.applyLongPressRecursively {
-				showTooltip(context, root, tooltipTag)
+				showTooltip(context, root, TooltipTag.EDITOR_CODE_ACTIONS_OVERRIDE_SUPER_DIALOG)
 				true
 			}
 		}
