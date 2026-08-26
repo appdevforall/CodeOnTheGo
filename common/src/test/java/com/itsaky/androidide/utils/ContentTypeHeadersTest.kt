@@ -136,4 +136,45 @@ class ContentTypeHeadersTest {
 		assertThat(ContentTypeHeaders.typeAndCharset("text/html; charset=iso-8859-1"))
 			.isEqualTo("text/html" to "iso-8859-1")
 	}
+
+	// The hole the previous revision left: safeType refused the type, but the charset parameter was
+	// re-parsed from the original string, so a CRLF inside it reached the header anyway. WebServer
+	// writes this with println, so that is a split response with an attacker-chosen body.
+	@Test
+	fun `a control character in the charset parameter refuses the whole value`() {
+		val split = "text/html; charset=x\r\n\r\n<script>alert(1)</script>"
+
+		val header = ContentTypeHeaders.headerValue(split)
+
+		assertThat(header).isEqualTo("application/octet-stream")
+		assertThat(header).doesNotContain("\r")
+		assertThat(header).doesNotContain("\n")
+		assertThat(ContentTypeHeaders.typeAndCharset(split).second).isNull()
+	}
+
+	@Test
+	fun `a control character in a parameter name refuses the whole value`() {
+		val header = ContentTypeHeaders.headerValue("text/html; x\r\nX-Injected: y=1")
+
+		assertThat(header).isEqualTo("application/octet-stream")
+	}
+
+	// parameters() strips the quotes, so appending the value raw turned one charset into a charset
+	// plus a second parameter the client would honour.
+	@Test
+	fun `a quoted charset cannot smuggle a second parameter`() {
+		val header = ContentTypeHeaders.headerValue("""text/html; charset="utf-8; x=y"""")
+
+		// Quoted, so the recipient reads one charset whose value happens to contain a semicolon --
+		// not a charset plus a second parameter. Appended raw it was the latter.
+		assertThat(header).isEqualTo("""text/html; charset="utf-8; x=y"""")
+	}
+
+	// Refusal used to be read off the returned string, so a genuine octet-stream looked refused.
+	@Test
+	fun `a stored octet-stream keeps its own parameters`() {
+		val header = ContentTypeHeaders.headerValue("application/octet-stream; name=file.bin")
+
+		assertThat(header).contains("name=file.bin")
+	}
 }
