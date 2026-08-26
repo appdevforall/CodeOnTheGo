@@ -103,9 +103,12 @@ tracked separately; widening the hatch to a second caller has to weigh that, not
   refusal is recoverable; a wrong edit to the user's source is not. `KotlinDiagnosticProvider.doAnalyze` discards
   and reschedules instead: it has nothing safe to hand the user in the moment, so it drops the computed diagnostics
   and re-queues the file through `env.fileAnalyzer.schedule` rather than paint the editor with squiggles for text
-  the user has already replaced. Navigation and info sites - go-to-definition, find usages, signature help -
-  deliberately tolerate being one edit behind (see the comment at `GoToDefinition.kt:215`) and do not check
-  `isStale` at all, because their failure mode is a wrong jump, not a corrupted file or a dropped result.
+  the user has already replaced. When it runs as `fileAnalyzer`'s own action - the debounced path - that reschedule
+  is a self-send: the send reads to the worker as a newer key and cancels the run it came from. Intended - the key
+  is still re-sent, and the cancelled tail was only going to publish `NO_UPDATE`. Navigation and info sites -
+  go-to-definition, find usages, signature help - deliberately tolerate being one edit behind (see the comment at
+  `GoToDefinition.kt:215`) and do not check `isStale` at all, because their failure mode is a wrong jump, not a
+  corrupted file or a dropped result.
 - **Known parked consequence:** while background diagnostics hold a pin and the user keeps typing, a completion
   request joins the stale pin and returns no items until the next keystroke closes it. Fixing this needs
   acquisition to be priority-aware - an interactive request preempting a lower-priority holder instead of joining
