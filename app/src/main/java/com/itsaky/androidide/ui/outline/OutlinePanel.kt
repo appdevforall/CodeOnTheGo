@@ -1,6 +1,7 @@
 package com.itsaky.androidide.ui.outline
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -31,12 +33,37 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.itsaky.androidide.R
+import com.itsaky.androidide.editor.language.outline.OutlineSymbolKind
 import com.itsaky.androidide.ui.models.OutlineUiEvent
 import com.itsaky.androidide.ui.models.OutlineUiState
 import com.itsaky.androidide.viewmodel.OutlineViewModel
 
 private const val MAX_INDENT_DEPTH = 6
 private val INDENT_STEP = 14.dp
+
+private val TYPE_BADGE_LIGHT = Color(0xFF6650C4)
+private val TYPE_BADGE_DARK = Color(0xFFB9A8FF)
+private val CALLABLE_BADGE_LIGHT = Color(0xFF0B6E77)
+private val CALLABLE_BADGE_DARK = Color(0xFF7FD8DF)
+private val DATA_BADGE_LIGHT = Color(0xFFA05A00)
+private val DATA_BADGE_DARK = Color(0xFFF0B45C)
+
+@Composable
+private fun badgeColorFor(kind: OutlineSymbolKind): Color {
+	val dark = isSystemInDarkTheme()
+	return when (kind) {
+		OutlineSymbolKind.METHOD,
+		OutlineSymbolKind.CONSTRUCTOR,
+		-> if (dark) CALLABLE_BADGE_DARK else CALLABLE_BADGE_LIGHT
+
+		OutlineSymbolKind.FIELD,
+		OutlineSymbolKind.PROPERTY,
+		OutlineSymbolKind.ENUM_MEMBER,
+		-> if (dark) DATA_BADGE_DARK else DATA_BADGE_LIGHT
+
+		else -> if (dark) TYPE_BADGE_DARK else TYPE_BADGE_LIGHT
+	}
+}
 
 @Composable
 fun OutlinePanel(
@@ -157,7 +184,7 @@ private fun OutlineRow(
 			fontFamily = FontFamily.Monospace,
 			fontWeight = FontWeight.Bold,
 			style = MaterialTheme.typography.bodyMedium,
-			color = MaterialTheme.colorScheme.primary,
+			color = badgeColorFor(symbol.kind),
 			modifier = Modifier.padding(horizontal = 6.dp),
 		)
 		Column(modifier = Modifier.weight(1f)) {
