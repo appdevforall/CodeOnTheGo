@@ -105,12 +105,15 @@ INSERT INTO _workdir_guard SELECT CAST(READFILE('/tmp/adfa5088-pm-workdir/.mode'
 -- becomes genuinely unreachable once this row is gone - delete that
 -- Content row too rather than leaving an orphan behind.
 
-DELETE FROM TooltipButtons
-WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'plugin.manager' AND categoryId = 1);
-
-DELETE FROM Tooltips WHERE tag = 'plugin.manager' AND categoryId = 1;
-
-DELETE FROM Content WHERE path = 'i/plugin-install.html';
+-- The plugin.manager rows and their i/plugin-install.html page STAY.
+--
+-- This block used to delete them, on the premise that the granular tags below replace the single
+-- screen-level tag and nothing reaches it any more. That premise stopped being true when ADFA-4928
+-- rewrote the Plugin Manager in Compose: ManagerScreen and PluginManagerContent both show
+-- TooltipTag.PLUGIN_MANAGER, anchored on the root view, and they are the only plugin-manager
+-- tooltips the app currently has -- the granular tags below are seeded ahead of a UI that can
+-- anchor them (see TooltipTag.kt). Deleting the row would blank the one tooltip that works and
+-- take its Tier 3 page with it, irreversibly, in the production database.
 
 -- Tooltips: idempotent upserts (all new tags)
 

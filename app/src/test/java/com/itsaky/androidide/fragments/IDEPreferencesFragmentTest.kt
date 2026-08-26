@@ -74,17 +74,27 @@ class IDEPreferencesFragmentTest {
 		assertThat(tags).containsExactly("untagged", "")
 	}
 
+	/**
+	 * A duplicate key keeps the first tag and does not throw.
+	 *
+	 * This asserted the opposite -- that collectTooltipTags rejects the tree -- until the review
+	 * pointed out where duplicates actually come from: every @Parcelize group declares `children` as
+	 * a constructor property *and* re-adds its children in `init`, so a fragment restored from its
+	 * parcelled arguments arrives with every child twice, through no mistake in the tree. Throwing
+	 * inside onCreatePreferences made that a crash on returning to Preferences after process death;
+	 * the cost of the alternative is one row showing the wrong tooltip.
+	 */
 	@Test
-	fun `collectTooltipTags rejects a duplicate key instead of silently overwriting its tag`() {
+	fun `collectTooltipTags keeps the first tag for a duplicate key rather than throwing`() {
 		val children =
 			listOf(
 				FakeItem(key = "dup", tooltipTag = "tag.first"),
 				FakeItem(key = "dup", tooltipTag = "tag.second"),
 			)
 
-		assertThrows(IllegalStateException::class.java) {
-			IDEPreferencesFragment().collectTooltipTags(children)
-		}
+		val tags = IDEPreferencesFragment().collectTooltipTags(children)
+
+		assertThat(tags).containsExactly("dup", "tag.first")
 	}
 
 	@Test

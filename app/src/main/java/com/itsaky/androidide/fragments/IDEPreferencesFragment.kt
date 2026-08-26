@@ -32,8 +32,11 @@ import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
+import org.slf4j.LoggerFactory
 
 class IDEPreferencesFragment : BasePreferenceFragment() {
+	private val log = LoggerFactory.getLogger(IDEPreferencesFragment::class.java)
+
 	/** Every preference in this screen, including nested categories' children, keyed by its key. */
 	internal var tooltipTagsByKey: Map<String, String> = emptyMap()
 
@@ -130,8 +133,18 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 
 		fun visit(items: List<IPreference>) {
 			for (item in items) {
-				check(item.key !in map) { "Duplicate preference key in this screen's tree: ${item.key}" }
-				map[item.key] = item.tooltipTag
+				// Log and keep the first, rather than check(): a duplicate key is a wrong tooltip on one
+				// row, and this runs inside onCreatePreferences, where throwing takes the whole screen
+				// down. It is also reachable without any mistake in the tree -- every @Parcelize group
+				// declares `children` as a constructor property *and* re-adds its children in init, so
+				// a fragment restored from its parcelled arguments (process death, or "Don't keep
+				// activities") arrives with every child twice. pluginSettingsPreferences() already
+				// chose this policy for the same hazard (ADFA-5088 review).
+				if (item.key in map) {
+					log.warn("Duplicate preference key in this screen's tree: {}; keeping the first tooltip tag", item.key)
+				} else {
+					map[item.key] = item.tooltipTag
+				}
 				if (item is IPreferenceGroup && item !is IPreferenceScreen) {
 					visit(item.children)
 				}
