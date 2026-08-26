@@ -18,6 +18,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentSelectedEvent
 import com.itsaky.androidide.models.Position
+import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.ui.models.OutlineUiEffect
 import com.itsaky.androidide.ui.outline.OutlinePanel
 import com.itsaky.androidide.viewmodel.OutlineViewModel
@@ -76,11 +77,10 @@ class OutlineFragment : Fragment() {
 
 	@Subscribe(threadMode = MAIN)
 	fun onDocumentChanged(event: DocumentChangeEvent) {
-		val text = event.newText ?: return
 		viewModel.onSnapshot(
 			fileName = event.changedFile.fileName.toString(),
 			extension = extensionOf(event.changedFile),
-			text = text,
+			text = event.newText ?: FileManager.getDocumentContents(event.changedFile),
 			immediate = false,
 		)
 	}
