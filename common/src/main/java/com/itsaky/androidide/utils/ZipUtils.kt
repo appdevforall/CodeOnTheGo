@@ -45,9 +45,10 @@ object ZipUtils {
 	 * An entry whose target is an existing symlink -- live, dangling, or even pointing outside
 	 * [destDir] -- is skipped and extraction continues: nothing is written at or through the link,
 	 * which keeps a user's own symlink (a `gradlew`, an SDK link) from being overwritten by an
-	 * archive. The skip applies only to a link lexically inside [destDir]; any other entry that
-	 * would land outside [destDir] (zip-slip), or whose name is not a representable path, fails
-	 * the whole call with an [IOException].
+	 * archive. The skip applies only to a link lexically inside [destDir] whose entry name carries
+	 * no traversal syntax; an entry that would land outside [destDir] (zip-slip), names its target
+	 * through a `..` segment, or is not a representable path fails the whole call with an
+	 * [IOException].
 	 */
 	@JvmStatic
 	@Throws(IOException::class)
@@ -109,14 +110,20 @@ object ZipUtils {
 	}
 
 	/**
-	 * Whether a symlink exists at [entryName]'s lexically-normalized path inside [destDir]. Purely
-	 * lexical containment before the one NOFOLLOW stat, so nothing outside [destDir] is ever
-	 * touched -- a `../` entry fails `startsWith` and is never stat'd.
+	 * Whether a symlink exists at [entryName]'s lexically-normalized path inside [destDir]. Applies
+	 * the resolver's own lexical reject first, so an entry the resolver refused for its *syntax* (a
+	 * `..` segment, an absolute path) stays a bad archive even when a symlink happens to sit at its
+	 * normalized target -- `a/../link.txt` must fail, not ride the skip meant for `link.txt`. Only
+	 * then the one NOFOLLOW stat, on a path proven inside [destDir], so nothing outside is ever
+	 * touched.
 	 */
 	private fun isContainedSymlink(
 		destDir: File,
 		entryName: String,
 	): Boolean {
+		if (ContainedPathResolver.isLexicallyRejected(entryName)) {
+			return false
+		}
 		val base = destDir.toPath().toAbsolutePath().normalize()
 		val candidate =
 			try {

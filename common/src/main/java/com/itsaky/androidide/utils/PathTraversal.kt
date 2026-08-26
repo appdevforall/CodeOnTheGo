@@ -78,13 +78,7 @@ class ContainedPathResolver(
 	 * literal NUL, which [java.nio.file.Path] rejects rather than silently ignoring).
 	 */
 	fun resolve(relativePath: String): File? {
-		// Split on both separators: '\' is not a path separator on Android, but a caller handing
-		// over a Windows-style path should not have it treated as one long filename.
-		if (relativePath.isEmpty() ||
-			relativePath.startsWith("/") ||
-			relativePath.startsWith("\\") ||
-			relativePath.split('/', '\\').any { it == ".." }
-		) {
+		if (isLexicallyRejected(relativePath)) {
 			return null
 		}
 
@@ -168,6 +162,23 @@ class ContainedPathResolver(
 		} catch (_: IOException) {
 			null
 		}
+	}
+
+	companion object {
+		/**
+		 * Layer 1 alone: whether [relativePath] is rejected before any filesystem look -- empty,
+		 * absolute (leading `/` or `\`), or containing a literal `..` segment. Exposed so a caller
+		 * with a more lenient fallback for paths [resolve] refused ([ZipUtils]' skip of an existing
+		 * symlink) can apply the same reject first: an entry that fails here is a bad archive
+		 * however the filesystem looks, never fallback material.
+		 */
+		internal fun isLexicallyRejected(relativePath: String): Boolean =
+			// Split on both separators: '\' is not a path separator on Android, but a caller handing
+			// over a Windows-style path should not have it treated as one long filename.
+			relativePath.isEmpty() ||
+				relativePath.startsWith("/") ||
+				relativePath.startsWith("\\") ||
+				relativePath.split('/', '\\').any { it == ".." }
 	}
 }
 
