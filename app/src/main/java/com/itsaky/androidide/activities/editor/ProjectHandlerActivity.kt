@@ -927,7 +927,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		builder.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
 		val dialog = builder.create()
-		dialog.onLongPress { view ->
+		dialog.onLongPress(includeEditTexts = true) { view ->
 			if (
 				view is EditText
 			) {

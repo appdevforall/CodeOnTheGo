@@ -183,6 +183,15 @@ abstract class LogViewModel : ViewModel() {
 		}
 	}
 
+	/**
+	 * Force [uiEvents] to restart and replay a fresh [UiEvent.SetText] snapshot of the
+	 * retained history. Used by the view layer to recover when an append could not be
+	 * rendered (e.g. the editor had no dimensions yet).
+	 */
+	fun resync() {
+		generation.update { it + 1 }
+	}
+
 	/** Whether the retained log buffer contains no entries. O(1) check. */
 	val isBufferEmpty: Boolean
 		get() = buffer.isEmpty
