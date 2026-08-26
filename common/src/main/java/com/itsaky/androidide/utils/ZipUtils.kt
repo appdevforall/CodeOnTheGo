@@ -113,9 +113,12 @@ object ZipUtils {
 	 * Whether a symlink exists at [entryName]'s lexically-normalized path inside [destDir]. Applies
 	 * the resolver's own lexical reject first, so an entry the resolver refused for its *syntax* (a
 	 * `..` segment, an absolute path) stays a bad archive even when a symlink happens to sit at its
-	 * normalized target -- `a/../link.txt` must fail, not ride the skip meant for `link.txt`. Only
-	 * then the one NOFOLLOW stat, on a path proven inside [destDir], so nothing outside is ever
-	 * touched.
+	 * normalized target -- `a/../link.txt` must fail, not ride the skip meant for `link.txt`. Then
+	 * every ancestor between [destDir] and the candidate must be a non-link: stat'ing the candidate
+	 * *follows* an ancestor symlink, so with `a -> /outside`, `a/link.txt` would stat
+	 * `/outside/link.txt` and a link found there would ride the skip -- an escaping archive
+	 * tolerated instead of rejected. Only a link whose every ancestor is a real directory inside
+	 * [destDir] qualifies, and the stats stay on paths proven lexically inside [destDir].
 	 */
 	private fun isContainedSymlink(
 		destDir: File,
@@ -131,6 +134,16 @@ object ZipUtils {
 			} catch (_: InvalidPathException) {
 				return false
 			}
-		return candidate != base && candidate.startsWith(base) && Files.isSymbolicLink(candidate)
+		if (candidate == base || !candidate.startsWith(base)) {
+			return false
+		}
+		var ancestor = candidate.parent
+		while (ancestor != null && ancestor != base) {
+			if (Files.isSymbolicLink(ancestor)) {
+				return false
+			}
+			ancestor = ancestor.parent
+		}
+		return Files.isSymbolicLink(candidate)
 	}
 }

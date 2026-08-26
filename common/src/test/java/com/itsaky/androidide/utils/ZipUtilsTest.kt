@@ -165,6 +165,31 @@ class ZipUtilsTest {
 		assertThat(realFile.readText()).isEqualTo("original")
 	}
 
+	// Regression: the symlink-skip fallback used to stat the entry's *normalized* path, which
+	// follows an ancestor symlink -- with dest/a -> outside, entry "a/link.txt" stat'ed
+	// outside/link.txt, found a symlink there, and the escaping archive was silently skipped
+	// instead of rejected. The skip is only for a link whose every ancestor is a real directory
+	// inside destDir.
+	@Test
+	fun `unzipFile rejects an entry that reaches a symlink through a symlinked ancestor`() {
+		val destDir = tempFolder.newFolder("dest")
+		val outsideDir = tempFolder.newFolder("outside")
+		val outsideTarget = File(outsideDir, "target.txt").apply { writeText("outside content") }
+		createSymlinkOrSkipTest(File(outsideDir, "link.txt").toPath(), outsideTarget.toPath())
+		createSymlinkOrSkipTest(File(destDir, "a").toPath(), outsideDir.toPath())
+
+		val zipFile = tempFolder.newFile("evil.zip")
+		ZipOutputStream(zipFile.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("a/link.txt"))
+			zip.write("payload".toByteArray())
+			zip.closeEntry()
+		}
+
+		val thrown = assertThrows(IOException::class.java) { ZipUtils.unzipFile(zipFile, destDir) }
+		assertThat(thrown).hasMessageThat().contains("does not resolve to a safe path")
+		assertThat(outsideTarget.readText()).isEqualTo("outside content")
+	}
+
 	// An entry name the platform cannot turn into a path is a broken archive, not a crash: the
 	// resolver reports it as unresolvable (null), and unzipFile turns that into the one IOException
 	// it declares, rather than an unchecked InvalidPathException escaping.
