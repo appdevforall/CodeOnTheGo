@@ -104,8 +104,6 @@ sentry.properties
 .DS_Store
 
 # Generated files for tooling API
-tests/test-home
-/tests/**/.cg/init/model.jar
 
 /composite-builds/build-deps-common/constants/build/
 /composite-builds/build-deps/build/
@@ -197,3 +195,8 @@ dynamic_libs/*.aar.br
 # Python bytecode from scripts/
 __pycache__/
 *.pyc
+
+# Per-project cache the IDE writes (models, sync metadata, locks). The test project's copy was
+# tracked and every test run rewrote it with the local machine's absolute paths, so it arrived in
+# unrelated commits -- a 12 MB binary among them (ADFA-5264).
+testing/resources/test-project/.cg/
