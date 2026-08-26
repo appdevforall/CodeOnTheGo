@@ -2,13 +2,11 @@ package com.itsaky.androidide.utils
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Assert.assertThrows
-import org.junit.Assume
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
-import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -39,10 +37,11 @@ class ZipUtilsTest {
 		}
 
 		val destDir = tempFolder.newFolder("dest")
-		ZipUtils.unzipFile(zipFile, destDir)
+		val result = ZipUtils.unzipFile(zipFile, destDir)
 
 		assertThat(File(destDir, "dir/nested.txt").readText()).isEqualTo("nested content")
 		assertThat(File(destDir, "root.txt").readText()).isEqualTo("root content")
+		assertThat(result.skipped).isEmpty()
 	}
 
 	@Test
@@ -67,23 +66,7 @@ class ZipUtilsTest {
 		val destDir = tempFolder.newFolder("dest")
 		val realFile = File(destDir, "real.txt").apply { writeText("original") }
 		val linkPath = File(destDir, "link.txt").toPath()
-		val symlinkCreated =
-			try {
-				Files.createSymbolicLink(linkPath, realFile.toPath())
-				true
-			} catch (e: UnsupportedOperationException) {
-				// The filesystem itself doesn't support symlinks (e.g. FAT32).
-				false
-			} catch (e: FileSystemException) {
-				// Windows NTFS supports symlinks but requires an elevated/Developer Mode privilege to
-				// create them -- without it, creation fails with this specific reason (a permission
-				// error), not UnsupportedOperationException. Any other reason is a real, unexpected
-				// failure and must not be silently swallowed.
-				if (e.reason?.contains("privilege", ignoreCase = true) != true) throw e
-				false
-			}
-		// Report as skipped, not silently passed, when this environment can't create symlinks.
-		Assume.assumeTrue("Symlinks are not supported/permitted on this filesystem", symlinkCreated)
+		createSymlinkOrSkipTest(linkPath, realFile.toPath())
 
 		// The symlink's target is inside destDir, so the canonical-path containment check alone
 		// would pass -- this isolates the separate, explicit isSymbolicLink guard. A second,
@@ -100,12 +83,43 @@ class ZipUtilsTest {
 			zip.closeEntry()
 		}
 
-		val extracted = ZipUtils.unzipFile(zipFile, destDir)
+		val result = ZipUtils.unzipFile(zipFile, destDir)
 
 		assertThat(Files.isSymbolicLink(linkPath)).isTrue()
 		assertThat(realFile.readText()).isEqualTo("original")
 		assertThat(File(destDir, "unrelated.txt").readText()).isEqualTo("unrelated content")
-		assertThat(extracted.map { it.name }).containsExactly("unrelated.txt")
+		assertThat(result.extracted.map { it.name }).containsExactly("unrelated.txt")
+		assertThat(result.skipped).containsExactly("link.txt")
+	}
+
+	// Regression test: a *dangling* symlink at an entry's target used to abort the whole archive --
+	// the resolver refuses a link it cannot prove contained, and the escape exception fired. The
+	// link is lexically inside destDir and nothing is written at or through it, so this is the same
+	// leave-the-user's-symlink-alone skip as above, reported the same way.
+	@Test
+	fun `unzipFile skips an entry whose target is a dangling symlink inside the destination`() {
+		val destDir = tempFolder.newFolder("dest")
+		val linkPath = File(destDir, "link.txt").toPath()
+		createSymlinkOrSkipTest(linkPath, File(destDir, "missing-target.txt").toPath())
+
+		val zipFile = tempFolder.newFile("archive.zip")
+		ZipOutputStream(zipFile.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("link.txt"))
+			zip.write("payload".toByteArray())
+			zip.closeEntry()
+
+			zip.putNextEntry(ZipEntry("unrelated.txt"))
+			zip.write("unrelated content".toByteArray())
+			zip.closeEntry()
+		}
+
+		val result = ZipUtils.unzipFile(zipFile, destDir)
+
+		assertThat(Files.isSymbolicLink(linkPath)).isTrue()
+		assertThat(File(destDir, "missing-target.txt").exists()).isFalse()
+		assertThat(File(destDir, "unrelated.txt").readText()).isEqualTo("unrelated content")
+		assertThat(result.extracted.map { it.name }).containsExactly("unrelated.txt")
+		assertThat(result.skipped).containsExactly("link.txt")
 	}
 
 	@Test
@@ -128,9 +142,9 @@ class ZipUtilsTest {
 		assertThat(File(destDir, "a..b/c.txt").readText()).isEqualTo("nested content")
 	}
 
-	// An entry name the platform cannot turn into a path is a broken archive, not a crash: it has to
-	// arrive as the IOException this function declares, rather than an unchecked InvalidPathException
-	// escaping from the link check.
+	// An entry name the platform cannot turn into a path is a broken archive, not a crash: the
+	// resolver reports it as unresolvable (null), and unzipFile turns that into the one IOException
+	// it declares, rather than an unchecked InvalidPathException escaping.
 	@Test
 	fun `unzipFile reports an entry whose name is not a usable path`() {
 		val zip = tempFolder.newFile("bad-name.zip")
@@ -142,6 +156,6 @@ class ZipUtilsTest {
 
 		val destDir = tempFolder.newFolder("out-bad-name")
 		val thrown = assertThrows(IOException::class.java) { ZipUtils.unzipFile(zip, destDir) }
-		assertThat(thrown).hasMessageThat().contains("bad")
+		assertThat(thrown).hasMessageThat().contains("does not resolve to a safe path")
 	}
 }

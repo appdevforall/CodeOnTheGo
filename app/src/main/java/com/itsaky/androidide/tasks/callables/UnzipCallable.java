@@ -37,6 +37,6 @@ public final class UnzipCallable implements Callable<List<File>> {
 
 	@Override
 	public List<File> call() throws Exception {
-		return ZipUtils.unzipFile(src, dest);
+		return ZipUtils.unzipFile(src, dest).getExtracted();
 	}
 }

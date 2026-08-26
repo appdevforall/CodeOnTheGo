@@ -93,11 +93,17 @@ class ContainedPathResolver(
 			if (!resolved.startsWith(base)) {
 				return null
 			}
+			if (resolved == base) {
+				// "." and "./" normalize to the base itself -- not a path *inside* it, and a caller
+				// treats a non-null result as a usable target.
+				return null
+			}
 
-			// Resolved per call, not once in a constructor. Two reasons, both of which bit this class:
-			// the asset installer builds its resolver *before* the directory exists, so a base pinned at
-			// construction stays null for the resolver's whole life and layer 3 never runs again even
-			// once extraction has created the tree; and notExists() is not !exists() -- both are false
+			// Resolved per call, not once in a constructor. Two reasons: nothing stops a caller from
+			// constructing the resolver before the base exists, so a base pinned at construction could
+			// stay null for the resolver's whole life and layer 3 would never run even once the tree is
+			// created -- and an existing base can gain a symlink later, so a resolution proven once can
+			// go stale. Also, notExists() is not !exists() -- both are false
 			// when the answer cannot be determined (a parent denying execute), and treating that as
 			// "absent, nothing to symlink through" is the same silent downgrade to lexical containment.
 			// Confirmed-absent skips layer 3; anything else must resolve or be refused.
@@ -135,7 +141,25 @@ class ContainedPathResolver(
 			// installation on device and bought nothing: 48.0 s without it, 51.4 s with it, 51.3 s for
 			// the hand-rolled cache it replaced. Extraction is I/O and inflate; this is noise
 			// (ADFA-5257 review).
-			if (!ancestor.toRealPath().startsWith(realBase)) {
+			val realAncestor =
+				try {
+					ancestor.toRealPath()
+					// Fully qualified for the same reason as the base branch above.
+				} catch (_: java.nio.file.NoSuchFileException) {
+					// Expected for a dangling symlink: the NOFOLLOW walk stopped at a link that exists,
+					// but its target does not, so there is no real path to prove contained. Refused
+					// without the warning below -- this is the link check working, not a failure.
+					return null
+				} catch (e: IOException) {
+					log.warn(
+						"Cannot resolve {} (nearest existing ancestor of {}) to a real path; refusing the path",
+						ancestor,
+						relativePath,
+						e,
+					)
+					return null
+				}
+			if (!realAncestor.startsWith(realBase)) {
 				return null
 			}
 			resolved.toFile()

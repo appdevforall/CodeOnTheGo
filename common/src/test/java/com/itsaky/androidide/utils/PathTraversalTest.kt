@@ -24,8 +24,6 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
-import java.nio.file.FileSystemException
-import java.nio.file.Files
 
 class PathTraversalTest {
 	private val baseDir = File("/project/root")
@@ -54,6 +52,14 @@ class PathTraversalTest {
 		// silently returning baseDir. DeepLinkRequest.parse's own documented "known limitation" (a
 		// file path whose entire content is just the "line" keyword) produces exactly this shape.
 		assertThat(resolveWithinDirectory(baseDir, "")).isNull()
+	}
+
+	@Test
+	fun `a path that normalizes to baseDir itself is rejected`() {
+		// "." and "./" survive the lexical layer but normalize to the base -- not a path *inside*
+		// it, and a caller treats a non-null result as a usable target.
+		assertThat(resolveWithinDirectory(baseDir, ".")).isNull()
+		assertThat(resolveWithinDirectory(baseDir, "./")).isNull()
 	}
 
 	@Test
@@ -145,24 +151,7 @@ class PathTraversalTest {
 		val outside = tempFolder.newFolder("outside")
 		File(outside, "secret.txt").writeText("secret")
 
-		val symlinkCreated =
-			try {
-				Files.createSymbolicLink(File(root, "evil").toPath(), outside.toPath())
-				true
-			} catch (e: UnsupportedOperationException) {
-				// The filesystem itself doesn't support symlinks (e.g. FAT32).
-				false
-			} catch (e: FileSystemException) {
-				// Windows NTFS supports symlinks but requires an elevated/Developer Mode privilege to
-				// create them -- without it, creation fails with this specific reason (a permission
-				// error), not UnsupportedOperationException. Any other reason is a real, unexpected
-				// failure and must not be silently swallowed into a skipped test, which would take
-				// the symlink-escape assertion out of CI without anyone noticing.
-				if (e.reason?.contains("privilege", ignoreCase = true) != true) throw e
-				false
-			}
-		// Report as skipped, not silently passed, when this environment can't create symlinks.
-		Assume.assumeTrue("Symlinks are not supported/permitted on this filesystem", symlinkCreated)
+		createSymlinkOrSkipTest(File(root, "evil").toPath(), outside.toPath())
 
 		assertThat(resolveWithinDirectory(root, "evil/secret.txt")).isNull()
 	}
@@ -200,9 +189,9 @@ class PathTraversalTest {
 		}
 	}
 
-	// Layer 3 is skipped only when the base is *confirmed* absent. Pinning the base at construction
-	// meant a resolver built before its directory existed -- which is exactly how the asset installer
-	// builds one -- skipped the symlink check forever, including for the tree extraction then created.
+	// Layer 3 is skipped only when the base is *confirmed* absent. Nothing stops a caller from
+	// building a resolver before its directory exists, so pinning the base at construction would
+	// skip the symlink check forever -- including for a tree created right after construction.
 	@Test
 	fun `a symlink planted after the resolver was built is still caught`() {
 		val root = tempFolder.newFolder("late-symlink")
@@ -212,7 +201,7 @@ class PathTraversalTest {
 		val outside = File(root, "outside").apply { mkdirs() }
 		File(outside, "secret.txt").writeText("secret")
 		base.mkdirs()
-		Files.createSymbolicLink(File(base, "link").toPath(), outside.toPath())
+		createSymlinkOrSkipTest(File(base, "link").toPath(), outside.toPath())
 
 		assertThat(resolver.resolve("link/secret.txt")).isNull()
 	}
