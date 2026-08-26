@@ -30,7 +30,6 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.isVisible
-import com.blankj.utilcode.util.SizeUtils
 import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.editor.api.IEditor
 import com.itsaky.androidide.editor.databinding.LayoutCodeEditorBinding
@@ -57,6 +56,7 @@ import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.customOrJBMono
+import com.itsaky.androidide.utils.dpToPx
 import io.github.rosemoe.sora.event.ClickEvent
 import io.github.rosemoe.sora.event.InterceptTarget
 import io.github.rosemoe.sora.event.TextSizeChangeEvent
@@ -76,18 +76,21 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.io.File
+import java.util.Locale
 import kotlin.math.abs
 
 private const val MIN_FONT_SIZE = EditorPreferences.FONT_SIZE_MIN
 private const val DEFAULT_FONT_SIZE = EditorPreferences.FONT_SIZE_DEFAULT
 private const val MAX_FONT_SIZE = EditorPreferences.FONT_SIZE_MAX
-private val ARCHIVE_EXTENSIONS = setOf("apk", "cgp", "zip")
+private val ARCHIVE_EXTENSIONS = setOf("apk", PLUGIN_ARCHIVE_EXTENSION, TEMPLATE_ARCHIVE_EXTENSION, "zip")
 
 /**
  * A view that handles opened code editor.
@@ -160,7 +163,7 @@ class CodeEditorView(
 
 		binding.editor.apply {
 			isHighlightCurrentBlock = true
-			dividerWidth = SizeUtils.dp2px(2f).toFloat()
+			dividerWidth = context.dpToPx(2f).toFloat()
 			colorScheme = SchemeAndroidIDE.newInstance(context)
 			lineSeparator = LineSeparator.LF
 
@@ -209,13 +212,14 @@ class CodeEditorView(
 
 			subscribeEvent(TextSizeChangeEvent::class.java) { event, _ ->
 				val metrics = context.resources.displayMetrics
-				val newFontSize = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-					TypedValue.deriveDimension(COMPLEX_UNIT_SP, event.newTextSize, metrics)
-				} else {
-					@Suppress("DEPRECATION")
-					event.newTextSize / metrics.scaledDensity
-				}
-				
+				val newFontSize =
+					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+						TypedValue.deriveDimension(COMPLEX_UNIT_SP, event.newTextSize, metrics)
+					} else {
+						@Suppress("DEPRECATION")
+						event.newTextSize / metrics.scaledDensity
+					}
+
 				val currentFontSize = EditorPreferences.fontSize
 				val diff = abs(newFontSize - currentFontSize)
 				if (newFontSize in MIN_FONT_SIZE..MAX_FONT_SIZE && diff > 0.01f) {
@@ -252,12 +256,13 @@ class CodeEditorView(
 			true
 		}
 
-		_searchLayout = EditorSearchLayout(context, binding.editor).apply {
-			onSearchModeChanged = { isActive ->
-				(this@CodeEditorView.context as? BaseEditorActivity)
-					?.setEditorSearchModeActive(isActive)
+		_searchLayout =
+			EditorSearchLayout(context, binding.editor).apply {
+				onSearchModeChanged = { isActive ->
+					(this@CodeEditorView.context as? BaseEditorActivity)
+						?.setEditorSearchModeActive(isActive)
+				}
 			}
-		}
 		orientation = VERTICAL
 
 		removeAllViews()
@@ -429,9 +434,10 @@ class CodeEditorView(
 			updateReadWriteProgress(0)
 
 			if (file.extension.lowercase() in ARCHIVE_EXTENSIONS) {
-				val listing = withContext(readWriteContext) {
-					generateArchiveListing(file)
-				}
+				val listing =
+					withContext(readWriteContext) {
+						generateArchiveListing(file)
+					}
 				initializeArchiveContent(listing, file)
 				_binding?.rwProgress?.isVisible = false
 			} else {
@@ -477,12 +483,16 @@ class CodeEditorView(
 		}
 	}
 
-	private fun initializeArchiveContent(listing: String, file: File) {
+	private fun initializeArchiveContent(
+		listing: String,
+		file: File,
+	) {
 		val ideEditor = binding.editor
 		ideEditor.postInLifecycle {
-			val args = Bundle().apply {
-				putString(IEditor.KEY_FILE, file.absolutePath)
-			}
+			val args =
+				Bundle().apply {
+					putString(IEditor.KEY_FILE, file.absolutePath)
+				}
 			ideEditor.setText(Content(listing), args)
 			markUnmodified()
 			ideEditor.isEditable = false
@@ -494,7 +504,9 @@ class CodeEditorView(
 
 	private fun generateArchiveListing(file: File): String {
 		val builder = StringBuilder()
-		val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+		val dateFormatter =
+			java.time.format.DateTimeFormatter
+				.ofPattern("yyyy-MM-dd HH:mm:ss")
 		val zone = java.time.ZoneId.systemDefault()
 		try {
 			java.util.zip.ZipFile(file).use { zip ->
@@ -504,8 +516,16 @@ class CodeEditorView(
 				builder.appendLine("Entries:  ${entries.size}")
 				builder.appendLine()
 				builder.appendLine(
-					String.format("%-10s %-10s %-6s %-8s %-20s %s",
-						"Length", "Compressed", "Method", "CRC-32", "Date & Time", "Name")
+					String.format(
+						Locale.ROOT,
+						"%-10s %-10s %-6s %-8s %-20s %s",
+						"Length",
+						"Compressed",
+						"Method",
+						"CRC-32",
+						"Date & Time",
+						"Name",
+					),
 				)
 				builder.appendLine("-".repeat(90))
 
@@ -521,26 +541,44 @@ class CodeEditorView(
 					val crc = if (entry.crc >= 0) String.format("%08x", entry.crc) else "-"
 					val sizeStr = if (sizeKnown) entry.size.toString() else "-"
 					val compressedStr = if (compressedKnown) entry.compressedSize.toString() else "-"
-					val time = if (entry.time > 0) {
-						val instant = java.time.Instant.ofEpochMilli(entry.time)
-						val dt = java.time.LocalDateTime.ofInstant(instant, zone)
-						dt.format(dateFormatter)
-					} else {
-						"----"
-					}
+					val time =
+						if (entry.time > 0) {
+							val instant = java.time.Instant.ofEpochMilli(entry.time)
+							val dt = java.time.LocalDateTime.ofInstant(instant, zone)
+							dt.format(dateFormatter)
+						} else {
+							"----"
+						}
 					builder.appendLine(
-						String.format("%-10s %-10s %-6s %-8s %-20s %s",
-							sizeStr, compressedStr, method, crc, time, entry.name)
+						String.format(
+							Locale.ROOT,
+							"%-10s %-10s %-6s %-8s %-20s %s",
+							sizeStr,
+							compressedStr,
+							method,
+							crc,
+							time,
+							entry.name,
+						),
 					)
 				}
 
 				builder.appendLine("-".repeat(90))
-				val ratio = if (totalSize > 0) {
-					"%.1f%%".format((1.0 - totalCompressed.toDouble() / totalSize) * 100)
-				} else "0.0%"
+				val ratio =
+					if (totalSize > 0) {
+						"%.1f%%".format((1.0 - totalCompressed.toDouble() / totalSize) * 100)
+					} else {
+						"0.0%"
+					}
 				builder.appendLine(
-					String.format("%-10d %-10d %-6s %s",
-						totalSize, totalCompressed, ratio, "${entries.size} files")
+					String.format(
+						Locale.ROOT,
+						"%-10d %-10d %-6s %s",
+						totalSize,
+						totalCompressed,
+						ratio,
+						"${entries.size} files",
+					),
 				)
 			}
 		} catch (e: Exception) {
@@ -713,6 +751,7 @@ class CodeEditorView(
 
 		when (event.key) {
 			EditorPreferences.FONT_SIZE -> onFontSizePrefChanged()
+
 			EditorPreferences.FONT_LIGATURES -> onFontLigaturesPrefChanged()
 
 			EditorPreferences.FLAG_LINE_BREAK,
@@ -723,13 +762,21 @@ class CodeEditorView(
 			-> onPrintingFlagsPrefChanged()
 
 			EditorPreferences.FLAG_PASSWORD -> onInputTypePrefChanged()
+
 			EditorPreferences.WORD_WRAP -> onWordwrapPrefChanged()
+
 			EditorPreferences.USE_MAGNIFER -> onMagnifierPrefChanged()
+
 			EditorPreferences.USE_ICU -> onUseIcuPrefChanged()
+
 			EditorPreferences.USE_CUSTOM_FONT -> onCustomFontPrefChanged()
+
 			EditorPreferences.DELETE_EMPTY_LINES -> onDeleteEmptyLinesPrefChanged()
+
 			EditorPreferences.DELETE_TABS_ON_BACKSPACE -> onDeleteTabsPrefChanged()
+
 			EditorPreferences.STICKY_SCROLL_ENABLED -> onStickyScrollEnabeldPrefChanged()
+
 			EditorPreferences.PIN_LINE_NUMBERS -> onPinLineNumbersPrefChanged()
 		}
 	}
@@ -767,13 +814,16 @@ class CodeEditorView(
 	private fun changeFontSizeBy(delta: Float) {
 		val current = EditorPreferences.fontSize
 		val newSize = computeNewEditorFontSize(current, delta)
-        if (newSize == current) return
-        binding.editor.setTextSize(newSize)
-        EditorPreferences.fontSize = newSize
+		if (newSize == current) return
+		binding.editor.setTextSize(newSize)
+		EditorPreferences.fontSize = newSize
 	}
 }
 
-internal fun computeNewEditorFontSize(current: Float, delta: Float): Float {
+internal fun computeNewEditorFontSize(
+	current: Float,
+	delta: Float,
+): Float {
 	val base =
 		if (current < MIN_FONT_SIZE || current > MAX_FONT_SIZE) {
 			DEFAULT_FONT_SIZE

@@ -1,13 +1,17 @@
 package com.itsaky.androidide.app
 
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import android.os.UserManager
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
-import com.blankj.utilcode.util.ThrowableUtils
+import androidx.work.WorkManager
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
+import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.managers.ToolsManager
@@ -24,7 +28,6 @@ import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.FileUtil
 import com.itsaky.androidide.utils.VMUtils
-import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import io.sentry.Sentry
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -35,10 +38,6 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
-import android.os.Handler
-import android.os.Looper
-import android.os.UserManager
-import androidx.work.WorkManager
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.system.exitProcess
@@ -73,93 +72,119 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			return
 		}
 
-		_isLoaded.set(true)
-
 		logger.info("Loading credential protected storage context components...")
-		application = app
 
 		if (!isCredentialStorageReady(app)) {
-            logger.error("Credential protected storage is not ready. Skipping credential protected initialization.")
-            return
-        }
-
-        initializeWorkManagerSafely(app)
-
-		Environment.init(app)
-
-		FeatureFlags.initialize()
-		LeakCanaryConfig.applyFromFeatureFlags()
-
-		EventBus.getDefault().register(this)
-
-		// Load termux application
-		TermuxApplicationLoader.load(app)
-
-		if (DevOpsPreferences.dumpLogs) {
-			startLogcatReader()
+			logger.error("Credential protected storage is not ready. Skipping credential protected initialization.")
+			return
 		}
 
-		withContext(Dispatchers.Main) {
-			AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+		// Storage is confirmed accessible here, so it's safe to warm IDEApplication.cachedFilesDir
+		// now for devices that were still locked (Direct Boot) when onCreate() ran its own warmup.
+		// by lazy caches the value, not a failure, so swallowing errors here just means the first
+		// real read pays the syscall - it never poisons the cache or blocks the retry.
+		runCatching { withContext(Dispatchers.IO) { IDEApplication.cachedFilesDir } }
+			.onFailure { logger.warn("Failed to warm cachedFilesDir; first read will hit disk", it) }
 
-			if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
-				DynamicColors.applyToActivitiesIfAvailable(app)
+		if (!_isLoaded.compareAndSet(false, true)) {
+			// Another call already claimed initialization (e.g. a concurrent retry after
+			// user unlock); avoid running the rest of this method twice.
+			logger.warn("Attempt to perform multiple loads of the application. Ignoring.")
+			return
+		}
+
+		application = app
+
+		try {
+			initializeWorkManagerSafely(app)
+
+			Environment.init(app)
+
+			FeatureFlags.initialize()
+			LeakCanaryConfig.applyFromFeatureFlags()
+
+			if (!EventBus.getDefault().isRegistered(this)) {
+				EventBus.getDefault().register(this)
 			}
-		}
 
-		initializePluginSystem()
-		installPluginCrashLooperGuard()
+			// Load termux application
+			TermuxApplicationLoader.load(app)
 
-		app.coroutineScope.launch(Dispatchers.IO) {
-			// color schemes are stored in files
-			// initialize scheme provider on the IO dispatcher
-			IDEColorSchemeProvider.init()
-		}
+			if (DevOpsPreferences.dumpLogs) {
+				startLogcatReader()
+			}
 
-		if (!VMUtils.isJvm || VMUtils.isInstrumentedTest) {
-			ToolsManager.init(app, null)
+			withContext(Dispatchers.Main) {
+				AppCompatDelegate.setDefaultNightMode(GeneralPreferences.uiMode)
+
+				if (IThemeManager.getInstance().getCurrentTheme() == IDETheme.MATERIAL_YOU) {
+					DynamicColors.applyToActivitiesIfAvailable(app)
+				}
+			}
+
+			initializePluginSystem()
+			installPluginCrashLooperGuard()
+
+			app.coroutineScope.launch(Dispatchers.IO) {
+				// color schemes are stored in files
+				// initialize scheme provider on the IO dispatcher
+				IDEColorSchemeProvider.init()
+			}
+
+			if (!VMUtils.isJvm || VMUtils.isInstrumentedTest) {
+				ToolsManager.init(app, null)
+			}
+		} catch (e: Throwable) {
+			// Un-claim the load on failure/cancellation so a later retry (e.g. after user
+			// unlock) can attempt initialization again instead of being stuck "loaded" with
+			// some components never actually initialized.
+			_isLoaded.set(false)
+			throw e
 		}
 	}
 
-    private fun isCredentialStorageReady(app: IDEApplication): Boolean {
-        val userManager = app.getSystemService(UserManager::class.java)
+	private fun isCredentialStorageReady(app: IDEApplication): Boolean {
+		val userManager = app.getSystemService(UserManager::class.java)
 
-        if (!userManager.isUserUnlocked) return false
+		if (!userManager.isUserUnlocked) return false
 
-        val filesDir = app.filesDir
-        val noBackupDir = app.noBackupFilesDir
+		val filesDir = app.filesDir
+		val noBackupDir = app.noBackupFilesDir
 
-        if (!filesDir.exists()) filesDir.mkdirs()
-        if (!noBackupDir.exists()) noBackupDir.mkdirs()
+		if (!filesDir.exists()) filesDir.mkdirs()
+		if (!noBackupDir.exists()) noBackupDir.mkdirs()
 
-        return filesDir.exists() &&
-            filesDir.isDirectory &&
-            noBackupDir.exists() &&
-            noBackupDir.isDirectory
-    }
+		return filesDir.exists() &&
+			filesDir.isDirectory &&
+			noBackupDir.exists() &&
+			noBackupDir.isDirectory
+	}
 
-    private fun initializeWorkManagerSafely(app: IDEApplication) {
-        runCatching {
-            WorkManager.getInstance(app)
-        }.onFailure { error ->
-            logger.error("Failed to get WorkManager instance after storage validation", error)
-            Sentry.captureException(error)
-        }
-    }
+	private fun initializeWorkManagerSafely(app: IDEApplication) {
+		try {
+			WorkManager.getInstance(app)
+		} catch (error: IllegalStateException) {
+			// WorkManager.getInstance throws IllegalStateException if WorkManager is not
+			// initialized properly (e.g. WorkManagerInitializer disabled/misconfigured).
+			logger.error("Failed to get WorkManager instance after storage validation", error)
+			Sentry.captureException(error)
+		}
+	}
 
 	fun handleUncaughtException(
 		thread: Thread,
 		exception: Throwable,
 	) {
 		val pluginManager = PluginManager.getInstance()
-		val pluginId = runCatching {
-			pluginManager?.let { pm ->
-				pm.crashTracker.findPluginForStackTrace(
-					exception,
-					pm.getLoadedPluginIds()
-				) { pm.getClassLoaderForPluginId(it) }
-			}
-		}.getOrNull()
+		val pluginId =
+			runCatching {
+				pluginManager?.let { pm ->
+					pm.crashTracker.findPluginForStackTrace(
+						exception,
+						pm.getLoadedPluginIds(),
+					) { pm.getClassLoaderForPluginId(it) }
+				}
+			}.getOrNull()
 
 		if (pluginId != null) {
 			handlePluginCrash(pluginId, exception)
@@ -174,7 +199,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			intent.action = CrashHandlerActivity.REPORT_ACTION
 			intent.putExtra(
 				CrashHandlerActivity.TRACE_KEY,
-				ThrowableUtils.getFullStackTrace(exception),
+				exception.stackTraceToString(),
 			)
 			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 			IDEApplication.instance.startActivity(intent)
@@ -188,7 +213,10 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		exitProcess(EXIT_CODE_CRASH)
 	}
 
-	private fun handlePluginCrash(pluginId: String, exception: Throwable) {
+	private fun handlePluginCrash(
+		pluginId: String,
+		exception: Throwable,
+	) {
 		runCatching {
 			writeException(exception)
 
@@ -202,13 +230,14 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			val result = pluginManager.recordPluginCrash(pluginId)
 
 			val wasDisabled = result is PluginManager.CrashResult.Disabled
-			val crashCount = when (result) {
-				is PluginManager.CrashResult.Recorded -> result.crashCount
-				is PluginManager.CrashResult.Disabled -> pluginManager.crashTracker.getCrashCount(pluginId)
-			}
+			val crashCount =
+				when (result) {
+					is PluginManager.CrashResult.Recorded -> result.crashCount
+					is PluginManager.CrashResult.Disabled -> pluginManager.crashTracker.getCrashCount(pluginId)
+				}
 
 			EventBus.getDefault().post(
-				PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, ThrowableUtils.getFullStackTrace(exception))
+				PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, exception.stackTraceToString()),
 			)
 			logger.warn("Plugin crash handled without killing process: {} (disabled={})", pluginId, wasDisabled)
 		}.onFailure { e ->
@@ -225,13 +254,15 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 					Looper.loop()
 					break
 				} catch (e: Throwable) {
-					val pluginId = runCatching {
-						PluginManager.getInstance()?.let { pm ->
-							pm.crashTracker.findPluginForStackTrace(
-								e, pm.getLoadedPluginIds()
-							) { pm.getClassLoaderForPluginId(it) }
-						}
-					}.getOrNull()
+					val pluginId =
+						runCatching {
+							PluginManager.getInstance()?.let { pm ->
+								pm.crashTracker.findPluginForStackTrace(
+									e,
+									pm.getLoadedPluginIds(),
+								) { pm.getClassLoaderForPluginId(it) }
+							}
+						}.getOrNull()
 
 					if (pluginId != null) {
 						lastPluginCrashTime = System.currentTimeMillis()
@@ -257,7 +288,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 				.writer()
 				.buffered()
 				.use { outputStream ->
-					outputStream.write(ThrowableUtils.getFullStackTrace(throwable))
+					outputStream.write(throwable?.stackTraceToString() ?: "")
 				}
 		}
 
@@ -357,7 +388,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 	@OptIn(DelicateCoroutinesApi::class)
 	private fun setupBuildServiceProviders() {
-		val buildServiceImpl = com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl.getInstance()
+		val buildServiceImpl =
+			com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
+				.getInstance()
 
 		// Provide runApp functionality
 		buildServiceImpl.setRunAppProvider { callback ->
@@ -371,7 +404,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 						return@launch
 					}
 
-					val projectManager = com.itsaky.androidide.projects.IProjectManager.getInstance()
+					val projectManager =
+						com.itsaky.androidide.projects.IProjectManager
+							.getInstance()
 					val appModules = projectManager.getAndroidAppModules()
 
 					if (appModules.isEmpty()) {
@@ -450,7 +485,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	}
 
 	private fun setupProjectManipulationProviders() {
-		val manipulationServiceImpl = com.itsaky.androidide.plugins.manager.services.IdeProjectManipulationServiceImpl.getInstance()
+		val manipulationServiceImpl =
+			com.itsaky.androidide.plugins.manager.services.IdeProjectManipulationServiceImpl
+				.getInstance()
 
 		// Provide dependency addition
 		manipulationServiceImpl.setAddDependencyProvider { dependencyString, buildFilePath ->
@@ -534,12 +571,13 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 				val pm = PluginManager.getInstance() ?: return@runCatching
 				val result = pm.recordPluginCrash(pluginId)
 				val wasDisabled = result is PluginManager.CrashResult.Disabled
-				val crashCount = when (result) {
-					is PluginManager.CrashResult.Recorded -> result.crashCount
-					is PluginManager.CrashResult.Disabled -> pm.crashTracker.getCrashCount(pluginId)
-				}
+				val crashCount =
+					when (result) {
+						is PluginManager.CrashResult.Recorded -> result.crashCount
+						is PluginManager.CrashResult.Disabled -> pm.crashTracker.getCrashCount(pluginId)
+					}
 				EventBus.getDefault().post(
-					PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, ThrowableUtils.getFullStackTrace(error))
+					PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, error.stackTraceToString()),
 				)
 			}
 		}

@@ -9,4 +9,10 @@
     <dimen name="toolbar_item_spacing">24dp</dimen>
     <dimen name="faq_bottom_padding">24dp</dimen>
     <dimen name="debugoverlay_content_spacing">16dp</dimen>
+
+    <!-- Feedback FAB (ADFA-2686): centralized so the button is one consistent size everywhere.
+         feedback_fab_icon_size controls how snugly the icon fills the circle. -->
+    <dimen name="feedback_fab_size">32dp</dimen>
+    <dimen name="feedback_fab_icon_size">26dp</dimen>
+    <dimen name="feedback_fab_margin">16dp</dimen>
 </resources>

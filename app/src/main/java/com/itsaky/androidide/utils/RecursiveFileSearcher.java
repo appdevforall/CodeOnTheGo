@@ -19,8 +19,6 @@
  **************************************************************************************/
 package com.itsaky.androidide.utils;
 
-import com.blankj.utilcode.util.FileIOUtils;
-import com.blankj.utilcode.util.FileUtils;
 import com.itsaky.androidide.models.Position;
 import com.itsaky.androidide.models.Range;
 import com.itsaky.androidide.models.SearchResult;
@@ -44,122 +42,123 @@ import java.util.regex.Pattern;
  */
 public class RecursiveFileSearcher {
 
-  /**
-   * Search the given text in files recursively in given search directories
-   *
-   * @param text       Text to search
-   * @param exts       Extentions of file to search. Maybe null.
-   * @param searchDirs Directories to search in. Subdirectories will be included
-   * @param callback   A listener that will listen to the search result
-   */
-  public static void searchRecursiveAsync(
-      String text, List<String> exts, List<File> searchDirs, Callback callback) {
-    // Cannot search empty or null text
-    if (text == null || text.isEmpty()) {
-      return;
-    }
+	/**
+	 * Search the given text in files recursively in given search directories
+	 *
+	 * @param text
+	 *            Text to search
+	 * @param exts
+	 *            Extentions of file to search. Maybe null.
+	 * @param searchDirs
+	 *            Directories to search in. Subdirectories will be included
+	 * @param callback
+	 *            A listener that will listen to the search result
+	 */
+	public static void searchRecursiveAsync(
+			String text, List<String> exts, List<File> searchDirs, Callback callback) {
+		// Cannot search empty or null text
+		if (text == null || text.isEmpty()) {
+			return;
+		}
 
-    // If there is no listener to the search, search is meaningless
-    if (callback == null) {
-      return;
-    }
+		// If there is no listener to the search, search is meaningless
+		if (callback == null) {
+			return;
+		}
 
-    // Avoid searching if no directories are specified
-    if (searchDirs == null || searchDirs.isEmpty()) {
-      return;
-    }
+		// Avoid searching if no directories are specified
+		if (searchDirs == null || searchDirs.isEmpty()) {
+			return;
+		}
 
-    TaskExecutor.executeAsync(new Searcher(text, exts, searchDirs), callback::onResult);
-  }
+		TaskExecutor.executeAsync(new Searcher(text, exts, searchDirs), callback::onResult);
+	}
 
-  private static class Searcher implements Callable<Map<File, List<SearchResult>>> {
+	public static interface Callback {
 
-    private final String query;
-    private final List<String> exts;
-    private final List<File> dirs;
+		void onResult(Map<File, List<SearchResult>> results);
+	}
 
-    public Searcher(String query, List<String> exts, List<File> dirs) {
-      this.query = query;
-      this.exts = exts;
-      this.dirs = dirs;
-    }
+	private static class MultiFileFilter implements FileFilter {
 
-    @Override
-    public Map<File, List<SearchResult>> call() throws Exception {
-      final Map<File, List<SearchResult>> result = new HashMap<>();
-      for (int i = 0; i < dirs.size(); i++) {
-        final File dir = dirs.get(i);
-        final List<File> files =
-            FileUtils.listFilesInDirWithFilter(dir, new MultiFileFilter(exts), true);
-        for (int j = 0; files != null && j < files.size(); j++) {
-          final File file = files.get(j);
-          if (file.isDirectory()) {
-            continue;
-          }
-          final String text = FileIOUtils.readFile2String(file);
-          if (text == null || text.trim().isEmpty()) {
-            continue;
-          }
-          final Content content = new Content(text);
-          final List<SearchResult> ranges = new ArrayList<>();
-          Matcher matcher = Pattern
-            .compile(Pattern.quote(this.query), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE)
-            .matcher(text);
-          while (matcher.find()) {
-            final Range range = new Range();
-            final CharPosition start = content.getIndexer().getCharPosition(matcher.start());
-            final CharPosition end = content.getIndexer().getCharPosition(matcher.end());
-            range.setStart(new Position(start.line, start.column));
-            range.setEnd(new Position(end.line, end.column));
-            String sub =
-                "..."
-                    .concat(
-                        text.substring(
-                            Math.max(0, matcher.start() - 30),
-                            Math.min(matcher.end() + 31, text.length())))
-                    .trim()
-                    .concat("...");
-            String match =
-                content.subContent(start.line, start.column, end.line, end.column).toString();
-            ranges.add(new SearchResult(range, file, sub.replaceAll("\\s+", " "), match));
-          }
-          if (ranges.size() > 0) {
-            result.put(file, ranges);
-          }
-        }
-      }
-      return result;
-    }
-  }
+		private final List<String> exts;
 
-  private static class MultiFileFilter implements FileFilter {
+		public MultiFileFilter(List<String> exts) {
+			this.exts = exts;
+		}
 
-    private final List<String> exts;
+		@Override
+		public boolean accept(File file) {
+			boolean accept = false;
+			if (exts == null || exts.isEmpty() || file.isDirectory()) {
+				accept = true;
+			} else {
+				for (String ext : exts) {
+					if (file.getName().endsWith(ext)) {
+						accept = true;
+						break;
+					}
+				}
+			}
 
-    public MultiFileFilter(List<String> exts) {
-      this.exts = exts;
-    }
+			return accept && FileUtils.isUtf8(file);
+		}
+	}
 
-    @Override
-    public boolean accept(File file) {
-      boolean accept = false;
-      if (exts == null || exts.isEmpty() || file.isDirectory()) {
-        accept = true;
-      } else {
-        for (String ext : exts) {
-          if (file.getName().endsWith(ext)) {
-            accept = true;
-            break;
-          }
-        }
-      }
+	private static class Searcher implements Callable<Map<File, List<SearchResult>>> {
 
-      return accept && FileUtils.isUtf8(file);
-    }
-  }
+		private final String query;
+		private final List<String> exts;
+		private final List<File> dirs;
 
-  public static interface Callback {
+		public Searcher(String query, List<String> exts, List<File> dirs) {
+			this.query = query;
+			this.exts = exts;
+			this.dirs = dirs;
+		}
 
-    void onResult(Map<File, List<SearchResult>> results);
-  }
+		@Override
+		public Map<File, List<SearchResult>> call() throws Exception {
+			final Map<File, List<SearchResult>> result = new HashMap<>();
+			for (int i = 0; i < dirs.size(); i++) {
+				final File dir = dirs.get(i);
+				final List<File> files = FileUtils.listFilesInDirWithFilter(dir, new MultiFileFilter(exts), true);
+				for (int j = 0; files != null && j < files.size(); j++) {
+					final File file = files.get(j);
+					if (file.isDirectory()) {
+						continue;
+					}
+					final String text = FileIOUtils.readFile2String(file);
+					if (text == null || text.trim().isEmpty()) {
+						continue;
+					}
+					final Content content = new Content(text);
+					final List<SearchResult> ranges = new ArrayList<>();
+					Matcher matcher = Pattern
+							.compile(Pattern.quote(this.query), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE)
+							.matcher(text);
+					while (matcher.find()) {
+						final Range range = new Range();
+						final CharPosition start = content.getIndexer().getCharPosition(matcher.start());
+						final CharPosition end = content.getIndexer().getCharPosition(matcher.end());
+						range.setStart(new Position(start.line, start.column));
+						range.setEnd(new Position(end.line, end.column));
+						String sub = "..."
+								.concat(
+										text.substring(
+												Math.max(0, matcher.start() - 30),
+												Math.min(matcher.end() + 31, text.length())))
+								.trim()
+								.concat("...");
+						String match = content.subContent(start.line, start.column, end.line, end.column).toString();
+						ranges.add(new SearchResult(range, file, sub.replaceAll("\\s+", " "), match));
+					}
+					if (ranges.size() > 0) {
+						result.put(file, ranges);
+					}
+				}
+			}
+			return result;
+		}
+	}
 }

@@ -68,7 +68,20 @@ val Project.simpleVersionName: String
 			}
 		val buildTypeShort = if (buildType == "debug") "d" else "r"
 
-		val calendar = java.util.Calendar.getInstance()
+		// Derived from the commit being built, not the wall clock, so rebuilding a
+		// commit produces the same version string. With the wall clock, any two builds
+		// a minute apart produced different values, which changed BuildInfo and so
+		// build-info.jar on every build. See ADR 0012.
+		//
+		// Fixed to UTC deliberately: Calendar.getInstance() uses the JVM default zone,
+		// which would make the version a function of the builder's timezone as well as
+		// the commit, so the same commit built in two places would not agree.
+		val calendar =
+			java.util.Calendar
+				.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+				.apply {
+					timeInMillis = CI.commitEpochSeconds(project) * 1000L
+				}
 		val month = calendar.get(java.util.Calendar.MONTH) + 1
 		val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
 		val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
@@ -89,7 +102,12 @@ val Project.simpleVersionName: String
 
 val Project.releaseVersion: String
 	get() {
-		val raw = providers.gradleProperty("next_release_version").orNull.orEmpty().trim()
+		val raw =
+			providers
+				.gradleProperty("next_release_version")
+				.orNull
+				.orEmpty()
+				.trim()
 		if (raw.isNotEmpty() && !Regex("""^\d{2}\.\d{2}$""").matches(raw)) {
 			throw GradleException(
 				"Invalid next_release_version '$raw'; expected YY.ww (two digits, dot, two digits), e.g. 25.47",
@@ -149,8 +167,6 @@ val Project.downloadVersion: String
 		return if (CI.isCiBuild || isFDroidBuild) {
 			publishingVersion
 		} else {
-			// sometimes, when working locally, Gradle fails to download the latest snapshot version
-			// this may cause issues while initializing the project in AndroidIDE
-			VersionUtils.getLatestSnapshotVersion("gradle-plugin")
+			VersionUtils.LATEST_INTEGRATION
 		}
 	}

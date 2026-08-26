@@ -9,6 +9,7 @@ import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TerminalInstaller
 import com.itsaky.androidide.utils.retryOnceOnNoSuchFile
+import com.itsaky.androidide.utils.throwIfNotSuccess
 import com.itsaky.androidide.utils.withTempZipChannel
 import com.itsaky.androidide.utils.writeBrotliAssetToPath
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +21,7 @@ import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.PLUGIN_MAVEN_REPO_ZIP_BR
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE_BR
 import org.slf4j.LoggerFactory
@@ -28,7 +30,6 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.zip.ZipInputStream
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
 
@@ -55,7 +56,6 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 			when (entryName) {
 				GRADLE_DISTRIBUTION_ARCHIVE_NAME,
 				ANDROID_SDK_ZIP,
-				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
 				-> {
 					val destDir = destinationDirForArchiveEntry(entryName).toPath()
 					if (Files.exists(destDir)) {
@@ -70,6 +70,27 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 					}
 				}
 
+				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> {
+					val destDir = destinationDirForArchiveEntry(entryName).toPath()
+					if (Files.exists(destDir)) {
+						destDir.deleteRecursively()
+					}
+					Files.createDirectories(destDir)
+					// 1) harvested repo
+					assets.open(ToolsManager.getCommonAsset("$entryName.br")).use { assetStream ->
+						BrotliInputStream(assetStream).use { srcStream ->
+							AssetsInstallationHelper.extractZipToDir(srcStream, destDir)
+						}
+					}
+					// 2) plugin coordinate overlay -- merged (no wipe) into the same repo
+					assets.open(ToolsManager.getCommonAsset(PLUGIN_MAVEN_REPO_ZIP_BR)).use { assetStream ->
+						BrotliInputStream(assetStream).use { srcStream ->
+							AssetsInstallationHelper.extractZipToDir(srcStream, destDir)
+						}
+					}
+					logger.debug("Merged plugin coordinates into {}", destDir)
+				}
+
 				GRADLE_API_NAME_JAR_ZIP -> {
 					val assetPath = ToolsManager.getCommonAsset(GRADLE_API_NAME_JAR_BR)
 					BrotliInputStream(assets.open(assetPath)).use { input ->
@@ -80,51 +101,43 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 					}
 				}
 
-                TEMPLATE_CORE_ARCHIVE -> {
-                    val assetPath = ToolsManager.getCommonAsset(TEMPLATE_CORE_ARCHIVE_BR)
-                    BrotliInputStream(assets.open(assetPath)).use { input ->
-                        val destFile = Environment.TEMPLATES_DIR.resolve(TEMPLATE_CORE_ARCHIVE)
-                        destFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                }
+				TEMPLATE_CORE_ARCHIVE -> {
+					val assetPath = ToolsManager.getCommonAsset(TEMPLATE_CORE_ARCHIVE_BR)
+					BrotliInputStream(assets.open(assetPath)).use { input ->
+						val destFile = Environment.TEMPLATES_DIR.resolve(TEMPLATE_CORE_ARCHIVE)
+						destFile.outputStream().use { output ->
+							input.copyTo(output)
+						}
+					}
+				}
 
-                AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
+				AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> {
 					val assetPath =
 						ToolsManager.getCommonAsset("${AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME}.br")
 
-					val result = retryOnceOnNoSuchFile (
-						onFirstFailure = { Files.createDirectories(stagingDir) },
-						onSecondFailure = { e2 ->
-                            throw IOException(
-                                            context.getString(R.string.terminal_installation_failed_low_storage),
-                                            e2
-                                        )
-                                    }
-                        ) {
-                            withTempZipChannel(
-                                stagingDir = stagingDir,
-                                prefix = "bootstrap",
-                                writeTo = { path -> writeBrotliAssetToPath(context, assetPath, path) },
-                                useChannel = { ch -> TerminalInstaller.installIfNeeded(context, ch) }
-                            )
-					    }
-
-					when (result) {
-						is TerminalInstaller.InstallResult.Success -> {}
-						is TerminalInstaller.InstallResult.Error.Interactive -> {
-							throw IOException("${result.title}: ${result.message}")
-						}
-						is TerminalInstaller.InstallResult.Error.IsSecondaryUser -> {
-							throw IOException(
-								context.getString(R.string.terminal_installation_failed_secondary_user)
+					val result =
+						retryOnceOnNoSuchFile(
+							onFirstFailure = { Files.createDirectories(stagingDir) },
+							onSecondFailure = { e2 ->
+								throw IOException(
+									context.getString(R.string.terminal_installation_failed_low_storage),
+									e2,
+								)
+							},
+						) {
+							withTempZipChannel(
+								stagingDir = stagingDir,
+								prefix = "bootstrap",
+								writeTo = { path -> writeBrotliAssetToPath(context, assetPath, path) },
+								useChannel = { ch -> TerminalInstaller.installIfNeeded(context, ch) },
 							)
 						}
-						is TerminalInstaller.InstallResult.NotInstalled -> {
-							throw IllegalStateException("Terminal installation failed: NotInstalled state")
-						}
-					}
+
+					// Every non-Success result must throw, or this entry's async job reports
+					// STATUS_FINISHED and install() sees no failure even though the terminal
+					// never installed -- shared with SplitAssetsInstaller's equivalent branch
+					// so the two can't drift out of sync again.
+					result.throwIfNotSuccess(context)
 				}
 
 				DOCUMENTATION_DB -> {
@@ -134,61 +147,47 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 						}
 					}
 				}
-                AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> {
-                    logger.debug("Extracting plugin artifacts from '{}'", entryName)
-                    val pluginDir = Environment.PLUGIN_API_JAR.parentFile
-                        ?: throw IllegalStateException("Plugin API parent directory is null")
-                    val pluginDirPath = pluginDir.toPath().toAbsolutePath().normalize()
-                    if (Files.exists(pluginDirPath)) {
-                        pluginDirPath.deleteRecursively()
-                    }
-                    Files.createDirectories(pluginDirPath)
 
-                    val assetPath = ToolsManager.getCommonAsset("$entryName.br")
-                    assets.open(assetPath).use { assetStream ->
-                        BrotliInputStream(assetStream).use { brotliStream ->
-                            ZipInputStream(brotliStream).use { pluginZip ->
-                                var pluginEntry = pluginZip.nextEntry
-                                while (pluginEntry != null) {
-                                    if (!pluginEntry.isDirectory) {
-                                        val targetPath = pluginDirPath.resolve(pluginEntry.name).normalize()
-                                        // Security check: prevent path traversal attacks
-                                        if (!targetPath.startsWith(pluginDirPath)) {
-                                            throw IllegalStateException(
-                                                "Zip entry '${pluginEntry.name}' would escape target directory"
-                                            )
-                                        }
-                                        val targetFile = targetPath.toFile()
-                                        targetFile.parentFile?.mkdirs()
-                                        logger.debug("Extracting '{}' to {}", pluginEntry.name, targetFile)
-                                        targetFile.outputStream().use { output ->
-                                            pluginZip.copyTo(output)
-                                        }
-                                    }
-                                    pluginEntry = pluginZip.nextEntry
-                                }
-                            }
-                        }
-                    }
-                    logger.debug("Completed extracting plugin artifacts")
-                }
-				else -> throw IllegalStateException("Unknown entry: $entryName")
+				AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> {
+					logger.debug("Extracting plugin artifacts from '{}'", entryName)
+					val pluginDir =
+						Environment.PLUGIN_API_JAR.parentFile
+							?: throw IllegalStateException("Plugin API parent directory is null")
+					val pluginDirPath = pluginDir.toPath().toAbsolutePath().normalize()
+					if (Files.exists(pluginDirPath)) {
+						pluginDirPath.deleteRecursively()
+					}
+					Files.createDirectories(pluginDirPath)
+
+					val assetPath = ToolsManager.getCommonAsset("$entryName.br")
+					assets.open(assetPath).use { assetStream ->
+						BrotliInputStream(assetStream).use { brotliStream ->
+							AssetsInstallationHelper.extractZipToDir(brotliStream, pluginDirPath)
+						}
+					}
+					logger.debug("Completed extracting plugin artifacts")
+				}
+
+				else -> {
+					throw IllegalStateException("Unknown entry: $entryName")
+				}
 			}
 		}
 
-    override fun expectedSize(entryName: String): Long = when (entryName) {
-        GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 63399283L
-        ANDROID_SDK_ZIP                  -> 254814511L
-        DOCUMENTATION_DB                  -> 297763377L
-        LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 97485855L
-        AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 124120151L
-        GRADLE_API_NAME_JAR_ZIP           -> 29447748L
-        AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> 86442L
-        TEMPLATE_CORE_ARCHIVE               -> 133120L
-        else -> 0L
-    }
+	override fun expectedSize(entryName: String): Long =
+		when (entryName) {
+			GRADLE_DISTRIBUTION_ARCHIVE_NAME -> 63399283L
+			ANDROID_SDK_ZIP -> 254814511L
+			DOCUMENTATION_DB -> 297763377L
+			LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME -> 97485855L
+			AssetsInstallationHelper.BOOTSTRAP_ENTRY_NAME -> 124120151L
+			GRADLE_API_NAME_JAR_ZIP -> 29447748L
+			AssetsInstallationHelper.PLUGIN_ARTIFACTS_ZIP -> 86442L
+			TEMPLATE_CORE_ARCHIVE -> 133120L
+			else -> 0L
+		}
 
-    private fun destinationDirForArchiveEntry(entryName: String): File =
+	private fun destinationDirForArchiveEntry(entryName: String): File =
 		when (entryName) {
 			GRADLE_DISTRIBUTION_ARCHIVE_NAME -> Environment.GRADLE_DISTS
 			ANDROID_SDK_ZIP -> Environment.ANDROID_HOME

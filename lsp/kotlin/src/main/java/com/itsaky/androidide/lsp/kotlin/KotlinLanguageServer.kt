@@ -30,12 +30,15 @@ import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
+import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
+import com.itsaky.androidide.lsp.kotlin.navigation.findDefinitionAt
+import com.itsaky.androidide.lsp.kotlin.navigation.findUsagesAt
 import com.itsaky.androidide.lsp.kotlin.signaturehelp.doSignatureHelp
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -117,6 +120,9 @@ class KotlinLanguageServer : ILanguageServer {
 		this._client = client
 		this.compiler?.updateLanguageClient(client)
 	}
+
+	/** Returns the [CompilationEnvironment] responsible for [file], or null if the compiler is not ready. */
+	internal fun compilationEnvironmentFor(file: Path): CompilationEnvironment? = compiler?.compilationEnvironmentFor(file)
 
 	override fun applySettings(settings: IServerSettings?) {
 		this._settings = settings
@@ -228,7 +234,11 @@ class KotlinLanguageServer : ILanguageServer {
 			return ReferenceResult.empty()
 		}
 
-		return ReferenceResult.empty()
+		logger.debug("findReferences(position={}, file={})", params.position, params.file)
+		return compiler
+			?.compilationEnvironmentFor(params.file)
+			?.let { context(it) { findUsagesAt(params) } }
+			?: ReferenceResult.empty()
 	}
 
 	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
@@ -240,7 +250,11 @@ class KotlinLanguageServer : ILanguageServer {
 			return DefinitionResult.empty()
 		}
 
-		return DefinitionResult.empty()
+		logger.debug("findDefinition(position={}, file={})", params.position, params.file)
+		return compiler
+			?.compilationEnvironmentFor(params.file)
+			?.let { context(it) { findDefinitionAt(params) } }
+			?: DefinitionResult.empty()
 	}
 
 	override suspend fun expandSelection(params: ExpandSelectionParams): Range = params.selection

@@ -42,7 +42,6 @@ dependencies {
 	implementation(platform(libs.sora.bom))
 	implementation(libs.common.editor)
 	implementation(libs.common.javaparser)
-	implementation(libs.common.utilcode)
 	implementation(libs.androidx.annotation)
 	implementation(libs.google.guava)
 	implementation(libs.google.gson)

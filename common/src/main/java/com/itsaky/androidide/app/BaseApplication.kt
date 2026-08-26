@@ -16,6 +16,7 @@
  */
 package com.itsaky.androidide.app
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
@@ -37,6 +38,17 @@ open class BaseApplication : Application() {
 			checkNotNull(_prefManager) {
 				"PreferenceManager not initialized"
 			}
+
+	/**
+	 * The currently visible (resumed) activity, if any.
+	 *
+	 * `IDEApplication` (in the `app` module) overrides this with its own tracker. This base
+	 * implementation only exists so `common`-module code (which can't depend on `app`) has a
+	 * foreground-activity source to call - e.g. FlashbarUtils' `withActivity` - and defaults to
+	 * `null` since the base class has no subclass that needs it populated.
+	 */
+	open val foregroundActivity: Activity?
+		get() = null
 
 	init {
 		_baseInstance = this

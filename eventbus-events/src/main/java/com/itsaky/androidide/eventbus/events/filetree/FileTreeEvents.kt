@@ -35,3 +35,11 @@ data class FileClickEvent(val file: File) : Event()
  * @author Akash Yadav
  */
 class FileLongClickEvent(val file: File) : Event()
+
+/**
+ * Event dispatched when a plugin creates or deletes a file via the IDE file service,
+ * so the file tree can refresh immediately.
+ *
+ * @param file The file that was created or deleted.
+ */
+class PluginFilesChangedEvent(val file: File) : Event()

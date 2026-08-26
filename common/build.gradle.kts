@@ -9,13 +9,21 @@ android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.common"
 }
 
+kotlin {
+	compilerOptions {
+		// This module's classes ship in the plugin-api coordinate that on-device plugins
+		// compile against, so emit metadata the on-device Kotlin (1.9.22) can read (<= 2.0.0).
+		apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+		languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+	}
+}
+
 dependencies {
 	compileOnly(libs.composite.javac)
 
 	api(platform(libs.sora.bom))
 	api(libs.common.editor)
 	api(libs.common.lang3)
-	api(libs.common.utilcode)
 	api(libs.composite.constants)
 	api(libs.google.guava)
 	api(libs.google.material)
@@ -46,12 +54,9 @@ dependencies {
 	testImplementation(projects.testing.common)
 	testImplementation(libs.tests.kotlinx.coroutines)
 	testImplementation(libs.tests.google.truth)
+	testImplementation(libs.tests.mockk)
 	androidTestImplementation(projects.testing.android)
 
 	// brotli4j
 	implementation(libs.brotli4j)
-
-    implementation(libs.bcprov.jdk18on)
-    implementation(libs.bcpkix.jdk18on)
-
 }

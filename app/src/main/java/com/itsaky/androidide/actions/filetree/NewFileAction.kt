@@ -20,12 +20,10 @@ package com.itsaky.androidide.actions.filetree
 import android.content.Context
 import android.view.LayoutInflater
 import androidx.core.view.isVisible
-import com.blankj.utilcode.util.FileIOUtils
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.actions.observers.FileActionObserver
 import com.itsaky.androidide.actions.requireFile
-import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -37,6 +35,7 @@ import com.itsaky.androidide.templates.base.models.Dependency
 import com.itsaky.androidide.utils.ClassBuilder.SourceLanguage
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FileIOUtils
 import com.itsaky.androidide.utils.ProjectWriter
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.flashError
@@ -44,6 +43,7 @@ import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.unnamed.b.atv.model.TreeNode
 import jdkx.lang.model.SourceVersion
+import kotlinx.coroutines.CancellationException
 import org.greenrobot.eventbus.EventBus
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
@@ -57,401 +57,459 @@ import java.util.regex.Pattern
  *
  * @author Akash Yadav
  */
-class NewFileAction(val context: Context, override val order: Int) :
-  BaseDirNodeAction(
-    context = context,
-    labelRes = R.string.new_file,
-    iconRes = R.drawable.ic_new_file
-  ), KoinComponent, FileActionObserver {
+class NewFileAction(
+	val context: Context,
+	override val order: Int,
+) : BaseDirNodeAction(
+		context = context,
+		labelRes = R.string.new_file,
+		iconRes = R.drawable.ic_new_file,
+	),
+	KoinComponent,
+	FileActionObserver {
+	private val fileActionManager: FileActionManager = get()
 
-  private val fileActionManager: FileActionManager = get()
+	private var currentNode: TreeNode? = null
 
-  private var currentNode: TreeNode? = null
+	override val id: String = "ide.editor.fileTree.newFile"
 
-  override val id: String = "ide.editor.fileTree.newFile"
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.PROJECT_FOLDER_NEWFILE
 
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
-        TooltipTag.PROJECT_FOLDER_NEWFILE
+	companion object {
+		const val RES_PATH_REGEX = "/.*/src/.*/res"
+		const val LAYOUT_RES_PATH_REGEX = "/.*/src/.*/res/layout"
+		const val MENU_RES_PATH_REGEX = "/.*/src/.*/res/menu"
+		const val DRAWABLE_RES_PATH_REGEX = "/.*/src/.*/res/drawable"
+		const val JAVA_PATH_REGEX = "/.*/src/.*/java"
 
-  companion object {
+		private val log = LoggerFactory.getLogger(NewFileAction::class.java)
+	}
 
-    const val RES_PATH_REGEX = "/.*/src/.*/res"
-    const val LAYOUT_RES_PATH_REGEX = "/.*/src/.*/res/layout"
-    const val MENU_RES_PATH_REGEX = "/.*/src/.*/res/menu"
-    const val DRAWABLE_RES_PATH_REGEX = "/.*/src/.*/res/drawable"
-    const val JAVA_PATH_REGEX = "/.*/src/.*/java"
+	override suspend fun execAction(data: ActionData) {
+		val context = data.requireActivity()
+		val file = data.requireFile()
+		val node = data.getTreeNode()
+		try {
+			createNewFile(context, node, file, false)
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			log.error("Failed to create new file", e)
+			flashError(e.cause?.message ?: e.message)
+		}
+	}
 
-    private val log = LoggerFactory.getLogger(NewFileAction::class.java)
-  }
+	private fun createNewFile(
+		context: Context,
+		node: TreeNode?,
+		file: File,
+		forceUnknownType: Boolean,
+	) {
+		if (forceUnknownType) {
+			createNewEmptyFile(context, node, file)
+			return
+		}
 
-  override suspend fun execAction(data: ActionData) {
-    val context = data.requireActivity()
-    val file = data.requireFile()
-    val node = data.getTreeNode()
-    try {
-      createNewFile(context, node, file, false)
-    } catch (e: Exception) {
-      log.error("Failed to create new file", e)
-      flashError(e.cause?.message ?: e.message)
-    }
-  }
+		val projectDir = IProjectManager.getInstance().projectDirPath
+		Objects.requireNonNull(projectDir)
+		val isJava =
+			Pattern.compile(Pattern.quote(projectDir) + JAVA_PATH_REGEX).matcher(file.absolutePath).find()
+		val isRes =
+			Pattern.compile(Pattern.quote(projectDir) + RES_PATH_REGEX).matcher(file.absolutePath).find()
+		val isLayoutRes =
+			Pattern
+				.compile(Pattern.quote(projectDir) + LAYOUT_RES_PATH_REGEX)
+				.matcher(file.absolutePath)
+				.find()
+		val isMenuRes =
+			Pattern
+				.compile(Pattern.quote(projectDir) + MENU_RES_PATH_REGEX)
+				.matcher(file.absolutePath)
+				.find()
+		val isDrawableRes =
+			Pattern
+				.compile(Pattern.quote(projectDir) + DRAWABLE_RES_PATH_REGEX)
+				.matcher(file.absolutePath)
+				.find()
 
-  private fun createNewFile(
-    context: Context,
-    node: TreeNode?,
-    file: File,
-    forceUnknownType: Boolean
-  ) {
-    if (forceUnknownType) {
-      createNewEmptyFile(context, node, file)
-      return
-    }
+		if (isJava) {
+			createJavaClass(context, node, file)
+			return
+		}
 
-    val projectDir = IProjectManager.getInstance().projectDirPath
-    Objects.requireNonNull(projectDir)
-    val isJava =
-      Pattern.compile(Pattern.quote(projectDir) + JAVA_PATH_REGEX).matcher(file.absolutePath).find()
-    val isRes =
-      Pattern.compile(Pattern.quote(projectDir) + RES_PATH_REGEX).matcher(file.absolutePath).find()
-    val isLayoutRes =
-      Pattern.compile(Pattern.quote(projectDir) + LAYOUT_RES_PATH_REGEX)
-        .matcher(file.absolutePath)
-        .find()
-    val isMenuRes =
-      Pattern.compile(Pattern.quote(projectDir) + MENU_RES_PATH_REGEX)
-        .matcher(file.absolutePath)
-        .find()
-    val isDrawableRes =
-      Pattern.compile(Pattern.quote(projectDir) + DRAWABLE_RES_PATH_REGEX)
-        .matcher(file.absolutePath)
-        .find()
+		if (isLayoutRes && file.name == "layout") {
+			createLayoutRes(context, node, file)
+			return
+		}
 
-    if (isJava) {
-      createJavaClass(context, node, file)
-      return
-    }
+		if (isMenuRes && file.name == "menu") {
+			createMenuRes(context, node, file)
+			return
+		}
 
-    if (isLayoutRes && file.name == "layout") {
-      createLayoutRes(context, node, file)
-      return
-    }
+		if (isDrawableRes && file.name == "drawable") {
+			createDrawableRes(context, node, file)
+			return
+		}
 
-    if (isMenuRes && file.name == "menu") {
-      createMenuRes(context, node, file)
-      return
-    }
+		if (isRes && file.name == "res") {
+			createNewResource(context, node, file)
+			return
+		}
 
-    if (isDrawableRes && file.name == "drawable") {
-      createDrawableRes(context, node, file)
-      return
-    }
+		createNewEmptyFile(context, node, file)
+	}
 
-    if (isRes && file.name == "res") {
-      createNewResource(context, node, file)
-      return
-    }
+	private fun createJavaClass(
+		context: Context,
+		node: TreeNode?,
+		file: File,
+	) {
+		val builder = DialogUtils.newMaterialDialogBuilder(context)
+		val binding: LayoutCreateFileJavaBinding =
+			LayoutCreateFileJavaBinding.inflate(LayoutInflater.from(context))
+		binding.typeGroup.addOnButtonCheckedListener { _, _, _ ->
+			binding.createLayout.isVisible = binding.typeGroup.checkedButtonId == binding.typeActivity.id
+		}
+		binding.name.editText?.addTextChangedListener(
+			object : SingleTextWatcher() {
+				override fun onTextChanged(
+					s: CharSequence?,
+					start: Int,
+					before: Int,
+					count: Int,
+				) {
+					if (isValidJavaName(s)) {
+						binding.name.isErrorEnabled = true
+						binding.name.error = context.getString(R.string.msg_invalid_name)
+					} else {
+						binding.name.isErrorEnabled = false
+					}
+				}
+			},
+		)
+		builder.setView(binding.root)
+		builder.setTitle(R.string.new_file)
+		builder.setPositiveButton(R.string.text_create) { dialogInterface, _ ->
+			dialogInterface.dismiss()
+			try {
+				doCreateSourceFile(binding, file, context, node)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.error("Failed to create source file", e)
+				flashError(e.cause?.message ?: e.message)
+			}
+		}
+		builder.setNegativeButton(android.R.string.cancel, null)
+		builder
+			.setCancelable(false)
+			.showWithLongPressTooltip(
+				context = context,
+				tooltipTag = TooltipTag.PROJECT_FOLDER_NEWTYPE,
+			)
+	}
 
-    createNewEmptyFile(context, node, file)
-  }
+	private fun doCreateSourceFile(
+		binding: LayoutCreateFileJavaBinding,
+		file: File,
+		context: Context,
+		node: TreeNode?,
+	) {
+		if (binding.name.isErrorEnabled) {
+			flashError(R.string.msg_invalid_name)
+			return
+		}
 
-  private fun createJavaClass(context: Context, node: TreeNode?, file: File) {
-    val builder = DialogUtils.newMaterialDialogBuilder(context)
-    val binding: LayoutCreateFileJavaBinding =
-      LayoutCreateFileJavaBinding.inflate(LayoutInflater.from(context))
-    binding.typeGroup.addOnButtonCheckedListener { _, _, _ ->
-      binding.createLayout.isVisible = binding.typeGroup.checkedButtonId == binding.typeActivity.id
-    }
-    binding.name.editText?.addTextChangedListener(
-      object : SingleTextWatcher() {
-        override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-          if (isValidJavaName(s)) {
-            binding.name.isErrorEnabled = true
-            binding.name.error = context.getString(R.string.msg_invalid_name)
-          } else {
-            binding.name.isErrorEnabled = false
-          }
-        }
-      }
-    )
-    builder.setView(binding.root)
-    builder.setTitle(R.string.new_file)
-    builder.setPositiveButton(R.string.text_create) { dialogInterface, _ ->
-      dialogInterface.dismiss()
-      try {
-        doCreateSourceFile(binding, file, context, node)
-      } catch (e: Exception) {
-        log.error("Failed to create source file", e)
-        flashError(e.cause?.message ?: e.message)
-      }
-    }
-    builder.setNegativeButton(android.R.string.cancel, null)
-    builder.setCancelable(false)
-        .showWithLongPressTooltip(
-            context = context,
-            tooltipTag = TooltipTag.PROJECT_FOLDER_NEWTYPE,
-            binding.typeClass,
-            binding.typeActivity,
-            binding.typeInterface,
-            binding.typeEnum
-        )
-  }
+		val name: String =
+			binding.name.editText!!
+				.text
+				.toString()
+				.trim()
+		if (name.isBlank()) {
+			flashError(R.string.msg_invalid_name)
+			return
+		}
 
-  private fun doCreateSourceFile(
-    binding: LayoutCreateFileJavaBinding,
-    file: File,
-    context: Context,
-    node: TreeNode?
-  ) {
-    if (binding.name.isErrorEnabled) {
-      flashError(R.string.msg_invalid_name)
-      return
-    }
+		val isKotlin = binding.languageGroup.checkedButtonId == binding.langKotlin.id
+		val language = if (isKotlin) SourceLanguage.KOTLIN else SourceLanguage.JAVA
+		val extension = if (isKotlin) ".kt" else ".java"
 
-    val name: String = binding.name.editText!!.text.toString().trim()
-    if (name.isBlank()) {
-      flashError(R.string.msg_invalid_name)
-      return
-    }
+		val autoLayout =
+			binding.typeGroup.checkedButtonId == binding.typeActivity.id &&
+				binding.createLayout.isChecked
+		val pkgName = ProjectWriter.getPackageName(file)
 
-    val isKotlin = binding.languageGroup.checkedButtonId == binding.langKotlin.id
-    val language = if (isKotlin) SourceLanguage.KOTLIN else SourceLanguage.JAVA
-    val extension = if (isKotlin) ".kt" else ".java"
+		val id: Int = binding.typeGroup.checkedButtonId
+		val fileName = if (name.endsWith(extension)) name else "$name$extension"
+		val className = if (!name.contains(".")) name else name.substring(0, name.lastIndexOf("."))
 
-    val autoLayout =
-      binding.typeGroup.checkedButtonId == binding.typeActivity.id &&
-          binding.createLayout.isChecked
-    val pkgName = ProjectWriter.getPackageName(file)
+		val sourceFileDirectory =
+			if (pkgName == "com") {
+				val subDir = File(file, "com")
+				if (subDir.exists() && subDir.isDirectory) subDir else file
+			} else {
+				file
+			}
 
-    val id: Int = binding.typeGroup.checkedButtonId
-    val fileName = if (name.endsWith(extension)) name else "$name$extension"
-    val className = if (!name.contains(".")) name else name.substring(0, name.lastIndexOf("."))
+		when (id) {
+			binding.typeClass.id -> {
+				createFile(
+					node,
+					sourceFileDirectory,
+					fileName,
+					ProjectWriter.createClass(pkgName, className, language),
+				)
+			}
 
-    val sourceFileDirectory = if (pkgName == "com") {
-      val subDir = File(file, "com")
-      if (subDir.exists() && subDir.isDirectory) subDir else file
-    } else {
-      file
-    }
+			binding.typeInterface.id -> {
+				createFile(
+					node,
+					sourceFileDirectory,
+					fileName,
+					ProjectWriter.createInterface(pkgName, className, language),
+				)
+			}
 
-    when (id) {
-      binding.typeClass.id ->
-        createFile(
-          node,
-          sourceFileDirectory,
-          fileName,
-          ProjectWriter.createClass(pkgName, className, language),
-        )
+			binding.typeEnum.id -> {
+				createFile(
+					node,
+					sourceFileDirectory,
+					fileName,
+					ProjectWriter.createEnum(pkgName, className, language),
+				)
+			}
 
-      binding.typeInterface.id ->
-        createFile(
-          node,
-          sourceFileDirectory,
-          fileName,
-          ProjectWriter.createInterface(pkgName, className, language)
-        )
+			binding.typeActivity.id -> {
+				val appCompat = Dependency.AndroidX.AppCompat
+				val projectManager = ProjectManagerImpl.getInstance()
+				val hasAppCompatDependency =
+					projectManager
+						.findModuleForFile(file)
+						?.hasExternalDependency(appCompat.group, appCompat.artifact)
+				createFile(
+					node,
+					sourceFileDirectory,
+					fileName,
+					ProjectWriter.createActivity(
+						pkgName,
+						className,
+						hasAppCompatDependency ?: false,
+						language,
+					),
+				)
+			}
 
-      binding.typeEnum.id ->
-        createFile(
-          node,
-          sourceFileDirectory,
-          fileName,
-          ProjectWriter.createEnum(pkgName, className, language)
-        )
+			else -> {
+				createFile(node, sourceFileDirectory, name, "")
+			}
+		}
 
-      binding.typeActivity.id -> {
-        val appCompat = Dependency.AndroidX.AppCompat
-        val projectManager = ProjectManagerImpl.getInstance()
-        val hasAppCompatDependency = projectManager.findModuleForFile(file)
-          ?.hasExternalDependency(appCompat.group, appCompat.artifact)
-        createFile(
-          node,
-          sourceFileDirectory,
-          fileName,
-          ProjectWriter.createActivity(
-            pkgName,
-            className,
-            hasAppCompatDependency ?: false,
-            language
-          )
-        )
-      }
+		if (autoLayout) {
+			val packagePath = pkgName.toString().replace(".", "/")
+			createAutoLayout(context, sourceFileDirectory, name, packagePath, isKotlin)
+		}
+	}
 
-      else -> createFile(node, sourceFileDirectory, name, "")
-    }
+	private fun isValidJavaName(s: CharSequence?) = s == null || !SourceVersion.isName(s) || SourceVersion.isKeyword(s)
 
-    if (autoLayout) {
-      val packagePath = pkgName.toString().replace(".", "/")
-      createAutoLayout(context, sourceFileDirectory, name, packagePath, isKotlin)
-    }
-  }
+	private fun createLayoutRes(
+		context: Context,
+		node: TreeNode?,
+		file: File,
+	) {
+		createNewFileWithContent(
+			context,
+			node,
+			Environment.mkdirIfNotExists(file),
+			ProjectWriter.createLayout(),
+			".xml",
+		)
+	}
 
-  private fun isValidJavaName(s: CharSequence?) =
-    s == null || !SourceVersion.isName(s) || SourceVersion.isKeyword(s)
+	private fun createAutoLayout(
+		context: Context,
+		directory: File,
+		fileName: String,
+		packagePath: String,
+		isKotlin: Boolean = false,
+	) {
+		val dir = directory.toString().replace("java/$packagePath", "res/layout/")
+		val sourceExtension = if (isKotlin) ".kt" else ".java"
+		val layoutName = ProjectWriter.createLayoutName(fileName.replace(sourceExtension, ".xml"))
+		val newFileLayout = File(dir, layoutName)
+		if (newFileLayout.exists()) {
+			flashError(R.string.msg_layout_file_exists)
+			return
+		}
 
-  private fun createLayoutRes(context: Context, node: TreeNode?, file: File) {
-    createNewFileWithContent(
-      context,
-      node,
-      Environment.mkdirIfNotExists(file),
-      ProjectWriter.createLayout(),
-      ".xml"
-    )
-  }
+		if (!FileIOUtils.writeFileFromString(newFileLayout, ProjectWriter.createLayout())) {
+			flashError(R.string.msg_layout_file_creation_failed)
+			return
+		}
 
-  private fun createAutoLayout(
-    context: Context,
-    directory: File,
-    fileName: String,
-    packagePath: String,
-    isKotlin: Boolean = false
-  ) {
-    val dir = directory.toString().replace("java/$packagePath", "res/layout/")
-    val sourceExtension = if (isKotlin) ".kt" else ".java"
-    val layoutName = ProjectWriter.createLayoutName(fileName.replace(sourceExtension, ".xml"))
-    val newFileLayout = File(dir, layoutName)
-    if (newFileLayout.exists()) {
-      flashError(R.string.msg_layout_file_exists)
-      return
-    }
+		notifyFileCreated(newFileLayout, context)
+	}
 
-    if (!FileIOUtils.writeFileFromString(newFileLayout, ProjectWriter.createLayout())) {
-      flashError(R.string.msg_layout_file_creation_failed)
-      return
-    }
+	private fun createMenuRes(
+		context: Context,
+		node: TreeNode?,
+		file: File,
+	) {
+		createNewFileWithContent(
+			context,
+			node,
+			Environment.mkdirIfNotExists(file),
+			ProjectWriter.createMenu(),
+			".xml",
+		)
+	}
 
-    notifyFileCreated(newFileLayout, context)
-  }
+	private fun createDrawableRes(
+		context: Context,
+		node: TreeNode?,
+		file: File,
+	) {
+		createNewFileWithContent(
+			context,
+			node,
+			Environment.mkdirIfNotExists(file),
+			ProjectWriter.createDrawable(),
+			".xml",
+		)
+	}
 
-  private fun createMenuRes(context: Context, node: TreeNode?, file: File) {
-    createNewFileWithContent(
-      context,
-      node,
-      Environment.mkdirIfNotExists(file),
-      ProjectWriter.createMenu(),
-      ".xml"
-    )
-  }
+	private fun createNewResource(
+		context: Context,
+		node: TreeNode?,
+		file: File,
+	) {
+		val labels =
+			arrayOf(
+				context.getString(R.string.restype_drawable),
+				context.getString(R.string.restype_layout),
+				context.getString(R.string.restype_menu),
+				context.getString(R.string.restype_other),
+			)
+		val builder = DialogUtils.newMaterialDialogBuilder(context)
+		builder.setTitle(R.string.new_xml_resource)
+		builder
+			.setItems(labels) { _, position ->
+				when (position) {
+					0 -> createDrawableRes(context, node, File(file, "drawable"))
+					1 -> createLayoutRes(context, node, File(file, "layout"))
+					2 -> createMenuRes(context, node, File(file, "menu"))
+					3 -> createNewFile(context, node, file, true)
+				}
+			}.showWithLongPressTooltip(
+				context = context,
+				tooltipTag = TooltipTag.PROJECT_FOLDER_NEWXML,
+			)
+	}
 
-  private fun createDrawableRes(context: Context, node: TreeNode?, file: File) {
-    createNewFileWithContent(
-      context,
-      node,
-      Environment.mkdirIfNotExists(file),
-      ProjectWriter.createDrawable(),
-      ".xml"
-    )
-  }
+	private fun createNewEmptyFile(
+		context: Context,
+		node: TreeNode?,
+		file: File,
+	) {
+		createNewFileWithContent(context, node, file, "")
+	}
 
-  private fun createNewResource(context: Context, node: TreeNode?, file: File) {
-    val labels =
-      arrayOf(
-        context.getString(R.string.restype_drawable),
-        context.getString(R.string.restype_layout),
-        context.getString(R.string.restype_menu),
-        context.getString(R.string.restype_other)
-      )
-    val builder = DialogUtils.newMaterialDialogBuilder(context)
-    builder.setTitle(R.string.new_xml_resource)
-    builder.setItems(labels) { _, position ->
-      when (position) {
-        0 -> createDrawableRes(context, node, File(file, "drawable"))
-        1 -> createLayoutRes(context, node, File(file, "layout"))
-        2 -> createMenuRes(context, node, File(file, "menu"))
-        3 -> createNewFile(context, node, file, true)
-      }
-    }
-        .showWithLongPressTooltip(
-            context = context,
-            tooltipTag = TooltipTag.PROJECT_FOLDER_NEWXML
-        )
-  }
+	private fun createNewFileWithContent(
+		context: Context,
+		node: TreeNode?,
+		file: File,
+		content: String,
+	) {
+		createNewFileWithContent(context, node, file, content, null)
+	}
 
-  private fun createNewEmptyFile(context: Context, node: TreeNode?, file: File) {
-    createNewFileWithContent(context, node, file, "")
-  }
+	private fun createNewFileWithContent(
+		context: Context,
+		node: TreeNode?,
+		folder: File,
+		content: String,
+		extension: String?,
+	) {
+		val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(context))
+		val builder = DialogUtils.newMaterialDialogBuilder(context)
+		binding.name.editText!!.setHint(R.string.file_name)
+		builder.setTitle(R.string.new_file)
+		builder.setMessage(
+			context.getString(R.string.msg_can_contain_slashes) +
+				"\n\n" +
+				context.getString(R.string.msg_newfile_dest, folder.absolutePath),
+		)
+		builder.setView(binding.root)
+		builder.setCancelable(false)
+		builder.setPositiveButton(R.string.text_create) { dialogInterface, _ ->
+			dialogInterface.dismiss()
+			var name =
+				binding.name.editText!!
+					.text
+					.toString()
+					.trim()
+			if (name.isBlank()) {
+				flashError(R.string.msg_invalid_name)
+				return@setPositiveButton
+			}
 
-  private fun createNewFileWithContent(
-    context: Context,
-    node: TreeNode?,
-    file: File,
-    content: String
-  ) {
-    createNewFileWithContent(context, node, file, content, null)
-  }
+			if (extension != null && extension.trim { it <= ' ' }.isNotEmpty()) {
+				name = if (name.endsWith(extension)) name else name + extension
+			}
 
-  private fun createNewFileWithContent(
-    context: Context,
-    node: TreeNode?,
-    folder: File,
-    content: String,
-    extension: String?,
-  ) {
-    val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(context))
-    val builder = DialogUtils.newMaterialDialogBuilder(context)
-    binding.name.editText!!.setHint(R.string.file_name)
-    builder.setTitle(R.string.new_file)
-    builder.setMessage(
-      context.getString(R.string.msg_can_contain_slashes) +
-          "\n\n" +
-          context.getString(R.string.msg_newfile_dest, folder.absolutePath)
-    )
-    builder.setView(binding.root)
-    builder.setCancelable(false)
-    builder.setPositiveButton(R.string.text_create) { dialogInterface, _ ->
-      dialogInterface.dismiss()
-      var name = binding.name.editText!!.text.toString().trim()
-      if (name.isBlank()) {
-        flashError(R.string.msg_invalid_name)
-        return@setPositiveButton
-      }
+			try {
+				createFile(node, folder, name, content)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.error("Failed to create file", e)
+				flashError(e.cause?.message ?: e.message)
+			}
+		}
+		builder
+			.setNegativeButton(android.R.string.cancel, null)
+			.showWithLongPressTooltip(
+				context = context,
+				tooltipTag = TooltipTag.PROJECT_NEWFILE_DIALOG,
+			)
+	}
 
-      if (extension != null && extension.trim { it <= ' ' }.isNotEmpty()) {
-        name = if (name.endsWith(extension)) name else name + extension
-      }
+	private fun createFile(
+		node: TreeNode?,
+		directory: File,
+		name: String,
+		content: String,
+	) {
+		if (name.length !in 1..40 || name.startsWith("/")) {
+			flashError(R.string.msg_invalid_name)
+			return
+		}
+		this.currentNode = node
+		fileActionManager.createFile(directory, name, content, this)
+	}
 
-      try {
-        createFile(node, folder, name, content)
-      } catch (e: Exception) {
-        log.error("Failed to create file", e)
-        flashError(e.cause?.message ?: e.message)
-      }
-    }
-    builder.setNegativeButton(android.R.string.cancel, null)
-        .showWithLongPressTooltip(
-            context = context,
-            tooltipTag = TooltipTag.PROJECT_NEWFILE_DIALOG
-        )
-  }
+	private fun notifyFileCreated(
+		file: File,
+		context: Context,
+	) {
+		EventBus.getDefault().post(FileCreationEvent(file).putData(context))
+	}
 
-  private fun createFile(
-    node: TreeNode?,
-    directory: File,
-    name: String,
-    content: String
-  ) {
-    if (name.length !in 1..40 || name.startsWith("/")) {
-      flashError(R.string.msg_invalid_name)
-      return
-    }
-    this.currentNode = node
-    fileActionManager.createFile(directory, name, content, this)
-  }
+	override fun onActionSuccess(
+		message: String,
+		createdFile: File?,
+	) {
+		flashSuccess(R.string.msg_file_created)
+		if (currentNode != null) {
+			requestCollapseNode(currentNode!!, false)
+			requestExpandNode(currentNode!!)
+		} else {
+			requestFileListing()
+		}
+	}
 
-  private fun notifyFileCreated(file: File, context: Context) {
-    EventBus.getDefault().post(FileCreationEvent(file).putData(context))
-  }
-
-  override fun onActionSuccess(message: String, createdFile: File?) {
-    flashSuccess(R.string.msg_file_created)
-    if (currentNode != null) {
-      requestCollapseNode(currentNode!!, false)
-      requestExpandNode(currentNode!!)
-    } else {
-      requestFileListing()
-    }
-  }
-
-  override fun onActionFailure(errorMessage: String) {
-    flashError(errorMessage)
-  }
+	override fun onActionFailure(errorMessage: String) {
+		flashError(errorMessage)
+	}
 }

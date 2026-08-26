@@ -20,9 +20,13 @@ plugins {
   id("com.itsaky.androidide.build.propsparser")
 }
 
-java {
-  sourceCompatibility = JavaVersion.VERSION_1_8
-  targetCompatibility = JavaVersion.VERSION_1_8
+tasks.withType<JavaCompile>().configureEach {
+  options.compilerArgs.addAll(
+    listOf(
+      "--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED",
+      "--add-exports=java.base/sun.reflect.annotation=ALL-UNNAMED",
+    )
+  )
 }
 
 dependencies {

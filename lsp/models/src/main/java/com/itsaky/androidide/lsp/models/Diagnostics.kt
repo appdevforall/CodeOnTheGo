@@ -30,44 +30,56 @@ import io.github.rosemoe.sora.lang.diagnostic.DiagnosticRegion.SEVERITY_WARNING
 import java.nio.file.Path
 import java.nio.file.Paths
 
-data class DiagnosticItem(
-  var message: String,
-  var code: String,
-  var range: Range,
-  var source: String,
-  var severity: DiagnosticSeverity
+data class DiagnosticItem
+	@JvmOverloads
+	constructor(
+		var message: String,
+		var code: String,
+		var range: Range,
+		var source: String,
+		var severity: DiagnosticSeverity,
+		var extra: Any = Any(),
+	) {
+		companion object {
+			@JvmField
+			val START_COMPARATOR: Comparator<in DiagnosticItem> =
+				Comparator.comparing(DiagnosticItem::range)
+
+			private fun mapSeverity(severity: DiagnosticSeverity): Short =
+				when (severity) {
+					ERROR -> SEVERITY_ERROR
+					WARNING -> SEVERITY_WARNING
+					INFO -> SEVERITY_NONE
+					HINT -> SEVERITY_TYPO
+				}
+		}
+
+		fun asDiagnosticRegion(): DiagnosticRegion =
+			DiagnosticRegion(
+				range.start.requireIndex(),
+				range.end.requireIndex(),
+				mapSeverity(severity),
+			)
+	}
+
+/** All diagnostics whose range overlaps the current editor selection, in document order. */
+data class DiagnosticsInSelection(
+	val diagnostics: List<DiagnosticItem>,
+)
+
+data class DiagnosticResult(
+	var file: Path,
+	var diagnostics: List<DiagnosticItem>,
 ) {
-
-  var extra: Any = Any()
-
-  companion object {
-    @JvmField
-    val START_COMPARATOR: Comparator<in DiagnosticItem> =
-      Comparator.comparing(DiagnosticItem::range)
-
-    private fun mapSeverity(severity: DiagnosticSeverity): Short {
-      return when (severity) {
-        ERROR -> SEVERITY_ERROR
-        WARNING -> SEVERITY_WARNING
-        INFO -> SEVERITY_NONE
-        HINT -> SEVERITY_TYPO
-      }
-    }
-  }
-
-  fun asDiagnosticRegion(): DiagnosticRegion =
-    DiagnosticRegion(range.start.requireIndex(), range.end.requireIndex(), mapSeverity(severity))
-}
-
-data class DiagnosticResult(var file: Path, var diagnostics: List<DiagnosticItem>) {
-  companion object {
-    @JvmField val NO_UPDATE = DiagnosticResult(Paths.get(""), emptyList())
-  }
+	companion object {
+		@JvmField
+		val NO_UPDATE = DiagnosticResult(Paths.get(""), emptyList())
+	}
 }
 
 enum class DiagnosticSeverity {
-  ERROR,
-  WARNING,
-  INFO,
-  HINT
+	ERROR,
+	WARNING,
+	INFO,
+	HINT,
 }

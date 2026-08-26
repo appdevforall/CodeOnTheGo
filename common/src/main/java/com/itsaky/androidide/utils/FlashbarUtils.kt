@@ -19,7 +19,7 @@ package com.itsaky.androidide.utils
 
 import android.app.Activity
 import androidx.annotation.StringRes
-import com.blankj.utilcode.util.ActivityUtils
+import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.flashbar.Flashbar
 
 fun flashbarBuilder(): Flashbar.Builder? = withActivity { flashbarBuilder() }
@@ -48,8 +48,18 @@ fun flashSuccess(
 	withActivity { flashSuccess(msg) }
 }
 
+/** Suspends until the success bar has actually finished its entrance animation - see [Activity.flashSuccessAwaitShown]. */
+suspend fun flashSuccessAwaitShown(msg: String?) {
+	withActivitySuspend { flashSuccessAwaitShown(msg) }
+}
+
 fun flashError(msg: String?) {
 	withActivity { flashError(msg) }
+}
+
+/** Suspends until the error bar has actually finished its entrance animation - see [Activity.flashErrorAwaitShown]. */
+suspend fun flashErrorAwaitShown(msg: String?) {
+	withActivitySuspend { flashErrorAwaitShown(msg) }
 }
 
 fun flashError(
@@ -72,11 +82,20 @@ fun flashInfo(
 suspend fun flashProgress(configure: (Flashbar.Builder.() -> Unit)? = null): Flashbar? = withActivity { flashProgress(configure) }
 
 private inline fun <T> withActivity(action: Activity.() -> T?): T? =
-	ActivityUtils.getTopActivity()?.action()
+	BaseApplication.baseInstance.foregroundActivity?.action()
 		?: run {
 			ILogger.ROOT.warn("Cannot show flashbar message. Cannot get top activity.")
 			null
 		}
+
+private suspend inline fun withActivitySuspend(crossinline action: suspend Activity.() -> Unit) {
+	val activity = BaseApplication.baseInstance.foregroundActivity
+	if (activity == null) {
+		ILogger.ROOT.warn("Cannot show flashbar message. Cannot get top activity.")
+		return
+	}
+	activity.action()
+}
 
 /** The type of flashbar message. */
 enum class FlashType {

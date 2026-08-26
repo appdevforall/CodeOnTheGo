@@ -8,6 +8,8 @@
 	<string name="app_name" translatable="false">Code on the Go</string>
 	<string name="about_option_email">Email</string>
 	<string name="about_option_website">Website</string>
+	<string name="about_option_youtube">YouTube</string>
+	<string name="about_option_bilibili">Bilibili</string>
 	<string name="about_footer_alternate" translatable="false">Code on the Go v\u2022 %s</string>
 	<string name="about_footer">Code on the Go %1$s for %2$s</string>
 	<string name="about_subtitle">No computer? No Internet? No problem. Code apps anywhere.</string>
@@ -20,7 +22,7 @@
 	<string name="need_help">Need Help?</string>
 	<string name="ide_preferences">IDE preferences</string>
 	<string name="discussions_on_telegram">Support and discussions forum</string>
-	<string name="official_tg_channel">Official Telegram channel</string>
+	<string name="official_tg_channel">Announcements on Telegram</string>
 	<string name="msg_empty_view">No data</string>
 	<string name="title_terminal">Terminal</string>
 	<string name="reset">Reset</string>
@@ -94,6 +96,7 @@
 
 	<!-- Build Tools Installation -->
 	<string name="msg_no_references">No references found</string>
+	<string name="msg_no_imports_found">No imports found</string>
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
 	<string name="error_installation_failed">Failed to install assets</string>
@@ -330,8 +333,6 @@
 	<string name="title_confirm_project_open">Confirm project opening</string>
 	<string name="msg_confirm_project_open">When enabled, Code on the Go asks for confirmation before opening the last project.</string>
 	<string name="msg_error_opening_project">Error opening project.</string>
-	<string name="title_default_shell">Use system shell in terminal</string>
-	<string name="msg_default_shell">If checked, \'/system/bin/sh\' will be used in terminal.</string>
 	<string name="title_general">General</string>
 	<string name="title_tab_size">Tab size</string>
 	<string name="msg_tab_size">Set the number of spaces that the tab character indents.</string>
@@ -511,6 +512,7 @@
 	<string name="action_generate_setters_getters">Generate setters/getters</string>
 	<string name="action_add_throws">Add \'throws\'</string>
 	<string name="action_comment_line">Comment line</string>
+	<string name="action_surround_with_try_catch">Surround with try/catch</string>
 	<string name="action_create_missing_method">Create missing method</string>
 	<string name="action_convert_to_block">Convert to block</string>
 	<string name="action_generate_constructor">Generate constructor</string>
@@ -521,6 +523,43 @@
 	<string name="action_suppress_unchecked_warning">Suppress \'unchecked\' warning</string>
 	<string name="action_uncomment_line">Uncomment line</string>
 	<string name="action_convert_to_statement">Convert to statement</string>
+
+	<!-- Extract variable refactoring (Kotlin) -->
+	<string name="action_extract_variable">Extract variable</string>
+	<string name="title_extract_variable">Extract variable</string>
+	<string name="label_extract_variable_expression">Expression</string>
+	<string name="label_extract_variable_name">Name</string>
+	<string name="label_extract_variable_scope">Declare in</string>
+	<plurals name="label_extract_variable_replace_all">
+		<item quantity="one">Replace %1$d occurrence</item>
+		<item quantity="other">Replace all %1$d occurrences</item>
+	</plurals>
+	<string name="action_extract">Extract</string>
+	<string name="msg_extract_variable_name_blank">Enter a name</string>
+	<string name="msg_extract_variable_name_invalid">Not a valid Kotlin name</string>
+	<string name="msg_extract_variable_name_keyword">That is a Kotlin keyword</string>
+	<string name="msg_extract_variable_name_taken">That name is already used</string>
+	<string name="msg_extract_variable_nothing_to_extract">No expression to extract here</string>
+	<string name="msg_extract_variable_file_changed">The file changed. Try extracting again.</string>
+
+	<!-- Extract method refactoring (Kotlin) -->
+	<string name="action_extract_method">Extract method</string>
+	<string name="title_extract_method">Extract method</string>
+	<string name="label_extract_method_signature">Signature</string>
+	<string name="msg_extract_method_file_changed">The file changed. Try extracting again.</string>
+	<string name="msg_extract_method_not_single_region">Select an expression, or whole statements inside one block</string>
+	<string name="msg_extract_method_could_not_analyse">Could not analyse the selection. Try again.</string>
+	<string name="msg_extract_method_multiple_outputs">The selection produces more than one value: %1$s</string>
+	<string name="msg_extract_method_output_not_returnable">The selection produces %1$s, which cannot be handed back as a return value</string>
+	<string name="msg_extract_method_reassigns_outer_var">The selection assigns to %1$s, which is declared outside it</string>
+	<string name="msg_extract_method_exits_region">The selection jumps out of itself with return, break or continue</string>
+	<string name="msg_extract_method_anonymous_extension_function">The selection is inside an anonymous extension function</string>
+	<string name="msg_extract_method_inner_implicit_receiver">The selection uses members of the enclosing %1$s receiver</string>
+	<string name="msg_extract_method_uses_type_parameter">The selection uses type parameter %1$s</string>
+	<string name="msg_extract_method_unrenderable_type">A type in the selection cannot be written out</string>
+	<string name="msg_extract_method_uses_backing_field">The selection uses the property\'s backing field, which only exists inside this accessor</string>
+	<string name="msg_extract_method_smart_cast_parameter">The selection uses %1$s under a smart cast that does not hold outside the selection</string>
+	<string name="msg_extract_method_captured_local_declaration">The selection uses %1$s, which goes out of scope once the selection moves</string>
 	<string name="msg_select_fields">Select fields</string>
 	<string name="msg_no_fields_selected">No fields selected</string>
 	<string name="msg_no_fields_found">No fields found</string>
@@ -535,6 +574,11 @@
 	<string name="action_generate_toString">Generate toString()</string>
 	<string name="action_remove_unused_imports">Remove unused imports</string>
 	<string name="action_organize_imports">Organize imports</string>
+	<string name="action_null_safety_fixes">Null-safety fixes</string>
+	<string name="action_null_safety_assert">Add non-null assertion (!!)</string>
+	<string name="action_null_safety_safe_call">Change to safe call (?.)</string>
+	<string name="action_null_safety_elvis">Add Elvis operator (?:)</string>
+	<string name="action_implement_members">Implement members</string>
 	<string name="msg_cannot_generate_toString">Unable to generate toString() implementation</string>
 	<string name="msg_toString_overridden">toString() is already overridden</string>
 	<string name="action_generate_missing_constructor">Generate missing constructor</string>
@@ -657,9 +701,9 @@
 	<string name="title_privacy">Privacy</string>
 
 	<string name="privacy_disclosure_title">Privacy &amp; analytics</string>
-	<string name="privacy_disclosure_message">Code on the Go uses Firebase Analytics and Sentry to help us improve the app.\n\nFirebase Analytics collects anonymous usage data to help us understand how the app is used. \n\nSentry helps us track and fix errors.\n\nNo personal information is collected or shared. All data is processed in accordance with our privacy policy.</string>
-	<string name="privacy_disclosure_accept">I understand</string>
-	<string name="privacy_disclosure_learn_more">Learn more</string>
+	<string name="privacy_disclosure_message">Code on the Go collects anonymous usage and crash information to help us fix bugs and improve the app. No personal information is collected or shared.\n\n<i>Share anonymous data</i> sends this information. <i>Keep offline</i> sends nothing at all.</string>
+	<string name="privacy_disclosure_accept">Share anonymous data</string>
+	<string name="privacy_disclosure_decline">Keep offline</string>
 
 	<string name="title_unique_id">Unique ID</string>
 	<string name="title_device">Device</string>
@@ -678,6 +722,24 @@
 	<string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
 	<string name="msg_emptyview_idelogs">Logs from the IDE are shown here.</string>
 	<string name="msg_emptyview_diagnostics">Open a file to show its diagnostic results</string>
+	<string name="log_filter_hint">Filter lines</string>
+	<string name="msg_no_filter_matches">No matching log entries found.</string>
+	<string name="msg_no_search_matches">No search matches found.</string>
+	<string name="log_action_filter">Filter</string>
+	<string name="log_action_search">Search</string>
+	<string name="log_action_share">Share</string>
+	<string name="log_action_clear">Clear</string>
+	<string name="log_filter_hide">Hide filter bar</string>
+	<string name="log_filter_level_verbose">Verbose</string>
+	<string name="log_filter_level_debug">Debug</string>
+	<string name="log_filter_level_info">Info</string>
+	<string name="log_filter_level_warning">Warning</string>
+	<string name="log_filter_level_error">Error</string>
+	<string name="log_filter_line_numbers">Line numbers</string>
+	<string name="log_filter_timestamps">Timestamps</string>
+	<string name="log_filter_deltas">Time deltas</string>
+	<string name="tooltip_search_output">Search in output</string>
+	<string name="tooltip_filter_output">Filter output</string>
 	<string name="msg_emptyview_buildoutput">"Build the application or run a task to see its build output here. "</string>
 	<string name="msg_codeaction_failed">Failed to perform code action</string>
 	<string name="idepref_devOptions_enableLogsender_title">Enable LogSender</string>
@@ -689,6 +751,7 @@
 	<string name="msg_build_variants_fetch_failed">Failed to fetch build variants</string>
 	<string name="title_choose_application">Choose application</string>
 	<string name="err_selected_variant_not_found">Selected build variant not found</string>
+	<string name="err_no_release_variant">No release build variant found for module \'%1$s\'. Profiling requires a release variant.</string>
 	<string name="title_disconnect_log_senders">Disconnect log senders</string>
 	<string name="title_begin_long_select">Begin long select</string>
 	<string name="idepref_editor_stickScroll_title">Sticky scroll</string>
@@ -872,10 +935,12 @@
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
-	<string name="plugin_manager_title">Plugin Manager</string>
-	<string name="plugin_manager_summary">Manage IDE plugins and extensions</string>
+	<string name="plugin_manager_title">Extensions Manager</string>
+	<string name="plugin_manager_summary">Manage IDE plugins and templates</string>
+	<string name="msg_open_plugin_settings_failed">Could not open this plugin\'s settings</string>
 	<string name="plugins">Plugins</string>
 	<string name="no_plugins_installed">No plugins installed</string>
+	<string name="no_plugins_installed_hint">Tap the + button to install your first plugin</string>
 	<string name="install_plugin">Install Plugin</string>
 	<string name="plugin_installed">Plugin installed successfully</string>
 	<string name="plugin_install_failed">Failed to install plugin</string>
@@ -885,9 +950,18 @@
 	<string name="enable_plugin">Enable</string>
 	<string name="disable_plugin">Disable</string>
 	<string name="uninstall_plugin">Uninstall</string>
+	<string name="plugin_action_details">Details</string>
 	<string name="plugin_details">Plugin Details</string>
+	<string name="plugin_author_by">by %1$s</string>
+	<string name="plugin_status_enabled">Enabled</string>
+	<string name="plugin_status_disabled">Disabled</string>
+	<string name="plugin_status_not_loaded">Not Loaded</string>
 	<string name="plugin_permissions">Permissions</string>
 	<string name="plugin_dependencies">Dependencies</string>
+	<string name="by_author">by %1$s</string>
+	<string name="status_not_loaded">Not Loaded</string>
+	<string name="status_disabled">Disabled</string>
+	<string name="status_enabled">Enabled</string>
 
 	<!-- Plugin crash dialog -->
 	<string name="title_plugin_crashed">Plugin crashed</string>
@@ -979,10 +1053,13 @@
 	<string name="cd_redo">Redo</string>
 	<string name="cd_delete">Delete</string>
 	<string name="cd_add">Add</string>
+	<string name="cd_navigate_back">Navigate back</string>
+	<string name="cd_show_tooltip">Show help tooltip</string>
 	<string name="cd_search">Search</string>
 	<string name="cd_diagnostic_error">Error</string>
 	<string name="cd_diagnostic_warning">Warning</string>
 	<string name="cd_diagnostic_info">Information</string>
+	<string name="cd_show_help">Show help</string>
 
 	<!-- Toolbar content descriptions for TalkBack (match actual function) -->
 	<string name="cd_toolbar_quick_run">Quick run</string>
@@ -1004,6 +1081,11 @@
 	<!-- Drawer toggle content descriptions -->
 	<string name="cd_drawer_open">Open project menu</string>
 	<string name="cd_drawer_close">Close project menu</string>
+
+	<!-- Output actions content descriptions -->
+	<string name="cd_enable_word_wrap">Enable word wrap</string>
+	<string name="cd_disable_word_wrap">Disable word wrap</string>
+	<string name="cd_output_view_options">View options</string>
 
 	<string name="unknown_error">"An unknown error occurred."</string>
 	<string name="build_in_progress_warning">A build is already in progress. Ignoring new request.</string>
@@ -1044,12 +1126,50 @@
 	<string name="msg_plugin_uninstall_error">Error uninstalling plugin: %1$s</string>
 	<string name="msg_source_delete_failed">Could not delete the installation file</string>
 	<string name="msg_unsupported_plugin_file">Unsupported file type. Please select a .cgp file</string>
+	<string name="msg_unsupported_extension_file">Unsupported file type. Please select a .cgp plugin or .cgt template file</string>
 	<string name="msg_no_file_manager">No file manager found</string>
 	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
 	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
 	<string name="action_discover_plugins">Discover plugins</string>
 	<string name="url_discover_plugins" translatable="false">https://www.appdevforall.org/contribute/</string>
+	<string name="title_uninstall_plugin">Uninstall Plugin</string>
+	<string name="msg_uninstall_plugin_confirm">Are you sure you want to uninstall \'%1$s\'?</string>
+	<string name="label_plugin_name">Name</string>
+	<string name="label_plugin_id">Plugin ID</string>
+	<string name="label_plugin_version">Version</string>
+	<string name="label_plugin_author">Author</string>
+	<string name="label_plugin_description">Description</string>
+	<string name="label_plugin_min_ide_version">Min IDE Version</string>
+	<string name="label_value">%1$s: %2$s</string>
+	<string name="template_optional_tag">"- %1$s"</string>
+	<string name="label_separator">" - "</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
+
+	<string name="msg_invalid_incoming_file">Could not read the file. It may be corrupted or unavailable.</string>
+	<string name="msg_unsupported_file_type">Unsupported file type. Only .cgp and .cgt files can be opened this way.</string>
+	<string name="msg_ide_setup_incomplete">IDE setup has not finished yet. Please try again once setup completes.</string>
+	<string name="title_install_template_collection">Install Template Collection</string>
+	<string name="msg_template_install_confirm">Install \'%1$s\' with the following templates: %2$s?</string>
+	<string name="title_template_already_installed">Template Collection Already Installed</string>
+	<string name="msg_template_name_conflict">A template collection named \'%1$s\' is already installed. The new one contains: %2$s. What would you like to do?</string>
+	<string name="btn_overwrite">Overwrite</string>
+	<string name="btn_rename_and_install">Rename &amp; Install</string>
+	<string name="hint_new_template_collection_name">New collection name</string>
+	<string name="msg_template_invalid_file">Invalid or corrupted template collection file.</string>
+	<!--
+	  A .cgt is a collection: the bundled core.cgt alone carries nine templates, so these name the
+	  archive rather than saying "template" singular. Shared by both install paths - the Templates
+	  tab and the external-file install (ADFA-4934) - since both move one whole .cgt.
+	-->
+	<!-- Backticks, not quotes: Android strips unescaped double quotes from a string value, so
+	     "%1$s" would render the name bare. -->
+	<string name="msg_template_installed">`%1$s` installed successfully</string>
+	<string name="msg_template_install_failed">Failed to install template collection: %1$s</string>
+	<string name="msg_template_load_failed">Failed to load templates: %1$s</string>
+	<string name="msg_template_uninstalled">Template uninstalled successfully</string>
+	<string name="msg_template_uninstall_failed">Failed to uninstall template: %1$s</string>
+	<string name="msg_template_deleted">Deleted from Downloads</string>
+	<string name="msg_template_delete_failed">Failed to delete template: %1$s</string>
 
 	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
 
@@ -1138,6 +1258,9 @@
 	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
 	<string name="err_debugger_requires_a11">The debugger requires Android 11 or higher to work.</string>
+	<!-- Error message displayed when the profiler feature is accessed on a device running an Android version older than
+		11, as it's a requirement. -->
+	<string name="err_profiler_requires_a11">The profiler requires Android 11 or higher to work.</string>
 
 	<!-- Title of the dialog shown to ask the user to complete the pairing process -->
 	<string name="debugger_setup_title">Wireless debugging pairing</string>
@@ -1165,6 +1288,7 @@
 
 	<!-- Tooltip Links HTML Template -->
 	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
+	<string name="tooltip_missing_fallback_html"><![CDATA[Sorry, we don&#8217;t have a tooltip for that. <a href="%1$s">Explore the documentation</a>.]]></string>
 	<string name="title_alert">Send feedback</string>
 
 	<!-- Strings from BaseApplication.java -->
@@ -1174,10 +1298,11 @@
 	<string name="support_our_work">Support our work</string>
 	<string name="github_sponsors_url">https://github.com/sponsors/appdevforall</string>
 	<string name="docs_url">http://localhost:6174/i/index.html</string>
-	<string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
 	<string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
 	<string name="adfa_email">info@appdevforall.org</string>
 	<string name="mail_to_adfa">mailto:info@appdevforall.org</string>
+	<string name="youtube_channel_url">https://youtube.com/@appdevforall</string>
+	<string name="bilibili_video_url">https://www.bilibili.com/video/BV1AUgR6sE3G/</string>
 
 	<!-- AI Agent -->
 	<string name="ai_setting_saved">💾 Saved: %1$s</string>
@@ -1206,6 +1331,38 @@
 
 	<!-- Plugins -->
 	<string name="title_plugin_manager">Plugin Manager</string>
+
+	<!-- Combined Plugin/Template Manager screen (ADFA-4928) -->
+	<string name="title_manager">Plugins &amp; Templates</string>
+	<string name="tab_plugins">Plugins</string>
+	<string name="tab_templates">Templates</string>
+	<string name="no_templates_found">No templates found</string>
+	<string name="no_templates_found_hint">Templates you download show up here for installing</string>
+	<string name="status_template_installed">Installed</string>
+	<string name="status_template_not_installed">Not installed</string>
+	<string name="template_provenance_bundled">Bundled</string>
+	<string name="template_provenance_plugin">From plugin</string>
+	<string name="template_provenance_user">Imported</string>
+	<plurals name="template_contains_count">
+		<item quantity="one">Contains %1$d template</item>
+		<item quantity="other">Contains %1$d templates</item>
+	</plurals>
+	<string name="action_install_template">Install</string>
+	<string name="action_uninstall_template">Uninstall</string>
+	<string name="action_view_templates">View templates</string>
+	<string name="action_delete_template">Delete</string>
+	<string name="template_details">Details</string>
+	<string name="title_templates_in">Templates in %1$s</string>
+	<string name="title_delete_template">Delete template?</string>
+	<string name="msg_delete_template_confirm">This permanently deletes \'%1$s\' from Downloads.</string>
+	<string name="label_template_file">File</string>
+	<string name="label_template_status">Status</string>
+	<string name="label_template_location">Location</string>
+	<string name="label_template_version">Version</string>
+	<string name="label_template_description">Description</string>
+	<string name="label_template_optional_params">Optional parameters</string>
+	<string name="template_unnamed">(unnamed)</string>
+	<string name="msg_template_error_clip_label">Template error</string>
 
 	<string name="failed_to_save_bitmap_to_file">Failed to save bitmap to file</string>
 	<string name="pixel_copy_failed">PixelCopy failed</string>
@@ -1344,6 +1501,8 @@
 	<string name="template_exec_error_write">Failed writing output file: %1$s %2$s</string>
 	<string name="template_exec_error_copy">Failed copying binary entry: %1$s %2$s</string>
 	<string name="template_exec_error_process">Failed to process template entry: %1$s %2$s</string>
+	<string name="template_exec_error_terminated">Project creation stopped: %1$s\n\nThe incomplete project was removed. Fix the template file mentioned above (or choose a different template) and try again.</string>
+	<string name="template_exec_warn_cleanup_failed">Could not remove the incomplete project at %1$s. Delete it manually before trying again.</string>
 
 	<string name="template_exec_warn_map_appname">Missing appName, defaulted to %1$s</string>
 	<string name="template_exec_warn_map_pkgname">Missing packageName, defaulted to %1$s</string>
@@ -1361,9 +1520,56 @@
 	<string name="template_read_error_template_load">Failed to load template at %1$s  error: %2$s</string>
 	<string name="template_read_error_archive_load">Failed to load template archive %1$s  error: %2$s</string>
     <string name="navigate_up">Navigate up</string>
-    <string name="undock">Undock</string>
+
+	<!-- Profiler -->
+	<string name="profiler_title">Profiler</string>
+    <string name="profiler_action_label">Profile</string>
+    <string name="profiler_dump_heap">Dump heap</string>
+    <string name="profiler_cpu_hotspots">CPU hotspots</string>
+    <string name="profiler_empty">No profile data yet. Run a heap dump or CPU sample.</string>
+    <string name="profiler_col_class">Class</string>
+    <string name="profiler_col_count">Count</string>
+    <string name="profiler_col_shallow">Shallow</string>
+    <string name="profiler_col_retained">Retained</string>
+    <string name="profiler_col_symbol">Symbol</string>
+    <string name="profiler_col_self">Self</string>
+    <string name="profiler_col_total">Total</string>
+    <string name="profiler_process_picker_debuggable">debuggable</string>
+    <string name="profiler_process_picker_profileable">profileable</string>
+    <string name="profiler_process_picker_pid">%1$s · PID %2$d</string>
+    <string name="profiler_select_process">Select a process to profile</string>
+    <string name="profiler_no_processes">No debuggable or profileable processes found.</string>
+    <string name="profiler_running">Capturing heap dump from %1$s…</string>
+    <string name="profiler_cpu_not_implemented">CPU profiling isn\'t available yet.</string>
+    <string name="profiler_service_unavailable">Profiler service unavailable. Make sure Shizuku is running.</string>
+    <string name="profiler_heap_dump_failed">Heap dump failed: %1$s</string>
+    <string name="profiler_retry">Back</string>
+    <string name="profiler_cpu_recording">Recording CPU usage for %1$s…</string>
+    <string name="profiler_cpu_stop">Stop profiling</string>
+    <string name="profiler_cpu_processing">Generating CPU report…</string>
+    <string name="profiler_cpu_failed">CPU profiling failed: %1$s</string>
+    <string name="profiler_cpu_failed_generic">CPU profiling failed.</string>
+    <string name="profiler_cpu_no_samples">No CPU samples were captured. Try profiling for a bit longer.</string>
+    <string name="profiler_hide_system_frames">Hide system frames</string>
+    <string name="profiler_orientation_toggle">Flip graph direction</string>
+    <string name="profiler_cpu_self">Self %1$s (%2$s)</string>
+    <string name="profiler_cpu_total">Total %1$s (%2$s)</string>
+    <string name="profiler_cpu_tap_hint">Tap a frame for details</string>
+    <string name="profiler_heap_metric_retained">Retained size</string>
+    <string name="profiler_heap_metric_count">Instances</string>
+    <string name="profiler_heap_view_table">Class list</string>
+    <string name="profiler_hide_framework_classes">Hide framework classes</string>
+    <string name="profiler_heap_shallow">Shallow %1$s</string>
+    <string name="profiler_heap_retained">Retained %1$s (%2$s)</string>
+    <string name="profiler_heap_objects">%1$s objects</string>
+    <string name="profiler_heap_tap_hint">Tap a frame for object details</string>
+    <string name="profiler_cancel">Cancel</string>
+    <string name="profiler_start_another">Start another task</string>
+    <string name="profiler_cancelled">Profiling was cancelled.</string>
+    <string name="profiler_interrupted">Profiling was interrupted because the profiler service disconnected.</string>
 
 	<!-- Floating window chrome button accessibility labels (announced by screen readers) -->
+	<string name="undock">Undock</string>
 	<string name="floating_window_action_minimize">Minimize</string>
 	<string name="floating_window_action_restore">Restore</string>
 	<string name="floating_window_action_maximize">Maximize</string>
