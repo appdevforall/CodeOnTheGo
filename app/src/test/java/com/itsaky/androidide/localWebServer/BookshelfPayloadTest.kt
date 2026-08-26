@@ -28,7 +28,7 @@ class BookshelfPayloadTest {
 	private fun server() = WebServer(testServerConfig())
 
 	/**
-	 * One joined row: category, category description, title, book description, path.
+	 * One joined row: category, category description, title, book description, path, content id.
 	 *
 	 * These are canned cursor rows, so nothing here runs the real SQL -- `BookshelfQueryTest` covers
 	 * the query itself against a real SQLite database, including the two columns both named
@@ -39,7 +39,9 @@ class BookshelfPayloadTest {
 		val cursor =
 			mockk<Cursor>(relaxed = true) {
 				every { moveToNext() } answers { ++index < rows.size }
-				every { getString(any()) } answers { rows[index][firstArg<Int>()] }
+				// getOrNull, not [] -- the query has six columns and a row here need only give the
+				// ones its test cares about; a short row reads as NULL, the way SQLite would.
+				every { getString(any()) } answers { rows[index].getOrNull(firstArg<Int>()) }
 			}
 
 		return mockk(relaxed = true) {
@@ -188,8 +190,9 @@ class BookshelfPayloadTest {
 		val bookshelf =
 			server().readBookshelf(
 				database(
-					arrayOf("General", "", "Broken", "", null),
-					arrayOf("General", "", "Fine", "", "d/guide.pdf"),
+					// Six columns, as the query returns: the last is C.id, which the skip warning names.
+					arrayOf("General", "", "Broken", "", null, "4071"),
+					arrayOf("General", "", "Fine", "", "d/guide.pdf", "4072"),
 				),
 			)
 

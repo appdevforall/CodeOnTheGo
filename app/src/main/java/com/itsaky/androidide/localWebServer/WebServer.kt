@@ -1101,7 +1101,10 @@ SELECT BC.category,
 	BC.description,
 	B.title,
 	B.description,
-	C.path
+	C.path,
+	-- Only for the diagnostic below. Appended, not inserted: every read here is by positional
+	-- index, so a column added anywhere else silently re-points the four above it.
+	C.id
 FROM Content AS C,
 	Bookshelf AS B,
 	BookCategories AS BC
@@ -1139,7 +1142,9 @@ ORDER BY BC.category,
 				// whole shelf rather than the one bad row.
 				val path = cursor.getString(4)
 				if (path == null) {
-					log.warn("Bookshelf row for content id {} has no path; skipping it.", cursor.getString(2))
+					// Index 5, C.id -- the title at index 2 is not an id, and in this branch it is
+					// often null too, so it identified nothing while claiming to.
+					log.warn("Bookshelf row for content id {} has no path; skipping it.", cursor.getString(5))
 					continue
 				}
 				// BookCategories.category is nullable, so a book can be linked to a category row that
