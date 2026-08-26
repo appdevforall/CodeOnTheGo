@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.ListView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.forEach
@@ -29,76 +30,100 @@ fun View.forEachViewRecursively(action: (View) -> Unit) {
 	}
 }
 
+/**
+ * Attaches a long-press listener to this view and, recursively, to every view in its
+ * subtree. [ListView]s and views in [exclude] are skipped along with their subtrees.
+ *
+ * Text fields are skipped by default: a long press inside an [EditText] is the platform
+ * text-editing gesture (select/paste), and hijacking it would e.g. dismiss a dialog when
+ * the user long-presses its input field to paste
+ *
+ * @param exclude Views whose subtrees are left untouched.
+ * @param includeEditTexts Whether to also attach the listener to [EditText]s. Enable only
+ *                 when the listener implements its own text actions, like find-in-project's
+ *                 SearchFieldToolbar.
+ * @param listener Invoked with the long-pressed view; returns `true` if it consumed the
+ *                 event, `false` to let the view's default long-press behavior run.
+ */
 fun View.applyLongPressRecursively(
-    exclude: List<View> = emptyList(),
-    listener: (View) -> Boolean
+	exclude: List<View> = emptyList(),
+	includeEditTexts: Boolean = false,
+	listener: (View) -> Boolean,
 ) {
-    if (this is ListView || this in exclude) return
+	if (this is ListView || (this is EditText && !includeEditTexts) || this in exclude) return
 
-    setOnLongClickListener { listener(it) }
+	setOnLongClickListener { listener(it) }
 
-    if (this is ViewGroup) {
-        forEach { it.applyLongPressRecursively(exclude, listener) }
-    }
+	if (this is ViewGroup) {
+		forEach { it.applyLongPressRecursively(exclude, includeEditTexts, listener) }
+	}
 }
 
 fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
-    val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onLongPress(e: MotionEvent) {
-            listener(e)
-        }
-    })
+	val gestureDetector =
+		GestureDetector(
+			context,
+			object : GestureDetector.SimpleOnGestureListener() {
+				override fun onLongPress(e: MotionEvent) {
+					listener(e)
+				}
+			},
+		)
 
-    addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
-        override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
-            gestureDetector.onTouchEvent(e)
-            return false
-        }
-    })
+	addOnItemTouchListener(
+		object : RecyclerView.SimpleOnItemTouchListener() {
+			override fun onInterceptTouchEvent(
+				rv: RecyclerView,
+				e: MotionEvent,
+			): Boolean {
+				gestureDetector.onTouchEvent(e)
+				return false
+			}
+		},
+	)
 }
-
 
 @SuppressLint("ClickableViewAccessibility")
 fun View.setupGestureHandling(
-    onLongPress: (View) -> Unit,
-    onDrag: (View) -> Unit
+	onLongPress: (View) -> Unit,
+	onDrag: (View) -> Unit,
 ) {
-    val handler = Handler(Looper.getMainLooper())
-    var isTooltipStarted = false
-    var startTime = 0L
+	val handler = Handler(Looper.getMainLooper())
+	var isTooltipStarted = false
+	var startTime = 0L
 
-    setOnTouchListener { view, event ->
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                isTooltipStarted = false
-                startTime = System.currentTimeMillis()
+	setOnTouchListener { view, event ->
+		when (event.action) {
+			MotionEvent.ACTION_DOWN -> {
+				isTooltipStarted = false
+				startTime = System.currentTimeMillis()
 
-                // Trigger long press after 800ms
-                handler.postDelayed({
-                    if (!isTooltipStarted) {
-                        isTooltipStarted = true
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                        onLongPress(view)
-                    }
-                }, LONG_PRESS_TIMEOUT_MS)
-            }
+				// Trigger long press after 800ms
+				handler.postDelayed({
+					if (!isTooltipStarted) {
+						isTooltipStarted = true
+						view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+						onLongPress(view)
+					}
+				}, LONG_PRESS_TIMEOUT_MS)
+			}
 
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                handler.removeCallbacksAndMessages(null)
+			MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+				handler.removeCallbacksAndMessages(null)
 
-                if (!isTooltipStarted) {
-                    val holdDuration = System.currentTimeMillis() - startTime
-                    if (holdDuration >= HOLD_DURATION_MS) {
-                        // Medium hold for drag (600-800ms)
-                        onDrag(view)
-                    } else {
-                        view.performClick()
-                    }
-                }
-            }
-        }
-        true
-    }
+				if (!isTooltipStarted) {
+					val holdDuration = System.currentTimeMillis() - startTime
+					if (holdDuration >= HOLD_DURATION_MS) {
+						// Medium hold for drag (600-800ms)
+						onDrag(view)
+					} else {
+						view.performClick()
+					}
+				}
+			}
+		}
+		true
+	}
 }
 
 /**
@@ -108,16 +133,22 @@ fun View.setupGestureHandling(
  * is long-pressed. It works by recursively attaching a long-press listener to the
  * dialog's decor view and all its children.
  *
+ * @param includeEditTexts Whether the listener is also attached to text fields. Off by
+ *                 default so the platform select/paste gesture keeps working; enable it
+ *                 only when the listener implements its own text actions.
  * @param listener A lambda function that will be invoked when a long-press event occurs.
  *                 The lambda receives the [View] that was long-pressed as its argument
  *                 and should return `true` if the listener has consumed the event, `false` otherwise.
  */
-fun AlertDialog.onLongPress(listener: (View) -> Boolean) {
+fun AlertDialog.onLongPress(
+	includeEditTexts: Boolean = false,
+	listener: (View) -> Boolean,
+) {
 	if (this.isShowing) {
-		this.window?.decorView?.applyLongPressRecursively(emptyList(), listener)
+		this.window?.decorView?.applyLongPressRecursively(emptyList(), includeEditTexts, listener)
 	} else {
 		this.setOnShowListener {
-			this.window?.decorView?.applyLongPressRecursively(emptyList(), listener)
+			this.window?.decorView?.applyLongPressRecursively(emptyList(), includeEditTexts, listener)
 		}
 	}
 }
@@ -208,7 +239,10 @@ fun View.handleLongClicksAndDrag(
 				longPressFired = false
 				return@setOnTouchListener true
 			}
-			else -> false
+
+			else -> {
+				false
+			}
 		}
 	}
 }

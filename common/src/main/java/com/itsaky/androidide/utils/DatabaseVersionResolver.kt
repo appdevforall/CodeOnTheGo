@@ -4,7 +4,6 @@ import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 
 object DatabaseVersionResolver {
-
 	const val VERSION_UNKNOWN = "Version Unknown"
 
 	private const val TAG = "DatabaseVersionResolver"
@@ -13,6 +12,28 @@ object DatabaseVersionResolver {
 		SELECT changeTime, who
 		FROM   LastChange
 		WHERE  documentationSet = 'wholedb'
+		LIMIT  1
+	"""
+
+	// ADFA-5220's DocumentationDatabaseVersion table. A database declaring at least this MAJOR
+	// version has its brotli `Content` rows compressed against `CompressionDictionary` (ADFA-5153);
+	// one declaring less -- or carrying no version table at all -- predates that migration, and its
+	// rows are plain Brotli.
+	const val MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY = 2
+
+	private const val QUERY_VERSION_TABLE_EXISTS = """
+		SELECT 1
+		FROM   sqlite_master
+		WHERE  type = 'table' AND name = 'DocumentationDatabaseVersion'
+	"""
+
+	// The table is an append-only log -- ADFA-5220 records each change as another INSERT -- so the
+	// current version is the row inserted last, not the highest one ever recorded: rebuilding from
+	// an older content set is a downgrade and has to read as one.
+	private const val QUERY_MAJOR_VERSION = """
+		SELECT major
+		FROM   DocumentationDatabaseVersion
+		ORDER BY rowid DESC
 		LIMIT  1
 	"""
 
@@ -36,11 +57,12 @@ object DatabaseVersionResolver {
 
 			db.rawQuery(QUERY_FALLBACK_LATEST, arrayOf()).use { c ->
 				if (c.moveToFirst()) {
-					val result = formatVersion(
-						changeTime = c.getString(0),
-						who = c.getString(2),
-						documentationSet = c.getString(1),
-					)
+					val result =
+						formatVersion(
+							changeTime = c.getString(0),
+							who = c.getString(2),
+							documentationSet = c.getString(1),
+						)
 					Log.e(
 						TAG,
 						"Missing 'wholedb' record in LastChange table; falling back to $result",
@@ -54,6 +76,26 @@ object DatabaseVersionResolver {
 		} catch (e: Exception) {
 			Log.e(TAG, "No versioning information available", e)
 			VERSION_UNKNOWN
+		}
+	}
+
+	/**
+	 * The MAJOR version [db] declares in `DocumentationDatabaseVersion` (ADFA-5220), or null when
+	 * that table is absent or empty -- which is how every database built before it existed
+	 * identifies itself.
+	 *
+	 * Deliberately does *not* catch exceptions, unlike [resolveDatabaseVersion]: callers cache the
+	 * answer for the lifetime of a database (see `WebServer.loadCompressionDictionary`), so a
+	 * transient `SQLiteException` has to stay distinguishable from a definitive "no version table",
+	 * or one hiccup would pin the database at unversioned until it is swapped.
+	 */
+	fun resolveMajorVersion(db: SQLiteDatabase): Int? {
+		val tableExists = db.rawQuery(QUERY_VERSION_TABLE_EXISTS, arrayOf()).use { it.moveToFirst() }
+		if (!tableExists) {
+			return null
+		}
+		return db.rawQuery(QUERY_MAJOR_VERSION, arrayOf()).use { cursor ->
+			if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getInt(0) else null
 		}
 	}
 

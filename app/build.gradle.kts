@@ -3,6 +3,7 @@
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.json.JSONObject
 import java.io.BufferedOutputStream
 import java.io.ByteArrayInputStream
@@ -34,6 +35,7 @@ plugins {
 	// Sentry gradle plugin; the SDK it wires up reports to our GlitchTip backend.
 	alias(libs.plugins.sentry)
 	alias(libs.plugins.google.services)
+	alias(libs.plugins.kotlin.compose)
 }
 
 // Forces :subprojects:java-compiler-carrier to configure eagerly, ahead of app's own
@@ -102,6 +104,9 @@ android {
 				// Skip TreeSitter native library loading in tests
 				it.systemProperty("java.library.path", System.getProperty("java.library.path"))
 				it.systemProperty("androidide.test.mode", "true")
+				// JUnit Platform, so JUnit Jupiter tests run; the vintage engine dependency
+				// below keeps existing JUnit 4/Robolectric tests running unchanged.
+				it.useJUnitPlatform()
 			}
 		}
 	}
@@ -109,6 +114,10 @@ android {
 	androidResources {
 		noCompress.add("tflite")
 		generateLocaleConfig = true
+	}
+
+	buildFeatures {
+		compose = true
 	}
 
 	sourceSets {
@@ -218,6 +227,55 @@ configurations.configureEach {
 	exclude(group = "com.google.auto.value", module = "auto-value")
 }
 
+// brotli4j ships its native decoder as a per-OS/arch artifact, so the JVM unit tests need the one
+// matching whoever is building. Mirrors build-logic/plugins' dispatch, but degrades to null on an
+// unrecognized host instead of throwing: this runs at configuration time, so throwing would fail
+// every task in the build -- including :app:assembleV8Debug, which needs no desktop native at all
+// -- rather than only the JVM unit-test tasks that actually consume this dependency.
+fun brotli4jNativeForHost(): Provider<MinimalExternalModuleDependency>? {
+	val arch = DefaultNativePlatform.getCurrentArchitecture()
+	val os = DefaultNativePlatform.getCurrentOperatingSystem()
+	val native =
+		when {
+			os.isMacOsX -> {
+				when {
+					arch.isArm64 -> libs.brotli4j.osx.aarch64
+					arch.isAmd64 -> libs.brotli4j.osx.x64
+					else -> null
+				}
+			}
+
+			os.isWindows -> {
+				when {
+					arch.isArm64 -> libs.brotli4j.windows.aarch64
+					arch.isAmd64 -> libs.brotli4j.windows.x64
+					else -> null
+				}
+			}
+
+			os.isLinux -> {
+				when {
+					arch.isArm64 -> libs.brotli4j.linux.aarch64
+					arch.isAmd64 -> libs.brotli4j.linux.x64
+					else -> null
+				}
+			}
+
+			else -> {
+				null
+			}
+		}
+	if (native == null) {
+		logger.warn(
+			"brotli4j: no native decoder for {}/{} -- brotli4j-backed JVM unit tests " +
+				"(e.g. BrotliDictionaryDecodeTest) will fail with UnsatisfiedLinkError on this host.",
+			os,
+			arch,
+		)
+	}
+	return native
+}
+
 dependencies {
 	debugImplementation(libs.common.leakcanary)
 
@@ -249,6 +307,17 @@ dependencies {
 
 	// Git
 	implementation(libs.git.jgit)
+
+	// Compose (ADR 0009 - new IDE dialogs/screens are Compose)
+	implementation(platform(libs.compose.bom))
+	implementation(libs.compose.runtime)
+	implementation(libs.compose.ui)
+	implementation(libs.compose.foundation)
+	implementation(libs.compose.material3)
+	implementation(libs.compose.activity)
+	implementation(libs.compose.lifecycle.runtime)
+	implementation(libs.compose.ui.tooling.preview)
+	debugImplementation(libs.compose.ui.tooling)
 
 	// AndroidX
 	implementation(libs.androidx.splashscreen)
@@ -333,6 +402,10 @@ dependencies {
 
 	testImplementation(projects.testing.unit)
 	testImplementation(libs.core.tests.anroidx.arch)
+	testImplementation(libs.tests.junit.jupiter)
+	testRuntimeOnly(libs.tests.junit.platformLauncher)
+	// Keeps existing JUnit 4/Robolectric tests running under the JUnit Platform.
+	testRuntimeOnly(libs.tests.junit.vintageEngine)
 	androidTestImplementation(projects.common)
 	androidTestImplementation(projects.testing.android) {
 		exclude(group = "com.google.protobuf", module = "protobuf-lite")
@@ -345,6 +418,13 @@ dependencies {
 
 	// brotli4j
 	implementation(libs.brotli4j)
+	// JVM unit tests (e.g. BrotliDictionaryDecodeTest) run brotli4j's real native decoder, not an
+	// Android target -- without a desktop native on the test classpath, Brotli4jLoader has nothing
+	// to load and every such test fails with UnsatisfiedLinkError. Pick the native for whoever is
+	// building, so the suite runs off a Linux x64 CI runner too (same dispatch as build-logic/plugins').
+	// Null on an unrecognized host just means those specific tests fail there -- see
+	// brotli4jNativeForHost's own warning -- not that this whole build should refuse to configure.
+	brotli4jNativeForHost()?.let { testImplementation(it) }
 
 	implementation(libs.common.markwon.core)
 	implementation(libs.common.markwon.linkify)

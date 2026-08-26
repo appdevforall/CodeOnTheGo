@@ -59,8 +59,8 @@ val data: D
  * Result of recipe execution for a [ProjectTemplate].
  */
 interface ProjectTemplateRecipeResult : TemplateRecipeResultWithData<ProjectTemplateData> {
-    val hasErrorsWarnings: Boolean
-        get() = false
+	val hasErrorsWarnings: Boolean
+		get() = false
 }
 
 /**
@@ -118,14 +118,6 @@ val useKts: Boolean, val useToml: Boolean = false) : TemplateData() {
 fun buildGradleFile(): File {
 	return File(projectDir, optonallyKts("build.gradle"))
 }
-}
-
-/**
- * Language for source files.
- */
-enum class Language(val lang: String, val ext: String) {
-
-Java("Java", "java"), Kotlin("Kotlin", "kt");
 }
 
 /**
@@ -241,8 +233,8 @@ fun srcFolder(srcSet: SrcSet): File {
  * @property thumb The thumbnail for the template.
  */
 open class Template<R : TemplateRecipeResult>(@StringRes open val templateName: Int,
-  @DrawableRes open val thumb: Int, open val tooltipTag: String?, open val widgets: List<Widget<*>>,
-  open val recipe: TemplateRecipe<R>, open val templateNameStr: String = "", open val thumbData: ByteArray? = null
+@DrawableRes open val thumb: Int, open val tooltipTag: String?, open val widgets: List<Widget<*>>,
+open val recipe: TemplateRecipe<R>, open val templateNameStr: String = "", open val thumbData: ByteArray? = null
 ) {
 
 /**
@@ -348,7 +340,7 @@ fun build(): Template<R> {
 	requireNotNull(templateName) { "Template must have a name id" }
 	requireNotNull(thumb) { "Template must have a thumbnail" }
 	requireNotNull(recipe) { "Template must have a recipe" }
-  requireNotNull(templateNameStr) {"Template must have a name"}
+requireNotNull(templateNameStr) {"Template must have a name"}
 
 	this.widgets = this.widgets ?: emptyList()
 
