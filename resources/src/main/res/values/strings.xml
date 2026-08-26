@@ -1161,7 +1161,9 @@
 	  archive rather than saying "template" singular. Shared by both install paths - the Templates
 	  tab and the external-file install (ADFA-4934) - since both move one whole .cgt.
 	-->
-	<string name="msg_template_installed">"%1$s" installed successfully</string>
+	<!-- Backticks, not quotes: Android strips unescaped double quotes from a string value, so
+	     "%1$s" would render the name bare. -->
+	<string name="msg_template_installed">`%1$s` installed successfully</string>
 	<string name="msg_template_install_failed">Failed to install template collection: %1$s</string>
 	<string name="msg_template_load_failed">Failed to load templates: %1$s</string>
 	<string name="msg_template_uninstalled">Template uninstalled successfully</string>
