@@ -54,26 +54,55 @@ private sealed interface DialogUiState {
 	) : DialogUiState
 }
 
+/**
+ * Standalone host: the activity opened for a `.cgp`/`.cgt` from outside the app, which forwards
+ * plugins to [PluginManagerActivity] and finishes itself when the flow ends.
+ */
+@Suppress("ktlint:compose:vm-forwarding-check")
 @Composable
 fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 	val context = LocalContext.current
+	ExternalFileInstallDialogs(
+		viewModel = viewModel,
+		onForwardPlugin = { filePath ->
+			context.startActivity(
+				Intent(context, PluginManagerActivity::class.java)
+					// A Plugin Manager instance may already be running/backgrounded (e.g.
+					// the user had it open, then opened a .cgp attachment) - these flags
+					// reuse that instance via onNewIntent() instead of stacking a second
+					// one on top of it.
+					.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+					.putExtra(PluginManagerActivity.EXTRA_PENDING_INSTALL_FILE_PATH, filePath),
+			)
+			(context as? Activity)?.finish()
+		},
+		onFinish = { (context as? Activity)?.finish() },
+	)
+}
+
+/**
+ * The `.cgt` install flow's dialogs (confirm -> name conflict -> rename), driven by
+ * [ExternalFileInstallViewModel]. Split out from [ExternalFileInstallScreen] so the Extensions
+ * Manager's "add" button can reuse the same flow in-place instead of duplicating it: the only
+ * host-specific behaviours are [onForwardPlugin] and [onFinish].
+ */
+@Composable
+fun ExternalFileInstallDialogs(
+	viewModel: ExternalFileInstallViewModel,
+	onForwardPlugin: (String) -> Unit,
+	onFinish: () -> Unit,
+) {
+	val context = LocalContext.current
 	var dialogState by remember { mutableStateOf<DialogUiState>(DialogUiState.None) }
 	val isInstalling by viewModel.isInstalling.collectAsStateWithLifecycle()
+	val currentOnForwardPlugin by rememberUpdatedState(onForwardPlugin)
+	val currentOnFinish by rememberUpdatedState(onFinish)
 
 	LaunchedEffect(viewModel) {
 		viewModel.uiEffect.collect { effect ->
 			when (effect) {
 				is ExternalFileInstallUiEffect.ForwardToPluginManager -> {
-					context.startActivity(
-						Intent(context, PluginManagerActivity::class.java)
-							// A Plugin Manager instance may already be running/backgrounded (e.g.
-							// the user had it open, then opened a .cgp attachment) - these flags
-							// reuse that instance via onNewIntent() instead of stacking a second
-							// one on top of it.
-							.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-							.putExtra(PluginManagerActivity.EXTRA_PENDING_INSTALL_FILE_PATH, effect.filePath),
-					)
-					(context as? Activity)?.finish()
+					currentOnForwardPlugin(effect.filePath)
 				}
 
 				is ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation -> {
@@ -101,7 +130,8 @@ fun ExternalFileInstallScreen(viewModel: ExternalFileInstallViewModel) {
 				}
 
 				is ExternalFileInstallUiEffect.Finish -> {
-					(context as? Activity)?.finish()
+					dialogState = DialogUiState.None
+					currentOnFinish()
 				}
 			}
 		}
