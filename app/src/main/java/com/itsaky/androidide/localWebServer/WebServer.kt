@@ -63,17 +63,24 @@ data class ServerConfig(
  * The `bookshelf` template's JSON context. Field names are the JSON keys, so they match what the
  * template reads -- and what SQLite's JSON1 functions used to emit before ADFA-5179.
  */
-data class Bookshelf(
+internal data class Bookshelf(
 	val result: List<BookshelfCategory>,
 )
 
-data class BookshelfCategory(
+internal data class BookshelfCategory(
 	val category: String,
 	val description: String?,
 	val books: List<BookshelfBook>,
 )
 
-data class BookshelfBook(
+// Not part of the JSON payload: the accumulator readBookshelf groups rows into. Its fields become
+// BookshelfCategory's once every row has been read.
+private class CategoryGroup(
+	val description: String?,
+	val books: MutableList<BookshelfBook> = mutableListOf(),
+)
+
+internal data class BookshelfBook(
 	val title: String,
 	val description: String?,
 	val link: String,
@@ -1072,21 +1079,39 @@ ORDER BY BC.category,
 		// where NULL and a literal "General" are two groups that both render as "General"; coalescing
 		// before grouping merges them and keeps only the first description. This port is meant to
 		// change nothing, so the label is applied at construction instead.
-		val categories = LinkedHashMap<String?, MutableList<BookshelfBook>>()
-		val descriptions = LinkedHashMap<String?, String?>()
+		// One entry per category, holding the label's own description alongside its books. Two maps
+		// keyed by the same category would have to be kept in agreement by hand, and putIfAbsent is
+		// the wrong tool for that: java.util.Map treats a key mapped to null as absent, so a category
+		// whose first row had a NULL description was overwritten by the next row's -- the opposite of
+		// the "first one wins" this comment used to claim. getOrPut's lambda runs only when the key
+		// is genuinely missing, so the description is read once, at group creation, and there is no
+		// second write to get wrong.
+		//
+		// The value type has to stay non-null for that to hold: getOrPut treats a null *value* as
+		// absent too, so a LinkedHashMap<String?, String?> of descriptions would reintroduce the bug
+		// in a different shape.
+		val categories = LinkedHashMap<String?, CategoryGroup>()
 
 		database.rawQuery(query, arrayOf()).use { cursor ->
 			while (cursor.moveToNext()) {
+				// Content.path is NOT NULL in the maintained schema, so this is unreachable there -- but
+				// this endpoint exists because a shipped documentation.db had NULLs nobody expected, and
+				// a platform-type null reaching BookshelfBook(link: String) is an NPE that costs the
+				// whole shelf rather than the one bad row.
 				val path = cursor.getString(4)
+				if (path == null) {
+					log.warn("Bookshelf row for content id {} has no path; skipping it.", cursor.getString(2))
+					continue
+				}
 				// BookCategories.category is nullable, so a book can be linked to a category row that
 				// has no label; it is labelled "General" below, as the old query's IFNULL had it. This
 				// is *not* about a book with no category at all -- the join drops those, exactly as
 				// the query this replaced did.
 				val category = cursor.getString(0)
 
-				descriptions.putIfAbsent(category, cursor.getString(1))
 				categories
-					.getOrPut(category) { mutableListOf() }
+					.getOrPut(category) { CategoryGroup(cursor.getString(1)) }
+					.books
 					.add(
 						BookshelfBook(
 							// A book with no title of its own shows its path, again as before.
@@ -1101,11 +1126,11 @@ ORDER BY BC.category,
 		}
 
 		return Bookshelf(
-			categories.map { (category, books) ->
+			categories.map { (category, group) ->
 				BookshelfCategory(
 					category = category ?: uncategorizedLabel,
-					description = descriptions[category],
-					books = books,
+					description = group.description,
+					books = group.books,
 				)
 			},
 		)

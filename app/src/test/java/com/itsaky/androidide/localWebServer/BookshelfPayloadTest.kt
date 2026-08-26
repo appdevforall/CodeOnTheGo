@@ -153,6 +153,60 @@ class BookshelfPayloadTest {
 		).isEqualTo("i/index.html")
 	}
 
+	// The description belongs to the category label, so it is read from the first row of the group and
+	// the rest are the same category repeated. putIfAbsent got this wrong in the one case that has no
+	// visible symptom until it happens: java.util.Map counts a key mapped to null as absent, so a
+	// first row with no description was overwritten by whatever the second row carried.
+	@Test
+	fun `a category whose first row has no description keeps the null`() {
+		val bookshelf =
+			server().readBookshelf(
+				database(
+					arrayOf("Kotlin", null, "First", "", "a.pdf"),
+					arrayOf("Kotlin", "Arrived late", "Second", "", "b.pdf"),
+				),
+			)
+
+		val category = bookshelf.result.single()
+		assertThat(category.description).isNull()
+		assertThat(category.books.map { it.title }).containsExactly("First", "Second").inOrder()
+	}
+
+	// ...and the ordinary direction still holds: the first row's description wins over later ones.
+	@Test
+	fun `a category keeps the description from its first row`() {
+		val bookshelf =
+			server().readBookshelf(
+				database(
+					arrayOf("Kotlin", "The real one", "First", "", "a.pdf"),
+					arrayOf("Kotlin", "A later, different one", "Second", "", "b.pdf"),
+				),
+			)
+
+		assertThat(bookshelf.result.single().description).isEqualTo("The real one")
+	}
+
+	// Content.path is NOT NULL in the maintained schema, but this endpoint exists because a shipped
+	// copy had NULLs nobody expected. One unusable row must not cost the whole shelf: the null would
+	// otherwise reach BookshelfBook(link: String) as an intrinsic null check, i.e. an HTTP 500.
+	@Test
+	fun `a row with no path is skipped, not fatal`() {
+		val bookshelf =
+			server().readBookshelf(
+				database(
+					arrayOf("General", "", "Broken", "", null),
+					arrayOf("General", "", "Fine", "", "d/guide.pdf"),
+				),
+			)
+
+		assertThat(
+			bookshelf.result
+				.single()
+				.books
+				.map { it.title },
+		).containsExactly("Fine")
+	}
+
 	@Test
 	fun `an empty bookshelf is an empty list, not a failure`() {
 		// The old query made this an HTTP 500: group_concat over no rows is NULL, and reading that
