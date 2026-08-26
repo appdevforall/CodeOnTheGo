@@ -336,10 +336,28 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
     ).fetchall()
 
     base_bytes_by_path = {row[1]: row[5] for row in rows}
+    rows_by_id = {row[0]: row for row in rows}
     items: dict[str, Item] = {}
     continuations: list[tuple[str, int, int, int]] = []
 
-    for row_id, path, language_id, type_id, template_id, length, type_value, compression in rows:
+    def standalone(row: tuple) -> Item:
+        """An Item carrying the row's own metadata -- a row ungrouped later (a disproved
+        continuation, an orphan) is an independent page, and stamping the would-be base's
+        contentTypeID/languageID onto it would relabel a foreign page."""
+        row_id, path, language_id, type_id, template_id, length, type_value, compression = row
+        return Item(
+            base_path=path,
+            base_id=row_id,
+            language_id=language_id,
+            content_type_id=type_id,
+            template_id=template_id,
+            content_type=type_value,
+            compression=compression,
+            base_bytes=length,
+        )
+
+    for row in rows:
+        row_id, path, length = row[0], row[1], row[5]
         match = CONTINUATION.match(path)
         # A "-<digits>" sibling is a naming coincidence until the base row proves otherwise, and
         # the proof is the base holding exactly CHUNK_BYTES -- the app's own chunk-detection rule.
@@ -348,16 +366,7 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
         if match and base_bytes_by_path.get(match.group(1)) == CHUNK_BYTES:
             continuations.append((match.group(1), row_id, int(match.group(2)), length))
         else:
-            items[path] = Item(
-                base_path=path,
-                base_id=row_id,
-                language_id=language_id,
-                content_type_id=type_id,
-                template_id=template_id,
-                content_type=type_value,
-                compression=compression,
-                base_bytes=length,
-            )
+            items[path] = standalone(row)
 
     orphans: list[tuple[str, int, int, int]] = []
     for base_path, row_id, suffix, length in continuations:
@@ -365,10 +374,10 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
         if owner is not None:
             owner.continuations.append((row_id, suffix, length))
         else:
-            # The greedy base is itself a continuation, or the phase predicate excluded it, so this
-            # row has no owner to be a slice of. Silently dropping it meant a row that was never
-            # migrated, never counted and never reported -- in a database the run then declares
-            # version 2.
+            # The greedy base is itself a continuation, so this row has no owner to be a slice
+            # of. Silently dropping it meant a row that was never migrated, never counted and
+            # never reported -- in a database the run then declares version 2 while the row is
+            # still plain brotli, which can decode against the dictionary to wrong bytes.
             orphans.append((base_path, row_id, suffix, length))
 
     for item in items.values():
@@ -386,26 +395,22 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
         head = item.continuations[:-1]
         if all(length == CHUNK_BYTES for _, _, length in head):
             continue
-        for row_id, suffix, length in item.continuations:
-            path = f"{item.base_path}-{suffix}"
-            items[path] = Item(
-                base_path=path,
-                base_id=row_id,
-                language_id=item.language_id,
-                content_type_id=item.content_type_id,
-                template_id=item.template_id,
-                content_type=item.content_type,
-                compression=item.compression,
-                base_bytes=length,
-            )
+        for row_id, _, _ in item.continuations:
+            row = rows_by_id[row_id]
+            items[row[1]] = standalone(row)
         item.continuations.clear()
 
-    if orphans:
-        for base_path, _, suffix, _ in orphans:
-            print(
-                f"      note: {base_path}-{suffix} looks like a continuation of {base_path}, which is "
-                f"not itself a migratable row; left alone and not migrated"
-            )
+    # An orphan is still a row this phase selected, so it becomes its own item and migrates
+    # normally. If it really is a stray slice of some stream, its bytes decode neither plainly
+    # nor with the dictionary, and it surfaces as an error instead of silently surviving a run
+    # that declares version 2.
+    for base_path, row_id, suffix, _ in orphans:
+        row = rows_by_id[row_id]
+        items[row[1]] = standalone(row)
+        print(
+            f"      note: {base_path}-{suffix} looks like a continuation of {base_path}, which is "
+            f"not itself a migratable row; treated as an independent page"
+        )
 
     return sorted(items.values(), key=lambda item: item.base_path)
 
@@ -636,8 +641,11 @@ def renumber_item(connection: sqlite3.Connection, item: Item, write: bool) -> st
         # fail on UNIQUE(path) after the collision checks above had passed.
         for row_id, suffix, _ in sorted(item.continuations, key=lambda entry: entry[1]):
             connection.execute(
-                "UPDATE Content SET path = ? WHERE id = ?",
-                (f"{item.base_path}-{suffix - shift}", row_id),
+                # languageID too, for the same reason write_item normalises it: WebServer loads
+                # continuations with "languageId = 1" hardcoded, so a renumbered row left under
+                # another language is invisible and the page still truncates at its first 1 MiB.
+                "UPDATE Content SET path = ?, languageID = ? WHERE id = ?",
+                (f"{item.base_path}-{suffix - shift}", CONTINUATION_LANGUAGE_ID, row_id),
             )
     return ""
 
