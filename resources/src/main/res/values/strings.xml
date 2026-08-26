@@ -1411,7 +1411,7 @@
     <string name="git_create_branch_title">Create new branch</string>
     <string name="git_branch_name_hint">Branch name</string>
     <string name="git_search_branches">Search branches…</string>
-    <string name="git_checkout_success">Switched to branch %1$s</string>
+    <string name="git_checkout_success">Switched to branch \'%1$s\'</string>
     <string name="git_checkout_failed">Failed to switch branch</string>
     <string name="git_checkout_conflict_title">Checkout conflict</string>
     <string name="git_checkout_conflict_msg">Cannot switch branch because uncommitted changes would be overwritten. Please commit or stash your changes before switching branches.\n\nConflicting files:\n%1$s</string>
@@ -1452,7 +1452,9 @@
     <string name="uncheck_all">Uncheck All</string>
     <string name="merge_dialog_title">Merge branch?</string>
     <string name="merge_dialog_message">You are about to merge \'%1$s\' into \'%2$s\'. Are you sure you want to proceed?</string>
-    <string name="proceed_with_merge">Proceed</string>
+    <string name="proceed_with_git_action">Proceed</string>
+    <string name="checkout_dialog_title">Switch branch?</string>
+    <string name="checkout_dialog_message">You are about to check out branch \'%1$s\'. Are you sure you want to proceed?</string>
 
 	<!-- Templates -->
 	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>

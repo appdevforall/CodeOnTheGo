@@ -26,6 +26,7 @@ import com.itsaky.androidide.fragments.git.adapter.GitFileChangeAdapter
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.models.ChangeType
 import com.itsaky.androidide.git.core.models.FileChange
+import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.git.core.models.GitStatus
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -68,14 +69,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			GitBranchPopupWindow(
 				context = requireContext(),
 				onBranchSelected = { branch ->
-					if (!branch.isCurrent) {
-						checkUnsavedChangesAndProceed {
-							viewModel.checkoutBranch(
-								branchName = branch.name,
-								createNew = false,
-							)
-						}
-					}
+					showCheckoutDialog(branch)
 				},
 				onNewBranchRequested = {
 					showCreateBranchDialog()
@@ -634,11 +628,29 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		MaterialAlertDialogBuilder(requireContext())
 			.setTitle(getString(R.string.merge_dialog_title))
 			.setMessage(getString(R.string.merge_dialog_message, targetBranch, currentBranch))
-			.setPositiveButton(R.string.proceed_with_merge) { dialog, _ ->
+			.setPositiveButton(R.string.proceed_with_git_action) { _, _ ->
 				checkUnsavedChangesAndProceed {
 					viewModel.mergeBranch(targetBranch)
 				}
-			}.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+			}.setNegativeButton(android.R.string.cancel) { _, _ -> }
+			.setCancelable(true)
+			.show()
+	}
+
+	private fun showCheckoutDialog(targetBranch: GitBranch) {
+		MaterialAlertDialogBuilder(requireContext())
+			.setTitle(getString(R.string.checkout_dialog_title))
+			.setMessage(getString(R.string.checkout_dialog_message, targetBranch.name))
+			.setPositiveButton(R.string.proceed_with_git_action) { _, _ ->
+				if (!targetBranch.isCurrent) {
+					checkUnsavedChangesAndProceed {
+						viewModel.checkoutBranch(
+							branchName = targetBranch.name,
+							createNew = false,
+						)
+					}
+				}
+			}.setNegativeButton(android.R.string.cancel) { _, _ -> }
 			.setCancelable(true)
 			.show()
 	}
