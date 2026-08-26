@@ -353,6 +353,33 @@ class WebServerTest {
 		}
 	}
 
+	// A bookshelf join that matches nothing still yields one row from group_concat -- its value is
+	// just NULL. That must come back as an explicit 500, not as a zero-byte closed connection.
+	@Test
+	fun `an empty bookshelf join answers 500 instead of closing with no bytes`() {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		every { db.rawQuery(match { it.contains("group_concat") }, any()) } returns
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns null
+			}
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			val response = sendRawGetRequest(port, "/pr/bs")
+			assertTrue("Expected a 500 status line, got:\n$response", response.startsWith("HTTP/1.1 500"))
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
 	// Blocks until the server closes the connection (every response sends "Connection: close"),
 	// so by the time this returns the server has fully finished processing this one request --
 	// making repeated calls a reliable way to serialize several full request/response cycles.

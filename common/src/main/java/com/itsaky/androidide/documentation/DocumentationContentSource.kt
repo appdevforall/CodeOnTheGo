@@ -611,6 +611,7 @@ class DocumentationContentSource(
 		database = opened
 		databaseTimestamp = timestamp
 		compressionDictionaryStale = true
+		templateCache.clear()
 		generation++
 
 		try {

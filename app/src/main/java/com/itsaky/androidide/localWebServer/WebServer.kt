@@ -7,6 +7,7 @@ import android.os.Environment.getExternalStorageDirectory
 import com.itsaky.androidide.documentation.DocumentationContent
 import com.itsaky.androidide.documentation.DocumentationContentSource
 import com.itsaky.androidide.documentation.DocumentationLookup
+import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
 import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import org.slf4j.LoggerFactory
@@ -563,7 +564,12 @@ class WebServer(
 		output: java.io.OutputStream,
 	) {
 		if (debugEnabled) log.debug("Entering handleBsEndpoint().")
-		if (clearCacheEnabled) contentSource.clearTemplateCache()
+		if (clearCacheEnabled) {
+			// The in-app WebViews are served by the shared interceptor's own source, not this
+			// server's, so the developer sentinel must clear both caches.
+			contentSource.clearTemplateCache()
+			DocumentationRequestInterceptor.clearSharedTemplateCache()
+		}
 
 		var outputStarted = false
 
@@ -684,6 +690,14 @@ ORDER BY BC.category,
 					// get the JSON from the bookshelf table
 					cursor.moveToFirst()
 					val json = cursor.getBlob(0)
+					if (json == null) {
+						// group_concat over an empty join still yields one row, whose value is
+						// NULL -- so isCursorOneRow passes. Answer it here, or the null would
+						// fall out of withDatabase as a zero-byte closed connection.
+						log.error("Bookshelf query returned no rows.")
+						sendError(writer, output, httpInternalServerError, "Internal Server Error", "Bookshelf query returned no rows.")
+						return@withDatabase null
+					}
 					if (debugEnabled) log.debug("json content = '${String(json)}'.")
 					if (debugEnabled) log.debug("before fetch bookshelf template ID = '$bookshelfTemplateId'")
 

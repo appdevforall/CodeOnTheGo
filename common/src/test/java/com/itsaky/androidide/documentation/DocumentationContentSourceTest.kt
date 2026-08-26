@@ -299,6 +299,40 @@ class DocumentationContentSourceTest {
 	}
 
 	@Test
+	fun `a debug-database swap drops the compiled templates, so pages render from the new database`() {
+		val installed = templatedDatabase(template = "Hello {{ who }}!")
+		val debug = templatedDatabase(template = "Goodbye {{ who }}!")
+		every { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) } returns installed
+		every { SQLiteDatabase.openDatabase(debugFile.absolutePath, isNull(), any()) } returns debug
+
+		val source = source(debugCheckIntervalMs = 0)
+
+		// Compiles and caches the installed database's template.
+		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("Hello Kotlin!")
+
+		debugFile.writeText("newer")
+		debugFile.setLastModified(installedFile.lastModified() + 60_000)
+
+		// Same template id in the new database: only a cleared cache recompiles it from there.
+		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("Goodbye Kotlin!")
+	}
+
+	/** A database whose single Content row is templated with id 7, and whose template is [template]. */
+	private fun templatedDatabase(template: String): SQLiteDatabase =
+		mockk<SQLiteDatabase>(relaxed = true) {
+			every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns
+				contentCursor(bytes = """{"who": "Kotlin"}""".toByteArray(), templateId = 7)
+			every { rawQuery(match { it.contains("FROM Templates") }, arrayOf("7")) } returns
+				mockk(relaxed = true) {
+					every { count } returns 1
+					every { moveToFirst() } returns true
+					every { getBlob(0) } returns template.toByteArray()
+				}
+		}
+
+	@Test
 	fun `a debug database that will not open leaves the installed one serving`() {
 		val installed = database(contentCursor(bytes = "installed".toByteArray()))
 		every { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) } returns installed

@@ -71,12 +71,14 @@ class HelpActivity : BaseIDEActivity() {
 	// ADFA-5176: answers documentation requests from the database in-process, so loading a page
 	// no longer opens a TCP connection per asset to the local web server.
 	//
-	// by lazy, not an initializer: forcing it here runs during Activity construction, before
+	// Lazy, not an initializer: forcing it here runs during Activity construction, before
 	// onCreate, on the main thread -- which both stats external storage for the sentinel under a
 	// StrictMode policy that reports it, and dies before this screen exists if the shared
 	// interceptor cannot be built. Touched from shouldInterceptRequest instead, on a WebView
-	// thread, the way FAQActivity does it.
-	private val documentation by lazy { DocumentationRequestInterceptor.shared }
+	// thread, the way FAQActivity does it. An explicit Lazy, so onPageFinished (main thread) can
+	// log without being the first touch.
+	private val documentationLazy = lazy { DocumentationRequestInterceptor.shared }
+	private val documentation by documentationLazy
 
 	// Wall-clock start of the page currently loading, for the ADFA-5176 measurement.
 	// elapsedRealtime, not currentTimeMillis: an NTP correction or a user clock change between
@@ -155,11 +157,20 @@ class HelpActivity : BaseIDEActivity() {
 							// The summary's counters are process-cumulative, so they are labelled as
 							// such rather than read as this page's -- the tenth page in a session
 							// would otherwise report the whole session's bytes as its own.
+							// Only read the interceptor if some request already forced it: this
+							// runs on the main thread, and being the first touch would build the
+							// interceptor (and stat external storage) here.
+							val summary =
+								if (documentationLazy.isInitialized()) {
+									documentation?.servedSummary()
+								} else {
+									"interceptor not yet used"
+								}
 							log.info(
 								"Loaded '{}' in {} ms; in-process totals so far: {}.",
 								url,
 								SystemClock.elapsedRealtime() - pageLoadStartMillis,
-								documentation?.servedSummary(),
+								summary,
 							)
 							pageLoadStartMillis = 0L
 						}
