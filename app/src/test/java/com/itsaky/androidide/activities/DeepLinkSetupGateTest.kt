@@ -17,15 +17,25 @@
 
 package com.itsaky.androidide.activities
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
+import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.PermissionsHelper
+import io.mockk.every
+import io.mockk.mockkObject
+import io.mockk.unmockkAll
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import java.io.File
 
 /**
  * A deep link must not walk past setup. Both of DeepLinkActivity's targets sit beyond
@@ -38,6 +48,9 @@ import org.robolectric.Shadows.shadowOf
  */
 @RunWith(RobolectricTestRunner::class)
 class DeepLinkSetupGateTest {
+	@get:Rule
+	val tempFolder = TemporaryFolder()
+
 	@Test
 	fun `a link arriving before setup is finished goes to the launcher chain, not the editor`() {
 		val intent =
@@ -54,5 +67,57 @@ class DeepLinkSetupGateTest {
 	fun `the setup predicate is false when no toolchain is installed`() {
 		val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 		assertThat(context.isIdeSetupComplete()).isFalse()
+	}
+
+	/**
+	 * The cold-start case, and the reason this predicate reads the filesystem.
+	 *
+	 * `IJdkDistributionProvider.installedDistributions` is empty until the loader coroutine
+	 * `IDEApplication` starts on `Dispatchers.Default` has run, and an Activity's `onCreate` beats it
+	 * to the main thread. Asking the provider therefore answered "not set up" on a device that was,
+	 * and the link was discarded with a message telling the user to finish a finished setup. Nothing
+	 * loads the provider in this test either -- which is precisely the state under test.
+	 */
+	@Test
+	fun `the setup predicate is true from disk alone, with no distributions loaded`() {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val prefix = tempFolder.newFolder("prefix")
+		File(prefix, "lib/jvm/jdk-17").mkdirs()
+		val previousPrefix = Environment.PREFIX
+		val previousHome = Environment.ANDROID_HOME
+		Environment.PREFIX = prefix
+		Environment.ANDROID_HOME = tempFolder.newFolder("android-sdk")
+		mockkObject(PermissionsHelper)
+		every { PermissionsHelper.areAllPermissionsGranted(any()) } returns true
+		try {
+			assertThat(IJdkDistributionProvider.getInstance().installedDistributions).isEmpty()
+			assertThat(context.isIdeSetupComplete()).isTrue()
+		} finally {
+			unmockkAll()
+			Environment.PREFIX = previousPrefix
+			Environment.ANDROID_HOME = previousHome
+		}
+	}
+
+	// ...and an empty lib/jvm is not a JDK: a bootstrap that unpacked the directory but no
+	// distribution is an unfinished install, which the gate should still refuse.
+	@Test
+	fun `an empty lib-jvm directory does not count as installed`() {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val prefix = tempFolder.newFolder("prefix-empty")
+		File(prefix, "lib/jvm").mkdirs()
+		val previousPrefix = Environment.PREFIX
+		val previousHome = Environment.ANDROID_HOME
+		Environment.PREFIX = prefix
+		Environment.ANDROID_HOME = tempFolder.newFolder("android-sdk-empty")
+		mockkObject(PermissionsHelper)
+		every { PermissionsHelper.areAllPermissionsGranted(any()) } returns true
+		try {
+			assertThat(context.isIdeSetupComplete()).isFalse()
+		} finally {
+			unmockkAll()
+			Environment.PREFIX = previousPrefix
+			Environment.ANDROID_HOME = previousHome
+		}
 	}
 }

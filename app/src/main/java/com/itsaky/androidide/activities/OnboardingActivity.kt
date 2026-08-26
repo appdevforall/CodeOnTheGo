@@ -248,7 +248,14 @@ class OnboardingActivity : AppIntro2() {
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
 			Environment.ANDROID_HOME.exists()
 
-	private fun isSetupCompleted(): Boolean = isIdeSetupComplete()
+	// Deliberately the provider's loaded list, not isIdeSetupComplete()'s on-disk check: this screen
+	// can afford to wait for a validated JDK (it calls loadDistributions() itself when the list is
+	// empty, a few lines below) and should not hand over to MainActivity until one is really usable.
+	// The deep-link gate asks the weaker on-disk question because it runs on a cold-start main
+	// thread and cannot wait -- see SetupState.kt.
+	private fun isSetupCompleted(): Boolean =
+		checkToolsIsInstalled() &&
+			PermissionsHelper.areAllPermissionsGranted(this)
 
 	internal fun navigateToMain() {
 		startActivity(Intent(this, MainActivity::class.java))
