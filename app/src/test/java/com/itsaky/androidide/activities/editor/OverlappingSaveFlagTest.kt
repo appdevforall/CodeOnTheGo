@@ -67,32 +67,43 @@ class OverlappingSaveFlagTest {
 		// parks there; the worker stays blocked until we idle the looper.
 		val ended = CountDownLatch(1)
 		val worker =
-			thread {
+			thread(isDaemon = true) {
 				runBlocking(Dispatchers.IO) { activity.endFileSave() }
 				ended.countDown()
 			}
-		awaitPostToMain(mainLooper)
 
-		// Save B begins on the main thread while A's hop is still queued.
-		runBlocking { activity.beginFileSave() }
+		try {
+			awaitPostToMain(mainLooper)
 
-		// Drain A's queued completion. B is still writing, so the flag must stay raised.
-		mainLooper.idle()
-		assertThat(ended.await(10, TimeUnit.SECONDS)).isTrue()
-		worker.join()
-		assertThat(activity.editorViewModel.areFilesSaving).isTrue()
+			// Save B begins on the main thread while A's hop is still queued.
+			runBlocking { activity.beginFileSave() }
 
-		// Only B finishing lowers it.
-		runBlocking { activity.endFileSave() }
-		assertThat(activity.editorViewModel.areFilesSaving).isFalse()
+			// Drain A's queued completion. B is still writing, so the flag must stay raised.
+			mainLooper.idle()
+			assertThat(ended.await(TIMEOUT_MS, TimeUnit.MILLISECONDS)).isTrue()
+			assertThat(activity.editorViewModel.areFilesSaving).isTrue()
+
+			// Only B finishing lowers it.
+			runBlocking { activity.endFileSave() }
+			assertThat(activity.editorViewModel.areFilesSaving).isFalse()
+		} finally {
+			// A failed assertion above can leave the worker parked on a main-thread hop that
+			// never runs; drain the queue and reap it rather than leak a blocked thread.
+			mainLooper.idle()
+			worker.join(TIMEOUT_MS)
+		}
 	}
 
 	/** Blocks until the worker's main-thread hop is sitting in the paused looper's queue. */
 	private fun awaitPostToMain(mainLooper: ShadowLooper) {
-		val deadline = System.currentTimeMillis() + 10_000
+		val deadline = System.currentTimeMillis() + TIMEOUT_MS
 		while (mainLooper.isIdle && System.currentTimeMillis() < deadline) {
 			Thread.sleep(1)
 		}
 		assertThat(mainLooper.isIdle).isFalse()
+	}
+
+	private companion object {
+		const val TIMEOUT_MS = 10_000L
 	}
 }
