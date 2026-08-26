@@ -1,0 +1,341 @@
+name: Print release signing certificate fingerprint
+
+# Emits the SHA-256 certificate fingerprint of the release signing key, plus a
+# ready-to-deploy Digital Asset Links file for Android App Link verification.
+#
+# The keystore only exists inside CI: SigningKeyUtils.downloadSigningKey()
+# base64-decodes IDE_SIGNING_KEY_BIN into build/signing/signing-key.jks. This
+# workflow decodes the same secret directly, so no Gradle build is needed.
+#
+# A certificate fingerprint is public data - it is published in assetlinks.json.
+# No private key material is printed.
+#
+# With deploy=true the file is written to the "well-known" R2 bucket at key
+# .well-known/assetlinks.json. The Worker in infra/well-known-worker serves that
+# bucket at https://<host>/.well-known/assetlinks.json, deriving the object key
+# from the request path, so the key has to match the path exactly. The Worker is
+# deployed by deploy-well-known-worker.yml; this workflow owns only the object.
+
+on:
+  workflow_dispatch:
+    inputs:
+      hosts:
+        description: 'Hosts serving assetlinks.json (comma-separated). Drives the deploy checklist and, when deploy is enabled, which hosts are verified. The file itself is host-independent.'
+        required: false
+        default: 'appdevforall.org,www.appdevforall.org'
+      extra_fingerprints:
+        description: 'Additional SHA-256 fingerprints to include (comma-separated, colon-hex). Use for developer debug keys when testing App Links locally.'
+        required: false
+        default: ''
+      deploy:
+        description: 'Upload the generated file to R2 and verify it is served. Leave off to only produce the artifact.'
+        type: boolean
+        required: false
+        default: false
+  # Dispatch is only offered for workflows on the default branch, so run on push
+  # of this file to let it work from a feature branch before it reaches stage.
+  push:
+    paths:
+      - '.github/workflows/signing-fingerprint.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fingerprint:
+    name: Fingerprint release signing key
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      IDE_SIGNING_ALIAS: ${{ secrets.IDE_SIGNING_ALIAS }}
+      IDE_SIGNING_STORE_PASS: ${{ secrets.IDE_SIGNING_STORE_PASS }}
+      IDE_SIGNING_KEY_BIN: ${{ secrets.IDE_SIGNING_KEY_BIN }}
+      R2_BUCKET: well-known
+      R2_KEY: .well-known/assetlinks.json
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Materialize keystore from IDE_SIGNING_KEY_BIN
+        run: |
+          set -euo pipefail
+
+          # The runner context is step-scoped, so derive these here rather than in
+          # the job-level env block, where ${{ runner.temp }} would be empty.
+          echo "KEYSTORE=$RUNNER_TEMP/signing-key.jks" >> "$GITHUB_ENV"
+          echo "ASSETLINKS=$RUNNER_TEMP/assetlinks.json" >> "$GITHUB_ENV"
+          KEYSTORE="$RUNNER_TEMP/signing-key.jks"
+
+          for var in IDE_SIGNING_KEY_BIN IDE_SIGNING_ALIAS IDE_SIGNING_STORE_PASS; do
+            if [ -z "${!var:-}" ]; then
+              echo "ERROR: $var is not set. Check the repository secrets." >&2
+              exit 1
+            fi
+          done
+
+          # Keystore lives outside the workspace so it cannot be picked up by an
+          # artifact upload or a later checkout.
+          printf '%s' "$IDE_SIGNING_KEY_BIN" | base64 -d > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+
+          if [ ! -s "$KEYSTORE" ]; then
+            echo "ERROR: decoded keystore is empty - IDE_SIGNING_KEY_BIN is not valid base64." >&2
+            exit 1
+          fi
+          echo "Decoded keystore: $(stat -c %s "$KEYSTORE") bytes"
+
+      - name: Extract SHA-256 fingerprint
+        id: fp
+        run: |
+          set -euo pipefail
+
+          if ! keytool -list -v \
+                 -keystore "$KEYSTORE" \
+                 -storepass "$IDE_SIGNING_STORE_PASS" \
+                 -alias "$IDE_SIGNING_ALIAS" > "$RUNNER_TEMP/keytool.txt" 2>&1; then
+            echo "ERROR: keytool failed. Alias in IDE_SIGNING_ALIAS may not match the keystore." >&2
+            sed 's/^/  /' "$RUNNER_TEMP/keytool.txt" >&2
+            echo "Entries present in the keystore:" >&2
+            keytool -list -keystore "$KEYSTORE" -storepass "$IDE_SIGNING_STORE_PASS" \
+              | grep -E 'Entry|entry' >&2 || true
+            exit 1
+          fi
+
+          fingerprint=$(awk '/SHA256:/ { print $2; exit }' "$RUNNER_TEMP/keytool.txt")
+          if [ -z "$fingerprint" ]; then
+            echo "ERROR: no SHA256 line in keytool output." >&2
+            exit 1
+          fi
+
+          # Cross-check via OpenSSL against the exported certificate. A wrong
+          # fingerprint fails App Link verification silently, so verify it twice.
+          openssl_fp=$(keytool -exportcert -rfc \
+                         -keystore "$KEYSTORE" \
+                         -storepass "$IDE_SIGNING_STORE_PASS" \
+                         -alias "$IDE_SIGNING_ALIAS" \
+                       | openssl x509 -noout -fingerprint -sha256 \
+                       | cut -d= -f2)
+
+          if [ "$fingerprint" != "$openssl_fp" ]; then
+            echo "ERROR: keytool and openssl disagree:" >&2
+            echo "  keytool: $fingerprint" >&2
+            echo "  openssl: $openssl_fp" >&2
+            exit 1
+          fi
+
+          echo "SHA-256: $fingerprint"
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+          # Certificate identity, useful for confirming this is the key you expect.
+          grep -E '^(Owner|Issuer|Valid from):' "$RUNNER_TEMP/keytool.txt" || true
+
+      - name: Resolve application ID
+        id: pkg
+        run: |
+          set -euo pipefail
+          config=composite-builds/build-logic/common/src/main/java/com/itsaky/androidide/build/config/BuildConfig.kt
+          pkg=$(sed -n 's/.*PACKAGE_NAME[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$config" | head -1)
+          if [ -z "$pkg" ]; then
+            echo "ERROR: could not read PACKAGE_NAME from $config" >&2
+            exit 1
+          fi
+          echo "Application ID: $pkg"
+          echo "package=$pkg" >> "$GITHUB_OUTPUT"
+
+      - name: Generate assetlinks.json
+        env:
+          PKG: ${{ steps.pkg.outputs.package }}
+          FINGERPRINT: ${{ steps.fp.outputs.fingerprint }}
+          EXTRA: ${{ inputs.extra_fingerprints }}
+        run: |
+          set -euo pipefail
+
+          # Normalize to uppercase colon-separated hex, drop blanks and duplicates.
+          # Strip spaces/tabs/CR only - deleting newlines here would splice the
+          # fingerprints into one unmatchable string.
+          fingerprints=$(printf '%s,%s' "$FINGERPRINT" "$EXTRA" \
+            | tr ',' '\n' \
+            | tr -d ' \t\r' \
+            | tr '[:lower:]' '[:upper:]' \
+            | grep -E '^([0-9A-F]{2}:){31}[0-9A-F]{2}$' \
+            | awk '!seen[$0]++' \
+            | jq -R . | jq -s .)
+
+          jq -n --arg pkg "$PKG" --argjson fps "$fingerprints" '[
+            {
+              relation: ["delegate_permission/common.handle_all_urls"],
+              target: {
+                namespace: "android_app",
+                package_name: $pkg,
+                sha256_cert_fingerprints: $fps
+              }
+            }
+          ]' > "$ASSETLINKS"
+
+          cat "$ASSETLINKS"
+
+      - name: Validate assetlinks.json
+        env:
+          PKG: ${{ steps.pkg.outputs.package }}
+        run: |
+          set -euo pipefail
+
+          # A malformed or mismatched file fails App Link verification silently on
+          # device, so assert the full shape here rather than discover it later.
+          jq -e 'type == "array" and length == 1' "$ASSETLINKS" > /dev/null \
+            || { echo "ERROR: expected a single-entry array." >&2; exit 1; }
+
+          jq -e --arg pkg "$PKG" '
+            .[0] as $e
+            | ($e.relation | index("delegate_permission/common.handle_all_urls")) != null
+              and $e.target.namespace == "android_app"
+              and $e.target.package_name == $pkg
+              and ($e.target.sha256_cert_fingerprints | length) >= 1
+              and ($e.target.sha256_cert_fingerprints
+                   | all(test("^([0-9A-F]{2}:){31}[0-9A-F]{2}$")))
+          ' "$ASSETLINKS" > /dev/null \
+            || { echo "ERROR: entry does not describe $PKG with valid SHA-256 fingerprints." >&2; exit 1; }
+
+          echo "Validated: $(jq -r '.[0].target.sha256_cert_fingerprints | length' "$ASSETLINKS") fingerprint(s) for $PKG"
+
+      - name: Upload assetlinks.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: assetlinks
+          path: ${{ env.ASSETLINKS }}
+          if-no-files-found: error
+
+      - name: Deploy assetlinks.json to R2
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy
+        env:
+          AWS_ACCESS_KEY_ID: ${{ vars.CLOUDFLARE_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          # AWS CLI v2 sends CRC32 integrity headers by default, which R2 rejects
+          # with "Header 'x-amz-checksum-algorithm' ... not implemented".
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          set -euo pipefail
+
+          # The Worker derives the object key from the request path, so the key
+          # must stay ".well-known/assetlinks.json".
+          aws s3 cp "$ASSETLINKS" "s3://$R2_BUCKET/$R2_KEY" \
+            --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --content-type application/json
+
+      - name: Verify the deployed file is served
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy
+        env:
+          HOSTS: ${{ inputs.hosts || 'appdevforall.org,www.appdevforall.org' }}
+        run: |
+          set -euo pipefail
+
+          expected=$(jq -S -c . "$ASSETLINKS")
+          failed=0
+
+          for host in ${HOSTS//,/ }; do
+            url="https://$host/$R2_KEY"
+            hdr="$RUNNER_TEMP/hdr" body="$RUNNER_TEMP/body"
+
+            # Cloudflare can take a moment to pick up a freshly written object.
+            served=0
+            for _ in 1 2 3 4 5; do
+              if curl -fsS --max-time 20 -D "$hdr" -o "$body" "$url"; then
+                served=1
+                break
+              fi
+              sleep 5
+            done
+
+            if [ "$served" -ne 1 ]; then
+              echo "FAIL  $url did not return 200. The R2 upload succeeded, so the likely cause is the well-known Worker not being deployed or not routed for this host (see deploy-well-known-worker.yml)." >&2
+              failed=1
+              continue
+            fi
+
+            if [ "$(jq -S -c . < "$body")" != "$expected" ]; then
+              echo "FAIL  $url served content that differs from what was uploaded (stale edge cache, or the Worker route points elsewhere)." >&2
+              failed=1
+              continue
+            fi
+
+            ctype=$(tr -d '\r' < "$hdr" | awk -F': ' 'tolower($1) == "content-type" { print tolower($2) }' | tail -1)
+            case "$ctype" in
+              application/json*)
+                echo "OK    $url ($ctype)"
+                ;;
+              *)
+                echo "FAIL  $url served Content-Type '$ctype'; Digital Asset Links requires application/json." >&2
+                failed=1
+                ;;
+            esac
+          done
+
+          exit "$failed"
+
+      - name: Write job summary
+        env:
+          PKG: ${{ steps.pkg.outputs.package }}
+          FINGERPRINT: ${{ steps.fp.outputs.fingerprint }}
+          HOSTS: ${{ inputs.hosts || 'appdevforall.org,www.appdevforall.org' }}
+          DEPLOYED: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Release signing certificate"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Application ID | \`$PKG\` |"
+            echo "| SHA-256 | \`$FINGERPRINT\` |"
+            echo
+            echo "### assetlinks.json"
+            echo
+            echo '```json'
+            cat "$ASSETLINKS"
+            echo '```'
+            echo
+            echo "### Deploy"
+            echo
+            if [ "$DEPLOYED" = "true" ]; then
+              echo "Written to \`s3://$R2_BUCKET/$R2_KEY\` and confirmed served on:"
+              echo
+              for host in ${HOSTS//,/ }; do
+                echo "- \`https://$host/$R2_KEY\`"
+              done
+            else
+              echo "Not deployed. Re-run with **deploy** enabled, or publish the artifact by hand. The file is host-independent - the same bytes serve every host in the intent filter:"
+              echo
+              for host in ${HOSTS//,/ }; do
+                echo "- \`https://$host/$R2_KEY\` - HTTPS, \`Content-Type: application/json\`, no redirect"
+              done
+            fi
+            echo
+            echo "### Verify on device"
+            echo
+            echo '```bash'
+            for host in ${HOSTS//,/ }; do
+              echo "curl -sSI https://$host/$R2_KEY   # expect 200, application/json, no 3xx"
+            done
+            echo "adb shell pm verify-app-links --re-verify $PKG"
+            echo "adb shell pm get-app-links $PKG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove keystore
+        if: always()
+        run: |
+          # KEYSTORE may be unset if the decode step failed before exporting it.
+          ks="${KEYSTORE:-$RUNNER_TEMP/signing-key.jks}"
+          shred -u "$ks" 2>/dev/null || rm -f "$ks"
+          rm -f "$RUNNER_TEMP/keytool.txt"

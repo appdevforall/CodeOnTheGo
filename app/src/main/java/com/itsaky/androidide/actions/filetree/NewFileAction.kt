@@ -24,7 +24,6 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.actions.observers.FileActionObserver
 import com.itsaky.androidide.actions.requireFile
-import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -208,10 +207,6 @@ class NewFileAction(
 			.showWithLongPressTooltip(
 				context = context,
 				tooltipTag = TooltipTag.PROJECT_FOLDER_NEWTYPE,
-				binding.typeClass,
-				binding.typeActivity,
-				binding.typeInterface,
-				binding.typeEnum,
 			)
 	}
 

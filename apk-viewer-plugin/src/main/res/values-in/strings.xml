@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Penganalisis APK</string>
+    <string name="plugin_title">Penganalisis APK</string>
+    <string name="plugin_description">Analisis struktur APK, ukuran file, dan metadata</string>
+
+    <string name="apk_analyzer">Penganalisis APK</string>
+    <string name="apk_analyzer_tooltip">Analisis struktur dan isi APK</string>
+    <string name="analyze_apk">Analisis APK</string>
+    <string name="select_apk">Pilih APK untuk Dianalisis</string>
+
+    <string name="analyzing_apk">Menganalisis APK\u2026</string>
+    <string name="analysis_failed">Gagal menganalisis APK: %s</string>
+
+    <string name="section_apk_structure">Struktur APK</string>
+    <string name="section_key_files">File Utama</string>
+    <string name="section_native_libraries">Pustaka Native (%d)</string>
+    <string name="section_resource_directories">Direktori Sumber Daya (%d)</string>
+    <string name="section_large_files">File Besar (&gt;100KB)</string>
+    <string name="section_apk_metadata">Metadata APK</string>
+
+    <string name="header_property">Properti</string>
+    <string name="header_value">Nilai</string>
+    <string name="header_file">File</string>
+    <string name="header_raw">Mentah</string>
+    <string name="header_compressed">Terkompresi</string>
+    <string name="header_ratio">Rasio</string>
+    <string name="header_name">Nama</string>
+    <string name="header_count">Jumlah</string>
+    <string name="header_directory">Direktori</string>
+    <string name="header_files">File</string>
+
+    <string name="label_apk_file_size">Ukuran File APK</string>
+    <string name="label_total_entries">Total Entri</string>
+    <string name="label_uncompressed_size">Ukuran Tidak Terkompresi</string>
+    <string name="label_compressed_size">Ukuran Terkompresi</string>
+    <string name="label_compression_ratio">Rasio Kompresi</string>
+    <string name="label_directories">Direktori</string>
+    <string name="label_files">File</string>
+    <string name="label_signature_scheme">Skema Tanda Tangan</string>
+    <string name="label_multi_dex">Multi-DEX</string>
+    <string name="label_code_obfuscation">Obfuskasi Kode</string>
+
+    <string name="value_yes">Ya</string>
+    <string name="value_no">Tidak</string>
+    <string name="value_detected">Terdeteksi</string>
+    <string name="value_none_detected">Tidak terdeteksi</string>
+    <string name="value_v1_signing">v1 (penandatanganan JAR)</string>
+    <string name="value_v2_or_unsigned">v2+ atau tidak ditandatangani</string>
+    <string name="value_na">T/A</string>
+    <string name="action_show_all">Tampilkan semua (%d)</string>
+</resources>

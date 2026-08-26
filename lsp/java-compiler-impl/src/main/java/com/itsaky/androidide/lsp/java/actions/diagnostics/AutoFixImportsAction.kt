@@ -17,9 +17,13 @@
 
 package com.itsaky.androidide.lsp.java.actions.diagnostics
 
+import android.content.Context
+import android.view.View
+import android.widget.ListView
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.R
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
@@ -32,6 +36,7 @@ import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashInfo
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -120,18 +125,53 @@ class AutoFixImportsAction : BaseJavaCodeAction() {
 		}
 
 		val context = data.requireContext()
-		DialogUtils
-			.newMaterialDialogBuilder(context)
-			.setCancelable(true)
-			.setItems(e.value.toTypedArray()) { dialog, which ->
-				dialog.dismiss()
-				result.classes[e.key] = listOf(e.value[which])
+		val entry = e
+		val dialog =
+			DialogUtils
+				.newMaterialDialogBuilder(context)
+				.setCancelable(true)
+				.setItems(entry.value.toTypedArray()) { dialog, which ->
+					dialog.dismiss()
+					result.classes[entry.key] = listOf(entry.value[which])
 
-				// once the user decides which class to import for this simple name,
-				// call this method again to see if there any other simple names with multiple options
-				finalizeClassNames(data, result)
-			}.setTitle(context.getString(R.string.title_class_chooser, e.key))
-			.show()
+					// once the user decides which class to import for this simple name,
+					// call this method again to see if there any other simple names with multiple options
+					finalizeClassNames(data, result)
+				}.setTitle(context.getString(R.string.title_class_chooser, entry.key))
+				.create()
+
+		dialog.listView?.setOnItemLongClickListener { _, view, _, _ ->
+			showDialogTooltip(context, view)
+			true
+		}
+
+		dialog.setOnShowListener {
+			val root = dialog.window?.decorView ?: return@setOnShowListener
+			root.applyLongPressRecursively {
+				showDialogTooltip(context, root)
+				true
+			}
+		}
+
+		dialog.show()
+	}
+
+	/**
+	 * [applyLongPressRecursively] skips [ListView] subtrees, so the item list needs its own listener
+	 * -- the dialog chrome and the rows are wired separately (ADFA-4510).
+	 *
+	 * Shares [TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS_DIALOG] with AddImportAction's chooser: same
+	 * question asked of the user, same answer, and the two actions already share an action tag.
+	 */
+	private fun showDialogTooltip(
+		context: Context,
+		anchor: View,
+	) {
+		TooltipManager.showIdeCategoryTooltip(
+			context,
+			anchor,
+			TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS_DIALOG,
+		)
 	}
 
 	private fun performEdits(

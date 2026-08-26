@@ -105,6 +105,7 @@ include(
 	":app",
 	":build-info",
 	":common",
+	":common-compose",
 	":common-ui",
 	":editor",
 	":editor-api",

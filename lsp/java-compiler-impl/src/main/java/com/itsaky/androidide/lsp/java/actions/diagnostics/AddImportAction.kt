@@ -16,15 +16,21 @@
  */
 package com.itsaky.androidide.lsp.java.actions.diagnostics
 
+import android.content.Context
+import android.view.View
+import android.widget.ListView
 import com.google.common.collect.Iterables.toArray
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.hasRequiredData
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
+import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.javac.services.util.JavaDiagnosticUtils
+import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.lsp.java.models.DiagnosticCode
@@ -34,6 +40,7 @@ import com.itsaky.androidide.lsp.models.CodeActionItem
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import jdkx.tools.Diagnostic
 import jdkx.tools.JavaFileObject
 import org.slf4j.LoggerFactory
@@ -170,14 +177,57 @@ class AddImportAction : BaseJavaCodeAction() {
 			}
 
 			else -> {
-				val builder = newDialogBuilder(data)
-				builder.setTitle(label)
-				builder.setItems(toArray(titles, String::class.java)) { d, w ->
-					d.dismiss()
-					client.performCodeAction(actions[w])
-				}
-				builder.show()
+				showImportChooser(data, titles, actions, client)
 			}
 		}
+	}
+
+	/**
+	 * Shows the import chooser and makes every part of it long-pressable for help.
+	 *
+	 * [applyLongPressRecursively] skips [ListView] subtrees, so the item list needs its own
+	 * listener -- the dialog chrome and the rows are wired separately (ADFA-4510).
+	 */
+	private fun showImportChooser(
+		data: ActionData,
+		titles: List<String>,
+		actions: List<CodeActionItem>,
+		client: ILanguageClient,
+	) {
+		val context = data.requireContext()
+		val builder = newDialogBuilder(data)
+		builder.setTitle(label)
+		builder.setItems(toArray(titles, String::class.java)) { d, w ->
+			d.dismiss()
+			client.performCodeAction(actions[w])
+		}
+
+		val dialog = builder.create()
+
+		dialog.listView?.setOnItemLongClickListener { _, view, _, _ ->
+			showDialogTooltip(context, view)
+			true
+		}
+
+		dialog.setOnShowListener {
+			val root = dialog.window?.decorView ?: return@setOnShowListener
+			root.applyLongPressRecursively {
+				showDialogTooltip(context, root)
+				true
+			}
+		}
+
+		dialog.show()
+	}
+
+	private fun showDialogTooltip(
+		context: Context,
+		anchor: View,
+	) {
+		TooltipManager.showIdeCategoryTooltip(
+			context,
+			anchor,
+			TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS_DIALOG,
+		)
 	}
 }
