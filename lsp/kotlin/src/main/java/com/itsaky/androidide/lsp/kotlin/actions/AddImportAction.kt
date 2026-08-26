@@ -76,25 +76,36 @@ class AddImportAction : BaseKotlinCodeAction() {
 	 * [postExec] shows in the chooser -- so two index entries for the same class collapse into one
 	 * entry instead of duplicating it.
 	 *
-	 * Blocking: pinning the file resolves it first, and the index query is SQLite-backed, so callers
-	 * must stay off the main thread ([execAction] wraps it in [Dispatchers.IO]).
+	 * Blocking: the index query is SQLite-backed and pinning the file resolves that file before handing
+	 * it over, so callers must stay off the main thread ([execAction] wraps it in [Dispatchers.IO]).
 	 */
 	internal fun computeImportCandidates(
 		env: AbstractCompilationEnvironment,
 		nioPath: Path,
 		referenceName: String,
-	): Map<String, List<TextEdit>> =
-		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
-			// The index query stays outside `read`, so the disk hit does not hold the project read lock.
-			val classifiers =
-				env.ktSymbolIndex
-					.findSymbolBySimpleName(referenceName, limit = 0)
-					.filter { it.kind.isClassifier }
+	): Map<String, List<TextEdit>> {
+		/*
+		 * Resolved before the file is pinned, not inside the pin: this is an unbounded SQLite scan that
+		 * never reads the file, and a pin held across it freezes live-PSI refresh for the path - every
+		 * concurrent acquirer joins the frozen instance and the refresh is only owed on release.
+		 * Materialized here too, so the index's lazy source-active filter cannot trail into the scope.
+		 */
+		val classifiers =
+			env.ktSymbolIndex
+				.findSymbolBySimpleName(referenceName, limit = 0)
+				.filter { it.kind.isClassifier }
+				.toList()
 
+		if (classifiers.isEmpty()) {
+			return emptyMap()
+		}
+
+		return env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
 			live.read { ktFile ->
 				classifiers.associate { it.fqName to insertImport(ktFile, it.fqName) }
 			}
 		} ?: emptyMap()
+	}
 
 	override fun postExec(
 		data: ActionData,
