@@ -29,6 +29,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
 import android.widget.TextView
+import androidx.annotation.VisibleForTesting
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
@@ -137,7 +138,7 @@ open class EditorHandlerActivity :
 
 	private val fileTimestamps = ConcurrentHashMap<String, Long>()
 
-	/** Number of saves in flight; see [performFileSave]. */
+	/** Number of saves in flight. Main-thread confined; see [beginFileSave]. */
 	private val activeSaveCount = AtomicInteger(0)
 
 	private val pluginTabIndices = mutableMapOf<String, Int>()
@@ -1051,23 +1052,42 @@ open class EditorHandlerActivity :
 	 * first one to finish must not clear the flag while the other is still writing.
 	 */
 	private suspend inline fun <T : Any?> performFileSave(crossinline action: suspend () -> T): T {
-		if (activeSaveCount.incrementAndGet() == 1) {
-			setFilesSaving(true)
-		}
+		beginFileSave()
 		try {
 			return action()
 		} finally {
-			if (activeSaveCount.decrementAndGet() == 0) {
-				setFilesSaving(false)
+			endFileSave()
+		}
+	}
+
+	/**
+	 * Raises the saving flag for one save.
+	 *
+	 * The count moves in the same main-thread section as the flag, so the counter's ordering
+	 * *is* the flag's ordering. Bumping the count off-main instead let a finished off-main
+	 * save's queued `false` land after a main-thread save had already written `true` inline
+	 * (`Main.immediate` skips the queue when it is already on main), leaving
+	 * [EditorViewModel.areFilesSaving] false while that save was still writing.
+	 *
+	 * NonCancellable: a cancelled save (e.g. a plugin-side timeout) must still reach its
+	 * matching [endFileSave], or SaveFileAction stays disabled for the rest of the session.
+	 */
+	@VisibleForTesting
+	internal suspend fun beginFileSave() {
+		withContext(NonCancellable + Dispatchers.Main.immediate) {
+			if (activeSaveCount.incrementAndGet() == 1) {
+				editorViewModel.areFilesSaving = true
 			}
 		}
 	}
 
-	private suspend fun setFilesSaving(saving: Boolean) {
-		// NonCancellable: a cancelled save (e.g. a plugin-side timeout) must still clear the
-		// flag, or SaveFileAction stays disabled for the rest of the session.
+	/** Lowers the saving flag once the last in-flight save finishes. See [beginFileSave]. */
+	@VisibleForTesting
+	internal suspend fun endFileSave() {
 		withContext(NonCancellable + Dispatchers.Main.immediate) {
-			editorViewModel.areFilesSaving = saving
+			if (activeSaveCount.decrementAndGet() == 0) {
+				editorViewModel.areFilesSaving = false
+			}
 		}
 	}
 

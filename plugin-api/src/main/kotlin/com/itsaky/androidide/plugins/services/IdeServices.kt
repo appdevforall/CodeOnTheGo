@@ -187,8 +187,10 @@ interface IdeEditorService {
 	 * plugin needs to bound how long it waits.
 	 *
 	 * Returns `true` when the buffer is on disk (including "was already clean"), `false` when
-	 * the file has no open editor, the caller lacks FILESYSTEM_WRITE, the path is outside the
-	 * plugin's allowed roots, or the write failed.
+	 * the file has no open editor or the write failed. Authorization failures throw
+	 * [SecurityException] rather than returning `false`, as they do for every other write
+	 * method here: the caller lacks FILESYSTEM_WRITE, or [file] is outside the plugin's
+	 * allowed roots.
 	 *
 	 * Default-implemented (no-op) so adding it is a backward-compatible interface extension.
 	 */
