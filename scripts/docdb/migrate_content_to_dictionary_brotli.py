@@ -358,13 +358,53 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
                 base_bytes=length,
             )
 
+    orphans: list[tuple[str, int, int, int]] = []
     for base_path, row_id, suffix, length in continuations:
         owner = items.get(base_path)
         if owner is not None:
             owner.continuations.append((row_id, suffix, length))
+        else:
+            # The greedy base is itself a continuation, or the phase predicate excluded it, so this
+            # row has no owner to be a slice of. Silently dropping it meant a row that was never
+            # migrated, never counted and never reported -- in a database the run then declares
+            # version 2.
+            orphans.append((base_path, row_id, suffix, length))
 
     for item in items.values():
         item.continuations.sort(key=lambda entry: entry[1])
+
+    # A base of exactly CHUNK_BYTES is not enough on its own. A genuine slice set has every slice
+    # except the last at exactly CHUNK_BYTES, because that is how the writer splits; an 11-byte "-2"
+    # followed by a "-3" is provably not one. Without this, a real page that happens to be exactly
+    # 1 MiB, sitting next to independently named "-2"/"-3" pages, was grouped with them and phase 2
+    # renamed those pages into its slice slots -- both URLs 404, and the app appends a foreign page's
+    # bytes on reassembly. Verified against the real schema before and after this check.
+    for item in list(items.values()):
+        if not item.continuations:
+            continue
+        head = item.continuations[:-1]
+        if all(length == CHUNK_BYTES for _, _, length in head):
+            continue
+        for row_id, suffix, length in item.continuations:
+            path = f"{item.base_path}-{suffix}"
+            items[path] = Item(
+                base_path=path,
+                base_id=row_id,
+                language_id=item.language_id,
+                content_type_id=item.content_type_id,
+                template_id=item.template_id,
+                content_type=item.content_type,
+                compression=item.compression,
+                base_bytes=length,
+            )
+        item.continuations.clear()
+
+    if orphans:
+        for base_path, _, suffix, _ in orphans:
+            print(
+                f"      note: {base_path}-{suffix} looks like a continuation of {base_path}, which is "
+                f"not itself a migratable row; left alone and not migrated"
+            )
 
     return sorted(items.values(), key=lambda item: item.base_path)
 
@@ -513,6 +553,23 @@ def declared_major(connection: sqlite3.Connection) -> int | None:
         "SELECT major FROM DocumentationDatabaseVersion ORDER BY rowid DESC LIMIT 1"
     ).fetchone()
     return row[0] if row is not None and row[0] is not None else None
+
+
+def may_declare_version(args) -> str:
+    """'' if this run may declare MAJOR 2, else why it may not.
+
+    The declaration tells the app every brotli row is dictionary-compressed, and it applies to the
+    whole database -- so only a run that considered the whole database may make it. A --path or
+    --limit run migrates a handful and would leave the rest plain while claiming otherwise; the app
+    then attaches the dictionary to those rows, and while most throw and fall back, a fraction
+    decode without error to *different bytes*. That is silent wrong content, which is worse than the
+    unmigrated state it replaces.
+    """
+    if args.path:
+        return f"the run was scoped by --path {args.path!r}"
+    if args.limit:
+        return f"the run was scoped by --limit {args.limit}"
+    return ""
 
 
 def declare_dictionary_version(connection: sqlite3.Connection) -> None:
@@ -951,6 +1008,10 @@ def main() -> int:
                     inserted_total += inserted
                     deleted_total += deleted
                     wrote_migrated_content = True
+                    # Same reason as phase 1: a completed Future holds its Result, and pending keeps
+                    # every Future in the batch, so without this a batch of recompressed payloads
+                    # stays resident while the next batch reads its own.
+                    result.slices = []
 
             if write:
                 # In the same transaction as the first batch of migrated content, not after the last
@@ -960,7 +1021,7 @@ def main() -> int:
                 # would fail to decode. Declaring first means the worst an interruption leaves is a
                 # partly migrated database that still serves, since the app falls back to a plain
                 # decode per row.
-                if wrote_migrated_content and not version_declared:
+                if wrote_migrated_content and not version_declared and not may_declare_version(args):
                     before = declared_major(connection)
                     if before is None or before < DICTIONARY_MAJOR_VERSION:
                         declare_dictionary_version(connection)
@@ -1018,7 +1079,12 @@ def main() -> int:
         # Anything already dictionary-compressed still needs the declaration, even when this run
         # migrated nothing itself (every row came back "already").
         before = declared_major(connection)
-        if not version_declared and (before is None or before < DICTIONARY_MAJOR_VERSION):
+        withheld = may_declare_version(args)
+        if withheld and (before is None or before < DICTIONARY_MAJOR_VERSION):
+            print(f"\nWARNING         did NOT declare database version {DICTIONARY_MAJOR_VERSION}.0.0: {withheld}.")
+            print("                The declaration covers the whole database, so only an unscoped run may make")
+            print("                it. Re-run without --path/--limit before shipping this database.")
+        if not version_declared and not withheld and (before is None or before < DICTIONARY_MAJOR_VERSION):
             declare_dictionary_version(connection)
             print(f"declared        database version {DICTIONARY_MAJOR_VERSION}.0.0 "
                   f"(was {'none' if before is None else before})")
