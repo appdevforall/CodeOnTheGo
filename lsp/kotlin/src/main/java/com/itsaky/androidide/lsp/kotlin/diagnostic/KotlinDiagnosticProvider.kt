@@ -143,6 +143,12 @@ private fun doAnalyze(
 
 	if (superseded) {
 		logger.debug("dropping superseded diagnostics for {}", file)
+		/*
+		 * On the debounced path this is a self-send: doAnalyze runs as fileAnalyzer's own action, so the
+		 * send reads to the worker as a newer key and cancels the run it came from. Deliberate - the
+		 * reschedule still lands, and the only casualty is the NO_UPDATE publish below, which had nothing
+		 * to say anyway. Reached from KotlinLanguageServer.analyze() instead, it is a plain reschedule.
+		 */
 		env.fileAnalyzer.schedule(file)
 	} else {
 		logger.warn("File {} is not accessible", file)
