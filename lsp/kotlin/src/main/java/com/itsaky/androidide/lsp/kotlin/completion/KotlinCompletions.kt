@@ -26,6 +26,7 @@ import com.itsaky.androidide.lsp.models.MatchLevel
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.progress.ProgressManager
+import com.itsaky.androidide.projects.FileManager
 import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
@@ -133,6 +134,37 @@ internal fun codeComplete(params: CompletionParams): CompletionResult {
 	}
 }
 
+/** The buffer a completion request was measured against, paired with its offset into it. */
+internal data class CompletionRequestBuffer(
+	val text: String,
+	val offset: Int,
+)
+
+/**
+ * The live buffer for [params] and the request's offset into it, or `null` if the offset is past its
+ * end.
+ *
+ * Deliberately the document rather than the pinned [LiveKtFile]: the pin is process-wide, so a joined
+ * scope hands over another feature's frozen text while [CompletionParams.position] was measured
+ * against the buffer. Taking both from the buffer keeps them on one version. Refusing on a stale pin
+ * instead would be worse than useless - the refusal returns before `analyzingVariant`, so an
+ * INTERACTIVE request never reaches [AnalysisScheduler] and stops preempting the older completion
+ * whose pin it joined, leaving that older one to publish items for a caret the user has moved past.
+ *
+ * A `null` means the buffer moved between the editor measuring the offset and this read, so the
+ * request describes text that no longer exists. Clamping the offset into range instead would compute
+ * items for an unrelated context and insert them at the user's real caret.
+ */
+internal fun completionRequestBuffer(params: CompletionParams): CompletionRequestBuffer? {
+	val text = FileManager.getDocumentContents(params.file)
+	val offset = params.position.requireIndex()
+	if (offset > text.length) {
+		logger.debug("skipping completion for {}: request offset is past the live buffer", params.file)
+		return null
+	}
+	return CompletionRequestBuffer(text, offset)
+}
+
 /**
  * Runs at the highest [AnalysisPriority.INTERACTIVE]: preempts in-progress diagnostics/indexing and
  * is never preempted by lower-priority work, but is superseded (cancelled and discarded) by a newer
@@ -142,28 +174,10 @@ context(env: CompilationEnvironment)
 internal fun doComplete(params: CompletionParams): CompletionResult {
 	val result =
 		env.ktSymbolIndex.withLiveKtFile(params.file) { live ->
-			if (live.isStale) {
-				/*
-				 * Joining another feature's scope hands over its text, which can be older than the buffer the
-				 * request's offset was measured against. Splicing the placeholder at that offset would insert
-				 * it in the wrong place, and past the end of the older text it throws outright. The next
-				 * keystroke's completion supersedes this one anyway.
-				 */
-				logger.debug("skipping completion for {}: pinned text is behind the buffer", params.file)
-				return@withLiveKtFile CompletionResult.EMPTY
-			}
-
-			// Completion still parses its own placeholder variant (text differs), anchored to the
-			// current file.
-			val originalText = live.read { it.text }
-			val requestPosition = params.position
-			/*
-			 * Clamped because the guard above compares the pin to the current document version, not to the
-			 * version params.position was measured against - CompletionParams carries none. A request
-			 * measured before a deletion, processed against a pin resolved after it, has an offset past the
-			 * end of this text, and the splice below would throw rather than return no items.
-			 */
-			val completionOffset = requestPosition.requireIndex().coerceAtMost(originalText.length)
+			// Completion still parses its own placeholder variant (text differs), anchored by the pin to
+			// the one instance every door answers with for the path.
+			val (originalText, completionOffset) =
+				completionRequestBuffer(params) ?: return@withLiveKtFile CompletionResult.EMPTY
 			val prefix = params.requirePrefix()
 			val partial = partialIdentifier(prefix)
 
