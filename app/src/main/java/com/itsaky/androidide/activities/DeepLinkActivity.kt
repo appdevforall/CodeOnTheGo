@@ -41,6 +41,23 @@ class DeepLinkActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
+		// A link can arrive before the IDE is usable -- a fresh install, or a Clear Data. Both targets
+		// below sit *past* SplashActivity and OnboardingActivity, which are the only things enforcing
+		// the terms, the permissions, the JDK and SDK install, the low-storage check and the x86
+		// exit, so following the link now would land the user in an editor that cannot build, on a
+		// device the app is supposed to refuse to run on at all (ADFA-5067 review).
+		//
+		// The link is dropped rather than deferred: carrying a request through an onboarding that can
+		// take several minutes, and may not finish at all, is a lot of machinery for a rare case. The
+		// user is told, and sent to the normal entry point, which decides what they actually need --
+		// storage, ABI and onboarding are SplashActivity's to enforce, not this activity's to repeat.
+		if (!isIdeSetupComplete()) {
+			Toast.makeText(this, getString(string.msg_deeplink_setup_incomplete), Toast.LENGTH_LONG).show()
+			startActivity(Intent(this, SplashActivity::class.java))
+			finish()
+			return
+		}
+
 		val request = DeepLinkRequest.parse(intent?.data)
 		if (request == null) {
 			// A Toast, not flashError -- this activity finishes immediately below, tearing down its

@@ -138,6 +138,7 @@
 	<string name="title_close_project">Close this project</string>
 	<string name="msg_opened_project_does_not_exist">Last opened project doesn\'t exist.</string>
 	<string name="msg_deeplink_invalid_link">This link could not be opened.</string>
+	<string name="msg_deeplink_setup_incomplete">Finish setting up Code on the Go, then open this link again.</string>
 	<string name="msg_deeplink_project_not_found">No project named \"%s\" was found.</string>
 	<string name="msg_deeplink_file_not_found">File \"%s\" was not found in the project.</string>
 	<string name="msg_deeplink_invalid_line">\"%s\" is not a valid line number.</string>
