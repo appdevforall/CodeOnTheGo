@@ -5,6 +5,8 @@ import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DefinitionParams
 import com.itsaky.androidide.lsp.models.DefinitionResult
 import com.itsaky.androidide.lsp.models.DiagnosticResult
+import com.itsaky.androidide.lsp.models.ReferenceParams
+import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
 import com.itsaky.androidide.progress.ICancelChecker
@@ -39,6 +41,8 @@ interface IKotlinCompilationEnvironment {
 	fun complete(params: CompletionParams): CompletionResult
 
 	suspend fun findDefinition(params: DefinitionParams): DefinitionResult
+
+	suspend fun findReferences(params: ReferenceParams): ReferenceResult
 
 	suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp
 

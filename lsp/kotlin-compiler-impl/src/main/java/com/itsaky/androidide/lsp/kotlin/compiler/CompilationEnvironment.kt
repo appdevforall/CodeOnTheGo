@@ -15,6 +15,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.services.ResolutionScopeProvide
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.navigation.findDefinitionAt
+import com.itsaky.androidide.lsp.kotlin.navigation.findUsagesAt
 import com.itsaky.androidide.lsp.kotlin.signaturehelp.doSignatureHelp
 import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
@@ -23,6 +24,8 @@ import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DefinitionParams
 import com.itsaky.androidide.lsp.models.DefinitionResult
 import com.itsaky.androidide.lsp.models.DiagnosticResult
+import com.itsaky.androidide.lsp.models.ReferenceParams
+import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
 import com.itsaky.androidide.progress.ICancelChecker
@@ -346,6 +349,8 @@ internal class CompilationEnvironment(
 	override fun complete(params: CompletionParams): CompletionResult = context(this) { codeComplete(params) }
 
 	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult = context(this) { findDefinitionAt(params) }
+
+	override suspend fun findReferences(params: ReferenceParams): ReferenceResult = context(this) { findUsagesAt(params) }
 
 	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp = context(this) { doSignatureHelp(params) }
 

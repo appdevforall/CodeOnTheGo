@@ -24,4 +24,8 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 | [0008](0008-retain-androidide-namespace.md) | Retain the `com.itsaky.androidide` namespace after rebrand | Proposed |
 | [0009](0009-jetpack-compose-for-new-ui.md) | Build new UI in Jetpack Compose, not XML Views | Proposed |
 | [0010](0010-navigation-resolves-via-analysis-api.md) | Kotlin navigation resolves via the Analysis API, not the symbol index | Proposed |
-| [0011](0011-lazy-load-kotlin-analysis-api-via-dexclassloader.md) | Lazy-load the Kotlin Analysis API via a carrier APK + DexClassLoader | Proposed |
+| [0011](0011-command-analysis-priority.md) | User-invoked commands get their own analysis priority | Proposed |
+| [0012](0012-volatile-build-metadata-out-of-abis.md) | Keep volatile build metadata out of module ABIs | Proposed |
+| [0013](0013-refactoring-ui-lives-in-the-owning-lsp-module.md) | Refactoring UI lives in the owning LSP module | Proposed |
+| [0014](0014-refactorings-decline-rather-than-rewrite.md) | Interactive refactorings decline rather than rewrite unselected code | Proposed |
+| [0016](0016-lazy-load-kotlin-analysis-api-via-dexclassloader.md) | Lazy-load the Kotlin Analysis API via a carrier APK + DexClassLoader | Proposed |

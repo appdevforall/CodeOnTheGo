@@ -22,6 +22,16 @@ dependencies {
 	// duplicate copies into the carrier dex.
 	implementation(projects.subprojects.kotlinAnalysisApi)
 
+	// The Kotlin LSP's tests live here, with the code they exercise (ADFA-5010 stage merge): the
+	// Analysis API is in this module, so lsp/kotlin cannot compile a fixture that touches it.
+	// compileOnly does not reach the test classpath, so the three bridges are repeated as
+	// testImplementation rather than inherited.
+	testImplementation(projects.testing.lsp)
+	testImplementation(projects.lsp.api)
+	testImplementation(projects.lsp.kotlin)
+	testImplementation(projects.lsp.kotlinApi)
+	testImplementation(libs.tests.kotlinx.coroutines)
+
 	compileOnly(projects.lsp.api)
 	compileOnly(projects.lsp.kotlin)
 	compileOnly(projects.lsp.kotlinApi)

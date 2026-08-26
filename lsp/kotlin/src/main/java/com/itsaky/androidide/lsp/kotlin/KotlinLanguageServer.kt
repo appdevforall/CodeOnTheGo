@@ -225,7 +225,11 @@ class KotlinLanguageServer : ILanguageServer {
 			return ReferenceResult.empty()
 		}
 
-		return ReferenceResult.empty()
+		logger.debug("findReferences(position={}, file={})", params.position, params.file)
+		// stage implemented this against the concrete CompilationEnvironment while this branch was
+		// open. It reaches the carrier through the bridge here, like complete/findDefinition/
+		// signatureHelp/collectDiagnostics, rather than being lost to the module split.
+		return compilationEnvironmentFor(params.file)?.findReferences(params) ?: ReferenceResult.empty()
 	}
 
 	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
