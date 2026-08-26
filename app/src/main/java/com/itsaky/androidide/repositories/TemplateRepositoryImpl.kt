@@ -46,10 +46,25 @@ class TemplateRepositoryImpl(
 			}
 		}
 
+	/**
+	 * One card per archive, not per file on disk. The same `.cgt` name can exist in both
+	 * directories at once - a copy dropped into Downloads by hand, or the picker-install path,
+	 * which copies rather than moves. Both rows would then render identically apart from the
+	 * status line, and the Downloads twin is a dead end: [installTemplate] refuses to overwrite,
+	 * so its Install can only ever fail. The installed copy wins.
+	 *
+	 * Names are compared case-insensitively, matching the stricter of the two install paths
+	 * (`TemplateCollectionRepository.findExistingCollision`), so any row still listed as
+	 * "not installed" is one the user can actually install.
+	 */
 	private fun scanTemplates(): List<CgtFileItem> {
-		val installed = cgtFilesIn(templatesDir).map { file -> parseCgtFile(file, installed = true) }
-		val downloaded = cgtFilesIn(downloadDir).map { file -> parseCgtFile(file, installed = false) }
-		return (installed + downloaded).filterNotNull()
+		val installed = cgtFilesIn(templatesDir).mapNotNull { file -> parseCgtFile(file, installed = true) }
+		val installedNames = installed.mapTo(mutableSetOf()) { item -> item.name.lowercase() }
+		val downloaded =
+			cgtFilesIn(downloadDir)
+				.filterNot { file -> file.name.lowercase() in installedNames }
+				.mapNotNull { file -> parseCgtFile(file, installed = false) }
+		return installed + downloaded
 	}
 
 	private fun cgtFilesIn(dir: File): List<File> =

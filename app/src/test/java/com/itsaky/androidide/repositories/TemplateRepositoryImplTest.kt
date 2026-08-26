@@ -11,9 +11,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
+import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.io.IOException
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * Pins the two riskiest branches in [TemplateRepositoryImpl.installTemplate]/
@@ -23,8 +25,12 @@ import java.io.IOException
  * only touched on the success path (`ITemplateProvider.getInstance(reload = true)`, a
  * ServiceLoader-backed singleton not wired up on the unit test classpath) - so a happy-path
  * install/uninstall test is intentionally not included here.
+ *
+ * Runs under Robolectric rather than plain JUnit4 because the `listTemplateFiles` cases build
+ * real `.cgt` archives, and parsing one reaches `org.json.JSONObject` - a "not mocked" stub
+ * under plain `android.jar`.
  */
-@RunWith(JUnit4::class)
+@RunWith(RobolectricTestRunner::class)
 class TemplateRepositoryImplTest {
 	@get:Rule
 	val tempFolder = TemporaryFolder()
@@ -154,5 +160,58 @@ class TemplateRepositoryImplTest {
 			// The malformed .cgt has no template.json and is silently skipped, not surfaced as
 			// a failure - see TemplateRepositoryImpl.parseCgtFile.
 			assertThat(result.getOrThrow()).isEmpty()
+		}
+
+	/** Writes a minimal but genuinely parseable .cgt carrying one template. */
+	private fun writeCgt(
+		dir: File,
+		fileName: String,
+	): File {
+		val file = File(dir, fileName)
+		ZipOutputStream(file.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("Sample/template/template.json"))
+			zip.write("""{"name":"Sample","description":"d","version":"1.0"}""".toByteArray(Charsets.UTF_8))
+			zip.closeEntry()
+		}
+		return file
+	}
+
+	@Test
+	fun listTemplateFiles_hidesTheDownloadedTwinOfAnInstalledArchive() =
+		runTest {
+			writeCgt(templatesDir, "dup.cgt")
+			writeCgt(downloadDir, "dup.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			// One row, not two identical-looking ones - the Downloads twin's Install could only
+			// ever fail, since installTemplate refuses to overwrite.
+			assertThat(items).hasSize(1)
+			assertThat(items.single().installed).isTrue()
+		}
+
+	@Test
+	fun listTemplateFiles_matchesTwinNamesCaseInsensitively() =
+		runTest {
+			writeCgt(templatesDir, "Dup.cgt")
+			writeCgt(downloadDir, "dup.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items).hasSize(1)
+			assertThat(items.single().installed).isTrue()
+		}
+
+	@Test
+	fun listTemplateFiles_keepsDownloadsThatAreNotTwins() =
+		runTest {
+			writeCgt(templatesDir, "installed.cgt")
+			writeCgt(downloadDir, "other.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			// Shadowing must be keyed on the name, not applied to every download.
+			assertThat(items.map { it.name }).containsExactly("installed.cgt", "other.cgt")
+			assertThat(items.filter { it.installed }.map { it.name }).containsExactly("installed.cgt")
 		}
 }
