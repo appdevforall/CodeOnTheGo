@@ -123,6 +123,18 @@ object TooltipTag {
 	const val PREFS_DEVOPTIONS_LOGSENDER = "prefs.devoptions.logsender"
 
 	// Plugin Manager screen
+	// The screen-level Plugin Manager tooltip, still live: ADFA-4928's Compose rewrite shows it from
+	// ManagerScreen and PluginManagerContent, anchored on the root view. This change replaced it with
+	// the granular tags below and removed it; restoring it, because those two call sites are the only
+	// plugin-manager tooltips that exist now and they are screen-level, which is what this tag means.
+	const val PLUGIN_MANAGER = "plugin.manager"
+
+	// Not attached to anything yet. ADFA-4928 replaced the Plugin Manager's View hierarchy with
+	// Compose while this change was open, so the anchors these tagged -- the toolbar, the FAB, the
+	// empty state, the list and its rows -- no longer exist. The tags and their seeded content are
+	// kept because they are the half that survives a UI rewrite; wiring them to the Compose tree
+	// needs Modifier.combinedClickable and a tooltip presentation that does not take an anchor View,
+	// which is its own change (see the follow-up on ADFA-5088).
 	const val PLUGIN_MANAGER_TOOLBAR = "plugin.manager.toolbar"
 	const val PLUGIN_MANAGER_DOWNLOAD = "plugin.manager.download"
 	const val PLUGIN_MANAGER_FAB_INSTALL = "plugin.manager.fab.install"
@@ -132,6 +144,7 @@ object TooltipTag {
 	const val PLUGIN_MANAGER_ITEM_MENU = "plugin.manager.item.menu"
 
 	const val EXTERNAL_FILE_INSTALL = "external.file.install"
+	const val TEMPLATE_MANAGER = "template.manager"
 	const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
 	const val TEMPLATE_LEGACY_PROJECT = "template.legacy.project"
 	const val TEMPLATE_EMPTY_ACTIVITY = "template.empty.activity"
