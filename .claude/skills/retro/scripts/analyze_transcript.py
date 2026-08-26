@@ -27,7 +27,9 @@ Filters out system-injected messages:
   - System reminders (<system-reminder>)
   - Image tool results ("[Image: original ...]"), which are the agent's own Read of a
     screenshot arriving in the human role -- counting those as human turns adds reading
-    and buffer time nobody spent (~11 of 51 minutes in one session that drove a device).
+    and buffer time nobody spent. Measured on one session that drove a device: 7.5 min of raw
+    hands-on, 4.5 min adjusted, all of it typing and per-turn buffer. Reading time does not
+    change -- the assistant words are conserved, just re-attributed to the prompt that caused them.
 """
 
 from __future__ import annotations

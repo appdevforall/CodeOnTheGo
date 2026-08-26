@@ -11,14 +11,13 @@ above the adjusted total, which merges overlapping turns into one buffer.
 
 | Started | Phase | 👤 Hands-On Time | 🤖 Span (agent + away) | Problems |
 |---------|-------|-----------------|------------------------|----------|
-| Aug 17 9:42pm | Ticket read + accept-loop instrumentation | ██ 7m | █ 12m | |
-| Aug 17 9:54pm | Build, drive, root-cause the stall | ▌5m | ███ 34m | ⚠ HelpActivity not exported, so the measurement needed a throwaway manifest tweak; one flaky arm |
+| Aug 17 9:42pm | Ticket read + accept-loop instrumentation | ▊ 7m | █▏ 12m | |
+| Aug 17 9:54pm | Build, drive, root-cause the stall | ▌ 5m | ███ 34m | ⚠ HelpActivity not exported, so the measurement needed a throwaway manifest tweak; one flaky arm |
 | Aug 17 10:28pm | Keep-alive design + ADFA-5175 filed | █ 10m | █ 10m | |
-| Aug 17 10:37pm | ADFA-5175 stage 1, transport pivot, ADFA-5176 spike | █ 8m | ███████████ 109m | ⚠ 3 Spotless whole-file reformats; direction changed mid-implementation |
-| Aug 18 12:26am | Extraction onto the ADFA-5153 base | ▌5m | █████████████ 133m | ⚠ merge conflicts, plus a stale KDoc and dangling brace from moving code by script |
-| Aug 18 2:39am | Tests, Pebble move, cleanup, two PRs | █ 8m | ██████████████ 142m | ⚠ tests written just before the API they cover moved |
-| Aug 18 5:01am | Review fixes, CodeRabbit replies, retro | █ 12m | ██████████████████ 182m | |
-
+| Aug 17 10:37pm | ADFA-5175 stage 1, transport pivot, ADFA-5176 spike | ▊ 8m | ███████████ 109m | ⚠ 3 Spotless whole-file reformats; direction changed mid-implementation |
+| Aug 18 12:26am | Extraction onto the ADFA-5153 base | ▌ 5m | █████████████ 133m | ⚠ merge conflicts, plus a stale KDoc and dangling brace from moving code by script |
+| Aug 18 2:39am | Tests, Pebble move, cleanup, two PRs | ▊ 8m | ██████████████ 142m | ⚠ tests written just before the API they cover moved |
+| Aug 18 5:01am | Review fixes, CodeRabbit replies, retro | █▏ 12m | ██████████████████ 182m | |
 
 ### Metrics
 
@@ -29,7 +28,7 @@ above the adjusted total, which merges overlapping turns into one buffer.
 | Automated agent time (estimated) | ~6h 20m (380m, 61%) |
 | Idle/testing/away (estimated) | ~3h 8m (188m, 30%) |
 | Retro analysis time | 6 min |
-| Cost | $344 (481+ calls, 594K output tokens) |
+| Cost | $347.53 (495 API calls, 618K output tokens) |
 
 Wall-clock is exact, from the message timestamps. Hands-on is the transcript script's adjusted
 figure. The last two are an estimate of how the 568 minutes that are not hands-on divide, since
@@ -45,7 +44,7 @@ database) and add up to the wall clock rather than being measured independently.
 - Rework was formatting tax and transplant fixups, not logic: three whole-file Spotless reformats (~500 whitespace lines, kept out of behavioral diffs by hand), and 4-5 failed python patch asserts from over-long match anchors.
 - Zero substantive corrections from the user across 13 messages. Steering, not fixing.
 - The device work needed a temporary `android:exported="true"` on HelpActivity to be scriptable at all; it was kept on a throwaway branch and reverted, but it is a recurring cost of driving activities that are (correctly) not exported.
-- The retro script counted the agent's own screenshot reads as user turns. Fixing it moved hands-on from 51 to 53 minutes rather than down as predicted: the phantom turns' buffers disappear, but their assistant output is re-attributed to the real prompts.
+- The retro script counted the agent's own screenshot reads as user turns. Fixing it moved hands-on **down**, from 57.4 to 52.9 minutes, as predicted -- six phantom turns lose their per-turn buffer and typing time, while their assistant output is re-attributed to the real prompt that caused it, so reading time is unchanged at 41.6 either way. (An earlier version of this entry reported 51 -> 53 and explained the rise; both numbers came from runs against different lengths of a transcript that was still growing, since the script always reads the whole file. Re-run against one fixed slice, the metric can only fall: reading is conserved by construction and the other two components shrink.)
 
 ### Feedback
 **What worked:** Autonomy. The long unattended stretches were where the value was.
@@ -60,7 +59,7 @@ database) and add up to the wall clock rather than being measured independently.
 | `ServerConfig`-style defaults that call framework APIs break any new JVM test | learnings.md | Added under Android / Kotlin, with the failure mode (constructor throws before the test body runs) |
 | Testing WebView interception without Robolectric | learnings.md | Added under MockK: `mockkStatic(android.os.Environment::class)` plus a mocked `Uri`, and split the decision from the framework construction |
 | How in-process WebView serving actually behaves | learnings.md | New "Serving content to a WebView" section: interception matches any URL so existing URL spaces need no rewriting; no response decoding; no POST body; no 206; WebView cannot render a PDF |
-| Android system SQLite may lack JSON1 | learnings.md + ticket | New "Android system SQLite" section, plus ADFA-5179 |
+| Android system SQLite may lack JSON1 | learnings.md | New "Android system SQLite" section, cross-referenced to ADFA-5179 |
 | Retro script counted screenshot reads as user turns | Skill | `analyze_transcript.py`: filter `[Image: original NxN...]` tool results out of the human role |
 | Bookshelf 500s where SQLite lacks JSON1 | Ticket | ADFA-5179 (Bug), linked to ADFA-5176 |
 | Documentation PDFs render blank in HelpActivity | Ticket | ADFA-5180 (Bug), linked to ADFA-5176 |
