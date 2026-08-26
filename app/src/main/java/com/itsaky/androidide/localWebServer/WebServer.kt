@@ -430,7 +430,7 @@ class WebServer(
 			output.write(bytes)
 			output.flush()
 		} catch (e: Exception) {
-			log.error("Error processing request: {}", e.message)
+			log.error("Error processing request: {}", e.message, e)
 			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "", outputStarted = true)
 		}
 	}
