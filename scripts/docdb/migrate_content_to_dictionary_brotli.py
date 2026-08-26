@@ -380,6 +380,22 @@ def read_blobs(connection: sqlite3.Connection, item: Item) -> list[bytes] | None
     return None if any(blob is None for blob in blobs) else blobs
 
 
+class PathClash(Exception):
+    """A continuation path this item needs is owned by some other row."""
+
+
+def continuation_clash(connection: sqlite3.Connection, item: Item, slices: int, renumber: bool) -> str:
+    """The first target path owned by a foreign row, described; '' if the write is safe."""
+    start = 1 if renumber else item.first_suffix
+    own = {row_id for row_id, _, _ in item.continuations}
+    for suffix in range(start, start + slices - 1):
+        target = f"{item.base_path}-{suffix}"
+        row = connection.execute("SELECT id FROM Content WHERE path = ?", (target,)).fetchone()
+        if row and row[0] not in own:
+            return f"{target} already exists and belongs to another row"
+    return ""
+
+
 def write_item(
     connection: sqlite3.Connection,
     item: Item,
@@ -387,7 +403,17 @@ def write_item(
     renumber: bool,
     content_type_id: int | None = None,
 ) -> tuple[int, int]:
-    """Write an item's new slices back. Returns (rows inserted, rows deleted)."""
+    """Write an item's new slices back. Returns (rows inserted, rows deleted).
+
+    Raises PathClash if a continuation path is owned by a foreign row. renumber_item makes the
+    same check before it moves anything; this one did not, so an occupied path surfaced as a bare
+    sqlite3.IntegrityError out of the middle of a phase, with earlier batches already committed
+    and no summary printed -- the failure mode the batching was introduced to avoid.
+    """
+    clash = continuation_clash(connection, item, len(slices), renumber)
+    if clash:
+        raise PathClash(f"{item.base_path}: {clash}; left alone")
+
     type_id = item.content_type_id if content_type_id is None else content_type_id
     connection.execute(
         "UPDATE Content SET content = ?, contentTypeID = ? WHERE id = ?",
@@ -653,9 +679,14 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
             kept.add(item.base_path)
 
             if write:
-                inserted, deleted = write_item(
-                    connection, item, found.slices, renumber="renumber" in args.phase_list, content_type_id=type_id
-                )
+                try:
+                    inserted, deleted = write_item(
+                        connection, item, found.slices, renumber="renumber" in args.phase_list, content_type_id=type_id
+                    )
+                except PathClash as clash:
+                    errors.append(str(clash))
+                    found.slices = []
+                    continue
                 inserted_total += inserted
                 deleted_total += deleted
             # found.slices is the only large thing here; dropping the reference lets this batch's
@@ -684,14 +715,22 @@ def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> 
     items = select([item for item in load_items(connection, "1 = 1") if item.continuations])
     if args.renumber_scope == "retyped":
         items = [item for item in items if item.base_path in retyped_paths]
-    broken = [item for item in items if item.first_suffix != 1]
+    # A "-<digits>" sibling is a naming coincidence until the base row proves otherwise. The app
+    # decides an item is chunked by its base row being exactly CHUNK_BYTES (WebServer's continuation
+    # query), so that is the test here too. Without it this phase renamed real, independent pages:
+    # a page k/kotlin-1-2 whose greedy base is the real page k/kotlin-1 was renumbered to
+    # k/kotlin-1-1, which 404s every link to it and leaves the base looking like a 2-slice item.
+    # The check used to happen 20 lines below, as a note, after every rename had been made.
+    chunked = [item for item in items if item.base_bytes == CHUNK_BYTES]
+    coincidental = [item for item in items if item.base_bytes != CHUNK_BYTES]
+    broken = [item for item in chunked if item.first_suffix != 1]
 
     starts = sorted({item.first_suffix for item in broken})
     if broken:
-        print(f"[2/3] renumber    {len(broken)} of {len(items)} chunked items start at "
+        print(f"[2/3] renumber    {len(broken)} of {len(chunked)} chunked items start at "
               f"{', '.join('-' + str(n) for n in starts)} instead of -1")
     else:
-        print(f"[2/3] renumber    all {len(items)} chunked items already start at -1")
+        print(f"[2/3] renumber    all {len(chunked)} chunked items already start at -1")
     errors: list[str] = []
     notes: list[str] = []
     fixed = 0
@@ -705,12 +744,12 @@ def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> 
     if write:
         connection.commit()
 
-    for item in items:
-        if item.base_bytes != CHUNK_BYTES:
-            notes.append(
-                f"{item.base_path}: chunked but its base row is {item.base_bytes:,} bytes, not "
-                f"{CHUNK_BYTES:,} -- the app detects chunking by that exact length, so it will not reassemble"
-            )
+    for item in coincidental:
+        notes.append(
+            f"{item.base_path}: has a numeric-suffixed sibling but its base row is "
+            f"{item.base_bytes:,} bytes, not {CHUNK_BYTES:,} -- treated as independent content and "
+            f"left alone, since the app only reassembles an item whose base row is exactly that long"
+        )
     if fixed:
         print(f"      {'renumbered' if write else 'would renumber'} to start at -1: {fixed}")
     return fixed, errors, notes
@@ -892,7 +931,13 @@ def main() -> int:
                 if result.status == "error":
                     failed_items.append(result)
                 elif result.status == "migrated" and write:
-                    inserted, deleted = write_item(connection, item, result.slices, renumber=False)
+                    try:
+                        inserted, deleted = write_item(connection, item, result.slices, renumber=False)
+                    except PathClash as clash:
+                        failed_items.append(result)
+                        errors.append(str(clash))
+                        result.slices = []
+                        continue
                     inserted_total += inserted
                     deleted_total += deleted
                     wrote_migrated_content = True
