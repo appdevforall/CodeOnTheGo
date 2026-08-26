@@ -334,15 +334,17 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
         """
     ).fetchall()
 
-    paths = {row[1] for row in rows}
+    base_bytes_by_path = {row[1]: row[5] for row in rows}
     items: dict[str, Item] = {}
     continuations: list[tuple[str, int, int, int]] = []
 
     for row_id, path, language_id, type_id, template_id, length, type_value, compression in rows:
         match = CONTINUATION.match(path)
-        # A continuation only counts as one if its base is itself a row; a path
-        # that merely ends in -<digits> is ordinary content.
-        if match and match.group(1) in paths:
+        # A "-<digits>" sibling is a naming coincidence until the base row proves otherwise, and
+        # the proof is the base holding exactly CHUNK_BYTES -- the app's own chunk-detection rule.
+        # Grouping on the name alone let a rewrite of the greedy base (retype or migrate) absorb an
+        # independent page's bytes and delete its row; here every phase inherits the test.
+        if match and base_bytes_by_path.get(match.group(1)) == CHUNK_BYTES:
             continuations.append((match.group(1), row_id, int(match.group(2)), length))
         else:
             items[path] = Item(
@@ -501,8 +503,9 @@ CREATE TABLE IF NOT EXISTS DocumentationDatabaseVersion (
 def declared_major(connection: sqlite3.Connection) -> int | None:
     """The MAJOR this database declares, or None when it declares none.
 
-    Reads the row with the highest rowid: the table holds exactly one row by contract, and this is
-    the row both the app's DatabaseVersionResolver and docdb-studio read (ADFA-5220).
+    Reads the row with the highest rowid: the table is append-only by contract
+    (docs/documentation-database.md), so the row inserted last is the current version -- the same
+    row the app's DatabaseVersionResolver reads (ADFA-5220).
     """
     if not table_exists(connection, "DocumentationDatabaseVersion"):
         return None
@@ -515,12 +518,13 @@ def declared_major(connection: sqlite3.Connection) -> int | None:
 def declare_dictionary_version(connection: sqlite3.Connection) -> None:
     """Records that this database's brotli content is dictionary-compressed.
 
-    Written in the same transaction as the last batch of content, because the two facts have to
-    travel together: content compressed against the dictionary, and a version saying so. Exactly
-    one row, replaced rather than appended, matching populate_db.py.
+    Written in the same transaction as the first batch of migrated content, because the two facts
+    have to travel together: content compressed against the dictionary, and a version saying so.
+    The log is append-only by contract (docs/documentation-database.md, DatabaseVersionResolver):
+    each change is another INSERT and the row inserted last is the current version, so prior
+    version rows are history to keep, never state to replace.
     """
     connection.execute(VERSION_TABLE_SQL)
-    connection.execute("DELETE FROM DocumentationDatabaseVersion")
     connection.execute(
         "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, 0, 0, ?, ?)",
         (
@@ -715,14 +719,11 @@ def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> 
     items = select([item for item in load_items(connection, "1 = 1") if item.continuations])
     if args.renumber_scope == "retyped":
         items = [item for item in items if item.base_path in retyped_paths]
-    # A "-<digits>" sibling is a naming coincidence until the base row proves otherwise. The app
-    # decides an item is chunked by its base row being exactly CHUNK_BYTES (WebServer's continuation
-    # query), so that is the test here too. Without it this phase renamed real, independent pages:
-    # a page k/kotlin-1-2 whose greedy base is the real page k/kotlin-1 was renumbered to
-    # k/kotlin-1-1, which 404s every link to it and leaves the base looking like a 2-slice item.
-    # The check used to happen 20 lines below, as a note, after every rename had been made.
-    chunked = [item for item in items if item.base_bytes == CHUNK_BYTES]
-    coincidental = [item for item in items if item.base_bytes != CHUNK_BYTES]
+    # load_items only groups a "-<digits>" sibling under a base holding exactly CHUNK_BYTES -- the
+    # app's own chunk-detection rule -- so every item here is genuinely chunked, and a
+    # coincidentally named independent page (e.g. k/kotlin-1-2 next to the real page k/kotlin-1)
+    # never reaches the renames below.
+    chunked = items
     broken = [item for item in chunked if item.first_suffix != 1]
 
     starts = sorted({item.first_suffix for item in broken})
@@ -744,12 +745,6 @@ def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> 
     if write:
         connection.commit()
 
-    for item in coincidental:
-        notes.append(
-            f"{item.base_path}: has a numeric-suffixed sibling but its base row is "
-            f"{item.base_bytes:,} bytes, not {CHUNK_BYTES:,} -- treated as independent content and "
-            f"left alone, since the app only reassembles an item whose base row is exactly that long"
-        )
     if fixed:
         print(f"      {'renumbered' if write else 'would renumber'} to start at -1: {fixed}")
     return fixed, errors, notes
@@ -801,7 +796,8 @@ def main() -> int:
     parser.add_argument(
         "--only-if-smaller",
         action="store_true",
-        help="leave a row alone when its dictionary-compressed form is not smaller",
+        help="leave a row alone when its dictionary-compressed form is not smaller "
+             "(refused when the migrate phase runs: see the error it prints)",
     )
     args = parser.parse_args()
     write = args.yes and not args.dry_run
@@ -810,6 +806,20 @@ def main() -> int:
     unknown = [phase for phase in args.phase_list if phase not in ALL_PHASES]
     if unknown:
         print(f"error: unknown phase(s) {', '.join(unknown)}; pick from {', '.join(ALL_PHASES)}", file=sys.stderr)
+        return 2
+
+    # A migrate run declares version DICTIONARY_MAJOR_VERSION, and a plain-brotli row left behind
+    # in a database declaring that version can decode against the dictionary to different bytes
+    # *without erroring* -- served as silently wrong content. --only-if-smaller deliberately
+    # leaves such rows, so the two cannot travel together.
+    if args.only_if_smaller and "migrate" in args.phase_list:
+        print(
+            "error: --only-if-smaller cannot be combined with the migrate phase: it deliberately "
+            "leaves rows plain-compressed in a database the run declares version "
+            f"{DICTIONARY_MAJOR_VERSION}, and a plain row in such a database can decode against "
+            "the dictionary to wrong bytes without erroring",
+            file=sys.stderr,
+        )
         return 2
 
     connection = sqlite3.connect(args.database)
@@ -1012,7 +1022,23 @@ def main() -> int:
             declare_dictionary_version(connection)
             print(f"declared        database version {DICTIONARY_MAJOR_VERSION}.0.0 "
                   f"(was {'none' if before is None else before})")
+            version_declared = True
         connection.commit()
+        # Attaching the dictionary to a plain-compressed row usually throws (the app then falls
+        # back to a plain decode), but a small fraction decode without error to different bytes.
+        # So a declared database still holding plain rows is not merely incomplete: it can serve
+        # silently wrong content. counts["error"] misses items that failed at the write (PathClash)
+        # after counting as migrated; failed_items holds both, so it is the honest tally.
+        remaining = counts["unchanged"] + len(failed_items)
+        if version_declared and remaining:
+            print(
+                f"\nWARNING: this database declares version {DICTIONARY_MAJOR_VERSION}.x but "
+                f"{remaining} brotli item(s) did not migrate and are still stored as before. "
+                f"A plain-compressed row can decode against the dictionary to wrong bytes "
+                f"without erroring, so re-run this script to completion before shipping "
+                f"this database.",
+                file=sys.stderr,
+            )
         print("\nRun VACUUM to reclaim the freed pages:  sqlite3 %s 'VACUUM;'" % args.database)
     else:
         connection.rollback()
