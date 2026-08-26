@@ -20,8 +20,11 @@ package com.itsaky.androidide.utils
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
+import java.nio.file.LinkOption
+import java.nio.file.StandardOpenOption
 import java.util.zip.ZipFile
 
 object ZipUtils {
@@ -37,6 +40,35 @@ object ZipUtils {
 		val extracted: List<File>,
 		val skipped: List<String>,
 	)
+
+	/**
+	 * Writes [input] to [outFile], refusing to write *through* a symlink at that path.
+	 *
+	 * The check above this is a check: it stats the path, then the write happens as a separate step,
+	 * so a symlink appearing in between is followed -- `FileOutputStream` resolves links, and Kotlin's
+	 * `File.outputStream()` is a thin inline wrapper over it. [StandardOpenOption] plus
+	 * [LinkOption.NOFOLLOW_LINKS] moves the refusal into the `open(2)` call itself (`O_NOFOLLOW`), so
+	 * there is no window between deciding and doing.
+	 *
+	 * This closes the *final component* only. A symlink substituted for one of the parent directories
+	 * is still followed, by `mkdirs()` above and by the open here, because resolving a path relative
+	 * to an already-open directory needs `openat(2)`, which `java.nio` does not expose. Narrowing that
+	 * further would mean JNI or a different extraction strategy; it is recorded rather than implied
+	 * away (ADFA-5257 review).
+	 */
+	internal fun writeNoFollow(
+		outFile: File,
+		input: InputStream,
+	) {
+		Files
+			.newOutputStream(
+				outFile.toPath(),
+				StandardOpenOption.WRITE,
+				StandardOpenOption.CREATE,
+				StandardOpenOption.TRUNCATE_EXISTING,
+				LinkOption.NOFOLLOW_LINKS,
+			).use { output -> input.copyTo(output) }
+	}
 
 	/**
 	 * Extracts [zipFile] into [destDir], preserving directory structure, and returns an
@@ -97,9 +129,7 @@ object ZipUtils {
 					outFile.mkdirs()
 				} else {
 					outFile.parentFile?.mkdirs()
-					zip.getInputStream(entry).use { input ->
-						outFile.outputStream().use { output -> input.copyTo(output) }
-					}
+					zip.getInputStream(entry).use { input -> writeNoFollow(outFile, input) }
 				}
 
 				extracted.add(outFile)

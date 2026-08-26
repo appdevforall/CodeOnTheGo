@@ -5,6 +5,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -205,5 +206,27 @@ class ZipUtilsTest {
 		val destDir = tempFolder.newFolder("out-bad-name")
 		val thrown = assertThrows(IOException::class.java) { ZipUtils.unzipFile(zip, destDir) }
 		assertThat(thrown).hasMessageThat().contains("does not resolve to a safe path")
+	}
+
+	// The symlink policy above the write is a stat, and the write is a separate open: a link that
+	// appears in between is followed, because FileOutputStream resolves links. This pins the
+	// enforcement that closes that window -- O_NOFOLLOW in the open itself. It is tested directly
+	// because the policy check means the race is the only way to reach it in normal extraction, and
+	// a race is not something a test can stage reliably.
+	@Test
+	fun `writing refuses to follow a symlink at the target path`() {
+		val dir = tempFolder.newFolder("nofollow")
+		val outside = File(dir, "outside.txt").apply { writeText("original") }
+		val target = File(dir, "target.txt")
+		createSymlinkOrSkipTest(target.toPath(), outside.toPath())
+
+		val thrown =
+			assertThrows(IOException::class.java) {
+				ByteArrayInputStream("payload".toByteArray()).use { ZipUtils.writeNoFollow(target, it) }
+			}
+
+		assertThat(thrown).isNotNull()
+		// The link's destination is untouched: nothing was written through it.
+		assertThat(outside.readText()).isEqualTo("original")
 	}
 }

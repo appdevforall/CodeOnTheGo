@@ -30,7 +30,9 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
+import java.nio.file.StandardOpenOption
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -289,9 +291,20 @@ object AssetsInstallationHelper {
 				Files.createDirectories(destFile)
 			} else {
 				Files.createDirectories(destFile.parent)
-				Files.newOutputStream(destFile).use { dest ->
-					zipInput.copyTo(dest)
-				}
+				// NOFOLLOW_LINKS: the isSymbolicLink check above is a stat, and this is a separate
+				// open, so a link appearing in between would be followed. O_NOFOLLOW makes the
+				// refusal part of the open. Parent directories are still followed -- that needs
+				// openat(2), which java.nio does not expose (ADFA-5257 review).
+				Files
+					.newOutputStream(
+						destFile,
+						StandardOpenOption.WRITE,
+						StandardOpenOption.CREATE,
+						StandardOpenOption.TRUNCATE_EXISTING,
+						LinkOption.NOFOLLOW_LINKS,
+					).use { dest ->
+						zipInput.copyTo(dest)
+					}
 			}
 		}
 	}
