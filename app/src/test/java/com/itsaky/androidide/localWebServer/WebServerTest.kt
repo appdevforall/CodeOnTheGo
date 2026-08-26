@@ -46,17 +46,7 @@ class WebServerTest {
 		unmockkAll()
 	}
 
-	private fun testConfig(port: Int) =
-		ServerConfig(
-			port = port,
-			databasePath = "/nonexistent/test.db",
-			fileDirPath = "/tmp",
-			debugDatabasePath = "/nonexistent/debug.db",
-			debugEnablePath = "/nonexistent/debug-flag",
-			experimentsEnablePath = "/nonexistent/exp-flag",
-			clearCacheEnablePath = "/nonexistent/cs0-flag",
-			projectDatabasePath = "/nonexistent/recent-projects.db",
-		)
+	private fun testConfig(port: Int) = testServerConfig(port)
 
 	// ADFA-5153/ADFA-5220: the dictionary is gated on the MAJOR version the database declares, so
 	// every test that expects the dictionary to load has to declare one. A relaxed mock answers the

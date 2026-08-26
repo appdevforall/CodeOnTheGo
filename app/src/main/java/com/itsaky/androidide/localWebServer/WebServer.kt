@@ -9,6 +9,7 @@ import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.ToNumberPolicy
+import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import io.pebbletemplates.pebble.PebbleEngine
@@ -60,17 +61,23 @@ data class ServerConfig(
 )
 
 /**
- * The `bookshelf` template's JSON context. Field names are the JSON keys, so they match what the
- * template reads -- and what SQLite's JSON1 functions used to emit before ADFA-5179.
+ * The `bookshelf` template's JSON context: the keys the template reads, and what SQLite's JSON1
+ * functions used to emit before ADFA-5179.
+ *
+ * Every key is spelled out with [SerializedName] rather than left to gson's reflection over field
+ * names. The template reads these names literally -- `{{ item.category }}`, `book.pdf` -- and a
+ * renamed field would produce a page of blanks with nothing failing anywhere. Today `-dontobfuscate`
+ * happens to keep the field names intact in release builds, but that is a global build flag two
+ * tickets are actively changing, not a contract this payload can rely on.
  */
 internal data class Bookshelf(
-	val result: List<BookshelfCategory>,
+	@SerializedName("result") val result: List<BookshelfCategory>,
 )
 
 internal data class BookshelfCategory(
-	val category: String,
-	val description: String?,
-	val books: List<BookshelfBook>,
+	@SerializedName("category") val category: String,
+	@SerializedName("description") val description: String?,
+	@SerializedName("books") val books: List<BookshelfBook>,
 )
 
 // Not part of the JSON payload: the accumulator readBookshelf groups rows into. Its fields become
@@ -81,11 +88,11 @@ private class CategoryGroup(
 )
 
 internal data class BookshelfBook(
-	val title: String,
-	val description: String?,
-	val link: String,
+	@SerializedName("title") val title: String,
+	@SerializedName("description") val description: String?,
+	@SerializedName("link") val link: String,
 	/** 1 or 0, not a boolean: the shape the template already expects. */
-	val pdf: Int,
+	@SerializedName("pdf") val pdf: Int,
 )
 
 data class JavaExecutionResult(
@@ -190,9 +197,6 @@ class WebServer(
 			.create()
 	private val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
 
-	/** The configured gson, so a test can assert the exact JSON the template receives. */
-	internal val gsonForTest: Gson
-		get() = gson
 	private var bookshelfTemplateId: Int = -1
 	private val httpInternalServerError = 500
 	private val httpNotFound = 404
@@ -1006,7 +1010,7 @@ class WebServer(
 		val jsonText: ByteArray
 
 		try {
-			jsonText = gson.toJson(readBookshelf(database)).toByteArray(Charsets.UTF_8)
+			jsonText = bookshelfJson(database)
 			if (debugEnabled) log.debug("json content = '${String(jsonText)}'.")
 			if (debugEnabled) log.debug("before fetch bookshelf template ID = '$bookshelfTemplateId'")
 
@@ -1040,13 +1044,48 @@ class WebServer(
 	}
 
 	/**
+	 * The exact bytes the `bookshelf` template is rendered against.
+	 *
+	 * Extracted so the test that pins the payload's keys, nesting and explicit nulls can call the
+	 * path production uses. Asserting on a re-composed `gson.toJson(readBookshelf(...))` looked
+	 * equivalent but could not fail if this line changed -- a differently configured serializer here
+	 * would drop every `"description": null` the template was written against and the test would
+	 * still pass.
+	 */
+	internal fun bookshelfJson(database: SQLiteDatabase): ByteArray {
+		val bookshelf = readBookshelf(database)
+		if (bookshelf.result.isEmpty()) {
+			// Not an error -- the endpoint answers 200 with an empty shelf -- but it is indistinguishable
+			// from a working shelf in a bug report, and it is the state ADFA-5204 produced. The query
+			// this replaced surfaced it only by accident, as a 500 from reading a NULL blob.
+			log.info("Bookshelf query matched no rows; serving an empty shelf.")
+		}
+		return gson.toJson(bookshelf).toByteArray(Charsets.UTF_8)
+	}
+
+	/**
 	 * The bookshelf, grouped into categories, for the `bookshelf` template's JSON context.
 	 *
 	 * Assembled here rather than by SQLite's JSON1 functions (ADFA-5179): `JSON_OBJECT` and
 	 * `JSON_GROUP_ARRAY` are absent from the system SQLite on some devices -- a Galaxy Note 20 Ultra
 	 * on Android 13 among them -- where the old query failed at runtime with `no such function:
 	 * JSON_OBJECT` and the bookshelf could not be opened at all. A plain relational query and gson
-	 * work everywhere, and the payload is identical.
+	 * work everywhere.
+	 *
+	 * The payload keeps its keys, nesting and explicit nulls, but two things about it do change, both
+	 * deliberately:
+	 *
+	 * Books within a category are now genuinely sorted by title. The old `ORDER BY BC.category,
+	 * B.title` was inert for them -- it ordered the *groups*, while `JSON_GROUP_ARRAY` aggregated
+	 * rows in scan order, and `B.title` was a bare column under `GROUP BY BC.category`. Against the
+	 * shipped database this reverses the two Java books: "Java, Java, Java" came first by insertion,
+	 * and "Java Notes for Professionals" comes first by title (a space sorts before a comma).
+	 * Deterministic order is worth having, but it is a visible change, not a no-op.
+	 *
+	 * The `pdf` flag is now case-insensitive. `SUBSTR(C.path, -4) == '.pdf'` compared under BINARY
+	 * collation, so a row at `books/Guide.PDF` was flagged 0 and rendered as a web link. No shipped
+	 * row spells the extension any other way -- checked with `GLOB '*.[Pp][Dd][Ff]'` -- so nothing
+	 * changes today; a future upper-case path is simply treated as the PDF it is.
 	 *
 	 * An empty bookshelf comes back as an empty list, which the template renders as an empty page.
 	 * The old query turned that case into an HTTP 500: `group_concat` over no rows is NULL, so the

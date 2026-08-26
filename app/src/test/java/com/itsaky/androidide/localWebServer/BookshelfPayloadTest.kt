@@ -25,21 +25,15 @@ class BookshelfPayloadTest {
 		unmockkAll()
 	}
 
-	private fun server() =
-		WebServer(
-			ServerConfig(
-				port = 0,
-				databasePath = "/nonexistent/test.db",
-				fileDirPath = "/tmp",
-				debugDatabasePath = "/nonexistent/debug.db",
-				debugEnablePath = "/nonexistent/debug-flag",
-				experimentsEnablePath = "/nonexistent/exp-flag",
-				clearCacheEnablePath = "/nonexistent/cs0-flag",
-				projectDatabasePath = "/nonexistent/recent-projects.db",
-			),
-		)
+	private fun server() = WebServer(testServerConfig())
 
-	/** One joined row: category, category description, title, book description, path. */
+	/**
+	 * One joined row: category, category description, title, book description, path.
+	 *
+	 * These are canned cursor rows, so nothing here runs the real SQL -- `BookshelfQueryTest` covers
+	 * the query itself against a real SQLite database, including the two columns both named
+	 * `description` that this mock's positional convention would happily keep in step with a bug.
+	 */
 	private fun database(vararg rows: Array<String?>): SQLiteDatabase {
 		var index = -1
 		val cursor =
@@ -219,10 +213,11 @@ class BookshelfPayloadTest {
 	@Test
 	fun `the JSON keeps the keys, nesting and explicit nulls the template was written against`() {
 		val json =
-			server().gsonForTest.toJson(
-				server().readBookshelf(
+			String(
+				server().bookshelfJson(
 					database(arrayOf("General", null, "A guide", null, "d/guide.pdf")),
 				),
+				Charsets.UTF_8,
 			)
 
 		assertThat(json).isEqualTo(
