@@ -18,6 +18,7 @@ import com.itsaky.androidide.utils.EditorDecorationBridge
 import com.itsaky.androidide.utils.InstallTempFiles
 import com.itsaky.androidide.utils.LastValueGate
 import com.itsaky.androidide.utils.UriFileImporter
+import com.itsaky.androidide.utils.getFileName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -59,10 +60,34 @@ class PluginManagerViewModel(
 	// skip the same-ID signature check by seeing an still-empty list.
 	private val initialLoadCompleted = CompletableDeferred<Unit>()
 
-	/** See [pendingInstallGate] for why this, rather than an Activity `savedInstanceState`
-	 * check, is what correctly distinguishes "already shown after a rotation" from "never shown
-	 * because the process died". */
-	fun markPendingInstallHandled(filePath: String): Boolean = pendingInstallGate.consume(filePath)
+	/**
+	 * Entry point for a `.cgp` forwarded from
+	 * [com.itsaky.androidide.activities.ExternalFileInstallActivity], by absolute path.
+	 *
+	 * Emits [PluginManagerUiEffect.ShowInstallConfirmation] with a
+	 * [PluginInstallSource.LocalFile], so the forwarded install reuses the same confirmation
+	 * dialog the SAF pick does rather than a second, parallel one.
+	 *
+	 * [pendingInstallGate] is the idempotency check rather than an Activity `savedInstanceState`
+	 * check, because it is what correctly distinguishes "already shown after a rotation" (same
+	 * ViewModel instance, gate still holds the path) from "never shown because the process died"
+	 * (fresh ViewModel, gate empty, dialog must still appear). The `exists()` probe runs on IO:
+	 * this is called from `onCreate`/`onNewIntent`, and a missing file is legitimate if
+	 * `InstallTempFiles`' stale-file sweep already removed the temp copy.
+	 */
+	fun onPendingInstallFile(filePath: String) {
+		if (!pendingInstallGate.consume(filePath)) return
+		viewModelScope.launch {
+			val file = File(filePath)
+			if (withContext(Dispatchers.IO) { file.exists() }) {
+				_uiEffect.send(
+					PluginManagerUiEffect.ShowInstallConfirmation(PluginInstallSource.LocalFile(file)),
+				)
+			} else {
+				_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_file_not_found))
+			}
+		}
+	}
 
 	// Mutable state for internal updates
 	private val _uiState =
@@ -135,8 +160,8 @@ class PluginManagerViewModel(
 				viewModelScope.launch { deleteIfLocalFile(event.source) }
 			}
 
-			is PluginManagerUiEvent.OpenFilePicker -> {
-				openFilePicker()
+			is PluginManagerUiEvent.FileSelected -> {
+				handleFileSelected(event.uri)
 			}
 
 			is PluginManagerUiEvent.ShowPluginDetails -> {
@@ -175,7 +200,7 @@ class PluginManagerViewModel(
 					_uiState.update {
 						it.copy(isLoading = false)
 					}
-					_uiEffect.trySend(
+					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(
 							R.string.msg_plugin_load_failed,
 							listOf(exception.message ?: ""),
@@ -205,15 +230,15 @@ class PluginManagerViewModel(
 				.onSuccess { success ->
 					if (success) {
 						Log.d(TAG, "Plugin enabled successfully: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_enabled))
+						_uiEffect.send(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_enabled))
 						loadPlugins()
 					} else {
 						Log.w(TAG, "Failed to enable plugin: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_enable_failed))
+						_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_enable_failed))
 					}
 				}.onFailure { exception ->
 					Log.e(TAG, "Error enabling plugin: $pluginId", exception)
-					_uiEffect.trySend(
+					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(
 							R.string.msg_plugin_enable_error,
 							listOf(exception.message ?: ""),
@@ -237,15 +262,15 @@ class PluginManagerViewModel(
 				.onSuccess { success ->
 					if (success) {
 						Log.d(TAG, "Plugin disabled successfully: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_disabled))
+						_uiEffect.send(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_disabled))
 						loadPlugins()
 					} else {
 						Log.w(TAG, "Failed to disable plugin: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_disable_failed))
+						_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_disable_failed))
 					}
 				}.onFailure { exception ->
 					Log.e(TAG, "Error disabling plugin: $pluginId", exception)
-					_uiEffect.trySend(
+					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(
 							R.string.msg_plugin_disable_error,
 							listOf(exception.message ?: ""),
@@ -264,7 +289,7 @@ class PluginManagerViewModel(
 		val plugin = _uiState.value.plugins.find { it.metadata.id == pluginId }
 		if (plugin != null) {
 			viewModelScope.launch {
-				_uiEffect.trySend(PluginManagerUiEffect.ShowUninstallConfirmation(plugin))
+				_uiEffect.send(PluginManagerUiEffect.ShowUninstallConfirmation(plugin))
 			}
 		}
 	}
@@ -281,16 +306,16 @@ class PluginManagerViewModel(
 				.onSuccess { success ->
 					if (success) {
 						Log.d(TAG, "Plugin uninstalled successfully: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_uninstalled))
+						_uiEffect.send(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_uninstalled))
 						loadPlugins()
-						_uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
+						_uiEffect.send(PluginManagerUiEffect.ShowRestartPrompt)
 					} else {
 						Log.w(TAG, "Failed to uninstall plugin: $pluginId")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_uninstall_failed))
+						_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_uninstall_failed))
 					}
 				}.onFailure { exception ->
 					Log.e(TAG, "Error uninstalling plugin: $pluginId", exception)
-					_uiEffect.trySend(
+					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(
 							R.string.msg_plugin_uninstall_error,
 							listOf(exception.message ?: ""),
@@ -371,16 +396,16 @@ class PluginManagerViewModel(
 					.installPluginFromFile(pluginFile)
 					.onSuccess {
 						Log.d(TAG, "Plugin installed successfully")
-						_uiEffect.trySend(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_installed))
+						_uiEffect.send(PluginManagerUiEffect.ShowSuccess(R.string.msg_plugin_installed))
 						loadPlugins()
-						_uiEffect.trySend(PluginManagerUiEffect.ShowRestartPrompt)
+						_uiEffect.send(PluginManagerUiEffect.ShowRestartPrompt)
 
 						if (deleteSourceAfterInstall) {
 							deleteInstallSource(source)
 						}
 					}.onFailure { exception ->
 						Log.e(TAG, "Failed to install plugin", exception)
-						_uiEffect.trySend(
+						_uiEffect.send(
 							PluginManagerUiEffect.ShowError(
 								R.string.msg_plugin_install_failed,
 								listOf(exception.message ?: ""),
@@ -398,7 +423,7 @@ class PluginManagerViewModel(
 				throw e
 			} catch (exception: Exception) {
 				Log.e(TAG, "Error installing plugin from URI", exception)
-				_uiEffect.trySend(
+				_uiEffect.send(
 					PluginManagerUiEffect.ShowError(
 						R.string.msg_plugin_install_failed,
 						listOf(exception.message ?: ""),
@@ -427,7 +452,7 @@ class PluginManagerViewModel(
 		val incoming = pluginRepository.getPluginMetadataFromFile(pluginFile).getOrNull()
 		if (incoming == null) {
 			Log.w(TAG, "Failed to read plugin metadata from ${pluginFile.name}; aborting install")
-			_uiEffect.trySend(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
+			_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_plugin_invalid_file))
 			deleteIfLocalFile(source)
 			return true
 		}
@@ -442,7 +467,7 @@ class PluginManagerViewModel(
 				.getOrDefault(false)
 
 		if (!signaturesMatch) {
-			_uiEffect.trySend(
+			_uiEffect.send(
 				PluginManagerUiEffect.ShowError(
 					R.string.msg_plugin_signature_mismatch,
 					listOf(existing.metadata.name),
@@ -455,7 +480,7 @@ class PluginManagerViewModel(
 		// Deliberately don't delete the source yet: the user still needs to choose Replace or
 		// Cancel. ConfirmOverwrite re-runs installPlugin() to consume it on Replace;
 		// CancelPendingInstall cleans it up if they back out instead.
-		_uiEffect.trySend(
+		_uiEffect.send(
 			PluginManagerUiEffect.ShowOverwriteConfirmation(
 				existing = existing,
 				incomingMetadata = incoming,
@@ -495,7 +520,7 @@ class PluginManagerViewModel(
 		withContext(Dispatchers.IO) {
 			try {
 				if (!DocumentsContract.deleteDocument(contentResolver, uri)) {
-					_uiEffect.trySend(
+					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
 					)
 				}
@@ -503,7 +528,7 @@ class PluginManagerViewModel(
 				throw e
 			} catch (e: Exception) {
 				Log.w(TAG, "Failed to delete source document", e)
-				_uiEffect.trySend(
+				_uiEffect.send(
 					PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
 				)
 			}
@@ -511,11 +536,27 @@ class PluginManagerViewModel(
 	}
 
 	/**
-	 * Open file picker
+	 * Validate the picked plugin file's name off the main thread (querying a `content://` URI's
+	 * display name is a `ContentResolver` IPC call) and route to install confirmation or an error.
+	 *
+	 * A SAF pick is always a `content://` URI, so it becomes a [PluginInstallSource.ContentUri];
+	 * the forwarded-file path emits [PluginManagerUiEffect.ShowInstallConfirmation] with a
+	 * [PluginInstallSource.LocalFile] directly and never comes through here.
 	 */
-	private fun openFilePicker() {
+	private fun handleFileSelected(uri: Uri) {
 		viewModelScope.launch {
-			_uiEffect.trySend(PluginManagerUiEffect.OpenFilePicker)
+			val isSupported =
+				withContext(Dispatchers.IO) {
+					uri.getFileName(contentResolver).endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
+				}
+
+			if (isSupported) {
+				_uiEffect.send(
+					PluginManagerUiEffect.ShowInstallConfirmation(PluginInstallSource.ContentUri(uri)),
+				)
+			} else {
+				_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_unsupported_plugin_file))
+			}
 		}
 	}
 
@@ -524,7 +565,7 @@ class PluginManagerViewModel(
 	 */
 	private fun showPluginDetails(plugin: PluginInfo) {
 		viewModelScope.launch {
-			_uiEffect.trySend(PluginManagerUiEffect.ShowPluginDetails(plugin))
+			_uiEffect.send(PluginManagerUiEffect.ShowPluginDetails(plugin))
 		}
 	}
 
