@@ -87,21 +87,31 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 						return@withLiveKtFile emptyList()
 					}
 
-					live.read { ktFile ->
-						val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
-						live.analyzing(AnalysisPriority.COMMAND, checker) {
-							val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzing emptyList()
-							if (!isImplementable(classSymbol)) return@analyzing emptyList()
+					val edits =
+						live.read { ktFile ->
+							val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
+							live.analyzing(AnalysisPriority.COMMAND, checker) {
+								val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzing emptyList()
+								if (!isImplementable(classSymbol)) return@analyzing emptyList()
 
-							val classIndent = classIndentOf(ktFile, classOrObject)
-							val unit = detectIndentUnit(ktFile.text)
-							val memberIndent = memberIndentOf(ktFile, classOrObject, classIndent, unit)
-							val stubs = membersToImplement(classSymbol).mapNotNull { renderOverrideStub(it, memberIndent, unit) }
-							if (stubs.isEmpty()) return@analyzing emptyList()
+								val classIndent = classIndentOf(ktFile, classOrObject)
+								val unit = detectIndentUnit(ktFile.text)
+								val memberIndent = memberIndentOf(ktFile, classOrObject, classIndent, unit)
+								val stubs = membersToImplement(classSymbol).mapNotNull { renderOverrideStub(it, memberIndent, unit) }
+								if (stubs.isEmpty()) return@analyzing emptyList()
 
-							buildInsertionEdit(ktFile, classOrObject, stubs, classIndent)
+								buildInsertionEdit(ktFile, classOrObject, stubs, classIndent)
+							}
 						}
+
+					if (live.isStale) {
+						// The analysis above is slow enough for the user to type through, and nothing between
+						// here and performCodeAction re-checks the offsets these edits were measured against.
+						logger.debug("dropping implement-members edits for {}: buffer moved while computing", nioPath)
+						return@withLiveKtFile emptyList()
 					}
+
+					edits
 				} ?: emptyList()
 			}
 		}.getOrElse { e ->

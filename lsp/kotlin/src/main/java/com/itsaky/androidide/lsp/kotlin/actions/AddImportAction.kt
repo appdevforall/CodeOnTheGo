@@ -108,9 +108,19 @@ class AddImportAction : BaseKotlinCodeAction() {
 				return@withLiveKtFile emptyMap()
 			}
 
-			live.read { ktFile ->
-				classifiers.associate { it.fqName to insertImport(ktFile, it.fqName) }
+			val candidates =
+				live.read { ktFile ->
+					classifiers.associate { it.fqName to insertImport(ktFile, it.fqName) }
+				}
+
+			if (live.isStale) {
+				// Resolving the file and taking the read lock can both block long enough for the user to
+				// type, and nothing between here and performCodeAction re-checks the insertion point.
+				logger.debug("dropping import candidates for {}: buffer moved while computing", nioPath)
+				return@withLiveKtFile emptyMap()
 			}
+
+			candidates
 		} ?: emptyMap()
 	}
 

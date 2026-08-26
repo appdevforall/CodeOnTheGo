@@ -74,14 +74,24 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 						return@withLiveKtFile emptyList()
 					}
 
-					live.read { ktFile ->
-						if (ktFile.importDirectives.isEmpty()) return@read emptyList()
-						val usage = live.analyzing(AnalysisPriority.COMMAND, checker) { collectImportUsage(it) }
-						val newText = organizedImportBlock(ktFile, usage) ?: return@read emptyList()
-						val range = ktFile.importList?.textRange?.toRange(ktFile) ?: return@read emptyList()
-						if (range == Range.NONE) return@read emptyList()
-						listOf(TextEdit(range, newText))
+					val edits =
+						live.read { ktFile ->
+							if (ktFile.importDirectives.isEmpty()) return@read emptyList()
+							val usage = live.analyzing(AnalysisPriority.COMMAND, checker) { collectImportUsage(it) }
+							val newText = organizedImportBlock(ktFile, usage) ?: return@read emptyList()
+							val range = ktFile.importList?.textRange?.toRange(ktFile) ?: return@read emptyList()
+							if (range == Range.NONE) return@read emptyList()
+							listOf(TextEdit(range, newText))
+						}
+
+					if (live.isStale) {
+						// The analysis above is slow enough for the user to type through, and nothing between
+						// here and performCodeAction re-checks the range these edits were measured against.
+						logger.debug("dropping organize-imports edits for {}: buffer moved while computing", nioPath)
+						return@withLiveKtFile emptyList()
 					}
+
+					edits
 				} ?: emptyList()
 			}
 		}.getOrElse { e ->

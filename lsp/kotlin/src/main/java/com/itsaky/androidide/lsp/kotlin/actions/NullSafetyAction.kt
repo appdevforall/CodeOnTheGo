@@ -104,10 +104,20 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 				return@withLiveKtFile emptyList()
 			}
 
-			live.read { ktFile ->
-				val qe = findNullableMemberAccess(ktFile, startOffset, endOffset) ?: return@read emptyList()
-				nullSafetyVariants(qe)
+			val variants =
+				live.read { ktFile ->
+					val qe = findNullableMemberAccess(ktFile, startOffset, endOffset) ?: return@read emptyList()
+					nullSafetyVariants(qe)
+				}
+
+			if (live.isStale) {
+				// Resolving the file and taking the read lock can both block long enough for the user to
+				// type, and these variants carry raw PSI offsets that nothing downstream re-checks.
+				logger.debug("dropping null-safety fixes for {}: buffer moved while computing", nioPath)
+				return@withLiveKtFile emptyList()
 			}
+
+			variants
 		} ?: emptyList()
 
 	override fun postExec(
