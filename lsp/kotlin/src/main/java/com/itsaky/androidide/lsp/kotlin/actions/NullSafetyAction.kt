@@ -1,11 +1,16 @@
 package com.itsaky.androidide.lsp.kotlin.actions
 
+import android.content.Context
+import android.view.View
+import android.widget.ListView
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requireFile
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.diagnostic.DiagnosticAction
 import com.itsaky.androidide.lsp.kotlin.utils.NullSafetyKind
@@ -17,6 +22,7 @@ import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -122,15 +128,57 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 			}
 
 			else -> {
-				newDialogBuilder(data)
-					.setTitle(label)
-					.setItems(actions.map { it.title }.toTypedArray()) { dialog, which ->
-						dialog.dismiss()
-						actions.getOrNull(which)?.also { client.performCodeAction(it) }
-							?: logger.error("Index $which is out of bounds for actions of size ${actions.size}")
-					}.show()
+				showFixChooser(data, context, actions, client)
 			}
 		}
+	}
+
+	/**
+	 * Shows the fix chooser and makes every part of it long-pressable for help.
+	 *
+	 * [applyLongPressRecursively] skips [ListView] subtrees, so the item list needs its own
+	 * listener -- the dialog chrome and the rows are wired separately (ADFA-4510).
+	 */
+	private fun showFixChooser(
+		data: ActionData,
+		context: Context,
+		actions: List<CodeActionItem>,
+		client: ILanguageClient,
+	) {
+		val dialog =
+			newDialogBuilder(data)
+				.setTitle(label)
+				.setItems(actions.map { it.title }.toTypedArray()) { dialog, which ->
+					dialog.dismiss()
+					actions.getOrNull(which)?.also { client.performCodeAction(it) }
+						?: logger.error("Index $which is out of bounds for actions of size ${actions.size}")
+				}.create()
+
+		dialog.listView?.setOnItemLongClickListener { _, view, _, _ ->
+			showDialogTooltip(context, view)
+			true
+		}
+
+		dialog.setOnShowListener {
+			val root = dialog.window?.decorView ?: return@setOnShowListener
+			root.applyLongPressRecursively {
+				showDialogTooltip(context, root)
+				true
+			}
+		}
+
+		dialog.show()
+	}
+
+	private fun showDialogTooltip(
+		context: Context,
+		anchor: View,
+	) {
+		TooltipManager.showIdeCategoryTooltip(
+			context,
+			anchor,
+			TooltipTag.EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX_DIALOG,
+		)
 	}
 }
 
