@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.content.DialogInterface
 import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.ViewGroup
@@ -49,44 +48,34 @@ fun AlertDialog.attachTooltip(
 		)
 	}
 
-	val onShowActions = mutableListOf<(DialogInterface) -> Unit>()
-
-	onShowActions.add {
+	this.setOnShowListener {
 		this.window?.decorView?.applyLongPressRecursively(emptyList(), includeEditTexts = false) {
 			showTooltip()
 			true
 		}
-	}
 
-	val customPanel: ViewGroup? = this.findViewById(AndroidR.id.customPanel)
-	customPanel?.forEachViewRecursively { view ->
-		if (view is EditText) {
-			onShowActions.add {
+		val customPanel: ViewGroup? = this.findViewById(AndroidR.id.customPanel)
+		customPanel?.forEachViewRecursively { view ->
+			if (view is EditText) {
 				view.requestFocus()
 				val imm =
 					context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 				imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
-			}
 
-			this.window?.decorView?.setOnTouchListener { _, event ->
-				if (event.action == MotionEvent.ACTION_DOWN) {
-					val outRect = Rect()
-					view.getGlobalVisibleRect(outRect)
-					if (!outRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
-						view.clearFocus()
-						val inputMethodManager =
-							view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-						inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
+				this.window?.decorView?.setOnTouchListener { _, event ->
+					if (event.action == MotionEvent.ACTION_DOWN) {
+						val outRect = Rect()
+						view.getGlobalVisibleRect(outRect)
+						if (!outRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
+							view.clearFocus()
+							val inputMethodManager =
+								view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+							inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
+						}
 					}
+					false
 				}
-				false
 			}
-		}
-	}
-
-	this.setOnShowListener { dialog ->
-		for (action in onShowActions) {
-			action(dialog)
 		}
 	}
 
