@@ -42,7 +42,7 @@
 		android:id="@+id/tvBranchName"
 		android:layout_width="0dp"
 		android:layout_height="wrap_content"
-		android:layout_marginStart="12dp"
+		android:layout_marginStart="4dp"
 		android:ellipsize="end"
 		android:maxLines="1"
 		android:textAppearance="?attr/textAppearanceBody2"
@@ -52,22 +52,22 @@
 		app:layout_constraintTop_toTopOf="parent"
 		tools:text="main" />
 
-	<ImageButton
+	<androidx.appcompat.widget.AppCompatImageButton
 		android:id="@+id/btnMergeAction"
-		android:layout_width="40dp"
-		android:layout_height="40dp"
-		android:layout_marginStart="4dp"
-		android:background="@drawable/bg_ripple"
+		android:layout_width="32dp"
+		android:layout_height="32dp"
+		android:layout_marginStart="8dp"
+		android:background="@drawable/bg_merge_button"
 		android:clickable="true"
 		android:focusable="true"
-		android:padding="10dp"
+		android:padding="6dp"
 		android:scaleType="fitCenter"
 		android:src="@drawable/ic_merge"
 		android:visibility="gone"
 		app:layout_constraintBottom_toBottomOf="parent"
 		app:layout_constraintEnd_toEndOf="parent"
 		app:layout_constraintTop_toTopOf="parent"
-		app:tint="?attr/colorOnSurfaceVariant"
+		app:tint="?attr/colorOnPrimaryContainer"
 		tools:visibility="visible" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
