@@ -95,6 +95,9 @@ android {
 				// Skip TreeSitter native library loading in tests
 				it.systemProperty("java.library.path", System.getProperty("java.library.path"))
 				it.systemProperty("androidide.test.mode", "true")
+				// JUnit Platform, so JUnit Jupiter tests run; the vintage engine dependency
+				// below keeps existing JUnit 4/Robolectric tests running unchanged.
+				it.useJUnitPlatform()
 			}
 		}
 	}
@@ -391,6 +394,10 @@ dependencies {
 
 	testImplementation(projects.testing.unit)
 	testImplementation(libs.core.tests.anroidx.arch)
+	testImplementation(libs.tests.junit.jupiter)
+	testRuntimeOnly(libs.tests.junit.platformLauncher)
+	// Keeps existing JUnit 4/Robolectric tests running under the JUnit Platform.
+	testRuntimeOnly(libs.tests.junit.vintageEngine)
 	androidTestImplementation(projects.common)
 	androidTestImplementation(projects.testing.android) {
 		exclude(group = "com.google.protobuf", module = "protobuf-lite")
