@@ -56,7 +56,19 @@ class DocumentationRequestInterceptor(
 	 * The response for [request], or null to let it go to the network. Called on WebView's own
 	 * threads; [DocumentationContentSource] is what makes that safe.
 	 */
-	fun intercept(request: WebResourceRequest): WebResourceResponse? = contentFor(request)?.let { response(it) }
+	fun intercept(request: WebResourceRequest): WebResourceResponse? =
+		try {
+			contentFor(request)?.let { response(it) }
+		} catch (e: Throwable) {
+			// Throwable, not Exception. The documented contract is that anything this returns null for
+			// falls through to the web server, and that only holds for values, not throws: decoding the
+			// largest bundled row (8.8 MB over nine chunks) can raise OutOfMemoryError and a pathological
+			// template a StackOverflowError, neither of which lookup()'s catch (e: Exception) sees. This
+			// runs on a Chromium thread, where an escaping Error takes the process down -- the socket
+			// transport confined the same failure to one 500 (ADFA-5176 review).
+			log.error("Serving {} in-process failed; falling back to the web server", request.url, e)
+			null
+		}
 
 	/**
 	 * The content to answer [request] with, or null when it is not this class's to answer. Split out
@@ -119,32 +131,18 @@ class DocumentationRequestInterceptor(
 		private const val SERVER_HOST = "localhost"
 		private const val SERVER_PORT = 6174
 
-		// Explicit Lazy rather than `by lazy` alone, so clearSharedTemplateCache can ask whether
-		// the interceptor exists yet without creating it.
-		private val sharedLazy =
-			lazy {
-				// Null when Environment.init() has not run, which is a real state, not a defensive
-				// nicety: DeviceProtectedApplicationLoader wraps that call in runCatching, and the
-				// credential-protected loader returns before it when storage is not ready. DOC_DB is a
-				// plain static File with no initializer, so it is null in both cases, and the non-null
-				// parameter below turns that into an NPE at the first touch of this property. Declining
-				// instead puts the request on the local web server, which is exactly what a null return
-				// from intercept() already means everywhere else.
-				val database = Environment.DOC_DB
-				if (database == null) {
-					LoggerFactory
-						.getLogger(DocumentationRequestInterceptor::class.java)
-						.warn("Environment.DOC_DB is not set; documentation requests stay on the web server.")
-					null
-				} else {
-					DocumentationRequestInterceptor(
-						DocumentationContentSource(
-							database,
-							File(getExternalStorageDirectory(), "Download/documentation.db"),
-						),
-					)
-				}
-			}
+		// Not `lazy`: it memoizes whatever the initializer returned, including null, and null here is
+		// a transient state rather than a verdict. Environment.init() runs inside the loader coroutine
+		// -- DeviceProtectedApplicationLoader wraps it in runCatching, and the credential-protected
+		// loader returns early when storage is not ready -- so a WebView that asks during direct boot
+		// sees DOC_DB unset. Caching that answer disabled in-process documentation for the whole
+		// process, and since WebServer is started only by MainActivity and stopped in its onDestroy,
+		// opening Help from the editor afterwards then had nothing to fall back to (ADFA-5176 review).
+		// Only a successful construction is cached; a null is retried on the next request.
+		@Volatile
+		private var sharedInstance: DocumentationRequestInterceptor? = null
+
+		private val log = LoggerFactory.getLogger(DocumentationRequestInterceptor::class.java)
 
 		/**
 		 * The interceptor every WebView in the process shares, and with it one database handle and
@@ -152,8 +150,30 @@ class DocumentationRequestInterceptor(
 		 * builds from its own config: the server's comes and goes with the activity that starts it,
 		 * a WebView can outlive that, and neither should be able to close the other's handle. The
 		 * cost of the second handle is SQLite's page cache plus the dictionary, a few MB.
+		 *
+		 * Null while `Environment.DOC_DB` is still unset, which puts that request on the local web
+		 * server and leaves the next one free to try again.
 		 */
-		val shared: DocumentationRequestInterceptor? by sharedLazy
+		val shared: DocumentationRequestInterceptor?
+			get() {
+				sharedInstance?.let { return it }
+				return synchronized(this) {
+					sharedInstance ?: run {
+						val database = Environment.DOC_DB
+						if (database == null) {
+							log.warn("Environment.DOC_DB is not set yet; this documentation request stays on the web server.")
+							null
+						} else {
+							DocumentationRequestInterceptor(
+								DocumentationContentSource(
+									database,
+									File(getExternalStorageDirectory(), "Download/documentation.db"),
+								),
+							).also { sharedInstance = it }
+						}
+					}
+				}
+			}
 
 		/**
 		 * Clears [shared]'s compiled templates, for the developer clear-cache sentinel. A no-op
@@ -161,7 +181,8 @@ class DocumentationRequestInterceptor(
 		 * not exist yet.
 		 */
 		fun clearSharedTemplateCache() {
-			if (sharedLazy.isInitialized()) sharedLazy.value?.clearTemplateCache()
+			// sharedInstance, not shared: asking must not construct the interceptor as a side effect.
+			sharedInstance?.clearTemplateCache()
 		}
 	}
 }
