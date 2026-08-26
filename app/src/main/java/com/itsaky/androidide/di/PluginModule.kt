@@ -22,7 +22,7 @@ val pluginModule =
 		single<PluginRepository> {
 			PluginRepositoryImpl(
 				pluginManagerProvider = { IDEApplication.getPluginManager() },
-				pluginsDir = File(androidContext().filesDir, "plugins"),
+				pluginsDir = File(IDEApplication.cachedFilesDir, "plugins"),
 			)
 		}
 
@@ -35,7 +35,7 @@ val pluginModule =
 			PluginManagerViewModel(
 				pluginRepository = get(),
 				contentResolver = androidContext().contentResolver,
-				filesDir = androidContext().filesDir,
+				filesDir = IDEApplication.cachedFilesDir,
 			)
 		}
 
@@ -44,7 +44,7 @@ val pluginModule =
 				pluginRepository = get(),
 				templateCollectionRepository = get(),
 				contentResolver = androidContext().contentResolver,
-				filesDir = androidContext().filesDir,
+				filesDir = IDEApplication.cachedFilesDir,
 			)
 		}
 	}
