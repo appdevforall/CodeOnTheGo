@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS Bookshelf (
 -- at the end can compare against what was asked for.
 --
 -- Descriptions are inserted into HTML by the template, so the entities are
--- deliberate. The prototype had a bare '&' in the Kotlin entry; it is '&amp;'
+-- deliberate. Stored as the characters themselves, not HTML entities: Pebble
 -- here, matching the others.
 
 CREATE TEMP TABLE CategorySeed (
@@ -100,11 +100,11 @@ INSERT INTO BookSeed (path, title, description, category) VALUES
    'Android'),
   ('bookshelf/org.appdevforall.bookshelfplugin/BeejGuideToCProgramming.pdf',
    'Beej Guide To C Programming',
-   'By Brian &ldquo;Beej Jorgensen&rdquo; Hall. 41 chapters, 342 pages covers C, the preprocessor, and the standard library',
+   'By Brian “Beej Jorgensen” Hall. 41 chapters, 342 pages covers C, the preprocessor, and the standard library',
    'C and C++'),
   ('bookshelf/org.appdevforall.bookshelfplugin/JavaJavaJava.pdf',
    'Java, Java, Java: Object-Oriented Problem Solving',
-   'By Ralph Morelli and Ralph Wade. 16 chapters and 8 appendices, 840 pages covers basic Java including exceptions, also graphics, threads, and socket programming',
+   'By Ralph Morelli and Ralph Walde. 16 chapters and 8 appendices, 840 pages covers basic Java including exceptions, also graphics, threads, and socket programming',
    'Java'),
   ('bookshelf/org.appdevforall.bookshelfplugin/JavaNotesForProfessionals.pdf',
    'Java Notes for Professionals',
@@ -112,11 +112,11 @@ INSERT INTO BookSeed (path, title, description, category) VALUES
    'Java'),
   ('bookshelf/org.appdevforall.bookshelfplugin/KotlinNotesForProfessionals.pdf',
    'Kotlin Notes for Professionals',
-   'Compiled from Stack Overflow. 94 pages, covering Basics &amp; Control Flow, Null Safety, Object-Oriented &amp; Functional Mix, Advanced Features, Java Interoperability, Android Specifics, and more',
+   'Compiled from Stack Overflow. 94 pages, covering Basics & Control Flow, Null Safety, Object-Oriented & Functional Mix, Advanced Features, Java Interoperability, Android Specifics, and more',
    'Kotlin'),
   ('bookshelf/org.appdevforall.bookshelfplugin/ModernCplusplusTutorialOuChangkun.pdf',
    'Modern C++ Tutorial',
-   'By Ou Changkun. 10 chapters and 2 appendices, 111 pages, &ldquo;C++ programmers who are still using traditional C++ (this book refers to C++98 and its previous standards as traditional C++) may even amazed by the fact that they are not using the same language while reading modern C++ code.&rdquo;',
+   'By Ou Changkun. 10 chapters and 2 appendices, 111 pages, “C++ programmers who are still using traditional C++ (this book refers to C++98 and its previous standards as traditional C++) may even amazed by the fact that they are not using the same language while reading modern C++ code.”',
    'C and C++'),
   ('bookshelf/org.appdevforall.bookshelfplugin/PebbleTemplateGuide.pdf',
    'Pebble Template Guide',
@@ -152,14 +152,21 @@ UPDATE BookCategories
 -- them out and the checks below would still have passed, because they counted only
 -- the seeded rows they expected to find.
 --
--- Two things go: rows this migration is about to re-seed, and the ADFA-5204
--- placeholder rows, which are identifiable by having no category to join to. A
--- plugin row keeps a real bookCategoryID and a contentID outside BookSeed, so it
--- survives both clauses.
+-- Only rows this migration is about to re-seed. There was a second clause,
+-- bookCategoryID IS NULL, meant to sweep up the ADFA-5204 placeholder rows -- but
+-- NULL does not mean what it assumed. The AddBook trigger is
+--
+--   AFTER INSERT ON Content WHEN NEW.path LIKE '%.pdf'
+--     INSERT INTO Bookshelf (contentID, title) VALUES (NEW.id, CURRENT_TIMESTAMP || NEW.id);
+--
+-- so it writes contentID and a timestamp title and nothing else. A NULL category and
+-- a datetime-looking title are what *every* freshly ingested PDF has until someone
+-- curates it -- the placeholder rows and the pending ones are the same rows, and no
+-- WHERE clause can separate them. DeleteBook only fires on a Content DELETE, so
+-- anything removed here never comes back.
 
 DELETE FROM Bookshelf
- WHERE bookCategoryID IS NULL
-    OR contentID IN (SELECT C.id FROM Content C JOIN BookSeed S ON C.path = S.path);
+ WHERE contentID IN (SELECT C.id FROM Content C JOIN BookSeed S ON C.path = S.path);
 
 INSERT INTO Bookshelf (contentID, title, description, bookCategoryID)
 SELECT C.id, S.title, S.description, BC.id
@@ -174,18 +181,27 @@ SELECT C.id, S.title, S.description, BC.id
 -- is left alone on an update, because Content.templateId refers to template
 -- ids numerically and reassigning them is a hazard worth avoiding entirely.
 --
--- The blob is the template verified on device on 19-Aug: 1261 bytes, with the
--- debug output removed (it was most of the rendered page) and its five
--- category names matching the seed data above. Those names are hardcoded in
--- the template on purpose, to control display order without a sort column in
--- BookCategories, so a seventh category needs a template edit too.
+-- The blob is the template verified on device on 19-Aug, with the debug output
+-- removed (it was most of the rendered page), reworked to loop over the payload
+-- instead of naming categories. It used to call a filter-by-category macro once
+-- per category, and named five while the seed above defines six, so General --
+-- which is also WebServer's IFNULL fallback name for an uncategorised book --
+-- could never appear on the page. Display order now comes from the query's
+-- ORDER BY BC.category rather than the call order; pinning a different order
+-- needs a sort column in BookCategories, not a template edit.
+--
+-- Held in a temp table so the INSERT and the UPDATE cannot drift apart: they
+-- used to carry two copies of the literal, and the check at the bottom compared
+-- only its length.
+
+CREATE TEMP TABLE TemplateBlob AS SELECT X'3C21444F43545950452068746D6C3E0A3C68746D6C206C616E673D22656E2D7573223E0A3C686561643E0A3C7374796C6520747970653D22746578742F637373223E0A2E66696C656C696E6B207B206261636B67726F756E642D636F6C6F723A2079656C6C6F773B207D0A2E7765626C696E6B207B20206261636B67726F756E642D636F6C6F723A206379616E3B7D0A3C2F7374796C653E0A3C2F686561643E3C626F64793E3C703E54686520666F6C6C6F77696E6720626F6F6B7320616E64207265666572656E6365206D6174657269616C732061726520696E636C75646564207769746820436F6465206F6E2074686520476F2E3C2F703E0A7B2520666F72206974656D20696E20726573756C7420257D0A3C68313E43617465676F72793A207B7B206974656D2E63617465676F7279207D7D3C2F68313E0A7B25206966206974656D2E6465736372697074696F6E20257D0A3C68323E4465736372697074696F6E3A207B7B206974656D2E6465736372697074696F6E207D7D3C2F68323E0A7B2520656E64696620257D0A20207B2520666F7220626F6F6B20696E206974656D2E626F6F6B7320257D0A3C703E0A202020207B2520696620626F6F6B2E706466203D3D203120257D0A20203C6120687265663D222F702F7765622F7669657765722E68746D6C3F66696C653D2F7B7B20626F6F6B2E6C696E6B207D7D22207461726765743D225F626C616E6B2220636C6173733D2266696C656C696E6B223E7B7B20626F6F6B2E7469746C65207D7D3C2F613E0A2020202020207B2520696620626F6F6B2E6465736372697074696F6E20257D0A2020202020202020287B7B20626F6F6B2E6465736372697074696F6E207D7D203C693E5044463C2F693E290A2020202020207B2520656E64696620257D0A202020207B2520656C736520257D0A20203C6120687265663D222F7B7B20626F6F6B2E6C696E6B207D7D22207461726765743D225F626C616E6B2220636C6173733D227765626C696E6B223E7B7B20626F6F6B2E7469746C65207D7D3C2F613E0A2020202020207B2520696620626F6F6B2E6465736372697074696F6E20257D0A2020202020202020287B7B20626F6F6B2E6465736372697074696F6E207D7D290A2020202020207B2520656E64696620257D0A202020207B2520656E64696620257D0A3C2F703E0A20207B2520656E64666F7220257D0A7B2520656E64666F7220257D0A3C2F626F64793E3C2F68746D6C3E0A' AS content;
 
 INSERT INTO Templates (name, content)
-SELECT 'bookshelf', X'3c21444f43545950452068746d6c3e0a3c68746d6c206c616e673d22656e2d7573223e0a3c686561643e0a3c7374796c6520747970653d22746578742f637373223e0a2e66696c656c696e6b207b206261636b67726f756e642d636f6c6f723a2079656c6c6f773b207d0a2e7765626c696e6b207b20206261636b67726f756e642d636f6c6f723a206379616e3b7d0a3c2f7374796c653e0a7b25206d6163726f20657870616e64426f6f6b7328726573756c742c2063617465676f72792920257d0a20207b2520666f72206974656d20696e20726573756c7420257d0a202020207b25206966206974656d2e63617465676f7279203d3d2063617465676f727920257d0a3c68313e43617465676f72793a207b7b2063617465676f7279207d7d3c2f68313e0a7b25206966206974656d2e6465736372697074696f6e20213d20272720257d0a3c68323e4465736372697074696f6e3a207b7b206974656d2e6465736372697074696f6e207d7d3c2f68323e0a7b2520656e64696620257d0a2020202020207b2520666f7220626f6f6b20696e206974656d2e626f6f6b7320257d0a3c703e0a20202020202020207b2520696620626f6f6b2e706466203d3d203120257d0a20203c6120687265663d222f702f7765622f7669657765722e68746d6c3f66696c653d2f7b7b20626f6f6b2e6c696e6b207d7d22207461726765743d225f626c616e6b2220636c6173733d2266696c656c696e6b223e7b7b20626f6f6b2e7469746c65207d7d3c2f613e0a202020202020202020207b2520696620626f6f6b2e6465736372697074696f6e20213d20272720257d0a202020202020202020202020287b7b20626f6f6b2e6465736372697074696f6e207d7d203c693e5044463c2f693e290a202020202020202020207b2520656e64696620257d0a20202020202020207b2520656c736520257d0a20203c6120687265663d222f7b7b20626f6f6b2e6c696e6b207d7d22207461726765743d225f626c616e6b2220636c6173733d227765626c696e6b223e7b7b20626f6f6b2e7469746c65207d7d3c2f613e0a202020202020202020207b2520696620626f6f6b2e6465736372697074696f6e20213d20272720257d0a202020202020202020202020287b7b20626f6f6b2e6465736372697074696f6e207d7d290a202020202020202020207b2520656e64696620257d0a20202020202020207b2520656e64696620257d0a3c2f703e0a2020202020207b2520656e64666f7220257d0a202020207b2520656e64696620257d0a20207b2520656e64666f7220257d0a7b2520656e646d6163726f20257d0a0a3c2f686561643e3c626f64793e3c703e54686520666f6c6c6f77696e6720626f6f6b7320616e64207265666572656e6365206d6174657269616c732061726520696e636c75646564207769746820436f6465206f6e2074686520476f2e3c2f703e0a7b7b20657870616e64426f6f6b7328726573756c742c2027416e64726f69642729207d7d0a7b7b20657870616e64426f6f6b7328726573756c742c20274a6176612729207d7d0a7b7b20657870616e64426f6f6b7328726573756c742c20274b6f746c696e2729207d7d0a7b7b20657870616e64426f6f6b7328726573756c742c20274320616e6420432b2b2729207d7d0a7b7b20657870616e64426f6f6b7328726573756c742c2027506562626c652729207d7d0a3c2f626f64793e3c2f68746d6c3e0a'
+SELECT 'bookshelf', (SELECT content FROM TemplateBlob)
  WHERE NOT EXISTS (SELECT 1 FROM Templates WHERE name = 'bookshelf');
 
 UPDATE Templates
-   SET content = X'3c21444f43545950452068746d6c3e0a3c68746d6c206c616e673d22656e2d7573223e0a3c686561643e0a3c7374796c6520747970653d22746578742f637373223e0a2e66696c656c696e6b207b206261636b67726f756e642d636f6c6f723a2079656c6c6f773b207d0a2e7765626c696e6b207b20206261636b67726f756e642d636f6c6f723a206379616e3b7d0a3c2f7374796c653e0a7b25206d6163726f20657870616e64426f6f6b7328726573756c742c2063617465676f72792920257d0a20207b2520666f72206974656d20696e20726573756c7420257d0a202020207b25206966206974656d2e63617465676f7279203d3d2063617465676f727920257d0a3c68313e43617465676f72793a207b7b2063617465676f7279207d7d3c2f68313e0a7b25206966206974656d2e6465736372697074696f6e20213d20272720257d0a3c68323e4465736372697074696f6e3a207b7b206974656d2e6465736372697074696f6e207d7d3c2f68323e0a7b2520656e64696620257d0a2020202020207b2520666f7220626f6f6b20696e206974656d2e626f6f6b7320257d0a3c703e0a20202020202020207b2520696620626f6f6b2e706466203d3d203120257d0a20203c6120687265663d222f702f7765622f7669657765722e68746d6c3f66696c653d2f7b7b20626f6f6b2e6c696e6b207d7d22207461726765743d225f626c616e6b2220636c6173733d2266696c656c696e6b223e7b7b20626f6f6b2e7469746c65207d7d3c2f613e0a202020202020202020207b2520696620626f6f6b2e6465736372697074696f6e20213d20272720257d0a202020202020202020202020287b7b20626f6f6b2e6465736372697074696f6e207d7d203c693e5044463c2f693e290a202020202020202020207b2520656e64696620257d0a20202020202020207b2520656c736520257d0a20203c6120687265663d222f7b7b20626f6f6b2e6c696e6b207d7d22207461726765743d225f626c616e6b2220636c6173733d227765626c696e6b223e7b7b20626f6f6b2e7469746c65207d7d3c2f613e0a202020202020202020207b2520696620626f6f6b2e6465736372697074696f6e20213d20272720257d0a202020202020202020202020287b7b20626f6f6b2e6465736372697074696f6e207d7d290a202020202020202020207b2520656e64696620257d0a20202020202020207b2520656e64696620257d0a3c2f703e0a2020202020207b2520656e64666f7220257d0a202020207b2520656e64696620257d0a20207b2520656e64666f7220257d0a7b2520656e646d6163726f20257d0a0a3c2f686561643e3c626f64793e3c703e54686520666f6c6c6f77696e6720626f6f6b7320616e64207265666572656e6365206d6174657269616c732061726520696e636c75646564207769746820436f6465206f6e2074686520476f2e3c2f703e0a7b7b20657870616e64426f6f6b7328726573756c742c2027416e64726f69642729207d7d0a7b7b20657870616e64426f6f6b7328726573756c742c20274a6176612729207d7d0a7b7b20657870616e64426f6f6b7328726573756c742c20274b6f746c696e2729207d7d0a7b7b20657870616e64426f6f6b7328726573756c742c20274320616e6420432b2b2729207d7d0a7b7b20657870616e64426f6f6b7328726573756c742c2027506562626c652729207d7d0a3c2f626f64793e3c2f68746d6c3e0a'
+   SET content = (SELECT content FROM TemplateBlob)
  WHERE name = 'bookshelf';
 
 -- ---------------------------------------------------------------------
@@ -232,6 +248,17 @@ SELECT 'only ' || (SELECT COUNT(*) FROM Content C, Bookshelf B, BookCategories B
          WHERE C.id = B.contentID AND B.bookCategoryID = BC.id AND C.path = S.path)
        <> (SELECT COUNT(*) FROM BookSeed);
 
+-- Nothing else is on the shelf that this script did not put there or knowingly
+-- leave alone. The ADFA-5204 symptom was a shelf holding rows nobody expected, and
+-- a check scoped to the seeded rows cannot see those at all. Uncurated books are
+-- reported, not deleted: they are pending curation, not junk (see the DELETE above).
+INSERT INTO Problems (problem)
+SELECT 'note: Bookshelf holds ' || (SELECT COUNT(*) FROM Bookshelf) || ' rows, of which '
+       || (SELECT COUNT(*) FROM BookSeed) || ' are seeded here and '
+       || (SELECT COUNT(*) FROM Bookshelf WHERE bookCategoryID IS NULL)
+       || ' are uncurated (no category, so they render under General)'
+ WHERE (SELECT COUNT(*) FROM Bookshelf) <> (SELECT COUNT(*) FROM BookSeed);
+
 -- Every seeded category exists.
 INSERT INTO Problems (problem)
 SELECT 'these seeded categories are missing: ' || GROUP_CONCAT(category, '; ')
@@ -239,13 +266,18 @@ SELECT 'these seeded categories are missing: ' || GROUP_CONCAT(category, '; ')
  WHERE NOT EXISTS (SELECT 1 FROM BookCategories BC WHERE BC.category = S.category)
 HAVING COUNT(*) > 0;
 
--- Exactly one template row, of the expected size.
+-- Exactly one template row, holding exactly this template. Compared by content:
+-- a length check passes a wrong template of the right size, which is how the
+-- double-escaped descriptions shipped in the first place.
 INSERT INTO Problems (problem)
-SELECT 'expected one bookshelf template of 1261 bytes, found '
-       || (SELECT COUNT(*) FROM Templates WHERE name = 'bookshelf') || ' row(s) of '
-       || IFNULL((SELECT LENGTH(content) FROM Templates WHERE name = 'bookshelf'), 0) || ' bytes'
+SELECT 'expected one bookshelf template matching this script, found '
+       || (SELECT COUNT(*) FROM Templates WHERE name = 'bookshelf') || ' row(s), '
+       || IFNULL((SELECT LENGTH(content) FROM Templates WHERE name = 'bookshelf'), 0)
+       || ' bytes against the expected '
+       || (SELECT LENGTH(content) FROM TemplateBlob) || ' bytes'
  WHERE (SELECT COUNT(*) FROM Templates WHERE name = 'bookshelf') <> 1
-    OR (SELECT LENGTH(content) FROM Templates WHERE name = 'bookshelf') <> 1261;
+    OR (SELECT content FROM Templates WHERE name = 'bookshelf')
+       IS NOT (SELECT content FROM TemplateBlob);
 
 -- Prints one line per problem; silent on a clean run.
 SELECT 'VERIFICATION FAILED: ' || problem FROM Problems;
