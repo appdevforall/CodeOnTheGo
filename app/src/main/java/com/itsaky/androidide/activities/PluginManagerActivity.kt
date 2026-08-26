@@ -11,6 +11,7 @@ import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import com.itsaky.androidide.ui.compose.ManagerScreen
 import com.itsaky.androidide.ui.compose.theme.ManagerTheme
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import com.itsaky.androidide.viewmodels.TemplateManagerViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -35,6 +36,10 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 	private val pluginViewModel: PluginManagerViewModel by viewModel()
 	private val templateViewModel: TemplateManagerViewModel by viewModel()
 
+	// Drives the .cgt half of the add-extension flow; the same ViewModel ExternalFileInstallActivity
+	// uses, so a template picked here goes through the identical confirm/conflict/rename path.
+	private val externalFileInstallViewModel: ExternalFileInstallViewModel by viewModel()
+
 	override fun bindLayout(): View {
 		_binding = ActivityPluginManagerBinding.inflate(layoutInflater)
 		return binding.root
@@ -51,6 +56,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 			// DeviceProtectedApplicationLoader init) is caught below rather than crashing.
 			val resolvedPluginViewModel = pluginViewModel
 			val resolvedTemplateViewModel = templateViewModel
+			val resolvedExternalFileInstallViewModel = externalFileInstallViewModel
 
 			binding.composeView.setContent {
 				ManagerTheme {
@@ -58,6 +64,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 						activity = this,
 						pluginViewModel = resolvedPluginViewModel,
 						templateViewModel = resolvedTemplateViewModel,
+						externalFileInstallViewModel = resolvedExternalFileInstallViewModel,
 					)
 				}
 			}

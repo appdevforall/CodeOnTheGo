@@ -128,19 +128,6 @@ fun PluginManagerContent(
 		TooltipManager.showIdeCategoryTooltip(activity, rootView, TooltipTag.PLUGIN_MANAGER)
 	}
 
-	val filePickerLauncher =
-		rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-			uri?.let {
-				try {
-					activity.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-				} catch (e: SecurityException) {
-					log.warn("Could not take persistable URI permission", e)
-				}
-
-				viewModel.onEvent(PluginManagerUiEvent.FileSelected(it))
-			}
-		}
-
 	LaunchedEffect(viewModel, lifecycleOwner) {
 		lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
 			viewModel.uiEffect.collect { effect ->
@@ -173,23 +160,6 @@ fun PluginManagerContent(
 
 					is PluginManagerUiEffect.ShowPluginDetails -> {
 						dialogState = PluginManagerDialogState.Details(effect.plugin.metadata.id)
-					}
-
-					is PluginManagerUiEffect.OpenFilePicker -> {
-						try {
-							// SAF filters by MIME type, not extension, and .cgp has no registered MIME
-							// type. Document providers report unrecognized extensions as
-							// "application/octet-stream", but a .cgp is a zip, and some providers (and
-							// most cloud providers' own mappings) report "application/zip" instead - an
-							// octet-stream-only filter hides those with no way to reach them. "*/*"
-							// keeps every provider's mapping reachable; SAF still honors this ordering
-							// for the initial filter. The FileSelected event still validates the actual
-							// pick, since this is only an approximation.
-							filePickerLauncher.launch(arrayOf("application/octet-stream", "application/zip", "*/*"))
-						} catch (e: ActivityNotFoundException) {
-							log.warn("No document provider available for the plugin file picker", e)
-							activity.flashError(activity.getString(R.string.msg_no_file_manager))
-						}
 					}
 
 					is PluginManagerUiEffect.ShowInstallConfirmation -> {

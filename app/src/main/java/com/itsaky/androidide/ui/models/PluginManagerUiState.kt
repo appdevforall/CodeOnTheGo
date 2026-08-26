@@ -72,11 +72,9 @@ sealed class PluginManagerUiEvent {
 		val source: PluginInstallSource,
 	) : PluginManagerUiEvent()
 
-	object OpenFilePicker : PluginManagerUiEvent()
-
 	/**
-	 * The SAF picker returned a document. Always a `content://` [Uri] - the forwarded-file entry
-	 * point goes straight to [PluginManagerUiEffect.ShowInstallConfirmation] with a
+	 * The SAF picker returned a `.cgp` document. Always a `content://` [Uri] - the forwarded-file
+	 * entry point goes straight to [PluginManagerUiEffect.ShowInstallConfirmation] with a
 	 * [PluginInstallSource.LocalFile] instead, since it needs no picker round-trip.
 	 */
 	data class FileSelected(
@@ -101,8 +99,6 @@ sealed class PluginManagerUiEffect {
 	data class ShowPluginDetails(
 		val plugin: PluginInfo,
 	) : PluginManagerUiEffect()
-
-	object OpenFilePicker : PluginManagerUiEffect()
 
 	/**
 	 * Carries a [PluginInstallSource], not a bare [Uri], so both entry points share one dialog:

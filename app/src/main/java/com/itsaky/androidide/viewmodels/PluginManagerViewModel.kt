@@ -160,10 +160,6 @@ class PluginManagerViewModel(
 				viewModelScope.launch { deleteIfLocalFile(event.source) }
 			}
 
-			is PluginManagerUiEvent.OpenFilePicker -> {
-				openFilePicker()
-			}
-
 			is PluginManagerUiEvent.FileSelected -> {
 				handleFileSelected(event.uri)
 			}
@@ -536,15 +532,6 @@ class PluginManagerViewModel(
 					PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
 				)
 			}
-		}
-	}
-
-	/**
-	 * Open file picker
-	 */
-	private fun openFilePicker() {
-		viewModelScope.launch {
-			_uiEffect.send(PluginManagerUiEffect.OpenFilePicker)
 		}
 	}
 
