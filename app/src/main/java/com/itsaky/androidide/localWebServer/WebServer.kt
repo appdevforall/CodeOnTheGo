@@ -1058,7 +1058,10 @@ class WebServer(
 			// Not an error -- the endpoint answers 200 with an empty shelf -- but it is indistinguishable
 			// from a working shelf in a bug report, and it is the state ADFA-5204 produced. The query
 			// this replaced surfaced it only by accident, as a 500 from reading a NULL blob.
-			log.info("Bookshelf query matched no rows; serving an empty shelf.")
+			// "no categories", not "no rows": a row whose Content.path is NULL is skipped above, so
+			// the query can return rows and still leave nothing to serve. Each skip logs its own
+			// warning, which is what tells the two cases apart.
+			log.info("No bookshelf categories to serve; serving an empty shelf.")
 		}
 		return gson.toJson(bookshelf).toByteArray(Charsets.UTF_8)
 	}
