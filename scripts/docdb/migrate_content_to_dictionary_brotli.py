@@ -75,6 +75,7 @@ import atexit
 import concurrent.futures as futures
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -694,7 +695,13 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
 
         for future in futures.as_completed(pending):
             item = pending[future]
-            found = future.result()
+            try:
+                found = future.result()
+            except Exception as exc:
+                # A worker crash used to re-raise here and abort the phase with earlier
+                # batches already committed and no summary. Report it like any other failure.
+                errors.append(f"{item.base_path}: {type(exc).__name__}: {exc}")
+                continue
             if found.status == "error":
                 errors.append(f"{item.base_path}: {found.detail}")
                 continue
@@ -816,7 +823,11 @@ def verify_retype(connection, retyped_paths: set[str], mov_type: str, expect_ren
         if item is None:
             problems.append(f"{path}: row vanished")
             continue
-        payload = b"".join(read_blobs(connection, item))
+        blobs = read_blobs(connection, item)
+        if blobs is None:
+            problems.append(f"{path}: a row is missing or holds NULL content")
+            continue
+        payload = b"".join(blobs)
         found = sniff(payload)
         expected = item.content_type
         if expected == "video/mp4" and mov_type == "mp4" and found == "video/quicktime":
@@ -879,6 +890,15 @@ def main() -> int:
         )
         return 2
 
+    # range() raises on a zero batch, a negative one silently processes nothing, and
+    # ProcessPoolExecutor raises on zero workers -- all after work may have started.
+    if args.batch < 1:
+        print(f"error: --batch must be at least 1, got {args.batch}", file=sys.stderr)
+        return 2
+    if args.workers < 1:
+        print(f"error: --workers must be at least 1, got {args.workers}", file=sys.stderr)
+        return 2
+
     connection = sqlite3.connect(args.database)
     connection.execute("PRAGMA foreign_keys = ON")
 
@@ -887,6 +907,14 @@ def main() -> int:
     # numbering most needs repairing.
     dictionary = b""
     if any(phase in ("retype", "migrate") for phase in args.phase_list):
+        # Fail before any phase runs, not per item inside a worker mid-run.
+        if shutil.which("brotli") is None:
+            print(
+                "error: retype and migrate need the brotli CLI (>= 1.0) on PATH; "
+                "no Python binding exposes custom dictionaries",
+                file=sys.stderr,
+            )
+            return 2
         if not table_exists(connection, "CompressionDictionary"):
             print(
                 "error: this database has no CompressionDictionary table, so there is nothing to "
@@ -988,7 +1016,16 @@ def main() -> int:
 
             for future in futures.as_completed(pending):
                 item = pending[future]
-                result = future.result()
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    # Same reason as the read_blobs guard above: report, do not abort a run
+                    # whose earlier batches are already committed.
+                    counts["error"] += 1
+                    failed_items.append(
+                        Result(item.base_path, "error", detail=f"{type(exc).__name__}: {exc}")
+                    )
+                    continue
                 counts[result.status] += 1
                 before_total += result.before
                 after_total += result.after or result.before
