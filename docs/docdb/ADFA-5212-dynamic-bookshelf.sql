@@ -185,7 +185,7 @@ SELECT C.id, S.title, S.description, BC.id
 -- removed (it was most of the rendered page), reworked to loop over the payload
 -- instead of naming categories. It used to call a filter-by-category macro once
 -- per category, and named five while the seed above defines six, so General --
--- which is also WebServer's IFNULL fallback name for an uncategorised book --
+-- which WebServer also uses as its IFNULL label for a category row whose own name is NULL --
 -- could never appear on the page. Display order now comes from the query's
 -- ORDER BY BC.category rather than the call order; pinning a different order
 -- needs a sort column in BookCategories, not a template edit.
@@ -248,15 +248,40 @@ SELECT 'only ' || (SELECT COUNT(*) FROM Content C, Bookshelf B, BookCategories B
          WHERE C.id = B.contentID AND B.bookCategoryID = BC.id AND C.path = S.path)
        <> (SELECT COUNT(*) FROM BookSeed);
 
--- Nothing else is on the shelf that this script did not put there or knowingly
--- leave alone. The ADFA-5204 symptom was a shelf holding rows nobody expected, and
--- a check scoped to the seeded rows cannot see those at all. Uncurated books are
--- reported, not deleted: they are pending curation, not junk (see the DELETE above).
+-- Every seeded category exists.
 INSERT INTO Problems (problem)
+SELECT 'these seeded categories are missing: ' || GROUP_CONCAT(category, '; ')
+  FROM CategorySeed S
+ WHERE NOT EXISTS (SELECT 1 FROM BookCategories BC WHERE BC.category = S.category)
+HAVING COUNT(*) > 0;
+
+-- Exactly one template row, of exactly this template's length.
+--
+-- Length, not content: the UPDATE above sets content FROM TemplateBlob, so comparing the stored
+-- value against TemplateBlob is tautological -- it cannot fail, whatever blob this script carries.
+-- A literal length can fail, and catches the case worth catching: a row this script's UPDATE did
+-- not touch (a name mismatch) or one another tool installed. It cannot tell two different 905-byte
+-- templates apart; nothing available in sqlite3 can, short of shipping a checksum.
+INSERT INTO Problems (problem)
+SELECT 'expected one bookshelf template of 905 bytes, found '
+       || (SELECT COUNT(*) FROM Templates WHERE name = 'bookshelf') || ' row(s) of '
+       || IFNULL((SELECT LENGTH(content) FROM Templates WHERE name = 'bookshelf'), 0) || ' bytes'
+ WHERE (SELECT COUNT(*) FROM Templates WHERE name = 'bookshelf') <> 1
+    OR IFNULL((SELECT LENGTH(content) FROM Templates WHERE name = 'bookshelf'), 0) <> 905;
+
+-- Nothing else is on the shelf that this script did not put there or knowingly left alone. The
+-- ADFA-5204 symptom was a shelf holding rows nobody expected, and a check scoped to the seeded rows
+-- cannot see those at all.
+--
+-- Printed, NOT inserted into Problems. Problems is the abort list: the Gate below rolls the whole
+-- migration back if it holds anything, so writing an informational row there made this script a
+-- guaranteed no-op on every database with an uncurated PDF -- which is every database, since the
+-- AddBook trigger creates exactly that state for each newly ingested book (see the DELETE above).
+-- Verified: 7 seeded books plus one other PDF rolled back with BookCategories left at 0.
 SELECT 'note: Bookshelf holds ' || (SELECT COUNT(*) FROM Bookshelf) || ' rows, of which '
        || (SELECT COUNT(*) FROM BookSeed) || ' are seeded here and '
        || (SELECT COUNT(*) FROM Bookshelf WHERE bookCategoryID IS NULL)
-       || ' are uncurated (no category, so they render under General)'
+       || ' await curation (no category, so WebServer''s inner join leaves them off the page)'
  WHERE (SELECT COUNT(*) FROM Bookshelf) <> (SELECT COUNT(*) FROM BookSeed);
 
 -- Every seeded category exists.
@@ -290,6 +315,9 @@ INSERT INTO Gate (ok)
 SELECT CASE WHEN (SELECT COUNT(*) FROM Problems) = 0 THEN 1 ELSE 0 END;
 
 DROP TABLE Gate;
+-- TemplateBlob too, or a second .read in the same sqlite3 session fails on "table
+-- TemplateBlob already exists" -- which contradicts this script's own idempotency claim.
+DROP TABLE TemplateBlob;
 DROP TABLE Problems;
 DROP TABLE BookSeed;
 DROP TABLE CategorySeed;
