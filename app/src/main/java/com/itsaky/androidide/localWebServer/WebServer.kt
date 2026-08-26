@@ -310,8 +310,7 @@ class WebServer(
 			return sendError(writer, output, 501, "Not Implemented")
 		}
 
-		// Use a newer documentation.db from the sdcard if one has appeared. Outside the read lock
-		// below, because swapping takes the write lock and this lock does not upgrade.
+		// serveRequest applies any pending sdcard debug-database swap via the content source.
 		serveRequest(writer, output, path)
 	}
 

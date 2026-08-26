@@ -380,9 +380,6 @@ class WebServerTest {
 		}
 	}
 
-	// Blocks until the server closes the connection (every response sends "Connection: close"),
-	// so by the time this returns the server has fully finished processing this one request --
-	// making repeated calls a reliable way to serialize several full request/response cycles.
 	// ADFA-5241: the two transports have to answer the same way about what a response says, and
 	// only a real response proves what this one sends. The decision itself lives in
 	// ContentTypeHeaders, shared with DocumentationRequestInterceptor.
@@ -445,6 +442,9 @@ class WebServerTest {
 			socket.getInputStream().readBytes().toString(Charsets.ISO_8859_1)
 		}
 
+	// Blocks until the server closes the connection (every response sends "Connection: close"),
+	// so by the time this returns the server has fully finished processing this one request --
+	// making repeated calls a reliable way to serialize several full request/response cycles.
 	private fun sendRawGetRequestAndAwaitClose(
 		port: Int,
 		path: String,
