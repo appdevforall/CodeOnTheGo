@@ -1,6 +1,7 @@
 package com.itsaky.androidide.localWebServer
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.After
 import org.junit.Test
 import java.io.IOException
 import java.net.ServerSocket
@@ -21,6 +22,14 @@ import java.net.SocketException
  * means "stop" -- which is what a real `ServerSocket` does before accept() unblocks.
  */
 class AcceptFailureTest {
+	// The interrupt test sets the thread's interrupt flag; clearing it only via that test's own
+	// assertion means a failure earlier in the test leaks the flag onto the JUnit worker, where the
+	// next test that blocks fails for reasons that have nothing to do with it.
+	@After
+	fun clearInterrupt() {
+		Thread.interrupted()
+	}
+
 	// Every path is given explicitly: ServerConfig's defaults reach for external storage, which a
 	// JVM test has no stub for.
 	// Every delay the loop asked for, in order. Recording instead of sleeping keeps a test that drives
@@ -129,16 +138,33 @@ class AcceptFailureTest {
 		assertThat(delays.distinct().max()).isEqualTo(2000L)
 	}
 
-	// A successful accept means the condition cleared, so the next failure starts over at 50 ms rather
-	// than inheriting an interval the server has already recovered from.
+	// A success halves the interval rather than zeroing it.
+	//
+	// This asserted a reset to 50 ms until the review pointed out what that costs: a listener that
+	// fails intermittently -- a client RSTing between SYN and accept(), which a WebView cancelling a
+	// documentation request produces routinely -- was treated as "first failure of a burst" every
+	// time, so every occurrence logged a full stack trace and stalled the listener 50 ms. Decay keeps
+	// most of the interval while a listener is flapping, and still returns to zero within a few clean
+	// accepts once it has genuinely recovered.
 	@Test
-	fun `a success resets the retry interval`() {
+	fun `a success decays the retry interval instead of clearing it`() {
 		val socket = ScriptedServerSocket(failures = 12, succeedAt = setOf(5))
 		socket.use { server().acceptLoop(it) }
 
-		// Four failures before the success, so the fifth delay is the one after it.
+		// Four failures walk 50..400; the success halves 400 to 200, so the next failure doubles to 400.
 		assertThat(delays.take(4)).containsExactly(50L, 100L, 200L, 400L).inOrder()
-		assertThat(delays[4]).isEqualTo(50L)
+		assertThat(delays[4]).isEqualTo(400L)
+	}
+
+	// Recovery still gets all the way back to zero, so a later isolated failure starts cheap.
+	@Test
+	fun `enough clean accepts return the interval to its starting point`() {
+		val socket = ScriptedServerSocket(failures = 20, succeedAt = setOf(2, 3, 4, 5))
+		socket.use { server().acceptLoop(it) }
+
+		// One failure (50), then four successes decay 50 -> 0, so the next failure starts at 50 again.
+		assertThat(delays.take(1)).containsExactly(50L)
+		assertThat(delays[1]).isEqualTo(50L)
 	}
 
 	// Re-arming the interrupt flag and carrying on made every later sleep throw immediately, so the

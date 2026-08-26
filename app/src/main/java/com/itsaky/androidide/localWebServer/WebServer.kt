@@ -185,6 +185,10 @@ class WebServer(
 	// clears on its own timescale, not ours.
 	private val maxAcceptBackoffMs = 2_000L
 
+	// Retries between heartbeat lines once the interval stops growing: 15 x 2 s is one line every
+	// 30 seconds while a failure persists.
+	private val acceptHeartbeatRetries = 15L
+
 	private val httpInternalServerError = 500
 	private val httpNotFound = 404
 
@@ -393,14 +397,27 @@ class WebServer(
 	 * loop needs neither. The bug it fixes was invisible precisely because nothing could reach here.
 	 */
 	internal fun acceptLoop(socket: ServerSocket) {
-		// 0 means the last accept() succeeded; any other value is the interval the next retry waits.
+		// 0 means accept() has been succeeding; any other value is the interval the next retry waits.
 		var backoffMs = 0L
-		while (true) {
+		// Retries spent at the ceiling, so a failure that never clears keeps saying so. Without this
+		// the escalation log went silent for good once the interval stopped changing.
+		var retriesAtCeiling = 0L
+		// Checked in the loop head, not only in the catch: stop() logs and swallows a throwing
+		// serverSocket.close(), which leaves closed == false, so accept() kept succeeding and the loop
+		// served on past a requested shutdown, holding the database open (ADFA-5242 review).
+		while (!shouldStopAccepting(socket)) {
 			val client =
 				try {
 					if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", socket)
 					socket.accept().also {
-						backoffMs = 0L
+						// Halved, not zeroed. Zeroing made every failure "the first of a burst", so an
+						// intermittent one -- a client that RSTs between SYN and accept(), which a WebView
+						// cancelling a request produces routinely -- logged a full stack trace and stalled
+						// the listener 50 ms every single time. That is the flood the backoff exists to
+						// stop. Decaying means a flapping listener keeps most of its interval and a
+						// genuinely recovered one is back to zero within a few accepts.
+						backoffMs = if (backoffMs <= initialAcceptBackoffMs) 0L else backoffMs / 2
+						if (backoffMs == 0L) retriesAtCeiling = 0L
 						if (debugEnabled) log.debug("Returned from accept(), clientSocket is {}.", it)
 					}
 				} catch (e: IOException) {
@@ -427,8 +444,23 @@ class WebServer(
 					// traces told nobody anything the first one had not.
 					if (previous == 0L) {
 						log.error("Accept() failed, retrying in {} ms: {}", backoffMs, e.message, e)
+						retriesAtCeiling = 0L
 					} else if (backoffMs != previous) {
 						log.error("Accept() still failing, backing off to {} ms: {}", backoffMs, e.message)
+					} else {
+						// At the ceiling the interval stops changing, so neither branch above fires again.
+						// A heartbeat roughly every 30 s keeps a permanent failure visible without
+						// returning to a line per retry -- the loop never gives up, so the log must not
+						// either.
+						retriesAtCeiling++
+						if (retriesAtCeiling % acceptHeartbeatRetries == 0L) {
+							log.error(
+								"Accept() still failing after {} retries at {} ms: {}",
+								retriesAtCeiling,
+								backoffMs,
+								e.message,
+							)
+						}
 					}
 
 					if (!pauseAfterFailedAccept(backoffMs)) {
@@ -440,9 +472,14 @@ class WebServer(
 
 			// A client cannot be allowed to end the loop: anything escaping here reaches start()'s
 			// handler, whose finally closes the listener and the database for everyone.
+			//
+			// Throwable, not Exception. joinChunks allocates the whole row in one array (1 MB per
+			// chunk) and Pebble renders recursively, so one large row can raise OutOfMemoryError and a
+			// pathological template a StackOverflowError -- neither an Exception, both fatal to the
+			// listener through exactly the path this ticket exists to close.
 			try {
 				serveThenClose(client)
-			} catch (e: Exception) {
+			} catch (e: Throwable) {
 				log.error("Serving a client threw past its own handler; the listener stays up: {}", e.message, e)
 			}
 		}
@@ -527,10 +564,17 @@ class WebServer(
 
 			acceptLoop(serverSocket)
 		} catch (e: Exception) {
-			log.error("Error: {}", e.message)
+			log.error("WebServer stopped on an unhandled exception: {}", e.message, e)
 		} finally {
 			if (::serverSocket.isInitialized) {
-				serverSocket.close()
+				// Guarded for the same reason serveThenClose guards the client socket: close() is
+				// declared to throw, and a throw here skipped database.close() and the traffic-stats
+				// tag below, leaving the SQLite handle open for the life of the process.
+				try {
+					serverSocket.close()
+				} catch (e: IOException) {
+					log.error("Cannot close the server socket: {}", e.message, e)
+				}
 			}
 			// database is opened before the stopRequested check that can abort start()
 			// early (and before the accept loop on every other exit path), so it must be
