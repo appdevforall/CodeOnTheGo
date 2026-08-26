@@ -63,7 +63,7 @@ class BookshelfQueryTest {
 		id: Int,
 		path: String,
 		categoryId: Int?,
-		title: String,
+		title: String?,
 		bookDescription: String?,
 	) {
 		database.execSQL("INSERT INTO Content (id, path) VALUES (?, ?)", arrayOf<Any>(id, path))
@@ -143,6 +143,52 @@ class BookshelfQueryTest {
 				.map { it.title },
 		).containsExactly("Java Notes", "Java, Java, Java")
 			.inOrder()
+	}
+
+	// The sort key has to be the string the page shows, not the raw column: a NULL title displays as
+	// its path, and SQLite's BINARY collation would otherwise file every capitalised title ahead of
+	// every lower-case one.
+	@Test
+	fun `books are ordered by what the page displays, case-insensitively`() {
+		category(1, "Mixed", null)
+		book(10, "d/zebra.pdf", 1, null, null)
+		book(11, "d/b.pdf", 1, "Android Basics", null)
+		book(12, "d/c.pdf", 1, "apple guide", null)
+
+		val titles =
+			WebServer(testServerConfig())
+				.readBookshelf(database)
+				.result
+				.single()
+				.books
+				.map { it.title }
+
+		assertThat(titles).containsExactly("Android Basics", "apple guide", "d/zebra.pdf").inOrder()
+	}
+
+	// A row with no path cannot be linked, so it is skipped -- and with it goes its category, if that
+	// was the only book in it. Pinned because it is a behaviour change the old query did not make.
+	@Test
+	fun `a category whose only book has no path disappears from the shelf`() {
+		category(1, "Reference", null)
+		book(10, "unused", 1, "Broken", null)
+		database.execSQL("UPDATE Content SET path = NULL WHERE id = 10")
+
+		val shelf = WebServer(testServerConfig()).readBookshelf(database)
+
+		assertThat(shelf.result).isEmpty()
+	}
+
+	// The empty payload must stay renderable: instantiatePebbleTemplate throws for a blank or "null"
+	// context, and that guard sits outside realHandleBsEndpoint's try/catch, so a blank here would be
+	// a 500 rather than the empty page this ticket promises.
+	@Test
+	fun `an empty shelf serialises to a renderable context, not blank or null`() {
+		val json = String(WebServer(testServerConfig()).bookshelfJson(database), Charsets.UTF_8)
+
+		assertThat(json).isEqualTo("""{"result":[]}""")
+		assertThat(json.isBlank()).isFalse()
+		assertThat(json.trim()).isNotEqualTo("null")
 	}
 
 	@Test

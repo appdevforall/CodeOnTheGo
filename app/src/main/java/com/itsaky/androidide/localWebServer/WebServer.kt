@@ -1061,7 +1061,10 @@ class WebServer(
 			// "no categories", not "no rows": a row whose Content.path is NULL is skipped above, so
 			// the query can return rows and still leave nothing to serve. Each skip logs its own
 			// warning, which is what tells the two cases apart.
-			log.info("No bookshelf categories to serve; serving an empty shelf.")
+			// debugEnabled, like every other log on this path: on the database this ticket exists for,
+			// where every Bookshelf row joins to nothing, the empty shelf is the steady state and this
+			// would write a line on every page load.
+			if (debugEnabled) log.info("No bookshelf categories to serve; serving an empty shelf.")
 		}
 		return gson.toJson(bookshelf).toByteArray(Charsets.UTF_8)
 	}
@@ -1085,6 +1088,12 @@ class WebServer(
 	 * and "Java Notes for Professionals" comes first by title (a space sorts before a comma).
 	 * Deterministic order is worth having, but it is a visible change, not a no-op.
 	 *
+	 * A category whose books all have a NULL `Content.path` disappears from the page. The old query
+	 * emitted the section with `"link": null` in it -- visibly broken, but present -- because the JSON
+	 * was built per row before any filtering. Here the row is skipped before its group is created, so
+	 * an entire category can vanish with only a log line to say so. Skipping a row that cannot be
+	 * linked is still right; the section going with it is the part worth knowing.
+	 *
 	 * The `pdf` flag is now case-insensitive. `SUBSTR(C.path, -4) == '.pdf'` compared under BINARY
 	 * collation, so a row at `books/Guide.PDF` was flagged 0 and rendered as a web link. No shipped
 	 * row spells the extension any other way -- checked with `GLOB '*.[Pp][Dd][Ff]'` -- so nothing
@@ -1106,15 +1115,18 @@ SELECT BC.category,
 	B.description,
 	C.path,
 	-- Only for the diagnostic below. Appended, not inserted: every read here is by positional
-	-- index, so a column added anywhere else silently re-points the four above it.
+	-- index, so a column added anywhere else silently re-points the five above it.
 	C.id
 FROM Content AS C,
 	Bookshelf AS B,
 	BookCategories AS BC
 WHERE C.id = B.contentID
 AND   B.bookCategoryID = BC.id
+-- COALESCE and NOCASE so the sort key is the string the page shows: the title falls back to the
+-- path when it is NULL, and BINARY collation would otherwise put every capitalised title ahead of
+-- every lower-case one and NULL titles ahead of everything.
 ORDER BY BC.category,
-	B.title
+	COALESCE(B.title, C.path) COLLATE NOCASE
 			""".trimIndent()
 
 		// LinkedHashMap: the query's ORDER BY decides the order categories and books appear in, and
@@ -1147,7 +1159,9 @@ ORDER BY BC.category,
 				if (path == null) {
 					// Index 5, C.id -- the title at index 2 is not an id, and in this branch it is
 					// often null too, so it identified nothing while claiming to.
-					log.warn("Bookshelf row for content id {} has no path; skipping it.", cursor.getString(5))
+					// Also gated: one line per malformed row per request is unbounded, and the rows do not
+					// change between requests.
+					if (debugEnabled) log.warn("Bookshelf row for content id {} has no path; skipping it.", cursor.getString(5))
 					continue
 				}
 				// BookCategories.category is nullable, so a book can be linked to a category row that
@@ -1177,7 +1191,9 @@ ORDER BY BC.category,
 				BookshelfCategory(
 					category = category ?: uncategorizedLabel,
 					description = group.description,
-					books = group.books,
+					// toList(): BookshelfCategory.books is a List, and handing over the accumulator's own
+					// MutableList would let a future caller that keeps the map mutate it afterwards.
+					books = group.books.toList(),
 				)
 			},
 		)
