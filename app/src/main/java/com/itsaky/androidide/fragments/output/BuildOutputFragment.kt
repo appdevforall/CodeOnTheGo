@@ -440,12 +440,11 @@ class BuildOutputFragment :
 		editorGen: Int,
 	) {
 		editorContentMutex.withLock {
-			// A clear (new build) after this batch was drained invalidates session append.
+			// A clear (new build) after this batch was drained invalidates it.
 			if (sessionGen != sessionGeneration) return
 
-			buildOutputViewModel.append(text)
-
-			// The session file always gets the full text; the editor only shows matching lines
+			// Display only. The session file is written by EditorBottomSheet.appendBuildOut, which
+			// sees every line whether or not this fragment exists; the editor shows matching lines.
 			val visibleText =
 				BuildOutputViewModel.filterLines(
 					text,
