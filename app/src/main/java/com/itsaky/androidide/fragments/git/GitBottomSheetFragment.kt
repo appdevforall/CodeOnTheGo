@@ -81,9 +81,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					showCreateBranchDialog()
 				},
 				onMergeBranch = { branch ->
-					checkUnsavedChangesAndProceed {
-						viewModel.mergeBranch(branch.name)
-					}
+					showMergeDialog(viewModel.currentBranch.value ?: "HEAD", branch.name)
 				},
 			)
 
@@ -627,6 +625,22 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		}
 
 		dialog.show()
+	}
+
+	private fun showMergeDialog(
+		currentBranch: String,
+		targetBranch: String,
+	) {
+		MaterialAlertDialogBuilder(requireContext())
+			.setTitle(getString(R.string.merge_dialog_title))
+			.setMessage(getString(R.string.merge_dialog_message, targetBranch, currentBranch))
+			.setPositiveButton(R.string.proceed_with_merge) { dialog, _ ->
+				checkUnsavedChangesAndProceed {
+					viewModel.mergeBranch(targetBranch)
+				}
+			}.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
+			.setCancelable(true)
+			.show()
 	}
 
 	private fun formatError(

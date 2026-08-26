@@ -1450,6 +1450,9 @@
     <string name="mark_as_resolved">Mark resolved</string>
     <string name="check_all">Check All</string>
     <string name="uncheck_all">Uncheck All</string>
+    <string name="merge_dialog_title">Merge branch?</string>
+    <string name="merge_dialog_message">You are about to merge \'%1$s\' into \'%2$s\'. Are you sure you want to proceed?</string>
+    <string name="proceed_with_merge">Proceed</string>
 
 	<!-- Templates -->
 	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>
