@@ -7,6 +7,7 @@ import org.appdevforall.cotg.quickbuild.protocol.DexRequest
 import org.appdevforall.cotg.quickbuild.protocol.DexStats
 import org.appdevforall.cotg.quickbuild.protocol.Diagnostic
 import org.appdevforall.cotg.quickbuild.protocol.RelinkRequest
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIf
 import org.junit.jupiter.api.io.TempDir
@@ -23,6 +24,18 @@ class DaemonServiceOpsTest {
 	lateinit var tempDir: File
 
 	private val service = DaemonService(log = {})
+
+	/**
+	 * configure() builds a session whose compiler and dexTool are Closeable, and only
+	 * shutdown() releases them. JUnit 5 builds a fresh instance per test method, so without
+	 * this the suite accumulates one kotlinc session and one D8 per test until the JVM exits -
+	 * which surfaces on a memory-tight machine as an OOM in whichever unrelated test happens
+	 * to be running when the budget runs out.
+	 */
+	@AfterEach
+	fun releaseSessionTools() {
+		service.shutdown()
+	}
 
 	private fun configure(
 		aapt2: File = TestSdk.kotlinStdlib(),
@@ -228,6 +241,8 @@ class DaemonServiceOpsTest {
 		// the other direction.
 		configure(service = loggingService)
 		assertThat(lines.any { it.contains("released the previous session") }).isTrue()
+		// Local to this test, so the @AfterEach hook does not reach it.
+		loggingService.shutdown()
 	}
 
 	@Test
@@ -270,6 +285,8 @@ class DaemonServiceOpsTest {
 		} finally {
 			System.setOut(originalOut)
 			System.setErr(originalErr)
+			// This one is local to the test, so the @AfterEach above does not reach it.
+			defaultLogService.shutdown()
 		}
 		assertThat(capturedOut.toString("UTF-8")).isEmpty()
 		// Asserting stderr received the line is what makes this a logging test: without
