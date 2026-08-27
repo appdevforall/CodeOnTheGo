@@ -24,10 +24,10 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.idetooltips.attachTooltip
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 
 /**
@@ -93,9 +93,9 @@ class RenameAction(
 			}
 		}
 
-		builder.showWithLongPressTooltip(
-			context = context,
-			tooltipTag = TooltipTag.PROJECT_RENAME_DIALOG,
-		)
+		builder
+			.create()
+			.attachTooltip(TooltipTag.PROJECT_RENAME_DIALOG)
+			.show()
 	}
 }
