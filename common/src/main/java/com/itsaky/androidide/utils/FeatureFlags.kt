@@ -40,6 +40,11 @@ object FeatureFlags {
 	private val logger = LoggerFactory.getLogger(FeatureFlags::class.java)
 
 	private val mutex = Mutex()
+
+	// The getters below read this without the mutex the sole writer holds. FlagsCache is
+	// immutable, so publishing the reference is the whole fix - without it a reader can keep
+	// seeing the direct-boot all-false snapshot after refresh() has replaced it.
+	@Volatile
 	private var flags = FlagsCache.DEFAULT
 
 	/**
