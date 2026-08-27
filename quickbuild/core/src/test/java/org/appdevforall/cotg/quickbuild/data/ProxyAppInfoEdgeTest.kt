@@ -24,6 +24,45 @@ class ProxyAppInfoEdgeTest {
 		""".trimIndent()
 
 	@Test
+	fun `an array key holding a scalar is ignored, not a crash`() {
+		// getAsJsonArray is a raw cast in Gson, and parse's runCatching covers only the
+		// initial document parse - so a hand-edited or older setup.json used to throw
+		// ClassCastException out of a function whose contract is to return null.
+		val text = json(""","classpath": "/libs/one.jar", "sourceRoots": 7""")
+
+		val info = ProxyAppInfo.parse(text, baseDir)
+
+		assertThat(info).isNotNull()
+		assertThat(info!!.classpath).isEmpty()
+		assertThat(info.sourceRoots).isEmpty()
+	}
+
+	@Test
+	fun `an explicit JSON null array key is ignored, not a crash`() {
+		val text = json(""","components": null, "payloadJars": null""")
+
+		val info = ProxyAppInfo.parse(text, baseDir)
+
+		assertThat(info).isNotNull()
+		assertThat(info!!.components).isEmpty()
+		assertThat(info.classpath).isEmpty()
+	}
+
+	@Test
+	fun `a component whose supertypes key is an object is ignored, not a crash`() {
+		val text =
+			json(
+				""","components": [{"type":"activity","userClass":"com.example.Main",""" +
+					""""supertypes": {"0": "android.app.Activity"}}]""",
+			)
+
+		val info = ProxyAppInfo.parse(text, baseDir)
+
+		assertThat(info).isNotNull()
+		assertThat(info!!.components.single().supertypes).isEmpty()
+	}
+
+	@Test
 	fun `non-JSON text parses to null`() {
 		assertThat(ProxyAppInfo.parse("not json at all", baseDir)).isNull()
 	}

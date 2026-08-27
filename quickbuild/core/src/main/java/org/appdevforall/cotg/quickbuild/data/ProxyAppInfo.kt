@@ -1,5 +1,6 @@
 package org.appdevforall.cotg.quickbuild.data
 
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import org.appdevforall.cotg.quickbuild.domain.reload.ComponentInfo
@@ -140,7 +141,7 @@ data class ProxyAppInfo(
 
 			val classpath =
 				obj
-					.getAsJsonArray("classpath")
+					.jsonArray("classpath")
 					?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
 					?.map { resolve(it, baseDir) }
 					?: emptyList()
@@ -148,7 +149,7 @@ data class ProxyAppInfo(
 			// hot compiles reference R, which the variant compile classpath lacks.
 			val payloadJars =
 				obj
-					.getAsJsonArray("payloadJars")
+					.jsonArray("payloadJars")
 					?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
 					?.map { resolve(it, baseDir) }
 					?: emptyList()
@@ -175,7 +176,7 @@ data class ProxyAppInfo(
 						?.asInt ?: 0,
 				components =
 					obj
-						.getAsJsonArray("components")
+						.jsonArray("components")
 						?.mapNotNull { element -> (element as? JsonObject)?.let(::parseComponent) }
 						?: emptyList(),
 				annotationProcessors = obj.stringArray("annotationProcessors"),
@@ -193,6 +194,20 @@ data class ProxyAppInfo(
 		}
 
 		/**
+		 * The JSON array under [key], or null when the key is absent, explicitly null, or
+		 * holds something that is not an array.
+		 *
+		 * Gson's `getAsJsonArray` is a raw cast: a scalar, an object or an explicit JSON null
+		 * there throws [ClassCastException]. [parse]'s `runCatching` wraps only the initial
+		 * document parse, so that would escape a function whose own contract is to return
+		 * null. Every other field here is read defensively; this makes the array reads match.
+		 *
+		 * @param key the key to read.
+		 * @return the array, or null rather than a throw for any other shape.
+		 */
+		private fun JsonObject.jsonArray(key: String): JsonArray? = get(key) as? JsonArray
+
+		/**
 		 * A JSON array of strings; empty when the key is absent or not an array.
 		 *
 		 * @param key the array-valued key to read.
@@ -200,7 +215,7 @@ data class ProxyAppInfo(
 		 *   dropped rather than treated as an error.
 		 */
 		private fun JsonObject.stringArray(key: String): List<String> =
-			getAsJsonArray(key)
+			jsonArray(key)
 				?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
 				?.filter { it.isNotBlank() }
 				?: emptyList()
@@ -256,7 +271,7 @@ data class ProxyAppInfo(
 						?.asBoolean == true,
 				supertypes =
 					obj
-						.getAsJsonArray("supertypes")
+						.jsonArray("supertypes")
 						?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
 						?: emptyList(),
 			)
