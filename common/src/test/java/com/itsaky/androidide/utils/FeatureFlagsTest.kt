@@ -99,4 +99,30 @@ class FeatureFlagsTest {
 
 			assertThat(FeatureFlags.isExperimentsEnabled).isFalse()
 		}
+
+	// The two Quick Build sentinels get a test each. Nothing else asserts that either
+	// filename maps to its flag, so a typo or a swapped pair would leave the bench harness
+	// silently unarmed and this suite green - visible only as a device run with no events.
+
+	@Test
+	fun `the qbbench sentinel arms the bench hooks and nothing else`() =
+		runTest {
+			tempFolder.newFile("CodeOnTheGo.qbbench")
+
+			FeatureFlags.initialize()
+
+			assertThat(FeatureFlags.isQuickBuildBenchEnabled).isTrue()
+			assertThat(FeatureFlags.isQuickBuildWarmCompileDisabled).isFalse()
+		}
+
+	@Test
+	fun `the qbnoseed sentinel disables warm compile and nothing else`() =
+		runTest {
+			tempFolder.newFile("CodeOnTheGo.qbnoseed")
+
+			FeatureFlags.initialize()
+
+			assertThat(FeatureFlags.isQuickBuildWarmCompileDisabled).isTrue()
+			assertThat(FeatureFlags.isQuickBuildBenchEnabled).isFalse()
+		}
 }
