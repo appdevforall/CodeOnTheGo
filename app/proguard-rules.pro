@@ -210,6 +210,9 @@
 -keep class kotlin.** { *; }
 -keep class kotlinx.coroutines.** { *; }
 
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+
 ## Plugin SPI
 ## Plugins are loaded dynamically via DexClassLoader, so R8 cannot see their
 ## implementations of these interfaces. Without these rules, R8 narrows the
