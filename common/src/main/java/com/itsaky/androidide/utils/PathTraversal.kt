@@ -224,10 +224,12 @@ class ContainedPathResolver(
 		 * equivalents. [resolve] deliberately refuses such a path (a Contained result must be a
 		 * usable target *inside* the base), but an archive's root directory entry is a no-op to
 		 * extract, not an escape -- some archivers emit one. Exposed so extraction call sites can
-		 * apply that tolerance without loosening the resolver (ADFA-5257 review).
+		 * apply that tolerance without loosening the resolver (ADFA-5257 review). The lexical reject
+		 * applies first: an absolute `/` or `\` is all empty segments too, but it names the
+		 * filesystem root, not the base (ADFA-5257 review).
 		 */
 		fun namesBase(relativePath: String): Boolean =
-			relativePath.isNotEmpty() && relativePath.split('/', '\\').all { it.isEmpty() || it == "." }
+			!isLexicallyRejected(relativePath) && relativePath.split('/', '\\').all { it.isEmpty() || it == "." }
 	}
 }
 

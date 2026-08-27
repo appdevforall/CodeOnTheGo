@@ -260,4 +260,18 @@ class PathTraversalTest {
 	fun `a dot-dot segment is refused even when it normalizes back inside`() {
 		assertThat(resolveWithinDirectory(baseDir, "a/../b.txt")).isNull()
 	}
+
+	// "/" and "\" split into all-empty segments just like "./", but they name the filesystem
+	// root, not the base -- namesBase must not grant an absolute path the root-entry tolerance
+	// (ADFA-5257 review).
+	@Test
+	fun `namesBase accepts only relative spellings of the base itself`() {
+		assertThat(ContainedPathResolver.namesBase(".")).isTrue()
+		assertThat(ContainedPathResolver.namesBase("./")).isTrue()
+		assertThat(ContainedPathResolver.namesBase(".\\")).isTrue()
+		assertThat(ContainedPathResolver.namesBase("/")).isFalse()
+		assertThat(ContainedPathResolver.namesBase("\\")).isFalse()
+		assertThat(ContainedPathResolver.namesBase("")).isFalse()
+		assertThat(ContainedPathResolver.namesBase("src")).isFalse()
+	}
 }
