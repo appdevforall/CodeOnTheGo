@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.TextSpan
+
 /** One derived parameter of the new function. Names are the originals, unchanged (R5). */
 data class MethodParameter(
 	val name: String,

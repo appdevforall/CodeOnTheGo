@@ -1,5 +1,10 @@
 package com.itsaky.androidide.lsp.java.refactor
 
+import com.itsaky.androidide.lsp.refactor.FALLBACK_NAME
+import com.itsaky.androidide.lsp.refactor.decapitaliseFirst
+import com.itsaky.androidide.lsp.refactor.nameFromType
+import com.itsaky.androidide.lsp.refactor.stripAccessorPrefix
+import com.itsaky.androidide.lsp.refactor.uniqueName
 import com.itsaky.androidide.lsp.ui.isIdentifier
 import openjdk.source.tree.ArrayAccessTree
 import openjdk.source.tree.IdentifierTree
@@ -113,41 +118,3 @@ internal fun nameFromShape(tree: Tree): String? =
 
 		else -> null
 	}?.takeIf { it.isNotBlank() }
-
-/** `getFoo` -> `foo`, `isReady` -> `ready`. Leaves anything else alone. */
-internal fun stripAccessorPrefix(name: String): String {
-	for (prefix in ACCESSOR_PREFIXES) {
-		if (name.length > prefix.length &&
-			name.startsWith(prefix) &&
-			name[prefix.length].isUpperCase()
-		) {
-			return name.substring(prefix.length).decapitaliseFirst()
-		}
-	}
-	return name
-}
-
-private val ACCESSOR_PREFIXES = listOf("get", "is", "has")
-
-/** `List<Foo>` -> `list`, `java.time.Duration` -> `duration`, `String[]` -> `string`. */
-internal fun nameFromType(typeName: String): String? =
-	typeName
-		.substringBefore('<')
-		.removeSuffix("[]")
-		.substringAfterLast('.')
-		.trimEnd('[', ']')
-		.takeIf { it.isNotBlank() }
-		?.decapitaliseFirst()
-
-internal fun String.decapitaliseFirst(): String = if (isEmpty()) this else this[0].lowercaseChar() + substring(1)
-
-/** `size` -> `size1` -> `size2` until nothing in [takenNames] matches. */
-internal fun uniqueName(
-	base: String,
-	takenNames: Set<String>,
-): String {
-	if (base !in takenNames) return base
-	var suffix = 1
-	while ("$base$suffix" in takenNames) suffix++
-	return "$base$suffix"
-}

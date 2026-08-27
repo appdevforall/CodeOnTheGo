@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
+import android.content.Context
+import com.itsaky.androidide.lsp.refactor.TextSpan
 import com.itsaky.androidide.lsp.ui.CandidateView
 import com.itsaky.androidide.lsp.ui.ExtractVariableSelection
 import com.itsaky.androidide.lsp.ui.NameMessages
@@ -23,9 +25,10 @@ val JAVA_NAME_MESSAGES =
  * The plan as the shared sheet sees it: labels, names and counts, no trees and no offsets.
  *
  * Offsets stay on this side deliberately -- the sheet is a chooser, and resolving a selection back into
- * spans is [candidateAndScopeFor]'s job.
+ * spans is [candidateAndScopeFor]'s job. Scope labels arrive as resource ids and are resolved here, the
+ * first layer that has a [Context].
  */
-fun ExtractionPlan.toCandidateViews(): List<CandidateView> =
+fun ExtractionPlan.toCandidateViews(context: Context): List<CandidateView> =
 	candidates.map { candidate ->
 		CandidateView(
 			label = candidate.label,
@@ -33,10 +36,13 @@ fun ExtractionPlan.toCandidateViews(): List<CandidateView> =
 			takenNames = candidate.takenNames,
 			scopes =
 				candidate.scopes.map { scope ->
-					ScopeView(label = scope.label, occurrenceCount = scope.occurrences.size)
+					ScopeView(label = scope.label.resolve(context), occurrenceCount = scope.occurrences.size)
 				},
 		)
 	}
+
+private fun ScopeLabel.resolve(context: Context): String =
+	if (argument == null) context.getString(res) else context.getString(res, argument)
 
 /**
  * Resolves a selection's indices back to the plan they came from, or null when they do not address it.

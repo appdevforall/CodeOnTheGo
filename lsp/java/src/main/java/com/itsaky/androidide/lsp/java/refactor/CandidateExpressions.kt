@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
+import com.itsaky.androidide.lsp.refactor.MAX_CANDIDATES
+import com.itsaky.androidide.lsp.refactor.TextSpan
 import jdkx.lang.model.element.ElementKind
 import openjdk.source.tree.AnnotatedTypeTree
 import openjdk.source.tree.AnnotationTree
@@ -197,10 +199,11 @@ private fun isCaseLabel(path: TreePath): Boolean {
  * runs rather than just naming it.
  *
  * A loop condition hoisted out of its loop is evaluated once, so `while (it.hasNext())` never
- * terminates. The right operand of `&&`/`||` hoisted out stops being guarded, so
- * `s != null && s.length() > 0` throws. A conditional branch is the same shape. None of these has an
- * inner rung to offer instead -- `frameFor` finds no frame for a condition or an operand -- so the only
- * placement available is the wrong one, and declining is the honest answer.
+ * terminates. A `for` update is the same, one clause along. The right operand of `&&`/`||` hoisted out
+ * stops being guarded, so `s != null && s.length() > 0` throws. A conditional branch is the same shape.
+ * None of these has an inner rung to offer instead -- `frameFor` finds no frame for a condition, an
+ * update or an operand -- so the only placement available is the wrong one, and declining is the honest
+ * answer.
  */
 private fun isConditionallyEvaluated(path: TreePath): Boolean {
 	var child: Tree = path.leaf
@@ -221,6 +224,10 @@ private fun isConditionallyEvaluated(path: TreePath): Boolean {
 				leaf.kind in SHORT_CIRCUIT_KINDS &&
 				leaf.rightOperand === child -> return true
 
+			// A `for` update is parsed as an ExpressionStatementTree, so the statement boundary below
+			// would otherwise read it as a fixed evaluation point and accept it.
+			leaf is ExpressionStatementTree && isForUpdate(current.parentPath, leaf) -> return true
+
 			// A statement boundary means the expression is evaluated exactly where it is written.
 			leaf is StatementTree -> return false
 		}
@@ -228,6 +235,15 @@ private fun isConditionallyEvaluated(path: TreePath): Boolean {
 		current = current.parentPath
 	}
 	return false
+}
+
+/** Whether [statement] is one of the update clauses of the `for` loop at [parentPath]. */
+private fun isForUpdate(
+	parentPath: TreePath?,
+	statement: Tree,
+): Boolean {
+	val loop = parentPath?.leaf as? ForLoopTree ?: return false
+	return loop.update.any { it === statement }
 }
 
 private val SHORT_CIRCUIT_KINDS = setOf(Tree.Kind.CONDITIONAL_AND, Tree.Kind.CONDITIONAL_OR)

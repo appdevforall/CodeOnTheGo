@@ -2,6 +2,8 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.HARD_KEYWORDS
+import com.itsaky.androidide.lsp.refactor.RewriteSpan
+import com.itsaky.androidide.lsp.refactor.TextSpan
 import com.itsaky.androidide.lsp.ui.NameProblem
 import com.itsaky.androidide.lsp.ui.validateVariableName
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
@@ -858,7 +860,7 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
-	fun `extracting from a semicolon-joined statement leaves the block multi-line`() {
+	fun `extracting from a semicolon-joined statement is refused rather than reordered`() {
 		val content =
 			"""
 			package p
@@ -869,28 +871,15 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 
 		val target = "x + b"
 		val result = plan(content, content.indexOf(target), content.indexOf(target) + target.length)
-		val candidate = result.candidates.first()
 
-		val rewrite =
-			buildExtractVariableRewrite(
-				fileText = result.fileText,
-				candidateSpan = candidate.span,
-				scope = candidate.scopes.first(),
-				name = "sum",
-				replaceAll = false,
-			)!!
-
-		// A statement already precedes the candidate on this line, but the block itself spans several
-		// lines, so this is not a one-line block: the declaration hoists above the whole line instead
-		// of expanding it, and the two semicolon-joined statements stay together.
-		assertEquals(
-			"package p\n" +
-				"fun demo(a: Int, b: Int): Int {\n" +
-				"\tval sum = x + b\n" +
-				"\tval x = a + 1; return sum\n" +
-				"}",
-			apply(content, rewrite),
-		)
+		/*
+		 * A statement already precedes the candidate on its line, and the block spans several lines, so
+		 * there is nowhere the declaration can go. A new line above the whole line reorders it in front of
+		 * `val x = a + 1`, which the expression reads -- this used to emit exactly that, and it does not
+		 * compile. Expanding is only sound when the whole block is the one line. Declining is the answer,
+		 * and it is what the shared placement in :lsp:refactor-core now gives both languages.
+		 */
+		assertTrue(result.isEmpty)
 	}
 
 	@Test

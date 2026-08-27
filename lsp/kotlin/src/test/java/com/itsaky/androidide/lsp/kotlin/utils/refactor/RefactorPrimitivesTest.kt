@@ -1,6 +1,11 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.HARD_KEYWORDS
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.detectIndentUnit
+import com.itsaky.androidide.lsp.refactor.excludeUnsoundOccurrences
+import com.itsaky.androidide.lsp.refactor.leadingIndentAt
+import com.itsaky.androidide.lsp.refactor.lineStartOffset
 import com.itsaky.androidide.lsp.ui.NameProblem
 import com.itsaky.androidide.lsp.ui.validateVariableName
 import org.junit.Assert.assertEquals

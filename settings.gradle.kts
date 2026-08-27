@@ -137,6 +137,7 @@ include(
 	":lsp:jvm-symbol-index",
 	":lsp:jvm-symbol-models",
 	":lsp:kotlin",
+	":lsp:refactor-core",
 	":lsp:ui",
 	":lsp:xml",
 	":profiler",

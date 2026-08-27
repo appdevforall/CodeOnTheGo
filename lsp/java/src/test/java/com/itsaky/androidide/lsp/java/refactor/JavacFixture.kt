@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
+import com.itsaky.androidide.lsp.refactor.RewriteSpan
+import jdkx.tools.JavaFileManager
 import jdkx.tools.JavaFileObject
 import jdkx.tools.SimpleJavaFileObject
 import openjdk.source.tree.CompilationUnitTree
@@ -19,15 +21,19 @@ import java.net.URI
 class JavacFixture(
 	val text: String,
 	fileName: String = "Fixture.java",
-) {
+) : AutoCloseable {
 	val task: JavacTask
 	val root: CompilationUnitTree
+
+	// The manager has to outlive the task -- javac reads through it lazily -- so it is held here and
+	// closed with the fixture rather than around the compile.
+	private val fileManager: JavaFileManager
 
 	val trees: Trees get() = Trees.instance(task)
 
 	init {
 		val tool = JavacTool.create()
-		val fileManager = tool.getStandardFileManager(null, null, null)
+		fileManager = tool.getStandardFileManager(null, null, null)
 		val source =
 			object : SimpleJavaFileObject(URI.create("string:///$fileName"), JavaFileObject.Kind.SOURCE) {
 				override fun getCharContent(ignoreEncodingErrors: Boolean): CharSequence = text
@@ -38,6 +44,8 @@ class JavacFixture(
 		// Attribution is what fills in types and elements; without it getTypeMirror answers nothing.
 		task.analyze()
 	}
+
+	override fun close() = fileManager.close()
 
 	/**
 	 * The offset immediately after [prefix]'s first occurrence.
@@ -70,7 +78,7 @@ class JavacFixture(
 	fun applyAfter(
 		prefix: String,
 		name: String,
-		scope: String? = null,
+		scope: ScopeLabel? = null,
 		replaceAll: Boolean = false,
 	): String {
 		val plan = planAfter(prefix)
@@ -80,7 +88,7 @@ class JavacFixture(
 				candidate.scopes.first()
 			} else {
 				candidate.scopes.firstOrNull { it.label == scope }
-					?: error("no scope '$scope' in ${candidate.scopes.map { it.label }}")
+					?: error("no scope $scope in ${candidate.scopes.map { it.label }}")
 			}
 		val rewrite =
 			buildExtractVariableRewrite(
@@ -98,22 +106,24 @@ class JavacFixture(
 /** Whether [source] compiles on its own, which is what most of these findings are really about. */
 fun compiles(source: String): Boolean {
 	val tool = JavacTool.create()
-	val fileManager = tool.getStandardFileManager(null, null, null)
 	val file =
 		object : SimpleJavaFileObject(URI.create("string:///Probe.java"), JavaFileObject.Kind.SOURCE) {
 			override fun getCharContent(ignoreEncodingErrors: Boolean): CharSequence = source
 		}
 	val diagnostics = mutableListOf<String>()
-	val task =
-		tool.getTask(
-			null,
-			fileManager,
-			{ d -> if (d.kind.name == "ERROR") diagnostics += d.getMessage(null) },
-			listOf("-proc:none"),
-			null,
-			listOf(file),
-		)
-	task.analyze()
+	// Nothing here outlives analyze(), so the manager is scoped to the probe rather than leaked per call.
+	tool.getStandardFileManager(null, null, null).use { fileManager ->
+		val task =
+			tool.getTask(
+				null,
+				fileManager,
+				{ d -> if (d.kind.name == "ERROR") diagnostics += d.getMessage(null) },
+				listOf("-proc:none"),
+				null,
+				listOf(file),
+			)
+		task.analyze()
+	}
 	if (diagnostics.isNotEmpty()) println("  compile errors: $diagnostics")
 	return diagnostics.isEmpty()
 }

@@ -1,44 +1,20 @@
 package com.itsaky.androidide.lsp.java.refactor
 
-/** How many candidate expressions are ever offered. Keeps the chooser scannable on a phone. */
-const val MAX_CANDIDATES = 3
-
-/** Used when neither the expression's shape nor its type suggests anything better. */
-const val FALLBACK_NAME = "value"
-
-/** A half-open offset range `[start, end)` into the analysed file's text. */
-data class TextSpan(
-	val start: Int,
-	val end: Int,
-) {
-	init {
-		require(start <= end) { "start=$start > end=$end" }
-	}
-
-	val length: Int get() = end - start
-
-	fun overlaps(other: TextSpan): Boolean = start < other.end && other.start < end
-}
+import androidx.annotation.StringRes
+import com.itsaky.androidide.lsp.refactor.BlockAnchor
+import com.itsaky.androidide.lsp.refactor.BracelessBody
+import com.itsaky.androidide.lsp.refactor.TextSpan
 
 /** Not every Java scope is a block: a lambda and a `->` switch rule can have an expression body. */
 sealed interface AnchorForm {
-	/**
-	 * The anchor point is the first of [statementSpans] containing the first served occurrence, which is
-	 * what makes an outer rung differ from an inner one -- anchoring on the occurrence's own line would
-	 * make every rung of a chain produce the same edit. [contentSpan] is the region inside the braces,
-	 * which is what tells a one-line block from a multi-line one.
-	 */
+	/** A scope that already has braces, described by [BlockAnchor]. */
 	data class ExistingBlock(
-		val contentSpan: TextSpan,
-		val statementSpans: List<TextSpan>,
+		val block: BlockAnchor,
 	) : AnchorForm
 
 	/** A braceless position: `if (c) foo();`, a braceless loop body, a single-statement switch rule. */
 	data class WrapInBraces(
-		val bodyStart: Int,
-		val bodyEnd: Int,
-		val indent: String,
-		val innerIndent: String,
+		val body: BracelessBody,
 	) : AnchorForm
 
 	/**
@@ -60,6 +36,18 @@ sealed interface AnchorForm {
 }
 
 /**
+ * A rung's name for the chooser, as a resource id rather than text.
+ *
+ * These render in the sheet, so the copy and its word order belong in `strings.xml` where a translator
+ * can reach them -- `"method $name"` fixes an English word order in code. [argument] is the one variable
+ * part, filled positionally.
+ */
+data class ScopeLabel(
+	@StringRes val res: Int,
+	val argument: String? = null,
+)
+
+/**
  * A place the declaration may go, with the occurrences that are sound to replace there.
  *
  * [occurrences] always contains the candidate's own span, so its size is the count shown as "Replace
@@ -68,7 +56,7 @@ sealed interface AnchorForm {
  * refuse the whole rewrite. Lowering N is the point -- it stays achievable.
  */
 data class ScopeOption(
-	val label: String,
+	val label: ScopeLabel,
 	val anchorForm: AnchorForm,
 	val occurrences: List<TextSpan>,
 )
@@ -95,11 +83,13 @@ data class CandidateExpression(
  *
  * [fileText] is the *compiled* unit's own content, never the editor's buffer read a moment later, since
  * every span here was computed against it. [documentVersion] is re-read on confirm: a plan computed
- * against text the user has since edited is discarded rather than applied against shifted offsets.
+ * against text the user has since edited is discarded rather than applied against shifted offsets. It is
+ * null when the document was not open at plan time -- nullable rather than a sentinel, because a sentinel
+ * compares equal to itself and so passes the very guard it exists to fail.
  */
 data class ExtractionPlan(
 	val fileText: String,
-	val documentVersion: Int,
+	val documentVersion: Int?,
 	val candidates: List<CandidateExpression>,
 ) {
 	val isEmpty: Boolean get() = candidates.isEmpty()
@@ -107,7 +97,7 @@ data class ExtractionPlan(
 	companion object {
 		fun empty(
 			fileText: String = "",
-			documentVersion: Int = -1,
+			documentVersion: Int? = null,
 		) = ExtractionPlan(fileText, documentVersion, emptyList())
 	}
 }

@@ -1,62 +1,38 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
-/** A half-open offset range `[start, end)` into the analysed file's text. */
-data class TextSpan(
-	val start: Int,
-	val end: Int,
-) {
-	init {
-		require(start <= end) { "start=$start > end=$end" }
-	}
-
-	val length: Int get() = end - start
-
-	fun overlaps(other: TextSpan): Boolean = start < other.end && other.start < end
-}
+import com.itsaky.androidide.lsp.refactor.BlockAnchor
+import com.itsaky.androidide.lsp.refactor.BracelessBody
+import com.itsaky.androidide.lsp.refactor.MAX_CANDIDATES
+import com.itsaky.androidide.lsp.refactor.TextSpan
 
 /**
- * How the new declaration is woven into an anchor scope. Kotlin scopes are not all blocks, so
- * three shapes are needed; [ExistingBlock] is by far the common one.
+ * How the new declaration is woven into an anchor scope. Kotlin scopes are not all blocks, so three
+ * shapes are needed; [ExistingBlock] is by far the common one.
+ *
+ * The first two carry types from `:lsp:refactor-core`, because a braced scope and a braceless statement
+ * have the same geometry in both languages and the code that reasons about them is shared.
+ * [ConvertExpressionBody] is genuinely Kotlin's own -- it replaces an `=` and can write a return type
+ * into the signature, neither of which a Java lambda does.
  */
 sealed interface AnchorForm {
-	/**
-	 * The scope already has a `{ ... }` body (function body, `if` block, lambda body, ...), so the
-	 * declaration is a new statement line inside it.
-	 *
-	 * [statementSpans] are the block's direct child statements, ascending. The anchor point is the
-	 * first of them containing the first served occurrence -- which is what makes an outer rung differ
-	 * from an inner one. Anchoring on the occurrence's own line instead would make every rung of a
-	 * chain produce the same edit.
-	 *
-	 * [contentSpan] is the region *inside* the braces. It tells a block written on one line
-	 * (`items.map { it.length + 1 }`) from a multi-line one, where inserting at the statement's line
-	 * start would put the declaration outside the braces.
-	 */
+	/** A scope that already has a `{ ... }` body, described by [BlockAnchor]. */
 	data class ExistingBlock(
-		val contentSpan: TextSpan,
-		val statementSpans: List<TextSpan>,
+		val block: BlockAnchor,
 	) : AnchorForm
 
-	/**
-	 * A braceless statement position -- `if (c) foo()`, a `when` entry, a braceless loop body.
-	 * `[bodyStart, bodyEnd)` (the statement) is replaced by a braced block holding the declaration
-	 * and the original statement. No `return` is involved.
-	 */
+	/** A braceless statement position: `if (c) foo()`, a `when` entry, a braceless loop body. */
 	data class WrapInBraces(
-		val bodyStart: Int,
-		val bodyEnd: Int,
-		val indent: String,
-		val innerIndent: String,
+		val body: BracelessBody,
 	) : AnchorForm
 
 	/**
-	 * An expression-bodied function or property accessor -- `fun area(r: Int) = r * r`. The `=` and
-	 * the body are replaced by a block body. [needsReturn] is false only when the declaration
-	 * returns `Unit`, where `return` is both unnecessary and wrong for a non-`Unit` expression.
+	 * An expression-bodied function or property accessor -- `fun area(r: Int) = r * r`. The `=` and the
+	 * body are replaced by a block body. [needsReturn] is false only when the declaration returns `Unit`,
+	 * where `return` is both unnecessary and wrong for a non-`Unit` expression.
 	 *
-	 * [returnTypeText] is the type to write into the signature, or null when there is nothing to write
-	 * -- the declaration already spells its type out, or the block body infers `Unit` anyway. A block
-	 * body with no declared type returns `Unit`, so `return <value>` without this would not compile.
+	 * [returnTypeText] is the type to write into the signature, or null when there is nothing to write --
+	 * the declaration already spells its type out, or the block body infers `Unit` anyway. A block body
+	 * with no declared type returns `Unit`, so `return <value>` without this would not compile.
 	 */
 	data class ConvertExpressionBody(
 		val assignStart: Int,

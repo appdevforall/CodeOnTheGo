@@ -15,11 +15,11 @@ import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractMethodPlan
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionRefusal
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractMethodPlan
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractMethodRewrites
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.toTextEdit
 import com.itsaky.androidide.lsp.models.CodeActionItem
 import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
+import com.itsaky.androidide.lsp.refactor.toTextEdit
 import com.itsaky.androidide.lsp.ui.findFragmentActivity
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.resources.R
