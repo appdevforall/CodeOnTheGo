@@ -75,7 +75,10 @@ final class DirectoryAssetsProvider implements AssetsProvider, Closeable {
 		try {
 			ParcelFileDescriptor fd = ParcelFileDescriptor.open(
 					candidate, ParcelFileDescriptor.MODE_READ_ONLY);
-			return new AssetFileDescriptor(fd, 0, candidate.length());
+			// Size from the descriptor, not a second stat of the path: open() pinned an inode,
+			// and an extraction renaming the file in between would otherwise pair the old
+			// inode with the new file's length - a short read, or a read past EOF.
+			return new AssetFileDescriptor(fd, 0, fd.getStatSize());
 		} catch (FileNotFoundException error) {
 			// Raced by a concurrent clear; absent and unreadable look the same to the
 			// framework, which falls through to the baked-in copy.
