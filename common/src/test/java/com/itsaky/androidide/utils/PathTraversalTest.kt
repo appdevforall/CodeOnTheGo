@@ -209,6 +209,57 @@ class PathTraversalTest {
 		assertThat(resolver.resolve("link/secret.txt")).isInstanceOf(Resolution.Rejected::class.java)
 	}
 
+	// An absent base skips the real-base comparison (there is nothing to resolve), but that must not
+	// skip the symlink check on what *does* exist: with base root/link/missing and link pointing
+	// outside root, accepting the absent base means a later mkdirs follows the link and plants the
+	// whole "contained" tree outside it (ADFA-5257 review).
+	@Test
+	fun `an absent base beneath a symlinked ancestor is rejected`() {
+		val root = tempFolder.newFolder("absent-base")
+		val outside = tempFolder.newFolder("absent-base-outside")
+		createSymlinkOrSkipTest(File(root, "link").toPath(), outside.toPath())
+
+		val resolution = ContainedPathResolver(File(root, "link/missing")).resolve("a.txt")
+
+		assertThat(resolution).isInstanceOf(Resolution.Rejected::class.java)
+	}
+
+	// The same hole with the link at the base itself: a dangling symlink reads as an absent base to
+	// toRealPath(), but mkdirs happily creates its target's tree once anything springs up there.
+	@Test
+	fun `an absent base that is itself a dangling symlink is rejected`() {
+		val root = tempFolder.newFolder("dangling-base")
+		createSymlinkOrSkipTest(File(root, "base").toPath(), File(root, "not-yet").toPath())
+
+		assertThat(ContainedPathResolver(File(root, "base")).resolve("a.txt"))
+			.isInstanceOf(Resolution.Rejected::class.java)
+	}
+
+	// The legitimate absent-base case stays accepted: plain missing directories beneath a real,
+	// resolvable ancestor are exactly what an installer creates on first run.
+	@Test
+	fun `an absent base beneath real ancestors still resolves`() {
+		val root = tempFolder.newFolder("first-run")
+
+		val resolution = ContainedPathResolver(File(root, "not/yet/created")).resolve("a.txt")
+
+		assertThat(resolution).isInstanceOf(Resolution.Contained::class.java)
+		assertThat((resolution as Resolution.Contained).file)
+			.isEqualTo(File(root, "not/yet/created/a.txt"))
+	}
+
+	// A loop among the absent base's ancestors is a filesystem failure (ELOOP), not an escape --
+	// same contract as the in-base loop test below.
+	@Test
+	fun `a symlink loop above an absent base is unverifiable, not an escape`() {
+		val root = tempFolder.newFolder("absent-loop")
+		createSymlinkOrSkipTest(File(root, "loop-a").toPath(), File(root, "loop-b").toPath())
+		createSymlinkOrSkipTest(File(root, "loop-b").toPath(), File(root, "loop-a").toPath())
+
+		assertThat(ContainedPathResolver(File(root, "loop-a/missing")).resolve("a.txt"))
+			.isInstanceOf(Resolution.Unverifiable::class.java)
+	}
+
 	// A filesystem-refused entry hands its lexically-resolved target back in the rejection, so a
 	// caller with its own policy for what sits there (an existing symlink, say) can inspect that
 	// path without re-deriving containment -- the drift the shared resolver exists to remove.

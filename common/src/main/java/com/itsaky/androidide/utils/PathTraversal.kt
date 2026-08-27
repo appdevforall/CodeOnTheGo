@@ -51,9 +51,11 @@ import java.nio.file.Path
  *    [java.nio.file.Path.toRealPath] and re-verify containment -- layer 2 is purely lexical and
  *    will not catch a symlink already present inside the base (a project cloned with git, an
  *    installer directory reused across runs). Walking up to the nearest existing ancestor handles a
- *    path that does not exist yet. Skipped only when the base is *confirmed* absent -- there is then
- *    nothing on disk to symlink-escape through. A base that cannot be resolved is refused outright,
- *    never quietly downgraded to layer 2.
+ *    path that does not exist yet. A *confirmed-absent* base has no real path to compare against, so
+ *    its nearest existing ancestor is verified instead: it must be a resolvable non-symlink, because
+ *    a link there would redirect everything later created "under" the base (ADFA-5257 review). A
+ *    base or ancestor that cannot be resolved is refused outright, never quietly downgraded to
+ *    layer 2.
  *
  * What this deliberately does *not* decide is what to do about an existing symlink *at the target*
  * whose destination is still inside the base. The two callers disagree -- unzipping leaves a user's
@@ -144,24 +146,25 @@ class ContainedPathResolver(
 		// go stale. Also, notExists() is not !exists() -- both are false
 		// when the answer cannot be determined (a parent denying execute), and treating that as
 		// "absent, nothing to symlink through" is the same silent downgrade to lexical containment.
-		// Confirmed-absent skips layer 3; anything else must resolve or be refused.
+		// Confirmed-absent shifts layer 3 onto the nearest existing ancestor; anything else must
+		// resolve or be refused.
 		val realBase =
 			try {
 				base.toRealPath()
 				// Fully qualified on purpose: Kotlin auto-imports kotlin.io.NoSuchFileException, which
 				// toRealPath() never throws, so catching that one would quietly disable this branch.
 			} catch (_: java.nio.file.NoSuchFileException) {
-				// Confirmed absent, so there is nothing on disk to symlink through and layer 3 has
-				// nothing to check. (A base that is itself a dangling symlink lands here too; a write
-				// under it fails at the write, and layer 2 still holds.) Distinguished from a failure
-				// this way rather than via a separate notExists() probe, which costs a second stat and
-				// answers "false" for both absent and undeterminable.
+				// Confirmed absent as a whole -- but its existing ancestors are still on disk, and a
+				// symlink among them redirects everything later created "under" the base. Verified
+				// against the nearest existing ancestor below instead of being accepted outright
+				// (ADFA-5257 review). Distinguished from a failure this way rather than via a separate
+				// notExists() probe, which costs a second stat and answers "false" for both absent and
+				// undeterminable.
 				null
 			} catch (e: IOException) {
 				log.warn("Cannot resolve {} to a real path; refusing every path under it", base, e)
 				return Resolution.Unverifiable(e)
 			}
-		realBase ?: return Resolution.Contained(resolved.toFile())
 
 		var ancestor = resolved
 		// NOFOLLOW_LINKS: plain Files.exists() follows symlinks, so a *dangling* symlink (one
@@ -171,6 +174,31 @@ class ContainedPathResolver(
 		// trusting whatever ends up on the far side of it later.
 		while (!Files.exists(ancestor, LinkOption.NOFOLLOW_LINKS)) {
 			ancestor = ancestor.parent ?: return Resolution.Rejected(resolved)
+		}
+
+		if (realBase == null) {
+			// The base is absent, so everything from it down to the target is absent too and the
+			// walk above stopped at or above the base. There is no real base to prove containment
+			// against, and the only place a symlink can hide is that existing ancestor itself --
+			// the segments between it and the target do not exist. A link there (a base that is a
+			// dangling symlink included) is refused: a later mkdirs would follow it and plant the
+			// "contained" tree wherever it points (ADFA-5257 review). A real ancestor must still
+			// resolve -- a failure means containment is unproven, not disproven.
+			if (Files.isSymbolicLink(ancestor)) {
+				return Resolution.Rejected(resolved)
+			}
+			try {
+				ancestor.toRealPath()
+			} catch (e: IOException) {
+				log.warn(
+					"Cannot resolve {} (nearest existing ancestor of absent base {}) to a real path; refusing the path",
+					ancestor,
+					base,
+					e,
+				)
+				return Resolution.Unverifiable(e)
+			}
+			return Resolution.Contained(resolved.toFile())
 		}
 		// Re-resolved on every call, deliberately. Caching a directory once proven contained saves
 		// a toRealPath() per entry, but it answers later paths under that directory without
