@@ -131,6 +131,41 @@ class AndroidProjectWatcherEdgeTest {
 			assertThat(batches).hasSize(1)
 		}
 
+	@Test
+	fun `a create event that lands after stop registers no watches`() =
+		runTest {
+			val root = File(tempDir, "proj").apply { mkdirs() }
+			val watcher = startWatcher(root, mutableListOf())
+
+			watcher.stop()
+
+			// The FileObserver thread's CREATE callback blocks on the observers lock during
+			// stop() and wakes after the clear. Registering here would arm a tree stop() has
+			// already finished with, so nothing could ever stop those watches again.
+			File(root, "main/java/com/example").apply { mkdirs() }
+			watcher.registerCreatedTree(File(root, "main"))
+
+			assertThat(watcher.watchCount()).isEqualTo(0)
+		}
+
+	@Test
+	fun `start clears the stopped latch so a reopened project watches again`() =
+		runTest {
+			val root = File(tempDir, "proj").apply { mkdirs() }
+			val watcher = startWatcher(root, mutableListOf())
+			watcher.stop()
+
+			// Same instance, restarted: the latch stop() set has to clear, or a reopened
+			// project silently never picks up a directory created during the session.
+			watcher.start {}
+			val before = watcher.watchCount()
+			File(root, "main/java").apply { mkdirs() }
+			watcher.registerCreatedTree(File(root, "main"))
+
+			// main + main/java.
+			assertThat(watcher.watchCount() - before).isEqualTo(2)
+		}
+
 	private companion object {
 		private const val QUIET_MILLIS = 50L
 		private const val MAX_MILLIS = 1_000L

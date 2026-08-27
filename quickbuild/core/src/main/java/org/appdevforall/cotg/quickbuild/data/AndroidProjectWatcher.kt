@@ -61,6 +61,16 @@ class AndroidProjectWatcher(
 	private var pollJob: Job? = null
 
 	/**
+	 * Guarded by [observers]. A directory-CREATE callback already inside [newObserver]'s
+	 * `onEvent` when [stop] runs blocks on that lock and wakes after the clear; without this
+	 * flag it registers a fresh tree of started observers into the now-empty list, which
+	 * [stop] has already finished and can never reach. Their inotify watches then live for the
+	 * process, and enough project close/reopen cycles push registration into the per-uid watch
+	 * limit - after which a save does nothing at all, with no error anywhere.
+	 */
+	private var stopped = false
+
+	/**
 	 * Change fingerprints (path -> lastModified xor size), written by both inotify and the poll
 	 * but consulted only by the poll, so a change inotify already delivered is not built twice.
 	 * inotify must NOT gate on them: a same-length rewrite inside one mtime tick, or a tool that
@@ -77,6 +87,8 @@ class AndroidProjectWatcher(
 	 *   since it runs inline on the collecting coroutine.
 	 */
 	override fun start(onBatch: (ChangedFiles.Known) -> Unit) {
+		// Restart after stop is supported, so clear the latch before anything registers.
+		synchronized(observers) { stopped = false }
 		pipelineJob =
 			scope.launch {
 				rawEvents
@@ -109,6 +121,7 @@ class AndroidProjectWatcher(
 		pipelineJob?.cancel()
 		pipelineJob = null
 		synchronized(observers) {
+			stopped = true
 			observers.forEach(FileObserver::stopWatching)
 			observers.clear()
 		}
@@ -166,10 +179,14 @@ class AndroidProjectWatcher(
 	 * Recursive because a tree can arrive whole - a git checkout, an unzip - and watching only its
 	 * top level leaves everything deeper on the poll path.
 	 *
-	 * @param dir the newly created directory; the walk includes it.
+	 * @param dir the newly created directory; the walk includes it. A no-op once [stop] has
+	 *   run, until the next [start].
 	 */
 	internal fun registerCreatedTree(dir: File) {
 		synchronized(observers) {
+			// An event that arrived before stop() but got the lock after it must not re-arm
+			// watches nothing will ever stop.
+			if (stopped) return
 			// Built fully, then published, so a live iteration of observers never sees a
 			// half-built batch.
 			val fresh = arrayListOf<FileObserver>()
