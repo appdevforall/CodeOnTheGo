@@ -1,5 +1,6 @@
 package com.itsaky.androidide.quickbuild
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -66,7 +67,20 @@ class QuickBuildPrebuildStagger(
 					scope.launch {
 						delay(staggerMillis)
 						synchronized(lock) { scheduled = null }
-						fire()
+						try {
+							fire()
+						} catch (e: CancellationException) {
+							// Closing the project cancels this window; teardown has to stay cancellable.
+							throw e
+						} catch (e: Throwable) {
+							// Nothing downstream catches this. The scope is the editor activity's, which
+							// carries a plain Job and no CoroutineExceptionHandler, so a throw here takes
+							// the IDE down half a minute after a project opens - with no action of the
+							// user's in between - and short of that would cancel the scope for the life of
+							// the activity, killing the editor's other launch sites with it. The immediate
+							// fire() below is left alone: it runs on the caller's thread, which can handle it.
+							log.error("Deferred Quick Build prebuild failed", e)
+						}
 					}
 			}
 		}

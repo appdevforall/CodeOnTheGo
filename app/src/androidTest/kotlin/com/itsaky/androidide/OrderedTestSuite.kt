@@ -7,6 +7,7 @@ import org.junit.runners.Suite
 @Suite.SuiteClasses(
 	CleanupTest::class,
 	EndToEndTest::class,
+	QuickBuildPipelineTest::class,
 	QuickBuildSmokeTest::class,
 	QuickBuildFlagOffTest::class,
 )
