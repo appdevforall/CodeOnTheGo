@@ -417,7 +417,12 @@ class WebServer(
 						// stop. Decaying means a flapping listener keeps most of its interval and a
 						// genuinely recovered one is back to zero within a few accepts.
 						backoffMs = if (backoffMs <= initialAcceptBackoffMs) 0L else backoffMs / 2
-						if (backoffMs == 0L) retriesAtCeiling = 0L
+						// Reset on every success, not only once the interval reaches zero. The counter
+						// means "consecutive retries at the ceiling", and an accept that succeeds ends
+						// that run whatever the interval still is. Clearing it only at zero left a stale
+						// count behind: at the ceiling with 14 retries banked, one success then a return
+						// to the ceiling fired the heartbeat on the next retry instead of the fifteenth.
+						retriesAtCeiling = 0L
 						if (debugEnabled) log.debug("Returned from accept(), clientSocket is {}.", it)
 					}
 				} catch (e: IOException) {
@@ -441,12 +446,15 @@ class WebServer(
 						}
 					// The stack trace goes out once per burst, on the first failure. Repeats say only
 					// that it is still failing, and only when the interval changes: nineteen identical
-					// traces told nobody anything the first one had not.
+					// traces told nobody anything the first one had not. They do carry e.toString()
+					// rather than e.message, so the type is still there -- a burst can change cause
+					// mid-flight (EMFILE giving way to ECONNABORTED), and message alone is null for
+					// some IOExceptions, which logged a bare "null".
 					if (previous == 0L) {
 						log.error("Accept() failed, retrying in {} ms: {}", backoffMs, e.message, e)
 						retriesAtCeiling = 0L
 					} else if (backoffMs != previous) {
-						log.error("Accept() still failing, backing off to {} ms: {}", backoffMs, e.message)
+						log.error("Accept() still failing, backing off to {} ms: {}", backoffMs, e.toString())
 					} else {
 						// At the ceiling the interval stops changing, so neither branch above fires again.
 						// A heartbeat roughly every 30 s keeps a permanent failure visible without
@@ -458,7 +466,7 @@ class WebServer(
 								"Accept() still failing after {} retries at {} ms: {}",
 								retriesAtCeiling,
 								backoffMs,
-								e.message,
+								e.toString(),
 							)
 						}
 					}
