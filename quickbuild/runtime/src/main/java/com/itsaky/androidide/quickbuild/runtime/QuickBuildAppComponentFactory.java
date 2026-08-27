@@ -18,6 +18,20 @@ import android.content.Intent;
 public class QuickBuildAppComponentFactory extends AppComponentFactory {
 
 	/**
+	 * Rethrows a throwable the fallback cannot help with, before anything else runs.
+	 *
+	 * A {@link VirtualMachineError} says the VM is out of a resource the retry needs, so logging it (formatting a message, walking a stack trace) and then re-running the same construction allocates again in exactly the state that cannot afford it - and when the default-loader retry happens to succeed, the error is swallowed outright. {@link LinkageError} is deliberately NOT in this set: a stale-payload {@code NoSuchFieldError} is the case the fallback exists for.
+	 *
+	 * @param error
+	 *            what the payload loader threw
+	 */
+	static void rethrowIfFatal(Throwable error) {
+		if (error instanceof VirtualMachineError) {
+			throw (VirtualMachineError) error;
+		}
+	}
+
+	/**
 	 * Throws the failure that best explains a component we could not instantiate from either loader: the PAYLOAD one.
 	 *
 	 * The fallback exists for framework classes that really do live in the APK, so when it fails too the class was a user class and the default loader was never going to find it - its {@code ClassNotFoundException} is a consequence, not the cause, and reporting it would leave the real failure buried in logcat.
@@ -96,6 +110,7 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 		try {
 			return super.instantiateActivity(pickLoader(cl, className), className, intent);
 		} catch (Throwable payloadError) {
+			rethrowIfFatal(payloadError);
 			RuntimeLog.e("payload activity instantiation failed for " + className
 					+ "; using default loader", payloadError);
 			try {
@@ -129,6 +144,7 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 		try {
 			application = super.instantiateApplication(pickLoader(cl, className), className);
 		} catch (Throwable payloadError) {
+			rethrowIfFatal(payloadError);
 			RuntimeLog.e("payload application instantiation failed; using default loader", payloadError);
 			try {
 				application = super.instantiateApplication(cl, className);
@@ -170,6 +186,7 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 		try {
 			return super.instantiateProvider(pickLoader(cl, className), className);
 		} catch (Throwable payloadError) {
+			rethrowIfFatal(payloadError);
 			RuntimeLog.e("payload provider instantiation failed for " + className
 					+ "; using default loader", payloadError);
 			try {
@@ -206,6 +223,7 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 		try {
 			return super.instantiateReceiver(pickLoader(cl, className), className, intent);
 		} catch (Throwable payloadError) {
+			rethrowIfFatal(payloadError);
 			RuntimeLog.e("payload receiver instantiation failed for " + className
 					+ "; using default loader", payloadError);
 			try {
@@ -242,6 +260,7 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 		try {
 			return super.instantiateService(pickLoader(cl, className), className, intent);
 		} catch (Throwable payloadError) {
+			rethrowIfFatal(payloadError);
 			RuntimeLog.e("payload service instantiation failed for " + className
 					+ "; using default loader", payloadError);
 			try {

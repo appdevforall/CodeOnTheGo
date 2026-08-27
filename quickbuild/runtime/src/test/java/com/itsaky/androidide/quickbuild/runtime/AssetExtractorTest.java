@@ -44,6 +44,55 @@ class AssetExtractorTest {
 	Path tempDir;
 
 	@Test
+	void aCompletedMergeClearsThePendingMarker() throws IOException {
+		File root = tempDir.resolve("assets-root").toFile();
+		Map<String, byte[]> first = new LinkedHashMap<String, byte[]>();
+		first.put("kept.txt", "from the first merge".getBytes("UTF-8"));
+		AssetExtractor.extractCumulative(zipOf(first), root, "fp-1");
+
+		assertThat(new File(root, AssetExtractor.MERGE_PENDING_MARKER).exists()).isFalse();
+
+		// And because it is clear, the next merge accumulates instead of starting over -
+		// a marker left behind would silently throw the first payload's files away.
+		Map<String, byte[]> second = new LinkedHashMap<String, byte[]>();
+		second.put("added.txt", "from the second merge".getBytes("UTF-8"));
+		AssetExtractor.extractCumulative(zipOf(second), root, "fp-1");
+
+		File assetsDir = new File(AssetExtractor.currentDir(root), AssetExtractor.ASSETS_SUBDIR);
+		assertThat(readFile(new File(assetsDir, "kept.txt"))).isEqualTo("from the first merge");
+		assertThat(readFile(new File(assetsDir, "added.txt"))).isEqualTo("from the second merge");
+	}
+
+	@Test
+	void aMergeThatDiedPartWayIsClearedAtTheStartOfTheNextOne() throws IOException {
+		File root = tempDir.resolve("assets-root").toFile();
+		File assetsDir = new File(AssetExtractor.currentDir(root), AssetExtractor.ASSETS_SUBDIR);
+		Map<String, byte[]> first = new LinkedHashMap<String, byte[]>();
+		first.put("kept.txt", "from the completed merge".getBytes("UTF-8"));
+		AssetExtractor.extractCumulative(zipOf(first), root, "fp-1");
+
+		// One entry lands, the next one escapes the destination and aborts the merge. The
+		// dir now holds two generations and the baseline marker still matches, so nothing
+		// downstream can tell.
+		Map<String, byte[]> partial = new LinkedHashMap<String, byte[]>();
+		partial.put("half.txt", "half-written".getBytes("UTF-8"));
+		partial.put("../evil.txt", "escaped".getBytes("UTF-8"));
+		assertThrows(IOException.class,
+				() -> AssetExtractor.extractCumulative(zipOf(partial), root, "fp-1"));
+		assertThat(new File(assetsDir, "half.txt").exists()).isTrue();
+		assertThat(new File(root, AssetExtractor.MERGE_PENDING_MARKER).isFile()).isTrue();
+
+		Map<String, byte[]> third = new LinkedHashMap<String, byte[]>();
+		third.put("fresh.txt", "after recovery".getBytes("UTF-8"));
+		AssetExtractor.extractCumulative(zipOf(third), root, "fp-1");
+
+		// Same baseline throughout, so only the pending marker could have forced this clear.
+		assertThat(new File(assetsDir, "kept.txt").exists()).isFalse();
+		assertThat(new File(assetsDir, "half.txt").exists()).isFalse();
+		assertThat(readFile(new File(assetsDir, "fresh.txt"))).isEqualTo("after recovery");
+	}
+
+	@Test
 	void cumulativeMergeKeepsEarlierPayloadsFiles() throws IOException {
 		File root = tempDir.resolve("assets-root").toFile();
 		Map<String, byte[]> first = new LinkedHashMap<String, byte[]>();

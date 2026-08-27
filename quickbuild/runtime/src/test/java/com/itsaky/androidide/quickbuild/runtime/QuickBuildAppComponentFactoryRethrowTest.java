@@ -25,6 +25,13 @@ class QuickBuildAppComponentFactoryRethrowTest {
 	}
 
 	@Test
+	void aLinkageErrorIsNotFatal() {
+		// The stale-payload case the default-loader fallback exists for, so it must fall
+		// through to the retry rather than being rethrown here.
+		QuickBuildAppComponentFactory.rethrowIfFatal(new NoSuchFieldError("field removed by a stale payload"));
+	}
+
+	@Test
 	void aRuntimePayloadFailurePropagatesUnwrapped() {
 		NoSuchFieldError payloadError = new NoSuchFieldError("field removed by a stale payload");
 
@@ -43,6 +50,17 @@ class QuickBuildAppComponentFactoryRethrowTest {
 				payloadError, new ClassNotFoundException("com.example.UserReceiver"));
 
 		assertThat(wrapper.getCause()).isSameInstanceAs(payloadError);
+	}
+
+	@Test
+	void aVirtualMachineErrorIsRethrownRatherThanRetried() {
+		OutOfMemoryError fatal = new OutOfMemoryError("payload dex would not fit");
+
+		// Retrying the same construction after this would allocate again in exactly the state
+		// that cannot afford it, and a retry that happened to succeed would swallow it entirely.
+		assertThat(assertThrows(
+				OutOfMemoryError.class, () -> QuickBuildAppComponentFactory.rethrowIfFatal(fatal)))
+				.isSameInstanceAs(fatal);
 	}
 
 	@Test

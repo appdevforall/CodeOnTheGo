@@ -219,7 +219,17 @@ final class ResourceStore {
 					synchronized (ResourceStore.this) {
 						ResourcesProvider previous = provider;
 						provider = next;
-						installProviders();
+						try {
+							installProviders();
+						} catch (RuntimeException | Error error) {
+							// Un-commit. The loader still holds the previous set, so the field has to as
+							// well - leaving the rejected provider there makes the next deploy offer it
+							// again, and dropping `previous` on the floor leaks a provider that is still
+							// installed. Closing `next` is safe: it was never installed.
+							provider = previous;
+							Streams.closeQuietly(next);
+							throw error;
+						}
 						Streams.closeQuietly(previous);
 					}
 				}
@@ -294,7 +304,17 @@ final class ResourceStore {
 					DirectoryAssetsProvider previousDir = assetsDirProvider;
 					assetsProvider = next;
 					assetsDirProvider = nextDir;
-					installProviders();
+					try {
+						installProviders();
+					} catch (RuntimeException | Error error) {
+						// Same un-commit as applyTableWithLoader: restore the fields the loader still
+						// reflects, close the pair that never got installed, and let the failure out.
+						assetsProvider = previous;
+						assetsDirProvider = previousDir;
+						Streams.closeQuietly(next);
+						Streams.closeQuietly(nextDir);
+						throw error;
+					}
 					Streams.closeQuietly(previous);
 					Streams.closeQuietly(previousDir);
 				}
@@ -309,7 +329,7 @@ final class ResourceStore {
 	 *
 	 * Inline on the main thread, not posted, because the boot restore path runs during the first activity's creation and its swap must land before anything inflates.
 	 *
-	 * A swap failure is logged rather than thrown: on the posted path no caller is left to catch it, and the previous provider set stays live either way, which the next deploy replaces.
+	 * A swap failure is logged rather than thrown: on the posted path no caller is left to catch it, and the previous provider set stays live either way, which the next deploy replaces. The result is deliberately NOT returned to the deploy chain - that would make a deploy arriving on a binder thread block on a main-thread round trip in the hot reload path, which is the very thing posting the swap exists to avoid. Each swap un-commits its own fields on failure, so what stays live is a consistent previous generation.
 	 *
 	 * @param swap
 	 *            the field swap + setProviders + close of the replaced provider, taking the store's monitor itself
