@@ -135,6 +135,10 @@ sealed interface InlineRefusal {
  * declaration. [canDeleteDeclaration] is the conjunction of three conditions -- every reference
  * inlinable, the target never written, *and* the declaration sitting directly in a block -- and is
  * honoured only by [InlineMode.AllReferences].
+ *
+ * [declarationSpan] covers the declaration's own text only: the deletion reads what follows it on the
+ * line to decide what to preserve, so a comment the parser bound to the declaration's tail must be
+ * outside the span.
  */
 data class InlineVariablePlan(
 	override val fileText: String,

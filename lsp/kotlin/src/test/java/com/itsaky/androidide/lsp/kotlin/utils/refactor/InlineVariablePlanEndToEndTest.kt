@@ -430,6 +430,60 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a trailing line comment survives the declaration's removal`() {
+		val content =
+			"""
+			package p
+			fun g(n: Int) = n
+			fun demo(a: Int, b: Int): Int {
+				val running = a + b // running total
+				return g(running)
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "running"))
+
+		assertEquals(
+			"""
+			package p
+			fun g(n: Int) = n
+			fun demo(a: Int, b: Int): Int {
+				// running total
+				return g((a + b))
+			}
+			""".trimIndent(),
+			apply(content, buildInlineVariableRewrites(result, InlineMode.AllReferences)!!),
+		)
+	}
+
+	@Test
+	fun `a trailing block comment survives the declaration's removal`() {
+		val content =
+			"""
+			package p
+			fun g(n: Int) = n
+			fun demo(a: Int, b: Int): Int {
+				val running = a + b /* running total */
+				return g(running)
+			}
+			""".trimIndent()
+
+		val result = plan(content, at(content, "running"))
+
+		assertEquals(
+			"""
+			package p
+			fun g(n: Int) = n
+			fun demo(a: Int, b: Int): Int {
+				/* running total */
+				return g((a + b))
+			}
+			""".trimIndent(),
+			apply(content, buildInlineVariableRewrites(result, InlineMode.AllReferences)!!),
+		)
+	}
+
+	@Test
 	fun `a when subject variable is inlined but its declaration is never deleted`() {
 		val content =
 			"""

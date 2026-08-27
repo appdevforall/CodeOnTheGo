@@ -11,7 +11,9 @@ import org.jetbrains.kotlin.analysis.api.resolution.KaImplicitReceiverValue
 import org.jetbrains.kotlin.analysis.api.resolution.successfulCallOrNull
 import org.jetbrains.kotlin.analysis.api.symbols.KaAnonymousFunctionSymbol
 import org.jetbrains.kotlin.analysis.api.types.KaFunctionType
+import org.jetbrains.kotlin.com.intellij.psi.PsiComment
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.com.intellij.psi.PsiWhiteSpace
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.psi.KtArrayAccessExpression
@@ -141,7 +143,7 @@ private fun KaSession.planFor(
 		return InlineVariablePlan.refused(InlineRefusal.NeverUsed(name), fileText, documentVersion)
 	}
 
-	val declarationEnd = target.textRange.endOffset
+	val declarationEnd = declarationEndBeforeTrailingComment(target)
 	val cutoff = cutoffAfter(initializer, searchRoot, targetWriteOffsets, declarationEnd)
 
 	val initializerNames = namesReadBy(initializer)
@@ -586,4 +588,17 @@ private fun runsOutOfTextualOrder(
 		current = current.parent
 	}
 	return false
+}
+
+/**
+ * Where the declaration's own text ends, with any comment bound to its tail excluded.
+ *
+ * The parser binds a comment on the declaration's line into the property, so `textRange.endOffset`
+ * sits after it. Reporting that as the declaration's end hides the comment from the deletion, which
+ * then reads the line as having nothing to preserve and takes the comment with it.
+ */
+private fun declarationEndBeforeTrailingComment(target: KtProperty): Int {
+	var last: PsiElement? = target.lastChild
+	while (last is PsiComment || last is PsiWhiteSpace) last = last.prevSibling
+	return last?.textRange?.endOffset ?: target.textRange.endOffset
 }
