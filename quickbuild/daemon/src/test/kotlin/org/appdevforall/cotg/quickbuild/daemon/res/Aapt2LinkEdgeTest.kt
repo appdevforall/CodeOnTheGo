@@ -41,6 +41,23 @@ class Aapt2LinkEdgeTest {
 		}
 
 	@Test
+	fun `a second resource root fails the relink instead of overwriting silently`() {
+		val second = File(tempDir, "res2/values").apply { mkdirs() }.parentFile
+		File(second, "values/strings.xml").writeText("<resources />")
+		// "exit 1" proves the guard runs before aapt2 does: if the check were missing this
+		// would fail with an aapt2 compile diagnostic, not the message asserted below.
+		val link = Aapt2Link(fakeAapt2("exit 1"), File(tempDir, "android.jar"))
+
+		val result = link.relink(listOf(resDir, second), manifest, workDir)
+
+		// aapt2 names each .flat after the resource's path within ITS root, so two roots
+		// holding values/strings.xml write the same .flat and the last one silently wins.
+		val diagnostics = (result as Aapt2Link.Result.Failed).diagnostics
+		assertThat(diagnostics.single().severity).isEqualTo(Diagnostic.Severity.ERROR)
+		assertThat(diagnostics.single().message).contains("one resource root, got 2")
+	}
+
+	@Test
 	fun `link exiting 0 without producing an output fails instead of shipping nothing`() {
 		val link = Aapt2Link(fakeAapt2("exit 0"), File(tempDir, "android.jar"))
 
