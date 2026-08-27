@@ -6,6 +6,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
+import com.itsaky.androidide.lsp.kotlin.actions.ImportCandidates
 import com.itsaky.androidide.lsp.kotlin.actions.NullSafetyAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
@@ -177,9 +178,9 @@ internal class StalePinEditRefusalTest : KtLspTest() {
 		val path = openDocument("Import.kt", content)
 		val candidates = { AddImportAction().computeImportCandidates(env, path, "Foo") }
 
-		assertFalse(candidates().isEmpty())
+		assertFalse((candidates() as ImportCandidates.Found).edits.isEmpty())
 
-		assertTrue(whileHoldingAStalePin(path, content, candidates).isEmpty())
+		assertEquals(ImportCandidates.FileChanged, whileHoldingAStalePin(path, content, candidates))
 	}
 
 	@Test

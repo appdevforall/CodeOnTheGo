@@ -83,7 +83,7 @@ internal class AddImportActionPinScopeTest : KtLspTest() {
 		val candidates = AddImportAction().computeImportCandidates(env, path, "Foo")
 		env.onSymbolIndexQuery = null
 
-		assertThat(candidates.keys).containsExactly("lib.Foo")
+		assertThat((candidates as ImportCandidates.Found).edits.keys).containsExactly("lib.Foo")
 		assertThat(pinnedAtQueryTime).isFalse()
 	}
 }

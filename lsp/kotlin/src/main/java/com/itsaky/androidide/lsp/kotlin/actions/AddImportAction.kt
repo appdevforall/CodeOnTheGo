@@ -24,6 +24,7 @@ import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.nio.file.Path
@@ -58,10 +59,10 @@ class AddImportAction : BaseKotlinCodeAction() {
 		}
 	}
 
-	override suspend fun execAction(data: ActionData): Map<String, List<TextEdit>> {
+	override suspend fun execAction(data: ActionData): Any {
 		val (_, extra) =
 			data.findDiagnosticExtra<DiagnosticAction.ResolveReference>()
-				?: return emptyMap()
+				?: return ImportCandidates.Found(emptyMap())
 
 		val (env, action) = extra
 		val nioPath = data.requireFile().toPath()
@@ -83,7 +84,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 		env: AbstractCompilationEnvironment,
 		nioPath: Path,
 		referenceName: String,
-	): Map<String, List<TextEdit>> {
+	): ImportCandidates {
 		/*
 		 * Resolved before the file is pinned, not inside the pin: this is an unbounded SQLite scan that
 		 * never reads the file, and a pin held across it freezes live-PSI refresh for the path - every
@@ -97,7 +98,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 				.toList()
 
 		if (classifiers.isEmpty()) {
-			return emptyMap()
+			return ImportCandidates.Found(emptyMap())
 		}
 
 		return env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
@@ -105,7 +106,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 				// Joining another feature's scope hands over text older than the buffer, so the import
 				// insertion point computed from it would land in the wrong place.
 				logger.debug("skipping import candidates for {}: pinned text is behind the buffer", nioPath)
-				return@withLiveKtFile emptyMap()
+				return@withLiveKtFile ImportCandidates.FileChanged
 			}
 
 			val candidates =
@@ -117,11 +118,11 @@ class AddImportAction : BaseKotlinCodeAction() {
 				// Resolving the file and taking the read lock can both block long enough for the user to
 				// type, and nothing between here and performCodeAction re-checks the insertion point.
 				logger.debug("dropping import candidates for {}: buffer moved while computing", nioPath)
-				return@withLiveKtFile emptyMap()
+				return@withLiveKtFile ImportCandidates.FileChanged
 			}
 
-			candidates
-		} ?: emptyMap()
+			ImportCandidates.Found(candidates)
+		} ?: ImportCandidates.Found(emptyMap())
 	}
 
 	override fun postExec(
@@ -130,14 +131,17 @@ class AddImportAction : BaseKotlinCodeAction() {
 	) {
 		super.postExec(data, result)
 
-		if (result !is Map<*, *>) {
+		if (result is ImportCandidates.FileChanged) {
+			flashInfo(R.string.msg_import_file_changed)
 			return
 		}
 
-		@Suppress("UNCHECKED_CAST")
-		result as Map<String, List<TextEdit>>
+		if (result !is ImportCandidates.Found) {
+			return
+		}
 
-		if (result.isEmpty()) {
+		val candidates = result.edits
+		if (candidates.isEmpty()) {
 			logger.warn("No classifiers to import.")
 			flashError(R.string.msg_no_imports_found)
 			return
@@ -153,7 +157,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 		val file = data.requireFile()
 		val nioPath = file.toPath()
 		val actions =
-			result
+			candidates
 				.map { (fqName, edits) ->
 					CodeActionItem(
 						title = fqName,
@@ -227,4 +231,21 @@ class AddImportAction : BaseKotlinCodeAction() {
 			TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPORT_CLASS_DIALOG,
 		)
 	}
+}
+
+/**
+ * The outcome of resolving import candidates.
+ *
+ * The two are distinct at the UI: [Found] with no entries means the reference names nothing
+ * importable, while [FileChanged] means candidates were found and then discarded because the buffer
+ * moved out from under the offsets they were measured against.
+ */
+internal sealed interface ImportCandidates {
+	/** The import edits for each candidate, keyed by fully-qualified name. */
+	data class Found(
+		val edits: Map<String, List<TextEdit>>,
+	) : ImportCandidates
+
+	/** The buffer moved while the candidates were being computed, so the edits were dropped. */
+	data object FileChanged : ImportCandidates
 }
