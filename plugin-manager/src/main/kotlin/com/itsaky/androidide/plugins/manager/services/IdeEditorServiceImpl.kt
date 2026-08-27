@@ -2,7 +2,6 @@
 
 package com.itsaky.androidide.plugins.manager.services
 
-import android.util.Log
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.services.CursorPosition
 import com.itsaky.androidide.plugins.services.EditorContentChangeListener
@@ -10,6 +9,9 @@ import com.itsaky.androidide.plugins.services.FileChangeListener
 import com.itsaky.androidide.plugins.services.IdeEditorService
 import com.itsaky.androidide.plugins.services.SelectionRange
 import com.itsaky.androidide.utils.Environment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -321,8 +323,13 @@ class IdeEditorServiceImpl(
 
 	override suspend fun saveFile(file: File): Boolean {
 		requireWrite()
-		ensureFileAccessible(file)
-		return editorProvider.saveFile(file)
+		// IO: ensureFileAccessible stats the filesystem - the host pathValidator, or
+		// canonicalPath in the default allowlist - and this method invites callers to await it
+		// on any dispatcher, the main one included.
+		return withContext(Dispatchers.IO) {
+			ensureFileAccessible(file)
+			editorProvider.saveFile(file)
+		}
 	}
 
 	override fun insertTextAtCursor(text: String): Boolean {
@@ -481,7 +488,7 @@ class IdeEditorServiceImpl(
 		pathValidator?.let { validator ->
 			val ok = runCatching { validator.isPathAllowed(file) }.getOrDefault(false)
 			if (!ok) {
-				Log.d(TAG, "[$pluginId] pathValidator rejected ${file.absolutePath}")
+				log.debug("[{}] pathValidator rejected {}", pluginId, file.absolutePath)
 			}
 			return ok
 		}
@@ -493,7 +500,12 @@ class IdeEditorServiceImpl(
 
 		val allowed = isFileAccessAllowedDefault(file)
 		if (!allowed) {
-			Log.d(TAG, "[$pluginId] static allowlist rejected ${file.absolutePath}; allowed roots=$defaultAllowedPaths")
+			log.debug(
+				"[{}] static allowlist rejected {}; allowed roots={}",
+				pluginId,
+				file.absolutePath,
+				defaultAllowedPaths,
+			)
 		}
 		return allowed
 	}
@@ -524,6 +536,6 @@ class IdeEditorServiceImpl(
 	}
 
 	companion object {
-		private const val TAG = "IdeEditorService"
+		private val log = LoggerFactory.getLogger(IdeEditorServiceImpl::class.java)
 	}
 }

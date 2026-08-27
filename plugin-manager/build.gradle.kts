@@ -11,12 +11,6 @@ android {
 	lint {
 		abortOnError = false
 	}
-
-	// IdeEditorServiceImpl logs through android.util.Log on a denied path; without this the
-	// stubbed Log throws before the SecurityException the test is asserting on.
-	testOptions {
-		unitTests.isReturnDefaultValues = true
-	}
 }
 
 kotlin {

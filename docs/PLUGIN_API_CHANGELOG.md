@@ -51,9 +51,12 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 
   Because an older IDE's `IdeEditorService` has no `saveFile` at all, calling it
   there fails with `NoSuchMethodError` at the call site — floor
-  `plugin.min_ide_version` at `26.36` if you call it. The `default` body only keeps
-  the addition compatible for *implementers* of the interface; it does nothing for a
-  caller running against an older host.
+  `plugin.min_ide_version` at `26.36` if you call it. The Kotlin `default` body is
+  not a Java default method: `plugin-api` sets no `-Xjvm-default`, so the compiler
+  emits an abstract interface method plus a `DefaultImpls` static (both visible in
+  the ABI dump). It therefore rescues neither a caller nor an implementer compiled
+  against an older `plugin-api` — the latter gets `AbstractMethodError`. Only the
+  host's own implementers benefit, and they are recompiled with it.
 
 ### 26.33 — 2026-08-12
 - **added — Plugin-contributed agent tools** _(ADFA-2592)_ **[verified]**

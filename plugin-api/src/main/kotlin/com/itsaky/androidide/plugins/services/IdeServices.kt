@@ -197,10 +197,12 @@ interface IdeEditorService {
 	 * method here: the caller lacks FILESYSTEM_WRITE, or [file] is outside the plugin's
 	 * allowed roots.
 	 *
-	 * The default body makes this a compatible addition for *implementers* of the interface. It
-	 * does nothing for a *caller*: an older IDE ships an `IdeEditorService` with no `saveFile`
-	 * at all, so the call site fails with `NoSuchMethodError`. Floor `plugin.min_ide_version`
-	 * at the release that introduced this - see PLUGIN_API_CHANGELOG.md.
+	 * The default body is a convenience for the host's own implementers, not a compatibility
+	 * shim: this module sets no `-Xjvm-default`, so it compiles to an abstract interface method
+	 * plus a `DefaultImpls` static rather than a Java default method. An older IDE ships an
+	 * `IdeEditorService` with no `saveFile` at all, so a call there fails with
+	 * `NoSuchMethodError`. Floor `plugin.min_ide_version` at the release that introduced this -
+	 * see PLUGIN_API_CHANGELOG.md.
 	 */
 	suspend fun saveFile(file: File): Boolean = false
 

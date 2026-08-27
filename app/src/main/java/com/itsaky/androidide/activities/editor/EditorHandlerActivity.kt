@@ -115,6 +115,7 @@ import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Consumer
 
 /**
@@ -958,8 +959,16 @@ open class EditorHandlerActivity :
 	 * The editor is handed to the write as a view, never as a tab index: an index is only
 	 * valid until the first suspension, and resolving [file] twice through two different
 	 * indexing schemes could save a different open buffer than the one that was checked.
+	 *
+	 * [outcome] receives the verdict from *inside* the save's `NonCancellable` section, so it
+	 * survives a caller whose timeout elapses mid-write: the return value cannot report that
+	 * (the resume throws [CancellationException] first), but [outcome] still says what reached
+	 * disk. Read it instead of the return value when the await may be cut short.
 	 */
-	suspend fun saveFileResult(file: File): Boolean {
+	internal suspend fun saveFileResult(
+		file: File,
+		outcome: AtomicReference<FileSaveOutcome> = AtomicReference(FileSaveOutcome.FAILED),
+	): Boolean {
 		try {
 			// Off-main: debug builds install StrictMode's detectDiskReads on the main thread.
 			val existedBefore = withContext(Dispatchers.IO) { file.exists() }
@@ -969,40 +978,56 @@ open class EditorHandlerActivity :
 					val editor = getEditorForFile(file)
 					editor to (editor != null && !editor.isModified && existedBefore)
 				}
-			if (view == null) return false
+			if (view == null) {
+				outcome.set(FileSaveOutcome.NOT_OPEN)
+				return false
+			}
 
 			// Nothing to write. Returning before [performFileSave] keeps the saving flag from
 			// flapping true/false for a no-op, which SaveFileAction observes to enable itself.
-			if (alreadyClean) return true
+			if (alreadyClean) {
+				outcome.set(FileSaveOutcome.ALREADY_CLEAN)
+				return true
+			}
 
-			val result = SaveResult()
 			// IO because the write path stats the file ([CodeEditorView.save]'s own pre-check
 			// and the timestamp bookkeeping), and this is reachable from a plugin coroutine
-			// running on Main. The write's cancellation atomicity lives in saveEditorInternal.
-			val saved =
-				withContext(Dispatchers.IO) {
-					performFileSave { saveEditorInternal(view, result) }
-				}
-			if (!saved) return false
-			if (!withContext(Dispatchers.IO) { file.exists() }) return false
+			// running on Main.
+			//
+			// NonCancellable spans the write *and* the follow-ups it implies: cancelled
+			// between them, a Gradle script would land on disk with no sync prompt and a
+			// layout with no regenerated R fields - the very failures the block below exists
+			// to prevent, reached by the cancellation path instead.
+			withContext(Dispatchers.IO + NonCancellable) {
+				val result = SaveResult()
+				val saved = performFileSave { saveEditorInternal(view, result) }
+				// Every claim that the content is on disk is checked against disk. Covers the
+				// corners where CodeEditorView.save returns false without writing and without
+				// the buffer being clean either - an archive extension, a null text.
+				outcome.set(
+					if (saved.reachedDisk && !file.exists()) FileSaveOutcome.FAILED else saved,
+				)
+				if (outcome.get() != FileSaveOutcome.WRITTEN) return@withContext
 
-			// The same follow-ups the UI save paths run (see [saveAll] and
-			// SaveFileAction.postExec). Without them a plugin that edits a Gradle script gets
-			// no sync prompt, and one that edits a layout gets no R fields for the resources
-			// it just added, so the next build fails on unresolved references.
-			if (result.gradleSaved) {
-				withContext(Dispatchers.Main.immediate) { editorViewModel.isSyncNeeded = true }
+				// The same follow-ups the UI save paths run (see [saveAll] and
+				// SaveFileAction.postExec). Without them a plugin that edits a Gradle script
+				// gets no sync prompt, and one that edits a layout gets no R fields for the
+				// resources it just added, so the next build fails on unresolved references.
+				if (result.gradleSaved) {
+					withContext(Dispatchers.Main.immediate) { editorViewModel.isSyncNeeded = true }
+				}
+				if (result.xmlSaved) {
+					ProjectManagerImpl.getInstance().generateSources()
+				}
 			}
-			if (result.xmlSaved) {
-				ProjectManagerImpl.getInstance().generateSources()
-			}
-			return true
+			return outcome.get().reachedDisk
 		} catch (err: CancellationException) {
 			throw err
 		} catch (err: Exception) {
 			// ContentReadWrite.writeTo reports a failed write by throwing; that must not escape
 			// into the plugin coroutine awaiting this call.
 			log.error("Failed to save {}", file.name, err)
+			outcome.set(FileSaveOutcome.FAILED)
 			return false
 		}
 	}
@@ -1033,7 +1058,8 @@ open class EditorHandlerActivity :
 		// getEditorAtIndex walks the editor container, so it is resolved on Main; callers
 		// reach here from Dispatchers.IO (see saveAllAsync).
 		val frag = withContext(Dispatchers.Main.immediate) { getEditorAtIndex(index) } ?: return false
-		return saveEditorInternal(frag, result)
+		// Only a write counts here, preserving what this returned before it reported outcomes.
+		return saveEditorInternal(frag, result) == FileSaveOutcome.WRITTEN
 	}
 
 	/**
@@ -1056,18 +1082,39 @@ open class EditorHandlerActivity :
 	private suspend fun saveEditorInternal(
 		frag: CodeEditorView,
 		result: SaveResult,
-	): Boolean {
+	): FileSaveOutcome {
 		// Editor state lives on the view: read it on Main, and read isModified before
 		// frag.save() clears it.
 		val (savedFile, modified) =
 			withContext(Dispatchers.Main.immediate) {
 				frag.file?.let { it to frag.isModified }
-			} ?: return false
+			} ?: return FileSaveOutcome.NOT_OPEN
 		val fileName = savedFile.name
 
 		return withContext(NonCancellable) {
-			if (!frag.save()) {
-				return@withContext false
+			val wrote =
+				try {
+					frag.save()
+				} catch (err: IllegalStateException) {
+					// The only IllegalStateException [CodeEditorView.save] can raise is its
+					// `binding` getter's "Binding has been destroyed", and the two calls that
+					// go through it - markUnmodified() and notifySaved() - both run *after* the
+					// write (the write section itself uses the nullable `_binding?`). So a tab
+					// closed mid-save loses its bookkeeping, not its bytes.
+					log.warn("Editor for {} was disposed after its write completed", fileName, err)
+					return@withContext if (savedFile.exists()) {
+						FileSaveOutcome.WRITTEN
+					} else {
+						FileSaveOutcome.FAILED
+					}
+				}
+
+			if (!wrote) {
+				// save() reports "nothing to do" and "the write failed" with the same false.
+				// The buffer was sampled clean moments ago on Main, so an unmodified buffer here
+				// is the former - typically a concurrent UI save-all wrote this same content and
+				// marked it unmodified.
+				return@withContext if (modified) FileSaveOutcome.FAILED else FileSaveOutcome.ALREADY_CLEAN
 			}
 
 			fileTimestamps[savedFile.absolutePath] = savedFile.lastModified()
@@ -1082,12 +1129,12 @@ open class EditorHandlerActivity :
 				result.xmlSaved = modified && isXml
 			}
 
-			// Walks the editor container, so it belongs on Main like the tab update below.
-			val hasUnsaved = withContext(Dispatchers.Main.immediate) { hasUnsavedFiles() }
-
 			withContext(Dispatchers.Main) {
 				val content = contentOrNull ?: return@withContext
-				editorViewModel.areFilesModified = hasUnsaved
+				// Computed here rather than in an earlier hop: this block is queued, and a
+				// snapshot taken before it ran would clobber an edit made in another tab
+				// meanwhile - leaving Save greyed out over a dirty buffer.
+				editorViewModel.areFilesModified = hasUnsavedFiles()
 
 				// set tab as unmodified
 				val tabPosition = getTabPositionForFileIndex(findIndexOfEditorByFile(savedFile))
@@ -1099,7 +1146,7 @@ open class EditorHandlerActivity :
 				}
 			}
 
-			true
+			FileSaveOutcome.WRITTEN
 		}
 	}
 

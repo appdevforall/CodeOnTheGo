@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
+import com.itsaky.androidide.activities.editor.FileSaveOutcome
 import com.itsaky.androidide.activities.editor.PeerCursorOverlayManager
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
@@ -259,12 +260,14 @@ class EditorProviderImpl(
 	 * Saves [file]'s buffer whatever tab has focus, suspending until the bytes are on disk.
 	 *
 	 * Bounded by [SAVE_TIMEOUT_MS] for the same reason [onMain] is bounded: a wedged editor
-	 * must not park a plugin's coroutine for the rest of the session. The bound covers the
-	 * phases that need the main thread - resolving the editor is what can wedge. Once bytes
-	 * start moving the save runs to completion under `NonCancellable`, because
-	 * `CodeEditorView.save` is not cancellation-atomic: interrupted between the write and its
-	 * `markUnmodified()` it would leave the file written but the buffer flagged dirty. So a
-	 * `false` from here never means "written, but reported unwritten".
+	 * must not park a plugin's coroutine for the rest of the session. Once bytes start moving
+	 * the save runs to completion under `NonCancellable`, because `CodeEditorView.save` is not
+	 * cancellation-atomic: interrupted between the write and its `markUnmodified()` it would
+	 * leave the file written but the buffer flagged dirty.
+	 *
+	 * The bound therefore cannot abort a write in progress, only outlast it - so the answer
+	 * comes from the outcome the save records, not from whether this coroutine got to see it
+	 * return. That is what keeps a `false` here from meaning "written, but reported unwritten".
 	 *
 	 * Must be awaited from a coroutine, never bridged with `runBlocking` on the main thread.
 	 * `CodeEditorView.save` runs the write on its own thread and resumes via
@@ -274,11 +277,20 @@ class EditorProviderImpl(
 	 */
 	override suspend fun saveFile(file: File): Boolean {
 		val activity = activity() ?: return false
-		return withTimeoutOrNull(SAVE_TIMEOUT_MS) { activity.saveFileResult(file) }
-			?: run {
-				log.warn("Save of {} did not complete within {}ms; aborting", file.name, SAVE_TIMEOUT_MS)
-				false
-			}
+		val outcome = AtomicReference(FileSaveOutcome.FAILED)
+		val returned = withTimeoutOrNull(SAVE_TIMEOUT_MS) { activity.saveFileResult(file, outcome) }
+		val reachedDisk = outcome.get().reachedDisk
+		if (returned == null) {
+			// Not "aborting": the write is NonCancellable, so it either had not started or ran
+			// to completion regardless of this bound.
+			log.warn(
+				"Save of {} outran the {}ms bound; outcome was {}",
+				file.name,
+				SAVE_TIMEOUT_MS,
+				outcome.get(),
+			)
+		}
+		return reachedDisk
 	}
 
 	// --- Buffer edits -------------------------------------------------------

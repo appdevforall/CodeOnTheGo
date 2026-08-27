@@ -38,9 +38,13 @@ class SaveFileResultTest {
 		activity.editorViewModel._filesSaving.observeForever(observer)
 
 		try {
-			val result = pumpMainUntil(mainLooper) { activity.saveFileResult(tempFile()) }
+			// The outcome holder is what a caller reads when its own await may be cut short, so
+			// it has to be populated on the early-return paths too, not just around the write.
+			val outcome = AtomicReference(FileSaveOutcome.FAILED)
+			val result = pumpMainUntil(mainLooper) { activity.saveFileResult(tempFile(), outcome) }
 
 			assertThat(result).isFalse()
+			assertThat(outcome.get()).isEqualTo(FileSaveOutcome.NOT_OPEN)
 			// Only observeForever's replay of the current value.
 			assertThat(emissions).containsExactly(false)
 		} finally {
