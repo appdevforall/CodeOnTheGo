@@ -1,0 +1,157 @@
+name: Advance Jira Ticket to QA
+
+# Runs on pull_request_review so it can reach the Jira secrets, including for
+# pull requests from forks. It must never check out or execute code from the
+# pull request. All pull request data is read through github-script's `context`
+# rather than `${{ }}` interpolation, so a crafted branch name or title is never
+# parsed as source.
+on:
+  pull_request_review:
+    types: [ submitted ]
+
+permissions: { }
+
+jobs:
+  advance_to_qa:
+    name: Move linked Jira ticket to QA
+    runs-on: ubuntu-latest
+    # Anyone with read access to a public repo can submit an approving review.
+    # Such a review does not satisfy branch protection, but it does fire this
+    # event, so restrict the automation to people who can actually merge.
+    if: >-
+      github.event.review.state == 'approved' &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
+    steps:
+      - name: Walk the ticket forward to QA
+        uses: actions/github-script@v7
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        with:
+          script: |
+            const JIRA_BASE = 'https://appdevforall.atlassian.net';
+
+            // Case-sensitive, in board order. Note the lowercase "review" and
+            // "merge" -- Jira matches these exactly.
+            const STATUSES = ['To Do', 'In Progress', 'Code review', 'QA', 'Ready to merge', 'Done'];
+            const TARGET = 'QA';
+            const TARGET_INDEX = STATUSES.indexOf(TARGET);
+
+            const pr = context.payload.pull_request;
+            const review = context.payload.review;
+
+            const branch = pr.head.ref;
+            if (branch.startsWith('community/')) {
+              core.info(`Branch "${branch}" is a community contribution; no Jira ticket to advance.`);
+              return;
+            }
+
+            // The key appears in the branch name and the PR title with equal
+            // reliability and never disagrees between them, so either source
+            // works; the branch is the more structured of the two.
+            const match = branch.match(/ADFA-\d+/i) || pr.title.match(/ADFA-\d+/i);
+            if (!match) {
+              core.info(`No ADFA ticket referenced by branch "${branch}" or the pull request title; nothing to do.`);
+              return;
+            }
+            const key = match[0].toUpperCase();
+
+            const email = process.env.JIRA_EMAIL;
+            const token = process.env.JIRA_API_TOKEN;
+            if (!email || !token) {
+              core.warning(`Jira credentials are not configured; leaving ${key} untouched.`);
+              return;
+            }
+            const auth = 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64');
+
+            const jira = async (path, init = {}) => {
+              const response = await fetch(`${JIRA_BASE}/rest/api/3${path}`, {
+                ...init,
+                headers: {
+                  Authorization: auth,
+                  Accept: 'application/json',
+                  ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+                },
+              });
+              if (!response.ok) {
+                throw new Error(`${init.method || 'GET'} ${path} returned HTTP ${response.status}`);
+              }
+              return response.status === 204 ? null : response.json();
+            };
+
+            try {
+              const issue = await jira(`/issue/${key}?fields=status`);
+              const startedAt = issue.fields.status.name;
+              let current = startedAt;
+              let index = STATUSES.indexOf(current);
+
+              if (index === -1) {
+                core.warning(`${key} is in unrecognized status "${current}"; leaving it untouched.`);
+                return;
+              }
+              if (index >= TARGET_INDEX) {
+                core.info(`${key} is already at "${current}", which is at or past ${TARGET}; nothing to do.`);
+                return;
+              }
+
+              // Jira's transitions are gated and linear, so a ticket left behind
+              // in "To Do" or "In Progress" cannot jump straight to QA. Walking
+              // it forward one hop at a time is the whole point of this job:
+              // the ticket that is behind belongs to the person who forgot.
+              const walked = [current];
+              while (index < TARGET_INDEX) {
+                const next = STATUSES[index + 1];
+                const { transitions } = await jira(`/issue/${key}/transitions`);
+                const hop = transitions.find(transition => transition.to && transition.to.name === next);
+
+                if (!hop) {
+                  const offered = transitions.map(transition => transition.to && transition.to.name).join(', ');
+                  core.warning(
+                    `${key} is in "${current}" and offers no transition to "${next}" (available: ${offered}). ` +
+                    `Stopping here; the ticket needs to be moved by hand.`
+                  );
+                  return;
+                }
+
+                await jira(`/issue/${key}/transitions`, {
+                  method: 'POST',
+                  body: JSON.stringify({ transition: { id: hop.id } }),
+                });
+
+                current = next;
+                index += 1;
+                walked.push(current);
+              }
+
+              const trail = walked.join(' -> ');
+              const reviewer = review.user.login;
+
+              await jira(`/issue/${key}/comment`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  body: {
+                    type: 'doc',
+                    version: 1,
+                    content: [{
+                      type: 'paragraph',
+                      content: [
+                        { type: 'text', text: `Automatically moved to ${TARGET} (${trail}): ` },
+                        {
+                          type: 'text',
+                          text: `pull request #${pr.number}`,
+                          marks: [{ type: 'link', attrs: { href: pr.html_url } }],
+                        },
+                        { type: 'text', text: ` was approved by ${reviewer}.` },
+                      ],
+                    }],
+                  },
+                }),
+              });
+
+              core.info(`${key}: ${trail}`);
+              core.summary.addRaw(`Moved [${key}](${JIRA_BASE}/browse/${key}) to ${TARGET}: ${trail}`);
+              await core.summary.write();
+            } catch (error) {
+              // A Jira outage or auth problem must never turn a pull request red.
+              core.warning(`Could not advance ${key} to ${TARGET}: ${error.message}`);
+            }
