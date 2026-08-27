@@ -64,9 +64,27 @@ object ContentTypeHeaders {
 	 * both transports instead of only this one.
 	 */
 	internal fun typeAndCharset(mimeType: String): Pair<String, String?> {
+		// Refusal has to be asked, not inferred. This used to read the answer out of safeType's return
+		// value -- OCTET_STREAM with no charset -- and a control character inside the charset parameter
+		// defeated it: safeType refused the type, declaredCharset re-parsed the *original* string and
+		// found a charset, so "refused" was never true and the CRLF went into the header verbatim.
+		// text/html; charset=x<CR><LF><CR><LF><script>... split the response in two, which is the one
+		// thing this class exists to prevent.
+		if (isUntrustworthy(mimeType)) {
+			return OCTET_STREAM to null
+		}
 		val type = safeType(mimeType)
 		return type to (declaredCharset(mimeType) ?: defaultCharsetFor(type))
 	}
+
+	/**
+	 * Whether the stored value cannot be trusted into a header at all.
+	 *
+	 * A control character anywhere in it -- type, parameter name, or parameter value -- means the
+	 * whole string is refused rather than repaired. `ContentTypes.value` comes from a database a
+	 * debug build swaps in from shared storage, and `WebServer` writes the result with `println`.
+	 */
+	private fun isUntrustworthy(mimeType: String): Boolean = mimeType.any { it.isISOControl() }
 
 	/**
 	 * [mimeType]'s media type, normalized and safe to put in a header.
@@ -205,12 +223,14 @@ object ContentTypeHeaders {
 	 * were, and exactly one charset -- the same one [typeAndCharset] hands the other transport.
 	 */
 	fun headerValue(mimeType: String): String {
-		val (type, charset) = typeAndCharset(mimeType)
 		// Nothing from a refused value is re-emitted: its parameters are exactly where the control
-		// characters would have been.
-		if (type == OCTET_STREAM && charset == null) {
+		// characters would have been. Asked directly rather than deduced from the pair below, which
+		// also stops a legitimately stored `application/octet-stream; name=file.bin` from being read
+		// as a refusal and losing its parameters.
+		if (isUntrustworthy(mimeType)) {
 			return OCTET_STREAM
 		}
+		val (type, charset) = typeAndCharset(mimeType)
 		return buildString {
 			append(type)
 			for ((name, value) in parameters(mimeType)) {
@@ -218,7 +238,10 @@ object ContentTypeHeaders {
 				append("; ").append(name)
 				if (value != null) append('=').append(quoteIfNeeded(value))
 			}
-			if (charset != null) append("; charset=").append(charset)
+			// quoteIfNeeded, like every other parameter value: `parameters` strips the quotes from a
+			// stored charset="utf-8; x=y" and returned `utf-8; x=y`, which appended raw became a
+			// charset plus a smuggled second parameter.
+			if (charset != null) append("; charset=").append(quoteIfNeeded(charset))
 		}
 	}
 
