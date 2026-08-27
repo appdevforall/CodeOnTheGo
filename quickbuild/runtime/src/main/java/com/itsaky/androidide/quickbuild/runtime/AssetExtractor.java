@@ -29,6 +29,13 @@ final class AssetExtractor {
 	/** Marker file beside {@link #CURRENT_DIR} naming the baseline the merged assets belong to. */
 	static final String BASELINE_MARKER = "baseline.fp";
 
+	/**
+	 * Marker file beside {@link #CURRENT_DIR} that exists only while a merge is in flight.
+	 *
+	 * Finding it at the start of the next merge means the previous one died part-way, so the merged dir holds two generations. The baseline marker still matches and later payloads carry only newly-changed files, so nothing else would ever heal it - a wrongly-written file would stay wrong until a forced rebuild.
+	 */
+	static final String MERGE_PENDING_MARKER = "merge.pending";
+
 	private static final int BUFFER_SIZE = 16 * 1024;
 
 	/**
@@ -84,6 +91,8 @@ final class AssetExtractor {
 	 *
 	 * The clear-then-mark order is the safe crash window: a death between the two leaves a mismatched marker, so the next call clears an already-empty dir instead of serving another baseline's assets.
 	 *
+	 * A merge that dies part-way is recovered at the START of the next call, not on the failure path: {@link #MERGE_PENDING_MARKER} is written before the first byte and cleared only after the last, and finding it still there clears the dir. A cleared dir is safe - the provider falls through to the APK's baked-in assets - whereas a half-merged one serves a file from the wrong generation.
+	 *
 	 * @param zipStream
 	 *            the changed-assets zip as it arrived over binder; read but never closed
 	 * @param assetsRoot
@@ -101,11 +110,19 @@ final class AssetExtractor {
 		}
 		File providerRoot = currentDir(assetsRoot);
 		File marker = new File(assetsRoot, BASELINE_MARKER);
-		if (!baselineFingerprint.equals(readMarker(marker))) {
+		File pending = new File(assetsRoot, MERGE_PENDING_MARKER);
+		if (!baselineFingerprint.equals(readMarker(marker)) || pending.isFile()) {
 			deleteRecursively(providerRoot);
 			writeMarker(marker, baselineFingerprint);
 		}
-		return extract(zipStream, new File(providerRoot, ASSETS_SUBDIR));
+		writeMarker(pending, baselineFingerprint);
+		int count = extract(zipStream, new File(providerRoot, ASSETS_SUBDIR));
+		if (!pending.delete()) {
+			// The merge itself is complete and correct, but a marker we cannot clear makes the
+			// next call clear a dir that did not need it. Say so rather than leave it silent.
+			throw new IOException("cannot clear merge marker " + pending);
+		}
+		return count;
 	}
 
 	/**
