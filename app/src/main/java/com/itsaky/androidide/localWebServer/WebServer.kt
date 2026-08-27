@@ -4,6 +4,9 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import android.os.Environment.getExternalStorageDirectory
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.annotations.SerializedName
 import com.itsaky.androidide.documentation.DocumentationContent
 import com.itsaky.androidide.documentation.DocumentationContentSource
 import com.itsaky.androidide.documentation.DocumentationLookup
@@ -47,6 +50,41 @@ data class ServerConfig(
 	val debugDatabaseCheckIntervalMs: Long = 1000,
 )
 
+/**
+ * The `bookshelf` template's JSON context: the keys the template reads, and what SQLite's JSON1
+ * functions used to emit before ADFA-5179.
+ *
+ * Every key is spelled out with [SerializedName] rather than left to gson's reflection over field
+ * names. The template reads these names literally -- `{{ item.category }}`, `book.pdf` -- and a
+ * renamed field would produce a page of blanks with nothing failing anywhere. Today `-dontobfuscate`
+ * happens to keep the field names intact in release builds, but that is a global build flag two
+ * tickets are actively changing, not a contract this payload can rely on.
+ */
+internal data class Bookshelf(
+	@SerializedName("result") val result: List<BookshelfCategory>,
+)
+
+internal data class BookshelfCategory(
+	@SerializedName("category") val category: String,
+	@SerializedName("description") val description: String?,
+	@SerializedName("books") val books: List<BookshelfBook>,
+)
+
+// Not part of the JSON payload: the accumulator readBookshelf groups rows into. Its fields become
+// BookshelfCategory's once every row has been read.
+private class CategoryGroup(
+	val description: String?,
+	val books: MutableList<BookshelfBook> = mutableListOf(),
+)
+
+internal data class BookshelfBook(
+	@SerializedName("title") val title: String,
+	@SerializedName("description") val description: String?,
+	@SerializedName("link") val link: String,
+	/** 1 or 0, not a boolean: the shape the template already expects. */
+	@SerializedName("pdf") val pdf: Int,
+)
+
 data class JavaExecutionResult(
 	val compileOutput: String,
 	val runOutput: String,
@@ -87,6 +125,15 @@ class WebServer(
 	// Frozen at startup; restart the server to pick up a change.
 	private val clearCacheEnabled: Boolean = File(config.clearCacheEnablePath).exists()
 
+	// Serializes the bookshelf payload only; the template contexts read from the database are
+	// deserialized by DocumentationContentSource's own gson.
+	private val gson: Gson =
+		GsonBuilder()
+			// JSON_OBJECT emitted "description": null for a null column, and the bookshelf template
+			// was written against that; gson would drop the key entirely by default.
+			.serializeNulls()
+			.create()
+
 	// -1 means "not fetched yet". Volatile because the WebView transport shares this server's
 	// process, and the interceptor's reads can run on WebView threads while the accept loop writes.
 	@Volatile
@@ -103,6 +150,9 @@ class WebServer(
 
 	// Hal Eisen: required to fix StrictMode.VmPolicy.Builder.detectUntaggedSockets().
 	private val socketStatsTag = 0xC0DE
+
+	/** Where a book whose category row has no label is filed (see [readBookshelf]). */
+	private val uncategorizedLabel = "General"
 
 	fun logDatabaseLastChanged() {
 		try {
@@ -650,69 +700,25 @@ class WebServer(
 	): Boolean {
 		if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
-		// Database fetch
-		val sqlQuery =
-"""
-SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
-SELECT
-	JSON_OBJECT(
-	'category',    IFNULL(BC.category, 'General'),
-	'description', BC.description,
-	'books',       JSON_GROUP_ARRAY(JSON_OBJECT(
-		'title',       IFNULL(B.title, C.path),
-		'description', B.description,
-		'link',        C.path,
-		'pdf',         IIF(SUBSTR(C.path, -4) == '.pdf', 1, 0) )
-		)
-	) AS Item
-FROM Content AS C,
-	Bookshelf AS B,
-	BookCategories AS BC
-WHERE C.id = B.contentID
-AND   B.bookCategoryID = BC.id
-GROUP BY BC.category
-ORDER BY BC.category,
-		B.title
-);
-""".trimIndent()
-
 		// Null means an error response has already been sent, so there is nothing left to write.
 		val jsonText =
 			contentSource.withDatabase { database ->
-				var cursor = database.rawQuery(sqlQuery, arrayOf())
-
 				try {
-					if (!isCursorOneRow(cursor, writer, output)) {
-						return@withDatabase null
-					}
-
-					// get the JSON from the bookshelf table
-					cursor.moveToFirst()
-					val json = cursor.getBlob(0)
-					if (json == null) {
-						// group_concat over an empty join still yields one row, whose value is
-						// NULL -- so isCursorOneRow passes. Answer it here, or the null would
-						// fall out of withDatabase as a zero-byte closed connection.
-						log.error("Bookshelf query returned no rows.")
-						sendError(writer, output, httpInternalServerError, "Internal Server Error", "Bookshelf query returned no rows.")
-						return@withDatabase null
-					}
+					val json = bookshelfJson(database)
 					if (debugEnabled) log.debug("json content = '{}'.", String(json, Charsets.UTF_8))
 					if (debugEnabled) log.debug("before fetch bookshelf template ID = '{}'", bookshelfTemplateId)
 
 					// Have we already fetched the template
 					if (bookshelfTemplateId == -1) {
-						// safety first, close the cursor
-						cursor.close()
-						cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
+						database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf()).use { cursor ->
+							if (!isCursorOneRow(cursor, writer, output)) {
+								return@withDatabase null
+							}
 
-						if (!isCursorOneRow(cursor, writer, output)) {
-							return@withDatabase null
+							cursor.moveToFirst()
+							bookshelfTemplateId = cursor.getInt(0)
+							if (debugEnabled) log.debug("after the fetch bookshelf template ID = '{}'", bookshelfTemplateId)
 						}
-
-						cursor.moveToFirst()
-						bookshelfTemplateId = cursor.getInt(0)
-						if (debugEnabled) log.debug("after the fetch bookshelf template ID = '{}'", bookshelfTemplateId)
 					}
 
 					json
@@ -720,8 +726,6 @@ ORDER BY BC.category,
 					log.error("Error processing request: {}", e.message)
 					sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
 					null
-				} finally {
-					cursor.close()
 				}
 			} ?: return false
 
@@ -735,6 +739,162 @@ ORDER BY BC.category,
 		if (debugEnabled) log.debug("Leaving realHandleBsEndpoint().")
 
 		return true
+	}
+
+	/**
+	 * The exact bytes the `bookshelf` template is rendered against.
+	 *
+	 * Extracted so the test that pins the payload's keys, nesting and explicit nulls can call the
+	 * path production uses. Asserting on a re-composed `gson.toJson(readBookshelf(...))` looked
+	 * equivalent but could not fail if this line changed -- a differently configured serializer here
+	 * would drop every `"description": null` the template was written against and the test would
+	 * still pass.
+	 */
+	internal fun bookshelfJson(database: SQLiteDatabase): ByteArray {
+		val bookshelf = readBookshelf(database)
+		if (bookshelf.result.isEmpty()) {
+			// Not an error -- the endpoint answers 200 with an empty shelf -- but it is indistinguishable
+			// from a working shelf in a bug report, and it is the state ADFA-5204 produced. The query
+			// this replaced surfaced it only by accident, as a 500 from reading a NULL blob.
+			// "no categories", not "no rows": a row whose Content.path is NULL is skipped above, so
+			// the query can return rows and still leave nothing to serve. Each skip logs its own
+			// warning, which is what tells the two cases apart.
+			// debugEnabled, like every other log on this path: on the database this ticket exists for,
+			// where every Bookshelf row joins to nothing, the empty shelf is the steady state and this
+			// would write a line on every page load.
+			if (debugEnabled) log.info("No bookshelf categories to serve; serving an empty shelf.")
+		}
+		return gson.toJson(bookshelf).toByteArray(Charsets.UTF_8)
+	}
+
+	/**
+	 * The bookshelf, grouped into categories, for the `bookshelf` template's JSON context.
+	 *
+	 * Assembled here rather than by SQLite's JSON1 functions (ADFA-5179): `JSON_OBJECT` and
+	 * `JSON_GROUP_ARRAY` are absent from the system SQLite on some devices -- a Galaxy Note 20 Ultra
+	 * on Android 13 among them -- where the old query failed at runtime with `no such function:
+	 * JSON_OBJECT` and the bookshelf could not be opened at all. A plain relational query and gson
+	 * work everywhere.
+	 *
+	 * The payload keeps its keys, nesting and explicit nulls, but two things about it do change, both
+	 * deliberately:
+	 *
+	 * Books within a category are now genuinely sorted by title. The old `ORDER BY BC.category,
+	 * B.title` was inert for them -- it ordered the *groups*, while `JSON_GROUP_ARRAY` aggregated
+	 * rows in scan order, and `B.title` was a bare column under `GROUP BY BC.category`. Against the
+	 * shipped database this reverses the two Java books: "Java, Java, Java" came first by insertion,
+	 * and "Java Notes for Professionals" comes first by title (a space sorts before a comma).
+	 * Deterministic order is worth having, but it is a visible change, not a no-op.
+	 *
+	 * A category whose books all have a NULL `Content.path` disappears from the page. The old query
+	 * emitted the section with `"link": null` in it -- visibly broken, but present -- because the JSON
+	 * was built per row before any filtering. Here the row is skipped before its group is created, so
+	 * an entire category can vanish with only a log line to say so. Skipping a row that cannot be
+	 * linked is still right; the section going with it is the part worth knowing.
+	 *
+	 * The `pdf` flag is now case-insensitive. `SUBSTR(C.path, -4) == '.pdf'` compared under BINARY
+	 * collation, so a row at `books/Guide.PDF` was flagged 0 and rendered as a web link. No shipped
+	 * row spells the extension any other way -- checked with `GLOB '*.[Pp][Dd][Ff]'` -- so nothing
+	 * changes today; a future upper-case path is simply treated as the PDF it is.
+	 *
+	 * An empty bookshelf comes back as an empty list, which the template renders as an empty page.
+	 * The old query turned that case into an HTTP 500: `group_concat` over no rows is NULL, so the
+	 * concatenated JSON was NULL and reading it as a blob threw. Worth knowing, because the rows in
+	 * at least one `documentation.db` copy have a NULL `bookCategoryID` and so join to nothing.
+	 */
+	internal fun readBookshelf(database: SQLiteDatabase): Bookshelf {
+		// The two fallbacks the old query expressed as IFNULL live in Kotlin now (see below): they
+		// are easier to see there, and a unit test can cover them.
+		val query =
+			"""
+SELECT BC.category,
+	BC.description,
+	B.title,
+	B.description,
+	C.path,
+	-- Only for the diagnostic below. Appended, not inserted: every read here is by positional
+	-- index, so a column added anywhere else silently re-points the five above it.
+	C.id
+FROM Content AS C,
+	Bookshelf AS B,
+	BookCategories AS BC
+WHERE C.id = B.contentID
+AND   B.bookCategoryID = BC.id
+-- COALESCE and NOCASE so the sort key is the string the page shows: the title falls back to the
+-- path when it is NULL, and BINARY collation would otherwise put every capitalised title ahead of
+-- every lower-case one and NULL titles ahead of everything.
+ORDER BY BC.category,
+	COALESCE(B.title, C.path) COLLATE NOCASE
+			""".trimIndent()
+
+		// LinkedHashMap: the query's ORDER BY decides the order categories and books appear in, and
+		// the template renders them in that order.
+		//
+		// Keyed by the *raw* category, null included. The query this replaced grouped by BC.category,
+		// where NULL and a literal "General" are two groups that both render as "General"; coalescing
+		// before grouping merges them and keeps only the first description. This port is meant to
+		// change nothing, so the label is applied at construction instead.
+		// One entry per category, holding the label's own description alongside its books. Two maps
+		// keyed by the same category would have to be kept in agreement by hand, and putIfAbsent is
+		// the wrong tool for that: java.util.Map treats a key mapped to null as absent, so a category
+		// whose first row had a NULL description was overwritten by the next row's -- the opposite of
+		// the "first one wins" this comment used to claim. getOrPut's lambda runs only when the key
+		// is genuinely missing, so the description is read once, at group creation, and there is no
+		// second write to get wrong.
+		//
+		// The value type has to stay non-null for that to hold: getOrPut treats a null *value* as
+		// absent too, so a LinkedHashMap<String?, String?> of descriptions would reintroduce the bug
+		// in a different shape.
+		val categories = LinkedHashMap<String?, CategoryGroup>()
+
+		database.rawQuery(query, arrayOf()).use { cursor ->
+			while (cursor.moveToNext()) {
+				// Content.path is NOT NULL in the maintained schema, so this is unreachable there -- but
+				// this endpoint exists because a shipped documentation.db had NULLs nobody expected, and
+				// a platform-type null reaching BookshelfBook(link: String) is an NPE that costs the
+				// whole shelf rather than the one bad row.
+				val path = cursor.getString(4)
+				if (path == null) {
+					// Index 5, C.id -- the title at index 2 is not an id, and in this branch it is
+					// often null too, so it identified nothing while claiming to.
+					// Also gated: one line per malformed row per request is unbounded, and the rows do not
+					// change between requests.
+					if (debugEnabled) log.warn("Bookshelf row for content id {} has no path; skipping it.", cursor.getString(5))
+					continue
+				}
+				// BookCategories.category is nullable, so a book can be linked to a category row that
+				// has no label; it is labelled "General" below, as the old query's IFNULL had it. This
+				// is *not* about a book with no category at all -- the join drops those, exactly as
+				// the query this replaced did.
+				val category = cursor.getString(0)
+
+				categories
+					.getOrPut(category) { CategoryGroup(cursor.getString(1)) }
+					.books
+					.add(
+						BookshelfBook(
+							// A book with no title of its own shows its path, again as before.
+							title = cursor.getString(2) ?: path,
+							description = cursor.getString(3),
+							link = path,
+							// 1/0 rather than a boolean: what the template has always received.
+							pdf = if (path.endsWith(".pdf", ignoreCase = true)) 1 else 0,
+						),
+					)
+			}
+		}
+
+		return Bookshelf(
+			categories.map { (category, group) ->
+				BookshelfCategory(
+					category = category ?: uncategorizedLabel,
+					description = group.description,
+					// toList(): BookshelfCategory.books is a List, and handing over the accumulator's own
+					// MutableList would let a future caller that keeps the map mutate it afterwards.
+					books = group.books.toList(),
+				)
+			},
+		)
 	}
 
 	private fun isCursorOneRow(
