@@ -1,6 +1,6 @@
 # Quick Build concurrency and contention
 
-One thread decides everything; every expensive thing runs in another process. That is the whole model. `[inferred from code]`
+One thread decides everything; every expensive thing runs in another process, bar the I/O the table below puts on `Dispatchers.IO`. That is the whole model. `[inferred from code]`
 
 | Runs on | What runs there | Wired in |
 | --- | --- | --- |
