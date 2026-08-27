@@ -32,6 +32,22 @@ class ComponentProxiabilityResolverTest {
 	}
 
 	@Test
+	fun `a class file ASM cannot parse skips that component instead of failing the build`() {
+		// A dependency compiled above ASM's class-file ceiling, or a truncated jar in the
+		// Gradle cache. Unhandled, the IllegalArgumentException aborts the whole proxy-app
+		// generation with a message that names neither Quick Build nor the class.
+		val resolver = ComponentProxiabilityResolver(libraryClassBytes = { "not a class file".toByteArray() })
+
+		val resolution = resolver.resolve("com.example.lib.OddlyCompiledService")
+
+		// Skip, not Proxiable: if the unreadable class really is final, generating a proxy for
+		// it just moves the failure to proxy compile with a worse message.
+		assertThat(resolution).isInstanceOf(ComponentProxiabilityResolver.Resolution.Skip::class.java)
+		assertThat((resolution as ComponentProxiabilityResolver.Resolution.Skip).reason)
+			.contains("com.example.lib.OddlyCompiledService")
+	}
+
+	@Test
 	fun `a final library class is not proxiable`() {
 		val bytes = classBytes(Opcodes.ACC_PUBLIC or Opcodes.ACC_FINAL, "androidx.room.MultiInstanceInvalidationService")
 		val resolver = ComponentProxiabilityResolver(libraryClassBytes = { bytes })

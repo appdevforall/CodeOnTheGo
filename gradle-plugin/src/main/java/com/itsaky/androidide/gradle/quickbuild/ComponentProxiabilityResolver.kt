@@ -39,13 +39,28 @@ class ComponentProxiabilityResolver(
 	 *
 	 * @param userClass the component's implementation class, as a dotted binary name resolved
 	 *   from the manifest (so `.MainActivity` has already been expanded against the package).
-	 * @return [Resolution.Skip] with a reason if either rule rejects it, else
-	 *   [Resolution.Proxiable] - including when the class is not on the classpath at all.
+	 * @return [Resolution.Skip] with a reason if either rule rejects it or the class file cannot
+	 *   be parsed, else [Resolution.Proxiable] - including when the class is not on the
+	 *   classpath at all.
 	 */
 	fun resolve(userClass: String): Resolution {
 		UNPROXIABLE_BY_NAME[userClass]?.let { return Resolution.Skip(it) }
 		val bytes = libraryClassBytes(userClass) ?: return Resolution.Proxiable
-		return if (ClassOpener.isFinal(bytes)) {
+		val isFinal =
+			try {
+				ClassOpener.isFinal(bytes)
+			} catch (e: RuntimeException) {
+				// ASM throws on anything it cannot parse: a dependency compiled above its class
+				// file ceiling, a truncated jar in the Gradle cache. Unhandled that aborts the
+				// whole proxy-app generation with a bare "Unsupported class file major version
+				// N" - no mention of Quick Build, no class name - while Standard Run keeps
+				// working, so it reads as "Quick Build is broken on my project". Skipping
+				// degrades this one component and logs why. Deliberately NOT Proxiable: an
+				// unreadable class that really is final would emit `ProxyNActivity extends
+				// FinalClass` and fail later at proxy compile with a worse message.
+				return Resolution.Skip("class file for $userClass could not be read: $e")
+			}
+		return if (isFinal) {
 			Resolution.Skip("final class - cannot be extended")
 		} else {
 			Resolution.Proxiable
