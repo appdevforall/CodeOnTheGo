@@ -25,6 +25,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 
 class PathTraversalTest {
 	private val baseDir = File("/project/root")
@@ -209,23 +210,47 @@ class PathTraversalTest {
 		assertThat(resolver.resolve("link/secret.txt")).isInstanceOf(Resolution.Rejected::class.java)
 	}
 
-	// An absent base skips the real-base comparison (there is nothing to resolve), but that must not
-	// skip the symlink check on what *does* exist: with base root/link/missing and link pointing
-	// outside root, accepting the absent base means a later mkdirs follows the link and plants the
-	// whole "contained" tree outside it (ADFA-5257 review).
+	// A symlink between the base and the filesystem root is where the caller's base lives, not an
+	// escape from it: root/link/missing/a.txt does not escape root/link/missing. With the base
+	// absent there is no real base to compare against, so containment is judged against the nearest
+	// existing ancestor's real path -- resolved, not refused, exactly as the existing-base branch
+	// resolves realBase through symlinks (ADFA-5257 review).
 	@Test
-	fun `an absent base beneath a symlinked ancestor is rejected`() {
+	fun `an absent base beneath a symlinked ancestor resolves against its real location`() {
 		val root = tempFolder.newFolder("absent-base")
 		val outside = tempFolder.newFolder("absent-base-outside")
 		createSymlinkOrSkipTest(File(root, "link").toPath(), outside.toPath())
 
 		val resolution = ContainedPathResolver(File(root, "link/missing")).resolve("a.txt")
 
-		assertThat(resolution).isInstanceOf(Resolution.Rejected::class.java)
+		assertThat(resolution).isInstanceOf(Resolution.Contained::class.java)
+		assertThat((resolution as Resolution.Contained).file)
+			.isEqualTo(File(root, "link/missing/a.txt"))
 	}
 
-	// The same hole with the link at the base itself: a dangling symlink reads as an absent base to
-	// toRealPath(), but mkdirs happily creates its target's tree once anything springs up there.
+	// The symmetry the rule above preserves: the same tree must answer the same whether the base
+	// happens to exist yet or not -- the class answers one question, "is the entry inside the
+	// base's real location", and Files.createDirectories(base) between two calls must not change
+	// that answer (ADFA-5257 review).
+	@Test
+	fun `an absent base and the same base created answer identically`() {
+		val root = tempFolder.newFolder("symmetry")
+		val outside = tempFolder.newFolder("symmetry-outside")
+		createSymlinkOrSkipTest(File(root, "link").toPath(), outside.toPath())
+		val base = File(root, "link/missing")
+		val resolver = ContainedPathResolver(base)
+
+		val whileAbsent = resolver.resolve("a.txt")
+		Files.createDirectories(base.toPath())
+		val onceCreated = resolver.resolve("a.txt")
+
+		assertThat(whileAbsent).isInstanceOf(Resolution.Contained::class.java)
+		assertThat(onceCreated).isEqualTo(whileAbsent)
+	}
+
+	// A *dangling* link is still refused: its target does not exist, so the base has no real
+	// location to judge against -- the same NoSuchFileException rule the existing-base branch
+	// applies to a dangling ancestor, not a special absent-base case.
 	@Test
 	fun `an absent base that is itself a dangling symlink is rejected`() {
 		val root = tempFolder.newFolder("dangling-base")
