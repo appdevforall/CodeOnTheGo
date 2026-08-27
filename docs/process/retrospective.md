@@ -21,10 +21,12 @@
 | Total wall-clock | Aug 18 -> Aug 25 (~163h calendar span) |
 | Hands-on | 11.4h (742m raw, 684m after merging overlapping turns) |
 | Automated agent time | ~18.7h active |
-| Idle/testing/away | ~83h |
+| Idle/testing/away | ~133h |
 | Retro analysis time | 4 min |
 
-Caveat on the last phase: 154m of "hands-on" counts ~6,900 words of machine-generated review findings as reading at 150 wpm. The human did not read those end to end.
+The rows do not sum to the span, and are not meant to: agent time overlaps both hands-on and idle, since the agent works while the human is away. Idle is the remainder after hands-on (163 - 11.4 ~= 133h), not a fourth disjoint bucket.
+
+Caveat on the last phase: 154m of "hands-on" counts ~6,900 words of machine-generated review findings as reading at 150 wpm. The human did not read those end-to-end.
 
 ### Key Observations
 - Four independent reviews of PRs already reported as verified each found a real defect: a security fix that sanitised the media type but not its parameters; a test suite every expectation of which sat on one boundary, so a `MIN()` stub would have passed it; a shutdown guard on two of three entry points; a `catch (Exception)` that misses the `Error` the PR existed to handle; and 12 MB of machine-local fixtures committed by `git add -A`.
