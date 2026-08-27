@@ -4,5 +4,5 @@ Pure-JVM types for measuring the live-reload loop: one timeline per edit and one
 
 | File | Purpose |
 | --- | --- |
-| [`E2eTimeline.kt`](E2eTimeline.kt) | One generation's four-stamp timeline plus `StepTimings`, `HostSpans`, `BuildCounts`; derives stage deltas and the grep-stable log `format`/`parse`. |
+| [`E2eTimeline.kt`](E2eTimeline.kt) | One generation's four-stamp timeline plus `StepTimings`, `HostSpans`, `BuildCounts`; derives stage deltas and the grep-stable log `format`. Nothing here parses that line back - the benchmark harness's own Python parser does. |
 | [`QuickBuildMetricsSink.kt`](QuickBuildMetricsSink.kt) | Interface for recording session/build/invalidation/reload/rebuild stats; must be cheap and never throw. Includes a `Noop` implementation. |

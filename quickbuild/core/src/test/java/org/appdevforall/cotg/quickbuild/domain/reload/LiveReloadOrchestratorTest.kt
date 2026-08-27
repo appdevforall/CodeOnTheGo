@@ -11,7 +11,6 @@ import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.classify.ChangeClassifier
 import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
-import org.appdevforall.cotg.quickbuild.service.telemetry.report
 import org.junit.jupiter.api.Test
 import java.io.File
 

@@ -57,6 +57,7 @@ class E2eTimelineGroupsTest {
 	fun `each HostSpans field alone makes the group non-empty and counts toward the total`() {
 		val singles =
 			listOf(
+				E2eTimeline.HostSpans(queueMillis = 7),
 				E2eTimeline.HostSpans(scanMillis = 7),
 				E2eTimeline.HostSpans(compileRpcMillis = 7),
 				E2eTimeline.HostSpans(policyMillis = 7),
