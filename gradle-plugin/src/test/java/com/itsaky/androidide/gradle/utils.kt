@@ -49,7 +49,7 @@ if (!(mavenLocal.exists() && mavenLocal.isFile)) {
 
 val repositories = mavenLocal.readText()
 
-for (repo in repositories.split(':')) {
+for (repo in repositories.split(File.pathSeparatorChar)) {
 	val file = File(repo)
 	if (!(file.exists() && file.isDirectory)) {
 	throw FileNotFoundException("Maven local repository does not exist : $repo")

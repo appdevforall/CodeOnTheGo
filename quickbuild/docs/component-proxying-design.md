@@ -9,9 +9,11 @@ already shipped.
 
 ## Why proxy at all
 
-- **The user's classes are deliberately absent from the installed APK.** They travel only in the
-  swappable payload dex, so the parent-first classloader chain can never serve a stale copy of a
-  class the user just edited.
+- **The app module's own compiled classes are deliberately absent from the installed APK.** They
+  travel only in the swappable payload dex, so the parent-first classloader chain can never serve a
+  stale copy of a class the user just edited. What does stay in the APK: the generated `R`/`R$*`
+  classes (resource ids have to resolve before any payload arrives), and, in a multi-module
+  project, the user's own library modules - those rebuild through Gradle, not through a reload.
 - **But Android instantiates manifest components by class name**, and the manifest is fixed at
   install time. Changing it means reinstalling - the cost Quick Build exists to avoid.
 - **So the manifest must name a class that is in the APK and never changes**, while the code behind
@@ -55,10 +57,11 @@ See "Restart vs recreate".
 
 ## How: a Gradle plugin rewrites the merged manifest
 
-`QuickBuildPlugin` transforms AGP's merged-manifest artifact: every activity's and provider's
-`android:name` becomes a generated proxy FQN, a `Proxy<N><Type> extends <user class>` source is
-generated and compiled into the APK, and `<application>` gains the runtime's
-`android:appComponentFactory`. Services and receivers keep their real (fully qualified) names
+`QuickBuildPlugin` transforms AGP's merged-manifest artifact: every **proxiable** activity's and
+provider's `android:name` becomes a generated proxy FQN, a `Proxy<N><Type> extends <user class>`
+source is generated and compiled into the APK, and `<application>` gains the runtime's
+`android:appComponentFactory`. Proxiable excludes `final` library components and the
+name-resolved ones listed below, which keep their real names. Services and receivers keep their real (fully qualified) names
 and are recorded proxy-less, per the addressing rule above.
 For each proxied activity the transform also synthesizes an `<activity-alias>` under the
 activity's REAL class name, pointing at the proxy - so an explicit in-app
