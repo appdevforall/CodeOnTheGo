@@ -57,7 +57,8 @@ Six ops: `configure`, `compile`, `dex`, `relink`, `ping`, `shutdown`.
 
 ### Responses
 
-`{"id", "ok", <op values, flat>, "diagnostics"}`. Values are flat scalars, never nested.
+`{"id", "ok", <op values, flat>, "diagnostics"}`. Values are flat - never a nested object.
+They are JSON scalars apart from `classesChanged`, which is an array of strings.
 
 - `diagnostics` **can appear on success** - a build can succeed with warnings.
 - **`line` and `column` are JSON numbers, and they stop here.** CoGo keeps error positions for
