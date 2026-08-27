@@ -184,6 +184,16 @@ class ContainedPathResolver(
 			// dangling symlink included) is refused: a later mkdirs would follow it and plant the
 			// "contained" tree wherever it points (ADFA-5257 review). A real ancestor must still
 			// resolve -- a failure means containment is unproven, not disproven.
+			//
+			// Deliberately stricter than the existing-base path, which answers Contained for the
+			// same topology: with base root/link/missing, resolving root/link to its real path and
+			// comparing startsWith(realBase) is satisfied, because the link relocates the base and
+			// the target together. Measured, not assumed -- creating the base between two otherwise
+			// identical calls flips Rejected to Contained. The asymmetry is kept because this branch
+			// can only fail closed, and because neither production caller reaches it: ZipUtils and
+			// AssetsInstallationHelper both create destDir on the line above the construction. If a
+			// caller ever does resolve against a not-yet-created base, decide then whether an
+			// ancestor link is an escape from the base or merely where the caller put it.
 			if (Files.isSymbolicLink(ancestor)) {
 				return Resolution.Rejected(resolved)
 			}
