@@ -6,14 +6,15 @@
 -- (Tier 1 `summary` + Tier 2 `detail`) and a matching Content row (Tier 3
 -- HTML page) at a new, item-granular `i/prefs/...` path.
 --
--- Deliberately NOT included: prefs.top, prefs.general, prefs.editor,
--- prefs.editor.xml, prefs.termux, and prefs.git already exist in the real
--- documentation.db with a real (non-empty) summary -- these tags are reused
--- as-is for the corresponding screen/toolbar row, so this script leaves
--- them alone rather than overwriting curated production content with a
--- draft. (Two of the six have an empty Tier 2 detail; that's an existing,
--- summary-only state for those tags, not something this script introduces
--- or needs to fix.)
+-- Deliberately NOT included: prefs.general, prefs.editor, prefs.editor.xml,
+-- prefs.termux, and prefs.git already exist in the real documentation.db
+-- with a real (non-empty) summary -- these tags are reused as-is for the
+-- corresponding screen/toolbar row, so this script leaves them alone rather
+-- than overwriting curated production content with a draft. (Two of the
+-- five have an empty Tier 2 detail; that's an existing, summary-only state
+-- for those tags, not something this script introduces or needs to fix.)
+-- prefs.top, by contrast, IS seeded below: this PR introduces the tag (the
+-- Preferences toolbar/screen fallback), so no curated row exists yet.
 --
 -- Both Tooltips (UNIQUE(categoryId, tag)) and Content (UNIQUE(path)) are
 -- idempotent `INSERT ... ON CONFLICT ... DO UPDATE` upserts below, so the
@@ -109,6 +110,9 @@ DELETE FROM Tooltips WHERE tag IN ('prefs.gradle', 'prefs.developer') AND catego
 
 -- Tooltips: idempotent upserts (existing empty stub rows + brand new tags,
 -- all in one form so the script can be re-run safely)
+
+INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (1, 'prefs.top', 'Change how Code on the Go looks and behaves.', 'This is the main settings screen. Open a group such as General, Editor, or Build & Run to see and change the settings inside it.')
+  ON CONFLICT (categoryId, tag) DO UPDATE SET summary = excluded.summary, detail = excluded.detail;
 
 INSERT INTO Tooltips (categoryId, tag, summary, detail) VALUES (1, 'prefs.general.uimode', 'Choose light mode, dark mode, or match your device''s system setting.', 'This setting controls the color theme of the app. Pick Light, Dark, or Follow system. Follow system switches automatically when your device''s theme changes.')
   ON CONFLICT (categoryId, tag) DO UPDATE SET summary = excluded.summary, detail = excluded.detail;
@@ -806,25 +810,22 @@ INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES 
 DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.about' AND categoryId = 1) AND uri = 'i/prefs/about';
 INSERT INTO TooltipButtons (tooltipId, buttonNumberId, description, uri) VALUES ((SELECT id FROM Tooltips WHERE tag = 'prefs.about' AND categoryId = 1), 1, 'Learn more', 'i/prefs/about');
 
--- Neither this script nor the sibling plugin-manager one inserts prefs.top
--- or the 5 tags below (see "Deliberately NOT included" above) - they're
--- assumed to already exist in the real database with a real summary.
--- prefs.top specifically backs three code paths added by this same PR (the
--- Preferences toolbar long-press, and the fallback for any row or screen
--- with no tag of its own), so a wrong assumption there is a regression in
--- this PR's own feature, not just stale pre-existing content. For the other
--- 5, a missing tag makes the tooltipId subquery in the TooltipButtons block
--- above return NULL, and TooltipButtons has no NOT NULL/enforced FK on that
--- column, so a wrong assumption there would silently insert a dead row
--- instead of failing loudly. Assert existence and a non-empty summary for
--- all 6 (not detail too - two of the six have an empty Tier 2 detail in the
--- real database today, which is an existing summary-only state, not a
--- broken one).
-CREATE TEMP TABLE _existing_tags_guard (found_count INTEGER NOT NULL CHECK (found_count = 6));
+-- Neither this script nor the sibling plugin-manager one inserts the 5 tags
+-- below (see "Deliberately NOT included" above) - they're assumed to
+-- already exist in the real database with a real summary. A missing tag
+-- makes the tooltipId subquery in the TooltipButtons block below return
+-- NULL, and TooltipButtons has no NOT NULL/enforced FK on that column, so a
+-- wrong assumption would silently insert a dead row instead of failing
+-- loudly. Assert existence and a non-empty summary for all 5 (not detail
+-- too - two of the five have an empty Tier 2 detail in the real database
+-- today, which is an existing summary-only state, not a broken one).
+-- prefs.top is NOT asserted here: it's new in this PR, seeded by the upsert
+-- at the top of the Tooltips block above.
+CREATE TEMP TABLE _existing_tags_guard (found_count INTEGER NOT NULL CHECK (found_count = 5));
 INSERT INTO _existing_tags_guard
 SELECT COUNT(*) FROM Tooltips
 WHERE categoryId = 1
-AND tag IN ('prefs.top', 'prefs.general', 'prefs.editor', 'prefs.editor.xml', 'prefs.termux', 'prefs.git')
+AND tag IN ('prefs.general', 'prefs.editor', 'prefs.editor.xml', 'prefs.termux', 'prefs.git')
 AND length(summary) > 0;
 
 DELETE FROM TooltipButtons WHERE tooltipId = (SELECT id FROM Tooltips WHERE tag = 'prefs.general' AND categoryId = 1) AND uri = 'i/prefs/general';

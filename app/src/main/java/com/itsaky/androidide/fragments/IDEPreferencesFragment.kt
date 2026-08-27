@@ -35,8 +35,6 @@ import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import org.slf4j.LoggerFactory
 
 class IDEPreferencesFragment : BasePreferenceFragment() {
-	private val log = LoggerFactory.getLogger(IDEPreferencesFragment::class.java)
-
 	/** Every preference in this screen, including nested categories' children, keyed by its key. */
 	internal var tooltipTagsByKey: Map<String, String> = emptyMap()
 
@@ -126,7 +124,9 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 	/**
 	 * Recursively walks [children], mapping each preference key to its tooltip tag.
 	 * Nested [IPreferenceScreen] nodes are not descended into. Entries with an empty
-	 * tooltip tag are kept as-is. Throws if two preferences in the tree share a key.
+	 * tooltip tag are kept as-is. If two preferences in the tree share a key, the first
+	 * one's tag wins and the duplicate is logged - restored fragments legitimately
+	 * arrive with every child duplicated, so this must not throw.
 	 */
 	internal fun collectTooltipTags(children: List<IPreference>): Map<String, String> {
 		val map = mutableMapOf<String, String>()
@@ -181,6 +181,8 @@ class IDEPreferencesFragment : BasePreferenceFragment() {
 	}
 
 	companion object {
+		private val log = LoggerFactory.getLogger(IDEPreferencesFragment::class.java)
+
 		const val EXTRA_CHILDREN = "ide.preferences.fragment.children"
 		const val EXTRA_SCREEN_TOOLTIP_TAG = "ide.preferences.fragment.screenTooltipTag"
 	}
