@@ -1,9 +1,11 @@
 package com.itsaky.androidide.ui.models
 
 import android.net.Uri
+import android.os.Parcelable
 import androidx.annotation.StringRes
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.plugins.PluginMetadata
+import kotlinx.parcelize.Parcelize
 import java.io.File
 
 data class PluginManagerUiState(
@@ -24,12 +26,18 @@ data class PluginManagerUiState(
  * SAF (any provider, including third-party ones), or a plain [File] this process already owns
  * (the forwarded-`.cgp` case from [com.itsaky.androidide.activities.ExternalFileInstallActivity],
  * which needs no [android.content.ContentResolver] round-trip since it's already a private file).
+ *
+ * [Parcelable] so the Compose install-confirmation dialog can hold one in `rememberSaveable` and
+ * survive rotation. [Uri] is Parcelable outright; [File] is [java.io.Serializable], which
+ * `@Parcelize` writes via `writeSerializable`.
  */
-sealed class PluginInstallSource {
+sealed class PluginInstallSource : Parcelable {
+	@Parcelize
 	data class ContentUri(
 		val uri: Uri,
 	) : PluginInstallSource()
 
+	@Parcelize
 	data class LocalFile(
 		val file: File,
 	) : PluginInstallSource()
@@ -64,7 +72,14 @@ sealed class PluginManagerUiEvent {
 		val source: PluginInstallSource,
 	) : PluginManagerUiEvent()
 
-	object OpenFilePicker : PluginManagerUiEvent()
+	/**
+	 * The SAF picker returned a `.cgp` document. Always a `content://` [Uri] - the forwarded-file
+	 * entry point goes straight to [PluginManagerUiEffect.ShowInstallConfirmation] with a
+	 * [PluginInstallSource.LocalFile] instead, since it needs no picker round-trip.
+	 */
+	data class FileSelected(
+		val uri: Uri,
+	) : PluginManagerUiEvent()
 
 	data class ShowPluginDetails(
 		val plugin: PluginInfo,
@@ -85,7 +100,15 @@ sealed class PluginManagerUiEffect {
 		val plugin: PluginInfo,
 	) : PluginManagerUiEffect()
 
-	object OpenFilePicker : PluginManagerUiEffect()
+	/**
+	 * Carries a [PluginInstallSource], not a bare [Uri], so both entry points share one dialog:
+	 * the SAF pick (a [PluginInstallSource.ContentUri]) and a `.cgp` forwarded from
+	 * [com.itsaky.androidide.activities.ExternalFileInstallActivity] (a
+	 * [PluginInstallSource.LocalFile]).
+	 */
+	data class ShowInstallConfirmation(
+		val source: PluginInstallSource,
+	) : PluginManagerUiEffect()
 
 	data class ShowUninstallConfirmation(
 		val plugin: PluginInfo,
