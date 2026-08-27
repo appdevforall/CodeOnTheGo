@@ -112,7 +112,7 @@ sequenceDiagram
             D-->>S: relinked resource apk
         end
         Note over S: GenerationTracker.next() -> gen N<br/>(allocated ONLY after compile+dex succeed)
-        Note over S: DeployPolicy.decide(changedClasses)<br/>-> Recreate (hot swap)
+        Note over S: DeployPolicy.decide()<br/>keys on the app's declared components,<br/>not on what this build recompiled<br/>-> Recreate (hot swap)
         S->>Ch: deploy(gen N, dex, arsc?, assets?, meta)
         Note over Ch: subscribe to reports BEFORE the<br/>oneway call, open payloads as read-only fds
         Ch->>App: onPayload(gen N, dexFd, arscFd, assetsFd, meta)
@@ -488,7 +488,7 @@ flowchart TB
 
     subgraph decide["Deploy decision (inside the executed build)"]
         gen["GenerationTracker.next()<br/><i>persist-before-return; gaps ok, reuse never</i>"]
-        pol["DeployPolicy.decide(changedClasses)"]
+        pol["DeployPolicy.decide()<br/><i>keys on declared components; the recompiled<br/>set only picks the pre-v2 fallback</i>"]
         rec["Recreate (hot swap)"]:::out
         res["Restart (service/provider/Application<br/>in supertype closure)"]:::out
         reb["RebuildProxyApp (pre-v2 baseline)"]:::out
