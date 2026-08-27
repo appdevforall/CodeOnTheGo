@@ -183,14 +183,15 @@ class AssetsInstallationHelperTest {
 				ByteArrayOutputStream().use { baos ->
 					ZipOutputStream(baos).use { zos ->
 						// Two levels below the symlink ("linked/sub/nested.txt", no directory
-						// entries), not one: for a one-level entry ("linked/nested.txt"),
-						// destFile.parent IS the symlink, so Files.createDirectories() throws
-						// FileAlreadyExistsException (NOFOLLOW_LINKS rejects the existing
-						// symlink-to-dir) before the toRealPath() guard below it ever runs. One
-						// level deeper, createDirectories() silently traverses the symlink to
-						// create "sub" for real inside outsideDir, and only then does the
-						// toRealPath() check on destFile.parent fire -- which is what this test
-						// exercises.
+						// entries), not one. The depth used to decide which guard caught it, back
+						// when containment was re-checked with toRealPath() after
+						// createDirectories() had already run: one level down, createDirectories()
+						// threw FileAlreadyExistsException on the symlink before that check was
+						// reached. ADFA-5257 moved containment ahead of every mkdir, so both
+						// depths are now refused by ContainedPathResolver with nothing created.
+						// Kept at two levels because that is the case a lexical check alone lets
+						// through -- "linked/sub/nested.txt" has no ".." and does start with
+						// destDir, so only resolving "linked" to its real path catches it.
 						zos.putNextEntry(ZipEntry("linked/sub/nested.txt"))
 						zos.write(content.toByteArray())
 						zos.closeEntry()
