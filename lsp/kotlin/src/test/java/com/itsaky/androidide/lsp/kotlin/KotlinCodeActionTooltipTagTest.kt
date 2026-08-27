@@ -28,7 +28,7 @@ import org.junit.Test
  */
 class KotlinCodeActionTooltipTagTest {
 	private val actualTags
-		get() = KotlinCodeActionsMenu.actions.associate { it.id to it.tooltipTag }
+		get() = KotlinCodeActionsMenu.actions.associate { it.id to it.retrieveTooltipTag(false) }
 
 	@Test
 	fun `every kotlin code action maps to its own tooltip tag`() {
