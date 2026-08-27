@@ -697,8 +697,8 @@ ORDER BY BC.category,
 						sendError(writer, output, httpInternalServerError, "Internal Server Error", "Bookshelf query returned no rows.")
 						return@withDatabase null
 					}
-					if (debugEnabled) log.debug("json content = '${String(json)}'.")
-					if (debugEnabled) log.debug("before fetch bookshelf template ID = '$bookshelfTemplateId'")
+					if (debugEnabled) log.debug("json content = '{}'.", String(json, Charsets.UTF_8))
+					if (debugEnabled) log.debug("before fetch bookshelf template ID = '{}'", bookshelfTemplateId)
 
 					// Have we already fetched the template
 					if (bookshelfTemplateId == -1) {
@@ -712,7 +712,7 @@ ORDER BY BC.category,
 
 						cursor.moveToFirst()
 						bookshelfTemplateId = cursor.getInt(0)
-						if (debugEnabled) log.debug("after the fetch bookshelf template ID = '$bookshelfTemplateId'")
+						if (debugEnabled) log.debug("after the fetch bookshelf template ID = '{}'", bookshelfTemplateId)
 					}
 
 					json
