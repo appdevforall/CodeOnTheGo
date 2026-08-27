@@ -3,6 +3,7 @@ package com.itsaky.androidide.quickbuild
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -145,6 +146,29 @@ class QuickBuildPrebuildStaggerTest {
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Prebuilding(tapQueued = true))
 		assertThat(transition.effects).isEmpty()
 	}
+
+	@Test
+	fun `a deferred prebuild that throws does not take the scope down with it`() =
+		runTest {
+			stagger().onProjectSynced(
+				sessionIsLive = { false },
+				fire = { throw IllegalStateException("selectedVariantName blew up") },
+			)
+
+			advanceTimeBy(STAGGER + 1)
+			runCurrent()
+
+			// The scope is the editor activity's: a plain Job, no CoroutineExceptionHandler.
+			// An escaping throw crashes the IDE outright, and short of that cancels the scope
+			// for the life of the activity - taking the editor's other launch sites with it.
+			assertThat(backgroundScope.isActive).isTrue()
+
+			// And the scope is still usable, not merely un-cancelled.
+			stagger().onProjectSynced(sessionIsLive = { false }, fire = { fires++ })
+			advanceTimeBy(STAGGER + 1)
+			runCurrent()
+			assertThat(fires).isEqualTo(1)
+		}
 
 	companion object {
 		private const val STAGGER = 30_000L
