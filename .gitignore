@@ -105,6 +105,12 @@ sentry.properties
 
 # Generated files for tooling API
 
+# Written by the gradle-plugin tests, not by a Gradle task: writeInitScript() in
+# gradle-plugin/src/test/.../utils.kt resolves FileProvider.testHomeDir() and creates
+# .cg/init/androidide.init.gradle there on every run. ADFA-5263 deleted copyToTestDir, so the
+# model.jar entry that used to sit beside this one is dead, but the directory still fills up.
+tests/test-home
+
 /composite-builds/build-deps-common/constants/build/
 /composite-builds/build-deps/build/
 
