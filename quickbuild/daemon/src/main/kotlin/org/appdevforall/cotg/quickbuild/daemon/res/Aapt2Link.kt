@@ -102,9 +102,9 @@ class Aapt2Link(
 	 * @param libraryResources pre-compiled `.flat` units from the proxy app build - the
 	 *   `intermediates/merged_res/` closure plus each AAR's separately-compiled file-based
 	 *   resources - without which a library-provided reference fails to link (see class KDoc).
-	 * @return [Result.Failed] when a named [stableIds] file is absent, when the scratch dir could
-	 *   not be reset, when either aapt2 phase exited non-zero, or when the output carries no
-	 *   resource table.
+	 * @return [Result.Failed] when more than one [resDirs] entry is given, when a named
+	 *   [stableIds] file is absent, when the scratch dir could not be reset, when either aapt2
+	 *   phase exited non-zero, or when the output carries no resource table.
 	 */
 	fun relink(
 		resDirs: List<File>,
@@ -113,6 +113,25 @@ class Aapt2Link(
 		stableIds: File? = null,
 		libraryResources: List<File> = emptyList(),
 	): Result {
+		// aapt2 derives each .flat name from the resource's path WITHIN ITS ROOT, and every root
+		// here compiles into one -o dir, so two roots holding layout/main.xml both write
+		// layout_main.xml.flat and the last one silently wins. Unreachable today -
+		// QuickBuildProjectLayout.resDirs() returns exactly src/main/res - but the protocol
+		// advertises a List and the day a flavor or build-type res root is added the symptom is
+		// "my string change did not take", with no error. Fail loudly instead, so extending
+		// resDirs() turns this red rather than quiet.
+		if (resDirs.size > 1) {
+			return Result.Failed(
+				listOf(
+					Diagnostic(
+						Diagnostic.Severity.ERROR,
+						"quick build supports one resource root, got ${resDirs.size}: " +
+							resDirs.joinToString { it.absolutePath } +
+							" - compiling several into one dir lets same-named resources overwrite each other",
+					),
+				),
+			)
+		}
 		// Rule 1 makes stable-ids mandatory whenever the session has one. A named-but-missing
 		// file (a stale or moved AGP intermediate path) must not silently degrade to an unpinned
 		// link: that exits 0 and only fails ON DEVICE, as a crash or the wrong resource, with
