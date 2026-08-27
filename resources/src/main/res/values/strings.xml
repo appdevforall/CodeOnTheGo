@@ -963,8 +963,8 @@
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
-	<string name="plugin_manager_title">Plugin Manager</string>
-	<string name="plugin_manager_summary">Manage IDE plugins and extensions</string>
+	<string name="plugin_manager_title">Extensions Manager</string>
+	<string name="plugin_manager_summary">Manage IDE plugins and templates</string>
 	<string name="msg_open_plugin_settings_failed">Could not open this plugin\'s settings</string>
 	<string name="plugins">Plugins</string>
 	<string name="no_plugins_installed">No plugins installed</string>
@@ -986,6 +986,10 @@
 	<string name="plugin_status_not_loaded">Not Loaded</string>
 	<string name="plugin_permissions">Permissions</string>
 	<string name="plugin_dependencies">Dependencies</string>
+	<string name="by_author">by %1$s</string>
+	<string name="status_not_loaded">Not Loaded</string>
+	<string name="status_disabled">Disabled</string>
+	<string name="status_enabled">Enabled</string>
 
 	<!-- Plugin crash dialog -->
 	<string name="title_plugin_crashed">Plugin crashed</string>
@@ -1077,6 +1081,8 @@
 	<string name="cd_redo">Redo</string>
 	<string name="cd_delete">Delete</string>
 	<string name="cd_add">Add</string>
+	<string name="cd_navigate_back">Navigate back</string>
+	<string name="cd_show_tooltip">Show help tooltip</string>
 	<string name="cd_search">Search</string>
 	<string name="cd_diagnostic_error">Error</string>
 	<string name="cd_diagnostic_warning">Warning</string>
@@ -1148,11 +1154,23 @@
 	<string name="msg_plugin_uninstall_error">Error uninstalling plugin: %1$s</string>
 	<string name="msg_source_delete_failed">Could not delete the installation file</string>
 	<string name="msg_unsupported_plugin_file">Unsupported file type. Please select a .cgp file</string>
+	<string name="msg_unsupported_extension_file">Unsupported file type. Please select a .cgp plugin or .cgt template file</string>
 	<string name="msg_no_file_manager">No file manager found</string>
 	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
 	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
 	<string name="action_discover_plugins">Discover plugins</string>
 	<string name="url_discover_plugins" translatable="false">https://www.appdevforall.org/contribute/</string>
+	<string name="title_uninstall_plugin">Uninstall Plugin</string>
+	<string name="msg_uninstall_plugin_confirm">Are you sure you want to uninstall \'%1$s\'?</string>
+	<string name="label_plugin_name">Name</string>
+	<string name="label_plugin_id">Plugin ID</string>
+	<string name="label_plugin_version">Version</string>
+	<string name="label_plugin_author">Author</string>
+	<string name="label_plugin_description">Description</string>
+	<string name="label_plugin_min_ide_version">Min IDE Version</string>
+	<string name="label_value">%1$s: %2$s</string>
+	<string name="template_optional_tag">"- %1$s"</string>
+	<string name="label_separator">" - "</string>
 	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<string name="msg_invalid_incoming_file">Could not read the file. It may be corrupted or unavailable.</string>
@@ -1165,9 +1183,21 @@
 	<string name="btn_overwrite">Overwrite</string>
 	<string name="btn_rename_and_install">Rename &amp; Install</string>
 	<string name="hint_new_template_collection_name">New collection name</string>
-	<string name="msg_template_installed">"%1$s" installed successfully</string>
 	<string name="msg_template_invalid_file">Invalid or corrupted template collection file.</string>
+	<!--
+	  A .cgt is a collection: the bundled core.cgt alone carries nine templates, so these name the
+	  archive rather than saying "template" singular. Shared by both install paths - the Templates
+	  tab and the external-file install (ADFA-4934) - since both move one whole .cgt.
+	-->
+	<!-- Backticks, not quotes: Android strips unescaped double quotes from a string value, so
+	     "%1$s" would render the name bare. -->
+	<string name="msg_template_installed">`%1$s` installed successfully</string>
 	<string name="msg_template_install_failed">Failed to install template collection: %1$s</string>
+	<string name="msg_template_load_failed">Failed to load templates: %1$s</string>
+	<string name="msg_template_uninstalled">Template uninstalled successfully</string>
+	<string name="msg_template_uninstall_failed">Failed to uninstall template: %1$s</string>
+	<string name="msg_template_deleted">Deleted from Downloads</string>
+	<string name="msg_template_delete_failed">Failed to delete template: %1$s</string>
 
 	<string name="msg_template_warnings">\n\nProject creation finished with warnings/errors. Open IDE Logs for details.</string>
 
@@ -1330,17 +1360,49 @@
 	<!-- Plugins -->
 	<string name="title_plugin_manager">Plugin Manager</string>
 
+	<!-- Combined Plugin/Template Manager screen (ADFA-4928) -->
+	<string name="title_manager">Plugins &amp; Templates</string>
+	<string name="tab_plugins">Plugins</string>
+	<string name="tab_templates">Templates</string>
+	<string name="no_templates_found">No templates found</string>
+	<string name="no_templates_found_hint">Templates you download show up here for installing</string>
+	<string name="status_template_installed">Installed</string>
+	<string name="status_template_not_installed">Not installed</string>
+	<string name="template_provenance_bundled">Bundled</string>
+	<string name="template_provenance_plugin">From plugin</string>
+	<string name="template_provenance_user">Imported</string>
+	<plurals name="template_contains_count">
+		<item quantity="one">Contains %1$d template</item>
+		<item quantity="other">Contains %1$d templates</item>
+	</plurals>
+	<string name="action_install_template">Install</string>
+	<string name="action_uninstall_template">Uninstall</string>
+	<string name="action_view_templates">View templates</string>
+	<string name="action_delete_template">Delete</string>
+	<string name="template_details">Details</string>
+	<string name="title_templates_in">Templates in %1$s</string>
+	<string name="title_delete_template">Delete template?</string>
+	<string name="msg_delete_template_confirm">This permanently deletes \'%1$s\' from Downloads.</string>
+	<string name="label_template_file">File</string>
+	<string name="label_template_status">Status</string>
+	<string name="label_template_location">Location</string>
+	<string name="label_template_version">Version</string>
+	<string name="label_template_description">Description</string>
+	<string name="label_template_optional_params">Optional parameters</string>
+	<string name="template_unnamed">(unnamed)</string>
+	<string name="msg_template_error_clip_label">Template error</string>
+
 	<string name="failed_to_save_bitmap_to_file">Failed to save bitmap to file</string>
 	<string name="pixel_copy_failed">PixelCopy failed</string>
 	<string name="failed_to_capture_or_save_screenshot">Failed to capture or save screenshot</string>
 	<string name="back_to_cogo">Back to Code on the Go</string>
 
 	<!-- URL Consent Dialog -->
-	<string name="url_consent_title">Open External Link?</string>
+	<string name="url_consent_title">Open external link?</string>
 	<string name="url_consent_message">You are about to leave Code on the Go to open an external link:\n\n%s\n\nDo you want to continue?</string>
 	<string name="url_consent_cancel">Cancel</string>
 	<string name="url_consent_proceed">Proceed</string>
-	<string name="url_consent_dont_ask">Don\'t Ask Again</string>
+	<string name="url_consent_dont_ask">Don\'t ask again</string>
 
 	<!-- Documentation urls -->
 	<string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Resources migrated from the layouteditor module (now extracted to a plugin) that the app's own
-  layouts/code still reference. They were previously resolved transitively from that module.
--->
-<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+<!-- Resources migrated from the layouteditor module (now extracted to a plugin) that the app's own layouts/code still reference.
+	They were previously resolved transitively from that module. -->
+<resources
+	xmlns:tools="http://schemas.android.com/tools"
+	tools:ignore="MissingTranslation">
 	<string name="ai_agent">Agen AI</string>
 	<string name="cancel">Batal</string>
 	<string name="clear">Hapus</string>
