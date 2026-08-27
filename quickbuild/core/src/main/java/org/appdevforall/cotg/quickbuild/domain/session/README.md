@@ -60,10 +60,18 @@ stateDiagram-v2
 
     Invalidated --> Provisioning: ProxyAppRebuildStarted
     Invalidated --> Invalidated: QuickBuildTapped / HostForegrounded (RunProxyAppRebuild)
+    Invalidated --> Building: BuildStarted (awaiting retry)
+    Invalidated --> Deployed: BuildSucceeded (awaiting retry)
+    Invalidated --> Ready: BuildFailed (awaiting retry)
+    Invalidated --> Invalidated: DaemonDied (awaiting retry, RespawnDaemon)
 
     Degraded --> Ready: DaemonRespawned
     Degraded --> Invalidated: InvalidationDetected
     Degraded --> Degraded: ExternalBuildCompleted (RefreshBaseline)
+    Degraded --> Degraded: QuickBuildTapped (SurfaceMessage + RespawnDaemon)
+    Degraded --> Building: BuildStarted
+    Degraded --> Deployed: BuildSucceeded
+    Degraded --> Ready: BuildFailed
 
     note right of Idle
         SessionRestartRequested from any
