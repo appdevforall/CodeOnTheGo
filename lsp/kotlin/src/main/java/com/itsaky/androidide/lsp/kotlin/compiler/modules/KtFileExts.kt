@@ -31,11 +31,10 @@ private val logger = LoggerFactory.getLogger("KtFileExts")
  * (`KaInaccessibleLifetimeOwnerAccessException: ... Called outside an \`analyze\` context.`).
  * [AnalysisScheduler] serializes access; it is priority-aware, preemptive (via [cancelChecker]) and
  * reentrant. **All** Analysis API access must go through this helper (or [analyzeMaybeDangling]); never
- * call `analyze` / `analyzeCopy` directly, or the serialization guarantee is lost. For an open file this
- * is no longer only a convention: every route to a live `KtFile` is either `LiveKtFile.analyzing`, which
- * calls this helper for you, or gated behind an opt-in marker - with one known exception, the
- * modified-file indexer, which is handed a raw instance through `IndexCommand.IndexModifiedFile` and
- * analyses it unpinned (tracked as a follow-up).
+ * call `analyze` / `analyzeCopy` directly, or the serialization guarantee is lost. That much is still
+ * convention - both are public Analysis API functions this module cannot gate. What *is* enforced is the
+ * step after: [analyzeMaybeDangling] requires opting in to [UnpinnedAnalysis], so analysing PSI that did
+ * not come from a pin is a compile error until someone says so explicitly.
  *
  * **Cancellation.** [action] runs with a [kotlinx.coroutines.Job] installed in the thread's IntelliJ
  * context; the compiler's dense `checkCanceled()` calls throw once that Job is cancelled, aborting
@@ -98,6 +97,28 @@ internal inline fun <R> withAnalysisLock(
 	}
 }
 
+/**
+ * Marks direct analysis of PSI that carries no pin.
+ *
+ * For an open path the pinned instance is the only one an analysis may see - a second, superseded
+ * instance of the same file makes FIR report every top-level declaration twice (ADFA-3322, ADFA-4165,
+ * ADFA-5231). `LiveKtFile.analyzing` guarantees that; analysing a `KtFile` obtained any other way does
+ * not, and the sources it can be obtained from are not all gateable (the Analysis API service provider
+ * interfaces this module implements re-export live instances through their own public members). So the
+ * requirement sits here, on the sink, where every route arrives.
+ */
+@RequiresOptIn(
+	level = RequiresOptIn.Level.ERROR,
+	message = "Analysing unpinned PSI. Use KtSymbolIndex.withLiveKtFile for an open path.",
+)
+@Retention(AnnotationRetention.BINARY)
+internal annotation class UnpinnedAnalysis
+
+/**
+ * Analyses [useSiteElement] under the shared analysis lock, routing dangling copies through
+ * `analyzeCopy` so a completion variant resolves against itself rather than its origin.
+ */
+@UnpinnedAnalysis
 internal inline fun <R> analyzeMaybeDangling(
 	useSiteElement: KtElement,
 	priority: AnalysisPriority,

@@ -58,12 +58,27 @@ production opt-ins are the Analysis API service providers that only need to name
 `DirectInheritorsProvider.computeIndex`). `LiveKtFile` never exposes the `KtFile` as a value - `read` and
 `analyzing` take a lambda instead of returning the file - so a caller cannot hold a reference past the scope that
 pinned it. `analyzing` routes through `analyzeMaybeDangling`, which is `withAnalysisLock` under the hood
-(`lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/modules/KtFileExts.kt`), so pinning also
-closes the last direct route to `analyze`/`analyzeCopy` that its doc comment could previously only ask callers not
-to take. For an open path, using the shared serialization lock is no longer just a convention - it is the only
-un-gated way to reach a live `KtFile`, with one known exception: `refreshToCurrent` hands the freshly minted
-instance to `queueOnFileChangedAsync`, which carries the raw `KtFile` through `IndexCommand.IndexModifiedFile` to
-`SourceFileIndexer.indexSourceFile`, where it is analysed with no pin (pre-existing, tracked as a follow-up).
+(`lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/modules/KtFileExts.kt`).
+
+**Gating the sources is not sufficient, so the sink is gated too.** A third `@RequiresOptIn(ERROR)` marker,
+`UnpinnedAnalysis`, sits on `analyzeMaybeDangling` itself. The reason is that not every source of a live `KtFile`
+*can* be marked. `DeclarationProvider.ktFilesForPackage` is `protected` and opted in, but the Analysis API
+interface it feeds - `KotlinDeclarationProvider`, implemented here by `AbstractDeclarationProvider` - re-exports
+those same instances through its own public members (`findFilesForFacade`, `findFilesForFacadeByPackage`,
+`findFilesForScript`, `getTopLevelCallableFiles`), and `AnnotationsResolver.declarationsByAnnotation` does the
+same one hop out via `KtAnnotated.containingKtFile`. Those members cannot carry the marker: Kotlin rejects an
+opt-in marker on an override whose base declaration lacks it (`OPT_IN_MARKER_ON_OVERRIDE`, an error), and the base
+declarations belong to the Analysis API. Marking the implementing class instead would not help either, because
+`project.createDeclarationProvider(scope, null)` is typed as the platform interface, so no marker on our
+classifier is ever consulted. Gating the sink catches every such route at the one point they all arrive at.
+`analyzeMaybeDangling` has three production opt-ins: `PinnedKtFile.analyzing` and `analyzingVariant` (the
+sanctioned implementation) and `SourceFileIndexer.indexSourceFile` - the known exception, reached when
+`refreshToCurrent` hands a freshly minted instance to `queueOnFileChangedAsync`, which carries the raw `KtFile`
+through `IndexCommand.IndexModifiedFile` and analyses it with no pin (pre-existing, tracked as a follow-up).
+
+What stays convention rather than compiler-enforced is the Analysis API's own `analyze` / `analyzeCopy`: both are
+public functions of an external module, reachable from anywhere with any `KtFile`, and no marker of ours can
+cover them. `withAnalysisLock`'s doc comment asks callers not to take that route; that ask is all there is.
 
 **One escape hatch:** `KtSymbolIndex.peekLiveKtFile`, gated behind `@RequiresOptIn(ERROR)` `UnpinnedKtFileAccess`.
 Its one production caller is `AdvancedKotlinEditHandler`
@@ -84,11 +99,12 @@ tracked separately; widening the hatch to a second caller has to weigh that, not
 
 **Positive**
 
-- The invariant is now enforced by the compiler: code that reaches for a live `KtFile` outside `withLiveKtFile` /
-  `withLiveKtFileAsync` does not compile without an explicit `@OptIn` on one of the two markers, which makes every
-  exemption visible in review rather than reachable by autocomplete. The class of bug ADFA-4165 fixed and
-  ADFA-3322 silently reintroduced cannot come back from a refactor that simply forgets the discipline the old fix
-  depended on.
+- *Analysing* a `KtFile` obtained outside `withLiveKtFile` / `withLiveKtFileAsync` does not compile without an
+  explicit `@OptIn` on one of the three markers, which makes every exemption visible in review rather than
+  reachable by autocomplete. That is the step the bug needs: the ADFA-3322 shape is a superseded instance handed
+  to `analyze`, and the sink gate rejects it however the instance was obtained. *Obtaining* one is only partly
+  gated - the declaration-provider and annotations-resolver re-exports above are ungatable - so a refactor can
+  still get a live instance without a diagnostic; it just cannot analyse it silently.
 - The pin makes explicit what was previously only inferred from two call sites happening to agree: an analysis and
   the declaration provider see the same PSI for the whole scope, by construction.
 
@@ -151,7 +167,10 @@ tracked separately; widening the hatch to a second caller has to weigh that, not
   the pipeline this pin protects.
 - [ADR 0011](0011-command-analysis-priority.md) - `AnalysisScheduler` priorities and `preempt()`, referenced above
   as the reason acquisition cannot yet be made priority-aware.
-- `lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/index/LiveKtFile.kt` - the pinned handle.
+- `lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/index/LiveKtFile.kt` - the pinned handle,
+  `UnpinnedKtFileAccess` and `ResolutionSideKtFileAccess`.
+- `lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/modules/KtFileExts.kt` - `UnpinnedAnalysis`
+  and the `analyzeMaybeDangling` sink it gates.
 - `lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/index/KtSymbolIndex.kt` - `pins`, `Pin`,
   `withLiveKtFile`, `withLiveKtFileAsync`, `getKtFile`.
 - `lsp/kotlin/src/test/java/com/itsaky/androidide/lsp/kotlin/compiler/index/StaleKtFileInstanceDiagnosticsTest.kt` -

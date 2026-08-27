@@ -30,6 +30,11 @@ internal annotation class UnpinnedKtFileAccess
  * it returns without a pin is exactly what ADFA-3322 did, and it makes FIR see every top-level
  * declaration twice. Opting in is for service providers that only need to name the PSI for a path;
  * anything that analyses must use [KtSymbolIndex.withLiveKtFile].
+ *
+ * This marker cannot cover the whole door: the Analysis API interfaces the service providers implement
+ * re-export the instances through their own public members, which may not carry an opt-in marker
+ * (`OPT_IN_MARKER_ON_OVERRIDE`). Those routes are caught at the sink instead, by
+ * [com.itsaky.androidide.lsp.kotlin.compiler.modules.UnpinnedAnalysis].
  */
 @RequiresOptIn(
 	level = RequiresOptIn.Level.ERROR,

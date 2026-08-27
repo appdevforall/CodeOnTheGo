@@ -5,6 +5,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.CompilationKind
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.UnpinnedAnalysis
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
@@ -469,6 +470,7 @@ internal class KtSymbolIndex(
 
 		override fun <R> read(block: (KtFile) -> R): R = project.read { guarded(block(pin.file)) }
 
+		@OptIn(UnpinnedAnalysis::class)
 		override fun <R> analyzing(
 			priority: AnalysisPriority,
 			cancelChecker: ScheduledCancelChecker,
@@ -481,6 +483,7 @@ internal class KtSymbolIndex(
 				)
 			}
 
+		@OptIn(UnpinnedAnalysis::class)
 		override fun <R> analyzingVariant(
 			name: String,
 			text: String,
