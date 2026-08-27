@@ -456,8 +456,9 @@ data class DexStats(
 }
 
 /**
- * The daemon's answer to one request. [values] holds the op-specific scalars (`classesDir`,
- * `dexFile`, `resourcesArsc`, `durationMillis`, ...), serialized flat into the response object.
+ * The daemon's answer to one request. [values] holds the op-specific values (`classesDir`,
+ * `dexFile`, `resourcesArsc`, `durationMillis`, ...), serialized flat into the response object -
+ * never a nested object. `classesChanged` is the one array.
  *
  * Adding a response key must not bump [PROTOCOL_VERSION]: the version is a hard gate that aborts
  * the session on mismatch, and a staged daemon jar can lag the client, so bumping it for an
@@ -465,8 +466,9 @@ data class DexStats(
  *
  * @property id the [DaemonRequest.id] this answers; the client's only correlation handle.
  * @property ok whether the op succeeded, false implying at least one ERROR in [diagnostics].
- * @property values op-specific scalars, flat and JSON-scalar-only, keyed by the `KEY_*` constants
- *   and [ResponseKeys], so a client may read one key and ignore the rest.
+ * @property values op-specific values, flat - never a nested object - and JSON scalars apart
+ *   from `classesChanged`, which is an array of strings. Keyed by the `KEY_*` constants and
+ *   [ResponseKeys], so a client may read one key and ignore the rest.
  * @property diagnostics compiler and linker messages, present on success too since a build can
  *   succeed with warnings.
  */
