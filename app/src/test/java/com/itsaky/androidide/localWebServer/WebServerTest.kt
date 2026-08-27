@@ -343,18 +343,32 @@ class WebServerTest {
 		}
 	}
 
-	// A bookshelf join that matches nothing still yields one row from group_concat -- its value is
-	// just NULL. That must come back as an explicit 500, not as a zero-byte closed connection.
+	// ADFA-5179 rewrote the bookshelf query: the old JSON1/group_concat version turned an empty join
+	// into a 500 (group_concat over no rows is NULL, and reading that as a blob threw). The contract
+	// now is a normal page -- 200, rendered from the empty-shelf {"result":[]} payload. The sibling
+	// Bookshelf*Tests pin readBookshelf/bookshelfJson directly; this one proves the HTTP layer, where
+	// the blank-context render guard sits outside realHandleBsEndpoint's try/catch and would 500.
 	@Test
-	fun `an empty bookshelf join answers 500 instead of closing with no bytes`() {
+	fun `an empty bookshelf join answers 200 with an empty shelf`() {
 		val port = freePort()
 		val db = mockk<SQLiteDatabase>(relaxed = true)
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
-		every { db.rawQuery(match { it.contains("group_concat") }, any()) } returns
+		// The bookshelf join matches nothing: a cursor whose moveToNext() is immediately false.
+		every { db.rawQuery(match { it.contains("FROM Content AS C") }, any()) } returns
+			mockk<Cursor>(relaxed = true) { every { moveToNext() } returns false }
+		// The bookshelf template: its id lookup, then its body -- a Pebble expression over the JSON
+		// context, so the assertion proves the empty-shelf payload actually reached the render.
+		every { db.rawQuery(match { it.contains("FROM Templates WHERE name") }, any()) } returns
 			mockk<Cursor>(relaxed = true) {
 				every { count } returns 1
 				every { moveToFirst() } returns true
-				every { getBlob(0) } returns null
+				every { getInt(0) } returns 7
+			}
+		every { db.rawQuery(match { it.contains("FROM Templates WHERE id") }, any()) } returns
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "shelf:{{ result | length }}".toByteArray()
 			}
 
 		val server = WebServer(testConfig(port))
@@ -363,7 +377,8 @@ class WebServerTest {
 		try {
 			awaitPortBound(port)
 			val response = sendRawGetRequest(port, "/pr/bs")
-			assertTrue("Expected a 500 status line, got:\n$response", response.startsWith("HTTP/1.1 500"))
+			assertTrue("Expected a 200 status line, got:\n$response", response.startsWith("HTTP/1.1 200"))
+			assertTrue("Expected the empty shelf to render, got:\n$response", response.endsWith("shelf:0"))
 		} finally {
 			server.stop()
 			serverThread.join(2_000)
