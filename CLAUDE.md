@@ -86,7 +86,9 @@ Flow: branch off `stage` → PR into `stage` → `stage` merges to `main` for re
 
 Anything official or public-facing runs only through version-controlled GitHub Actions (`.github/workflows/*.yml`), never locally — SonarQube/SonarCloud uploads, releases, artifact publishing, deploys, pushes to external services. Tokens like `SONAR_TOKEN` are GitHub secrets scoped to those workflows; don't hunt for them locally. Asked to run e.g. the sonar task locally, treat it as verification only (build/test to confirm a fix) and let the official analysis happen in CI.
 
-### Jira tickets — keep them updated
+### Jira tickets — read, and keep updated
+
+**Read the ticket before you start work.** Any authenticated route is fine — the local `jira` CLI (`jira issue view ADFA-1234`), the Atlassian MCP server, or the REST API. Pick whatever is already working; don't burn time switching tools.
 
 **Post progress as you go.** The team wants visibility into in-progress work, not just a final drop. When you start a ticket, hit a notable blocker or decision, or finish a meaningful chunk, add a short comment (`jira issue comment add ADFA-#### "…"`). Keep it crisp — status, what changed, what's next.
 
