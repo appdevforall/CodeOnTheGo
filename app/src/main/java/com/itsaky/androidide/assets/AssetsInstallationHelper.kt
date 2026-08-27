@@ -7,6 +7,7 @@ import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.ContainedPathResolver
+import com.itsaky.androidide.utils.ContainedPathResolver.Resolution
 import com.itsaky.androidide.utils.Environment.DEFAULT_ROOT
 import com.itsaky.androidide.utils.useEntriesEach
 import kotlinx.coroutines.Dispatchers
@@ -264,9 +265,12 @@ object AssetsInstallationHelper {
 	 * against the filesystem rather than trusting an ancestor proven earlier.
 	 *
 	 * What stays local is the policy: this refuses to write through *any* existing symlink at an
-	 * entry's target, even one pointing inside destDir. An installer directory reused across runs is
-	 * the case that matters, and unlike unzipping a user's project there is no legitimate reason for
-	 * a symlink to be there.
+	 * entry's target -- in-base, dangling, or pointing outside destDir -- and says so. An installer
+	 * directory reused across runs is the case that matters, and unlike unzipping a user's project
+	 * there is no legitimate reason for a symlink to be there. The three failure messages are kept
+	 * distinct on purpose: an escaping entry is a hostile archive, a symlink at the target is this
+	 * policy, and unverifiable containment is a filesystem problem -- a 1.8 GB install that dies
+	 * 9,000 entries in should name the real cause (ADFA-5257 review).
 	 */
 	@WorkerThread
 	internal fun extractZipToDir(
@@ -277,9 +281,35 @@ object AssetsInstallationHelper {
 		val contained = ContainedPathResolver(destDir.toFile())
 
 		ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
+			// A "." or "./" root directory entry names destDir itself, which already exists. The
+			// asset zips are refreshed from an external URL, and archivers that emit such an entry
+			// exist -- a no-op, not a reason to abort the installation (ADFA-5257 review).
+			if (entry.isDirectory && ContainedPathResolver.namesBase(entry.name)) {
+				return@useEntriesEach
+			}
+
 			val destFile =
-				contained.resolve(entry.name)?.toPath()
-					?: throw IllegalStateException("Zip entry escapes the target dir: ${entry.name}")
+				when (val resolution = contained.resolve(entry.name)) {
+					is Resolution.Contained -> resolution.file.toPath()
+					is Resolution.Rejected -> {
+						// A pre-existing symlink at the entry's own target -- dangling, or leading
+						// outside destDir -- is this caller's refusal policy at work, not a
+						// zip-slip attempt; report it as such.
+						val overSymlink = resolution.lexicalTarget?.let { Files.isSymbolicLink(it) } == true
+						throw IllegalStateException(
+							if (overSymlink) {
+								"Refusing to extract over an existing symlink: ${entry.name}"
+							} else {
+								"Zip entry escapes the target dir: ${entry.name}"
+							},
+						)
+					}
+					is Resolution.Unverifiable ->
+						throw IllegalStateException(
+							"Cannot verify that a zip entry stays in the target dir: ${entry.name} (${resolution.cause})",
+							resolution.cause,
+						)
+				}
 
 			// Policy, not containment: the resolver allows a symlink whose target is still inside
 			// destDir, and this caller does not.

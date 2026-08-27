@@ -17,13 +17,14 @@
 
 package com.itsaky.androidide.utils
 
+import com.itsaky.androidide.utils.ContainedPathResolver.Resolution
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
-import java.nio.file.InvalidPathException
 import java.nio.file.LinkOption
+import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.util.zip.ZipFile
 
@@ -74,13 +75,15 @@ object ZipUtils {
 	 * Extracts [zipFile] into [destDir], preserving directory structure, and returns an
 	 * [UnzipResult] reporting the files it wrote and the entries it skipped.
 	 *
-	 * An entry whose target is an existing symlink -- live, dangling, or even pointing outside
-	 * [destDir] -- is skipped and extraction continues: nothing is written at or through the link,
-	 * which keeps a user's own symlink (a `gradlew`, an SDK link) from being overwritten by an
-	 * archive. The skip applies only to a link lexically inside [destDir] whose entry name carries
-	 * no traversal syntax; an entry that would land outside [destDir] (zip-slip), names its target
-	 * through a `..` segment, or is not a representable path fails the whole call with an
-	 * [IOException].
+	 * An entry whose target is an existing symlink that *stays inside* [destDir] -- live with an
+	 * in-base real target, or dangling with an in-base lexical one -- is skipped and extraction
+	 * continues: nothing is written at or through the link, which keeps a user's own symlink (a
+	 * `gradlew`, an SDK link) from being overwritten by an archive. A symlink leading outside
+	 * [destDir] gets no such courtesy: like an entry that would land outside [destDir] (zip-slip),
+	 * one that names its target through a `..` segment, or one that is not a representable path,
+	 * it fails the whole call with an [IOException]. Containment that cannot be *verified* (a
+	 * filesystem error, not an escape) also fails the call, saying so rather than accusing the
+	 * archive. A `.`/`./` root directory entry names [destDir] itself and is ignored as a no-op.
 	 */
 	@JvmStatic
 	@Throws(IOException::class)
@@ -98,22 +101,44 @@ object ZipUtils {
 			while (entries.hasMoreElements()) {
 				val entry = entries.nextElement()
 
+				// A "." or "./" root directory entry names destDir itself, which already exists.
+				// The resolver stays strict about it (a Contained result must be *inside* the
+				// base), so the extract-it-as-a-no-op tolerance lives here (ADFA-5257 review).
+				if (entry.isDirectory && ContainedPathResolver.namesBase(entry.name)) {
+					continue
+				}
+
 				// Containment first, then link policy: the link check must only ever see a path
 				// already proven contained. Checking File(destDir, entry.name) before containment
 				// would stat outside destDir for a ../ entry and could quietly skip a zip-slip
 				// attempt (ADFA-5257).
 				val outFile =
-					contained.resolve(entry.name)
-						?: if (isContainedSymlink(destDir, entry.name)) {
-							// The resolver refuses a symlink it cannot verify -- dangling, or pointing
-							// outside -- but a link that sits lexically inside destDir is the user's
-							// own, and skipping writes nothing at or through it. Same policy as below.
-							log.info("Leaving the existing symlink at {}/{} alone; that zip entry was not extracted", destDir, entry.name)
-							skipped.add(entry.name)
-							continue
-						} else {
+					when (val resolution = contained.resolve(entry.name)) {
+						is Resolution.Contained -> resolution.file
+						is Resolution.Rejected -> {
+							val link = resolution.lexicalTarget
+							if (link != null && isContainedSymlink(contained.base, link)) {
+								// The resolver refuses a symlink it cannot vouch for, but a link that
+								// stays inside destDir is the user's own, and skipping writes nothing
+								// at or through it. Same policy as below.
+								log.info(
+									"Leaving the existing symlink at {}/{} alone; that zip entry was not extracted",
+									destDir,
+									entry.name,
+								)
+								skipped.add(entry.name)
+								continue
+							}
 							throw IOException("Zip entry does not resolve to a safe path inside the target directory: ${entry.name}")
 						}
+						is Resolution.Unverifiable ->
+							// Not an escape: refused because unproven. Distinct wording so a
+							// filesystem error is not reported as a hostile archive.
+							throw IOException(
+								"Cannot verify that a zip entry resolves inside the target directory: ${entry.name} (${resolution.cause})",
+								resolution.cause,
+							)
+					}
 
 				// Policy, not containment: a user's own symlink inside their own project -- gradlew, or
 				// gradle/wrapper pointed at a shared location -- is legitimate, so the entry is skipped
@@ -140,33 +165,26 @@ object ZipUtils {
 	}
 
 	/**
-	 * Whether a symlink exists at [entryName]'s lexically-normalized path inside [destDir]. Applies
-	 * the resolver's own lexical reject first, so an entry the resolver refused for its *syntax* (a
-	 * `..` segment, an absolute path) stays a bad archive even when a symlink happens to sit at its
-	 * normalized target -- `a/../link.txt` must fail, not ride the skip meant for `link.txt`. Then
-	 * every ancestor between [destDir] and the candidate must be a non-link: stat'ing the candidate
+	 * Whether [candidate] -- an entry's target the resolver already proved lexically inside [base]
+	 * and then refused, via [Resolution.Rejected.lexicalTarget], so no containment logic is
+	 * re-derived here -- is a pre-existing symlink that stays inside [base], the one refusal
+	 * [unzipFile] downgrades to a skip. An entry the resolver refused for its *syntax* (a `..`
+	 * segment, an absolute path) never gets here: it carries no lexical target, so `a/../link.txt`
+	 * fails rather than riding the skip meant for `link.txt`.
+	 *
+	 * Every ancestor between [base] and the candidate must be a non-link: stat'ing the candidate
 	 * *follows* an ancestor symlink, so with `a -> /outside`, `a/link.txt` would stat
 	 * `/outside/link.txt` and a link found there would ride the skip -- an escaping archive
-	 * tolerated instead of rejected. Only a link whose every ancestor is a real directory inside
-	 * [destDir] qualifies, and the stats stay on paths proven lexically inside [destDir].
+	 * tolerated instead of rejected. The link's own target must stay inside [base] too: a live
+	 * link is judged by its real path, a dangling one by where its text leads lexically (there is
+	 * no real target to resolve). A link leading outside [base] is failed like any other escape --
+	 * the pre-resolver canonical-path behavior, kept on purpose -- never skipped (ADFA-5257
+	 * review).
 	 */
 	private fun isContainedSymlink(
-		destDir: File,
-		entryName: String,
+		base: Path,
+		candidate: Path,
 	): Boolean {
-		if (ContainedPathResolver.isLexicallyRejected(entryName)) {
-			return false
-		}
-		val base = destDir.toPath().toAbsolutePath().normalize()
-		val candidate =
-			try {
-				base.resolve(entryName).normalize()
-			} catch (_: InvalidPathException) {
-				return false
-			}
-		if (candidate == base || !candidate.startsWith(base)) {
-			return false
-		}
 		var ancestor = candidate.parent
 		while (ancestor != null && ancestor != base) {
 			if (Files.isSymbolicLink(ancestor)) {
@@ -174,6 +192,24 @@ object ZipUtils {
 			}
 			ancestor = ancestor.parent
 		}
-		return Files.isSymbolicLink(candidate)
+		if (!Files.isSymbolicLink(candidate)) {
+			return false
+		}
+		return try {
+			candidate.toRealPath().startsWith(base.toRealPath())
+			// Fully qualified: Kotlin auto-imports kotlin.io.NoSuchFileException, which
+			// toRealPath() never throws.
+		} catch (_: java.nio.file.NoSuchFileException) {
+			// Dangling link. In-base is decided on its lexical target instead; failing to read
+			// the link at all falls through to "not skippable".
+			val parent = candidate.parent ?: return false
+			try {
+				parent.resolve(Files.readSymbolicLink(candidate)).normalize().startsWith(base)
+			} catch (_: IOException) {
+				false
+			}
+		} catch (_: IOException) {
+			false
+		}
 	}
 }

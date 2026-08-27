@@ -18,6 +18,7 @@
 package com.itsaky.androidide.utils
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.utils.ContainedPathResolver.Resolution
 import org.junit.Assume
 import org.junit.Rule
 import org.junit.Test
@@ -159,13 +160,14 @@ class PathTraversalTest {
 	// A containment check must fail closed. Resolving the base used to happen once in the constructor,
 	// catching the IOException and nulling the field, which permanently downgraded every later
 	// resolve() to lexical containment alone -- weaker than the canonical-prefix check this class
-	// replaced, and silent about it.
+	// replaced, and silent about it. The refusal is Unverifiable, not Rejected: a filesystem failure
+	// must reach the caller as itself, not as a traversal accusation.
 	@Test
-	fun `a base that cannot be resolved rejects everything`() {
+	fun `a base that cannot be resolved refuses everything as unverifiable`() {
 		val root = tempFolder.newFolder("unresolvable-root")
 		val base = File(root, "base").apply { mkdirs() }
 		val resolver = ContainedPathResolver(base)
-		assertThat(resolver.resolve("child.txt")).isNotNull()
+		assertThat(resolver.resolve("child.txt")).isInstanceOf(Resolution.Contained::class.java)
 
 		// Make the base unresolvable by removing traverse permission on its parent, then check that
 		// this environment actually produced the failure -- as root, or on a filesystem that ignores
@@ -182,8 +184,8 @@ class PathTraversalTest {
 			Assume.assumeTrue("This environment still resolves a base under a non-traversable parent", reallyUnresolvable)
 
 			// Both the resolver built while the base was fine and a fresh one: the check is per call.
-			assertThat(resolver.resolve("child.txt")).isNull()
-			assertThat(ContainedPathResolver(base).resolve("child.txt")).isNull()
+			assertThat(resolver.resolve("child.txt")).isInstanceOf(Resolution.Unverifiable::class.java)
+			assertThat(ContainedPathResolver(base).resolve("child.txt")).isInstanceOf(Resolution.Unverifiable::class.java)
 		} finally {
 			root.setExecutable(true, false)
 		}
@@ -203,7 +205,52 @@ class PathTraversalTest {
 		base.mkdirs()
 		createSymlinkOrSkipTest(File(base, "link").toPath(), outside.toPath())
 
-		assertThat(resolver.resolve("link/secret.txt")).isNull()
+		// Rejected, not Unverifiable: an escape is a definite answer, not a failure to answer.
+		assertThat(resolver.resolve("link/secret.txt")).isInstanceOf(Resolution.Rejected::class.java)
+	}
+
+	// A filesystem-refused entry hands its lexically-resolved target back in the rejection, so a
+	// caller with its own policy for what sits there (an existing symlink, say) can inspect that
+	// path without re-deriving containment -- the drift the shared resolver exists to remove.
+	@Test
+	fun `a rejection at an existing symlink carries the lexical target`() {
+		val root = tempFolder.newFolder("dangling-link")
+		createSymlinkOrSkipTest(File(root, "link.txt").toPath(), File(root, "missing.txt").toPath())
+
+		val resolution = ContainedPathResolver(root).resolve("link.txt")
+
+		assertThat(resolution).isInstanceOf(Resolution.Rejected::class.java)
+		assertThat((resolution as Resolution.Rejected).lexicalTarget)
+			.isEqualTo(
+				root
+					.toPath()
+					.toAbsolutePath()
+					.normalize()
+					.resolve("link.txt"),
+			)
+	}
+
+	// A deterministic Unverifiable, unlike the permission-based test above (which an environment
+	// running as root skips): a symlink loop makes toRealPath() throw FileSystemException (ELOOP),
+	// which is a filesystem failure, not an escape, and must be reported as itself.
+	@Test
+	fun `a symlink loop is unverifiable, not an escape`() {
+		val root = tempFolder.newFolder("loop")
+		createSymlinkOrSkipTest(File(root, "loop-a").toPath(), File(root, "loop-b").toPath())
+		createSymlinkOrSkipTest(File(root, "loop-b").toPath(), File(root, "loop-a").toPath())
+
+		assertThat(ContainedPathResolver(root).resolve("loop-a/file.txt"))
+			.isInstanceOf(Resolution.Unverifiable::class.java)
+	}
+
+	// A lexically-refused entry carries no target at all: nothing was resolved for it, and a
+	// fallback must not treat "../x" as if it named a real in-base path.
+	@Test
+	fun `a lexical rejection carries no target`() {
+		val resolution = ContainedPathResolver(baseDir).resolve("../x")
+
+		assertThat(resolution).isInstanceOf(Resolution.Rejected::class.java)
+		assertThat((resolution as Resolution.Rejected).lexicalTarget).isNull()
 	}
 
 	// The narrowing this class deliberately makes over ZipUtils' old canonical-prefix check: an entry

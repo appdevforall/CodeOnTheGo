@@ -199,9 +199,16 @@ class AssetsInstallationHelperTest {
 					baos.toByteArray()
 				}
 
-			assertThrows(IllegalStateException::class.java) {
-				AssetsInstallationHelper.extractZipToDir(ByteArrayInputStream(zipBytes), destDir)
-			}
+			val thrown =
+				assertThrows(IllegalStateException::class.java) {
+					AssetsInstallationHelper.extractZipToDir(ByteArrayInputStream(zipBytes), destDir)
+				}
+			// The symlink sits at an *ancestor*, not at the entry's own target: this is an escape,
+			// and the message must say so -- distinct from the refusal over a symlink at the target.
+			assertTrue(
+				"expected an escape message, got: ${thrown.message}",
+				thrown.message!!.contains("escapes the target dir"),
+			)
 		} finally {
 			outsideDir.deleteRecursivelyWithoutFollowingLinks()
 			destDir.deleteRecursivelyWithoutFollowingLinks()

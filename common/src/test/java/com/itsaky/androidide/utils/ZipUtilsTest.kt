@@ -123,6 +123,97 @@ class ZipUtilsTest {
 		assertThat(result.skipped).containsExactly("link.txt")
 	}
 
+	// The policy decision on the re-review finding: only a symlink that *stays inside* destDir is
+	// the user's own to keep. A pre-existing link pointing outside fails the archive -- the old
+	// canonicalPath behavior -- rather than riding the skip and letting the caller report success
+	// for an archive whose entry was never installed.
+	@Test
+	fun `unzipFile fails an entry whose target is a symlink pointing outside the destination`() {
+		val destDir = tempFolder.newFolder("dest")
+		val outsideDir = tempFolder.newFolder("outside")
+		val outsideFile = File(outsideDir, "target.txt").apply { writeText("outside content") }
+		val linkPath = File(destDir, "link.txt").toPath()
+		createSymlinkOrSkipTest(linkPath, outsideFile.toPath())
+
+		val zipFile = tempFolder.newFile("evil.zip")
+		ZipOutputStream(zipFile.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("link.txt"))
+			zip.write("payload".toByteArray())
+			zip.closeEntry()
+		}
+
+		val thrown = assertThrows(IOException::class.java) { ZipUtils.unzipFile(zipFile, destDir) }
+		assertThat(thrown).hasMessageThat().contains("does not resolve to a safe path")
+		assertThat(Files.isSymbolicLink(linkPath)).isTrue()
+		assertThat(outsideFile.readText()).isEqualTo("outside content")
+	}
+
+	// Same policy for a dangling link: it has no real target, so it is judged by where its text
+	// leads -- and lexically outside destDir fails, unlike the in-base dangling link above.
+	@Test
+	fun `unzipFile fails an entry whose target is a dangling symlink leading outside the destination`() {
+		val destDir = tempFolder.newFolder("dest")
+		val outsideDir = tempFolder.newFolder("outside")
+		val missingTarget = File(outsideDir, "missing.txt")
+		val linkPath = File(destDir, "link.txt").toPath()
+		createSymlinkOrSkipTest(linkPath, missingTarget.toPath())
+
+		val zipFile = tempFolder.newFile("evil.zip")
+		ZipOutputStream(zipFile.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("link.txt"))
+			zip.write("payload".toByteArray())
+			zip.closeEntry()
+		}
+
+		val thrown = assertThrows(IOException::class.java) { ZipUtils.unzipFile(zipFile, destDir) }
+		assertThat(thrown).hasMessageThat().contains("does not resolve to a safe path")
+		assertThat(Files.isSymbolicLink(linkPath)).isTrue()
+		assertThat(missingTarget.exists()).isFalse()
+	}
+
+	// The tri-state surfaced: containment that cannot be *verified* (here a symlink loop, ELOOP)
+	// is reported as exactly that, with the cause attached -- not as a hostile archive.
+	@Test
+	fun `unzipFile reports unverifiable containment distinctly from an escape`() {
+		val destDir = tempFolder.newFolder("dest")
+		createSymlinkOrSkipTest(File(destDir, "loop-a").toPath(), File(destDir, "loop-b").toPath())
+		createSymlinkOrSkipTest(File(destDir, "loop-b").toPath(), File(destDir, "loop-a").toPath())
+
+		val zipFile = tempFolder.newFile("archive.zip")
+		ZipOutputStream(zipFile.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("loop-a/file.txt"))
+			zip.write("payload".toByteArray())
+			zip.closeEntry()
+		}
+
+		val thrown = assertThrows(IOException::class.java) { ZipUtils.unzipFile(zipFile, destDir) }
+		assertThat(thrown).hasMessageThat().contains("Cannot verify")
+		assertThat(thrown).hasCauseThat().isNotNull()
+	}
+
+	// A "./" root directory entry names destDir itself. The resolver refuses it (a resolved path
+	// must be *inside* the base), but extracting it is a no-op, not an escape -- the archive must
+	// not abort on it.
+	@Test
+	fun `unzipFile treats a root directory entry as a no-op`() {
+		val zipFile = tempFolder.newFile("archive.zip")
+		ZipOutputStream(zipFile.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("./"))
+			zip.closeEntry()
+
+			zip.putNextEntry(ZipEntry("root.txt"))
+			zip.write("root content".toByteArray())
+			zip.closeEntry()
+		}
+
+		val destDir = tempFolder.newFolder("dest")
+		val result = ZipUtils.unzipFile(zipFile, destDir)
+
+		assertThat(File(destDir, "root.txt").readText()).isEqualTo("root content")
+		assertThat(result.extracted.map { it.name }).containsExactly("root.txt")
+		assertThat(result.skipped).isEmpty()
+	}
+
 	@Test
 	fun `unzipFile allows a harmless double-dot inside a path segment`() {
 		val zipFile = tempFolder.newFile("archive.zip")
