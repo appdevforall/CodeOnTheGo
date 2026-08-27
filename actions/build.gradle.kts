@@ -44,4 +44,5 @@ dependencies {
 
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.google.material)
+	testImplementation(projects.testing.unit)
 }
