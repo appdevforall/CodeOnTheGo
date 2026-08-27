@@ -35,6 +35,23 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.36 — unreleased
+- **added — File-targeted editor save** _(ADFA-5259)_
+  Save a named file's open buffer and find out whether the bytes actually landed.
+  `saveCurrentFile` follows whichever tab the user has focused and returns as soon
+  as a save is dispatched, so a plugin that edits one file and then persists it can
+  save a different file, or read the file back before the write finishes.
+  `IdeEditorService.saveFile(File): Boolean` (`suspend`, `default` returning
+  `false`) resolves the editor by file, suspends until the write completes, and
+  reports the on-disk outcome — `true` also when the buffer was already clean,
+  `false` when the file has no open editor or the write failed. Throws
+  `SecurityException` on an authorization failure (no `FILESYSTEM_WRITE`, or a path
+  outside the plugin's allowed roots), as the other write methods do. Await it from
+  a coroutine; a `runBlocking` bridge on the main thread deadlocks.
+
+  Because the method is `default`, an older IDE silently returns `false` instead of
+  saving — floor `plugin.min_ide_version` at `26.36` if you call it.
+
 ### 26.33 — 2026-08-12
 - **added — Plugin-contributed agent tools** _(ADFA-2592)_ **[verified]**
   Any `.cgp` can add tools to the AI agent, whose tool set was previously fixed at

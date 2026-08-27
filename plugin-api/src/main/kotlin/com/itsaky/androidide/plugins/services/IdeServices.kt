@@ -182,9 +182,12 @@ interface IdeEditorService {
 	 * the write completes - unlike [saveCurrentFile], which only reports that a save was
 	 * dispatched for the focused tab.
 	 *
-	 * Safe to call from any dispatcher, the main one included: the write is marshalled to the
-	 * editor thread and nothing blocks while it runs. Wrap the call in `withTimeout` if your
-	 * plugin needs to bound how long it waits.
+	 * Await it from a coroutine on any dispatcher, the main one included: the write is
+	 * marshalled to the editor's own write thread and nothing blocks while it runs. Do not
+	 * bridge it with `runBlocking` on the main thread - `runBlocking` parks the main thread
+	 * without draining its looper, and the write resumes through the main dispatcher, so the
+	 * call would never complete. The IDE bounds its own wait, so a `withTimeout` of your own
+	 * is optional.
 	 *
 	 * Returns `true` when the buffer is on disk (including "was already clean"), `false` when
 	 * the file has no open editor or the write failed. Authorization failures throw

@@ -16,6 +16,7 @@ import com.itsaky.androidide.plugins.services.SelectionRange
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.widget.CodeEditor
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -257,12 +258,23 @@ class EditorProviderImpl(
 	/**
 	 * Saves [file]'s buffer whatever tab has focus, suspending until the bytes are on disk.
 	 *
-	 * Suspending rather than blocking is what makes this safe to call from the main thread:
-	 * the write itself runs there, so a blocking bridge would deadlock against it.
+	 * Bounded by [SAVE_TIMEOUT_MS] for the same reason [onMain] is bounded: a wedged editor
+	 * write must not park a plugin's coroutine for the rest of the session. A timeout reports
+	 * as a failed save.
+	 *
+	 * Must be awaited from a coroutine, never bridged with `runBlocking` on the main thread.
+	 * `CodeEditorView.save` runs the write on its own thread and resumes via
+	 * `Dispatchers.Main.immediate`; `runBlocking` parks the main thread without draining the
+	 * Android looper, so that resumption would never run. The timeout does not rescue that
+	 * case either - the cancellation has to resume on the same blocked looper.
 	 */
 	override suspend fun saveFile(file: File): Boolean {
 		val activity = activity() ?: return false
-		return activity.saveFileResult(file)
+		return withTimeoutOrNull(SAVE_TIMEOUT_MS) { activity.saveFileResult(file) }
+			?: run {
+				log.warn("Save of {} did not complete within {}ms; aborting", file.name, SAVE_TIMEOUT_MS)
+				false
+			}
 	}
 
 	// --- Buffer edits -------------------------------------------------------
@@ -502,6 +514,11 @@ class EditorProviderImpl(
 
 	companion object {
 		private const val MAIN_EDIT_TIMEOUT_SECONDS = 5L
+
+		// Generous next to MAIN_EDIT_TIMEOUT_SECONDS: this one covers a whole file write, not
+		// a single main-thread hop, and a large buffer on slow storage legitimately takes
+		// seconds.
+		private const val SAVE_TIMEOUT_MS = 30_000L
 		private val log = LoggerFactory.getLogger(EditorProviderImpl::class.java)
 	}
 }

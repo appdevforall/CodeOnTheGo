@@ -59,6 +59,12 @@ class OverlappingSaveFlagTest {
 		val activity = Robolectric.buildActivity(EditorHandlerActivity::class.java).get()
 		val mainLooper = shadowOf(Looper.getMainLooper())
 
+		// Drain whatever application startup and activity construction left queued. Afterwards
+		// the worker below is the only thing that can put a message back, which is what
+		// awaitPostToMain waits on.
+		mainLooper.idle()
+		assertThat(mainLooper.isIdle).isTrue()
+
 		// Save A begins on the main thread: the hop runs inline, raising the flag.
 		runBlocking { activity.beginFileSave() }
 		assertThat(activity.editorViewModel.areFilesSaving).isTrue()
@@ -94,7 +100,13 @@ class OverlappingSaveFlagTest {
 		}
 	}
 
-	/** Blocks until the worker's main-thread hop is sitting in the paused looper's queue. */
+	/**
+	 * Blocks until the worker's main-thread hop is sitting in the paused looper's queue.
+	 *
+	 * Sound only because the caller drained the queue first: `isIdle` reports "nothing queued",
+	 * not "the worker has posted", so any leftover startup message would satisfy it
+	 * immediately and the test would go on to idle that message instead of the worker's hop.
+	 */
 	private fun awaitPostToMain(mainLooper: ShadowLooper) {
 		val deadline = System.currentTimeMillis() + TIMEOUT_MS
 		while (mainLooper.isIdle && System.currentTimeMillis() < deadline) {
