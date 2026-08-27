@@ -1,7 +1,6 @@
 package org.appdevforall.cotg.quickbuild.data
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.cotg.quickbuild.service.telemetry.report
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
