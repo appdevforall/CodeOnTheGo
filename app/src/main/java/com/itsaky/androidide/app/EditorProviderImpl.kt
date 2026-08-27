@@ -259,8 +259,12 @@ class EditorProviderImpl(
 	 * Saves [file]'s buffer whatever tab has focus, suspending until the bytes are on disk.
 	 *
 	 * Bounded by [SAVE_TIMEOUT_MS] for the same reason [onMain] is bounded: a wedged editor
-	 * write must not park a plugin's coroutine for the rest of the session. A timeout reports
-	 * as a failed save.
+	 * must not park a plugin's coroutine for the rest of the session. The bound covers the
+	 * phases that need the main thread - resolving the editor is what can wedge. Once bytes
+	 * start moving the save runs to completion under `NonCancellable`, because
+	 * `CodeEditorView.save` is not cancellation-atomic: interrupted between the write and its
+	 * `markUnmodified()` it would leave the file written but the buffer flagged dirty. So a
+	 * `false` from here never means "written, but reported unwritten".
 	 *
 	 * Must be awaited from a coroutine, never bridged with `runBlocking` on the main thread.
 	 * `CodeEditorView.save` runs the write on its own thread and resumes via
@@ -515,9 +519,9 @@ class EditorProviderImpl(
 	companion object {
 		private const val MAIN_EDIT_TIMEOUT_SECONDS = 5L
 
-		// Generous next to MAIN_EDIT_TIMEOUT_SECONDS: this one covers a whole file write, not
-		// a single main-thread hop, and a large buffer on slow storage legitimately takes
-		// seconds.
+		// Generous next to MAIN_EDIT_TIMEOUT_SECONDS: this covers resolving the editor plus a
+		// whole file write, not a single main-thread hop, and a large buffer on slow storage
+		// legitimately takes seconds.
 		private const val SAVE_TIMEOUT_MS = 30_000L
 		private val log = LoggerFactory.getLogger(EditorProviderImpl::class.java)
 	}

@@ -186,8 +186,10 @@ interface IdeEditorService {
 	 * marshalled to the editor's own write thread and nothing blocks while it runs. Do not
 	 * bridge it with `runBlocking` on the main thread - `runBlocking` parks the main thread
 	 * without draining its looper, and the write resumes through the main dispatcher, so the
-	 * call would never complete. The IDE bounds its own wait, so a `withTimeout` of your own
-	 * is optional.
+	 * call would never complete. The IDE bounds its own wait, so a `withTimeout` of your own is
+	 * optional - and cannot abandon a write already in progress: once bytes start moving the
+	 * save runs to completion, so cancelling never leaves the file written but the buffer
+	 * flagged dirty.
 	 *
 	 * Returns `true` when the buffer is on disk (including "was already clean"), `false` when
 	 * the file has no open editor or the write failed. Authorization failures throw
@@ -195,7 +197,10 @@ interface IdeEditorService {
 	 * method here: the caller lacks FILESYSTEM_WRITE, or [file] is outside the plugin's
 	 * allowed roots.
 	 *
-	 * Default-implemented (no-op) so adding it is a backward-compatible interface extension.
+	 * The default body makes this a compatible addition for *implementers* of the interface. It
+	 * does nothing for a *caller*: an older IDE ships an `IdeEditorService` with no `saveFile`
+	 * at all, so the call site fails with `NoSuchMethodError`. Floor `plugin.min_ide_version`
+	 * at the release that introduced this - see PLUGIN_API_CHANGELOG.md.
 	 */
 	suspend fun saveFile(file: File): Boolean = false
 

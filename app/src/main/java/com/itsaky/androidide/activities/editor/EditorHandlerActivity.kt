@@ -918,24 +918,33 @@ open class EditorHandlerActivity :
 		return result.gradleSaved
 	}
 
-	override suspend fun saveAllResult(progressConsumer: ((Int, Int) -> Unit)?): SaveResult {
-		return performFileSave {
-			val result = SaveResult()
-			for (i in 0 until editorViewModel.getOpenedFileCount()) {
-				saveResultInternal(i, result)
-				progressConsumer?.invoke(i + 1, editorViewModel.getOpenedFileCount())
-			}
+	override suspend fun saveAllResult(progressConsumer: ((Int, Int) -> Unit)?): SaveResult =
+		// IO: saveEditorInternal stats the file, and callers reach here on their own
+		// dispatchers (SaveFileAction runs off-main, AbstractModuleAssemblerAction does not
+		// promise one).
+		withContext(Dispatchers.IO) {
+			performFileSave {
+				val result = SaveResult()
+				for (i in 0 until editorViewModel.getOpenedFileCount()) {
+					saveResultInternal(i, result)
+					progressConsumer?.invoke(i + 1, editorViewModel.getOpenedFileCount())
+				}
 
-			return@performFileSave result
+				return@performFileSave result
+			}
 		}
-	}
 
 	override suspend fun saveResult(
 		index: Int,
 		result: SaveResult,
 	) {
-		performFileSave {
-			saveResultInternal(index, result)
+		// IO for the same reason as saveAllResult - and this one is reached from
+		// EditorProviderImpl.saveCurrentFile, which launches on lifecycleScope's main
+		// dispatcher.
+		withContext(Dispatchers.IO) {
+			performFileSave {
+				saveResultInternal(index, result)
+			}
 		}
 	}
 
@@ -967,7 +976,14 @@ open class EditorHandlerActivity :
 			if (alreadyClean) return true
 
 			val result = SaveResult()
-			if (!performFileSave { saveEditorInternal(view, result) }) return false
+			// IO because the write path stats the file ([CodeEditorView.save]'s own pre-check
+			// and the timestamp bookkeeping), and this is reachable from a plugin coroutine
+			// running on Main. The write's cancellation atomicity lives in saveEditorInternal.
+			val saved =
+				withContext(Dispatchers.IO) {
+					performFileSave { saveEditorInternal(view, result) }
+				}
+			if (!saved) return false
 			if (!withContext(Dispatchers.IO) { file.exists() }) return false
 
 			// The same follow-ups the UI save paths run (see [saveAll] and
@@ -1014,7 +1030,10 @@ open class EditorHandlerActivity :
 			return false
 		}
 
-		return saveEditorInternal(getEditorAtIndex(index) ?: return false, result)
+		// getEditorAtIndex walks the editor container, so it is resolved on Main; callers
+		// reach here from Dispatchers.IO (see saveAllAsync).
+		val frag = withContext(Dispatchers.Main.immediate) { getEditorAtIndex(index) } ?: return false
+		return saveEditorInternal(frag, result)
 	}
 
 	/**
@@ -1024,20 +1043,31 @@ open class EditorHandlerActivity :
 	 * suspension: [CodeEditorView.save] hops to the editor's write thread, and a tab closed
 	 * while it runs shifts every index after it. The tab to unmark is re-resolved from the
 	 * file afterwards for the same reason.
+	 *
+	 * Call it off the main thread - it stats the file and delegates to [CodeEditorView.save],
+	 * which marshals its own UI work. Editor state is read back on Main.
+	 *
+	 * The write and the bookkeeping that follows it are `NonCancellable`: [CodeEditorView.save]
+	 * is not cancellation-atomic, so cut between `writeTo` and its `markUnmodified()` - or
+	 * before the tab below loses its asterisk - it would leave the bytes on disk with the
+	 * buffer still flagged dirty. Scoped per file, so a multi-file save can still stop between
+	 * files.
 	 */
 	private suspend fun saveEditorInternal(
 		frag: CodeEditorView,
 		result: SaveResult,
 	): Boolean {
-		val savedFile = frag.file ?: return false
+		// Editor state lives on the view: read it on Main, and read isModified before
+		// frag.save() clears it.
+		val (savedFile, modified) =
+			withContext(Dispatchers.Main.immediate) {
+				frag.file?.let { it to frag.isModified }
+			} ?: return false
 		val fileName = savedFile.name
 
-		run {
-			// Must be called before frag.save()
-			// Otherwise, it'll always return false
-			val modified = frag.isModified
+		return withContext(NonCancellable) {
 			if (!frag.save()) {
-				return false
+				return@withContext false
 			}
 
 			fileTimestamps[savedFile.absolutePath] = savedFile.lastModified()
@@ -1051,25 +1081,26 @@ open class EditorHandlerActivity :
 			if (!result.xmlSaved) {
 				result.xmlSaved = modified && isXml
 			}
-		}
 
-		val hasUnsaved = hasUnsavedFiles()
+			// Walks the editor container, so it belongs on Main like the tab update below.
+			val hasUnsaved = withContext(Dispatchers.Main.immediate) { hasUnsavedFiles() }
 
-		withContext(Dispatchers.Main) {
-			val content = contentOrNull ?: return@withContext
-			editorViewModel.areFilesModified = hasUnsaved
+			withContext(Dispatchers.Main) {
+				val content = contentOrNull ?: return@withContext
+				editorViewModel.areFilesModified = hasUnsaved
 
-			// set tab as unmodified
-			val tabPosition = getTabPositionForFileIndex(findIndexOfEditorByFile(savedFile))
-			if (tabPosition < 0) return@withContext
-			val tab = content.tabs.getTabAt(tabPosition) ?: return@withContext
-			val text = tab.text?.toString() ?: return@withContext
-			if (text.startsWith('*')) {
-				tab.text = text.substring(1)
+				// set tab as unmodified
+				val tabPosition = getTabPositionForFileIndex(findIndexOfEditorByFile(savedFile))
+				if (tabPosition < 0) return@withContext
+				val tab = content.tabs.getTabAt(tabPosition) ?: return@withContext
+				val text = tab.text?.toString() ?: return@withContext
+				if (text.startsWith('*')) {
+					tab.text = text.substring(1)
+				}
 			}
-		}
 
-		return true
+			true
+		}
 	}
 
 	private fun hasUnsavedFiles() =
@@ -1084,8 +1115,13 @@ open class EditorHandlerActivity :
 	 * first one to finish must not clear the flag while the other is still writing.
 	 */
 	private suspend inline fun <T : Any?> performFileSave(crossinline action: suspend () -> T): T {
-		beginFileSave()
 		try {
+			// Inside the try, not before it: [beginFileSave]'s block is guaranteed to run (its
+			// context's job is NonCancellable), but `withContext` still honours prompt
+			// cancellation on *resume* when the caller is off-main - so it can increment the
+			// count and then throw. Outside the try that increment never gets its decrement,
+			// and areFilesSaving latches on for the life of the retained ViewModel.
+			beginFileSave()
 			return action()
 		} finally {
 			endFileSave()

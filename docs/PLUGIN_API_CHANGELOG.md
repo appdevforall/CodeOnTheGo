@@ -49,8 +49,11 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   outside the plugin's allowed roots), as the other write methods do. Await it from
   a coroutine; a `runBlocking` bridge on the main thread deadlocks.
 
-  Because the method is `default`, an older IDE silently returns `false` instead of
-  saving — floor `plugin.min_ide_version` at `26.36` if you call it.
+  Because an older IDE's `IdeEditorService` has no `saveFile` at all, calling it
+  there fails with `NoSuchMethodError` at the call site — floor
+  `plugin.min_ide_version` at `26.36` if you call it. The `default` body only keeps
+  the addition compatible for *implementers* of the interface; it does nothing for a
+  caller running against an older host.
 
 ### 26.33 — 2026-08-12
 - **added — Plugin-contributed agent tools** _(ADFA-2592)_ **[verified]**

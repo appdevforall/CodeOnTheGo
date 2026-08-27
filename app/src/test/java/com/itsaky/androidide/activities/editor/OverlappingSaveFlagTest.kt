@@ -20,7 +20,11 @@ package com.itsaky.androidide.activities.editor
 import android.os.Looper
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.app.BaseApplication
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,6 +35,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLooper
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 /**
@@ -98,6 +103,44 @@ class OverlappingSaveFlagTest {
 			mainLooper.idle()
 			worker.join(TIMEOUT_MS)
 		}
+	}
+
+	/**
+	 * `beginFileSave` raises the flag from inside a `NonCancellable` block, but `withContext`
+	 * still honours prompt cancellation when it resumes - so it can raise the flag and *then*
+	 * throw. That is why `performFileSave` calls it inside the `try`: called before it, the
+	 * increment would never reach the `finally`'s decrement and `areFilesSaving` would latch on
+	 * for the life of the retained ViewModel.
+	 */
+	@Test
+	fun givenTheOuterJobIsCancelledDuringTheBeginHop_thenTheFlagIsRaisedAndTheCallStillThrows() {
+		val activity = Robolectric.buildActivity(EditorHandlerActivity::class.java).get()
+		val mainLooper = shadowOf(Looper.getMainLooper())
+		mainLooper.idle()
+
+		val job = Job()
+		val thrown = AtomicReference<Throwable?>(null)
+		val finished = CountDownLatch(1)
+		CoroutineScope(job + Dispatchers.IO).launch {
+			try {
+				activity.beginFileSave()
+			} catch (err: Throwable) {
+				thrown.set(err)
+			} finally {
+				finished.countDown()
+			}
+		}
+
+		// The hop is queued on the paused looper; cancel the outer job before draining it.
+		awaitPostToMain(mainLooper)
+		job.cancel()
+		mainLooper.idle()
+		assertThat(finished.await(TIMEOUT_MS, TimeUnit.MILLISECONDS)).isTrue()
+
+		// The block ran despite the cancellation, so the count was incremented ...
+		assertThat(activity.editorViewModel.areFilesSaving).isTrue()
+		// ... and the caller still saw a throw, which only a `finally` can balance.
+		assertThat(thrown.get()).isInstanceOf(CancellationException::class.java)
 	}
 
 	/**
