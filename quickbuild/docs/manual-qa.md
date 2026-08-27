@@ -82,7 +82,7 @@ adb shell killall -2 screenrecord
 adb pull /sdcard/qa-A.mp4 . && adb shell rm /sdcard/qa-A.mp4
 ```
 
-Turn on Developer options -> Show taps first, or the taps are invisible in the recording. A file killed any way other than SIGINT has no `moov` atom and will not play; check the pulled file opens before deleting the device copy.
+Turn on Developer options -> Show taps first, or the taps are invisible in the recording. A `screenrecord` stopped any way other than SIGINT leaves a file with no `moov` atom that will not play; check the pulled file opens before deleting the device copy.
 
 ## Block A - core loop
 
