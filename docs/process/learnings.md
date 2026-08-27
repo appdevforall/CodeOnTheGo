@@ -33,7 +33,7 @@
 - Assertions in an instrumented test tell you the return value, not the log. To check a diagnostic actually fires (and stays quiet when it should), clear logcat before the run and grep it after — a warning that cries wolf is worse than none.
 
 ## Test fixtures that write themselves
-- `testing/resources/test-project/.cg/gradle-sync/{project,sync}.pb` are **tracked** and a test run rewrites them with the local machine's absolute paths (ADFA-5264). Reverting them before running the tests does not stick — the next run re-dirties them — so revert *after* your last test run and check `git status` before committing.
+- `testing/resources/test-project/.cg/gradle-sync/{project,sync}.pb` used to be **tracked**, and a test run rewrote them with the local machine's absolute paths — so they arrived in unrelated commits, a 12 MB binary among them. Reverting before a run didn't stick, because the next run re-dirtied them. ADFA-5264 (#1740) ignored the whole `.cg/` directory, so this is fixed; it is recorded because the shape recurs. A tracked file that a test run rewrites cannot be kept clean by discipline, only by untracking it.
 
 ## Kotlin LSP test harness
 - Disposing the `KtLspTestEnvironment` in a unit test (`env.close()`, or `Disposer.dispose(env.project)`) throws `AssertionError: Write access is allowed inside write-action only`. IntelliJ requires model teardown to run inside a write action. This is why `KtLspTestRule`'s teardown has `env.close()` commented out as "fails in test cases". To dispose deterministically in a test, wrap it: `ApplicationManager.getApplication().runWriteAction { env.close() }`.

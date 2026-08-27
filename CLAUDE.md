@@ -112,7 +112,7 @@ The sonarqube MCP server runs in Docker, so Docker must be up before launching C
 
 ### Staging commits — no `git add -A`
 
-Stage by explicit path (`git add path/one path/two`). `git add -A` sweeps in whatever else the working tree happens to hold, untracked files included — regenerated test fixtures, multi-MB binaries, files carrying machine-local absolute paths — and buries them in an unrelated commit. `git add -u` is narrower (tracked paths only, and it stages deletions), but it still picks up any tracked file something rewrote behind your back, which is how a 12 MB regenerated fixture reached a commit here. This repo has tracked fixtures that a test run rewrites, so the risk is live rather than theoretical. Run `git status --short` first and account for every line; if a regenerated file genuinely belongs in the change, say so in the commit message.
+Stage by explicit path (`git add path/one path/two`). `git add -A` sweeps in whatever else the working tree happens to hold, untracked files included — regenerated test fixtures, multi-MB binaries, files carrying machine-local absolute paths — and buries them in an unrelated commit. `git add -u` is narrower (tracked paths only, and it stages deletions), but it still picks up any tracked file something rewrote behind your back, which is how a 12 MB regenerated fixture reached a commit here. The untracked half of that risk is live here: a `:gradle-plugin:test` run leaves files under `tests/`, and `tests/test-home` is not currently ignored. Run `git status --short` first and account for every line; if a regenerated file genuinely belongs in the change, say so in the commit message.
 
 ### Multi-line git/gh messages
 
