@@ -34,7 +34,7 @@ object DatabaseVersionResolver {
 	private const val QUERY_MAJOR_VERSION = """
 		SELECT major, (SELECT COUNT(*) FROM DocumentationDatabaseVersion)
 		FROM   DocumentationDatabaseVersion
-		ORDER BY rowid DESC
+		ORDER BY changeTime DESC, rowid DESC
 		LIMIT  1
 	"""
 
@@ -112,7 +112,20 @@ object DatabaseVersionResolver {
 					rows,
 				)
 			}
-			if (cursor.isNull(0)) null else cursor.getInt(0)
+			if (cursor.isNull(0)) {
+				// Logged, because the caller cannot tell this apart from the answer it gets for a
+				// database predating the table: both are null, and WebServer reports "version none" and
+				// skips the dictionary either way. For a real pre-ADFA-5220 file that is correct; for
+				// this one it silently disables dictionary decoding on content that needs it, which is
+				// the worse of the two contract breaches this reader defends against.
+				log.warn(
+					"DocumentationDatabaseVersion's newest row has a NULL major; treating the database as " +
+						"declaring no version, which disables dictionary decoding.",
+				)
+				null
+			} else {
+				cursor.getInt(0)
+			}
 		}
 	}
 
@@ -125,6 +138,9 @@ object DatabaseVersionResolver {
 		if (!changeTime.isNullOrBlank()) parts += changeTime
 		if (!documentationSet.isNullOrBlank()) parts += "($documentationSet)"
 		if (!who.isNullOrBlank()) parts += who
-		return parts.joinToString(separator = " ")
+		// ifEmpty: a row whose changeTime, set and who are all null or blank produced "", which callers
+		// then stored and logged as a stamp ("Database last change: ."). Nothing usable is the same
+		// answer as no row at all.
+		return parts.joinToString(separator = " ").ifEmpty { VERSION_UNKNOWN }
 	}
 }
