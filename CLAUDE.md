@@ -86,11 +86,17 @@ Flow: branch off `stage` → PR into `stage` → `stage` merges to `main` for re
 
 Anything official or public-facing runs only through version-controlled GitHub Actions (`.github/workflows/*.yml`), never locally — SonarQube/SonarCloud uploads, releases, artifact publishing, deploys, pushes to external services. Tokens like `SONAR_TOKEN` are GitHub secrets scoped to those workflows; don't hunt for them locally. Asked to run e.g. the sonar task locally, treat it as verification only (build/test to confirm a fix) and let the official analysis happen in CI.
 
-### Jira tickets — read, and keep updated
-
-Read tickets with the local authenticated `jira` CLI (e.g. `jira issue view ADFA-1234`), configured via `JIRA_API_TOKEN`, `JIRA_HOST`, and `JIRA_USER`. Don't start the Atlassian MCP OAuth flow for reads — it's unnecessary when the CLI works.
+### Jira tickets — keep them updated
 
 **Post progress as you go.** The team wants visibility into in-progress work, not just a final drop. When you start a ticket, hit a notable blocker or decision, or finish a meaningful chunk, add a short comment (`jira issue comment add ADFA-#### "…"`). Keep it crisp — status, what changed, what's next.
+
+**Status progression.** Every ADFA issue type moves through the same states:
+
+`To Do` → `In Progress` → `Code review` → `QA` → `Ready to merge` → `Done`
+
+The names are case-sensitive as written — note the lowercase `review` and `merge`. When a ticket looks ready to advance, **offer** to move it; don't transition it silently. Typical triggers: you begin work → `In Progress`; the PR is open → `Code review`; a review comes back with no outstanding critical, high, or medium findings → `QA`; QA passes → `Ready to merge`.
+
+**Steps to QA.** The `Steps to QA` field is what QA works from, so it matters. When it's empty, offer to write it for the user as Gherkin — Given / When / Then. When you test a ticket yourself, read `Steps to QA` and cover it *in addition to* whatever the user asked you to check.
 
 ### SonarQube MCP server
 
