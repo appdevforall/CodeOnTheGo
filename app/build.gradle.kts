@@ -3,6 +3,7 @@
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.json.JSONObject
 import java.io.BufferedOutputStream
 import java.io.ByteArrayInputStream
@@ -94,6 +95,9 @@ android {
 				// Skip TreeSitter native library loading in tests
 				it.systemProperty("java.library.path", System.getProperty("java.library.path"))
 				it.systemProperty("androidide.test.mode", "true")
+				// JUnit Platform, so JUnit Jupiter tests run; the vintage engine dependency
+				// below keeps existing JUnit 4/Robolectric tests running unchanged.
+				it.useJUnitPlatform()
 			}
 		}
 	}
@@ -212,6 +216,55 @@ configurations.configureEach {
 	// and must not appear on the runtime classpath. Each module runs it via annotationProcessor/kapt
 	// during its own compilation; the app module doesn't need it at runtime.
 	exclude(group = "com.google.auto.value", module = "auto-value")
+}
+
+// brotli4j ships its native decoder as a per-OS/arch artifact, so the JVM unit tests need the one
+// matching whoever is building. Mirrors build-logic/plugins' dispatch, but degrades to null on an
+// unrecognized host instead of throwing: this runs at configuration time, so throwing would fail
+// every task in the build -- including :app:assembleV8Debug, which needs no desktop native at all
+// -- rather than only the JVM unit-test tasks that actually consume this dependency.
+fun brotli4jNativeForHost(): Provider<MinimalExternalModuleDependency>? {
+	val arch = DefaultNativePlatform.getCurrentArchitecture()
+	val os = DefaultNativePlatform.getCurrentOperatingSystem()
+	val native =
+		when {
+			os.isMacOsX -> {
+				when {
+					arch.isArm64 -> libs.brotli4j.osx.aarch64
+					arch.isAmd64 -> libs.brotli4j.osx.x64
+					else -> null
+				}
+			}
+
+			os.isWindows -> {
+				when {
+					arch.isArm64 -> libs.brotli4j.windows.aarch64
+					arch.isAmd64 -> libs.brotli4j.windows.x64
+					else -> null
+				}
+			}
+
+			os.isLinux -> {
+				when {
+					arch.isArm64 -> libs.brotli4j.linux.aarch64
+					arch.isAmd64 -> libs.brotli4j.linux.x64
+					else -> null
+				}
+			}
+
+			else -> {
+				null
+			}
+		}
+	if (native == null) {
+		logger.warn(
+			"brotli4j: no native decoder for {}/{} -- brotli4j-backed JVM unit tests " +
+				"(e.g. BrotliDictionaryDecodeTest) will fail with UnsatisfiedLinkError on this host.",
+			os,
+			arch,
+		)
+	}
+	return native
 }
 
 dependencies {
@@ -341,6 +394,10 @@ dependencies {
 
 	testImplementation(projects.testing.unit)
 	testImplementation(libs.core.tests.anroidx.arch)
+	testImplementation(libs.tests.junit.jupiter)
+	testRuntimeOnly(libs.tests.junit.platformLauncher)
+	// Keeps existing JUnit 4/Robolectric tests running under the JUnit Platform.
+	testRuntimeOnly(libs.tests.junit.vintageEngine)
 	androidTestImplementation(projects.common)
 	androidTestImplementation(projects.testing.android) {
 		exclude(group = "com.google.protobuf", module = "protobuf-lite")
@@ -353,6 +410,13 @@ dependencies {
 
 	// brotli4j
 	implementation(libs.brotli4j)
+	// JVM unit tests (e.g. BrotliDictionaryDecodeTest) run brotli4j's real native decoder, not an
+	// Android target -- without a desktop native on the test classpath, Brotli4jLoader has nothing
+	// to load and every such test fails with UnsatisfiedLinkError. Pick the native for whoever is
+	// building, so the suite runs off a Linux x64 CI runner too (same dispatch as build-logic/plugins').
+	// Null on an unrecognized host just means those specific tests fail there -- see
+	// brotli4jNativeForHost's own warning -- not that this whole build should refuse to configure.
+	brotli4jNativeForHost()?.let { testImplementation(it) }
 
 	implementation(libs.common.markwon.core)
 	implementation(libs.common.markwon.linkify)
@@ -453,53 +517,140 @@ tasks.register<Zip>("createPluginArtifactsZip") {
 // Merges the API surface plugins already compile against (plugin-api + common +
 // eventbus-events + idetooltips) into one coordinate. The three add-ons are
 // v7/v8-flavored (unlike plugin-api); their classes are ABI-neutral so v8 is used.
-tasks.register<Jar>("assemblePluginApiFatJar") {
-	dependsOn(
-		":plugin-api:assembleRelease",
-		":common:assembleV8Release",
-		":eventbus-events:assembleV8Release",
-		":idetooltips:assembleV8Release",
-	)
-	archiveFileName.set("plugin-api-1.0.0.jar")
-	destinationDirectory.set(layout.buildDirectory.dir("plugin-maven-repo-staging"))
-	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+val pluginApiFatJar =
+	tasks.register<Jar>("assemblePluginApiFatJar") {
+		dependsOn(
+			":plugin-api:assembleRelease",
+			":common:assembleV8Release",
+			":eventbus-events:assembleV8Release",
+			":idetooltips:assembleV8Release",
+		)
+		archiveFileName.set("plugin-api-1.0.0.jar")
+		destinationDirectory.set(layout.buildDirectory.dir("plugin-maven-repo-staging"))
+		duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
-	from(
-		zipTree(
-			project(":plugin-api")
-				.layout.buildDirectory
-				.file("intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar")
-				.get()
-				.asFile,
-		),
-	)
-	from(
-		zipTree(
-			project(":common")
-				.layout.buildDirectory
-				.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
-				.get()
-				.asFile,
-		),
-	)
-	from(
-		zipTree(
-			project(":eventbus-events")
-				.layout.buildDirectory
-				.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
-				.get()
-				.asFile,
-		),
-	)
-	from(
-		zipTree(
-			project(":idetooltips")
-				.layout.buildDirectory
-				.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
-				.get()
-				.asFile,
-		),
-	)
+		from(
+			zipTree(
+				project(":plugin-api")
+					.layout.buildDirectory
+					.file("intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar")
+					.get()
+					.asFile,
+			),
+		)
+		from(
+			zipTree(
+				project(":common")
+					.layout.buildDirectory
+					.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
+					.get()
+					.asFile,
+			),
+		)
+		from(
+			zipTree(
+				project(":eventbus-events")
+					.layout.buildDirectory
+					.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
+					.get()
+					.asFile,
+			),
+		)
+		from(
+			zipTree(
+				project(":idetooltips")
+					.layout.buildDirectory
+					.file("intermediates/aar_main_jar/v8Release/syncV8ReleaseLibJars/classes.jar")
+					.get()
+					.asFile,
+			),
+		)
+	}
+
+// Plugins load through DexClassLoader, so R8 never sees a reference to the ABI
+// they call. Emitting one -keep per class in the fat jar published above makes
+// the rules exactly the published ABI, so they cannot drift as classes move
+// between the four merged modules.
+abstract class GeneratePluginApiKeepRules : DefaultTask() {
+	@get:InputFile
+	abstract val fatJar: RegularFileProperty
+
+	// Module path -> a class that module must contribute. The fat jar merges four
+	// hardcoded AGP intermediate paths with DuplicatesStrategy.EXCLUDE, so a path
+	// that stops resolving (AGP layout change, dropped from(...)) drops that
+	// module's classes silently instead of failing.
+	@get:Input
+	abstract val sentinelClasses: MapProperty<String, String>
+
+	@get:OutputFile
+	abstract val keepRules: RegularFileProperty
+
+	@TaskAction
+	fun generate() {
+		val jar = fatJar.get().asFile
+		val classes =
+			ZipFile(jar).use { zip ->
+				zip
+					.entries()
+					.asSequence()
+					.map { it.name }
+					.filter { it.endsWith(".class") }
+					.map { it.removeSuffix(".class").replace('/', '.') }
+					.sorted()
+					.toList()
+			}
+
+		check(classes.isNotEmpty()) {
+			"$jar holds no classes; generating keep rules from it would ship the plugin ABI unprotected."
+		}
+
+		val present = classes.toSet()
+		val missing = sentinelClasses.get().filterValues { it !in present }
+		check(missing.isEmpty()) {
+			missing.entries.joinToString(
+				prefix = "$jar is missing whole modules, so their ABI would ship unprotected: ",
+			) { "${it.key} (no ${it.value})" }
+		}
+
+		val header =
+			"""
+			# Generated by :app:generatePluginApiKeepRules -- do not edit.
+			# One -keep per class in the published plugin-api fat jar: plugins resolve the
+			# ABI parent-first through DexClassLoader, which R8 cannot see.
+			#
+			# These cover the ABI only. Plugins also resolve kotlin.** from the app's dex,
+			# which app/proguard-rules.pro keeps separately (ADFA-5156).
+
+			""".trimIndent()
+
+		val file = keepRules.get().asFile
+		file.parentFile.mkdirs()
+		file.writeText(
+			classes.joinToString("\n", prefix = header, postfix = "\n") { "-keep class $it { *; }" },
+		)
+		logger.lifecycle("Wrote ${classes.size} plugin-ABI keep rules to ${file.absolutePath}")
+	}
+}
+
+val pluginApiKeepRules =
+	tasks.register<GeneratePluginApiKeepRules>("generatePluginApiKeepRules") {
+		fatJar.set(pluginApiFatJar.flatMap { it.archiveFile })
+		sentinelClasses.set(
+			mapOf(
+				":plugin-api" to "com.itsaky.androidide.plugins.IPlugin",
+				":common" to "com.itsaky.androidide.utils.Environment",
+				":eventbus-events" to "com.itsaky.androidide.eventbus.events.Event",
+				":idetooltips" to "com.itsaky.androidide.idetooltips.IDETooltipItem",
+			),
+		)
+		keepRules.set(layout.buildDirectory.file("generated/proguard/plugin-api-keep.pro"))
+	}
+
+// proguardFiles (not dependsOn) so Gradle infers the dependency for every
+// consumer: R8 and lint both read this list, and wiring only R8 fails validation
+// in a real release build. Debug variants stay off the fat jar entirely.
+androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
+	variant.proguardFiles.add(pluginApiKeepRules.flatMap { it.keepRules })
 }
 
 // Dependency-free POM for the fat plugin-api coordinate: it is compile-only/provided,

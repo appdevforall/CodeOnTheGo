@@ -79,6 +79,13 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			return
 		}
 
+		// Storage is confirmed accessible here, so it's safe to warm IDEApplication.cachedFilesDir
+		// now for devices that were still locked (Direct Boot) when onCreate() ran its own warmup.
+		// by lazy caches the value, not a failure, so swallowing errors here just means the first
+		// real read pays the syscall - it never poisons the cache or blocks the retry.
+		runCatching { withContext(Dispatchers.IO) { IDEApplication.cachedFilesDir } }
+			.onFailure { logger.warn("Failed to warm cachedFilesDir; first read will hit disk", it) }
+
 		if (!_isLoaded.compareAndSet(false, true)) {
 			// Another call already claimed initialization (e.g. a concurrent retry after
 			// user unlock); avoid running the rest of this method twice.
