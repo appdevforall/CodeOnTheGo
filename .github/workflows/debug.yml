@@ -211,14 +211,14 @@ jobs:
       - name: Assemble Universal APK
         run: |
           echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
-          flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+          flox activate -d flox/base -- ./gradlew :app:assembleV8Release --no-daemon
           echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
 
 
       - name: Find APK file
         id: find_apk
         run: |
-          apk_path=$(find app/build/outputs/apk/ -path "*v8*/debug/*.apk" | head -n 1)
+          apk_path=$(find app/build/outputs/apk/ -path "*v8*/release/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
 
       - name: Set branch name and build type
