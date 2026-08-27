@@ -114,7 +114,10 @@ object ZipUtils {
 				// attempt (ADFA-5257).
 				val outFile =
 					when (val resolution = contained.resolve(entry.name)) {
-						is Resolution.Contained -> resolution.file
+						is Resolution.Contained -> {
+							resolution.file
+						}
+
 						is Resolution.Rejected -> {
 							val link = resolution.lexicalTarget
 							if (link != null && isContainedSymlink(contained.base, link)) {
@@ -131,13 +134,15 @@ object ZipUtils {
 							}
 							throw IOException("Zip entry does not resolve to a safe path inside the target directory: ${entry.name}")
 						}
-						is Resolution.Unverifiable ->
+
+						is Resolution.Unverifiable -> {
 							// Not an escape: refused because unproven. Distinct wording so a
 							// filesystem error is not reported as a hostile archive.
 							throw IOException(
 								"Cannot verify that a zip entry resolves inside the target directory: ${entry.name} (${resolution.cause})",
 								resolution.cause,
 							)
+						}
 					}
 
 				// Policy, not containment: a user's own symlink inside their own project -- gradlew, or

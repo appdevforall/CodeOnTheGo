@@ -290,7 +290,10 @@ object AssetsInstallationHelper {
 
 			val destFile =
 				when (val resolution = contained.resolve(entry.name)) {
-					is Resolution.Contained -> resolution.file.toPath()
+					is Resolution.Contained -> {
+						resolution.file.toPath()
+					}
+
 					is Resolution.Rejected -> {
 						// A pre-existing symlink at the entry's own target -- dangling, or leading
 						// outside destDir -- is this caller's refusal policy at work, not a
@@ -304,11 +307,13 @@ object AssetsInstallationHelper {
 							},
 						)
 					}
-					is Resolution.Unverifiable ->
+
+					is Resolution.Unverifiable -> {
 						throw IllegalStateException(
 							"Cannot verify that a zip entry stays in the target dir: ${entry.name} (${resolution.cause})",
 							resolution.cause,
 						)
+					}
 				}
 
 			// Policy, not containment: the resolver allows a symlink whose target is still inside
