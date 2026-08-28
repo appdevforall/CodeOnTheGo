@@ -176,7 +176,11 @@ object QuickBuildScreen : KScreen<QuickBuildScreen>() {
 	fun TestContext<Unit>.declineClobberConfirm() {
 		step("Decline the clobber confirm") {
 			val d = device.uiDevice
-			val cancel = d.findObject(UiSelector().textMatches("(?i)cancel"))
+			// The dialog's negative button is the framework string, not one of ours.
+			val cancel =
+				d.findObject(
+					UiSelector().textMatches("(?i)" + targetContext.getString(android.R.string.cancel)),
+				)
 			assertTrue("Cancel button not found on the clobber confirm", cancel.waitForExists(DROPDOWN_ITEM_TIMEOUT_MS))
 			cancel.click()
 			assertClobberConfirmGone()
