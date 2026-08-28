@@ -34,7 +34,7 @@ import java.nio.file.Path
  * [execAction] runs one background analysis pass and returns a plain-data [ExtractMethodPlan];
  * [postExec] shows the sheet and turns the user's choice into two text edits with pure offset
  * arithmetic. Where the region cannot be moved faithfully the plan carries a typed refusal, which
- * postExec renders as a specific message rather than a generic failure (ADR 0013).
+ * postExec renders as a specific message rather than a generic failure (ADR 0014).
  */
 class ExtractMethodAction : BaseKotlinCodeAction() {
 	companion object {

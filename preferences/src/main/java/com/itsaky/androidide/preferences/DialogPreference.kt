@@ -17,11 +17,14 @@
 
 package com.itsaky.androidide.preferences
 
+import android.content.Context
+import android.view.View
+import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.applyLongPressRecursively
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 
 /**
  * A preference which shows a dialog when clicked.
@@ -29,41 +32,67 @@ import com.itsaky.androidide.utils.applyLongPressRecursively
  * @author Akash Yadav
  */
 abstract class DialogPreference : SimplePreference() {
+	open val dialogTitle: Int
+		get() = this.title
 
-  open val dialogTitle: Int
-    get() = this.title
+	open val dialogMessage: Int? = null
+	open val dialogCancellable: Boolean = true
 
-  open val dialogMessage: Int? = null
-  open val dialogCancellable: Boolean = true
-  open val tooltipTag: String = ""
+	override fun onPreferenceClick(preference: Preference): Boolean {
+		val dialog = DialogUtils.newMaterialDialogBuilder(preference.context)
+		dialog.setTitle(this.dialogTitle)
+		dialogMessage?.let { dialog.setMessage(it) }
+		dialog.setCancelable(this.dialogCancellable)
+		dialog.setOnCancelListener { onDialogCancelled(preference) }
+		onConfigureDialog(preference, dialog)
+		val alertDialog = dialog.create()
+		alertDialog.show()
 
-  override fun onPreferenceClick(preference: Preference): Boolean {
-    val dialog = DialogUtils.newMaterialDialogBuilder(preference.context)
-    dialog.setTitle(this.dialogTitle)
-    dialogMessage?.let { dialog.setMessage(it) }
-    dialog.setCancelable(this.dialogCancellable)
-    dialog.setOnCancelListener { onDialogCancelled(preference) }
-    onConfigureDialog(preference, dialog)
-    val alertDialog = dialog.create()
-    alertDialog.show()
+		alertDialog.window?.decorView?.applyLongPressRecursively {
+			showTooltipIfPresent(preference.context, it, tooltipTag)
+			true
+		}
 
-      alertDialog.window?.decorView?.applyLongPressRecursively {
-          TooltipManager.showIdeCategoryTooltip(preference.context, it, tooltipTag)
-          true
-      }
+		onDialogShown(preference, alertDialog)
 
-    return true
-  }
+		return true
+	}
 
-  protected open fun onConfigureDialog(preference: Preference,
-    dialog: MaterialAlertDialogBuilder) {
-  }
+	/**
+	 * Called after the dialog is shown. Subclasses whose dialog content isn't covered by
+	 * [applyLongPressRecursively] (e.g. a [android.widget.ListView] of choices, which it skips
+	 * because its rows are recycled) can use this to wire up their own tooltip triggers.
+	 */
+	protected open fun onDialogShown(
+		preference: Preference,
+		dialog: AlertDialog,
+	) {}
 
-  /**
-   * Called when the dialog is cancelled by the user (e.g. the system back button), as opposed to
-   * being dismissed by an action button. The default behaviour discards any unconfirmed changes,
-   * matching the dialog's cancel button.
-   */
-  protected open fun onDialogCancelled(preference: Preference) {
-  }
+	/**
+	 * Shows [tag]'s tooltip anchored to [anchor], or does nothing if [tag] is empty.
+	 *
+	 * No manual haptic feedback: both callers of this method (a [View.OnLongClickListener] via
+	 * [applyLongPressRecursively] above, and `ChoiceBasedDialogPreference`'s
+	 * `AdapterView.OnItemLongClickListener`) already get it from the platform when their listener
+	 * returns `true`.
+	 */
+	protected fun showTooltipIfPresent(
+		context: Context,
+		anchor: View,
+		tag: String,
+	) = showIdeCategoryTooltipIfPresent(context, anchor, tag, playHapticFeedback = false)
+
+	protected open fun onConfigureDialog(
+		preference: Preference,
+		dialog: MaterialAlertDialogBuilder,
+	) {
+	}
+
+	/**
+	 * Called when the dialog is cancelled by the user (e.g. the system back button), as opposed to
+	 * being dismissed by an action button. The default behaviour discards any unconfirmed changes,
+	 * matching the dialog's cancel button.
+	 */
+	protected open fun onDialogCancelled(preference: Preference) {
+	}
 }
