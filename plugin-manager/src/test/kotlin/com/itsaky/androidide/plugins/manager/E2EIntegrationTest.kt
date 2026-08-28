@@ -1,87 +1,68 @@
 package com.itsaky.androidide.plugins.manager
 
-import com.itsaky.androidide.plugins.services.IdeFileService
-import com.itsaky.androidide.plugins.services.IdeResourceService
+import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.manager.context.ServiceRegistryImpl
-import com.itsaky.androidide.plugins.manager.services.FileServiceImpl
-import com.itsaky.androidide.plugins.manager.services.ProjectServiceImpl
-import com.itsaky.androidide.plugins.manager.services.ResourceServiceImpl
-import org.junit.Test
-import org.junit.Assert.*
-import org.junit.Before
+import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
+import com.itsaky.androidide.plugins.services.IdeFileService
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
 import java.io.File
 
 class E2EIntegrationTest {
+	private lateinit var tempProjectRoot: File
 
-    private lateinit var tempProjectRoot: File
+	@Before
+	fun setUp() {
+		tempProjectRoot =
+			File.createTempFile("e2e-test-", "").apply {
+				delete()
+				mkdirs()
+			}
+	}
 
-    @Before
-    fun setUp() {
-        tempProjectRoot = File.createTempFile("e2e-test-", "").apply {
-            delete()
-            mkdirs()
-        }
-    }
+	@After
+	fun tearDown() {
+		tempProjectRoot.deleteRecursively()
+	}
 
-    @After
-    fun tearDown() {
-        tempProjectRoot.deleteRecursively()
-    }
+	@Test
+	fun fileServiceWorkflowThroughRegistry() {
+		val registry = ServiceRegistryImpl()
+		val fileService =
+			IdeFileServiceImpl(
+				pluginId = "e2e-plugin",
+				permissions = setOf(PluginPermission.FILESYSTEM_WRITE),
+				pathValidator =
+					object : IdeFileServiceImpl.PathValidator {
+						override fun isPathAllowed(path: File) = path.isWithin(tempProjectRoot)
 
-    @Test
-    fun testCompletePluginWorkflow() {
-        // Simulate realistic plugin scenario:
-        // 1. Create a source file
-        // 2. Add a dependency to build.gradle.kts
-        // 3. Read resource strings
+						override fun getAllowedPaths() = listOf(tempProjectRoot.absolutePath)
+					},
+			)
+		registry.register(IdeFileService::class.java, fileService)
 
-        val serviceRegistry = ServiceRegistryImpl()
-        val fileService = FileServiceImpl(tempProjectRoot)
-        val projectService = ProjectServiceImpl(tempProjectRoot)
-        val resourceService = ResourceServiceImpl(tempProjectRoot)
+		val resolved = registry.get(IdeFileService::class.java)
+		assertNotNull("IdeFileService should be retrievable from the registry", resolved)
 
-        serviceRegistry.register(IdeFileService::class.java, fileService)
-        serviceRegistry.register(IdeProjectService::class.java, projectService)
-        serviceRegistry.register(IdeResourceService::class.java, resourceService)
+		val sourceFile = File(tempProjectRoot, "app/src/main/kotlin/com/example/Main.kt")
+		val source = "package com.example\n\nfun main() {\n    println(\"Hello\")\n}"
 
-        // Step 1: Create source file via FileService
-        val createResult = fileService.createFile(
-            "app/src/main/kotlin/com/example/Main.kt",
-            "package com.example\n\nfun main() {\n    println(\"Hello\")\n}"
-        )
-        assertTrue("Failed to create source file: ${createResult.error}", createResult.success)
+		assertTrue("write should succeed", resolved!!.writeFile(sourceFile, source))
+		assertEquals(source, resolved.readFile(sourceFile))
 
-        // Step 2: Add dependency via ProjectService
-        val buildFile = File(tempProjectRoot, "app/build.gradle.kts")
-        buildFile.parentFile?.mkdirs()
-        buildFile.writeText("""
-            dependencies {
-                implementation("androidx.core:core-ktx:1.9.0")
-            }
-        """.trimIndent())
+		val listed = resolved.listFiles(sourceFile.parentFile, recursive = false).map { it.name }
+		assertTrue("listing should include the created file", listed.contains("Main.kt"))
 
-        val depResult = projectService.addDependency(
-            "app/build.gradle.kts",
-            "implementation(\"com.google.code.gson:gson:2.10.1\")"
-        )
-        assertTrue("Failed to add dependency: ${depResult.error}", depResult.success)
+		assertTrue("delete should succeed", resolved.delete(sourceFile))
+		assertFalse("deleted file should be gone", sourceFile.exists())
+	}
 
-        val updatedBuildContent = buildFile.readText()
-        assertTrue("Dependency not added to build file", updatedBuildContent.contains("gson:2.10.1"))
-
-        // Step 3: Access resource via ResourceService
-        val stringResult = resourceService.getString("app_name")
-        assertTrue("Failed to get string resource: ${stringResult.error}", stringResult.success)
-        assertNotNull("String resource data is null", stringResult.data)
-
-        // Step 4: Verify file service can read created file
-        val readResult = fileService.readFile("app/src/main/kotlin/com/example/Main.kt")
-        assertTrue("Failed to read created file: ${readResult.error}", readResult.success)
-        assertTrue("File content mismatch", readResult.data!!.contains("package com.example"))
-
-        // Step 5: Cleanup via FileService
-        val deleteResult = fileService.deleteFile("app/src/main/kotlin/com/example/Main.kt")
-        assertTrue("Failed to delete file: ${deleteResult.error}", deleteResult.success)
-    }
+	// Canonical, component-wise containment: rejects sibling-prefix and traversal escapes that a
+	// naive absolutePath.startsWith() would wrongly accept.
+	private fun File.isWithin(root: File) = canonicalFile.toPath().startsWith(root.canonicalFile.toPath())
 }

@@ -4,6 +4,16 @@
 -dontnote **
 -dontobfuscate
 
+# ADFA-3604: R8's optimize pass (inlining/method merging) can silently
+# retarget a call to the wrong method when it fails to parse Kotlin 2.3.0
+# metadata (see "R8: An error occurred when parsing kotlin metadata" in the
+# build log) -- observed corrupting calls to utils.TestModeUtilsKt.isTestMode
+# into calls to the unrelated, device-missing dalvik.system.VMRuntime.isTestMode,
+# crashing every release build on launch. Shrinking (dead-code removal) is
+# what actually cuts dex size; the optimize passes are the risky part given
+# this R8/Kotlin version mismatch, so disable only optimization.
+-dontoptimize
+
 -keep class javax.** { *; }
 -keep class jdkx.** { *; }
 
@@ -18,6 +28,42 @@
 
 # Builder model implementations
 -keep class com.itsaky.androidide.builder.model.** { *; }
+
+# lsp/kotlin registers its own IntelliJ project/application services -- some
+# by class name in lsp/kotlin/src/main/resources/META-INF/kt-lsp/kt-lsp.xml,
+# the rest via ::class literals in
+# lsp/kotlin/.../registrar/AnalysisApiServiceProviders.kt, which PicoContainer
+# then instantiates reflectively via each class's no-arg constructor. A
+# ::class literal doesn't count as an actual `new` call to R8, so it kept
+# stripping "unused" no-arg constructors one class at a time as each was
+# discovered on-device (ClassNotFoundException on DirectInheritorsProvider,
+# then a PicoInitializationException on ModuleDependentsProvider's missing
+# constructor). Keep the whole package rather than list every implementation
+# class in AnalysisApiServiceProviders.kt individually.
+-keep class com.itsaky.androidide.lsp.kotlin.compiler.services.** { *; }
+
+# Kotlin Analysis API (bundled in subprojects/kotlin-analysis-api, used by the
+# Kotlin LSP). subprojects/kotlin-analysis-api/consumer-rules.pro keeps every
+# class this jar's own IntelliJ plugin XML descriptors and ServiceLoader
+# entries reference by name, but on-device testing kept surfacing distinct
+# reflection paths that narrow list didn't cover -- not just inside this jar,
+# but in other lsp/kotlin runtime dependencies too (Caffeine picks a cache
+# implementation from dozens of codegenned variant classes at runtime; a
+# protobuf-lite message field is resolved by name string; lsp/kotlin's own
+# kt-lsp.xml above; and a NullPointerException deep in IntelliJ's own
+# JavaCoreApplicationEnvironment bootstrap, verified absent on an unshrunk
+# debug build). Each fix was quick but the next gap kept appearing elsewhere
+# in the same dependency graph, so rather than keep discovering them one
+# on-device crash at a time, keep every runtime dependency lsp/kotlin pulls in
+# whole. This gives up the dex-size reduction for this whole dependency graph;
+# see ADFA-3604 for the size trade-off.
+-keep class org.jetbrains.kotlin.** { *; }
+-keep class com.github.benmanes.caffeine.** { *; }
+-keep class kotlin.reflect.** { *; }
+-keep class kotlin.script.** { *; }
+-keep class kotlinx.coroutines.internal.** { *; }
+-keep class one.util.streamex.** { *; }
+-keep class gnu.trove.** { *; }
 
 # Eclipse
 -keep class org.eclipse.** { *; }
@@ -66,10 +112,12 @@
 }
 -keep class com.itsaky.androidide.utils.DialogUtils {  public <methods>; }
 
-# APK Metadata
--keep class com.itsaky.androidide.models.ApkMetadata { *; }
--keep class com.itsaky.androidide.models.ArtifactType { *; }
--keep class com.itsaky.androidide.models.MetadataElement { *; }
+# Gson model classes deserialized only via reflection (gson.fromJson(...,
+# X::class.java)), same "R8 strips the unreachable constructor" issue as
+# templates.impl.zip below. Covers OpenedFilesCache/OpenedFile (no prior
+# rule) as well as the APK metadata classes already listed individually.
+-keep class com.itsaky.androidide.models.** { *; }
+-keep class com.itsaky.androidide.lsp.debug.model.** { *; }
 
 # Parcelable
 -keepclassmembers class * implements android.os.Parcelable {
@@ -88,6 +136,14 @@
 
 -keep class com.itsaky.androidide.treesitter.** { *; }
 
+# Protobuf lite: the generated runtime resolves message fields by name via
+# reflection (the info string baked into newMessageInfo()), so shrinking a
+# "field with no direct bytecode reference" breaks it at runtime with a
+# NoSuchFieldException (observed on SyncMetaModels$SyncMeta.projectModelInfo_).
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
+    <fields>;
+}
+
 # Retrofit 2
 -dontwarn retrofit2.**
 -keep class retrofit2.** { *; }
@@ -101,14 +157,18 @@
 -keep interface okhttp3.** { *; }
 -dontwarn okhttp3.**
 
-# Stat uploader
--keep class com.itsaky.androidide.stats.** { *; }
-
 # Gson
 -keep class * extends com.google.gson.TypeAdapter
 -keep class * implements com.google.gson.TypeAdapterFactory
 -keep class * implements com.google.gson.JsonSerializer
 -keep class * implements com.google.gson.JsonDeserializer
+
+# Gson model classes: nothing calls `new TemplatesIndex(...)` directly --
+# only gson.fromJson(..., TemplatesIndex::class.java) does, via reflection.
+# With no traceable constructor call, R8 strips the constructor and Gson's
+# runtime then reports the class as abstract ("Failed to load template
+# archive ... Abstract classes can't be instantiated!").
+-keep class com.itsaky.androidide.templates.impl.zip.** { *; }
 
 -keepclassmembers,allowobfuscation class * {
   @com.google.gson.annotations.SerializedName <fields>;
@@ -128,13 +188,30 @@
   *;
 }
 
-## Sentry
+## GlitchTip crash reporting (via the Sentry SDK; GlitchTip speaks the Sentry protocol)
 -keepattributes SourceFile,LineNumberTable
 -keep class io.sentry.** { *; }
 -dontwarn io.sentry.**
 
-## Prevent R8 from moving what it thinks as unused classes
--dontshrink
+# ADFA-5156: plugins load parent-first through a stock DexClassLoader, so they
+# resolve kotlin.** from the app's dex rather than their own bundled stdlib. R8
+# cannot see plugin call sites, so it strips every stdlib member the IDE itself
+# does not call and plugins die with NoSuchMethodError at runtime (Sketch to UI:
+# ArraysKt.maxOrNull([F)). ADFA-5156 first fixed this with -dontshrink, which
+# made R8 a pass-through over the whole app to protect one library; ADFA-5195
+# replaced it with the targeted keeps below, restoring dead-code removal
+# everywhere else.
+#
+# ADFA-5164 narrows this: freeze the stdlib subset plugins may rely on and have
+# plugins bundle the rest. Until then the whole stdlib is the contract, so these
+# stay broad -- and note the keeps further up cover only kotlin.reflect,
+# kotlin.script and kotlinx.coroutines.internal, not kotlin.collections/text/io/
+# sequences, which is the hole maxOrNull([F) fell through.
+-keep class kotlin.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
 
 ## Plugin SPI
 ## Plugins are loaded dynamically via DexClassLoader, so R8 cannot see their
@@ -146,9 +223,18 @@
 -keep class com.itsaky.androidide.plugins.** { *; }
 -keep interface com.itsaky.androidide.plugins.** { *; }
 
-## Initial rules to enable when R8 is shrinking to address exceptions
-#-keep class com.sun.tools.jdi.** { *; }
-#-keep class com.sun.jdi.** { *; }
+## ADFA-3604: JDI's SocketAttachingConnector/SocketListeningConnector are
+## loaded via ServiceLoader (META-INF/services), which R8 can't trace, so it
+## stripped their no-arg constructors. This surfaced as
+## "ServiceConfigurationError: Provider ... could not be instantiated" ->
+## "java.lang.Error: no Connectors loaded" from VirtualMachineManagerImpl,
+## which the app then reports to the user as a generic "Network access
+## error" (the debug-connect failure handler always appends a network
+## suggestion regardless of cause) even though this has nothing to do with
+## network permissions. This is exactly the exceptions these rules were
+## anticipating -- enabling them now that shrinking is genuinely on.
+-keep class com.sun.tools.jdi.** { *; }
+-keep class com.sun.jdi.** { *; }
 
 ## R8 Kotlin metadata workaround for Kotlin 2.3.0 compatibility
 ## Suppresses D8 errors when parsing kotlin metadata for StopWatch inline functions

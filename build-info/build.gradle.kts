@@ -84,4 +84,14 @@ tasks.create("generateBuildInfo") {
 }
 
 tasks.withType<JavaCompile> { dependsOn("generateBuildInfo") }
-tasks.withType<Jar> { dependsOn("generateBuildInfo") }
+tasks.withType<Jar> {
+	dependsOn("generateBuildInfo")
+
+	// Jars embed per-entry timestamps by default, so rebuilding identical sources
+	// still produces different bytes. kapt tracks this jar through its
+	// `internalNonAbiClasspath` input -- jar contents, not the ABI -- so a
+	// non-reproducible jar re-runs annotation processing across every kapt module
+	// for no reason. See docs/adr/0012-volatile-build-metadata-out-of-abis.md.
+	isPreserveFileTimestamps = false
+	isReproducibleFileOrder = true
+}

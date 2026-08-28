@@ -21,7 +21,6 @@ dependencies {
 	implementation(platform(libs.sora.bom))
 	implementation(libs.common.editor)
 	implementation(libs.common.kotlin)
-	implementation(libs.common.utilcode)
 	implementation(libs.google.material)
 
 	implementation(projects.actions)

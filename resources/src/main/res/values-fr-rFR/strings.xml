@@ -160,8 +160,6 @@ Dernier projet ouvert : \n%s</string>
   <string name="msg_open_projects">Si il est activé, l\'IDE se rappelera du dernier projet ouvert et l\'ouvrira au prochain démarrage de l\'application</string>
   <string name="title_confirm_project_open">Confirmer l\'ouverture du projet</string>
   <string name="msg_confirm_project_open">Demander avant d\'ouvrir le dernier projet ouvert</string>
-  <string name="title_default_shell">Utiliser le système Shell dans le terminal</string>
-  <string name="msg_default_shell">Si il est activer, \'/system/bin/sh\' sera utilisé dans le terminal.</string>
   <string name="title_general">Général</string>
   <string name="title_tab_size">Taille de l\'onglet</string>
   <string name="msg_tab_size">Spécifier la taille de l\'onglet</string>
@@ -243,7 +241,6 @@ Dernier projet ouvert : \n%s</string>
   <string name="idepref_buildnrun_summary">Configure the Gradle build.</string>
   <string name="configure">Configure</string>
   <string name="about">À propos</string>
-  <string name="idepref_github_summary">Code on the Go est open source !</string>
   <string name="idepref_channel_summary">Subscribe for latest updates.</string>
   <string name="idepref_group_summary">Discuss featues, bugs and improvements here.</string>
   <string name="idepref_changelog_summary">What\'s new in this version?</string>
@@ -341,12 +338,6 @@ Dernier projet ouvert : \n%s</string>
   <string name="msg_tasks_to_run">The following tasks will be run, in order. Click the \'Run\' button again to confirm.\n\n%1$s</string>
   <string name="msg_loading_tasks">Loading tasks...</string>
   <!-- GIT -->
-  <string name="git_clone">Clone</string>
-  <string name="git_clone_repo">Clone git repository</string>
-  <string name="git_clone_repo_url">Repository URL</string>
-  <string name="git_clone_in_progress">Cloning repository</string>
-  <string name="git_clone_success">Git clone successful</string>
-  <string name="git_clone_failed">Failed to clone git repository</string>
   <string name="msg_select_attr">Select an attribute from the below list</string>
   <string name="action_show_hierarchy">Show layout hierarchy</string>
   <string name="idepref_editor_colorScheme">Color Scheme</string>

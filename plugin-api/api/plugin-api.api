@@ -6,16 +6,25 @@ public abstract interface class com/itsaky/androidide/plugins/IPlugin {
 }
 
 public abstract interface class com/itsaky/androidide/plugins/PluginContext {
+	public abstract fun addPluginLifecycleListener (Lcom/itsaky/androidide/plugins/PluginLifecycleListener;)V
 	public abstract fun getAndroidContext ()Landroid/content/Context;
 	public abstract fun getAppFilesDir ()Ljava/io/File;
+	public abstract fun getAppSharedPreferences (Ljava/lang/String;)Landroid/content/SharedPreferences;
 	public abstract fun getEventBus ()Ljava/lang/Object;
 	public abstract fun getLogger ()Lcom/itsaky/androidide/plugins/PluginLogger;
 	public abstract fun getPluginDataDir ()Ljava/io/File;
 	public abstract fun getPluginFilesDir ()Ljava/io/File;
 	public abstract fun getPluginId ()Ljava/lang/String;
+	public abstract fun getPluginService (Ljava/lang/String;Ljava/lang/Class;)Ljava/lang/Object;
 	public abstract fun getPluginSharedPreferences (Ljava/lang/String;)Landroid/content/SharedPreferences;
+	public abstract fun getPluginVersion (Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun getProvidedServices ()Ljava/util/List;
 	public abstract fun getResources ()Lcom/itsaky/androidide/plugins/ResourceManager;
 	public abstract fun getServices ()Lcom/itsaky/androidide/plugins/ServiceRegistry;
+	public abstract fun isPluginActive (Ljava/lang/String;)Z
+	public abstract fun registerService (Ljava/lang/Class;Ljava/lang/Object;)V
+	public abstract fun removePluginLifecycleListener (Lcom/itsaky/androidide/plugins/PluginLifecycleListener;)V
+	public abstract fun unregisterService (Ljava/lang/Class;)V
 }
 
 public final class com/itsaky/androidide/plugins/PluginInfo {
@@ -34,6 +43,12 @@ public final class com/itsaky/androidide/plugins/PluginInfo {
 	public final fun isEnabled ()Z
 	public final fun isLoaded ()Z
 	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/PluginLifecycleListener {
+	public abstract fun onPluginActivated (Ljava/lang/String;)V
+	public abstract fun onPluginDeactivated (Ljava/lang/String;)V
+	public abstract fun onPluginUninstalled (Ljava/lang/String;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/PluginLogger {
@@ -806,6 +821,28 @@ public final class com/itsaky/androidide/plugins/extensions/PluginBuildAction {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/itsaky/androidide/plugins/extensions/PluginSettingsEntry {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()I
+	public final fun component6 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IZ)Lcom/itsaky/androidide/plugins/extensions/PluginSettingsEntry;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/PluginSettingsEntry;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IZILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/PluginSettingsEntry;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFragmentClassName ()Ljava/lang/String;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getOrder ()I
+	public final fun getSummary ()Ljava/lang/String;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isVisible ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/itsaky/androidide/plugins/extensions/PluginTooltipButton {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;IZ)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;IZILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -895,6 +932,65 @@ public final class com/itsaky/androidide/plugins/extensions/ProjectLanguage : ja
 	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;
 }
 
+public abstract interface class com/itsaky/androidide/plugins/extensions/ProjectSearchExtension : com/itsaky/androidide/plugins/IPlugin {
+	public abstract fun searchProject (Lcom/itsaky/androidide/plugins/extensions/ProjectSearchRequest;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ProjectSearchRequest {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/util/List;Ljava/util/List;)Lcom/itsaky/androidide/plugins/extensions/ProjectSearchRequest;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/ProjectSearchRequest;Ljava/lang/String;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/ProjectSearchRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExtensions ()Ljava/util/List;
+	public final fun getQuery ()Ljava/lang/String;
+	public final fun getRoots ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ProjectSearchResult {
+	public fun <init> (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;IIIILjava/lang/Float;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;IIIILjava/lang/Float;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/io/File;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6 ()I
+	public final fun component7 ()I
+	public final fun component8 ()Ljava/lang/Float;
+	public final fun copy (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;IIIILjava/lang/Float;)Lcom/itsaky/androidide/plugins/extensions/ProjectSearchResult;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/ProjectSearchResult;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;IIIILjava/lang/Float;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/ProjectSearchResult;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEndColumn ()I
+	public final fun getEndLine ()I
+	public final fun getFile ()Ljava/io/File;
+	public final fun getLinePreview ()Ljava/lang/String;
+	public final fun getMatchText ()Ljava/lang/String;
+	public final fun getScore ()Ljava/lang/Float;
+	public final fun getStartColumn ()I
+	public final fun getStartLine ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/ProjectSearchSection {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/util/List;)Lcom/itsaky/androidide/plugins/extensions/ProjectSearchSection;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/ProjectSearchSection;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/ProjectSearchSection;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getResults ()Ljava/util/List;
+	public final fun getTitle ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/itsaky/androidide/plugins/extensions/ProjectTemplate {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Lcom/itsaky/androidide/plugins/extensions/ProjectLanguage;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -925,6 +1021,14 @@ public final class com/itsaky/androidide/plugins/extensions/ProjectType : java/l
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/ProjectType;
 	public static fun values ()[Lcom/itsaky/androidide/plugins/extensions/ProjectType;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/SettingsExtension : com/itsaky/androidide/plugins/IPlugin {
+	public abstract fun getSettingsEntries ()Ljava/util/List;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/SettingsExtension$DefaultImpls {
+	public static fun getSettingsEntries (Lcom/itsaky/androidide/plugins/extensions/SettingsExtension;)Ljava/util/List;
 }
 
 public final class com/itsaky/androidide/plugins/extensions/ShowAsAction : java/lang/Enum {
@@ -1053,6 +1157,7 @@ public final class com/itsaky/androidide/plugins/extensions/ToolbarAction {
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAction ()Lkotlin/jvm/functions/Function0;
 	public final fun getIcon ()Ljava/lang/Integer;
+	public final fun getIconProvider ()Lkotlin/jvm/functions/Function0;
 	public final fun getId ()Ljava/lang/String;
 	public final fun getOrder ()I
 	public final fun getShowAsAction ()Lcom/itsaky/androidide/plugins/extensions/ShowAsAction;
@@ -1063,6 +1168,7 @@ public final class com/itsaky/androidide/plugins/extensions/ToolbarAction {
 	public final fun isVisible ()Z
 	public final fun isVisibleProvider ()Lkotlin/jvm/functions/Function0;
 	public final fun setEnabledProvider (Lkotlin/jvm/functions/Function0;)V
+	public final fun setIconProvider (Lkotlin/jvm/functions/Function0;)V
 	public final fun setVisibleProvider (Lkotlin/jvm/functions/Function0;)V
 	public fun toString ()Ljava/lang/String;
 }
@@ -1151,6 +1257,10 @@ public final class com/itsaky/androidide/plugins/services/CursorPosition {
 	public fun toString ()Ljava/lang/String;
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/EditorContentChangeListener {
+	public abstract fun onContentChanged (Ljava/lang/String;IILjava/lang/String;)V
+}
+
 public abstract class com/itsaky/androidide/plugins/services/ExtractResult {
 }
 
@@ -1224,9 +1334,12 @@ public final class com/itsaky/androidide/plugins/services/IdeCommandService$Defa
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeEditorService {
+	public abstract fun addContentChangeListener (Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
 	public abstract fun addFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
 	public abstract fun appendToLine (Ljava/io/File;ILjava/lang/String;)Z
+	public abstract fun clearPeerCursors (Ljava/io/File;)V
 	public abstract fun deleteLine (Ljava/io/File;I)Z
+	public abstract fun dismissInlineSuggestion ()V
 	public abstract fun getCurrentCursorPosition ()Lcom/itsaky/androidide/plugins/services/CursorPosition;
 	public abstract fun getCurrentFile ()Ljava/io/File;
 	public abstract fun getCurrentFileContent ()Ljava/lang/String;
@@ -1241,6 +1354,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeEditor
 	public abstract fun getModifiedFiles ()Ljava/util/List;
 	public abstract fun getOpenFiles ()Ljava/util/List;
 	public abstract fun getWordAtCursor ()Ljava/lang/String;
+	public abstract fun hidePeerCursor (Ljava/io/File;Ljava/lang/String;)Z
 	public abstract fun insertLineBefore (Ljava/io/File;ILjava/lang/String;)Z
 	public abstract fun insertTextAtCursor (Ljava/lang/String;)Z
 	public abstract fun isFileModified (Ljava/io/File;)Z
@@ -1248,11 +1362,24 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeEditor
 	public abstract fun openFile (Ljava/io/File;)Z
 	public abstract fun openFileAt (Ljava/io/File;II)Z
 	public abstract fun prependToLine (Ljava/io/File;ILjava/lang/String;)Z
+	public abstract fun removeContentChangeListener (Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
 	public abstract fun removeFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
 	public abstract fun replaceLine (Ljava/io/File;ILjava/lang/String;)Z
 	public abstract fun replaceRange (Ljava/io/File;Lcom/itsaky/androidide/plugins/services/SelectionRange;Ljava/lang/String;)Z
 	public abstract fun replaceSelection (Ljava/lang/String;)Z
 	public abstract fun saveCurrentFile ()Z
+	public abstract fun showInlineSuggestion (Ljava/lang/String;)V
+	public abstract fun showPeerCursor (Ljava/io/File;IILjava/lang/String;Ljava/lang/String;I)Z
+}
+
+public final class com/itsaky/androidide/plugins/services/IdeEditorService$DefaultImpls {
+	public static fun addContentChangeListener (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
+	public static fun clearPeerCursors (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;)V
+	public static fun dismissInlineSuggestion (Lcom/itsaky/androidide/plugins/services/IdeEditorService;)V
+	public static fun hidePeerCursor (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;Ljava/lang/String;)Z
+	public static fun removeContentChangeListener (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
+	public static fun showInlineSuggestion (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/lang/String;)V
+	public static fun showPeerCursor (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;IILjava/lang/String;Ljava/lang/String;I)Z
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeEditorTabService {
@@ -1307,10 +1434,12 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeProjec
 	public abstract fun getCurrentProject ()Lcom/itsaky/androidide/plugins/extensions/IProject;
 	public abstract fun getModuleContext (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ModuleContext;
 	public abstract fun getProjectByPath (Ljava/io/File;)Lcom/itsaky/androidide/plugins/extensions/IProject;
+	public abstract fun openProject (Ljava/io/File;)Z
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeProjectService$DefaultImpls {
 	public static fun getModuleContext (Lcom/itsaky/androidide/plugins/services/IdeProjectService;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ModuleContext;
+	public static fun openProject (Lcom/itsaky/androidide/plugins/services/IdeProjectService;Ljava/io/File;)Z
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeSidebarService {
@@ -1354,6 +1483,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeUIServ
 	public abstract fun getCurrentActivity ()Landroid/app/Activity;
 	public abstract fun isUIAvailable ()Z
 	public abstract fun openPluginScreen (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+	public abstract fun refreshToolbarActions ()V
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeUIService$Companion {
@@ -1366,6 +1496,7 @@ public final class com/itsaky/androidide/plugins/services/IdeUIService$Companion
 public final class com/itsaky/androidide/plugins/services/IdeUIService$DefaultImpls {
 	public static fun openPluginScreen (Lcom/itsaky/androidide/plugins/services/IdeUIService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
 	public static synthetic fun openPluginScreen$default (Lcom/itsaky/androidide/plugins/services/IdeUIService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Z
+	public static fun refreshToolbarActions (Lcom/itsaky/androidide/plugins/services/IdeUIService;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService {
@@ -1377,31 +1508,50 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun getAvailableBackends ()Ljava/util/List;
 	public abstract fun getBackend (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend;
 	public abstract fun getEmbeddings (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public fun getPreferredBackendId ()Ljava/lang/String;
 	public abstract fun isBackendAvailable (Ljava/lang/String;)Z
 	public abstract fun registerBackend (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend;)V
 	public abstract fun unregisterBackend (Ljava/lang/String;)V
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$CancellableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun cancelStreaming ()V
+}
+
 public class com/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage {
 	public final field content Ljava/lang/String;
 	public final field role Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+	public final field toolCallId Ljava/lang/String;
+	public final field toolName Ljava/lang/String;
 	public fun <init> (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;Ljava/lang/String;)V
+	public static fun toolResult (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage;
 }
 
 public final class com/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role : java/lang/Enum {
 	public static final field ASSISTANT Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
 	public static final field SYSTEM Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+	public static final field TOOL Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
 	public static final field USER Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
 	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
 	public static fun values ()[Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ChatMessage$Role;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ConfigurableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun getSettingsFragmentClassName ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$HistoryCapableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun generateStreamingWithHistory (Ljava/util/List;Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
 	public abstract fun generate (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun generateStreaming (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback;)V
 	public abstract fun generateWithHistory (Ljava/util/List;Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;)Ljava/util/concurrent/CompletableFuture;
+	public fun getDefaultTemperature ()Ljava/lang/Float;
 	public abstract fun getId ()Ljava/lang/String;
 	public abstract fun getName ()Ljava/lang/String;
+	public fun getSystemPrompt (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$SystemPromptRequest;)Ljava/lang/String;
 	public abstract fun isAvailable ()Z
 }
 
@@ -1433,11 +1583,22 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun onToken (Ljava/lang/String;)V
 }
 
+public class com/itsaky/androidide/plugins/services/LlmInferenceService$SystemPromptRequest {
+	public final field exampleFilePath Ljava/lang/String;
+	public final field toolCallSyntax Ljava/lang/String;
+	public final field tools Ljava/util/List;
+	public fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/lang/String;)V
+}
+
 public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallRequest {
 	public field args Ljava/util/Map;
 	public field callId Ljava/lang/String;
 	public field name Ljava/lang/String;
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallingBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun generateStreamingWithTools (Ljava/lang/String;Ljava/util/List;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Ljava/util/List;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ToolStreamCallback;)V
 }
 
 public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolDefinition {
@@ -1494,8 +1655,53 @@ public final class com/itsaky/androidide/plugins/services/SelectionRange {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/itsaky/androidide/plugins/services/SharedServices {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/services/SharedServices;
+	public final fun clear ()V
+	public final fun get (Ljava/lang/Class;)Ljava/lang/Object;
+	public final fun register (Ljava/lang/Class;Ljava/lang/Object;)V
+	public final fun unregister (Ljava/lang/Class;)V
+}
+
 public abstract interface class com/itsaky/androidide/plugins/services/ThemeChangeListener {
 	public abstract fun onThemeChanged (Z)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry {
+	public static final field CONTRACT_VERSION I
+	public abstract fun getToolSources ()Ljava/util/List;
+	public abstract fun notifyToolsChanged (Ljava/lang/String;)V
+	public abstract fun registerToolSource (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSource;)V
+	public abstract fun unregisterToolSource (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSource;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolInvocation {
+	public abstract fun getArguments ()Ljava/util/Map;
+	public abstract fun getCallId ()Ljava/lang/String;
+	public fun getProjectRoot ()Ljava/lang/String;
+	public abstract fun getToolName ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolOutcome {
+	public fun getErrorMessage ()Ljava/lang/String;
+	public abstract fun getOutput ()Ljava/lang/String;
+	public abstract fun isSuccess ()Z
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSource {
+	public fun cancel (Ljava/lang/String;)V
+	public abstract fun getDisplayName ()Ljava/lang/String;
+	public abstract fun getProviderId ()Ljava/lang/String;
+	public abstract fun invoke (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolInvocation;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun listTools ()Ljava/util/List;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSpec {
+	public abstract fun getDescription ()Ljava/lang/String;
+	public abstract fun getName ()Ljava/lang/String;
+	public fun getParametersSchema ()Ljava/util/Map;
+	public fun isReadOnly ()Z
+	public fun requiresApproval ()Z
 }
 
 public final class com/itsaky/androidide/plugins/templates/CgtTemplateBuilder {

@@ -33,137 +33,148 @@ import com.itsaky.androidide.utils.resolveAttr
 import io.github.rosemoe.sora.widget.SelectionMovement
 import java.util.Objects
 
-class SymbolInputAdapter @JvmOverloads constructor(
-    private var editor: IDEEditor,
-    symbols: Collection<Symbol>? = null
-) : RecyclerView.Adapter<SymbolInputAdapter.VH?>() {
-    private val symbols: MutableList<Symbol> = ArrayList()
+class SymbolInputAdapter
+	@JvmOverloads
+	constructor(
+		private var editor: IDEEditor,
+		symbols: Collection<Symbol>? = null,
+	) : RecyclerView.Adapter<SymbolInputAdapter.VH?>() {
+		private val symbols: MutableList<Symbol> = ArrayList()
 
-    init {
-        this.updateItems(symbols)
-    }
+		init {
+			this.updateItems(symbols)
+		}
 
-    private fun updateItems(symbols: Collection<Symbol>?) {
-        if (symbols == null) {
-            return
-        }
+		private fun updateItems(symbols: Collection<Symbol>?) {
+			if (symbols == null) {
+				return
+			}
 
-        this.symbols.clear()
-        this.symbols.addAll(symbols)
-        this.symbols.removeIf { obj: Symbol? -> Objects.isNull(obj) }
-    }
+			this.symbols.clear()
+			this.symbols.addAll(symbols)
+			this.symbols.removeIf { obj: Symbol? -> Objects.isNull(obj) }
+		}
 
-    @SuppressLint("NotifyDataSetChanged")
-    fun refresh(editor: IDEEditor?, newSymbols: Collection<Symbol>?) {
-        this.editor = Objects.requireNonNull<IDEEditor>(editor)
+		@SuppressLint("NotifyDataSetChanged")
+		fun refresh(
+			editor: IDEEditor?,
+			newSymbols: Collection<Symbol>?,
+		) {
+			this.editor = Objects.requireNonNull<IDEEditor>(editor)
 
-        if (this.symbols == newSymbols) {
-            // no need to update symbols
-            return
-        }
+			if (this.symbols == newSymbols) {
+				// no need to update symbols
+				return
+			}
 
-        updateItems(newSymbols)
-        notifyDataSetChanged()
-    }
+			updateItems(newSymbols)
+			notifyDataSetChanged()
+		}
 
-    override fun onCreateViewHolder(parent: ViewGroup, itemType: Int): VH {
-        return VH(
-            LayoutSymbolItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        )
-    }
+		override fun onCreateViewHolder(
+			parent: ViewGroup,
+			itemType: Int,
+		): VH =
+			VH(
+				LayoutSymbolItemBinding.inflate(LayoutInflater.from(parent.context), parent, false),
+			)
 
-    override fun onBindViewHolder(holder: VH, position: Int) {
-        val symbol = symbols[position]
-        holder.binding.symbol.text = symbol.label
-        holder.binding.symbol.setTextColor(
-            holder.binding.symbol.context.resolveAttr(R.attr.colorOnSurface)
-        )
+		override fun onBindViewHolder(
+			holder: VH,
+			position: Int,
+		) {
+			val symbol = symbols[position]
+			holder.binding.symbol.text = symbol.label
+			holder.binding.symbol.setTextColor(
+				holder.binding.symbol.context
+					.resolveAttr(R.attr.colorOnSurface),
+			)
 
-        val description = symbol.description
+			val description = symbol.description
 
-        if (!description.isEmpty()) {
-            TooltipCompat.setTooltipText(holder.binding.symbol, description)
-        }
+			if (description.isNotEmpty()) {
+				TooltipCompat.setTooltipText(holder.binding.symbol, description)
+			}
 
-        holder.binding.symbol.setOnClickListener { view: View? ->
-            insertSymbol(
-                symbol.commit,
-                symbol.offset
-            )
-        }
+			holder.binding.symbol.setOnClickListener { view: View? ->
+				insertSymbol(
+					symbol.commit,
+					symbol.offset,
+				)
+			}
 
-        holder.binding.symbol.setOnLongClickListener { view: View? ->
-            TooltipManager.showIdeCategoryTooltip(
-                context = editor.context,
-                anchorView = holder.binding.symbol,
-                tag = TooltipTag.EDITOR_CHARACTER_TOOLBAR,
-            )
-            true
-        }
-    }
+			holder.binding.symbol.setOnLongClickListener { view: View? ->
+				TooltipManager.showIdeCategoryTooltip(
+					context = editor.context,
+					anchorView = holder.binding.symbol,
+					tag = TooltipTag.EDITOR_CHARACTER_TOOLBAR,
+				)
+				true
+			}
+		}
 
-    override fun getItemCount(): Int {
-        return symbols.size
-    }
+		override fun getItemCount(): Int = symbols.size
 
-    fun insertSymbol(text: String, selectionOffset: Int) {
-        if (selectionOffset < 0 || selectionOffset > text.length) {
-            return
-        }
+		fun insertSymbol(
+			text: String,
+			selectionOffset: Int,
+		) {
+			if (selectionOffset < 0 || selectionOffset > text.length) {
+				return
+			}
 
-        val controller = editor.snippetController
-        if ("\t" == text && controller.isInSnippet()) {
-            controller.shiftToNextTabStop()
-            return
-        }
+			if ("\t" == text) {
+				editor.dispatchTab()
+				return
+			}
 
-        if ("\t" == text) {
-            editor.indentOrCommitTab()
-            return
-        }
+			val cur = editor.text.getCursor()
+			if (cur.isSelected) {
+				editor
+					.text
+					.delete(
+						cur.leftLine,
+						cur.leftColumn,
+						cur.rightLine,
+						cur.rightColumn,
+					)
+				editor.notifyIMEExternalCursorChange()
+			}
 
-        val cur = editor.text.getCursor()
-        if (cur.isSelected) {
-            editor
-                .text
-                .delete(
-                    cur.leftLine,
-                    cur.leftColumn,
-                    cur.rightLine,
-                    cur.rightColumn
-                )
-            editor.notifyIMEExternalCursorChange()
-        }
+			if (cur.leftColumn <
+				editor.text
+					.getColumnCount(cur.leftLine) && text.length == 1 && text[0] ==
+				editor.text
+					.charAt(cur.leftLine, cur.leftColumn) && pairs.contains(text[0])
+			) {
+				editor.moveSelection(SelectionMovement.RIGHT)
+			} else {
+				editor.commitText(text)
+				if (selectionOffset != text.length) {
+					editor.setSelection(
+						cur.rightLine,
+						cur.rightColumn - (text.length - selectionOffset),
+					)
+				}
+			}
+		}
 
-        if (cur.leftColumn < editor.text
-                .getColumnCount(cur.leftLine) && text.length == 1 && text[0] == editor.text
-                .charAt(cur.leftLine, cur.leftColumn) && pairs.contains(text[0])
-        ) {
-            editor.moveSelection(SelectionMovement.RIGHT)
-        } else {
-            editor.commitText(text)
-            if (selectionOffset != text.length) {
-                editor.setSelection(
-                    cur.rightLine, cur.rightColumn - (text.length - selectionOffset)
-                )
-            }
-        }
-    }
+		class VH(
+			var binding: LayoutSymbolItemBinding,
+		) : RecyclerView.ViewHolder(
+				binding.getRoot(),
+			)
 
-    class VH(var binding: LayoutSymbolItemBinding) : RecyclerView.ViewHolder(
-        binding.getRoot()
-    )
+		companion object {
+			private val pairs = ArrayList<Char?>()
 
-    companion object {
-        private val pairs = ArrayList<Char?>()
-
-        init {
-            pairs.add('}')
-            pairs.add(')')
-            pairs.add(']')
-            pairs.add('"')
-            pairs.add('\'')
-            pairs.add('>')
-        }
-    }
-}
+			init {
+				pairs.add('}')
+				pairs.add(')')
+				pairs.add(']')
+				pairs.add('"')
+				pairs.add('\'')
+				pairs.add('>')
+			}
+		}
+	}

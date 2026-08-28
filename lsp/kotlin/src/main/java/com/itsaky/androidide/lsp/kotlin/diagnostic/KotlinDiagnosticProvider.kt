@@ -1,6 +1,8 @@
 package com.itsaky.androidide.lsp.kotlin.diagnostic
 
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
@@ -23,20 +25,30 @@ import java.nio.file.Path
 
 private val logger = LoggerFactory.getLogger("KotlinDiagnosticProvider")
 
-internal data class KotlinDiagnosticExtra(
-	/**
-	 * The unresolved-reference name extracted from an [KaFirDiagnostic.UnresolvedReference]
-	 * diagnostic, or `null` for any other diagnostic. This is plain data extracted *inside* the
-	 * `analyze` block on purpose: storing the [KaDiagnosticWithPsi] (a `KaLifetimeOwner`) here and
-	 * reading its members later from a code action would access it outside an `analyze` context and
-	 * crash with `KaInaccessibleLifetimeOwnerAccessException`.
-	 */
-	val unresolvedReference: String?,
+internal data class KotlinDiagnosticExtra<out ActionT : DiagnosticAction>(
 	val compilationEnv: CompilationEnvironment,
+	val action: ActionT,
 )
 
+@Suppress("UNCHECKED_CAST")
+internal inline fun <reified T : DiagnosticAction> KotlinDiagnosticExtra<*>?.asAction(): KotlinDiagnosticExtra<T>? =
+	if (this?.action is T) this as KotlinDiagnosticExtra<T> else null
+
+internal sealed interface DiagnosticAction {
+	data object None : DiagnosticAction
+
+	data class ResolveReference(
+		val referenceName: String,
+	) : DiagnosticAction
+
+	data object NullSafetyFix : DiagnosticAction
+}
+
 context(env: CompilationEnvironment)
-internal fun collectDiagnosticsFor(file: Path, cancelChecker: ICancelChecker): DiagnosticResult {
+internal fun collectDiagnosticsFor(
+	file: Path,
+	cancelChecker: ICancelChecker,
+): DiagnosticResult {
 	try {
 		logger.info("analyzing file: {}", file)
 		return doAnalyze(file, cancelChecker)
@@ -52,53 +64,80 @@ internal fun collectDiagnosticsFor(file: Path, cancelChecker: ICancelChecker): D
 
 @OptIn(KaExperimentalApi::class)
 context(env: CompilationEnvironment)
-private fun doAnalyze(file: Path, cancelChecker: ICancelChecker): DiagnosticResult {
+private fun doAnalyze(
+	file: Path,
+	cancelChecker: ICancelChecker,
+): DiagnosticResult {
 	val ktFile = env.ktSymbolIndex.getCurrentKtFile(file).get()
 	if (ktFile == null) {
 		logger.warn("File {} is not accessible", file)
 		return DiagnosticResult.NO_UPDATE
 	}
 
-	val diagnostics = env.project.read {
-		buildList {
-			PsiTreeUtil.collectElementsOfType(ktFile, PsiErrorElement::class.java)
-				.forEach { errorElement ->
-					cancelChecker.abortIfCancelled()
-					add(
-						diagnosticItem(
-							file = ktFile,
-							message = errorElement.errorDescription,
-							range = errorElement.textRange,
-							severity = DiagnosticSeverity.ERROR,
-						)
-					)
-				}
+	// Diagnostics yield to completion but preempt indexing. The wrapped checker turns a scheduler
+	// preemption into an AnalysisPreemptedException, which CompilationEnvironment's fileAnalyzer catches
+	// to re-schedule this run once the higher-priority work finishes.
+	val checker = ScheduledCancelChecker(cancelChecker)
 
-			// This should be canceled as well
-			// The analysis API uses a no-op implementation of
-			// Intellij's ProgressManager for cancellations, so the following
-			// isn't really cancellable at the moment
-			analyzeMaybeDangling(ktFile) {
-				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
-					.forEach { diagnostic ->
-						cancelChecker.abortIfCancelled()
-						// Extract plain data while still inside the analyze context; never let
-						// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
-						val unresolvedReference =
-							(diagnostic as? KaFirDiagnostic.UnresolvedReference)?.reference
-						add(diagnostic.toDiagnosticItem().apply {
-							extra = KotlinDiagnosticExtra(unresolvedReference, env)
-						})
+	val diagnostics =
+		env.project.read {
+			buildList {
+				PsiTreeUtil
+					.collectElementsOfType(ktFile, PsiErrorElement::class.java)
+					.forEach { errorElement ->
+						checker.abortIfCancelled()
+						add(
+							diagnosticItem(
+								file = ktFile,
+								message = errorElement.errorDescription,
+								range = errorElement.textRange,
+								severity = DiagnosticSeverity.ERROR,
+							),
+						)
 					}
+
+				// analyzeMaybeDangling installs a CancelCheckerProgressIndicator, so this is cancellable
+				// mid-`analyze`: it aborts at the compiler's internal checkCanceled() once `checker` reports
+				// preemption/cancellation. (Previously this analysis was not cancellable at all.)
+				analyzeMaybeDangling(ktFile, AnalysisPriority.DIAGNOSTICS, checker) {
+					ktFile
+						.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+						.forEach { diagnostic ->
+							checker.abortIfCancelled()
+							// Extract plain data while still inside the analyze context; never let
+							// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
+							val action =
+								when (diagnostic) {
+									is KaFirDiagnostic.UnresolvedReference -> {
+										DiagnosticAction.ResolveReference(
+											diagnostic.reference,
+										)
+									}
+
+									is KaFirDiagnostic.UnsafeCall -> {
+										DiagnosticAction.NullSafetyFix
+									}
+
+									else -> {
+										DiagnosticAction.None
+									}
+								}
+
+							add(
+								diagnostic.toDiagnosticItem().apply {
+									extra = KotlinDiagnosticExtra(env, action)
+								},
+							)
+						}
+				}
 			}
 		}
-	}
 
 	logger.info("Found {} diagnostics", diagnostics.size)
 
 	return DiagnosticResult(
 		file = file,
-		diagnostics = diagnostics
+		diagnostics = diagnostics,
 	)
 }
 
@@ -125,10 +164,9 @@ private fun diagnosticItem(
 	severity = severity,
 )
 
-private fun KaSeverity.toDiagnosticSeverity(): DiagnosticSeverity {
-	return when (this) {
+private fun KaSeverity.toDiagnosticSeverity(): DiagnosticSeverity =
+	when (this) {
 		KaSeverity.ERROR -> DiagnosticSeverity.ERROR
 		KaSeverity.WARNING -> DiagnosticSeverity.WARNING
 		KaSeverity.INFO -> DiagnosticSeverity.INFO
 	}
-}

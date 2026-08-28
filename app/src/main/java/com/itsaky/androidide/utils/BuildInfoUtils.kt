@@ -19,8 +19,6 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import android.os.Build
-import com.blankj.utilcode.util.AppUtils
-import com.blankj.utilcode.util.DeviceUtils
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
@@ -33,12 +31,15 @@ import com.termux.shared.termux.TermuxUtils
  * @author Akash Yadav
  */
 object BuildInfoUtils {
-	const val BASIC_INFO = BasicBuildInfo.BASIC_INFO
+	// Not a `const val`: the underlying version string changes between builds and must
+	// not be inlined into consumers. See ADR 0012.
+	@JvmField
+	val BASIC_INFO = BasicBuildInfo.BASIC_INFO
 
 	private val BUILD_INFO_HEADER by lazy {
 		val map =
 			mapOf(
-				"Version" to "v${BasicBuildInfo.formatVersion()} (${AppUtils.getAppVersionCode()})",
+				"Version" to "v${BasicBuildInfo.formatVersion()} (${IDEApplication.instance.getAppVersionCode()})",
 				"CI Build" to BuildInfo.CI_BUILD,
 				"Branch" to BuildInfo.CI_GIT_BRANCH,
 				"Commit" to BuildInfo.CI_GIT_COMMIT_HASH,

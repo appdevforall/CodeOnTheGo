@@ -73,6 +73,9 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 
 				// Add plugin-artifacts.zip
 				registerPluginArtifactsCopierTask(variant, variantNameCapitalized)
+
+				// Add plugin-maven-repo.zip
+				registerPluginMavenRepoCopierTask(variant, variantNameCapitalized)
 			}
 		}
 	}
@@ -86,6 +89,35 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 		val projectTask = "createPluginArtifactsZip"
 		val inputFile: (Project) -> Provider<RegularFile> =
 			{ _ -> rootProject.providers.provider { rootProject.layout.projectDirectory.file("assets/plugin-artifacts.zip") } }
+
+		if (hasBundledAssets(variant)) {
+			addProjectArtifactToAssets<AddBrotliFileToAssetsTask>(
+				variant = variant,
+				taskName = taskName,
+				projectPath = projectPath,
+				projectTask = projectTask,
+				onGetInputFile = inputFile,
+			)
+		} else {
+			addProjectArtifactToAssets<AddFileToAssetsTask>(
+				variant = variant,
+				taskName = taskName,
+				projectPath = projectPath,
+				projectTask = projectTask,
+				onGetInputFile = inputFile,
+			)
+		}
+	}
+
+	private fun Project.registerPluginMavenRepoCopierTask(
+		variant: Variant,
+		variantName: String,
+	) {
+		val taskName = "copy${variantName}PluginMavenRepo"
+		val projectPath = ":app"
+		val projectTask = "createPluginMavenRepoZip"
+		val inputFile: (Project) -> Provider<RegularFile> =
+			{ _ -> rootProject.providers.provider { rootProject.layout.projectDirectory.file("assets/plugin-maven-repo.zip") } }
 
 		if (hasBundledAssets(variant)) {
 			addProjectArtifactToAssets<AddBrotliFileToAssetsTask>(

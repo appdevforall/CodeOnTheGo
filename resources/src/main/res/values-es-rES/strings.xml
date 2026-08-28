@@ -159,8 +159,6 @@
   <string name="msg_open_projects">Si está marcado, el IDE recordará el último proyecto abierto y volverá a abrirse en el próximo arranque.</string>
   <string name="title_confirm_project_open">Confirmar apertura del proyecto</string>
   <string name="msg_confirm_project_open">Preguntar antes de abrir el último proyecto abierto.</string>
-  <string name="title_default_shell">Use system shell in terminal</string>
-  <string name="msg_default_shell">Si está marcado, se utilizará \'/system/bin/sh\' en el terminal.</string>
   <string name="title_general">General</string>
   <string name="title_tab_size">Tamaño de la pestaña</string>
   <string name="msg_tab_size">Especificar el número de espacios para la TAB</string>
@@ -242,7 +240,6 @@
   <string name="idepref_buildnrun_summary">Configurar la compilación de Gradle.</string>
   <string name="configure">Configurar</string>
   <string name="about">Acerca de</string>
-  <string name="idepref_github_summary">¡Code on the Go es de código abierto!</string>
   <string name="idepref_channel_summary">Suscríbete para las últimas actualizaciones.</string>
   <string name="idepref_group_summary">Discuta las funcionalidades, bugs y mejoras aquí.</string>
   <string name="idepref_changelog_summary">¿Qué hay de nuevo?</string>
@@ -340,12 +337,6 @@
   <string name="msg_tasks_to_run">Las siguientes tareas se ejecutarán, en orden. Haga clic en el botón \'Ejecutar\' otra vez para confirmar.\n\n%1$s</string>
   <string name="msg_loading_tasks">Cargando tareas...</string>
   <!-- GIT -->
-  <string name="git_clone">Clonar</string>
-  <string name="git_clone_repo">Clonar repositorio git</string>
-  <string name="git_clone_repo_url">URL del repositorio</string>
-  <string name="git_clone_in_progress">Clonando repositorio</string>
-  <string name="git_clone_success">Clon de Git exitoso</string>
-  <string name="git_clone_failed">Error al clonar el repositorio git</string>
   <string name="msg_select_attr">Seleccione un atributo de la lista de abajo</string>
   <string name="action_show_hierarchy">Mostrar jerarquía de diseño</string>
   <string name="idepref_editor_colorScheme">Paleta de colores</string>

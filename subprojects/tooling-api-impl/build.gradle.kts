@@ -58,6 +58,11 @@ project.tasks.getByName<Jar>("jar") {
 project.tasks.getByName<ShadowJar>("shadowJar") {
 	finalizedBy("copyJar")
 	entryCompression = ZipEntryCompression.STORED
+
+	// httpclient's public-suffix cookie-domain data, pulled in transitively via sdklib; unused,
+	// no code touches Apache HttpClient directly. Guards against ADFA-4202 regressing into this
+	// shadow jar, which app/build.gradle.kts's packaging.resources.excludes cannot reach.
+	exclude("mozilla/public-suffix-list.txt")
 }
 
 dependencies {
@@ -69,6 +74,7 @@ dependencies {
 	implementation(projects.shared)
 	implementation(projects.subprojects.projectModels)
 
+	implementation(libs.androidx.annotation)
 	implementation(libs.common.jkotlin)
 	implementation(libs.google.auto.service.annotations)
 	implementation(libs.xml.xercesImpl)

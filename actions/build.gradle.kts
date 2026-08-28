@@ -40,9 +40,9 @@ dependencies {
 	implementation(libs.common.editor)
 	implementation(libs.common.kotlin)
 	implementation(libs.common.kotlin.coroutines.android)
-	implementation(libs.common.utilcode)
 	implementation(libs.google.auto.service.annotations)
 
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.google.material)
+	testImplementation(projects.testing.unit)
 }

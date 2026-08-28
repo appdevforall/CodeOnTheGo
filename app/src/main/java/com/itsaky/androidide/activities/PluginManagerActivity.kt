@@ -1,345 +1,133 @@
-
-
 package com.itsaky.androidide.activities
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import android.util.Log
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
-import android.widget.CheckBox
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.graphics.Insets
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
-import com.itsaky.androidide.adapters.PluginListAdapter
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
-import com.itsaky.androidide.plugins.PluginInfo
-import com.itsaky.androidide.ui.models.PluginManagerUiEffect
-import com.itsaky.androidide.ui.models.PluginManagerUiEvent
-import com.itsaky.androidide.utils.UrlManager
-import com.itsaky.androidide.utils.getFileName
+import com.itsaky.androidide.ui.compose.ManagerScreen
+import com.itsaky.androidide.ui.compose.theme.ManagerTheme
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.utils.flashbarBuilder
-import com.itsaky.androidide.utils.errorIcon
-import com.itsaky.androidide.utils.showOnUiThread
-import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
+import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
-import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag
-import android.content.ClipData
-import android.content.ClipboardManager
-import com.itsaky.androidide.utils.DURATION_INDEFINITE
-import kotlinx.coroutines.launch
+import com.itsaky.androidide.viewmodels.TemplateManagerViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class PluginManagerActivity : EdgeToEdgeIDEActivity() {
+	companion object {
+		/**
+		 * Absolute path of a `.cgp` file forwarded from [ExternalFileInstallActivity] - a plain
+		 * path rather than a `content://` Uri, since both activities run in this same process and
+		 * already trust filesDir paths, letting the install skip a redundant ContentResolver copy.
+		 */
+		const val EXTRA_PENDING_INSTALL_FILE_PATH = "pending_install_file_path"
+	}
 
-    companion object {
-        private const val TAG = "PluginManagerActivity"
-        private const val PLUGIN_EXTENSION = ".cgp"
-    }
+	@Suppress("ktlint:standard:backing-property-naming")
+	private var _binding: ActivityPluginManagerBinding? = null
+	private val binding: ActivityPluginManagerBinding
+		get() = checkNotNull(_binding) { "Activity has been destroyed" }
 
-    private var _binding: ActivityPluginManagerBinding? = null
-    private val binding: ActivityPluginManagerBinding
-        get() = checkNotNull(_binding) { "Activity has been destroyed" }
+	private var feedbackButtonManager: FeedbackButtonManager? = null
 
-    private lateinit var adapter: PluginListAdapter
-    private var feedbackButtonManager: FeedbackButtonManager? = null
+	private val pluginViewModel: PluginManagerViewModel by viewModel()
+	private val templateViewModel: TemplateManagerViewModel by viewModel()
 
-    private val viewModel: PluginManagerViewModel by viewModel()
+	// Drives the .cgt half of the add-extension flow; the same ViewModel ExternalFileInstallActivity
+	// uses, so a template picked here goes through the identical confirm/conflict/rename path.
+	private val externalFileInstallViewModel: ExternalFileInstallViewModel by viewModel()
 
-    private val pluginPickerLauncher =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-            uri?.let {
-                try {
-                    contentResolver.takePersistableUriPermission(
-                        it,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (e: SecurityException) {
-                    Log.w(TAG, "Could not take persistable URI permission", e)
-                }
+	override fun bindLayout(): View {
+		_binding = ActivityPluginManagerBinding.inflate(layoutInflater)
+		return binding.root
+	}
 
-                if (!it.isSupportedPluginFile()) {
-                    flashError(getString(R.string.msg_unsupported_plugin_file))
-                    return@let
-                }
+	override fun onCreate(savedInstanceState: Bundle?) {
+		try {
+			super.onCreate(savedInstanceState)
 
-                showInstallConfirmation(it)
-            }
-        }
+			// setContent only registers the composable; its lambda runs later, at first
+			// layout, after onCreate has returned - by which point this try/catch can no
+			// longer see it. Force the Koin `by viewModel()` delegates to resolve here instead,
+			// so a failure (e.g. Environment.TEMPLATES_DIR still null after a partial
+			// DeviceProtectedApplicationLoader init) is caught below rather than crashing.
+			val resolvedPluginViewModel = pluginViewModel
+			val resolvedTemplateViewModel = templateViewModel
+			val resolvedExternalFileInstallViewModel = externalFileInstallViewModel
 
-    override fun bindLayout(): View {
-        _binding = ActivityPluginManagerBinding.inflate(layoutInflater)
-        return binding.root
-    }
+			binding.composeView.setContent {
+				ManagerTheme {
+					ManagerScreen(
+						activity = this,
+						pluginViewModel = resolvedPluginViewModel,
+						templateViewModel = resolvedTemplateViewModel,
+						externalFileInstallViewModel = resolvedExternalFileInstallViewModel,
+					)
+				}
+			}
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        try {
-            super.onCreate(savedInstanceState)
+			setupFeedbackButton()
 
-            setSupportActionBar(binding.toolbar)
-            supportActionBar?.apply {
-                title = getString(R.string.title_plugin_manager)
-                setDisplayHomeAsUpEnabled(true)
-            }
+			// Safe to emit before the Compose collector attaches: the ViewModel's uiEffect
+			// channel is buffered precisely so a decision made synchronously in onCreate()
+			// isn't dropped on the floor.
+			handlePendingInstallExtra()
+		} catch (e: Exception) {
+			// Log the error and finish the activity if something goes wrong
+			e.printStackTrace()
+			flashError(getString(R.string.msg_plugin_manager_init_failed, e.message))
+			finish()
+		}
+	}
 
-            binding.toolbar.setNavigationOnClickListener {
-                onBackPressedDispatcher.onBackPressed()
-            }
+	// ForwardToPluginManager's launch Intent carries FLAG_ACTIVITY_CLEAR_TOP/SINGLE_TOP so a
+	// forwarded install reuses an already-running instance instead of stacking a duplicate one -
+	// which routes the extra through onNewIntent() rather than a fresh onCreate().
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		setIntent(intent)
+		handlePendingInstallExtra()
+	}
 
-            setupRecyclerView()
-            setupFab()
-            setupTooltipLongPress()
-            setupFeedbackButton()
-            observeViewModel()
-        } catch (e: Exception) {
-            // Log the error and finish the activity if something goes wrong
-            e.printStackTrace()
-            flashError(getString(R.string.msg_plugin_manager_init_failed, e.message))
-            finish()
-        }
-    }
+	/**
+	 * Hands a forwarded `.cgp` path to the ViewModel, which gates against re-showing the dialog,
+	 * probes the file off the main thread, and emits the same install-confirmation effect the SAF
+	 * pick uses - so [ManagerScreen]'s Plugins tab renders one dialog for both entry points.
+	 */
+	private fun handlePendingInstallExtra() {
+		intent.getStringExtra(EXTRA_PENDING_INSTALL_FILE_PATH)?.let { filePath ->
+			pluginViewModel.onPendingInstallFile(filePath)
+		}
+	}
 
-    override fun onResume() {
-        super.onResume()
-        feedbackButtonManager?.loadFabPosition()
-    }
+	override fun onResume() {
+		super.onResume()
+		feedbackButtonManager?.loadFabPosition()
+	}
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_plugin_manager, menu)
-        binding.toolbar.post {
-            binding.toolbar.findViewById<View>(R.id.action_discover_plugins)?.setOnLongClickListener { view ->
-                TooltipManager.showIdeCategoryTooltip(this, view, TooltipTag.PLUGIN_MANAGER)
-                true
-            }
-        }
-        return true
-    }
+	override fun onDestroy() {
+		super.onDestroy()
+		_binding = null
+	}
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_discover_plugins -> {
-                UrlManager.openUrl(getString(R.string.url_discover_plugins), null, this)
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
+	override fun onApplySystemBarInsets(insets: Insets) {
+		binding.root.setPaddingRelative(
+			insets.left,
+			insets.top,
+			insets.right,
+			insets.bottom,
+		)
+	}
 
-    override fun onDestroy() {
-        super.onDestroy()
-        _binding = null
-    }
-
-    override fun onApplySystemBarInsets(insets: Insets) {
-        binding.root.setPaddingRelative(
-            insets.left,
-            insets.top,
-            insets.right,
-            insets.bottom
-        )
-    }
-
-    private fun setupRecyclerView() {
-        adapter = PluginListAdapter { plugin, action ->
-            when (action) {
-                PluginListAdapter.Action.ENABLE -> viewModel.onEvent(PluginManagerUiEvent.EnablePlugin(plugin.metadata.id))
-                PluginListAdapter.Action.DISABLE -> viewModel.onEvent(PluginManagerUiEvent.DisablePlugin(plugin.metadata.id))
-                PluginListAdapter.Action.UNINSTALL -> viewModel.onEvent(PluginManagerUiEvent.UninstallPlugin(plugin.metadata.id))
-                PluginListAdapter.Action.DETAILS -> viewModel.onEvent(PluginManagerUiEvent.ShowPluginDetails(plugin))
-            }
-        }
-
-        binding.recyclerView.apply {
-            layoutManager = LinearLayoutManager(this@PluginManagerActivity)
-            adapter = this@PluginManagerActivity.adapter
-        }
-    }
-
-    private fun setupFab() {
-        binding.fabInstallPlugin.setOnClickListener {
-            viewModel.onEvent(PluginManagerUiEvent.OpenFilePicker)
-        }
-    }
-
-    private fun setupTooltipLongPress() {
-        val showTooltip: (View) -> Unit = { view ->
-            TooltipManager.showIdeCategoryTooltip(this, view, TooltipTag.PLUGIN_MANAGER)
-        }
-        binding.toolbar.setOnLongClickListener { showTooltip(it); true }
-        binding.fabInstallPlugin.setOnLongClickListener { showTooltip(it); true }
-        binding.emptyState.setOnLongClickListener { showTooltip(it); true }
-        binding.recyclerView.setOnLongClickListener { showTooltip(it); true }
-    }
-
-    private fun setupFeedbackButton(){
-        feedbackButtonManager =
-            FeedbackButtonManager(
-                activity = this,
-                feedbackFab = binding.fabFeedback,
-            )
-        feedbackButtonManager?.setupDraggableFab()
-    }
-
-    private fun observeViewModel() {
-        // Observe UI state
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.collect { state ->
-                    updateUI(state)
-                }
-            }
-        }
-
-        // Observe UI effects
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiEffect.collect { effect ->
-                    handleUiEffect(effect)
-                }
-            }
-        }
-    }
-
-    private fun updateUI(state: com.itsaky.androidide.ui.models.PluginManagerUiState) {
-        // Update plugin list
-        adapter.submitList(state.plugins)
-
-        // Update empty state
-        if (state.showEmptyState) {
-            binding.recyclerView.visibility = View.GONE
-            binding.emptyState.visibility = View.VISIBLE
-        } else {
-            binding.recyclerView.visibility = View.VISIBLE
-            binding.emptyState.visibility = View.GONE
-        }
-
-        // Update install button state
-        binding.fabInstallPlugin.isEnabled = !state.isInstalling
-    }
-
-    private fun handleUiEffect(effect: PluginManagerUiEffect) {
-        when (effect) {
-            is PluginManagerUiEffect.ShowError -> {
-                val errorMessage = getString(effect.messageResId, *effect.formatArgs.toTypedArray())
-                val builder = flashbarBuilder(duration = if (effect.formatArgs.isEmpty()) 5000L else DURATION_INDEFINITE)
-                    .errorIcon()
-                    .message(errorMessage)
-                if (effect.formatArgs.isNotEmpty()) {
-                    builder
-                        .positiveActionText(R.string.copy)
-                        .positiveActionTapListener { bar ->
-                            (getSystemService(ClipboardManager::class.java))
-                                ?.setPrimaryClip(ClipData.newPlainText(getString(R.string.msg_plugin_error_clip_label), errorMessage))
-                            bar.dismiss()
-                        }
-                }
-                builder.showOnUiThread()
-            }
-            is PluginManagerUiEffect.ShowSuccess -> {
-                flashSuccess(getString(effect.messageResId))
-            }
-            is PluginManagerUiEffect.ShowPluginDetails -> {
-                showPluginDetails(effect.plugin)
-            }
-            is PluginManagerUiEffect.OpenFilePicker -> {
-                openFilePicker()
-            }
-            is PluginManagerUiEffect.ShowUninstallConfirmation -> {
-                showUninstallConfirmation(effect.plugin)
-            }
-            is PluginManagerUiEffect.ShowRestartPrompt -> {
-                showRestartPrompt(this, cancelable = false)
-            }
-            is PluginManagerUiEffect.ShowOverwriteConfirmation -> {
-                showOverwriteConfirmation(effect)
-            }
-        }
-    }
-
-    private fun openFilePicker() {
-        try {
-            pluginPickerLauncher.launch(arrayOf("*/*"))
-        } catch (_: Exception) {
-            flashError(getString(R.string.msg_no_file_manager))
-        }
-    }
-
-    private fun Uri.isSupportedPluginFile(): Boolean =
-        getFileName(this@PluginManagerActivity).endsWith(PLUGIN_EXTENSION, ignoreCase = true)
-
-    private fun showInstallConfirmation(uri: Uri) {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_install_plugin, null)
-        val deleteCheckBox = dialogView.findViewById<CheckBox>(R.id.checkbox_delete_source)
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.title_install_plugin)
-            .setView(dialogView)
-            .setPositiveButton(R.string.btn_install) { _, _ ->
-                viewModel.onEvent(PluginManagerUiEvent.InstallPlugin(uri, deleteCheckBox.isChecked))
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private fun showOverwriteConfirmation(effect: PluginManagerUiEffect.ShowOverwriteConfirmation) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.title_plugin_already_installed)
-            .setMessage(
-                getString(
-                    R.string.msg_plugin_overwrite_confirm,
-                    effect.existing.metadata.name,
-                    effect.existing.metadata.version,
-                    effect.incomingMetadata.version
-                )
-            )
-            .setPositiveButton(R.string.replace) { _, _ ->
-                viewModel.onEvent(
-                    PluginManagerUiEvent.ConfirmOverwrite(effect.uri, effect.deleteSourceAfterInstall)
-                )
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private fun showUninstallConfirmation(plugin: PluginInfo) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Uninstall Plugin")
-            .setMessage("Are you sure you want to uninstall '${plugin.metadata.name}'?")
-            .setPositiveButton("Uninstall") { _, _ ->
-                viewModel.confirmUninstallPlugin(plugin.metadata.id)
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showPluginDetails(plugin: PluginInfo) {
-        val details = buildString {
-            append("Name: ${plugin.metadata.name}\n")
-            append("Plugin ID: ${plugin.metadata.id}\n")
-            append("Version: ${plugin.metadata.version}\n")
-            append("Author: ${plugin.metadata.author}\n")
-            append("Description: ${plugin.metadata.description}\n")
-            append("Min IDE Version: ${plugin.metadata.minIdeVersion}\n")
-            append("Permissions: ${plugin.metadata.permissions.joinToString(", ")}\n")
-        }
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle(plugin.metadata.name)
-            .setMessage(details)
-            .setPositiveButton("OK", null)
-            .show()
-    }
-
+	private fun setupFeedbackButton() {
+		feedbackButtonManager =
+			FeedbackButtonManager(
+				activity = this,
+				feedbackFab = binding.fabFeedback.root,
+			)
+		feedbackButtonManager?.setupDraggableFab()
+	}
 }

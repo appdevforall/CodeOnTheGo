@@ -22,10 +22,8 @@ import android.content.Intent
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.ShareCompat
-import androidx.core.content.FileProvider
-import com.blankj.utilcode.util.ImageUtils
-import com.blankj.utilcode.util.ImageUtils.ImageType.TYPE_UNKNOWN
 import com.itsaky.androidide.R
+import com.itsaky.androidide.utils.ImageUtils.ImageType.TYPE_UNKNOWN
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import java.io.File
@@ -89,12 +87,7 @@ object IntentUtils {
 		mimeType: String = MIME_ANY,
 		intentAction: String = Intent.ACTION_SEND,
 	) {
-		val uri =
-			FileProvider.getUriForFile(
-				context,
-				"${context.packageName}.providers.fileprovider",
-				file,
-			)
+		val uri = context.fileProviderUriFor(file)
 		val intent =
 			ShareCompat
 				.IntentBuilder(context)

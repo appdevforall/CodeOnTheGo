@@ -17,7 +17,6 @@
 package com.itsaky.androidide.lsp.java.actions.generators
 
 import android.content.Context
-import com.blankj.utilcode.util.ThreadUtils
 import com.github.javaparser.StaticJavaParser
 import com.github.javaparser.ast.Modifier
 import com.github.javaparser.ast.body.MethodDeclaration
@@ -35,6 +34,7 @@ import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.widget.CodeEditor
 import jdkx.lang.model.element.VariableElement
@@ -56,131 +56,138 @@ import java.util.concurrent.CompletableFuture
  * @author Akash Yadav
  */
 class GenerateToStringMethodAction : FieldBasedAction() {
+	override val titleTextRes: Int = R.string.action_generate_toString
+	override val id: String = "ide.editor.lsp.java.generator.toString"
+	override var label: String = ""
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_GEN_TO_STRING
 
-    override val titleTextRes: Int = R.string.action_generate_toString
-    override val id: String = "ide.editor.lsp.java.generator.toString"
-    override var label: String = ""
-    override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_GEN_TO_STRING
+	companion object {
+		private val log = LoggerFactory.getLogger(GenerateToStringMethodAction::class.java)
+	}
 
-    companion object {
-        private val log = LoggerFactory.getLogger(GenerateToStringMethodAction::class.java)
-    }
+	override fun onGetFields(
+		fields: List<String>,
+		data: ActionData,
+	) {
+		showFieldSelector(fields = fields, data = data, actionId = id, listener = { selected ->
+			CompletableFuture
+				.runAsync { generateToString(data, selected) }
+				.whenComplete { _, error ->
+					if (error != null) {
+						log.error("Unable to generate toString() implementation", error)
+						runOnUiThread {
+							flashError(
+								data[Context::class.java]!!.getString(R.string.msg_cannot_generate_toString),
+							)
+						}
+						return@whenComplete
+					}
+				}
+		})
+	}
 
-    override fun onGetFields(fields: List<String>, data: ActionData) {
-        showFieldSelector(fields = fields, data = data, actionId = id, listener = { selected ->
-            CompletableFuture.runAsync { generateToString(data, selected) }
-                .whenComplete { _, error ->
-                    if (error != null) {
-                        log.error("Unable to generate toString() implementation", error)
-                        ThreadUtils.runOnUiThread {
-                            flashError(
-                                data[Context::class.java]!!.getString(R.string.msg_cannot_generate_toString)
-                            )
-                        }
-                        return@whenComplete
-                    }
-                }
-        })
-    }
+	private fun generateToString(
+		data: ActionData,
+		selected: MutableSet<String>,
+	) {
+		val compiler =
+			JavaCompilerProvider.get(
+				IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return,
+			)
+		val range = data[com.itsaky.androidide.models.Range::class.java]!!
+		val file = data.requirePath()
 
-    private fun generateToString(data: ActionData, selected: MutableSet<String>) {
-        val compiler =
-            JavaCompilerProvider.get(
-                IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return
-            )
-        val range = data[com.itsaky.androidide.models.Range::class.java]!!
-        val file = data.requirePath()
+		compiler.compile(file).run { task ->
+			withValidFields(data, task, file, range) { typeFinder, type, fields ->
+				fields.removeIf { !selected.contains("${it.name}: ${it.type}") }
+				generateForFields(data, task, type, fields.map { TreePath(typeFinder.path, it) })
+			}
+		}
+	}
 
-        compiler.compile(file).run { task ->
-            withValidFields(data, task, file, range) { typeFinder, type, fields ->
-                fields.removeIf { !selected.contains("${it.name}: ${it.type}") }
-                generateForFields(data, task, type, fields.map { TreePath(typeFinder.path, it) })
-            }
-        }
-    }
+	private fun generateForFields(
+		data: ActionData,
+		task: CompileTask,
+		type: ClassTree,
+		paths: List<TreePath>,
+	) {
+		if (isToStringOverridden(task, type)) {
+			runOnUiThread {
+				flashError(data[Context::class.java]!!.getString(string.msg_toString_overridden))
+			}
+			log.warn("toString() method has already been overridden in class {}", type.simpleName)
+			return
+		}
 
-    private fun generateForFields(
-        data: ActionData,
-        task: CompileTask,
-        type: ClassTree,
-        paths: List<TreePath>
-    ) {
-        if (isToStringOverridden(task, type)) {
-            ThreadUtils.runOnUiThread {
-                flashError(data[Context::class.java]!!.getString(string.msg_toString_overridden))
-            }
-            log.warn("toString() method has already been overridden in class {}", type.simpleName)
-            return
-        }
+		val file = data.requirePath()
+		val editor = data[CodeEditor::class.java]!!
+		val trees = JavacTrees.instance(task.task)
+		val indent = EditHelper.indent(task.task, task.root(), type) + EditorPreferences.tabSize
+		val insert = EditHelper.insertAtEndOfClass(task.task, task.root(file), type)
+		val string = StringBuilder()
+		var isFirst = true
 
-        val file = data.requirePath()
-        val editor = data[CodeEditor::class.java]!!
-        val trees = JavacTrees.instance(task.task)
-        val indent = EditHelper.indent(task.task, task.root(), type) + EditorPreferences.tabSize
-        val insert = EditHelper.insertAtEndOfClass(task.task, task.root(file), type)
-        val string = StringBuilder()
-        var isFirst = true
+		string.append("\"")
+		string.append(type.simpleName)
+		string.append('[')
+		for (path in paths) {
+			val element = trees.getElement(path) ?: continue
+			if (element !is VariableElement) {
+				continue
+			}
 
-        string.append("\"")
-        string.append(type.simpleName)
-        string.append('[')
-        for (path in paths) {
-            val element = trees.getElement(path) ?: continue
-            if (element !is VariableElement) {
-                continue
-            }
+			val leaf = path.leaf as VariableTree
+			if (!isFirst) {
+				string.append(", ")
+			}
+			string.append(leaf.name)
+			string.append("=")
+			string.append("\" + ")
+			string.append(leaf.name)
+			string.append(" + \"")
 
-            val leaf = path.leaf as VariableTree
-            if (!isFirst) {
-                string.append(", ")
-            }
-            string.append(leaf.name)
-            string.append("=")
-            string.append("\" + ")
-            string.append(leaf.name)
-            string.append(" + \"")
+			// "ClassName[field1=' + field1 + ', field2=' + field2 + ']"
 
-            // "ClassName[field1=' + field1 + ', field2=' + field2 + ']"
+			isFirst = false
+		}
+		string.append("]\"")
 
-            isFirst = false
-        }
-        string.append("]\"")
+		val method = overrideToString()
+		val body = method.createBody()
+		body.addStatement(createReturnStatement(string.toString()))
 
-        val method = overrideToString()
-        val body = method.createBody()
-        body.addStatement(createReturnStatement(string.toString()))
+		var text = "\n" + method.toString()
+		text = text.replace("\n", "\n${indentationString(indent)}")
+		text += "\n"
 
-        var text = "\n" + method.toString()
-        text = text.replace("\n", "\n${indentationString(indent)}")
-        text += "\n"
+		runOnUiThread {
+			editor.text.insert(insert.line, insert.column, text)
+			editor.formatCodeAsync()
+		}
+	}
 
-        ThreadUtils.runOnUiThread {
-            editor.text.insert(insert.line, insert.column, text)
-            editor.formatCodeAsync()
-        }
-    }
+	private fun isToStringOverridden(
+		task: CompileTask,
+		type: ClassTree,
+	): Boolean {
+		val names = Names.instance(task.task.context)
+		val sym = TreeInfo.symbolFor(type as JCTree) as ClassSymbol
+		val toStrings =
+			sym.members().getSymbolsByName(names.toString).filterIsInstance<MethodSymbol>().filter {
+				it.params.isEmpty()
+			}
 
-    private fun isToStringOverridden(task: CompileTask, type: ClassTree): Boolean {
-        val names = Names.instance(task.task.context)
-        val sym = TreeInfo.symbolFor(type as JCTree) as ClassSymbol
-        val toStrings =
-            sym.members().getSymbolsByName(names.toString).filterIsInstance<MethodSymbol>().filter {
-                it.params.isEmpty()
-            }
+		return toStrings.isNotEmpty()
+	}
 
-        return toStrings.isNotEmpty()
-    }
+	private fun createReturnStatement(string: String): ReturnStmt = StaticJavaParser.parseStatement("return $string;") as ReturnStmt
 
-    private fun createReturnStatement(string: String): ReturnStmt {
-        return StaticJavaParser.parseStatement("return $string;") as ReturnStmt
-    }
-
-    private fun overrideToString(): MethodDeclaration {
-        val method = MethodDeclaration()
-        method.addMarkerAnnotation("Override")
-        method.addModifier(Modifier.Keyword.PUBLIC)
-        method.setType("String")
-        method.setName("toString")
-        return method
-    }
+	private fun overrideToString(): MethodDeclaration {
+		val method = MethodDeclaration()
+		method.addMarkerAnnotation("Override")
+		method.addModifier(Modifier.Keyword.PUBLIC)
+		method.setType("String")
+		method.setName("toString")
+		return method
+	}
 }
