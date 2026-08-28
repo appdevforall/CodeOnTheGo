@@ -73,13 +73,13 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
 			webView.webViewClient =
 				object : WebViewClient() {
 					/**
-							 * Intercepts documentation resource requests when a shared interceptor is available.
-							 *
-							 * @param view The WebView making the request.
-							 * @param request The requested web resource.
-							 * @return The intercepted response, or the default WebView response when the request is not intercepted.
-							 */
-							override fun shouldInterceptRequest(
+					 * Intercepts documentation resource requests when a shared interceptor is available.
+					 *
+					 * @param view The WebView making the request.
+					 * @param request The requested web resource.
+					 * @return The intercepted response, or the default WebView response when the request is not intercepted.
+					 */
+					override fun shouldInterceptRequest(
 						view: WebView,
 						request: WebResourceRequest,
 					): WebResourceResponse? =

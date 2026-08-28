@@ -53,10 +53,10 @@ class DocumentationRequestInterceptor(
 	private val servedBytes = AtomicLong()
 
 	/**
-		 * Serves a documentation request from the in-process content source.
-		 *
-		 * @return The WebView response, or `null` to allow the request to fall back to the web server.
-		 */
+	 * Serves a documentation request from the in-process content source.
+	 *
+	 * @return The WebView response, or `null` to allow the request to fall back to the web server.
+	 */
 	fun intercept(request: WebResourceRequest): WebResourceResponse? =
 		try {
 			contentFor(request)?.let { response(it) }
@@ -126,11 +126,11 @@ class DocumentationRequestInterceptor(
 
 	companion object {
 		/**
- * Separates a MIME type from its optional charset.
- *
- * @param mimeType The stored MIME type and optional charset declaration.
- * @return A pair containing the MIME type and nullable charset.
- */
+		 * Separates a MIME type from its optional charset.
+		 *
+		 * @param mimeType The stored MIME type and optional charset declaration.
+		 * @return A pair containing the MIME type and nullable charset.
+		 */
 		internal fun mimeAndCharset(mimeType: String): Pair<String, String?> = ContentTypeHeaders.typeAndCharset(mimeType)
 
 		private const val DISABLE_SENTINEL = "Download/CodeOnTheGo.nointercept"

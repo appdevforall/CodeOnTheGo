@@ -56,14 +56,11 @@ import kotlin.concurrent.write
  * The capacity must be exactly [bytes]`.size`: `attachDictionary` reads the whole capacity and
  * ignores position/limit, so trailing slack from an over-allocated buffer is treated as dictionary
  * content and every decode then fails with `IOException: corrupted input`.
+ *
+ * @param bytes The bytes to copy.
+ * @return A direct byte buffer containing the copied bytes, positioned at the beginning.
  */
-/**
-	 * Copies the bytes into an exactly sized direct byte buffer.
-	 *
-	 * @param bytes The bytes to copy.
-	 * @return A direct byte buffer containing the copied bytes, positioned at the beginning.
-	 */
-	fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
+fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
 	ByteBuffer.allocateDirect(bytes.size).apply {
 		put(bytes)
 		flip()
@@ -279,11 +276,11 @@ class DocumentationContentSource(
 	}
 
 	/**
-		 * Decodes a request path while preserving literal plus signs.
-		 *
-		 * @param path The request path to decode.
-		 * @return The decoded path, or the original path when decoding fails.
-		 */
+	 * Decodes a request path while preserving literal plus signs.
+	 *
+	 * @param path The request path to decode.
+	 * @return The decoded path, or the original path when decoding fails.
+	 */
 	private fun decodeRequestPath(path: String): String =
 		try {
 			URLDecoder.decode(path.replace("+", "%2B"), "UTF-8")
@@ -463,14 +460,14 @@ class DocumentationContentSource(
 	}
 
 	/**
-		 * Compiles the template identified by the given ID.
-		 *
-		 * @param templateId The database identifier of the template.
-		 * @param path The content path associated with the template.
-		 * @return The compiled template.
-		 * @throws IllegalStateException If the template is missing or has multiple database rows.
-		 */
-		private fun compileTemplate(
+	 * Compiles the template identified by the given ID.
+	 *
+	 * @param templateId The database identifier of the template.
+	 * @param path The content path associated with the template.
+	 * @return The compiled template.
+	 * @throws IllegalStateException If the template is missing or has multiple database rows.
+	 */
+	private fun compileTemplate(
 		database: SQLiteDatabase,
 		templateId: Int,
 		path: String,
@@ -565,11 +562,11 @@ class DocumentationContentSource(
 	}
 
 	/**
-		 * Loads the active database's shared compression dictionary when needed.
-		 *
-		 * @param database The active documentation database.
-		 * @return The dictionary as a direct byte buffer, or `null` when the database has no usable dictionary.
-		 */
+	 * Loads the active database's shared compression dictionary when needed.
+	 *
+	 * @param database The active documentation database.
+	 * @return The dictionary as a direct byte buffer, or `null` when the database has no usable dictionary.
+	 */
 	private fun compressionDictionary(database: SQLiteDatabase): ByteBuffer? =
 		synchronized(this) {
 			if (compressionDictionaryStale) {
@@ -679,9 +676,9 @@ class DocumentationContentSource(
 			} catch (e: Exception) {
 				failedDebugSwapTimestamp = debugTimestamp
 				log.error(
-					"Cannot swap to debug database '{}'; ignoring it until it changes: {}",
+					"Cannot swap to debug database '{}'; ignoring it until it changes.",
 					debugDatabaseFile,
-					e.message,
+					e,
 				)
 			}
 		}
@@ -709,9 +706,9 @@ class DocumentationContentSource(
 				// when it finishes, which is what retries this.
 				failedInstalledSwapTimestamp = installedTimestamp
 				log.error(
-					"Cannot reopen the rewritten installed database '{}'; ignoring it until it changes: {}",
+					"Cannot reopen the rewritten installed database '{}'; ignoring it until it changes.",
 					databaseFile,
-					e.message,
+					e,
 				)
 			}
 		}
