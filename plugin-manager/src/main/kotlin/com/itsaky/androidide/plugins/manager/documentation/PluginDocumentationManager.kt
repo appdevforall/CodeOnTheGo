@@ -11,6 +11,7 @@ import com.itsaky.androidide.plugins.extensions.PluginTooltipEntry
 import com.itsaky.androidide.plugins.manager.pluginCategory
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.BrotliDictionaryCodec
+import com.itsaky.androidide.utils.expectsCompressionDictionary
 import com.itsaky.androidide.utils.loadCompressionDictionary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -206,20 +207,47 @@ class PluginDocumentationManager(
 				return@withContext false
 			}
 
-			// A definitive null means this database has no dictionary, so its brotli rows are plain
-			// and these must be too. A throw means the answer is merely unavailable right now:
-			// guessing either way writes rows WebServer cannot decode, so abandon the install and
-			// let verifyAndRecreateTier3Documentation retry on the next activation.
+			// Three outcomes, and only one of them is "write plain rows".
+			//
+			// A dictionary: compress against it. No dictionary in a database that never declared
+			// one: plain, which is what its reader expects. But a database that *should* have a
+			// usable dictionary and does not is damaged, not plain -- writing plain rows into it
+			// would leave them undecodable once the dictionary row is repaired in place, with no
+			// missing-rows check to catch them, since repairing a row does not drop this plugin's.
+			// A throw means the answer is merely unavailable right now. The last two both defer to
+			// the next activation rather than guessing.
+			//
+			// Closing runs through finally, not the catch: toDirectByteBuffer and Cursor.getBlob
+			// can raise OutOfMemoryError, which is an Error and would slip past catch(Exception),
+			// leaking a read-write handle on documentation.db and the plugin's AssetManager.
+			var codecLoaded = false
 			val codec =
 				try {
-					BrotliDictionaryCodec(loadCompressionDictionary(db))
+					val dictionary = loadCompressionDictionary(db)
+					if (dictionary == null && expectsCompressionDictionary(db)) {
+						Log.e(
+							TAG,
+							"Database declares a compression dictionary but has no usable one; " +
+								"deferring Tier 3 install for $pluginId rather than writing plain rows",
+						)
+						return@withContext false
+					}
+					BrotliDictionaryCodec(dictionary).also { codecLoaded = true }
 				} catch (e: Exception) {
 					if (e is CancellationException) throw e
 					Log.e(TAG, "Cannot read the compression dictionary; deferring Tier 3 install for $pluginId", e)
-					db.close()
-					pluginAssets.close()
 					return@withContext false
+				} finally {
+					if (!codecLoaded) {
+						db.close()
+						pluginAssets.close()
+					}
 				}
+
+			// Force the encoder's prepared dictionary to be built now. It is `by lazy`, and its
+			// first use would otherwise land on the first compressed asset -- inside the write
+			// transaction opened below, holding the exclusive lock through a ~780 KB allocation.
+			codec.warmUp()
 
 			val resolver = ExtensionToContentTypeResolver()
 			var inserted = 0
@@ -244,13 +272,8 @@ class PluginDocumentationManager(
 							continue
 						}
 
-						val payload =
-							if (row.compression == "brotli") {
-								codec.compress(asset.bytes)
-							} else {
-								asset.bytes
-							}
-
+						// Validated before compressing: quality 11 on a large asset is seconds of work, and
+						// an asset about to be rejected for its path should not cost any of it.
 						val safeRelative =
 							try {
 								normalizeLocalDocumentationPath(asset.relativePath)
@@ -259,14 +282,35 @@ class PluginDocumentationManager(
 								skipped++
 								continue
 							}
+
+						val payload =
+							if (row.compression == "brotli") {
+								codec.compress(asset.bytes)
+							} else {
+								asset.bytes
+							}
+
 						val basePath = "plugin/$pluginId/$safeRelative"
 						insertContentChunked(db, basePath, payload, row.id)
 						inserted++
 					}
 
-					db.setTransactionSuccessful()
-					Log.d(TAG, "Installed $inserted Tier 3 documents for plugin $pluginId (skipped=$skipped)")
-					true
+					if (inserted == 0 && skipped > 0) {
+						// The transaction opened by deleting this plugin's existing rows. Committing now
+						// would destroy content that was serving and replace it with nothing, then record
+						// that as a successful install. Roll back instead: the plugin ships assets this
+						// build cannot type, which is a packaging problem to surface, not one to apply.
+						Log.e(
+							TAG,
+							"Every Tier 3 asset for plugin $pluginId was skipped ($skipped); " +
+								"rolling back rather than leaving it with no content",
+						)
+						false
+					} else {
+						db.setTransactionSuccessful()
+						Log.d(TAG, "Installed $inserted Tier 3 documents for plugin $pluginId (skipped=$skipped)")
+						true
+					}
 				} catch (e: Exception) {
 					if (e is CancellationException) throw e
 					Log.e(TAG, "Failed to install Tier 3 docs for plugin $pluginId", e)
@@ -379,11 +423,18 @@ class PluginDocumentationManager(
 	// commit(), not apply(): this already runs on Dispatchers.IO, and losing the write to a process
 	// death would delete and recompress every one of the plugin's assets at quality 11 next launch.
 	private fun recordInstalledGeneration(pluginId: String) {
-		tier3Preferences().edit().putInt(pluginId, TIER3_COMPRESSION_GENERATION).commit()
+		// A dropped write recreates the exact loop commit() was chosen to avoid -- the next
+		// activation reads the 0 default and recompresses everything, and again after that -- so
+		// say so rather than discarding the result.
+		if (!tier3Preferences().edit().putInt(pluginId, TIER3_COMPRESSION_GENERATION).commit()) {
+			Log.w(TAG, "Could not record the Tier 3 compression generation for $pluginId; it will reinstall next activation")
+		}
 	}
 
 	private fun forgetInstalledGeneration(pluginId: String) {
-		tier3Preferences().edit().remove(pluginId).commit()
+		if (!tier3Preferences().edit().remove(pluginId).commit()) {
+			Log.w(TAG, "Could not clear the Tier 3 compression generation for $pluginId")
+		}
 	}
 
 	private fun tier3Preferences(): SharedPreferences = context.getSharedPreferences(TIER3_PREFS, Context.MODE_PRIVATE)

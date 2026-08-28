@@ -15,6 +15,11 @@ import java.nio.ByteBuffer
 
 private val log = LoggerFactory.getLogger("DocumentationCompression")
 
+// brotli4j's PreparedDictionaryGenerator rejects a shorter dictionary with "src is too short"
+// (measured: 7 bytes throws, 8 round-trips). The decoder has no such floor, so without this the
+// failure lands only on the writer, as an IllegalArgumentException from inside a lazy.
+private const val MIN_DICTIONARY_BYTES = 8
+
 /**
  * Copies [bytes] into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
  * buffer, a heap-backed one throws `IllegalArgumentException`.
@@ -87,14 +92,38 @@ fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
 			log.warn("CompressionDictionary row has a NULL data column; brotli content is handled without a dictionary.")
 			return null
 		}
-		// An empty blob would yield a 0-capacity buffer, which attachDictionary rejects --
-		// every row's dictionary decode would then fail with nothing above DEBUG to say why.
-		if (bytes.isEmpty()) {
-			log.warn("CompressionDictionary row has an empty data column; brotli content is handled without a dictionary.")
+		// An empty blob would yield a 0-capacity buffer, which attachDictionary rejects, and the
+		// encoder refuses anything under MIN_DICTIONARY_BYTES outright. Either way a truncated
+		// dictionary is not usable, and treating it as absent keeps reader and writer agreeing --
+		// where letting it through would fail every decode, or every compress, with nothing above
+		// DEBUG to say why.
+		if (bytes.size < MIN_DICTIONARY_BYTES) {
+			log.warn(
+				"CompressionDictionary row holds {} bytes, below the {} the encoder requires; " +
+					"brotli content is handled without a dictionary.",
+				bytes.size,
+				MIN_DICTIONARY_BYTES,
+			)
 			return null
 		}
 		toDirectByteBuffer(bytes)
 	}
+}
+
+/**
+ * Whether [db] declares a version whose brotli `Content` rows are dictionary-compressed.
+ *
+ * [loadCompressionDictionary] returns null both for a database that legitimately has no dictionary
+ * (below [DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY]) and for one that
+ * should have a usable dictionary but does not -- table dropped, row missing, blob truncated. A
+ * reader cannot tell those apart usefully; it decodes plain either way and every dictionary-
+ * compressed row simply fails. A *writer* must, because the second case is a damaged database that
+ * can be repaired in place: rows written plain into it would still be plain afterwards, and would
+ * then be undecodable with no missing-rows check to catch them.
+ */
+fun expectsCompressionDictionary(db: SQLiteDatabase): Boolean {
+	val majorVersion = DatabaseVersionResolver.resolveMajorVersion(db)
+	return majorVersion != null && majorVersion >= DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY
 }
 
 /**
@@ -109,6 +138,20 @@ fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
 class BrotliDictionaryCodec(
 	private val dictionary: ByteBuffer?,
 ) {
+	init {
+		// The encoder would quietly accept a heap buffer (it copies into a direct one of its own),
+		// but attachDictionary on the decode side throws IllegalArgumentException. Without this a
+		// heap dictionary writes genuinely dictionary-compressed rows that every later read
+		// rejects -- and unchecked, so handleClient turns it into a 500 naming neither the row nor
+		// the dictionary. Fail at construction, where the caller can see why.
+		require(dictionary == null || dictionary.isDirect) {
+			"dictionary must be a direct ByteBuffer (see toDirectByteBuffer); a heap buffer compresses but cannot decompress"
+		}
+		require(dictionary == null || dictionary.capacity() >= MIN_DICTIONARY_BYTES) {
+			"dictionary must be at least $MIN_DICTIONARY_BYTES bytes, was ${dictionary?.capacity()}"
+		}
+	}
+
 	// Only the encoder needs the dictionary in prepared form, so a decode-only user (WebServer)
 	// never pays for building it. `generate` advances the buffer's position to its limit, so it
 	// gets a duplicate: the original is shared with attachDictionary, which reads the whole
@@ -116,6 +159,19 @@ class BrotliDictionaryCodec(
 	// for the next reader of it.
 	private val preparedDictionary: PreparedDictionary? by lazy {
 		dictionary?.let { PreparedDictionaryGenerator.generate(it.duplicate()) }
+	}
+
+	/**
+	 * Builds the encoder's prepared dictionary now rather than on the first [compress].
+	 *
+	 * It is `by lazy` so a decode-only user never pays for it, but that defers a ~780 KB direct
+	 * allocation to whenever compression first happens -- which for the plugin installer is inside
+	 * an open write transaction. Callers holding a lock around their compression should warm it
+	 * first.
+	 */
+	fun warmUp() {
+		ensureBrotliAvailable()
+		preparedDictionary
 	}
 
 	/**
@@ -135,21 +191,37 @@ class BrotliDictionaryCodec(
 	/**
 	 * Decompresses a `Content` blob read from the same database [dictionary] came from.
 	 *
-	 * Throws `IOException` when [input] needed a dictionary and none was attached: the backward
-	 * distances then reach outside the window, which any spec-compliant decoder rejects. That
-	 * direction is reliable, and the writer depends on it.
+	 * Throws `IOException` when [input] *referenced* a dictionary that is not attached: those
+	 * backward distances reach outside the window, which any spec-compliant decoder rejects.
+	 *
+	 * Note the qualifier. What matters is whether the stream actually matched into the dictionary,
+	 * not whether one was attached when it was written. Content with no such matches -- an already
+	 * compressed image, a block of noise -- round-trips identically either way (measured both
+	 * directions; see BrotliDictionaryDecodeTest). So a mismatched row set fails *non-uniformly*:
+	 * a plugin's HTML raises IOException while its incompressible assets keep serving.
 	 *
 	 * A *wrong* dictionary is a different matter, and is not reliably detectable. One of a
 	 * different length, or with nothing valid at the offsets the stream references, usually
 	 * throws -- but one of the same length holding plausible bytes there decodes cleanly to
 	 * content that is simply wrong (verified: see BrotliDictionaryDecodeTest). So neither a throw
 	 * nor a success is evidence about *which* dictionary was used.
+	 *
+	 * Takes ownership of [input] and closes it, including when the decoder fails to start.
 	 */
 	fun decompress(input: InputStream): ByteArray {
 		ensureBrotliAvailable()
-		return BrotliInputStream(input).use { stream ->
-			dictionary?.let { stream.attachDictionary(it) }
-			stream.readBytes()
+		// BrotliInputStream's constructor allocates native state and can throw, which would leave
+		// `input` open if it were built inside the use{} it is the subject of.
+		val stream =
+			try {
+				BrotliInputStream(input)
+			} catch (e: Throwable) {
+				input.close()
+				throw e
+			}
+		return stream.use {
+			dictionary?.let { dict -> it.attachDictionary(dict) }
+			it.readBytes()
 		}
 	}
 

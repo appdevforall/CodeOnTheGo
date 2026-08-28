@@ -2,7 +2,7 @@
 
 Reference for `documentation.db`, the SQLite database backing all in-app help: Tier 1/2 tooltips, plus the Tier 3 web content they link to, served by `WebServer`. Read this before touching anything under `localWebServer/`, `idetooltips/`, or `plugin-manager/.../documentation/`, or before writing/editing SQL against this database.
 
-This is a **read-only, prebuilt** database — CoGo never creates or migrates its schema at runtime (see [ADR 0001](adr/0001-prefer-room-for-persistence.md), exception 1). The schema is owned by the separate `OfflineDocumentationTools` project (the `docdb-studio` tool); **never change it from this repo.**
+This is a **prebuilt** database — CoGo never creates or migrates its schema at runtime (see [ADR 0001](adr/0001-prefer-room-for-persistence.md), exception 3). Every consumer reads it; one, `PluginDocumentationManager`, also *writes* rows into it, inserting the tooltips and Tier 3 content a plugin contributes into tables it does not own (see *How CoGo talks to this database* below). The schema is owned by the separate `OfflineDocumentationTools` project (the `docdb-studio` tool); **never change it from this repo.**
 
 ## Where it lives
 

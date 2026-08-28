@@ -199,10 +199,22 @@ class BrotliDictionaryDecodeTest {
 	}
 
 	@Test
+	fun `compressing does not drain the caller's dictionary buffer`() {
+		// PreparedDictionaryGenerator.generate consumes its argument, leaving position at limit.
+		// attachDictionary happens to ignore position -- it reads the whole capacity -- so a round
+		// trip alone cannot tell whether the codec drained the caller's buffer. Assert the buffer
+		// state directly, or the defensive duplicate() in BrotliDictionaryCodec is unpinned and a
+		// future brotli4j that honours position breaks silently.
+		val dictionary = decodeBase64ToDirectBuffer(dictionaryBase64)
+		val positionBefore = dictionary.position()
+
+		BrotliDictionaryCodec(dictionary).compress("docs-sidebar toc-element".toByteArray(StandardCharsets.UTF_8))
+
+		assertEquals("compress() consumed the dictionary buffer it was given", positionBefore, dictionary.position())
+	}
+
+	@Test
 	fun `the codec reuses one dictionary buffer across compress and decompress`() {
-		// One codec serves a whole plugin install, so preparing the dictionary for the encoder
-		// must not disturb the buffer the decoder side attaches (`generate` drains its argument's
-		// position, hence the defensive duplicate in BrotliDictionaryCodec).
 		val dictionary = decodeBase64ToDirectBuffer(dictionaryBase64)
 		val codec = BrotliDictionaryCodec(dictionary)
 
@@ -265,6 +277,28 @@ class BrotliDictionaryDecodeTest {
 		assertThrows(IOException::class.java) {
 			BrotliDictionaryCodec(null).decompress(ByteArrayInputStream(compressed))
 		}
+	}
+
+	@Test
+	fun `a legacy plain row fails when the dictionary is attached, unless it never referenced one`() {
+		// What makes rows left plain by an earlier build fail loudly rather than serve wrong bytes,
+		// now that WebServer decodes once with no retry. The failure is content-dependent, which is
+		// the part worth pinning: a stream only breaks on the dictionary if it matched into it, so
+		// a plugin's HTML 500s while its incompressible assets keep serving. Anyone reading a
+		// half-broken plugin's pages needs to know that is one cause, not two.
+		val dictionary = decodeBase64ToDirectBuffer(dictionaryBase64)
+		val plainCodec = BrotliDictionaryCodec(null)
+
+		val docLike = "docs-sidebar toc-element kotlin interface companion ".repeat(200).toByteArray(StandardCharsets.UTF_8)
+		val asLegacyRow = plainCodec.compress(docLike)
+		assertThrows(IOException::class.java) {
+			BrotliDictionaryCodec(dictionary).decompress(ByteArrayInputStream(asLegacyRow))
+		}
+
+		// Nothing here matches the dictionary, so attaching one changes nothing.
+		val noise = ByteArray(64 * 1024).also { java.util.Random(5240).nextBytes(it) }
+		val noiseRow = plainCodec.compress(noise)
+		assertArrayEquals(noise, BrotliDictionaryCodec(dictionary).decompress(ByteArrayInputStream(noiseRow)))
 	}
 
 	@Test
