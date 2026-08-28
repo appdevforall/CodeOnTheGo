@@ -225,63 +225,77 @@ class PluginDocumentationManager(
 			var inserted = 0
 			var skipped = 0
 
-			try {
-				db.beginTransaction()
-				removePluginTier3Internal(db, pluginId)
+			val installed =
+				try {
+					db.beginTransaction()
+					removePluginTier3Internal(db, pluginId)
 
-				for (asset in Tier3AssetWalker.walk(pluginAssets, assetPath)) {
-					val ext = asset.relativePath.substringAfterLast('.', "")
-					if (ext.isEmpty()) {
-						Log.w(TAG, "Skipping Tier 3 asset without extension: ${asset.relativePath}")
-						skipped++
-						continue
-					}
-					val row = resolver.resolve(db, ext)
-					if (row == null) {
-						Log.w(TAG, "No ContentType for .$ext (${asset.relativePath}); skipping")
-						skipped++
-						continue
-					}
-
-					val payload =
-						if (row.compression == "brotli") {
-							codec.compress(asset.bytes)
-						} else {
-							asset.bytes
-						}
-
-					val safeRelative =
-						try {
-							normalizeLocalDocumentationPath(asset.relativePath)
-						} catch (e: IllegalArgumentException) {
-							Log.w(TAG, "Skipping Tier 3 asset with invalid path '${asset.relativePath}': ${e.message}")
+					for (asset in Tier3AssetWalker.walk(pluginAssets, assetPath)) {
+						val ext = asset.relativePath.substringAfterLast('.', "")
+						if (ext.isEmpty()) {
+							Log.w(TAG, "Skipping Tier 3 asset without extension: ${asset.relativePath}")
 							skipped++
 							continue
 						}
-					val basePath = "plugin/$pluginId/$safeRelative"
-					insertContentChunked(db, basePath, payload, row.id)
-					inserted++
+						val row = resolver.resolve(db, ext)
+						if (row == null) {
+							Log.w(TAG, "No ContentType for .$ext (${asset.relativePath}); skipping")
+							skipped++
+							continue
+						}
+
+						val payload =
+							if (row.compression == "brotli") {
+								codec.compress(asset.bytes)
+							} else {
+								asset.bytes
+							}
+
+						val safeRelative =
+							try {
+								normalizeLocalDocumentationPath(asset.relativePath)
+							} catch (e: IllegalArgumentException) {
+								Log.w(TAG, "Skipping Tier 3 asset with invalid path '${asset.relativePath}': ${e.message}")
+								skipped++
+								continue
+							}
+						val basePath = "plugin/$pluginId/$safeRelative"
+						insertContentChunked(db, basePath, payload, row.id)
+						inserted++
+					}
+
+					db.setTransactionSuccessful()
+					Log.d(TAG, "Installed $inserted Tier 3 documents for plugin $pluginId (skipped=$skipped)")
+					true
+				} catch (e: Exception) {
+					if (e is CancellationException) throw e
+					Log.e(TAG, "Failed to install Tier 3 docs for plugin $pluginId", e)
+					false
+				} finally {
+					try {
+						if (db.inTransaction()) {
+							db.endTransaction()
+						}
+					} finally {
+						db.close()
+						pluginAssets.close()
+					}
 				}
 
-				db.setTransactionSuccessful()
-				// Recorded here, beside the write it describes, rather than in
-				// verifyAndRecreateTier3Documentation: this function is public, and a caller that
-				// wrote generation-2 rows without stamping them would be re-detected as stale and
-				// recompressed on every activation from then on.
+			// Stamped only once the rows are durably committed: setTransactionSuccessful above marks
+			// intent, endTransaction is what commits, and the marker is written with commit() rather
+			// than apply(), so it lands on disk immediately. Recording it inside the transaction would
+			// let a process death in between leave generation 2 standing against rows that then rolled
+			// back -- and since the rollback restores the legacy plain rows this install had deleted,
+			// the next verify would see rows present at the current generation and skip the reinstall
+			// those rows need. Still inside this function rather than in
+			// verifyAndRecreateTier3Documentation, though: this one is public, and a caller that wrote
+			// generation-2 rows without stamping them would be re-detected as stale and recompressed
+			// on every activation from then on.
+			if (installed) {
 				recordInstalledGeneration(pluginId)
-				Log.d(TAG, "Installed $inserted Tier 3 documents for plugin $pluginId (skipped=$skipped)")
-				true
-			} catch (e: Exception) {
-				if (e is CancellationException) throw e
-				Log.e(TAG, "Failed to install Tier 3 docs for plugin $pluginId", e)
-				false
-			} finally {
-				if (db.inTransaction()) {
-					db.endTransaction()
-				}
-				db.close()
-				pluginAssets.close()
 			}
+			installed
 		}
 
 	/**
@@ -290,21 +304,35 @@ class PluginDocumentationManager(
 	suspend fun removePluginTier3Documentation(pluginId: String): Boolean =
 		withContext(Dispatchers.IO) {
 			val db = getPluginDatabase() ?: return@withContext false
-			db.beginTransaction()
-			try {
-				val deleted = removePluginTier3Internal(db, pluginId)
-				db.setTransactionSuccessful()
+			val removed =
+				try {
+					db.beginTransaction()
+					val deleted = removePluginTier3Internal(db, pluginId)
+					db.setTransactionSuccessful()
+					Log.d(TAG, "Removed $deleted Tier 3 rows for plugin $pluginId")
+					true
+				} catch (e: Exception) {
+					if (e is CancellationException) throw e
+					Log.e(TAG, "Failed to remove Tier 3 docs for plugin $pluginId", e)
+					false
+				} finally {
+					try {
+						if (db.inTransaction()) {
+							db.endTransaction()
+						}
+					} finally {
+						db.close()
+					}
+				}
+
+			// Same ordering as the install path: the marker only describes rows that actually
+			// committed. This direction fails safe -- a marker cleared against rows that rolled back
+			// just costs one redundant reinstall -- but the two paths reading differently is how the
+			// install path's version got written the wrong way round in the first place.
+			if (removed) {
 				forgetInstalledGeneration(pluginId)
-				Log.d(TAG, "Removed $deleted Tier 3 rows for plugin $pluginId")
-				true
-			} catch (e: Exception) {
-				if (e is CancellationException) throw e
-				Log.e(TAG, "Failed to remove Tier 3 docs for plugin $pluginId", e)
-				false
-			} finally {
-				db.endTransaction()
-				db.close()
 			}
+			removed
 		}
 
 	/**
