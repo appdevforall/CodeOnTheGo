@@ -560,6 +560,34 @@
 	<string name="msg_extract_method_uses_backing_field">The selection uses the property\'s backing field, which only exists inside this accessor</string>
 	<string name="msg_extract_method_smart_cast_parameter">The selection uses %1$s under a smart cast that does not hold outside the selection</string>
 	<string name="msg_extract_method_captured_local_declaration">The selection uses %1$s, which goes out of scope once the selection moves</string>
+
+	<!-- Inline variable refactoring (Kotlin) -->
+	<string name="action_inline_variable">Inline variable</string>
+	<string name="title_inline_variable">Inline variable</string>
+	<string name="label_inline_variable_value">Value</string>
+	<string name="label_inline_variable_this_reference">Inline this reference only</string>
+	<string name="label_inline_variable_all_and_delete">Inline all %1$d references and remove %2$s</string>
+	<string name="label_inline_variable_all_keeping">Inline all %1$d references, keeping %2$s</string>
+	<string name="label_inline_variable_partial">Inline %1$d of %2$d references, keeping %3$s</string>
+	<string name="msg_inline_variable_not_a_variable">Place the cursor on a local variable or one of its uses</string>
+	<string name="msg_inline_variable_not_local">Only a local variable can be inlined</string>
+	<string name="msg_inline_variable_no_initializer">%1$s has no value at its declaration</string>
+	<string name="msg_inline_variable_destructuring">A destructuring declaration cannot be inlined</string>
+	<string name="msg_inline_variable_declared_type">%1$s is declared %2$s, and its uses need that type</string>
+	<string name="msg_inline_variable_never_used">%1$s is never used</string>
+	<string name="msg_inline_variable_nothing_inlinable">No use of %1$s can be inlined safely</string>
+	<string name="msg_inline_variable_reference_not_inlinable">This use of %1$s cannot be inlined safely</string>
+	<string name="msg_inline_variable_could_not_analyse">Could not analyse the file. Try again.</string>
+	<string name="msg_inline_variable_file_changed">The file changed. Try inlining again.</string>
+	<plurals name="msg_inline_variable_inlined_all">
+		<item quantity="one">Inlined %1$d reference to %2$s and removed the declaration</item>
+		<item quantity="other">Inlined %1$d references to %2$s and removed the declaration</item>
+	</plurals>
+	<plurals name="msg_inline_variable_inlined_keeping">
+		<item quantity="one">Inlined %1$d reference to %2$s, keeping the declaration</item>
+		<item quantity="other">Inlined %1$d references to %2$s, keeping the declaration</item>
+	</plurals>
+	<string name="msg_inline_variable_inlined_partially">Inlined %1$d of %2$d references to %3$s, keeping the declaration</string>
 	<string name="msg_select_fields">Select fields</string>
 	<string name="msg_no_fields_selected">No fields selected</string>
 	<string name="msg_no_fields_found">No fields found</string>
