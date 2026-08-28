@@ -17,9 +17,6 @@
 package com.itsaky.androidide.activities
 
 import android.os.Bundle
-import android.view.GestureDetector
-import android.view.HapticFeedbackConstants
-import android.view.MotionEvent
 import android.view.View
 import androidx.core.graphics.Insets
 import androidx.core.os.BundleCompat
@@ -29,10 +26,12 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPreferencesBinding
 import com.itsaky.androidide.fragments.IDEPreferencesFragment
-import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.PluginSettingsEntryPreference
 import com.itsaky.androidide.preferences.addRootPreferences
 import com.itsaky.androidide.preferences.pluginSettingsPreferences
+import com.itsaky.androidide.utils.onLongPress
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import com.itsaky.androidide.preferences.IDEPreferences as prefs
 
 class PreferencesActivity : EdgeToEdgeIDEActivity() {
@@ -50,20 +49,6 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 	 */
 	private var contributedPreferences: List<PluginSettingsEntryPreference>? = null
 
-	private val gestureDetector by lazy {
-		GestureDetector(
-			this,
-			object : GestureDetector.SimpleOnGestureListener() {
-				override fun onLongPress(e: MotionEvent) {
-					binding.root.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-					val currentFragment = supportFragmentManager.findFragmentById(binding.fragmentContainer.id) as? IDEPreferencesFragment
-					val tooltipTag = currentFragment?.getCurrentScreenTooltip() ?: ""
-					TooltipManager.showIdeCategoryTooltip(this@PreferencesActivity, binding.root, tooltipTag)
-				}
-			},
-		)
-	}
-
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
@@ -72,6 +57,21 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 		supportActionBar!!.setDisplayHomeAsUpEnabled(true)
 
 		binding.toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+		binding.toolbar.setOnLongClickListener {
+			// No manual haptic feedback: the platform already fires it for a listener returning true.
+			showScreenTooltip(_binding?.toolbar, playHapticFeedback = false)
+			true
+		}
+
+		// Fallback for a long-press that lands below a short screen's content: the RecyclerView is
+		// wrap_content-sized to its own rows, so on a short screen (e.g. Git, About) it doesn't fill
+		// this NestedScrollView, and the remaining space would otherwise have no tooltip at all.
+		// A plain setOnLongClickListener never fires here - NestedScrollView overrides onTouchEvent()
+		// for its own drag/fling handling, same as RecyclerView - so this needs the GestureDetector-
+		// based View.onLongPress instead.
+		binding.fragmentContainerParent.onLongPress {
+			showScreenTooltip(_binding?.fragmentContainerParent, playHapticFeedback = true)
+		}
 
 		feedbackButtonManager =
 			FeedbackButtonManager(
@@ -107,6 +107,7 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 			IDEPreferencesFragment.EXTRA_CHILDREN,
 			ArrayList(prefs.children),
 		)
+		args.putString(IDEPreferencesFragment.EXTRA_SCREEN_TOOLTIP_TAG, prefs.tooltipTag)
 
 		// A fresh instance every time: arguments cannot be set on a fragment whose state was saved.
 		loadFragment(IDEPreferencesFragment().also { it.arguments = args })
@@ -157,14 +158,29 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 		super.loadFragment(fragment, binding.fragmentContainer.id)
 	}
 
+	/** The tag of whichever [IDEPreferencesFragment] screen is currently on top, or [TooltipTag.PREFS_TOP]. */
+	private fun currentScreenTooltipTag(): String {
+		val fragment = supportFragmentManager.findFragmentById(binding.fragmentContainer.id)
+		return (fragment as? IDEPreferencesFragment)?.screenTooltipTag ?: TooltipTag.PREFS_TOP
+	}
+
+	/**
+	 * Shows the current screen's tooltip anchored to [view], or does nothing if it's null - both
+	 * call sites pass `_binding?.someView` directly rather than the checkNotNull-backed [binding]
+	 * getter, since a long-press timer (or a listener callback) can fire after the activity (and
+	 * its binding) has already been destroyed.
+	 */
+	private fun showScreenTooltip(
+		view: View?,
+		playHapticFeedback: Boolean,
+	) {
+		view ?: return
+		showIdeCategoryTooltipIfPresent(this, view, currentScreenTooltipTag(), playHapticFeedback)
+	}
+
 	override fun onDestroy() {
 		super.onDestroy()
 		_binding = null
-	}
-
-	override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-		gestureDetector.onTouchEvent(ev)
-		return super.dispatchTouchEvent(ev)
 	}
 
 	override fun onSaveInstanceState(outState: Bundle) {
