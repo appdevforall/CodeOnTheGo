@@ -244,17 +244,21 @@ class PluginDocumentationManager(
 					}
 				}
 
-			// Force the encoder's prepared dictionary to be built now. It is `by lazy`, and its
-			// first use would otherwise land on the first compressed asset -- inside the write
-			// transaction opened below, holding the exclusive lock through a ~780 KB allocation.
-			codec.warmUp()
-
 			val resolver = ExtensionToContentTypeResolver()
 			var inserted = 0
 			var skipped = 0
 
 			val installed =
 				try {
+					// Force the encoder's prepared dictionary to be built now, before the
+					// transaction: it is `by lazy`, and its first use would otherwise land on the
+					// first compressed asset -- inside the write transaction, holding the exclusive
+					// lock through a ~780 KB allocation. Inside this try because warmUp can throw
+					// (an IOException when brotli's natives are unavailable), and a throw must
+					// close db and pluginAssets through the finally below and fail the install
+					// normally rather than leak both handles.
+					codec.warmUp()
+
 					db.beginTransaction()
 					removePluginTier3Internal(db, pluginId)
 
