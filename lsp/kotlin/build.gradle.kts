@@ -28,7 +28,7 @@ android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.kotlin"
 
 	// The refactoring bottom sheets are Compose (ADR 0009); they live here rather than in a UI
-	// module because `editor` depends on this module, not the reverse (ADR 0012).
+	// module because `editor` depends on this module, not the reverse (ADR 0013).
 	buildFeatures {
 		compose = true
 	}

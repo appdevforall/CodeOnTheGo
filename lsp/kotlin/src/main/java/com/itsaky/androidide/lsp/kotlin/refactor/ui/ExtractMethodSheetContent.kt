@@ -23,7 +23,7 @@ import com.itsaky.androidide.resources.R
  * signature exactly as it will be emitted.
  *
  * A sibling of the extract-variable sheet rather than a generalisation of it: a single shared sheet
- * would need a state class where half the fields are meaningless to either caller (ADR 0012).
+ * would need a state class where half the fields are meaningless to either caller (ADR 0013).
  *
  * Stateless: all state arrives in [state] and every interaction leaves as an [ExtractMethodUiEvent].
  */

@@ -542,7 +542,7 @@ private fun KaSession.resolvedPsi(reference: KtSimpleNameExpression): PsiElement
 
 /**
  * A `var` declared inside the enclosing declaration but outside the region, assigned inside it.
- * Kotlin has no `out` parameters, so the faithful emission would shadow a name (R7, ADR 0013).
+ * Kotlin has no `out` parameters, so the faithful emission would shadow a name (R7, ADR 0014).
  */
 private fun KaSession.reassignedOuterVar(
 	enclosing: KtDeclaration,

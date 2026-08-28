@@ -9,7 +9,9 @@ import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.ToNumberPolicy
+import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
+import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
@@ -57,6 +59,41 @@ data class ServerConfig(
 			"/Download/CodeOnTheGo.webserver.cs0",
 	// Yes, this is hack code.
 	val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database",
+)
+
+/**
+ * The `bookshelf` template's JSON context: the keys the template reads, and what SQLite's JSON1
+ * functions used to emit before ADFA-5179.
+ *
+ * Every key is spelled out with [SerializedName] rather than left to gson's reflection over field
+ * names. The template reads these names literally -- `{{ item.category }}`, `book.pdf` -- and a
+ * renamed field would produce a page of blanks with nothing failing anywhere. Today `-dontobfuscate`
+ * happens to keep the field names intact in release builds, but that is a global build flag two
+ * tickets are actively changing, not a contract this payload can rely on.
+ */
+internal data class Bookshelf(
+	@SerializedName("result") val result: List<BookshelfCategory>,
+)
+
+internal data class BookshelfCategory(
+	@SerializedName("category") val category: String,
+	@SerializedName("description") val description: String?,
+	@SerializedName("books") val books: List<BookshelfBook>,
+)
+
+// Not part of the JSON payload: the accumulator readBookshelf groups rows into. Its fields become
+// BookshelfCategory's once every row has been read.
+private class CategoryGroup(
+	val description: String?,
+	val books: MutableList<BookshelfBook> = mutableListOf(),
+)
+
+internal data class BookshelfBook(
+	@SerializedName("title") val title: String,
+	@SerializedName("description") val description: String?,
+	@SerializedName("link") val link: String,
+	/** 1 or 0, not a boolean: the shape the template already expects. */
+	@SerializedName("pdf") val pdf: Int,
 )
 
 data class JavaExecutionResult(
@@ -108,6 +145,9 @@ internal fun joinChunks(chunks: List<ByteArray>): ByteArray {
 
 class WebServer(
 	private val config: ServerConfig,
+	// Seam for the accept-retry tests, which drive thousands of simulated failures and must not
+	// actually sleep for them. Production always gets Thread.sleep.
+	internal val sleepMs: (Long) -> Unit = { Thread.sleep(it) },
 ) {
 	// Guards serverSocket's creation/bind (in start(), on a background thread) against a
 	// concurrent close (in stop(), typically from the main thread on Activity#onDestroy()).
@@ -116,6 +156,16 @@ class WebServer(
 	// socket then binds anyway a moment later, orphaned, and holds the port until the process
 	// dies. The next start() attempt on that port then fails with "Address already in use."
 	private val lifecycleLock = Any()
+
+	// @Volatile: written under lifecycleLock by stop(), but read by the accept loop without it --
+	// see acceptLoop, which has to see a stop that happened on another thread.
+	//
+	// Never cleared, deliberately: a stop that arrives before the socket is bound has to keep
+	// start() from binding an orphaned listener, so this is one-way and a stopped instance is
+	// finished. Restarting means a new WebServer, which is what MainActivity.startWebServer does
+	// -- it constructs one per start. stop() then start() on the same instance is not a recovery
+	// path and never was.
+	@Volatile
 	private var stopRequested = false
 	private lateinit var serverSocket: ServerSocket
 	private lateinit var database: SQLiteDatabase
@@ -155,13 +205,38 @@ class WebServer(
 	private val gson: Gson =
 		GsonBuilder()
 			.setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
+			// JSON_OBJECT emitted "description": null for a null column, and the bookshelf template
+			// was written against that; gson would drop the key entirely by default.
+			.serializeNulls()
 			.create()
 	private val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
+
 	private var bookshelfTemplateId: Int = -1
+
+	// Long enough to stop a descriptor-exhaustion spin starving the connections whose closing would
+	// fix it; short enough to be invisible to a user, and never paid on a successful accept.
+	private val initialAcceptBackoffMs = 50L
+
+	// Doubling from 50 ms, the interval reaches this in eight failures, so a failure that persists
+	// costs well under a line a second instead of twenty. That is what bounds the log volume; an
+	// earlier version capped the retries instead and gave up after twenty, which closed the listener
+	// and the database and left documentation dead for the rest of the process -- the ADFA-5242
+	// symptom, delayed by a second. A listener that cannot accept now keeps trying: the descriptor
+	// pressure that causes this comes from the rest of the process (Gradle, Termux, the editor) and
+	// clears on its own timescale, not ours.
+	private val maxAcceptBackoffMs = 2_000L
+
+	// Retries between heartbeat lines once the interval stops growing: 15 x 2 s is one line every
+	// 30 seconds while a failure persists.
+	private val acceptHeartbeatRetries = 15L
+
 	private val httpInternalServerError = 500
 	private val httpNotFound = 404
 
 	private val contentChunkSize = 1024 * 1024
+
+	/** Where a book whose category row has no label is filed (see [readBookshelf]). */
+	private val uncategorizedLabel = "General"
 
 	// function to obtain the last modified date of a documentation.db database
 	// this is used to see if there is a newer version of the database on the sdcard
@@ -358,6 +433,151 @@ class WebServer(
 		}
 	}
 
+	/**
+	 * Accepts connections on [socket] until it closes.
+	 *
+	 * Extracted from [start] so ADFA-5242's retry path can be driven by a socket whose accept()
+	 * fails: the rest of start() needs a live Android runtime -- TrafficStats, SQLite -- and this
+	 * loop needs neither. The bug it fixes was invisible precisely because nothing could reach here.
+	 */
+	internal fun acceptLoop(socket: ServerSocket) {
+		// 0 means accept() has been succeeding; any other value is the interval the next retry waits.
+		var backoffMs = 0L
+		// Retries spent at the ceiling, so a failure that never clears keeps saying so. Without this
+		// the escalation log went silent for good once the interval stopped changing.
+		var retriesAtCeiling = 0L
+		// Checked in the loop head, not only in the catch: stop() logs and swallows a throwing
+		// serverSocket.close(), which leaves closed == false, so accept() kept succeeding and the loop
+		// served on past a requested shutdown, holding the database open (ADFA-5242 review).
+		while (!shouldStopAccepting(socket)) {
+			val client =
+				try {
+					if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", socket)
+					socket.accept().also {
+						// Halved, not zeroed. Zeroing made every failure "the first of a burst", so an
+						// intermittent one -- a client that RSTs between SYN and accept(), which a WebView
+						// cancelling a request produces routinely -- logged a full stack trace and stalled
+						// the listener 50 ms every single time. That is the flood the backoff exists to
+						// stop. Decaying means a flapping listener keeps most of its interval and a
+						// genuinely recovered one is back to zero within a few accepts.
+						backoffMs = if (backoffMs <= initialAcceptBackoffMs) 0L else backoffMs / 2
+						// Reset on every success, not only once the interval reaches zero. The counter
+						// means "consecutive retries at the ceiling", and an accept that succeeds ends
+						// that run whatever the interval still is. Clearing it only at zero left a stale
+						// count behind: at the ceiling with 14 retries banked, one success then a return
+						// to the ceiling fired the heartbeat on the next retry instead of the fifteenth.
+						retriesAtCeiling = 0L
+						if (debugEnabled) log.debug("Returned from accept(), clientSocket is {}.", it)
+					}
+				} catch (e: IOException) {
+					// IOException, not SocketException: accept() is declared to throw the wider type, and
+					// "Too many open files" arrives as a bare IOException. Catching only the subtype let
+					// that one unwind to start()'s outermost handler, whose finally closes the listening
+					// socket and the database (ADFA-5242).
+					if (debugEnabled) log.debug("Caught IOException from accept().", e)
+
+					if (shouldStopAccepting(socket)) {
+						if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
+						break
+					}
+
+					val previous = backoffMs
+					backoffMs =
+						if (previous == 0L) {
+							initialAcceptBackoffMs
+						} else {
+							minOf(previous * 2, maxAcceptBackoffMs)
+						}
+					// The stack trace goes out once per burst, on the first failure. Repeats say only
+					// that it is still failing, and only when the interval changes: nineteen identical
+					// traces told nobody anything the first one had not. They do carry e.toString()
+					// rather than e.message, so the type is still there -- a burst can change cause
+					// mid-flight (EMFILE giving way to ECONNABORTED), and message alone is null for
+					// some IOExceptions, which logged a bare "null".
+					if (previous == 0L) {
+						log.error("Accept() failed, retrying in {} ms: {}", backoffMs, e.message, e)
+						retriesAtCeiling = 0L
+					} else if (backoffMs != previous) {
+						log.error("Accept() still failing, backing off to {} ms: {}", backoffMs, e.toString())
+					} else {
+						// At the ceiling the interval stops changing, so neither branch above fires again.
+						// A heartbeat roughly every 30 s keeps a permanent failure visible without
+						// returning to a line per retry -- the loop never gives up, so the log must not
+						// either.
+						retriesAtCeiling++
+						if (retriesAtCeiling % acceptHeartbeatRetries == 0L) {
+							log.error(
+								"Accept() still failing after {} retries at {} ms: {}",
+								retriesAtCeiling,
+								backoffMs,
+								e.toString(),
+							)
+						}
+					}
+
+					if (!pauseAfterFailedAccept(backoffMs)) {
+						log.info("Accept loop interrupted while backing off; shutting down.")
+						break
+					}
+					continue
+				}
+
+			// A client cannot be allowed to end the loop: anything escaping here reaches start()'s
+			// handler, whose finally closes the listener and the database for everyone.
+			//
+			// Throwable, not Exception. joinChunks allocates the whole row in one array (1 MB per
+			// chunk) and Pebble renders recursively, so one large row can raise OutOfMemoryError and a
+			// pathological template a StackOverflowError -- neither an Exception, both fatal to the
+			// listener through exactly the path this ticket exists to close.
+			try {
+				serveThenClose(client)
+			} catch (e: Throwable) {
+				log.error("Serving a client threw past its own handler; the listener stays up: {}", e.message, e)
+			}
+		}
+	}
+
+	/** Serves one connection and closes it, whatever happened. */
+	private fun serveThenClose(client: Socket) {
+		try {
+			handleClient(client)
+		} catch (e: Exception) {
+			reportClientFailure(client, e)
+		} finally {
+			// close() is declared to throw, and a client that reset mid-response makes it do so. That
+			// exception used to leave this function -- from a finally, so it replaced any in-flight one
+			// -- and unwound past the accept loop into start(), taking the listener and the database
+			// down with it. "Whatever happened" includes this.
+			try {
+				client.close()
+			} catch (e: IOException) {
+				if (debugEnabled) log.debug("Cannot close the client socket; it is being discarded anyway.", e)
+			}
+			if (debugEnabled) log.debug("clientSocket was {}.", client)
+		}
+	}
+
+	/** A client that went wrong: a disconnect is unremarkable, anything else earns a 500 if it can. */
+	private fun reportClientFailure(
+		client: Socket,
+		e: Exception,
+	) {
+		if (debugEnabled) log.debug("Caught exception while handling a client.", e)
+
+		if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
+			if (debugEnabled) log.debug("Client disconnected: {}", e.message)
+			return
+		}
+		log.error("Error handling client: {}", e.message, e)
+		try {
+			val output = client.outputStream
+
+			sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
+		} catch (e2: Exception) {
+			log.error("Error sending error response: {}", e2.message, e2)
+		}
+	}
+
 	fun start() {
 		//  Hal Eisen: Required to fix StrictMode.VmPolicy.Builder.detectUntaggedSockets()
 		TrafficStats.setThreadStatsTag(0xC0DE)
@@ -394,58 +614,19 @@ class WebServer(
 			}
 			log.info("WebServer started successfully on '{}', port {}.", config.bindName, config.port)
 
-			while (true) {
-				var clientSocket: Socket? = null
-				try {
-					try {
-						if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", serverSocket)
-						clientSocket = serverSocket.accept()
-
-						if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
-					} catch (e: java.net.SocketException) {
-						// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-						if (debugEnabled) log.debug("Caught java.net.SocketException '$e'.")
-
-						if (e.message?.contains("Closed", ignoreCase = true) == true) {
-							if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
-							break
-						}
-						log.error("Accept() failed: {}", e.message)
-						continue
-					}
-					try {
-						clientSocket?.let { handleClient(it) }
-					} catch (e: Exception) {
-						// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-						if (debugEnabled) log.debug("Caught exception '$e'.")
-
-						if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
-							if (debugEnabled) log.debug("Client disconnected: {}", e.message)
-						} else {
-							log.error("Error handling client: {}", e.message)
-							clientSocket?.let { socket ->
-								try {
-									val output = socket.outputStream
-
-									sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
-								} catch (e2: Exception) {
-									log.error("Error sending error response: {}", e2.message)
-								}
-							}
-						}
-					}
-				} finally {
-					clientSocket?.close()
-
-					// CodeRabbit objects to the following line because clientSocket may print out as "null." This is intentional. --DS
-					if (debugEnabled) log.debug("clientSocket was {}.", clientSocket)
-				}
-			}
+			acceptLoop(serverSocket)
 		} catch (e: Exception) {
-			log.error("Error: {}", e.message)
+			log.error("WebServer stopped on an unhandled exception: {}", e.message, e)
 		} finally {
 			if (::serverSocket.isInitialized) {
-				serverSocket.close()
+				// Guarded for the same reason serveThenClose guards the client socket: close() is
+				// declared to throw, and a throw here skipped database.close() and the traffic-stats
+				// tag below, leaving the SQLite handle open for the life of the process.
+				try {
+					serverSocket.close()
+				} catch (e: IOException) {
+					log.error("Cannot close the server socket: {}", e.message, e)
+				}
 			}
 			// database is opened before the stopRequested check that can abort start()
 			// early (and before the accept loop on every other exit path), so it must be
@@ -461,6 +642,47 @@ class WebServer(
 			TrafficStats.clearThreadStatsTag()
 		}
 	}
+
+	/**
+	 * Whether an accept failure means the server is shutting down rather than having hit something
+	 * transient. `ServerSocket.accept()` is declared to throw `IOException`, of which
+	 * `SocketException` is one subtype, so only the listening socket closing ends the loop --
+	 * everything else, a `SocketTimeoutException` or a descriptor-exhaustion `IOException` included,
+	 * is retried. Getting this wrong is bad in a different way each way round: treating a transient
+	 * failure as terminal stops serving documentation until the app restarts, and treating the close
+	 * as transient spins the loop against a dead socket.
+	 *
+	 * Decided from state, not from the exception's message, which would spin forever against a
+	 * platform that worded a closed socket differently. [stopRequested] is what carries the decision:
+	 * libcore's [ServerSocket.close] calls `impl.close()` *before* setting its closed flag, so
+	 * accept() can unblock while [ServerSocket.isClosed] is still false, and [stop] sets
+	 * [stopRequested] before closing for exactly that reason. `isClosed` is the belt to that braces
+	 * -- it also covers a close that did not come through [stop] at all.
+	 */
+	internal fun shouldStopAccepting(socket: ServerSocket): Boolean = stopRequested || socket.isClosed
+
+	/**
+	 * Waits [delayMs] before the next accept() attempt, so a persistent failure cannot spin this loop
+	 * at full tilt while it clears. Only the failure path ever waits.
+	 *
+	 * "Too many open files" is the realistic cause, and it is not this server's own doing:
+	 * [handleClient] runs inline on this thread, so exactly one client socket is ever open and the
+	 * listener holds two descriptors in total. The pressure comes from the rest of the process --
+	 * Gradle, Termux, the editor -- and clears on its timescale, which is why the interval escalates
+	 * rather than the retries running out.
+	 *
+	 * Returns false if the wait was interrupted, which the caller must treat as shutdown: re-arming
+	 * the flag and carrying on made every later sleep throw at once, turning the backoff into a hot
+	 * spin -- the opposite of its purpose.
+	 */
+	private fun pauseAfterFailedAccept(delayMs: Long): Boolean =
+		try {
+			sleepMs(delayMs)
+			true
+		} catch (e: InterruptedException) {
+			Thread.currentThread().interrupt()
+			false
+		}
 
 	/**
 	 * Reads a single line from the stream (bytes until newline). Same stream is used for headers
@@ -480,6 +702,10 @@ class WebServer(
 	}
 
 	private fun handleClient(clientSocket: Socket) {
+		// Whether the client has already been told 200. Read by the error path, which must not put a
+		// second status line on a response that has already started (see the assignment below).
+		var responseStarted = false
+
 		if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
 
 		val input = clientSocket.getInputStream()
@@ -625,6 +851,8 @@ class WebServer(
 				while (nextChunk.size == contentChunkSize) {
 					val path2 = "$path-$fragmentNumber"
 					val cursor2 = database.rawQuery(query2, arrayOf(path2))
+					// Whether the client has already been told 200; see the assignment below.
+					var responseStarted = false
 					try {
 						if (cursor2.moveToFirst()) {
 							nextChunk = cursor2.getBlob(0)
@@ -657,8 +885,19 @@ class WebServer(
 				dbContent = instantiatePebbleTemplate(templateId, dbContent, path, dbMimeType, compression)
 			}
 
+			// Built before the status line goes out: everything after the first println is on the
+			// wire (the writer autoflushes), so a throw past that point cannot be answered with a
+			// fresh error response. dbMimeType is a platform type from Cursor.getString, so a NULL
+			// ContentTypes.value throws here rather than there.
+			val contentTypeHeader = ContentTypeHeaders.headerValue(dbMimeType)
+
 			writer.println("HTTP/1.1 200 OK")
-			writer.println("Content-Type: $dbMimeType")
+			// From here on the client has been told 200. A failure while writing the body -- a
+			// dropped connection is the common one -- must not append a second status line to that
+			// response; sendError writes nothing at all when told the output has started, which is
+			// the only honest thing left to do with a half-sent reply.
+			responseStarted = true
+			writer.println("Content-Type: $contentTypeHeader")
 			writer.println("Content-Length: ${dbContent.size}")
 			writer.println("Connection: close")
 			writer.println()
@@ -666,8 +905,15 @@ class WebServer(
 			output.write(dbContent)
 			output.flush()
 		} catch (e: Exception) {
-			log.error("Error processing request: {}", e.message)
-			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
+			log.error("Error processing request: {}", e.message, e)
+			sendError(
+				writer,
+				output,
+				httpInternalServerError,
+				"Internal Server Error",
+				e.message ?: "",
+				outputStarted = responseStarted,
+			)
 		} finally {
 			cursor.close()
 		}
@@ -964,67 +1210,28 @@ class WebServer(
 	): Boolean {
 		if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
-		// Database fetch
-		val sqlQuery =
-"""
-SELECT '{"result" : [' || group_concat(Item) || ']}' FROM (
-SELECT
-	JSON_OBJECT(
-	'category',    IFNULL(BC.category, 'General'),
-	'description', BC.description,
-	'books',       JSON_GROUP_ARRAY(JSON_OBJECT(
-		'title',       IFNULL(B.title, C.path),
-		'description', B.description,
-		'link',        C.path,
-		'pdf',         IIF(SUBSTR(C.path, -4) == '.pdf', 1, 0) )
-		)
-	) AS Item
-FROM Content AS C,
-	Bookshelf AS B,
-	BookCategories AS BC
-WHERE C.id = B.contentID
-AND   B.bookCategoryID = BC.id
-GROUP BY BC.category
-ORDER BY BC.category,
-		B.title
-);
-""".trimIndent()
+		val jsonText: ByteArray
 
-		var cursor = database.rawQuery(sqlQuery, arrayOf())
-		lateinit var jsonText: ByteArray
-
-		// Process database fetch
 		try {
-			if (!isCursorOneRow(cursor, writer, output)) {
-				return false
-			}
-
-			// get the JSON from the bookshelf table
-			cursor.moveToFirst()
-			jsonText = cursor.getBlob(0)
+			jsonText = bookshelfJson(database)
 			if (debugEnabled) log.debug("json content = '${String(jsonText)}'.")
 			if (debugEnabled) log.debug("before fetch bookshelf template ID = '$bookshelfTemplateId'")
 
-			// Have we already fetched the template
 			if (bookshelfTemplateId == -1) {
-				// safety first, close the cursor
-				cursor.close()
-				cursor = database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf())
+				database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf()).use { cursor ->
+					if (!isCursorOneRow(cursor, writer, output)) {
+						return false
+					}
 
-				if (!isCursorOneRow(cursor, writer, output)) {
-					return false
+					cursor.moveToFirst()
+					bookshelfTemplateId = cursor.getInt(0)
+					if (debugEnabled) log.debug("after the fetch bookshelf template ID = '$bookshelfTemplateId'")
 				}
-
-				cursor.moveToFirst()
-				bookshelfTemplateId = cursor.getInt(0)
-				if (debugEnabled) log.debug("after the fetch bookshelf template ID = '$bookshelfTemplateId'")
 			}
 		} catch (e: Exception) {
 			log.error("Error processing request: {}", e.message)
 			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
 			return false
-		} finally {
-			cursor.close()
 		}
 
 		val result = instantiatePebbleTemplate(bookshelfTemplateId, jsonText, "/bookshelf", "application/json", "none")
@@ -1037,6 +1244,162 @@ ORDER BY BC.category,
 		if (debugEnabled) log.debug("Leaving realHandleBsEndpoint().")
 
 		return true
+	}
+
+	/**
+	 * The exact bytes the `bookshelf` template is rendered against.
+	 *
+	 * Extracted so the test that pins the payload's keys, nesting and explicit nulls can call the
+	 * path production uses. Asserting on a re-composed `gson.toJson(readBookshelf(...))` looked
+	 * equivalent but could not fail if this line changed -- a differently configured serializer here
+	 * would drop every `"description": null` the template was written against and the test would
+	 * still pass.
+	 */
+	internal fun bookshelfJson(database: SQLiteDatabase): ByteArray {
+		val bookshelf = readBookshelf(database)
+		if (bookshelf.result.isEmpty()) {
+			// Not an error -- the endpoint answers 200 with an empty shelf -- but it is indistinguishable
+			// from a working shelf in a bug report, and it is the state ADFA-5204 produced. The query
+			// this replaced surfaced it only by accident, as a 500 from reading a NULL blob.
+			// "no categories", not "no rows": a row whose Content.path is NULL is skipped above, so
+			// the query can return rows and still leave nothing to serve. Each skip logs its own
+			// warning, which is what tells the two cases apart.
+			// debugEnabled, like every other log on this path: on the database this ticket exists for,
+			// where every Bookshelf row joins to nothing, the empty shelf is the steady state and this
+			// would write a line on every page load.
+			if (debugEnabled) log.info("No bookshelf categories to serve; serving an empty shelf.")
+		}
+		return gson.toJson(bookshelf).toByteArray(Charsets.UTF_8)
+	}
+
+	/**
+	 * The bookshelf, grouped into categories, for the `bookshelf` template's JSON context.
+	 *
+	 * Assembled here rather than by SQLite's JSON1 functions (ADFA-5179): `JSON_OBJECT` and
+	 * `JSON_GROUP_ARRAY` are absent from the system SQLite on some devices -- a Galaxy Note 20 Ultra
+	 * on Android 13 among them -- where the old query failed at runtime with `no such function:
+	 * JSON_OBJECT` and the bookshelf could not be opened at all. A plain relational query and gson
+	 * work everywhere.
+	 *
+	 * The payload keeps its keys, nesting and explicit nulls, but two things about it do change, both
+	 * deliberately:
+	 *
+	 * Books within a category are now genuinely sorted by title. The old `ORDER BY BC.category,
+	 * B.title` was inert for them -- it ordered the *groups*, while `JSON_GROUP_ARRAY` aggregated
+	 * rows in scan order, and `B.title` was a bare column under `GROUP BY BC.category`. Against the
+	 * shipped database this reverses the two Java books: "Java, Java, Java" came first by insertion,
+	 * and "Java Notes for Professionals" comes first by title (a space sorts before a comma).
+	 * Deterministic order is worth having, but it is a visible change, not a no-op.
+	 *
+	 * A category whose books all have a NULL `Content.path` disappears from the page. The old query
+	 * emitted the section with `"link": null` in it -- visibly broken, but present -- because the JSON
+	 * was built per row before any filtering. Here the row is skipped before its group is created, so
+	 * an entire category can vanish with only a log line to say so. Skipping a row that cannot be
+	 * linked is still right; the section going with it is the part worth knowing.
+	 *
+	 * The `pdf` flag is now case-insensitive. `SUBSTR(C.path, -4) == '.pdf'` compared under BINARY
+	 * collation, so a row at `books/Guide.PDF` was flagged 0 and rendered as a web link. No shipped
+	 * row spells the extension any other way -- checked with `GLOB '*.[Pp][Dd][Ff]'` -- so nothing
+	 * changes today; a future upper-case path is simply treated as the PDF it is.
+	 *
+	 * An empty bookshelf comes back as an empty list, which the template renders as an empty page.
+	 * The old query turned that case into an HTTP 500: `group_concat` over no rows is NULL, so the
+	 * concatenated JSON was NULL and reading it as a blob threw. Worth knowing, because the rows in
+	 * at least one `documentation.db` copy have a NULL `bookCategoryID` and so join to nothing.
+	 */
+	internal fun readBookshelf(database: SQLiteDatabase): Bookshelf {
+		// The two fallbacks the old query expressed as IFNULL live in Kotlin now (see below): they
+		// are easier to see there, and a unit test can cover them.
+		val query =
+			"""
+SELECT BC.category,
+	BC.description,
+	B.title,
+	B.description,
+	C.path,
+	-- Only for the diagnostic below. Appended, not inserted: every read here is by positional
+	-- index, so a column added anywhere else silently re-points the five above it.
+	C.id
+FROM Content AS C,
+	Bookshelf AS B,
+	BookCategories AS BC
+WHERE C.id = B.contentID
+AND   B.bookCategoryID = BC.id
+-- COALESCE and NOCASE so the sort key is the string the page shows: the title falls back to the
+-- path when it is NULL, and BINARY collation would otherwise put every capitalised title ahead of
+-- every lower-case one and NULL titles ahead of everything.
+ORDER BY BC.category,
+	COALESCE(B.title, C.path) COLLATE NOCASE
+			""".trimIndent()
+
+		// LinkedHashMap: the query's ORDER BY decides the order categories and books appear in, and
+		// the template renders them in that order.
+		//
+		// Keyed by the *raw* category, null included. The query this replaced grouped by BC.category,
+		// where NULL and a literal "General" are two groups that both render as "General"; coalescing
+		// before grouping merges them and keeps only the first description. This port is meant to
+		// change nothing, so the label is applied at construction instead.
+		// One entry per category, holding the label's own description alongside its books. Two maps
+		// keyed by the same category would have to be kept in agreement by hand, and putIfAbsent is
+		// the wrong tool for that: java.util.Map treats a key mapped to null as absent, so a category
+		// whose first row had a NULL description was overwritten by the next row's -- the opposite of
+		// the "first one wins" this comment used to claim. getOrPut's lambda runs only when the key
+		// is genuinely missing, so the description is read once, at group creation, and there is no
+		// second write to get wrong.
+		//
+		// The value type has to stay non-null for that to hold: getOrPut treats a null *value* as
+		// absent too, so a LinkedHashMap<String?, String?> of descriptions would reintroduce the bug
+		// in a different shape.
+		val categories = LinkedHashMap<String?, CategoryGroup>()
+
+		database.rawQuery(query, arrayOf()).use { cursor ->
+			while (cursor.moveToNext()) {
+				// Content.path is NOT NULL in the maintained schema, so this is unreachable there -- but
+				// this endpoint exists because a shipped documentation.db had NULLs nobody expected, and
+				// a platform-type null reaching BookshelfBook(link: String) is an NPE that costs the
+				// whole shelf rather than the one bad row.
+				val path = cursor.getString(4)
+				if (path == null) {
+					// Index 5, C.id -- the title at index 2 is not an id, and in this branch it is
+					// often null too, so it identified nothing while claiming to.
+					// Also gated: one line per malformed row per request is unbounded, and the rows do not
+					// change between requests.
+					if (debugEnabled) log.warn("Bookshelf row for content id {} has no path; skipping it.", cursor.getString(5))
+					continue
+				}
+				// BookCategories.category is nullable, so a book can be linked to a category row that
+				// has no label; it is labelled "General" below, as the old query's IFNULL had it. This
+				// is *not* about a book with no category at all -- the join drops those, exactly as
+				// the query this replaced did.
+				val category = cursor.getString(0)
+
+				categories
+					.getOrPut(category) { CategoryGroup(cursor.getString(1)) }
+					.books
+					.add(
+						BookshelfBook(
+							// A book with no title of its own shows its path, again as before.
+							title = cursor.getString(2) ?: path,
+							description = cursor.getString(3),
+							link = path,
+							// 1/0 rather than a boolean: what the template has always received.
+							pdf = if (path.endsWith(".pdf", ignoreCase = true)) 1 else 0,
+						),
+					)
+			}
+		}
+
+		return Bookshelf(
+			categories.map { (category, group) ->
+				BookshelfCategory(
+					category = category ?: uncategorizedLabel,
+					description = group.description,
+					// toList(): BookshelfCategory.books is a List, and handing over the accumulator's own
+					// MutableList would let a future caller that keeps the map mutate it afterwards.
+					books = group.books.toList(),
+				)
+			},
+		)
 	}
 
 	private fun isCursorOneRow(
