@@ -154,6 +154,9 @@ class WebServer(
 	/** Where a book whose category row has no label is filed (see [readBookshelf]). */
 	private val uncategorizedLabel = "General"
 
+	/**
+	 * Logs the most recent documentation database change information.
+	 */
 	fun logDatabaseLastChanged() {
 		try {
 			log.debug(
@@ -166,11 +169,10 @@ class WebServer(
 	}
 
 	/**
-	 * Stops the server by closing the listening socket. Safe to call from any thread.
-	 * Causes [start]'s accept loop to exit. If [start] hasn't bound the socket yet --
-	 * including if it hasn't been called at all -- this still records that a stop was
-	 * requested, so [start] aborts before binding instead of leaving an orphaned,
-	 * unstoppable listener; only the socket-close side of shutdown is a no-op then.
+	 * Requests server shutdown and closes the listening socket when it is available.
+	 *
+	 * Records the shutdown request even if the server has not started, preventing a later
+	 * startup from binding the socket.
 	 */
 	fun stop() {
 		synchronized(lifecycleLock) {
@@ -184,6 +186,12 @@ class WebServer(
 		}
 	}
 
+	/**
+	 * Starts the server, accepts client connections, and serves requests until shutdown.
+	 *
+	 * Opens the documentation source and binds the configured address. If startup fails,
+	 * the error is logged and allocated resources are released.
+	 */
 	fun start() {
 		TrafficStats.setThreadStatsTag(socketStatsTag)
 		try {
@@ -276,6 +284,11 @@ class WebServer(
 		}
 	}
 
+	/**
+	 * Sends an internal server error response to the client.
+	 *
+	 * @param clientSocket The client socket receiving the response.
+	 */
 	private fun sendInternalServerError(clientSocket: Socket) {
 		try {
 			val output = clientSocket.outputStream
@@ -290,8 +303,9 @@ class WebServer(
 	private fun isSocketClosed(e: java.net.SocketException): Boolean = e.message?.contains("Closed", ignoreCase = true) == true
 
 	/**
-	 * Reads a single line from the stream (bytes until newline). Same stream is used for headers
-	 * and body so POST body bytes are not lost to a separate buffered reader. HTTP header lines are ASCII.
+	 * Reads an HTTP header line from the input stream.
+	 *
+	 * @return The line decoded as ISO-8859-1 without its line terminator, or `null` if the stream ends before any data is read.
 	 */
 	private fun readLineFromStream(input: InputStream): String? {
 		val baos = ByteArrayOutputStream()
@@ -306,6 +320,11 @@ class WebServer(
 		return String(bytes, 0, len, Charsets.ISO_8859_1)
 	}
 
+	/**
+	 * Parses an HTTP request and routes supported GET requests to the appropriate handler.
+	 *
+	 * Malformed request lines receive a 400 response, while unsupported methods receive a 501 response.
+	 */
 	private fun handleClient(clientSocket: Socket) {
 		if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
 
@@ -365,8 +384,7 @@ class WebServer(
 	}
 
 	/**
-	 * Drops what this server cached from a database the source has since swapped away -- just the
-	 * bookshelf template id, now that the compiled templates live in the source with the swap.
+	 * Invalidates the cached bookshelf template identifier when the documentation database changes.
 	 */
 	private fun discardCachesIfDatabaseChanged() {
 		// Apply any pending swap first. The source swaps inside lookup()/withDatabase(), so checking
@@ -386,7 +404,13 @@ class WebServer(
 		}
 	}
 
-	/** Answers one parsed request. */
+	/**
+	 * Serves a parsed request using the appropriate diagnostic endpoint or documentation content.
+	 *
+	 * @param writer The writer for the HTTP response.
+	 * @param output The output stream for the HTTP response.
+	 * @param path The normalized request path.
+	 */
 	private fun serveRequest(
 		writer: PrintWriter,
 		output: java.io.OutputStream,
@@ -437,8 +461,9 @@ class WebServer(
 	}
 
 	/**
-	 * Writes [content] to the client. The source hands back rows already decompressed and rendered,
-	 * so this transport neither negotiates `Content-Encoding` nor knows about templates.
+	 * Sends the supplied content as an HTTP 200 response.
+	 *
+	 * @param content The content and MIME type to send to the client.
 	 */
 	private fun sendContent(
 		writer: PrintWriter,
@@ -510,7 +535,12 @@ class WebServer(
 		}
 	}
 
-	/** The `LastChange` table, 20 most recent rows, as an HTML table. */
+	/**
+	 * Builds an HTML table containing the 20 most recent rows from the `LastChange` table.
+	 *
+	 * @param database The database containing the `LastChange` table.
+	 * @return The generated HTML table.
+	 */
 	private fun lastChangeTableHtml(database: SQLiteDatabase): String {
 		var html: String
 
@@ -583,13 +613,10 @@ class WebServer(
 	}
 
 	/**
-	 * Handles the /pr/bs endpoint by invoking the bookshelf generator and sending a 500 error if generation fails.
+	 * Generates and sends the bookshelf HTML response.
 	 *
-	 * Calls realHandleBsEndpoint to produce and write the response body; if an exception occurs, sends an HTTP 500
-	 * error using the reported output-start state so no additional headers/body are written after output has begun.
-	 *
-	 * @param writer PrintWriter used for writing textual HTTP response headers.
-	 * @param output Raw OutputStream used for writing the response body bytes.
+	 * Clears the relevant template caches when cache clearing is enabled. Sends an HTTP 500
+	 * response if bookshelf generation fails before response output begins.
 	 */
 	private fun handleBsEndpoint(
 		writer: PrintWriter,
@@ -667,14 +694,9 @@ class WebServer(
 	}
 
 	/**
-	 * Builds the Bookshelf content, renders it with the `bookshelf` template, and sends the resulting response to the client.
+	 * Generates the bookshelf page and sends it to the client.
 	 *
-	 * @param writer PrintWriter for sending HTTP headers and control output.
-	 * @param output OutputStream for writing the response body bytes.
-	 * @param markOutputStarted Invoked right before the first response byte is written, so the
-	 *   caller's "did we already respond" flag is accurate even if the write itself then fails
-	 *   partway through -- not just after this function returns.
-	 * @return `true` if the templated response was written to the client, `false` if an error response was sent or no output was produced.
+	 * @return `true` if a response was produced, `false` if processing failed or no response was produced.
 	 */
 	private fun realHandleBsEndpoint(
 		writer: PrintWriter,

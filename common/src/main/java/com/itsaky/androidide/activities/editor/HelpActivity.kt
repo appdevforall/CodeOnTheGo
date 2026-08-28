@@ -47,6 +47,12 @@ class HelpActivity : BaseIDEActivity() {
 		private val EXTERNAL_SCHEMES = listOf("mailto:", "tel:", "sms:")
 		private const val MULTI_WINDOW_URI = "cogo-help://tooltip/active-window"
 
+		/**
+		 * Opens the help activity with the specified documentation content.
+		 *
+		 * @param url The documentation URL to display.
+		 * @param title The title to show for the documentation.
+		 */
 		fun launch(
 			context: Context,
 			url: String,
@@ -96,11 +102,21 @@ class HelpActivity : BaseIDEActivity() {
 				"HelpActivity has been destroyed"
 			}
 
+	/**
+	 * Inflates and binds the help activity layout.
+	 *
+	 * @return The root view of the inflated layout.
+	 */
 	override fun bindLayout(): View {
 		_binding = ActivityHelpBinding.inflate(layoutInflater)
 		return binding.root
 	}
 
+	/**
+	 * Initializes the help activity, configures its WebView and navigation controls, and loads the requested documentation.
+	 *
+	 * @param savedInstanceState Previously saved activity state, or `null` when creating the activity for the first time.
+	 */
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
@@ -231,12 +247,22 @@ class HelpActivity : BaseIDEActivity() {
 		updateUIFromIntent(intent)
 	}
 
+	/**
+	 * Updates the displayed documentation and title from a new activity intent.
+	 *
+	 * @param intent The intent containing the documentation URL and title.
+	 */
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
 		setIntent(intent)
 		updateUIFromIntent(intent)
 	}
 
+	/**
+	 * Updates the help screen title and loads the documentation URL from the intent.
+	 *
+	 * @param currentIntent The intent containing the optional page title and documentation URL.
+	 */
 	private fun updateUIFromIntent(currentIntent: Intent) {
 		val pageTitle = currentIntent.getStringExtra(CONTENT_TITLE_KEY)
 		supportActionBar?.title = pageTitle ?: getString(R.string.help)
@@ -246,6 +272,13 @@ class HelpActivity : BaseIDEActivity() {
 		}
 	}
 
+	/**
+	 * Handles external links and localhost documentation URLs for the help WebView.
+	 *
+	 * @param view The WebView used to reload localhost documentation URLs.
+	 * @param url The URL to handle.
+	 * @return `true` if the URL was handled, `false` otherwise.
+	 */
 	private fun handleUrlLoading(
 		view: android.webkit.WebView?,
 		url: String?,
@@ -268,11 +301,23 @@ class HelpActivity : BaseIDEActivity() {
 		}
 	}
 
+	/**
+	 * Inflates the help options menu.
+	 *
+	 * @param menu The menu to populate.
+	 * @return `true` after the menu is created.
+	 */
 	override fun onCreateOptionsMenu(menu: Menu): Boolean {
 		menuInflater.inflate(CommonR.menu.menu_help, menu)
 		return true
 	}
 
+	/**
+	 * Updates the close-help menu action based on whether the WebView can navigate backward.
+	 *
+	 * @param menu The options menu to prepare.
+	 * @return Whether the options menu preparation completed successfully.
+	 */
 	override fun onPrepareOptionsMenu(menu: Menu): Boolean {
 		menu.findItem(CommonR.id.action_close_help)?.isVisible =
 			_binding != null && binding.webView.canGoBack()
@@ -291,6 +336,9 @@ class HelpActivity : BaseIDEActivity() {
 			}
 		}
 
+	/**
+	 * Navigates back in the WebView history or finishes the activity when no history is available.
+	 */
 	private fun handleBackNavigation() {
 		if (binding.webView.canGoBack()) {
 			binding.webView.goBack()

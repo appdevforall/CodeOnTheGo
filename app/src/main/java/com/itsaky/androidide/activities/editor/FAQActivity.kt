@@ -39,6 +39,11 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
 				"FAQActivity has been destroyed"
 			}
 
+	/**
+	 * Inflates the FAQ activity layout and returns its root view.
+	 *
+	 * @return The root view of the inflated FAQ layout.
+	 */
 	override fun bindLayout(): View {
 		_binding = ActivityFaqBinding.inflate(layoutInflater)
 		return binding.root
@@ -67,7 +72,14 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
 			// for anything it declines.
 			webView.webViewClient =
 				object : WebViewClient() {
-					override fun shouldInterceptRequest(
+					/**
+							 * Intercepts documentation resource requests when a shared interceptor is available.
+							 *
+							 * @param view The WebView making the request.
+							 * @param request The requested web resource.
+							 * @return The intercepted response, or the default WebView response when the request is not intercepted.
+							 */
+							override fun shouldInterceptRequest(
 						view: WebView,
 						request: WebResourceRequest,
 					): WebResourceResponse? =

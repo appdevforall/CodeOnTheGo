@@ -57,7 +57,13 @@ import kotlin.concurrent.write
  * ignores position/limit, so trailing slack from an over-allocated buffer is treated as dictionary
  * content and every decode then fails with `IOException: corrupted input`.
  */
-fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
+/**
+	 * Copies the bytes into an exactly sized direct byte buffer.
+	 *
+	 * @param bytes The bytes to copy.
+	 * @return A direct byte buffer containing the copied bytes, positioned at the beginning.
+	 */
+	fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
 	ByteBuffer.allocateDirect(bytes.size).apply {
 		put(bytes)
 		flip()
@@ -71,9 +77,10 @@ fun chunksAsStream(chunks: List<ByteArray>): InputStream =
 	SequenceInputStream(Collections.enumeration(chunks.map { ByteArrayInputStream(it) }))
 
 /**
- * Joins [chunks] into one exactly-sized array. A ByteArrayOutputStream would repeatedly double its
- * buffer and then hand back a second full copy -- avoidable here since the total is known up front.
- * Returns the sole element as-is when there is nothing to join.
+ * Concatenates byte-array chunks into a single array.
+ *
+ * @param chunks The byte-array chunks to concatenate.
+ * @return The concatenated bytes, or the sole chunk unchanged when only one chunk is provided.
  */
 fun joinChunks(chunks: List<ByteArray>): ByteArray {
 	if (chunks.size == 1) {
@@ -218,8 +225,9 @@ class DocumentationContentSource(
 	private val lastSwapCheckNanos = AtomicLong(System.nanoTime() - debugCheckIntervalNanos)
 
 	/**
-	 * Opens the installed database. Callers that need to fail loudly (the web server, which should
-	 * not bind a port it cannot serve) call this; the rest let [lookup] open it on demand.
+	 * Opens the installed documentation database if it is not already open.
+	 *
+	 * @throws IllegalStateException If this source has been closed.
 	 */
 	fun open() {
 		databaseLock.write {
@@ -229,7 +237,13 @@ class DocumentationContentSource(
 		}
 	}
 
-	/** The row for [path], decoded but not rendered. */
+	/**
+	 * Looks up documentation content by path.
+	 *
+	 * @param path The documentation path to query.
+	 * @return The matching content, or an outcome indicating that no match was found,
+	 * an ambiguous match exists, or reading failed.
+	 */
 	fun lookup(path: String): DocumentationLookup {
 		// Both of these take the write lock when they act, so they run before the read lock below:
 		// a ReentrantReadWriteLock does not upgrade.
@@ -249,16 +263,10 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * The row for a request target as it appeared on the wire, with a percent-decoded fallback.
+	 * Looks up a request path, retrying with a percent-decoded path when the raw path is not found.
 	 *
-	 * Stored `Content.path` values in the shipped database are themselves percent-encoded -- pages
-	 * reference their siblings with encoded targets (`src="Draft%20%20Tutorial_html_774738e5.png"`),
-	 * and no row contains a literal space -- so [rawPath] is what matches and is tried first. The
-	 * decoded form is tried on a miss, keeping a database ingested with decoded paths working.
-	 *
-	 * Both transports resolve paths through here (ADFA-5176): `WebServer` passes the raw request
-	 * target and [DocumentationRequestInterceptor] passes `Uri.encodedPath`, so they cannot disagree
-	 * about which pages exist -- the `nointercept` sentinel compares them on equal terms.
+	 * @param rawPath The request path as received from the client.
+	 * @return The path used for the successful lookup and its result.
 	 */
 	fun lookupRequestPath(rawPath: String): RequestLookup {
 		val raw = lookup(rawPath)
@@ -271,10 +279,11 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Percent-decodes [path]. `URLDecoder` is used rather than `Uri.decode` so this stays testable
-	 * off-device, and `+` is protected first because `URLDecoder` -- alone among the two -- turns it
-	 * into a space, which would break any stored path containing a literal plus.
-	 */
+		 * Decodes a request path while preserving literal plus signs.
+		 *
+		 * @param path The request path to decode.
+		 * @return The decoded path, or the original path when decoding fails.
+		 */
 	private fun decodeRequestPath(path: String): String =
 		try {
 			URLDecoder.decode(path.replace("+", "%2B"), "UTF-8")
@@ -286,16 +295,9 @@ class DocumentationContentSource(
 		}
 
 	/**
-	 * Applies any pending debug-database swap, so a caller can decide whether its own per-database
-	 * caches are stale *before* it reads.
+	 * Ensures the documentation database is open and applies any pending database changes.
 	 *
-	 * Without this, a caller that checks [generation] and then calls [lookup] or [withDatabase]
-	 * checks the generation from before the swap those calls perform: on the request that swaps, it
-	 * still believes its caches belong to the new database. Idempotent and throttled by the debug
-	 * check interval, so calling it and then reading costs one extra timestamp comparison.
-	 *
-	 * A no-op once [close] has run: falling through to the swap check would reopen a handle that
-	 * nothing will ever close (see [openIfNeeded]).
+	 * Does nothing when the source is closed or the database cannot be opened.
 	 */
 	fun refreshDatabase() {
 		if (!openIfNeeded()) return
@@ -303,8 +305,11 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Runs [block] against the active database with the read lock held, for the queries this class
-	 * does not own -- the bookshelf join, the template lookup, the developer table dumps.
+	 * Executes [block] with the active documentation database while holding the read lock.
+	 *
+	 * @param block The operation to execute against the active database.
+	 * @return The value produced by [block].
+	 * @throws IllegalStateException If the database cannot be opened or the source is closed.
 	 */
 	fun <T> withDatabase(block: (SQLiteDatabase) -> T): T {
 		// The same verdict lookup() acts on, surfaced as a throw because this returns the block's
@@ -319,8 +324,12 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Renders [contextJson] through the template [templateId] -- for a caller that has the context
-	 * and the template id in hand, rather than a path to look up. [path] is for diagnostics only.
+	 * Renders a template using the supplied JSON context.
+	 *
+	 * @param templateId The identifier of the template to render.
+	 * @param contextJson The JSON object used as the template context.
+	 * @param path The path associated with the rendering request for diagnostics.
+	 * @return The rendered content encoded as UTF-8 bytes.
 	 */
 	fun renderTemplate(
 		templateId: Int,
@@ -328,7 +337,9 @@ class DocumentationContentSource(
 		path: String,
 	): ByteArray = withDatabase { database -> render(database, templateId, contextJson, path) }
 
-	/** Drops the compiled templates, for the developer sentinel that forces a re-render. */
+	/**
+	 * Clears all cached compiled templates.
+	 */
 	fun clearTemplateCache() {
 		templateCache.clear()
 	}
@@ -363,9 +374,9 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * True once the database is open. Failure is logged, not thrown: a caller falls back instead.
-	 * Terminal after [close]: reopening then would hand out a handle whose owner has already done
-	 * its one close, so nothing would ever release it.
+	 * Ensures that the documentation database is open when the source is active.
+	 *
+	 * @return `true` if the source is open and has an active database, `false` otherwise.
 	 */
 	private fun openIfNeeded(): Boolean {
 		if (closed) return false
@@ -380,6 +391,12 @@ class DocumentationContentSource(
 		}
 	}
 
+	/**
+	 * Reads and processes documentation content for a path.
+	 *
+	 * @param path The documentation path to look up.
+	 * @return The matching content, or a not-found or ambiguous lookup result.
+	 */
 	private fun readContent(
 		database: SQLiteDatabase,
 		path: String,
@@ -418,8 +435,11 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Renders one template: [contextJson] is the row's JSON, [templateId] names the template row.
-	 * Compiled templates are cached per database, so a repeat visit re-renders without recompiling.
+	 * Renders a template using the provided JSON context.
+	 *
+	 * @param templateId The identifier of the template to render.
+	 * @param contextJson The JSON-encoded context supplied to the template.
+	 * @return The rendered template content encoded as UTF-8 bytes.
 	 */
 	private fun render(
 		database: SQLiteDatabase,
@@ -442,7 +462,15 @@ class DocumentationContentSource(
 		return StringWriter().also { template.evaluate(it, context) }.toString().toByteArray()
 	}
 
-	private fun compileTemplate(
+	/**
+		 * Compiles the template identified by the given ID.
+		 *
+		 * @param templateId The database identifier of the template.
+		 * @param path The content path associated with the template.
+		 * @return The compiled template.
+		 * @throws IllegalStateException If the template is missing or has multiple database rows.
+		 */
+		private fun compileTemplate(
 		database: SQLiteDatabase,
 		templateId: Int,
 		path: String,
@@ -494,20 +522,9 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Loads brotli4j's native library if nothing else has yet, and turns its absence into a failed
-	 * read rather than a dead app.
+	 * Ensures Brotli native support is available for content decoding.
 	 *
-	 * Nothing here owns that load: it happens as a side effect of `AssetsInstallationHelper`'s
-	 * install or `ToolsManager`'s tooling-jar update, neither of which runs on an ordinary cold
-	 * start. A process that skips both reaches the first brotli row with the natives unregistered,
-	 * and `DecoderJNI.nativeCreate` raises `UnsatisfiedLinkError` -- an Error, not an Exception, so
-	 * it escapes every `catch (e: Exception)` between here and the accept loop and kills the app
-	 * (observed on-device, 20-Aug). The guard lived in `WebServer.decompressBrotli`; when the decode
-	 * moved here it had to move with it.
-	 *
-	 * Referencing [Brotli4jLoader] triggers the static init that performs the load, so this call is
-	 * the warm-up; afterwards `ensureAvailability` is a single static null-check, cheap enough to
-	 * leave on the per-decode path.
+	 * @throws IOException If the Brotli native library cannot be loaded.
 	 */
 	private fun ensureBrotliAvailable() {
 		try {
@@ -518,13 +535,11 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Decompresses one Brotli row. Tries the shared dictionary first, since every migrated row
-	 * requires it, then falls back to a plain decode for rows that were never dictionary
-	 * compressed: plugin-contributed Tier 3 docs (PluginDocumentationManager/BrotliCompressor
-	 * compress with no dictionary) or any row from a pre-migration database. Attaching a dictionary
-	 * to a stream that was not compressed against one reliably fails rather than silently producing
-	 * wrong bytes (verified empirically -- see docs/documentation-database.md), so this ordering
-	 * never lets a dictionary-compressed row fall through to the plain path by accident.
+	 * Decompresses Brotli-compressed content, retrying without the database dictionary when dictionary-based decoding fails.
+	 *
+	 * @param database The database used to obtain the Brotli dictionary.
+	 * @param chunks The compressed content chunks.
+	 * @return The decompressed content.
 	 */
 	private fun decompressBrotli(
 		database: SQLiteDatabase,
@@ -550,15 +565,11 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * The active database's shared dictionary, loaded at most once per database. Synchronized rather
-	 * than volatile-checked: two threads loading a 256 KB direct buffer in parallel is worth
-	 * avoiding, and the read lock a caller already holds does not exclude them.
-	 *
-	 * The stale flag is cleared only after a *clean* load -- a dictionary, or a definitive absence.
-	 * An unexpected failure propagates and leaves the flag set, so the next request retries instead
-	 * of caching a transient error as "this database has no dictionary" for the rest of its life
-	 * (ADFA-5153 review). The caller turns that into one failed request, not a permanent downgrade.
-	 */
+		 * Loads the active database's shared compression dictionary when needed.
+		 *
+		 * @param database The active documentation database.
+		 * @return The dictionary as a direct byte buffer, or `null` when the database has no usable dictionary.
+		 */
 	private fun compressionDictionary(database: SQLiteDatabase): ByteBuffer? =
 		synchronized(this) {
 			if (compressionDictionaryStale) {
@@ -569,17 +580,9 @@ class DocumentationContentSource(
 		}
 
 	/**
-	 * The dictionary blob, or null -- logged -- when this database *definitively* has none: it
-	 * declares a documentation version below
-	 * [DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY], or its
-	 * `CompressionDictionary` row is missing, null or empty. Any other failure is left to propagate,
-	 * deliberately (see [compressionDictionary]).
+	 * Loads the Brotli compression dictionary declared by the database.
 	 *
-	 * The gate is the declared version rather than the table's presence, matching `WebServer` --
-	 * table sniffing infers a whole content format from one table existing, and gets it wrong in
-	 * both directions (ADFA-5220). The table checks below still run, for a database that declares a
-	 * new-enough version but has no usable row: without them the data query raises "no such table",
-	 * which the caller treats as transient and would retry on every request.
+	 * @return The dictionary bytes, or `null` when the database does not support a dictionary or has no usable dictionary row.
 	 */
 	private fun dictionaryBytes(database: SQLiteDatabase): ByteArray? {
 		val majorVersion = DatabaseVersionResolver.resolveMajorVersion(database)
@@ -633,13 +636,10 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Applies whichever pending file change would leave the active handle stale: a newer sdcard
-	 * debug database, or the installed file rewritten in place. Must not be called with the read
-	 * lock held -- the swaps take the write lock, and this lock does not upgrade.
+	 * Applies a pending database replacement when the active database file is stale.
 	 *
-	 * The stats behind both checks are rate-limited by one shared gate: the debug path is
-	 * FUSE-backed emulated storage and a developer-only override, so it used to cost a stat on
-	 * every single request (ADFA-5175).
+	 * Checks for a newer debug database before checking whether the installed database was rewritten.
+	 * Change detection is rate-limited, and this method must not be called while holding the read lock.
 	 */
 	private fun swapDatabaseIfChanged() {
 		if (!swapCheckDue()) return
@@ -647,7 +647,11 @@ class DocumentationContentSource(
 		reopenInstalledDatabaseIfRewritten()
 	}
 
-	/** True at most once per check interval, no matter how many threads ask. */
+	/**
+	 * Determines whether a database change check is due and claims the check interval when permitted.
+	 *
+	 * @return `true` if this call may perform the check, `false` if the interval has not elapsed or another thread claimed it.
+	 */
 	private fun swapCheckDue(): Boolean {
 		val now = System.nanoTime()
 		val last = lastSwapCheckNanos.get()
@@ -656,9 +660,9 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Swaps to the sdcard debug database when a newer one has appeared. Returns true when a debug
-	 * override is pending -- swapped just now, or marked failed until its file changes -- so the
-	 * caller skips the installed-file check that would otherwise race it.
+	 * Checks for a newer debug database and switches to it when available.
+	 *
+	 * @return `true` if a newer debug database was found and processed, `false` otherwise.
 	 */
 	private fun swapDebugDatabaseIfNewer(): Boolean {
 		val debugTimestamp = timestampOf(debugDatabaseFile)
@@ -685,12 +689,7 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Reopens the installed database when its file has been rewritten under the cached handle.
-	 * `BundledAssetsInstaller` and `SplitAssetsInstaller` both install by truncating and rewriting
-	 * `Environment.DOC_DB` in place, so a handle opened before an install or update refers to pages
-	 * that no longer exist and serves corrupt reads for the rest of the process (ADFA-5176 review).
-	 * Detected by timestamp like the debug swap, and the swap is the same machinery, so the compiled
-	 * templates, the dictionary and the generation counter invalidate identically.
+	 * Reopens the installed database when its file has been rewritten.
 	 */
 	private fun reopenInstalledDatabaseIfRewritten() {
 		if (activeDatabasePath != databaseFile.absolutePath) return
@@ -719,10 +718,13 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Opens [path] as the active database and refreshes everything that depends on which file is
-	 * active, as one operation under the write lock. Opens the replacement before closing the old
-	 * handle, so a failed open (this throws) leaves the previous database serving rather than
-	 * leaving a closed handle behind.
+	 * Opens [path] as the active database and refreshes state associated with the active file.
+	 *
+	 * The replacement database is opened before the previous database is closed, so a failed open
+	 * preserves the existing active database.
+	 *
+	 * @param path The path of the replacement database.
+	 * @param timestamp The replacement database's recorded timestamp.
 	 */
 	private fun switchToDatabase(
 		path: String,

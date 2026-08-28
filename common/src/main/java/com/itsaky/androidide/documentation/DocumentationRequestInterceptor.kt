@@ -53,9 +53,10 @@ class DocumentationRequestInterceptor(
 	private val servedBytes = AtomicLong()
 
 	/**
-	 * The response for [request], or null to let it go to the network. Called on WebView's own
-	 * threads; [DocumentationContentSource] is what makes that safe.
-	 */
+		 * Serves a documentation request from the in-process content source.
+		 *
+		 * @return The WebView response, or `null` to allow the request to fall back to the web server.
+		 */
 	fun intercept(request: WebResourceRequest): WebResourceResponse? =
 		try {
 			contentFor(request)?.let { response(it) }
@@ -71,8 +72,9 @@ class DocumentationRequestInterceptor(
 		}
 
 	/**
-	 * The content to answer [request] with, or null when it is not this class's to answer. Split out
-	 * from [intercept] so the decision can be tested without a framework WebResourceResponse.
+	 * Resolves documentation content for a request eligible for in-process serving.
+	 *
+	 * @return The matching documentation content, or `null` when the request is unsupported or no content is found.
 	 */
 	internal fun contentFor(request: WebResourceRequest): DocumentationContent? {
 		if (disabled) return null
@@ -111,6 +113,12 @@ class DocumentationRequestInterceptor(
 	/** Drops this interceptor's compiled templates; the source recompiles them on demand. */
 	fun clearTemplateCache() = contentSource.clearTemplateCache()
 
+	/**
+	 * Creates a WebView resource response from documentation content.
+	 *
+	 * @param content The documentation content to serve.
+	 * @return A response containing the content bytes and parsed MIME metadata.
+	 */
 	private fun response(content: DocumentationContent): WebResourceResponse {
 		val (type, charset) = mimeAndCharset(content.mimeType)
 		return WebResourceResponse(type, charset, ByteArrayInputStream(content.bytes))
@@ -118,16 +126,11 @@ class DocumentationRequestInterceptor(
 
 	companion object {
 		/**
-		 * Splits a stored MIME type into what WebResourceResponse wants: the bare type, and the
-		 * charset as its own value. The source hands back decompressed bytes -- a WebView does not
-		 * decode an intercepted response -- so there is no Content-Encoding to declare either.
-		 *
-		 * Both the split and the default come from [ContentTypeHeaders], so the two transports cannot
-		 * disagree about what a response says. This used to parse the charset itself, with the naive
-		 * `substringAfter("charset=")` that ContentTypeHeaders warns against: for
-		 * `text/html; note="charset=iso-8859-1"` it declared iso-8859-1 while the socket declared
-		 * utf-8, and for `; Charset=UTF-8` it missed the parameter entirely (ADFA-5241).
-		 */
+ * Separates a MIME type from its optional charset.
+ *
+ * @param mimeType The stored MIME type and optional charset declaration.
+ * @return A pair containing the MIME type and nullable charset.
+ */
 		internal fun mimeAndCharset(mimeType: String): Pair<String, String?> = ContentTypeHeaders.typeAndCharset(mimeType)
 
 		private const val DISABLE_SENTINEL = "Download/CodeOnTheGo.nointercept"

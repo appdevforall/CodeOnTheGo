@@ -48,7 +48,11 @@ class IDETooltipWebviewFragment : Fragment() {
 	private val documentation: DocumentationRequestInterceptor?
 		get() = cachedDocumentation ?: DocumentationRequestInterceptor.shared?.also { cachedDocumentation = it }
 
-	//This warning is unnecessary because we control the content
+	/**
+	 * Creates and configures the documentation WebView for the tooltip content.
+	 *
+	 * @return The fragment's inflated view, or `null` if no view is created.
+	 */
 	@SuppressLint("SetJavaScriptEnabled")
 	override fun onCreateView(
 		inflater: LayoutInflater,
@@ -87,12 +91,23 @@ class IDETooltipWebviewFragment : Fragment() {
 		// Set a WebViewClient to handle loading pages
 		webView.webViewClient = object : WebViewClient() {
 			// ADFA-5176: documentation comes from the database in-process; anything this declines
-			// still goes to the local web server.
+			/**
+			 * Handles WebView resource requests through the documentation interceptor.
+			 *
+			 * @return The intercepted resource response, or the default WebView response when no intercepted response is available.
+			 */
 			override fun shouldInterceptRequest(
 				view: WebView,
 				request: WebResourceRequest,
 			): WebResourceResponse? = documentation?.intercept(request) ?: super.shouldInterceptRequest(view, request)
 
+			/**
+			 * Loads Android asset URLs explicitly and delegates other requests to the default handler.
+			 *
+			 * @param view The WebView requesting the URL.
+			 * @param request The resource request to handle.
+			 * @return `true` if the URL was loaded explicitly, `false` otherwise.
+			 */
 			override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
 				// Allow loading of local assets files
 				if (request.url.toString().startsWith("file:///android_asset/")) {
@@ -122,6 +137,9 @@ class IDETooltipWebviewFragment : Fragment() {
 		Log.d(Companion.TAG, "IDETooltipWebViewFragment\\\\onViewCreated called")
 	}
 
+	/**
+	 * Releases the WebView and clears its browsing state when the view is visible.
+	 */
 	override fun onDestroyView() {
 		super.onDestroyView()
 		// Clean up the WebView in Fragment
