@@ -81,11 +81,14 @@ class DocumentationRequestInterceptor(
 		val url = request.url
 		if (url.host != SERVER_HOST || url.port != SERVER_PORT) return null
 
-		val path = url.path?.removePrefix("/").orEmpty()
+		// encodedPath, not path: stored Content.path rows are percent-encoded, so the raw target is
+		// what matches them. The source falls back to the decoded form on a miss, identically for
+		// both transports (see DocumentationContentSource.lookupRequestPath).
+		val path = url.encodedPath?.removePrefix("/").orEmpty()
 		if (path.isEmpty() || path.startsWith("pr/")) return null
 
 		val content =
-			when (val lookup = contentSource.lookup(path)) {
+			when (val lookup = contentSource.lookupRequestPath(path).lookup) {
 				is DocumentationLookup.Found -> lookup.content
 				else -> return null
 			}

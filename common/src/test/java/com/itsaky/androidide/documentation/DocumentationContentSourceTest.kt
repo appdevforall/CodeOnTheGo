@@ -181,6 +181,72 @@ class DocumentationContentSourceTest {
 		assertThat((lookup as DocumentationLookup.Failed).cause).hasMessageThat().isEqualTo("boom")
 	}
 
+	// Stored Content.path rows in the shipped database are percent-encoded (e.g.
+	// `t/Draft%20%20Tutorial.html`, whose own markup references its siblings the same way), so the
+	// raw request target is what matches and must be queried verbatim, not decoded first.
+	@Test
+	fun `a percent-encoded request target is queried verbatim and found`() {
+		val database = database(contentCursor(bytes = "page".toByteArray()))
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val result = source().lookupRequestPath("t/Draft%20%20Tutorial.html")
+
+		assertThat(result.queriedPath).isEqualTo("t/Draft%20%20Tutorial.html")
+		assertThat(result.lookup).isInstanceOf(DocumentationLookup.Found::class.java)
+		verify(exactly = 1) {
+			database.rawQuery(match { it.contains("FROM   Content") }, arrayOf("t/Draft%20%20Tutorial.html"))
+		}
+	}
+
+	// A database ingested with decoded paths keeps working: the decoded form is the fallback.
+	@Test
+	fun `the decoded form is tried when the raw target misses`() {
+		val database =
+			mockk<SQLiteDatabase>(relaxed = true) {
+				every { rawQuery(match { it.contains("FROM   Content") }, any()) } answers {
+					if (secondArg<Array<String>>()[0] == "a/my file.html") {
+						contentCursor(bytes = "page".toByteArray())
+					} else {
+						contentCursor(rowCount = 0)
+					}
+				}
+			}
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val result = source().lookupRequestPath("a/my%20file.html")
+
+		assertThat(result.queriedPath).isEqualTo("a/my file.html")
+		assertThat(result.lookup).isInstanceOf(DocumentationLookup.Found::class.java)
+	}
+
+	// URLDecoder turns "+" into a space; a stored path containing a literal plus must survive --
+	// and since the protected decode is then the identity, there is no second query to make.
+	@Test
+	fun `a plus stays a plus, and an unchanged decode is not queried twice`() {
+		val database = database(contentCursor(rowCount = 0))
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val result = source().lookupRequestPath("a/c++.html")
+
+		assertThat(result.queriedPath).isEqualTo("a/c++.html")
+		assertThat(result.lookup).isEqualTo(DocumentationLookup.NotFound)
+		verify(exactly = 1) { database.rawQuery(match { it.contains("FROM   Content") }, any()) }
+	}
+
+	// A malformed escape is not a reason to fail the request: the verbatim lookup already ran, and
+	// there is no decoded form left to try.
+	@Test
+	fun `a malformed escape is looked up verbatim rather than failing the request`() {
+		val database = database(contentCursor(rowCount = 0))
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val result = source().lookupRequestPath("a/%zz.html")
+
+		assertThat(result.queriedPath).isEqualTo("a/%zz.html")
+		assertThat(result.lookup).isEqualTo(DocumentationLookup.NotFound)
+		verify(exactly = 1) { database.rawQuery(match { it.contains("FROM   Content") }, any()) }
+	}
+
 	@Test
 	fun `lookup says not found when the database cannot be opened at all`() {
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } throws IllegalStateException("cannot open")

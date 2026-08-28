@@ -296,28 +296,31 @@ class WebServerTest {
 		}
 	}
 
-	// The in-process transport matches on WebResourceRequest.url.path, which is already decoded, so
-	// this one has to decode too or the nointercept sentinel changes which pages resolve.
+	// Stored Content.path rows are percent-encoded, so the raw target is what matches them and is
+	// queried first; the decoded form is the fallback on a miss. The lookup order lives in
+	// DocumentationContentSource, shared with the in-process transport, so the nointercept sentinel
+	// compares the two on equal terms.
 	@Test
-	fun `a percent-encoded request path is looked up decoded, as the other transport does`() {
-		assertLookedUpPath(requested = "/a/my%20file.html", expected = "a/my file.html")
+	fun `a percent-encoded request path is looked up verbatim first, then decoded on a miss`() {
+		assertLookedUpPaths(requested = "/a/my%20file.html", expected = listOf("a/my%20file.html", "a/my file.html"))
 	}
 
-	// URLDecoder turns "+" into a space; a stored path containing a literal plus must survive.
+	// URLDecoder turns "+" into a space; a stored path containing a literal plus must survive --
+	// and the protected decode is then the identity, so there is no fallback to query.
 	@Test
 	fun `a plus in a request path stays a plus`() {
-		assertLookedUpPath(requested = "/a/c++.html", expected = "a/c++.html")
+		assertLookedUpPaths(requested = "/a/c++.html", expected = listOf("a/c++.html"))
 	}
 
 	// A malformed escape is not a reason to fail the request: look it up verbatim and 404 naturally.
 	@Test
 	fun `a malformed escape is looked up verbatim rather than failing the request`() {
-		assertLookedUpPath(requested = "/a/%zz.html", expected = "a/%zz.html")
+		assertLookedUpPaths(requested = "/a/%zz.html", expected = listOf("a/%zz.html"))
 	}
 
-	private fun assertLookedUpPath(
+	private fun assertLookedUpPaths(
 		requested: String,
-		expected: String,
+		expected: List<String>,
 	) {
 		val port = freePort()
 		val db = mockk<SQLiteDatabase>(relaxed = true)
@@ -336,7 +339,7 @@ class WebServerTest {
 		try {
 			awaitPortBound(port)
 			sendRawGetRequestAndAwaitClose(port, requested)
-			assertEquals(listOf(expected), queried.map { it.first() })
+			assertEquals(expected, queried.map { it.first() })
 		} finally {
 			server.stop()
 			serverThread.join(2_000)

@@ -36,6 +36,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.SequenceInputStream
 import java.io.StringWriter
+import java.net.URLDecoder
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Collections
@@ -119,6 +120,15 @@ sealed interface DocumentationLookup {
 		val cause: Exception,
 	) : DocumentationLookup
 }
+
+/**
+ * What [DocumentationContentSource.lookupRequestPath] found, plus the path form that produced it --
+ * so a transport reporting a miss or a corrupt row can quote the string that was actually queried.
+ */
+data class RequestLookup(
+	val queriedPath: String,
+	val lookup: DocumentationLookup,
+)
 
 /**
  * Reads documentation content out of `documentation.db`: the row lookup, reassembly of chunked
@@ -220,6 +230,43 @@ class DocumentationContentSource(
 			}
 		}
 	}
+
+	/**
+	 * The row for a request target as it appeared on the wire, with a percent-decoded fallback.
+	 *
+	 * Stored `Content.path` values in the shipped database are themselves percent-encoded -- pages
+	 * reference their siblings with encoded targets (`src="Draft%20%20Tutorial_html_774738e5.png"`),
+	 * and no row contains a literal space -- so [rawPath] is what matches and is tried first. The
+	 * decoded form is tried on a miss, keeping a database ingested with decoded paths working.
+	 *
+	 * Both transports resolve paths through here (ADFA-5176): `WebServer` passes the raw request
+	 * target and [DocumentationRequestInterceptor] passes `Uri.encodedPath`, so they cannot disagree
+	 * about which pages exist -- the `nointercept` sentinel compares them on equal terms.
+	 */
+	fun lookupRequestPath(rawPath: String): RequestLookup {
+		val raw = lookup(rawPath)
+		if (raw !is DocumentationLookup.NotFound) return RequestLookup(rawPath, raw)
+
+		val decodedPath = decodeRequestPath(rawPath)
+		if (decodedPath == rawPath) return RequestLookup(rawPath, raw)
+
+		return RequestLookup(decodedPath, lookup(decodedPath))
+	}
+
+	/**
+	 * Percent-decodes [path]. `URLDecoder` is used rather than `Uri.decode` so this stays testable
+	 * off-device, and `+` is protected first because `URLDecoder` -- alone among the two -- turns it
+	 * into a space, which would break any stored path containing a literal plus.
+	 */
+	private fun decodeRequestPath(path: String): String =
+		try {
+			URLDecoder.decode(path.replace("+", "%2B"), "UTF-8")
+		} catch (e: IllegalArgumentException) {
+			// A malformed escape ("%zz") is not a reason to fail the request: the caller has already
+			// looked the path up verbatim, so there is simply no fallback form left to try.
+			log.warn("Cannot decode request path '{}', using it as-is: {}", path, e.message)
+			path
+		}
 
 	/**
 	 * Applies any pending debug-database swap, so a caller can decide whether its own per-database

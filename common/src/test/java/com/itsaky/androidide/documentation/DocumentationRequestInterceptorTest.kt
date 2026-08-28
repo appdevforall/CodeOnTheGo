@@ -33,8 +33,9 @@ class DocumentationRequestInterceptorTest {
 		every { AndroidEnvironment.getExternalStorageDirectory() } returns folder.root
 
 		source = mockk(relaxed = true)
-		every { source.lookup(any()) } returns
-			DocumentationLookup.Found(DocumentationContent("page".toByteArray(), "text/html"))
+		every { source.lookupRequestPath(any()) } answers {
+			RequestLookup(firstArg(), DocumentationLookup.Found(DocumentationContent("page".toByteArray(), "text/html")))
+		}
 	}
 
 	@After
@@ -46,13 +47,14 @@ class DocumentationRequestInterceptorTest {
 		url: String = "http://localhost:6174/i/index.html",
 		method: String = "GET",
 	): WebResourceRequest {
-		// Uri is a framework class, so stand in for the three parts the interceptor reads.
+		// Uri is a framework class, so stand in for the three parts the interceptor reads. Only
+		// encodedPath is stubbed, not path: a call to the decoded form should fail the test.
 		val parsed = java.net.URI(url)
 		val uri =
 			mockk<Uri> {
 				every { host } returns parsed.host
 				every { port } returns parsed.port
-				every { path } returns parsed.path
+				every { encodedPath } returns parsed.rawPath
 			}
 
 		return mockk {
@@ -97,9 +99,26 @@ class DocumentationRequestInterceptorTest {
 
 	@Test
 	fun `declines what the source cannot find, so the server can answer it`() {
-		every { source.lookup(any()) } returns DocumentationLookup.NotFound
+		every { source.lookupRequestPath(any()) } answers { RequestLookup(firstArg(), DocumentationLookup.NotFound) }
 
 		assertThat(DocumentationRequestInterceptor(source).contentFor(request())).isNull()
+	}
+
+	// Stored Content.path rows are percent-encoded, so the raw target is what matches them; the
+	// source owns the decoded fallback, identically for both transports.
+	@Test
+	fun `passes the raw percent-encoded target to the source, not the decoded form`() {
+		val queried = mutableListOf<String>()
+		every { source.lookupRequestPath(capture(queried)) } answers {
+			RequestLookup(firstArg(), DocumentationLookup.Found(DocumentationContent("page".toByteArray(), "text/html")))
+		}
+
+		val content =
+			DocumentationRequestInterceptor(source)
+				.contentFor(request(url = "http://localhost:6174/t/Draft%20%20Tutorial.html"))
+
+		assertThat(content).isNotNull()
+		assertThat(queried).containsExactly("t/Draft%20%20Tutorial.html")
 	}
 
 	@Test
