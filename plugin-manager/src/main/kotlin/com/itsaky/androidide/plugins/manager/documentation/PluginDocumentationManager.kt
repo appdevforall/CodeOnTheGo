@@ -245,23 +245,24 @@ class PluginDocumentationManager(
 				}
 
 			val resolver = ExtensionToContentTypeResolver()
-			var inserted = 0
 			var skipped = 0
 
 			val installed =
 				try {
-					// Force the encoder's prepared dictionary to be built now, before the
-					// transaction: it is `by lazy`, and its first use would otherwise land on the
-					// first compressed asset -- inside the write transaction, holding the exclusive
-					// lock through a ~780 KB allocation. Inside this try because warmUp can throw
-					// (an IOException when brotli's natives are unavailable), and a throw must
-					// close db and pluginAssets through the finally below and fail the install
-					// normally rather than leak both handles.
+					// Force the encoder's prepared dictionary to be built now rather than on the
+					// first compressed asset, and surface a missing brotli native as an IOException
+					// before any asset is walked. Inside this try because warmUp can throw, and a
+					// throw must close db and pluginAssets through the finally below and fail the
+					// install normally rather than leak both handles.
 					codec.warmUp()
 
-					db.beginTransaction()
-					removePluginTier3Internal(db, pluginId)
-
+					// Compress before the transaction, not inside it: quality 11 on assets of up
+					// to 10 MB each is seconds of CPU per asset, and an open write transaction
+					// holds documentation.db's exclusive lock, stalling WebServer's readers for
+					// all of it. Only the delete and inserts need the lock. The cost is holding
+					// every compressed payload in memory at once -- the same bytes the inserts
+					// below hand to SQLite.
+					val prepared = ArrayList<PreparedTier3Row>()
 					for (asset in Tier3AssetWalker.walk(pluginAssets, assetPath)) {
 						val ext = asset.relativePath.substringAfterLast('.', "")
 						if (ext.isEmpty()) {
@@ -294,25 +295,29 @@ class PluginDocumentationManager(
 								asset.bytes
 							}
 
-						val basePath = "plugin/$pluginId/$safeRelative"
-						insertContentChunked(db, basePath, payload, row.id)
-						inserted++
+						prepared.add(PreparedTier3Row("plugin/$pluginId/$safeRelative", payload, row.id))
 					}
 
-					if (inserted == 0 && skipped > 0) {
-						// The transaction opened by deleting this plugin's existing rows. Committing now
-						// would destroy content that was serving and replace it with nothing, then record
-						// that as a successful install. Roll back instead: the plugin ships assets this
-						// build cannot type, which is a packaging problem to surface, not one to apply.
+					if (prepared.isEmpty() && skipped > 0) {
+						// Deleting this plugin's existing rows and committing would destroy content
+						// that was serving and replace it with nothing, then record that as a
+						// successful install. Leave the rows untouched instead: the plugin ships
+						// assets this build cannot type, which is a packaging problem to surface,
+						// not one to apply.
 						Log.e(
 							TAG,
 							"Every Tier 3 asset for plugin $pluginId was skipped ($skipped); " +
-								"rolling back rather than leaving it with no content",
+								"leaving its existing content in place",
 						)
 						false
 					} else {
+						db.beginTransaction()
+						removePluginTier3Internal(db, pluginId)
+						for (prep in prepared) {
+							insertContentChunked(db, prep.path, prep.payload, prep.contentTypeId)
+						}
 						db.setTransactionSuccessful()
-						Log.d(TAG, "Installed $inserted Tier 3 documents for plugin $pluginId (skipped=$skipped)")
+						Log.d(TAG, "Installed ${prepared.size} Tier 3 documents for plugin $pluginId (skipped=$skipped)")
 						true
 					}
 				} catch (e: Exception) {
@@ -772,3 +777,11 @@ class PluginDocumentationManager(
 			recreatedCount
 		}
 }
+
+// One Tier 3 asset ready to insert, compressed outside the write transaction so the
+// exclusive lock is never held through a quality-11 encode.
+private class PreparedTier3Row(
+	val path: String,
+	val payload: ByteArray,
+	val contentTypeId: Long,
+)
