@@ -1,9 +1,14 @@
 package com.itsaky.androidide.localWebServer
 
+// The decode helpers moved to common with the shared content source (ADFA-5176); these tests stay
+// here, where the brotli4j host-native test wiring lives.
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.aayushatharva.brotli4j.encoder.BrotliOutputStream
 import com.aayushatharva.brotli4j.encoder.Encoder
+import com.itsaky.androidide.documentation.chunksAsStream
+import com.itsaky.androidide.documentation.joinChunks
+import com.itsaky.androidide.documentation.toDirectByteBuffer
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
