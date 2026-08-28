@@ -157,8 +157,18 @@ class DocumentationContentSource(
 	@Volatile
 	private var database: SQLiteDatabase? = null
 
+	// Terminal: openIfNeeded() refuses once this is set, so a straggler call after close() -- a
+	// shutdown-time log line, say -- cannot silently reopen a handle nothing will ever close.
+	@Volatile
+	private var closed = false
+
 	@Volatile
 	private var databaseTimestamp: Long = -1
+
+	// Which file the active handle was opened on, so the rewrite check below knows whether the
+	// installed file is the one being served.
+	@Volatile
+	private var activeDatabasePath: String? = null
 
 	/**
 	 * Bumped on every swap, so a caller can tell that anything it cached from this source --
@@ -177,6 +187,11 @@ class DocumentationContentSource(
 	// behaviour this field exists to prevent. A 64-bit read is not atomic on armeabi-v7a either.
 	@Volatile
 	private var failedDebugSwapTimestamp: Long = -1
+
+	// Same idea for the installed file: a reopen that failed -- typically because an installer is
+	// still streaming into it -- is not retried until the file's timestamp moves again.
+	@Volatile
+	private var failedInstalledSwapTimestamp: Long = -1
 
 	// The dictionary the Content rows are compressed against. Loaded on the first decode that
 	// needs it after a swap rather than eagerly, and then cached for that database. Null when the
@@ -198,8 +213,9 @@ class DocumentationContentSource(
 
 	private val debugCheckIntervalNanos = TimeUnit.MILLISECONDS.toNanos(debugCheckIntervalMs)
 
-	// One interval in the past, so the first lookup still checks for a debug database.
-	private val lastDebugCheckNanos = AtomicLong(System.nanoTime() - debugCheckIntervalNanos)
+	// One interval in the past, so the first lookup still checks for a changed database. The one
+	// gate covers both stats: the sdcard debug file and the installed file's rewrite check.
+	private val lastSwapCheckNanos = AtomicLong(System.nanoTime() - debugCheckIntervalNanos)
 
 	/**
 	 * Opens the installed database. Callers that need to fail loudly (the web server, which should
@@ -207,6 +223,7 @@ class DocumentationContentSource(
 	 */
 	fun open() {
 		databaseLock.write {
+			check(!closed) { "documentation content source for '$databaseFile' is closed" }
 			if (database != null) return@write
 			switchToDatabase(databaseFile.absolutePath, timestampOf(databaseFile))
 		}
@@ -217,7 +234,7 @@ class DocumentationContentSource(
 		// Both of these take the write lock when they act, so they run before the read lock below:
 		// a ReentrantReadWriteLock does not upgrade.
 		if (!openIfNeeded()) return DocumentationLookup.NotFound
-		swapDebugDatabaseIfNewer()
+		swapDatabaseIfChanged()
 
 		return databaseLock.read {
 			val database = database ?: return@read DocumentationLookup.NotFound
@@ -279,7 +296,7 @@ class DocumentationContentSource(
 	 */
 	fun refreshDatabase() {
 		openIfNeeded()
-		swapDebugDatabaseIfNewer()
+		swapDatabaseIfChanged()
 	}
 
 	/**
@@ -287,8 +304,10 @@ class DocumentationContentSource(
 	 * does not own -- the bookshelf join, the template lookup, the developer table dumps.
 	 */
 	fun <T> withDatabase(block: (SQLiteDatabase) -> T): T {
-		openIfNeeded()
-		swapDebugDatabaseIfNewer()
+		// The same verdict lookup() acts on, surfaced as a throw because this returns the block's
+		// value: could-not-open (or closed) is terminal here too, not a checkNotNull accident.
+		check(openIfNeeded()) { "documentation database '$databaseFile' is not open" }
+		swapDatabaseIfChanged()
 
 		return databaseLock.read {
 			val database = checkNotNull(database) { "documentation database '$databaseFile' is not open" }
@@ -311,8 +330,8 @@ class DocumentationContentSource(
 		templateCache.clear()
 	}
 
-	/** The last-modified time of [pathname], or -1 when it does not exist. */
-	fun timestampOf(
+	/** The last-modified time of [file], or -1 when it does not exist. */
+	private fun timestampOf(
 		file: File,
 		silent: Boolean = true,
 	): Long {
@@ -327,8 +346,10 @@ class DocumentationContentSource(
 		return timestamp
 	}
 
+	/** Closes the handle for good: no later call reopens it (see [openIfNeeded]). */
 	override fun close() {
 		databaseLock.write {
+			closed = true
 			try {
 				database?.close()
 			} catch (e: Exception) {
@@ -338,8 +359,13 @@ class DocumentationContentSource(
 		}
 	}
 
-	/** True once the database is open. Failure is logged, not thrown: a caller falls back instead. */
+	/**
+	 * True once the database is open. Failure is logged, not thrown: a caller falls back instead.
+	 * Terminal after [close]: reopening then would hand out a handle whose owner has already done
+	 * its one close, so nothing would ever release it.
+	 */
 	private fun openIfNeeded(): Boolean {
+		if (closed) return false
 		if (database != null) return true
 
 		return try {
@@ -604,14 +630,36 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Swaps to the sdcard debug database when a newer one has appeared. The stat behind this is
-	 * rate-limited: the path is FUSE-backed emulated storage, and it is a developer-only override,
-	 * so it used to cost a stat on every single request (ADFA-5175). Must not be called with the
-	 * read lock held -- it takes the write lock, and this lock does not upgrade.
+	 * Applies whichever pending file change would leave the active handle stale: a newer sdcard
+	 * debug database, or the installed file rewritten in place. Must not be called with the read
+	 * lock held -- the swaps take the write lock, and this lock does not upgrade.
+	 *
+	 * The stats behind both checks are rate-limited by one shared gate: the debug path is
+	 * FUSE-backed emulated storage and a developer-only override, so it used to cost a stat on
+	 * every single request (ADFA-5175).
 	 */
-	private fun swapDebugDatabaseIfNewer() {
-		val debugTimestamp = debugTimestampIfDue() ?: return
-		if (debugTimestamp <= databaseTimestamp || debugTimestamp == failedDebugSwapTimestamp) return
+	private fun swapDatabaseIfChanged() {
+		if (!swapCheckDue()) return
+		if (swapDebugDatabaseIfNewer()) return
+		reopenInstalledDatabaseIfRewritten()
+	}
+
+	/** True at most once per check interval, no matter how many threads ask. */
+	private fun swapCheckDue(): Boolean {
+		val now = System.nanoTime()
+		val last = lastSwapCheckNanos.get()
+		if (now - last < debugCheckIntervalNanos) return false
+		return lastSwapCheckNanos.compareAndSet(last, now)
+	}
+
+	/**
+	 * Swaps to the sdcard debug database when a newer one has appeared. Returns true when a debug
+	 * override is pending -- swapped just now, or marked failed until its file changes -- so the
+	 * caller skips the installed-file check that would otherwise race it.
+	 */
+	private fun swapDebugDatabaseIfNewer(): Boolean {
+		val debugTimestamp = timestampOf(debugDatabaseFile)
+		if (debugTimestamp <= databaseTimestamp || debugTimestamp == failedDebugSwapTimestamp) return false
 
 		databaseLock.write {
 			// Another thread may have swapped while this one waited for the lock.
@@ -630,16 +678,41 @@ class DocumentationContentSource(
 				)
 			}
 		}
+		return true
 	}
 
-	/** The debug database's timestamp, or null when the last check was too recent. */
-	private fun debugTimestampIfDue(): Long? {
-		val now = System.nanoTime()
-		val last = lastDebugCheckNanos.get()
-		if (now - last < debugCheckIntervalNanos) return null
-		if (!lastDebugCheckNanos.compareAndSet(last, now)) return null
+	/**
+	 * Reopens the installed database when its file has been rewritten under the cached handle.
+	 * `BundledAssetsInstaller` and `SplitAssetsInstaller` both install by truncating and rewriting
+	 * `Environment.DOC_DB` in place, so a handle opened before an install or update refers to pages
+	 * that no longer exist and serves corrupt reads for the rest of the process (ADFA-5176 review).
+	 * Detected by timestamp like the debug swap, and the swap is the same machinery, so the compiled
+	 * templates, the dictionary and the generation counter invalidate identically.
+	 */
+	private fun reopenInstalledDatabaseIfRewritten() {
+		if (activeDatabasePath != databaseFile.absolutePath) return
 
-		return timestampOf(debugDatabaseFile)
+		val installedTimestamp = timestampOf(databaseFile)
+		if (installedTimestamp == databaseTimestamp || installedTimestamp == failedInstalledSwapTimestamp) return
+
+		databaseLock.write {
+			if (installedTimestamp == databaseTimestamp || installedTimestamp == failedInstalledSwapTimestamp) return@write
+
+			try {
+				switchToDatabase(databaseFile.absolutePath, installedTimestamp)
+				failedInstalledSwapTimestamp = -1
+				log.info("Installed database '{}' was rewritten in place; reopened it.", databaseFile)
+			} catch (e: Exception) {
+				// Typically an installer still streaming into the file. The timestamp moves again
+				// when it finishes, which is what retries this.
+				failedInstalledSwapTimestamp = installedTimestamp
+				log.error(
+					"Cannot reopen the rewritten installed database '{}'; ignoring it until it changes: {}",
+					databaseFile,
+					e.message,
+				)
+			}
+		}
 	}
 
 	/**
@@ -656,6 +729,7 @@ class DocumentationContentSource(
 		val previous = database
 
 		database = opened
+		activeDatabasePath = path
 		databaseTimestamp = timestamp
 		compressionDictionaryStale = true
 		templateCache.clear()

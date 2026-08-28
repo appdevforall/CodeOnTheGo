@@ -9,6 +9,7 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -432,6 +433,50 @@ class DocumentationContentSourceTest {
 		verify(exactly = 1) { SQLiteDatabase.openDatabase(debugFile.absolutePath, isNull(), any()) }
 	}
 
+	// The installers rewrite Environment.DOC_DB in place, so a handle cached for the process's life
+	// has to notice the file changing underneath it and reopen (ADFA-5176 review).
+	@Test
+	fun `an installed database rewritten in place is reopened, and the generation says so`() {
+		val before = database(contentCursor(bytes = "before".toByteArray()))
+		val after = database(contentCursor(bytes = "after".toByteArray()))
+		every { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) } returnsMany listOf(before, after)
+
+		val source = source(debugCheckIntervalMs = 0)
+
+		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("before")
+		val generationBefore = source.generation
+
+		installedFile.writeText("rewritten")
+		installedFile.setLastModified(installedFile.lastModified() + 60_000)
+
+		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("after")
+		assertThat(source.generation).isGreaterThan(generationBefore)
+		verify { before.close() }
+	}
+
+	@Test
+	fun `a failed installed-database reopen is not retried until the file changes again`() {
+		val before = database(contentCursor(bytes = "before".toByteArray()))
+		every { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) } returns before
+
+		val source = source(debugCheckIntervalMs = 0)
+		source.lookup("p")
+
+		// The rewrite is detected but the reopen fails, as it would mid-install.
+		every { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) } throws IllegalStateException("mid-install")
+		installedFile.writeText("rewritten")
+		installedFile.setLastModified(installedFile.lastModified() + 60_000)
+
+		repeat(3) { source.lookup("p") }
+
+		// One initial open plus exactly one failed reopen attempt; the old handle keeps serving.
+		verify(exactly = 2) { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) }
+		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("before")
+	}
+
 	@Test
 	fun `withDatabase runs against the open database`() {
 		val database = database(contentCursor())
@@ -453,5 +498,33 @@ class DocumentationContentSourceTest {
 		source.close()
 
 		verify(exactly = 1) { database.close() }
+	}
+
+	// close() is terminal: a straggler call afterwards must not reopen a handle that nothing will
+	// ever close again.
+	@Test
+	fun `a lookup after close reports not found instead of reopening`() {
+		val database = database(contentCursor())
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val source = source()
+		source.lookup("p")
+		source.close()
+
+		assertThat(source.lookup("p")).isEqualTo(DocumentationLookup.NotFound)
+		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
+	}
+
+	@Test
+	fun `withDatabase after close throws instead of reopening`() {
+		val database = database(contentCursor())
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val source = source()
+		source.lookup("p")
+		source.close()
+
+		assertThrows(IllegalStateException::class.java) { source.withDatabase { } }
+		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
 	}
 }

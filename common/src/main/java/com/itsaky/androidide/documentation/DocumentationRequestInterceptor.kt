@@ -179,6 +179,15 @@ class DocumentationRequestInterceptor(
 			}
 
 		/**
+		 * True once [shared] has been built, without building it. For a caller that wants to read
+		 * [shared] cheaply -- once built, the getter's first line returns it with no lock and no
+		 * stat -- but must not be the touch that constructs it (the constructor stats external
+		 * storage for the sentinel, banned on the main thread).
+		 */
+		val isSharedInitialized: Boolean
+			get() = sharedInstance != null
+
+		/**
 		 * Clears [shared]'s compiled templates, for the developer clear-cache sentinel. A no-op
 		 * when [shared] has never been touched: it is not created just to empty a cache that does
 		 * not exist yet.

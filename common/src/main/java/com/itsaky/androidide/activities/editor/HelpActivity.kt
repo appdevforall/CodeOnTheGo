@@ -71,14 +71,17 @@ class HelpActivity : BaseIDEActivity() {
 	// ADFA-5176: answers documentation requests from the database in-process, so loading a page
 	// no longer opens a TCP connection per asset to the local web server.
 	//
-	// Lazy, not an initializer: forcing it here runs during Activity construction, before
-	// onCreate, on the main thread -- which both stats external storage for the sentinel under a
-	// StrictMode policy that reports it, and dies before this screen exists if the shared
-	// interceptor cannot be built. Touched from shouldInterceptRequest instead, on a WebView
-	// thread, the way FAQActivity does it. An explicit Lazy, so onPageFinished (main thread) can
-	// log without being the first touch.
-	private val documentationLazy = lazy { DocumentationRequestInterceptor.shared }
-	private val documentation by documentationLazy
+	// A getter, not an initializer and not `by lazy`: an initializer runs during Activity
+	// construction on the main thread -- which both stats external storage for the sentinel under
+	// a StrictMode policy that reports it, and dies before this screen exists if the shared
+	// interceptor cannot be built -- and `lazy` memoizes whatever the first call returned,
+	// including the null that means Environment.DOC_DB was not set *yet*, pinning in-process
+	// serving off for the whole screen. Only a non-null is cached, so the companion's
+	// retry-on-null contract holds; first touched from shouldInterceptRequest, on a WebView
+	// thread, the way FAQActivity does it.
+	private var cachedDocumentation: DocumentationRequestInterceptor? = null
+	private val documentation: DocumentationRequestInterceptor?
+		get() = cachedDocumentation ?: DocumentationRequestInterceptor.shared?.also { cachedDocumentation = it }
 
 	// Wall-clock start of the page currently loading, for the ADFA-5176 measurement.
 	// elapsedRealtime, not currentTimeMillis: an NTP correction or a user clock change between
@@ -113,7 +116,6 @@ class HelpActivity : BaseIDEActivity() {
 			}
 
 			val pageTitle = intent.getStringExtra(CONTENT_TITLE_KEY)
-			val htmlContent = intent.getStringExtra(CONTENT_KEY)
 
 			supportActionBar?.title = pageTitle ?: getString(R.string.help)
 
@@ -159,9 +161,10 @@ class HelpActivity : BaseIDEActivity() {
 							// would otherwise report the whole session's bytes as its own.
 							// Only read the interceptor if some request already forced it: this
 							// runs on the main thread, and being the first touch would build the
-							// interceptor (and stat external storage) here.
+							// interceptor (and stat external storage) here. Once the companion's
+							// instance exists, reading it is a plain field access.
 							val summary =
-								if (documentationLazy.isInitialized()) {
+								if (DocumentationRequestInterceptor.isSharedInitialized) {
 									documentation?.servedSummary()
 								} else {
 									"interceptor not yet used"

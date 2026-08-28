@@ -38,10 +38,15 @@ import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
 class IDETooltipWebviewFragment : Fragment() {
 	private lateinit var webView: WebView
 	private lateinit var website : String
-	// by lazy: an initializer here runs during Fragment construction on the main thread, where the
-	// interceptor's sentinel check is a disk read StrictMode reports and a missing database is a
-	// crash before the view exists. See HelpActivity for the same note.
-	private val documentation by lazy { DocumentationRequestInterceptor.shared }
+	// A getter, not an initializer and not `by lazy`: an initializer here runs during Fragment
+	// construction on the main thread, where the interceptor's sentinel check is a disk read
+	// StrictMode reports and a missing database is a crash before the view exists -- and `lazy`
+	// memoizes even the null that means Environment.DOC_DB was not set *yet*, pinning in-process
+	// serving off for the fragment's life. Only a non-null is cached, so the companion's
+	// retry-on-null contract holds. See HelpActivity for the same note.
+	private var cachedDocumentation: DocumentationRequestInterceptor? = null
+	private val documentation: DocumentationRequestInterceptor?
+		get() = cachedDocumentation ?: DocumentationRequestInterceptor.shared?.also { cachedDocumentation = it }
 
 	//This warning is unnecessary because we control the content
 	@SuppressLint("SetJavaScriptEnabled")
