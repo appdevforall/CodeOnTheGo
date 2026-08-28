@@ -552,7 +552,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			doInstallApk(state)
 			return
 		}
-		val answerAtTap = buildViewModel.consumeClobberAnswerAtTap()
 		lifecycleScope.launch {
 			// installationAttempted() has already reset the build state, so an activity destroyed
 			// (rotation) during the IO parse below cancels this coroutine and would silently drop
@@ -567,6 +566,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					return@launch
 				}
 				dispatched = true
+				// Consumed only once this dispatch is certain: the read nulls the answer out, so
+				// consuming before the drop paths above would leave the retry with nothing and
+				// re-ask a question the tap already answered. Nothing suspends past here.
+				val answerAtTap = buildViewModel.consumeClobberAnswerAtTap()
 				val now =
 					quickBuildClobberConfirmation(apkApplicationId, clobberCheck::standardRunNeedsConfirm)
 				val onProceed = {
