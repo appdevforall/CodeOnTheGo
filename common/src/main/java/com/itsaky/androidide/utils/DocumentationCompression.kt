@@ -2,6 +2,15 @@ package com.itsaky.androidide.utils
 
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
+import com.aayushatharva.brotli4j.Brotli4jLoader
+import com.aayushatharva.brotli4j.decoder.BrotliInputStream
+import com.aayushatharva.brotli4j.encoder.BrotliOutputStream
+import com.aayushatharva.brotli4j.encoder.Encoder
+import com.aayushatharva.brotli4j.encoder.PreparedDictionary
+import com.aayushatharva.brotli4j.encoder.PreparedDictionaryGenerator
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
 import java.nio.ByteBuffer
 
 private const val TAG = "DocumentationCompression"
@@ -86,5 +95,79 @@ fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
 			return null
 		}
 		toDirectByteBuffer(bytes)
+	}
+}
+
+/**
+ * Compresses and decompresses documentation `Content` blobs against [dictionary], the shared Brotli
+ * dictionary from the database those blobs live in (see [loadCompressionDictionary]). A null
+ * [dictionary] means plain, dictionary-free brotli, which is what a database predating ADFA-5153
+ * needs.
+ *
+ * One instance per database, reused across rows: preparing the dictionary for the encoder costs a
+ * few milliseconds and the result is safe to share across streams.
+ */
+class BrotliDictionaryCodec(
+	private val dictionary: ByteBuffer?,
+) {
+	// Only the encoder needs the dictionary in prepared form, so a decode-only user (WebServer)
+	// never pays for building it. `generate` advances the buffer's position to its limit, so it
+	// gets a duplicate: the original is shared with attachDictionary, which reads the whole
+	// capacity and would be unaffected, but leaving a caller's long-lived buffer drained is a trap
+	// for the next reader of it.
+	private val preparedDictionary: PreparedDictionary? by lazy {
+		dictionary?.let { PreparedDictionaryGenerator.generate(it.duplicate()) }
+	}
+
+	/**
+	 * Compresses [input] at the quality and window size the offline documentation pipeline uses,
+	 * so content contributed at runtime is stored the same way as content built ahead of time.
+	 */
+	fun compress(input: ByteArray): ByteArray {
+		ensureBrotliAvailable()
+		val out = ByteArrayOutputStream(input.size)
+		BrotliOutputStream(out, encoderParameters).use { stream ->
+			preparedDictionary?.let { stream.attachDictionary(it) }
+			stream.write(input)
+		}
+		return out.toByteArray()
+	}
+
+	/**
+	 * Decompresses a `Content` blob read from the same database [dictionary] came from.
+	 *
+	 * Throws `IOException` when [input] was not compressed the way that database's rows are --
+	 * a dictionary-compressed stream decoded without one leaves backward distances out of bounds,
+	 * which any spec-compliant decoder rejects. Note the converse is *not* detectable: attaching
+	 * the *wrong* dictionary decodes without error to different bytes than were compressed, so
+	 * decode success is never evidence that the right dictionary was used.
+	 */
+	fun decompress(input: InputStream): ByteArray {
+		ensureBrotliAvailable()
+		return BrotliInputStream(input).use { stream ->
+			dictionary?.let { stream.attachDictionary(it) }
+			stream.readBytes()
+		}
+	}
+
+	/**
+	 * Loads brotli4j's native library if nothing else has yet, and turns its absence into a failed
+	 * request rather than an `Error` that would take down the calling thread.
+	 */
+	private fun ensureBrotliAvailable() {
+		try {
+			Brotli4jLoader.ensureAvailability()
+		} catch (e: UnsatisfiedLinkError) {
+			throw IOException("brotli4j's native library is unavailable, so brotli content cannot be handled", e)
+		}
+	}
+
+	companion object {
+		// Matches OfflineDocumentationTools' encode settings, so a row written on-device is
+		// indistinguishable in size and decodability from one built by that pipeline.
+		private val encoderParameters: Encoder.Parameters by lazy {
+			Brotli4jLoader.ensureAvailability()
+			Encoder.Parameters().setQuality(11).setWindow(24)
+		}
 	}
 }

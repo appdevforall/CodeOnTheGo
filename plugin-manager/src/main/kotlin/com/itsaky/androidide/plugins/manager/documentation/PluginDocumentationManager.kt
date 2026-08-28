@@ -9,6 +9,8 @@ import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.PluginTooltipEntry
 import com.itsaky.androidide.plugins.manager.pluginCategory
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.BrotliDictionaryCodec
+import com.itsaky.androidide.utils.loadCompressionDictionary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -162,6 +164,13 @@ class PluginDocumentationManager(
 	 * the existing ContentTypes.compression column, chunks blobs at 1 MB to
 	 * match WebServer's read loop, and inserts everything under the reserved
 	 * path namespace "plugin/<pluginId>/..." inside a single transaction.
+	 *
+	 * Brotli assets are compressed against the database's own shared dictionary
+	 * (ADFA-5240), so every brotli row in Content -- contributed here or built
+	 * offline -- decodes the same way. The dictionary is read from the database
+	 * being written, which keeps content and dictionary version-locked: replacing
+	 * documentation.db drops these rows, and they are reinstalled against the new
+	 * file's dictionary.
 	 */
 	suspend fun installPluginTier3Documentation(
 		pluginId: String,
@@ -190,6 +199,21 @@ class PluginDocumentationManager(
 				return@withContext false
 			}
 
+			// A definitive null means this database has no dictionary, so its brotli rows are plain
+			// and these must be too. A throw means the answer is merely unavailable right now:
+			// guessing either way writes rows WebServer cannot decode, so abandon the install and
+			// let verifyAndRecreateTier3Documentation retry on the next activation.
+			val codec =
+				try {
+					BrotliDictionaryCodec(loadCompressionDictionary(db))
+				} catch (e: Exception) {
+					if (e is CancellationException) throw e
+					Log.e(TAG, "Cannot read the compression dictionary; deferring Tier 3 install for $pluginId", e)
+					db.close()
+					pluginAssets.close()
+					return@withContext false
+				}
+
 			val resolver = ExtensionToContentTypeResolver()
 			var inserted = 0
 			var skipped = 0
@@ -214,7 +238,7 @@ class PluginDocumentationManager(
 
 					val payload =
 						if (row.compression == "brotli") {
-							BrotliCompressor.compress(asset.bytes)
+							codec.compress(asset.bytes)
 						} else {
 							asset.bytes
 						}
