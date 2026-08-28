@@ -179,9 +179,12 @@ spotless {
 	// Spotless's auto-prune of .git/.gradle/build, so restore them. flox is the
 	// ADFA-4816 fix: its /nix/store symlinks (millions of files) made
 	// spotlessCheck take 12+ minutes.
-	// Bare dir names required: Gradle prunes a subtree only when an exclude
-	// matches the dir node itself; `dir/**` matches contents and forces a
-	// descend-and-filter (no pruning).
+	// The pattern must match the directory node itself, because Gradle prunes a subtree only then;
+	// `dir/**` matches the contents instead and forces a descend-and-filter. Bare names are
+	// root-anchored: "flox" prunes only rootDir/flox, so anything that has to match at depth needs
+	// the `**/` prefix the three entries below carry. Dropping it -- reading "**/.gradle" as
+	// equivalent to ".gradle" -- would stop pruning every per-project cache dir and bring back the
+	// ADFA-4816 12-minute spotlessCheck.
 	val traversalExcludes =
 		arrayOf(
 			"flox",
