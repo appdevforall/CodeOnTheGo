@@ -34,10 +34,10 @@ import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
 import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
 
-
 class IDETooltipWebviewFragment : Fragment() {
 	private lateinit var webView: WebView
-	private lateinit var website : String
+	private lateinit var website: String
+
 	// A getter, not an initializer and not `by lazy`: an initializer here runs during Fragment
 	// construction on the main thread, where the interceptor's sentinel check is a disk read
 	// StrictMode reports and a missing database is a crash before the view exists -- and `lazy`
@@ -57,7 +57,7 @@ class IDETooltipWebviewFragment : Fragment() {
 	override fun onCreateView(
 		inflater: LayoutInflater,
 		container: ViewGroup?,
-		savedInstanceState: Bundle?
+		savedInstanceState: Bundle?,
 	): View? {
 		super.onCreateView(inflater, container, savedInstanceState)
 		Log.d(Companion.TAG, "IDETooltipWebviewFragment\\\\onCreateView called")
@@ -79,7 +79,8 @@ class IDETooltipWebviewFragment : Fragment() {
 							false // Disable this callback to let the default back press behavior occur
 					}
 				}
-			})
+			},
+		)
 
 		website = arguments?.getString(MainFragment.KEY_TOOLTIP_URL).orEmpty()
 
@@ -89,40 +90,44 @@ class IDETooltipWebviewFragment : Fragment() {
 		webView = view.findViewById(R.id.IDETooltipWebView)
 
 		// Set a WebViewClient to handle loading pages
-		webView.webViewClient = object : WebViewClient() {
-			// ADFA-5176: documentation comes from the database in-process; anything this declines
-			/**
-			 * Handles WebView resource requests through the documentation interceptor.
-			 *
-			 * @return The intercepted resource response, or the default WebView response when no intercepted response is available.
-			 */
-			override fun shouldInterceptRequest(
-				view: WebView,
-				request: WebResourceRequest,
-			): WebResourceResponse? = documentation?.intercept(request) ?: super.shouldInterceptRequest(view, request)
+		webView.webViewClient =
+			object : WebViewClient() {
+				// ADFA-5176: documentation comes from the database in-process; anything this declines
 
-			/**
-			 * Loads Android asset URLs explicitly and delegates other requests to the default handler.
-			 *
-			 * @param view The WebView requesting the URL.
-			 * @param request The resource request to handle.
-			 * @return `true` if the URL was loaded explicitly, `false` otherwise.
-			 */
-			override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-				// Allow loading of local assets files
-				if (request.url.toString().startsWith("file:///android_asset/")) {
-					view.loadUrl(request.url.toString())
-					return true
+				/**
+				 * Handles WebView resource requests through the documentation interceptor.
+				 *
+				 * @return The intercepted resource response, or the default WebView response when no intercepted response is available.
+				 */
+				override fun shouldInterceptRequest(
+					view: WebView,
+					request: WebResourceRequest,
+				): WebResourceResponse? = documentation?.intercept(request) ?: super.shouldInterceptRequest(view, request)
+
+				/**
+				 * Loads Android asset URLs explicitly and delegates other requests to the default handler.
+				 *
+				 * @param view The WebView requesting the URL.
+				 * @param request The resource request to handle.
+				 * @return `true` if the URL was loaded explicitly, `false` otherwise.
+				 */
+				override fun shouldOverrideUrlLoading(
+					view: WebView,
+					request: WebResourceRequest,
+				): Boolean {
+					// Allow loading of local assets files
+					if (request.url.toString().startsWith("file:///android_asset/")) {
+						view.loadUrl(request.url.toString())
+						return true
+					}
+					return super.shouldOverrideUrlLoading(view, request)
 				}
-				return super.shouldOverrideUrlLoading(view, request)
 			}
-		}
 
 		// Set up WebChromeClient to support JavaScript
 //        webView.webChromeClient = WebChromeClient()
 		webView.scrollBarStyle = WebView.SCROLLBARS_OUTSIDE_OVERLAY
 		webView.scrollBarDefaultDelayBeforeFade = 1000
-
 
 		// Enable JavaScript if needed
 		webView.settings.javaScriptEnabled = true
@@ -132,7 +137,10 @@ class IDETooltipWebviewFragment : Fragment() {
 		return view
 	}
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 		Log.d(Companion.TAG, "IDETooltipWebViewFragment\\\\onViewCreated called")
 	}
@@ -143,17 +151,14 @@ class IDETooltipWebviewFragment : Fragment() {
 	override fun onDestroyView() {
 		super.onDestroyView()
 		// Clean up the WebView in Fragment
-		if(webView.isVisible) {
+		if (webView.isVisible) {
 			webView.clearHistory()
 			webView.loadUrl("about:blank")
 			webView.destroy()
 		}
-
 	}
 
 	companion object {
 		private const val TAG = "IDETooltipWebViewFragment"
 	}
-
-
 }
