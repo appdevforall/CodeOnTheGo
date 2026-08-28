@@ -1,0 +1,109 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.itsaky.androidide.activities.editor
+
+import android.content.Intent
+import androidx.core.content.IntentCompat
+import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.app.BaseApplication
+import com.itsaky.androidide.models.PendingFileRequest
+import com.itsaky.androidide.projects.IProjectManager
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkAll
+import org.junit.After
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * A deep link into the project that is already open, arriving while that project is still syncing
+ * (`workspace == null`), must not be dropped: `switchToProject`'s same-project branch has to arm
+ * the request on the intent so `postProjectInit`'s deferred retry finds it once the sync completes
+ * (ADFA-5067 review).
+ *
+ * The failure mode being pinned is double: the new request used to die in a local variable, and
+ * because `onNewIntent`'s carry-forward guard had already re-armed the *previous*, still-unconsumed
+ * request onto the intent, `postProjectInit` then navigated to that stale target -- the link
+ * appeared to work, at the wrong file.
+ *
+ * Mirrors [RestorePluginTabsThreadTest]'s approach of exercising a real, private production method
+ * on an activity that has been built but not created -- creating the full editor activity is far
+ * beyond what a JVM test can do, and everything this path touches (the intent, the project
+ * manager, the binding null-check) can be provided directly.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(application = SameProjectDeepLinkMidSyncTest.TestApp::class)
+class SameProjectDeepLinkMidSyncTest {
+	open class TestApp : BaseApplication()
+
+	@After
+	fun tearDown() {
+		unmockkAll()
+	}
+
+	@Test
+	fun `a mid-sync same-project request stays armed and supersedes the carried-forward one`() {
+		val projectPath = "/projects/MyApp"
+		mockkObject(IProjectManager.Companion)
+		val projectManager = mockk<IProjectManager>(relaxed = true)
+		every { projectManager.projectDirPath } returns projectPath
+		// The state under test: the project has started opening but the Gradle sync has not
+		// completed, so the workspace is not available yet.
+		every { projectManager.workspace } returns null
+		every { IProjectManager.getInstance() } returns projectManager
+
+		val activity =
+			Robolectric
+				.buildActivity(EditorHandlerActivity::class.java, Intent())
+				.get()
+		// Non-null binding so switchToProject takes its same-project branch instead of the
+		// binding-torn-down handoff; nothing on the branch under test touches the views.
+		activity._binding = mockk(relaxed = true)
+
+		// What onNewIntent's carry-forward guard re-arms from the previous intent: the earlier,
+		// still-unconsumed request. Without the fix, postProjectInit would find (and navigate to)
+		// this one.
+		val staleRequest = PendingFileRequest("file/A.kt", null, null)
+		activity.intent.putExtra(PendingFileRequest.EXTRA_KEY, staleRequest)
+
+		val newRequest = PendingFileRequest("file/B.kt", "10", "2")
+		val switchToProject =
+			EditorHandlerActivity::class.java.getDeclaredMethod(
+				"switchToProject",
+				String::class.java,
+				PendingFileRequest::class.java,
+				String::class.java,
+			)
+		switchToProject.isAccessible = true
+		switchToProject.invoke(activity, projectPath, newRequest, projectPath)
+
+		// postProjectInit's deferred retry reads exactly this extra once the sync completes: it
+		// must find the new request -- not nothing, and not the stale carried-forward one.
+		val armed =
+			IntentCompat.getParcelableExtra(
+				activity.intent,
+				PendingFileRequest.EXTRA_KEY,
+				PendingFileRequest::class.java,
+			)
+		assertThat(armed).isEqualTo(newRequest)
+	}
+}

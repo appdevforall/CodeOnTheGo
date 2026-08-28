@@ -2416,6 +2416,15 @@ open class EditorHandlerActivity :
 					flashError(getString(string.msg_project_close_in_progress))
 				} else if (projectReady) {
 					fileRequest?.let { applyDeepLinkFileRequest(it) }
+				} else {
+					// Mid-sync: arm the request on the intent so postProjectInit's deferred retry
+					// finds it once the sync completes -- this branch is the "must stay armed"
+					// case the projectReady comment above describes, and without the put the
+					// request dies with this call while onNewIntent's carry-forward has already
+					// re-armed the PREVIOUS, still-unconsumed request, sending the editor to that
+					// stale target instead (ADFA-5067 review). The put also supersedes that
+					// carried-forward value, so this arm needs no removeExtra below.
+					fileRequest?.let { intent.putExtra(PendingFileRequest.EXTRA_KEY, it) }
 				}
 				if (fileRequest != null && (confirmCloseInProgress || projectReady)) {
 					// This request supersedes whatever onNewIntent's carry-forward guard just
