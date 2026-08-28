@@ -39,8 +39,8 @@ class PluginDocumentationManager(
 		// Aggregate cap on the payload bytes staged in memory before the insert transaction
 		// opens. Tier3AssetWalker caps each asset at 10 MiB but nothing bounded the sum, and
 		// enough valid assets would exhaust the heap -- as an OutOfMemoryError, which escapes
-		// catch (Exception). A small multiple of the per-asset cap: past it, an asset takes
-		// the same skip path as an oversized one.
+		// catch (Exception). A small multiple of the per-asset cap: past it, the whole install
+		// fails rather than committing a subset of the plugin's documents.
 		private const val MAX_STAGED_BYTES = 32L * 1024L * 1024L
 	}
 
@@ -271,6 +271,7 @@ class PluginDocumentationManager(
 					// below hand to SQLite -- bounded by MAX_STAGED_BYTES.
 					val prepared = ArrayList<PreparedTier3Row>()
 					var stagedBytes = 0L
+					var overLimit = false
 					for (asset in Tier3AssetWalker.walk(pluginAssets, assetPath)) {
 						val ext = asset.relativePath.substringAfterLast('.', "")
 						if (ext.isEmpty()) {
@@ -304,19 +305,26 @@ class PluginDocumentationManager(
 							}
 
 						if (stagedBytes + payload.size > MAX_STAGED_BYTES) {
-							Log.w(
-								TAG,
-								"Skipping Tier 3 asset '${asset.relativePath}' - staging it would exceed " +
-									"the $MAX_STAGED_BYTES byte aggregate limit",
-							)
-							skipped++
-							continue
+							overLimit = true
+							break
 						}
 						stagedBytes += payload.size
 						prepared.add(PreparedTier3Row("plugin/$pluginId/$safeRelative", payload, row.id))
 					}
 
-					if (prepared.isEmpty() && skipped > 0) {
+					if (overLimit) {
+						// Skipping the overflow and committing what fit would delete every existing
+						// row and record the subset as current -- the dropped documents would then
+						// never be reinstalled, since verification trusts the generation marker.
+						// Fail before any delete instead; existing rows and the generation stay as
+						// they are, and the install retries on the plugin's next activation.
+						Log.e(
+							TAG,
+							"Tier 3 assets for plugin $pluginId exceed the $MAX_STAGED_BYTES byte " +
+								"staging limit; failing the install rather than committing a subset",
+						)
+						false
+					} else if (prepared.isEmpty() && skipped > 0) {
 						// Deleting this plugin's existing rows and committing would destroy content
 						// that was serving and replace it with nothing, then record that as a
 						// successful install. Leave the rows untouched instead: the plugin ships
