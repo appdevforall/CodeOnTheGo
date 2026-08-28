@@ -527,4 +527,43 @@ class DocumentationContentSourceTest {
 		assertThrows(IllegalStateException::class.java) { source.withDatabase { } }
 		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
 	}
+
+	// refreshDatabase() used to fall through to the swap check after close(), and a newer debug
+	// database then reached switchToDatabase(), which reopened a handle nothing would ever close.
+	@Test
+	fun `refreshDatabase after close leaves a newer debug database alone instead of reopening`() {
+		val database = database(contentCursor())
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val source = source(debugCheckIntervalMs = 0)
+		source.lookup("p")
+		source.close()
+
+		debugFile.writeText("newer")
+		debugFile.setLastModified(installedFile.lastModified() + 60_000)
+
+		source.refreshDatabase()
+
+		assertThat(source.lookup("p")).isEqualTo(DocumentationLookup.NotFound)
+		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
+	}
+
+	// Same hole, other branch: the installed file rewritten after close() must not be reopened.
+	@Test
+	fun `refreshDatabase after close leaves a rewritten installed database alone instead of reopening`() {
+		val database = database(contentCursor())
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val source = source(debugCheckIntervalMs = 0)
+		source.lookup("p")
+		source.close()
+
+		installedFile.writeText("rewritten")
+		installedFile.setLastModified(installedFile.lastModified() + 60_000)
+
+		source.refreshDatabase()
+
+		assertThat(source.lookup("p")).isEqualTo(DocumentationLookup.NotFound)
+		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
+	}
 }

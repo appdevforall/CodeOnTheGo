@@ -281,7 +281,7 @@ class DocumentationContentSource(
 		} catch (e: IllegalArgumentException) {
 			// A malformed escape ("%zz") is not a reason to fail the request: the caller has already
 			// looked the path up verbatim, so there is simply no fallback form left to try.
-			log.warn("Cannot decode request path '{}', using it as-is: {}", path, e.message)
+			log.warn("Cannot decode request path '{}'; using it as-is.", path, e)
 			path
 		}
 
@@ -293,9 +293,12 @@ class DocumentationContentSource(
 	 * checks the generation from before the swap those calls perform: on the request that swaps, it
 	 * still believes its caches belong to the new database. Idempotent and throttled by the debug
 	 * check interval, so calling it and then reading costs one extra timestamp comparison.
+	 *
+	 * A no-op once [close] has run: falling through to the swap check would reopen a handle that
+	 * nothing will ever close (see [openIfNeeded]).
 	 */
 	fun refreshDatabase() {
-		openIfNeeded()
+		if (!openIfNeeded()) return
 		swapDatabaseIfChanged()
 	}
 
@@ -725,6 +728,11 @@ class DocumentationContentSource(
 		path: String,
 		timestamp: Long,
 	) {
+		// Belt and braces for close()'s terminality: every caller holds the write lock, as does
+		// close(), so this check cannot race the close it guards against -- a swap that was already
+		// past its own closed check when close() took the lock still cannot reopen a handle.
+		check(!closed) { "documentation content source for '$databaseFile' is closed" }
+
 		val opened = SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READONLY)
 		val previous = database
 
