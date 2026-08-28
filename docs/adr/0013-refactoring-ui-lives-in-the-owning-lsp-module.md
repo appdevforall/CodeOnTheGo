@@ -1,4 +1,4 @@
-# 0012. Refactoring UI lives in the owning LSP module
+# 0013. Refactoring UI lives in the owning LSP module
 
 - **Status:** Proposed
 - **Date:** 2026-08-03
