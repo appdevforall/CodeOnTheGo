@@ -137,7 +137,12 @@ class ContainedPathResolver(
 		return resolved
 	}
 
-	/** How [resolve] judged [relativePath] against the base directory -- see [Resolution]. */
+	/**
+	 * How [resolve] judged [relativePath] against the base directory -- see [Resolution].
+	 *
+	 * Performs synchronous filesystem I/O on every call ([java.nio.file.Path.toRealPath],
+	 * [Files.readAttributes]) -- call it from a background thread, never the UI thread.
+	 */
 	fun resolve(relativePath: String): Resolution {
 		val resolved = lexicalResolve(relativePath) ?: return Resolution.Rejected(null)
 

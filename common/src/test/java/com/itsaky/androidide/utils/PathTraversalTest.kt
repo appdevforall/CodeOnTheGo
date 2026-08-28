@@ -28,6 +28,7 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.PosixFileAttributeView
 
 class PathTraversalTest {
 	private val baseDir = File("/project/root")
@@ -202,6 +203,13 @@ class PathTraversalTest {
 	fun `an intermediate entry that cannot be probed is unverifiable, not contained`() {
 		val root = tempFolder.newFolder("opaque")
 		val blocked = File(root, "blocked").apply { mkdirs() }
+		// Probed before the first permission read: getPosixFilePermissions throws
+		// UnsupportedOperationException (not an IOException) on a filesystem without POSIX
+		// attributes, which would error the test here instead of skipping it.
+		Assume.assumeTrue(
+			"This filesystem does not support POSIX permissions",
+			Files.getFileAttributeView(blocked.toPath(), PosixFileAttributeView::class.java) != null,
+		)
 		val originalPermissions = Files.getPosixFilePermissions(blocked.toPath())
 
 		Files.setPosixFilePermissions(blocked.toPath(), emptySet())
