@@ -93,7 +93,7 @@ fun buildExtractMethodRewrites(
  *
  * A line inside one of [protectedSpans] is emitted byte-for-byte. Those are multi-line string literals,
  * whose interior whitespace is part of their value, and whose closing delimiter sets `trimIndent`'s
- * margin -- moving either edits the interior of the moved code (ADR 0013).
+ * margin -- moving either edits the interior of the moved code (ADR 0014).
  */
 private fun indentedBodyLines(
 	regionText: String,
