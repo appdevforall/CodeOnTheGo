@@ -83,9 +83,20 @@ object DatabaseVersionResolver {
 	}
 
 	/**
-	 * Resolves the database's declared major version.
+	 * The MAJOR version [db] declares in `DocumentationDatabaseVersion` (ADFA-5220), or null when
+	 * that table is absent, empty, or holds a NULL major -- the first of which is how every database
+	 * built before it existed identifies itself.
 	 *
-	 * @return The newest declared major version, or `null` when the version table is absent, empty, or its newest row has a `NULL` major value.
+	 * The table is contractually a single row. A file carrying several is accepted rather than
+	 * rejected -- the row with the greatest `changeTime` wins, `rowid` breaking ties, so the answer
+	 * stays deterministic and a downgrade still reads as one -- and logs a warning, since this
+	 * reader cannot repair the file and refusing to serve documentation over it would be a worse
+	 * outcome than serving it.
+	 *
+	 * Deliberately does *not* catch exceptions, unlike [resolveDatabaseVersion]: callers cache the
+	 * answer for the lifetime of a database (see `WebServer.loadCompressionDictionary`), so a
+	 * transient `SQLiteException` has to stay distinguishable from a definitive "no version table",
+	 * or one hiccup would pin the database at unversioned until it is swapped.
 	 */
 	fun resolveMajorVersion(db: SQLiteDatabase): Int? {
 		val tableExists = db.rawQuery(QUERY_VERSION_TABLE_EXISTS, arrayOf()).use { it.moveToFirst() }

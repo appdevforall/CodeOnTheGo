@@ -419,7 +419,10 @@ class WebServerTest {
 		}
 	}
 
-	// Same as sendRawGetRequestAndAwaitClose, but hands back what the server actually wrote.
+	// Sends a bare GET over a raw socket and hands back everything the server wrote, reading
+	// until the server closes the connection (every response sends "Connection: close").
+	// Plaintext HTTP is intentional and stays on this machine: WebServer is a loopback-only
+	// plaintext server, and these tests exercise it as shipped.
 	private fun sendRawGetRequest(
 		port: Int,
 		path: String,
@@ -434,22 +437,15 @@ class WebServerTest {
 			socket.getInputStream().readBytes().toString(Charsets.ISO_8859_1)
 		}
 
-	// Blocks until the server closes the connection (every response sends "Connection: close"),
-	// so by the time this returns the server has fully finished processing this one request --
-	// making repeated calls a reliable way to serialize several full request/response cycles.
+	// Discards the response; because sendRawGetRequest reads until the server closes the
+	// connection, by the time this returns the server has fully finished processing this one
+	// request -- making repeated calls a reliable way to serialize several full request/response
+	// cycles.
 	private fun sendRawGetRequestAndAwaitClose(
 		port: Int,
 		path: String,
 	) {
-		Socket().use { socket ->
-			socket.connect(InetSocketAddress("localhost", port), 2_000)
-			socket.soTimeout = 2_000
-			socket.getOutputStream().apply {
-				write("GET $path HTTP/1.1\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
-				flush()
-			}
-			socket.getInputStream().readBytes()
-		}
+		sendRawGetRequest(port, path)
 	}
 
 	// Polls by attempting an actual TCP connect rather than sleeping a fixed
