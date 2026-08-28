@@ -85,7 +85,7 @@ object DatabaseVersionResolver {
 	 * identifies itself.
 	 *
 	 * Deliberately does *not* catch exceptions, unlike [resolveDatabaseVersion]: callers cache the
-	 * answer for the lifetime of a database (see `WebServer.loadCompressionDictionary`), so a
+	 * answer for the lifetime of a database (see [loadCompressionDictionary]), so a
 	 * transient `SQLiteException` has to stay distinguishable from a definitive "no version table",
 	 * or one hiccup would pin the database at unversioned until it is swapped.
 	 */

@@ -57,7 +57,7 @@ internal object Tier3AssetWalker {
 						return@sequence
 					}
 				if (bytes == null) {
-					Log.w(TAG, "Skipping Tier 3 asset '$absolute' — exceeds $MAX_ASSET_BYTES byte limit")
+					Log.w(TAG, "Skipping Tier 3 asset '$absolute' - exceeds $MAX_ASSET_BYTES byte limit")
 					return@sequence
 				}
 				if (relative.isNotEmpty()) {

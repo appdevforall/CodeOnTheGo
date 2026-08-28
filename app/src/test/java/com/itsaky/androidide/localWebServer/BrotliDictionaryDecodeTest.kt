@@ -6,6 +6,7 @@ import com.itsaky.androidide.utils.BrotliDictionaryCodec
 import com.itsaky.androidide.utils.toDirectByteBuffer
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.BeforeClass
@@ -229,6 +230,38 @@ class BrotliDictionaryDecodeTest {
 
 		val compressed = BrotliDictionaryCodec(dictionary).compress(expected)
 
+		assertThrows(IOException::class.java) {
+			BrotliDictionaryCodec(null).decompress(ByteArrayInputStream(compressed))
+		}
+	}
+
+	@Test
+	fun `the wrong dictionary can decode without error to the wrong bytes`() {
+		// The reason WebServer.switchToDatabase resets its codec instead of only marking it stale:
+		// if a failed dictionary reload let the previous database's codec serve the new database's
+		// rows, this is what a client could get -- a 200 carrying different bytes than were stored,
+		// with nothing thrown. A dictionary-free codec fails such a row loudly instead, which is
+		// why that is the safe thing to fall back to.
+		//
+		// The two dictionaries here are the same length and differ only in bytes the payload
+		// actually references, which is what makes the failure silent. A wrong dictionary of a
+		// different length, or one whose referenced offsets hold nothing valid, throws instead --
+		// so a throw does not prove the dictionary was right, and a success does not either.
+		val base = "docs-sidebar toc-element kotlin interface companion object page.peb ".repeat(400)
+		val dictionary = toDirectByteBuffer(base.toByteArray(StandardCharsets.UTF_8))
+		val lookalike = toDirectByteBuffer(base.replace("kotlin", "scalax").toByteArray(StandardCharsets.UTF_8))
+		val expected = "docs-sidebar toc-element kotlin interface companion object page.peb ".repeat(6).toByteArray(StandardCharsets.UTF_8)
+
+		val compressed = BrotliDictionaryCodec(dictionary).compress(expected)
+
+		val decoded = BrotliDictionaryCodec(lookalike).decompress(ByteArrayInputStream(compressed))
+		assertEquals("the wrong dictionary still produced a full-length result", expected.size, decoded.size)
+		assertFalse(
+			"decoding with the wrong dictionary must not be assumed detectable by failure",
+			expected.contentEquals(decoded),
+		)
+
+		// ... while no dictionary at all is reliably rejected, which is what the writer relies on.
 		assertThrows(IOException::class.java) {
 			BrotliDictionaryCodec(null).decompress(ByteArrayInputStream(compressed))
 		}
