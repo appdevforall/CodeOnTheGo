@@ -23,12 +23,12 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.idetooltips.attachTooltip
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.unnamed.b.atv.model.TreeNode
 import java.io.File
 
@@ -37,60 +37,64 @@ import java.io.File
  *
  * @author Akash Yadav
  */
-class NewFolderAction(context: Context, override val order: Int) :
-  BaseDirNodeAction(
-    context = context,
-    labelRes = R.string.new_folder,
-    iconRes = R.drawable.ic_new_folder
-  ) {
+class NewFolderAction(
+	context: Context,
+	override val order: Int,
+) : BaseDirNodeAction(
+		context = context,
+		labelRes = R.string.new_folder,
+		iconRes = R.drawable.ic_new_folder,
+	) {
+	override val id: String = "ide.editor.fileTree.newFolder"
 
-  override val id: String = "ide.editor.fileTree.newFolder"
+	override fun retrieveTooltipTag(isAlternateContext: Boolean): String = TooltipTag.PROJECT_FOLDER_NEW_FOLDER
 
-  override fun retrieveTooltipTag(isAlternateContext: Boolean): String =
-    TooltipTag.PROJECT_FOLDER_NEW_FOLDER
+	override suspend fun execAction(data: ActionData) {
+		val context = data.requireActivity()
+		val currentDir = data.requireFile()
+		val lastHeld = data.getTreeNode()
+		val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(context))
+		val builder = DialogUtils.newMaterialDialogBuilder(context)
+		binding.name.editText!!.setHint(R.string.folder_name)
+		builder.setTitle(R.string.new_folder)
+		builder.setMessage(R.string.msg_can_contain_slashes)
+		builder.setView(binding.root)
+		builder.setCancelable(false)
+		builder.setPositiveButton(R.string.text_create) { dialogInterface, _ ->
+			dialogInterface.dismiss()
+			val name: String =
+				binding.name.editText!!
+					.text
+					.toString()
+					.trim()
+			if (name.length !in 1..40 || name.startsWith("/")) {
+				flashError(R.string.msg_invalid_name)
+				return@setPositiveButton
+			}
 
-  override suspend fun execAction(data: ActionData) {
-    val context = data.requireActivity()
-    val currentDir = data.requireFile()
-    val lastHeld = data.getTreeNode()
-    val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(context))
-    val builder = DialogUtils.newMaterialDialogBuilder(context)
-    binding.name.editText!!.setHint(R.string.folder_name)
-    builder.setTitle(R.string.new_folder)
-    builder.setMessage(R.string.msg_can_contain_slashes)
-    builder.setView(binding.root)
-    builder.setCancelable(false)
-    builder.setPositiveButton(R.string.text_create) { dialogInterface, _ ->
-      dialogInterface.dismiss()
-      val name: String = binding.name.editText!!.text.toString().trim()
-      if (name.length !in 1..40 || name.startsWith("/")) {
-        flashError(R.string.msg_invalid_name)
-        return@setPositiveButton
-      }
+			val newDir = File(currentDir, name)
+			if (newDir.exists()) {
+				flashError(R.string.msg_folder_exists)
+				return@setPositiveButton
+			}
 
-      val newDir = File(currentDir, name)
-      if (newDir.exists()) {
-        flashError(R.string.msg_folder_exists)
-        return@setPositiveButton
-      }
+			if (!newDir.mkdirs()) {
+				flashError(R.string.msg_folder_creation_failed)
+				return@setPositiveButton
+			}
 
-      if (!newDir.mkdirs()) {
-        flashError(R.string.msg_folder_creation_failed)
-        return@setPositiveButton
-      }
-
-      flashSuccess(R.string.msg_folder_created)
-      if (lastHeld != null) {
-        requestCollapseNode(lastHeld, false)
-        requestExpandNode(lastHeld)
-      } else {
-        requestFileListing()
-      }
-    }
-    builder.setNegativeButton(android.R.string.cancel, null)
-      builder.showWithLongPressTooltip(
-          context = context,
-          tooltipTag = TooltipTag.PROJECT_NEW_FOLDER_DIALOG
-      )
-  }
+			flashSuccess(R.string.msg_folder_created)
+			if (lastHeld != null) {
+				requestCollapseNode(lastHeld, false)
+				requestExpandNode(lastHeld)
+			} else {
+				requestFileListing()
+			}
+		}
+		builder.setNegativeButton(android.R.string.cancel, null)
+		builder
+			.create()
+			.attachTooltip(TooltipTag.PROJECT_NEW_FOLDER_DIALOG)
+			.show()
+	}
 }

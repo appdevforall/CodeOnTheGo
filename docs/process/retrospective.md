@@ -1,5 +1,58 @@
 # Retrospective Log
 
+## 2026-08-24 - Documentation transports, the Brotli dictionary migration, and 24 review threads
+
+### Time Breakdown
+
+| Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
+|---------|-------|-----------------|---------------|----------|
+| Aug 18 04:42 | Migration script, dictionary re-mint, ODT work | ██████████████████████ 221m | ███████████████████████████████████████████ 422m | ⚠ ProcessPool/forkserver, adb-push mtime trap |
+| Aug 21 00:09 | Version gate, device verification, charset + tickets | ██████████ 96m | █████████████████ 170m | ⚠ install signature/downgrade failures |
+| Aug 22 00:05 | Reviews on #1725/#1726, ADFA-5220 in both repos, triage | ██████████████████████ 223m | ████████████████████████████████████████ 394m | ⚠ 3 regressions found by reviewers |
+| Aug 24 18:21 | Path traversal, containment consolidation, lift to #1736 | ██ 17m | ██ 16m | |
+| Aug 24 20:49 | Device: asset-extraction benchmark, ADFA-5258 | ██ 15m | ███ 31m | ⚠ connectedAndroidTest broken |
+| Aug 24 21:24 | "do them all" — 21 threads across 7 PRs | ██ 15m | | |
+| Aug 24 22:36 | Four code reviews of my own PRs, and their fixes | ███████████████ 154m | █████████ 89m | ⚠ every review found real defects |
+
+### Metrics
+
+| Metric | Duration |
+|--------|----------|
+| Total wall-clock | Aug 18 -> Aug 25 (~163h calendar span) |
+| Hands-on | 11.4h (742m raw, 684m after merging overlapping turns) |
+| Automated agent time | ~18.7h active |
+| Idle/testing/away | ~133h |
+| Retro analysis time | 4 min |
+
+The rows do not sum to the span, and are not meant to: agent time overlaps both hands-on and idle, since the agent works while the human is away. Idle is the remainder after hands-on (163 - 11.4 ~= 133h), not a fourth disjoint bucket.
+
+Caveat on the last phase: 154m of "hands-on" counts ~6,900 words of machine-generated review findings as reading at 150 wpm. The human did not read those end-to-end.
+
+### Key Observations
+- Four independent reviews of PRs already reported as verified each found a real defect: a security fix that sanitised the media type but not its parameters; a test suite every expectation of which sat on one boundary, so a `MIN()` stub would have passed it; a shutdown guard on two of three entry points; a `catch (Exception)` that misses the `Error` the PR existed to handle; and 12 MB of machine-local fixtures committed by `git add -A`.
+- Two shapes recur. **Partial application**: fixing the instance in front of me and missing its siblings (INSERT but not UPDATE, two entry points of three, the type but not its parameters). **Claims outrunning verification**: a PR body still saying "no behaviour change" two behavioural commits later, a comment asserting a MIME type had rows it does not have, a doc asserting a sibling repo logs a warning it never had.
+- What worked, and is worth keeping: settling arguments by measurement rather than debate (the ancestor cache died on 48.0s vs 51.4s; the two documentation transports were settled by 0 differing pixels), and the revert-check habit — reverting a fix to confirm the new test fails. Where the revert-check was skipped, a test silently stopped pinning the behaviour it was named for.
+- Friction outside the work itself: Spotless at ~4m33s on every push (double when the hook trips), Gradle daemons dying when builds ran concurrently, and `connectedAndroidTest` broken outright.
+
+### Feedback
+**What worked:** "I asked questions about recommendations I didn't understand." Those questions repeatedly caught things — one surfaced that a statistic was being quoted from a different database than the reviewer had measured; another turned a vague ticket into the sequencing hazard that got fixed in both repos. The flip side is that they had to be asked at all: recommendations were given as conclusions with the reasoning left to be requested.
+
+**What didn't:** "The Spotless problem made it look like nothing was happening. That was frustrating." Long Gradle invocations ran in the foreground with no output, so working was indistinguishable from hung.
+
+**Do differently:** "Give me more feedback on long-running tasks so I know if the task is stuck."
+
+### Actions Taken
+
+| Issue | Action Type | Change |
+|-------|-------------|--------|
+| Long commands run silently | CLAUDE.md | "Build & test": background anything over ~60s (including `git push`, which runs Spotless via the hook) and report elapsed time, last output line, and whether it is still progressing |
+| Work declared verified was not | CLAUDE.md | New section "Verify before you claim": sweep sibling sites, prove the regression test fails without the fix, match the handler to the failure, check every claim |
+| `git add -A` swept unrelated files | CLAUDE.md | "Operational rules" -> "Staging commits — no `git add -A`": stage by path, read `git status --short` first |
+| Recommendations lacked the why | CLAUDE.md | "Code style": a recommendation carries its one-line why and the rejected alternative |
+| Spotless costs 4.5 min per push | Ticket | ADFA-5265 — `:spotlessShell` walks `scripts/**`; prune rather than exclude, same shape as ADFA-4816 |
+| Instrumented tests, fixtures, stale approvals, Spotless double cost | Doc | Four new entries in `docs/process/learnings.md` |
+| Reviewer-side revert check; dismiss stale approvals on `stage` | Deferred | Both change artifacts other people rely on (REVIEW.md, branch protection) — raised, not applied |
+
 ## 2026-08-13 - ADFA-5088: individual Preferences/Plugin Manager tooltips + docdb SQL scripts
 
 ### Time Breakdown
@@ -48,6 +101,7 @@
 ## 2026-07-24 - LeakCanary icon shrink (ADFA-4843), JAXP/PDF.js investigations (ADFA-1491/ADFA-3304), and full blankj:utilcodex removal (ADFA-4649)
 
 ### Time Breakdown
+
 | Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
 |---------|-------|-----------------|---------------|----------|
 | Jul 24 7:52pm | LeakCanary (ADFA-4843): investigate → decide → build → PR | ██ 4m | ██ 18m | |
@@ -58,6 +112,7 @@
 | Jul 24 11:44pm | Jira progress, retro resume | █ 1m | | |
 
 ### Metrics
+
 | Metric | Duration |
 |--------|----------|
 | Total wall-clock | ~3h 52m |
@@ -78,6 +133,7 @@
 **What didn't:** Waiting for the build system to create an APK — inherent friction in this multi-module Android project, not a request to change approach.
 
 ### Actions Taken
+
 | Issue | Action Type | Change |
 |-------|-------------|--------|
 | No standing guidance to prefer targeted compiles over full assembles during iteration | CLAUDE.md | Added a "Fast iteration" bullet to Build & test: batch targeted `:module:compileV8DebugKotlin` calls during iteration, reserve `:app:assembleV8Debug` for final verification |
