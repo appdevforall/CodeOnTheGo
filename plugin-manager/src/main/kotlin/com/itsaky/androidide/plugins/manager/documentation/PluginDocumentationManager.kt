@@ -2,6 +2,7 @@ package com.itsaky.androidide.plugins.manager.documentation
 
 import android.content.ContentValues
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.res.AssetManager
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
@@ -27,6 +28,12 @@ class PluginDocumentationManager(
 ) {
 	companion object {
 		private const val TAG = "PluginDocManager"
+
+		private const val TIER3_PREFS = "plugin_tier3_docs"
+
+		// Bumped whenever previously written Tier 3 rows can no longer be read as they are.
+		// 1 was plain brotli; 2 compresses against the database's shared dictionary (ADFA-5240).
+		private const val TIER3_COMPRESSION_GENERATION = 2
 	}
 
 	private val databaseName = "documentation.db"
@@ -280,6 +287,7 @@ class PluginDocumentationManager(
 			try {
 				val deleted = removePluginTier3Internal(db, pluginId)
 				db.setTransactionSuccessful()
+				forgetInstalledGeneration(pluginId)
 				Log.d(TAG, "Removed $deleted Tier 3 rows for plugin $pluginId")
 				true
 			} catch (e: Exception) {
@@ -293,8 +301,9 @@ class PluginDocumentationManager(
 		}
 
 	/**
-	 * Verify that Tier 3 content exists for this plugin; reinstall if missing.
-	 * Mirrors [verifyAndRecreateDocumentation] for the Tier 1/2 pipeline.
+	 * Verify that Tier 3 content exists for this plugin, and was written the way the current
+	 * build reads it; reinstall if either is untrue. Mirrors [verifyAndRecreateDocumentation]
+	 * for the Tier 1/2 pipeline.
 	 */
 	suspend fun verifyAndRecreateTier3Documentation(
 		pluginId: String,
@@ -309,13 +318,42 @@ class PluginDocumentationManager(
 				Log.d(TAG, "documentation.db not available yet for Tier 3 verify of $pluginId")
 				return@withContext false
 			}
-			if (isPluginTier3DocumentationInstalled(pluginId)) {
+			if (isPluginTier3DocumentationInstalled(pluginId) && installedGeneration(pluginId) == TIER3_COMPRESSION_GENERATION) {
 				Log.d(TAG, "Tier 3 docs already present for $pluginId")
 				return@withContext true
 			}
-			Log.d(TAG, "Tier 3 docs missing for $pluginId, installing...")
-			installPluginTier3Documentation(pluginId, plugin, pluginApkPath)
+			Log.d(TAG, "Tier 3 docs missing or stale for $pluginId, installing...")
+			val installed = installPluginTier3Documentation(pluginId, plugin, pluginApkPath)
+			if (installed) {
+				recordInstalledGeneration(pluginId)
+			}
+			installed
 		}
+
+	/**
+	 * The compression generation [pluginId]'s Tier 3 rows were last written at, or 0 for rows
+	 * this build has never written.
+	 *
+	 * Rows written before [TIER3_COMPRESSION_GENERATION] are plain brotli, which WebServer no
+	 * longer accepts from a database that declares a dictionary. They are not detectable from the
+	 * rows themselves -- the schema is owned by OfflineDocumentationTools and has no column to
+	 * mark them with, and probing by decode is exactly the guesswork ADFA-5240 removes -- so the
+	 * generation is tracked here instead.
+	 *
+	 * Only needed when documentation.db survives an app upgrade. Replacing that file drops every
+	 * plugin row with it, and the missing-rows check above already covers that case.
+	 */
+	private fun installedGeneration(pluginId: String): Int = tier3Preferences().getInt(pluginId, 0)
+
+	private fun recordInstalledGeneration(pluginId: String) {
+		tier3Preferences().edit().putInt(pluginId, TIER3_COMPRESSION_GENERATION).apply()
+	}
+
+	private fun forgetInstalledGeneration(pluginId: String) {
+		tier3Preferences().edit().remove(pluginId).apply()
+	}
+
+	private fun tier3Preferences(): SharedPreferences = context.getSharedPreferences(TIER3_PREFS, Context.MODE_PRIVATE)
 
 	/**
 	 * Check if any Tier 3 content rows exist for this plugin.
