@@ -13,6 +13,8 @@ import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.DatabaseVersionResolver
+import com.itsaky.androidide.utils.loadCompressionDictionary
+import com.itsaky.androidide.utils.toDirectByteBuffer
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
 import io.pebbletemplates.pebble.template.PebbleTemplate
@@ -103,20 +105,6 @@ data class JavaExecutionResult(
 	val compileTimeMs: Long,
 	val timeoutLimit: Long,
 )
-
-/**
- * Copies [bytes] into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
- * buffer, a heap-backed one throws `IllegalArgumentException`.
- *
- * The capacity must be exactly [bytes]`.size`: `attachDictionary` reads the whole capacity and
- * ignores position/limit, so trailing slack from an over-allocated buffer is treated as dictionary
- * content and every decode then fails with `IOException: corrupted input`.
- */
-internal fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
-	ByteBuffer.allocateDirect(bytes.size).apply {
-		put(bytes)
-		flip()
-	}
 
 /**
  * Reads [chunks] back to back as one stream, without concatenating them into a new array.
@@ -234,70 +222,6 @@ class WebServer(
 			log.debug("Database last change: {}.", DatabaseVersionResolver.resolveDatabaseVersion(database))
 		} catch (e: Exception) {
 			log.error("Could not retrieve database last change info: {}", e.message)
-		}
-	}
-
-	/**
-	 * Loads the shared Brotli dictionary most Content rows are compressed against (see ADFA-5153).
-	 * Returns null (logged) when the database *definitively* has no dictionary -- so callers fall
-	 * back to plain, dictionary-free brotli decode (see [decompressBrotli]).
-	 *
-	 * The gate is the MAJOR version the database declares in ADFA-5220's version table, not the
-	 * presence of a `CompressionDictionary` table: table sniffing infers a whole content format
-	 * from one table's existence, and gets it wrong in both directions -- a database carrying the
-	 * table but *unmigrated* content makes every plain row pay a failed dictionary decode before
-	 * its plain one, on every request. Below
-	 * [DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY] the dictionary is neither
-	 * read nor attached.
-	 *
-	 * The `CompressionDictionary` checks below still run, for a database that declares a new-enough
-	 * version but has no usable dictionary row: without them the data query would raise "no such
-	 * table", which the caller correctly reads as transient and would then retry on every request.
-	 *
-	 * Deliberately does *not* catch exceptions itself: an unexpected `SQLiteException`/IO failure is
-	 * likely transient, and the caller (see [handleClient]) must not cache that as "no dictionary"
-	 * the way it does a definitive absence, or a transient failure would permanently disable
-	 * dictionary decoding for the rest of this database's lifetime.
-	 */
-	private fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
-		val majorVersion = DatabaseVersionResolver.resolveMajorVersion(db)
-		if (majorVersion == null || majorVersion < DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY) {
-			log.warn(
-				"Database declares documentation version {}, below {}; decoding brotli content without a dictionary.",
-				majorVersion ?: "none",
-				DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY,
-			)
-			return null
-		}
-
-		val tableExists =
-			db
-				.rawQuery(
-					"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
-					null,
-				).use { it.moveToFirst() }
-		if (!tableExists) {
-			log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
-			return null
-		}
-
-		return db.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
-			if (!cursor.moveToFirst()) {
-				log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
-				return null
-			}
-			val bytes = cursor.getBlob(0)
-			if (bytes == null) {
-				log.warn("CompressionDictionary row has a NULL data column; decoding brotli content without a dictionary.")
-				return null
-			}
-			// An empty blob would yield a 0-capacity buffer, which attachDictionary rejects --
-			// every row's dictionary decode would then fail with nothing above DEBUG to say why.
-			if (bytes.isEmpty()) {
-				log.warn("CompressionDictionary row has an empty data column; decoding brotli content without a dictionary.")
-				return null
-			}
-			toDirectByteBuffer(bytes)
 		}
 	}
 
