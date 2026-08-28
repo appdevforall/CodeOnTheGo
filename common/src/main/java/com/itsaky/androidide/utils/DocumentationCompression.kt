@@ -152,7 +152,19 @@ class BrotliDictionaryCodec(
 
 	/**
 	 * Loads brotli4j's native library if nothing else has yet, and turns its absence into a failed
-	 * request rather than an `Error` that would take down the calling thread.
+	 * request rather than a dead app.
+	 *
+	 * Nothing here owns that load: it happens as a side effect of `AssetsInstallationHelper`'s
+	 * install or `ToolsManager`'s tooling-jar update, neither of which runs on an ordinary cold
+	 * start. A process that skips both -- Android restarting the app straight into the editor, say
+	 * -- reaches the first brotli row with the natives unregistered, and `DecoderJNI.nativeCreate`
+	 * raises `UnsatisfiedLinkError`. Being an Error rather than an Exception, that escapes the
+	 * caller's catch and kills the app from a coroutine worker instead of failing one request
+	 * (observed on-device, 20-Aug).
+	 *
+	 * Referencing [Brotli4jLoader] triggers the static init that performs the load, so this call is
+	 * the warm-up; afterwards `ensureAvailability` is a single static null-check, cheap enough to
+	 * leave on the per-row path rather than tracking "warmed" state of our own.
 	 */
 	private fun ensureBrotliAvailable() {
 		try {

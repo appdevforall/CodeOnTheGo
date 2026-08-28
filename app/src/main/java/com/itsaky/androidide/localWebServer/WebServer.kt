@@ -4,17 +4,15 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import android.os.Environment.getExternalStorageDirectory
-import com.aayushatharva.brotli4j.Brotli4jLoader
-import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.ToNumberPolicy
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
+import com.itsaky.androidide.utils.BrotliDictionaryCodec
 import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import com.itsaky.androidide.utils.loadCompressionDictionary
-import com.itsaky.androidide.utils.toDirectByteBuffer
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
 import io.pebbletemplates.pebble.template.PebbleTemplate
@@ -32,7 +30,6 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
-import java.nio.ByteBuffer
 import java.sql.Date
 import java.text.SimpleDateFormat
 import java.util.Collections
@@ -108,7 +105,6 @@ data class JavaExecutionResult(
 
 /**
  * Reads [chunks] back to back as one stream, without concatenating them into a new array.
- * Cheap to build twice, which the no-dictionary retry in `decompressBrotli` relies on.
  */
 internal fun chunksAsStream(chunks: List<ByteArray>): InputStream =
 	SequenceInputStream(Collections.enumeration(chunks.map { ByteArrayInputStream(it) }))
@@ -152,19 +148,18 @@ class WebServer(
 	// replacing the file is exactly how they'd fix it.
 	private var failedDebugSwapTimestamp: Long = -1
 
-	// The shared dictionary Content's brotli-compressed rows are compressed against (see
-	// ADFA-5153). Lazily (re)loaded on demand, right before the first content fetch that needs
-	// it after `database` changes -- see compressionDictionaryStale -- rather than eagerly at
-	// database-open/swap time, but still cached (not reloaded per-request) once loaded for the
-	// currently active database. Null (no dictionary attached, plain-brotli decode) unless the
-	// active database declares MAJOR >= MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY in ADFA-5220's
-	// version table.
-	private var compressionDictionary: ByteBuffer? = null
+	// Decodes Content's brotli rows against the shared dictionary they were compressed with (see
+	// ADFA-5153). Lazily (re)built on demand, right before the first content fetch that needs it
+	// after `database` changes -- see compressionDictionaryStale -- rather than eagerly at
+	// database-open/swap time, but still cached (not rebuilt per-request) for the currently active
+	// database. Holds no dictionary, and so decodes plain brotli, unless the active database
+	// declares MAJOR >= MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY in ADFA-5220's version table.
+	private var codec = BrotliDictionaryCodec(null)
 
-	// Set whenever `database` changes (see switchToDatabase); cleared once compressionDictionary
-	// has been (re)loaded for that database. Lets the dictionary stay lazily loaded -- only right
-	// before the first content fetch that actually needs it -- while still loading at most once
-	// per database change rather than once per request.
+	// Set whenever `database` changes (see switchToDatabase); cleared once codec has been
+	// (re)built for that database. Lets the dictionary stay lazily loaded -- only right before the
+	// first content fetch that actually needs it -- while still loading at most once per database
+	// change rather than once per request.
 	private var compressionDictionaryStale = true
 	private val log = LoggerFactory.getLogger(WebServer::class.java)
 	private val debugEnabled: Boolean = File(config.debugEnablePath).exists()
@@ -256,56 +251,13 @@ class WebServer(
 	}
 
 	/**
-	 * Loads brotli4j's native library if nothing else has yet, and turns its absence into a failed
-	 * request rather than a dead app.
-	 *
-	 * Nothing here owns that load: it happens as a side effect of `AssetsInstallationHelper`'s
-	 * install or `ToolsManager`'s tooling-jar update, neither of which runs on an ordinary cold
-	 * start. A process that skips both -- Android restarting the app straight into the editor, say --
-	 * reaches the first brotli row with the natives unregistered, and `DecoderJNI.nativeCreate`
-	 * raises `UnsatisfiedLinkError`. Being an Error rather than an Exception, that escapes
-	 * [handleClient]'s catch and kills the app from a coroutine worker instead of failing one
-	 * request (observed on-device, 20-Aug).
-	 *
-	 * Referencing [Brotli4jLoader] triggers the static init that performs the load, so this call is
-	 * the warm-up; afterwards `ensureAvailability` is a single static null-check, cheap enough to
-	 * leave on the per-decode path rather than tracking "warmed" state of our own.
+	 * Decompresses one Brotli-compressed Content row, attaching the shared dictionary when the
+	 * active database declares one. Every brotli row in such a database is compressed against it,
+	 * whether built offline or contributed by a plugin (ADFA-5240), so a single decode is enough
+	 * and a failure is a real failure -- not, as it once was, a row that might simply have been
+	 * written the other way.
 	 */
-	private fun ensureBrotliAvailable() {
-		try {
-			Brotli4jLoader.ensureAvailability()
-		} catch (e: UnsatisfiedLinkError) {
-			throw IOException("brotli4j's native library is unavailable, so brotli content cannot be decoded", e)
-		}
-	}
-
-	/**
-	 * Decompresses one Brotli-compressed Content row. Tries the shared dictionary first, since every
-	 * ADFA-5153-migrated row requires it, then falls back to a plain decode for rows that were never
-	 * dictionary-compressed: plugin-contributed Tier 3 docs (PluginDocumentationManager/BrotliCompressor
-	 * compress with no dictionary) or any row served from a pre-migration database. Attaching a
-	 * dictionary to a stream that wasn't compressed against one reliably fails to decode rather than
-	 * silently producing wrong bytes (verified empirically -- see docs/documentation-database.md), so
-	 * this ordering never lets a dictionary-compressed row fall through to the plain path by accident.
-	 */
-	private fun decompressBrotli(chunks: List<ByteArray>): ByteArray {
-		ensureBrotliAvailable()
-		val dictionary = compressionDictionary
-		if (dictionary != null) {
-			try {
-				return BrotliInputStream(chunksAsStream(chunks)).use { stream ->
-					stream.attachDictionary(dictionary)
-					stream.readBytes()
-				}
-			} catch (e: IOException) {
-				log.debug(
-					"Dictionary decode failed for a brotli row (likely dictionary-free plugin content); retrying without a dictionary: {}",
-					e.message,
-				)
-			}
-		}
-		return BrotliInputStream(chunksAsStream(chunks)).use { it.readBytes() }
-	}
+	private fun decompressBrotli(chunks: List<ByteArray>): ByteArray = codec.decompress(chunksAsStream(chunks))
 
 	/**
 	 * Stops the server by closing the listening socket. Safe to call from any thread.
@@ -544,7 +496,7 @@ class WebServer(
 		// a transient failure as "no dictionary" for the rest of this database's lifetime.
 		if (compressionDictionaryStale) {
 			try {
-				compressionDictionary = loadCompressionDictionary(database)
+				codec = BrotliDictionaryCodec(loadCompressionDictionary(database))
 				compressionDictionaryStale = false
 			} catch (e: Exception) {
 				log.error("Could not load compression dictionary; will retry on the next request: {}", e.message)
@@ -613,11 +565,10 @@ class WebServer(
 				}
 			}
 
-			// Content is compressed at rest with brotli -- most rows against the shared dictionary
-			// loaded into compressionDictionary (see ADFA-5153), but plugin-contributed Tier 3 docs
-			// (PluginDocumentationManager/BrotliCompressor) are plain brotli with no dictionary.
-			// This server always decompresses before responding, so it never needs to negotiate
-			// Content-Encoding with the client.
+			// Content is compressed at rest with brotli, against the shared dictionary in databases
+			// that declare one (see ADFA-5153) and plain in those that don't. This server always
+			// decompresses before responding, so it never needs to negotiate Content-Encoding with
+			// the client.
 			var dbContent =
 				if (compression == "brotli") {
 					compression = "none"
