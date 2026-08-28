@@ -223,13 +223,20 @@ class WebServer(
 	/**
 	 * Opens [path] as the active database, refreshing every piece of state that depends on which
 	 * database file is active -- [databaseTimestamp] and the per-database caches
-	 * [bookshelfTemplateId]/[templateCache] -- as one atomic operation. Does *not* load
-	 * [compressionDictionary] itself -- a different database can have a different dictionary (or
+	 * [bookshelfTemplateId]/[templateCache] -- as one atomic operation. Does *not* load the new
+	 * database's dictionary itself -- a different database can have a different dictionary (or
 	 * none) -- it only marks [compressionDictionaryStale] so the next content fetch that needs it
 	 * loads it lazily then (see [handleClient]), at most once per database change rather than
 	 * once per request. Only closes the previous database once the new one has opened
 	 * successfully, so a failed swap (this throws) leaves the previous, still-open database
 	 * serving requests rather than leaving [database] referencing an already-closed handle.
+	 *
+	 * [codec] is reset here rather than merely marked stale, because the reload that clears the
+	 * flag can throw (a transient SQLite failure) and [handleClient] then serves the request
+	 * anyway. Carrying the previous database's codec into that request would decode the new
+	 * database's rows against the old database's dictionary -- which, per [BrotliDictionaryCodec],
+	 * succeeds and returns the wrong bytes rather than failing. A dictionary-free codec fails those
+	 * rows loudly instead, which is the only safe way to be wrong here.
 	 */
 	private fun switchToDatabase(
 		path: String,
@@ -245,6 +252,7 @@ class WebServer(
 		}
 		database = newDatabase
 		databaseTimestamp = timestamp
+		codec = BrotliDictionaryCodec(null)
 		compressionDictionaryStale = true
 		bookshelfTemplateId = -1
 		templateCache.clear()
@@ -549,8 +557,6 @@ class WebServer(
 				while (nextChunk.size == contentChunkSize) {
 					val path2 = "$path-$fragmentNumber"
 					val cursor2 = database.rawQuery(query2, arrayOf(path2))
-					// Whether the client has already been told 200; see the assignment below.
-					var responseStarted = false
 					try {
 						if (cursor2.moveToFirst()) {
 							nextChunk = cursor2.getBlob(0)

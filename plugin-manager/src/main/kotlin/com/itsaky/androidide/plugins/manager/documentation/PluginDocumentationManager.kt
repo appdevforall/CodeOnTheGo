@@ -225,8 +225,8 @@ class PluginDocumentationManager(
 			var inserted = 0
 			var skipped = 0
 
-			db.beginTransaction()
 			try {
+				db.beginTransaction()
 				removePluginTier3Internal(db, pluginId)
 
 				for (asset in Tier3AssetWalker.walk(pluginAssets, assetPath)) {
@@ -264,6 +264,11 @@ class PluginDocumentationManager(
 				}
 
 				db.setTransactionSuccessful()
+				// Recorded here, beside the write it describes, rather than in
+				// verifyAndRecreateTier3Documentation: this function is public, and a caller that
+				// wrote generation-2 rows without stamping them would be re-detected as stale and
+				// recompressed on every activation from then on.
+				recordInstalledGeneration(pluginId)
 				Log.d(TAG, "Installed $inserted Tier 3 documents for plugin $pluginId (skipped=$skipped)")
 				true
 			} catch (e: Exception) {
@@ -271,7 +276,9 @@ class PluginDocumentationManager(
 				Log.e(TAG, "Failed to install Tier 3 docs for plugin $pluginId", e)
 				false
 			} finally {
-				db.endTransaction()
+				if (db.inTransaction()) {
+					db.endTransaction()
+				}
 				db.close()
 				pluginAssets.close()
 			}
@@ -323,11 +330,7 @@ class PluginDocumentationManager(
 				return@withContext true
 			}
 			Log.d(TAG, "Tier 3 docs missing or stale for $pluginId, installing...")
-			val installed = installPluginTier3Documentation(pluginId, plugin, pluginApkPath)
-			if (installed) {
-				recordInstalledGeneration(pluginId)
-			}
-			installed
+			installPluginTier3Documentation(pluginId, plugin, pluginApkPath)
 		}
 
 	/**
@@ -345,12 +348,14 @@ class PluginDocumentationManager(
 	 */
 	private fun installedGeneration(pluginId: String): Int = tier3Preferences().getInt(pluginId, 0)
 
+	// commit(), not apply(): this already runs on Dispatchers.IO, and losing the write to a process
+	// death would delete and recompress every one of the plugin's assets at quality 11 next launch.
 	private fun recordInstalledGeneration(pluginId: String) {
-		tier3Preferences().edit().putInt(pluginId, TIER3_COMPRESSION_GENERATION).apply()
+		tier3Preferences().edit().putInt(pluginId, TIER3_COMPRESSION_GENERATION).commit()
 	}
 
 	private fun forgetInstalledGeneration(pluginId: String) {
-		tier3Preferences().edit().remove(pluginId).apply()
+		tier3Preferences().edit().remove(pluginId).commit()
 	}
 
 	private fun tier3Preferences(): SharedPreferences = context.getSharedPreferences(TIER3_PREFS, Context.MODE_PRIVATE)
