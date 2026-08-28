@@ -45,6 +45,11 @@ object DatabaseVersionResolver {
 		LIMIT  1
 	"""
 
+	/**
+	 * Resolves the database version from the available change history.
+	 *
+	 * @return The formatted database version, or `VERSION_UNKNOWN` when version information is unavailable or an error occurs.
+	 */
 	fun resolveDatabaseVersion(db: SQLiteDatabase): String {
 		return try {
 			db.rawQuery(QUERY_WHOLEDB, arrayOf()).use { c ->
@@ -78,19 +83,9 @@ object DatabaseVersionResolver {
 	}
 
 	/**
-	 * The MAJOR version [db] declares in `DocumentationDatabaseVersion` (ADFA-5220), or null when
-	 * that table is absent, empty, or holds a NULL major -- the first of which is how every database
-	 * built before it existed identifies itself.
+	 * Resolves the database's declared major version.
 	 *
-	 * The table is contractually a single row. A file carrying several is accepted rather than
-	 * rejected -- the row with the highest `rowid` wins, so the answer stays deterministic and a
-	 * downgrade still reads as one -- and logs a warning, since this reader cannot repair the file
-	 * and refusing to serve documentation over it would be a worse outcome than serving it.
-	 *
-	 * Deliberately does *not* catch exceptions, unlike [resolveDatabaseVersion]: callers cache the
-	 * answer for the lifetime of a database (see `WebServer.loadCompressionDictionary`), so a
-	 * transient `SQLiteException` has to stay distinguishable from a definitive "no version table",
-	 * or one hiccup would pin the database at unversioned until it is swapped.
+	 * @return The newest declared major version, or `null` when the version table is absent, empty, or its newest row has a `NULL` major value.
 	 */
 	fun resolveMajorVersion(db: SQLiteDatabase): Int? {
 		val tableExists = db.rawQuery(QUERY_VERSION_TABLE_EXISTS, arrayOf()).use { it.moveToFirst() }
@@ -129,6 +124,14 @@ object DatabaseVersionResolver {
 		}
 	}
 
+	/**
+	 * Formats database change metadata into a readable version string.
+	 *
+	 * @param changeTime The recorded change timestamp.
+	 * @param who The person or process associated with the change.
+	 * @param documentationSet The documentation set associated with the change.
+	 * @return The combined version details, or [VERSION_UNKNOWN] when no details are available.
+	 */
 	private fun formatVersion(
 		changeTime: String?,
 		who: String?,
