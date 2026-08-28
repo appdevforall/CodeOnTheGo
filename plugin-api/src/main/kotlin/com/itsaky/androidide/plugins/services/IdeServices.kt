@@ -172,9 +172,39 @@ interface IdeEditorService {
 	/**
 	 * Schedules a save of the active editor tab. Runs asynchronously; a `true` return means
 	 * the save was dispatched, not that the buffer has been flushed to disk. Poll
-	 * [isFileModified] on the current file to confirm completion.
+	 * [isFileModified] on the current file to confirm completion. Prefer [saveFile] when you
+	 * know which file you want persisted - this one follows focus, which the user controls.
 	 */
 	fun saveCurrentFile(): Boolean
+
+	/**
+	 * Saves [file]'s open buffer to disk, whatever tab currently has focus, and suspends until
+	 * the write completes - unlike [saveCurrentFile], which only reports that a save was
+	 * dispatched for the focused tab.
+	 *
+	 * Await it from a coroutine on any dispatcher, the main one included: the write is
+	 * marshalled to the editor's own write thread and nothing blocks while it runs. Do not
+	 * bridge it with `runBlocking` on the main thread - `runBlocking` parks the main thread
+	 * without draining its looper, and the write resumes through the main dispatcher, so the
+	 * call would never complete. The IDE bounds its own wait, so a `withTimeout` of your own is
+	 * optional - and cannot abandon a write already in progress: once bytes start moving the
+	 * save runs to completion, so cancelling never leaves the file written but the buffer
+	 * flagged dirty.
+	 *
+	 * Returns `true` when the buffer is on disk (including "was already clean"), `false` when
+	 * the file has no open editor or the write failed. Authorization failures throw
+	 * [SecurityException] rather than returning `false`, as they do for every other write
+	 * method here: the caller lacks FILESYSTEM_WRITE, or [file] is outside the plugin's
+	 * allowed roots.
+	 *
+	 * The default body is a convenience for the host's own implementers, not a compatibility
+	 * shim: this module sets no `-Xjvm-default`, so it compiles to an abstract interface method
+	 * plus a `DefaultImpls` static rather than a Java default method. An older IDE ships an
+	 * `IdeEditorService` with no `saveFile` at all, so a call there fails with
+	 * `NoSuchMethodError`. Floor `plugin.min_ide_version` at the release that introduced this -
+	 * see PLUGIN_API_CHANGELOG.md.
+	 */
+	suspend fun saveFile(file: File): Boolean = false
 
 	fun insertTextAtCursor(text: String): Boolean
 
