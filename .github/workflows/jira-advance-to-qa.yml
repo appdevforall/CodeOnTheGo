@@ -9,7 +9,8 @@ on:
   pull_request_review:
     types: [ submitted ]
 
-permissions: { }
+permissions:
+  contents: read
 
 jobs:
   advance_to_qa:
@@ -17,7 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     # Anyone with read access to a public repo can submit an approving review.
     # Such a review does not satisfy branch protection, but it does fire this
-    # event, so restrict the automation to people who can actually merge.
+    # event. This condition is only a cheap pre-filter to avoid starting a
+    # runner for a drive-by approval; the authorization decision is the
+    # effective-permission check in the script, not the association.
     if: >-
       github.event.review.state == 'approved' &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
@@ -30,6 +33,11 @@ jobs:
         with:
           script: |
             const JIRA_BASE = 'https://appdevforall.atlassian.net';
+
+            // Node's fetch imposes no deadline on a response, so a hung or
+            // half-delivered reply would stall the job rather than fail it.
+            // Aborting routes it into the catch below, where it stays a warning.
+            const JIRA_REQUEST_TIMEOUT_MS = 30000;
 
             // Case-sensitive, in board order. Note the lowercase "review" and
             // "merge" -- Jira matches these exactly.
@@ -56,6 +64,31 @@ jobs:
             }
             const key = match[0].toUpperCase();
 
+            // author_association does not prove write access: an org member may
+            // have no access to this repo, and a collaborator may be read-only.
+            // Ask for the reviewer's effective permission instead. The legacy
+            // `permission` field reports "maintain" as "write", so those two
+            // values cover admin, maintain, and write.
+            const reviewer = review.user.login;
+            let permission;
+            try {
+              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: reviewer,
+              });
+              permission = data.permission;
+            } catch (error) {
+              // Fail closed: without a permission answer, do not touch the board.
+              core.warning(`Could not read ${reviewer}'s permission on this repository (${error.message}); leaving ${key} untouched.`);
+              return;
+            }
+
+            if (!['admin', 'write'].includes(permission)) {
+              core.info(`${reviewer} has "${permission}" permission and cannot merge; leaving ${key} untouched.`);
+              return;
+            }
+
             const email = process.env.JIRA_EMAIL;
             const token = process.env.JIRA_API_TOKEN;
             if (!email || !token) {
@@ -72,6 +105,7 @@ jobs:
                   Accept: 'application/json',
                   ...(init.body ? { 'Content-Type': 'application/json' } : {}),
                 },
+                signal: AbortSignal.timeout(JIRA_REQUEST_TIMEOUT_MS),
               });
               if (!response.ok) {
                 throw new Error(`${init.method || 'GET'} ${path} returned HTTP ${response.status}`);
@@ -124,7 +158,6 @@ jobs:
               }
 
               const trail = walked.join(' -> ');
-              const reviewer = review.user.login;
 
               await jira(`/issue/${key}/comment`, {
                 method: 'POST',
