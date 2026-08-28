@@ -100,7 +100,7 @@ class JavaModule(
 
 		getCompileModuleProjects().forEach {
 			classpaths.addAll(
-				it.getCompileClasspaths(excludeSourceGeneratedClassPath, visited)
+				it.getCompileClasspaths(excludeSourceGeneratedClassPath, visited),
 			)
 		}
 
@@ -158,9 +158,9 @@ class JavaModule(
 	): Boolean =
 		this.dependencyList.any { dependency ->
 			dependency.hasExternalLibrary() &&
-					dependency.externalLibrary.libraryInfo?.let { artifact ->
-						artifact.group == group && artifact.name == name
-					} ?: false
+				dependency.externalLibrary.libraryInfo?.let { artifact ->
+					artifact.group == group && artifact.name == name
+				} ?: false
 		}
 
 	fun getDependencyClassPaths(): Set<File> =

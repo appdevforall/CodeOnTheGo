@@ -115,6 +115,7 @@ abstract class ModuleProject(
 	 */
 	fun getCompileClasspaths(excludeSourceGeneratedClassPath: Boolean): Set<File> =
 		getCompileClasspaths(excludeSourceGeneratedClassPath, HashSet())
+
 	fun getCompileClasspaths() = getCompileClasspaths(false)
 
 	/**
@@ -153,8 +154,7 @@ abstract class ModuleProject(
 	 * Get the list of module projects with compile scope. This includes transitive module projects as
 	 * well.
 	 */
-	fun getCompileModuleProjects(): List<ModuleProject> =
-		getCompileModuleProjects(HashSet(), ArrayDeque())
+	fun getCompileModuleProjects(): List<ModuleProject> = getCompileModuleProjects(HashSet(), ArrayDeque())
 
 	/**
 	 * Get the list of module projects with compile scope (including transitive ones), guarding against
@@ -185,7 +185,10 @@ abstract class ModuleProject(
 	 * @param recursionPath The current DFS path of module paths.
 	 * @param repeated The module path that was found to already be on [recursionPath].
 	 */
-	protected fun reportDependencyCycle(recursionPath: ArrayDeque<String>, repeated: String) {
+	protected fun reportDependencyCycle(
+		recursionPath: ArrayDeque<String>,
+		repeated: String,
+	) {
 		log.error(
 			"Module dependency cycle detected: {}. Breaking the cycle to keep the IDE responsive; " +
 				"the project's module/classpath graph may be incomplete until you remove one of these " +

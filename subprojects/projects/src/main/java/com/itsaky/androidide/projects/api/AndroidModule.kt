@@ -83,8 +83,7 @@ open class AndroidModule(
 
 	override fun getClassPaths(): Set<File> = getModuleClasspaths()
 
-	fun getVariant(name: String): AndroidModels.AndroidVariant? =
-		variantList.firstOrNull { it.name == name }
+	fun getVariant(name: String): AndroidModels.AndroidVariant? = variantList.firstOrNull { it.name == name }
 
 	fun getResourceDirectories(): Set<File> {
 		if (mainSourceSet == null) {
@@ -159,7 +158,7 @@ open class AndroidModule(
 			// 	But they're also kind-of not and are required for resolving R.* symbols
 			// 	Should we instead split this API into more fine-tuned getters?
 			result.addAll(
-				getSelectedVariant()?.mainArtifact?.classJars ?: emptyList()
+				getSelectedVariant()?.mainArtifact?.classJars ?: emptyList(),
 			)
 		} else {
 			result.addAll(getModuleClasspaths())
@@ -187,17 +186,20 @@ open class AndroidModule(
 
 		val javaClassesDir = File(buildDirectory, "intermediates/javac/$variant")
 		if (javaClassesDir.exists()) {
-			javaClassesDir.walkTopDown()
+			javaClassesDir
+				.walkTopDown()
 				.filter { it.name == "classes" && it.isDirectory }
 				.forEach { result.add(it) }
 		}
 
-		val rClassDir = File(
-			buildDirectory,
-			"intermediates/compile_and_runtime_not_namespaced_r_class_jar/$variant"
-		)
+		val rClassDir =
+			File(
+				buildDirectory,
+				"intermediates/compile_and_runtime_not_namespaced_r_class_jar/$variant",
+			)
 		if (rClassDir.exists()) {
-			rClassDir.walkTopDown()
+			rClassDir
+				.walkTopDown()
 				.filter { it.name == "R.jar" && it.isFile }
 				.forEach { result.add(it) }
 		}
@@ -213,13 +215,14 @@ open class AndroidModule(
 		log.info(
 			"getRuntimeDexFiles: buildDir={}, variant={}",
 			buildDirectory.absolutePath,
-			variant
+			variant,
 		)
 
 		val dexDir = File(buildDirectory, "intermediates/dex/$variant")
 		log.info("  Checking dexDir: {} (exists: {})", dexDir.absolutePath, dexDir.exists())
 		if (dexDir.exists()) {
-			dexDir.walkTopDown()
+			dexDir
+				.walkTopDown()
 				.filter { it.name.endsWith(".dex") && it.isFile }
 				.forEach {
 					log.info("    Found DEX: {}", it.absolutePath)
@@ -231,10 +234,11 @@ open class AndroidModule(
 		log.info(
 			"  Checking project_dex_archive: {} (exists: {})",
 			mergeProjectDexDir.absolutePath,
-			mergeProjectDexDir.exists()
+			mergeProjectDexDir.exists(),
 		)
 		if (mergeProjectDexDir.exists()) {
-			mergeProjectDexDir.walkTopDown()
+			mergeProjectDexDir
+				.walkTopDown()
 				.filter { it.name.endsWith(".dex") && it.isFile }
 				.forEach {
 					log.info("    Found DEX: {}", it.absolutePath)
@@ -286,11 +290,13 @@ open class AndroidModule(
 					result.addAll(module.getCompileClasspaths(excludeSourceGeneratedClassPath, moduleVisited))
 				}
 
-				lib.type == AndroidModels.LibraryType.ExternalAndroidLibrary && lib.hasAndroidLibraryData() ->
+				lib.type == AndroidModels.LibraryType.ExternalAndroidLibrary && lib.hasAndroidLibraryData() -> {
 					result.addAll(lib.androidLibraryData.compileJarFiles)
+				}
 
-				lib.type == AndroidModels.LibraryType.ExternalJavaLibrary && lib.hasArtifactPath() ->
+				lib.type == AndroidModels.LibraryType.ExternalJavaLibrary && lib.hasArtifactPath() -> {
 					result.add(lib.artifact)
+				}
 			}
 
 			collectLibraries(
@@ -652,6 +658,5 @@ open class AndroidModule(
 		return variant
 	}
 
-	private fun getPlatformDir() =
-		bootClassPaths.firstOrNull { it.name == "android.jar" }?.parentFile
+	private fun getPlatformDir() = bootClassPaths.firstOrNull { it.name == "android.jar" }?.parentFile
 }
