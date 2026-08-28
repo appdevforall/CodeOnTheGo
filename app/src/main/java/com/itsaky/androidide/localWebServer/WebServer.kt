@@ -4,38 +4,25 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import android.os.Environment.getExternalStorageDirectory
-import com.aayushatharva.brotli4j.Brotli4jLoader
-import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import com.google.gson.ToNumberPolicy
 import com.google.gson.annotations.SerializedName
-import com.google.gson.reflect.TypeToken
+import com.itsaky.androidide.documentation.DocumentationContent
+import com.itsaky.androidide.documentation.DocumentationContentSource
+import com.itsaky.androidide.documentation.DocumentationLookup
+import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
 import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.DatabaseVersionResolver
-import io.pebbletemplates.pebble.PebbleEngine
-import io.pebbletemplates.pebble.loader.StringLoader
-import io.pebbletemplates.pebble.template.PebbleTemplate
-import okio.ByteString.Companion.toByteString
 import org.slf4j.LoggerFactory
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.PrintWriter
-import java.io.SequenceInputStream
-import java.io.StringWriter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
-import java.nio.ByteBuffer
-import java.sql.Date
-import java.text.SimpleDateFormat
-import java.util.Collections
-import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
@@ -59,6 +46,9 @@ data class ServerConfig(
 			"/Download/CodeOnTheGo.webserver.cs0",
 	// Yes, this is hack code.
 	val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database",
+	// ADFA-5175: how often the sdcard debug database may be stat'ed. It lives on FUSE-backed
+	// emulated storage, and it is a developer-only override, so once a second is plenty.
+	val debugDatabaseCheckIntervalMs: Long = 1000,
 )
 
 /**
@@ -104,47 +94,11 @@ data class JavaExecutionResult(
 	val timeoutLimit: Long,
 )
 
-/**
- * Copies [bytes] into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
- * buffer, a heap-backed one throws `IllegalArgumentException`.
- *
- * The capacity must be exactly [bytes]`.size`: `attachDictionary` reads the whole capacity and
- * ignores position/limit, so trailing slack from an over-allocated buffer is treated as dictionary
- * content and every decode then fails with `IOException: corrupted input`.
- */
-internal fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
-	ByteBuffer.allocateDirect(bytes.size).apply {
-		put(bytes)
-		flip()
-	}
-
-/**
- * Reads [chunks] back to back as one stream, without concatenating them into a new array.
- * Cheap to build twice, which the no-dictionary retry in `decompressBrotli` relies on.
- */
-internal fun chunksAsStream(chunks: List<ByteArray>): InputStream =
-	SequenceInputStream(Collections.enumeration(chunks.map { ByteArrayInputStream(it) }))
-
-/**
- * Joins [chunks] into one exactly-sized array. A ByteArrayOutputStream would repeatedly double its
- * buffer and then hand back a second full copy -- avoidable here since the total is known up front.
- * Returns the sole element as-is when there is nothing to join.
- */
-internal fun joinChunks(chunks: List<ByteArray>): ByteArray {
-	if (chunks.size == 1) {
-		return chunks[0]
-	}
-	val joined = ByteArray(chunks.sumOf { it.size })
-	var offset = 0
-	for (chunk in chunks) {
-		chunk.copyInto(joined, offset)
-		offset += chunk.size
-	}
-	return joined
-}
-
 class WebServer(
 	private val config: ServerConfig,
+	// Seam for the accept-retry tests, which drive thousands of simulated failures and must not
+	// actually sleep for them. Production always gets Thread.sleep.
+	internal val sleepMs: (Long) -> Unit = { Thread.sleep(it) },
 ) {
 	// Guards serverSocket's creation/bind (in start(), on a background thread) against a
 	// concurrent close (in stop(), typically from the main thread on Activity#onDestroy()).
@@ -153,31 +107,28 @@ class WebServer(
 	// socket then binds anyway a moment later, orphaned, and holds the port until the process
 	// dies. The next start() attempt on that port then fails with "Address already in use."
 	private val lifecycleLock = Any()
+
+	// The one pipeline that reads documentation.db (ADFA-5176): row lookup, chunk reassembly,
+	// dictionary-aware Brotli decode, and the sdcard debug-database swap. A WebView answers the
+	// same paths through its own instance in DocumentationRequestInterceptor.
+	private val contentSource =
+		DocumentationContentSource(
+			File(config.databasePath),
+			File(config.debugDatabasePath),
+			config.debugDatabaseCheckIntervalMs,
+		)
+
+	// @Volatile: written under lifecycleLock by stop(), but read by the accept loop without it --
+	// see acceptLoop, which has to see a stop that happened on another thread.
+	//
+	// Never cleared, deliberately: a stop that arrives before the socket is bound has to keep
+	// start() from binding an orphaned listener, so this is one-way and a stopped instance is
+	// finished. Restarting means a new WebServer, which is what MainActivity.startWebServer does
+	// -- it constructs one per start. stop() then start() on the same instance is not a recovery
+	// path and never was.
+	@Volatile
 	private var stopRequested = false
 	private lateinit var serverSocket: ServerSocket
-	private lateinit var database: SQLiteDatabase
-	private var databaseTimestamp: Long = -1
-
-	// Timestamp of a debug database whose swap already failed, so a corrupt or unreadable one
-	// isn't reopened on every single request (it is checked per request). A newer copy has a
-	// different timestamp and is retried, which is the case that matters -- the developer
-	// replacing the file is exactly how they'd fix it.
-	private var failedDebugSwapTimestamp: Long = -1
-
-	// The shared dictionary Content's brotli-compressed rows are compressed against (see
-	// ADFA-5153). Lazily (re)loaded on demand, right before the first content fetch that needs
-	// it after `database` changes -- see compressionDictionaryStale -- rather than eagerly at
-	// database-open/swap time, but still cached (not reloaded per-request) once loaded for the
-	// currently active database. Null (no dictionary attached, plain-brotli decode) unless the
-	// active database declares MAJOR >= MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY in ADFA-5220's
-	// version table.
-	private var compressionDictionary: ByteBuffer? = null
-
-	// Set whenever `database` changes (see switchToDatabase); cleared once compressionDictionary
-	// has been (re)loaded for that database. Lets the dictionary stay lazily loaded -- only right
-	// before the first content fetch that actually needs it -- while still loading at most once
-	// per database change rather than once per request.
-	private var compressionDictionaryStale = true
 	private val log = LoggerFactory.getLogger(WebServer::class.java)
 	private val debugEnabled: Boolean = File(config.debugEnablePath).exists()
 
@@ -187,208 +138,73 @@ class WebServer(
 
 	// Frozen at startup; restart the server to pick up a change.
 	private val clearCacheEnabled: Boolean = File(config.clearCacheEnablePath).exists()
-	private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
-	private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
+
+	// Serializes the bookshelf payload only; the template contexts read from the database are
+	// deserialized by DocumentationContentSource's own gson.
 	private val gson: Gson =
 		GsonBuilder()
-			.setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
 			// JSON_OBJECT emitted "description": null for a null column, and the bookshelf template
 			// was written against that; gson would drop the key entirely by default.
 			.serializeNulls()
 			.create()
-	private val dbContextType = object : TypeToken<Map<String, Any>>() {}.type
 
+	// -1 means "not fetched yet". Volatile because the WebView transport shares this server's
+	// process, and the interceptor's reads can run on WebView threads while the accept loop writes.
+	@Volatile
 	private var bookshelfTemplateId: Int = -1
+
+	private val cacheLock = Any()
+
+	// Which of the source's databases bookshelfTemplateId was filled from. The compiled templates
+	// themselves live in the source and are dropped by its own swap.
+	@Volatile
+	private var cachedDatabaseGeneration = 0L
+
+	// Long enough to stop a descriptor-exhaustion spin starving the connections whose closing would
+	// fix it; short enough to be invisible to a user, and never paid on a successful accept.
+	private val initialAcceptBackoffMs = 50L
+
+	// Doubling from 50 ms, the interval reaches this in eight failures, so a failure that persists
+	// costs well under a line a second instead of twenty. That is what bounds the log volume; an
+	// earlier version capped the retries instead and gave up after twenty, which closed the listener
+	// and the database and left documentation dead for the rest of the process -- the ADFA-5242
+	// symptom, delayed by a second. A listener that cannot accept now keeps trying: the descriptor
+	// pressure that causes this comes from the rest of the process (Gradle, Termux, the editor) and
+	// clears on its own timescale, not ours.
+	private val maxAcceptBackoffMs = 2_000L
+
+	// Retries between heartbeat lines once the interval stops growing: 15 x 2 s is one line every
+	// 30 seconds while a failure persists.
+	private val acceptHeartbeatRetries = 15L
+
 	private val httpInternalServerError = 500
 	private val httpNotFound = 404
 
-	private val contentChunkSize = 1024 * 1024
+	// Hal Eisen: required to fix StrictMode.VmPolicy.Builder.detectUntaggedSockets().
+	private val socketStatsTag = 0xC0DE
 
 	/** Where a book whose category row has no label is filed (see [readBookshelf]). */
 	private val uncategorizedLabel = "General"
 
-	// function to obtain the last modified date of a documentation.db database
-	// this is used to see if there is a newer version of the database on the sdcard
-	fun getDatabaseTimestamp(
-		pathname: String,
-		silent: Boolean = false,
-	): Long {
-		val dbFile = File(pathname)
-		var timestamp: Long = -1
-
-		if (dbFile.exists()) {
-			timestamp = dbFile.lastModified()
-
-			if (!silent) {
-				val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-
-				if (debugEnabled) log.debug("{} was last modified at {}.", pathname, dateFormat.format(Date(timestamp)))
-			}
-		}
-
-		return timestamp
-	}
-
+	/**
+	 * Logs the most recent documentation database change information.
+	 */
 	fun logDatabaseLastChanged() {
 		try {
-			log.debug("Database last change: {}.", DatabaseVersionResolver.resolveDatabaseVersion(database))
+			log.debug(
+				"Database last change: {}.",
+				contentSource.withDatabase { DatabaseVersionResolver.resolveDatabaseVersion(it) },
+			)
 		} catch (e: Exception) {
 			log.error("Could not retrieve database last change info: {}", e.message)
 		}
 	}
 
 	/**
-	 * Loads the shared Brotli dictionary most Content rows are compressed against (see ADFA-5153).
-	 * Returns null (logged) when the database *definitively* has no dictionary -- so callers fall
-	 * back to plain, dictionary-free brotli decode (see [decompressBrotli]).
+	 * Requests server shutdown and closes the listening socket when it is available.
 	 *
-	 * The gate is the MAJOR version the database declares in ADFA-5220's version table, not the
-	 * presence of a `CompressionDictionary` table: table sniffing infers a whole content format
-	 * from one table's existence, and gets it wrong in both directions -- a database carrying the
-	 * table but *unmigrated* content makes every plain row pay a failed dictionary decode before
-	 * its plain one, on every request. Below
-	 * [DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY] the dictionary is neither
-	 * read nor attached.
-	 *
-	 * The `CompressionDictionary` checks below still run, for a database that declares a new-enough
-	 * version but has no usable dictionary row: without them the data query would raise "no such
-	 * table", which the caller correctly reads as transient and would then retry on every request.
-	 *
-	 * Deliberately does *not* catch exceptions itself: an unexpected `SQLiteException`/IO failure is
-	 * likely transient, and the caller (see [handleClient]) must not cache that as "no dictionary"
-	 * the way it does a definitive absence, or a transient failure would permanently disable
-	 * dictionary decoding for the rest of this database's lifetime.
-	 */
-	private fun loadCompressionDictionary(db: SQLiteDatabase): ByteBuffer? {
-		val majorVersion = DatabaseVersionResolver.resolveMajorVersion(db)
-		if (majorVersion == null || majorVersion < DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY) {
-			log.warn(
-				"Database declares documentation version {}, below {}; decoding brotli content without a dictionary.",
-				majorVersion ?: "none",
-				DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY,
-			)
-			return null
-		}
-
-		val tableExists =
-			db
-				.rawQuery(
-					"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
-					null,
-				).use { it.moveToFirst() }
-		if (!tableExists) {
-			log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
-			return null
-		}
-
-		return db.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
-			if (!cursor.moveToFirst()) {
-				log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
-				return null
-			}
-			val bytes = cursor.getBlob(0)
-			if (bytes == null) {
-				log.warn("CompressionDictionary row has a NULL data column; decoding brotli content without a dictionary.")
-				return null
-			}
-			// An empty blob would yield a 0-capacity buffer, which attachDictionary rejects --
-			// every row's dictionary decode would then fail with nothing above DEBUG to say why.
-			if (bytes.isEmpty()) {
-				log.warn("CompressionDictionary row has an empty data column; decoding brotli content without a dictionary.")
-				return null
-			}
-			toDirectByteBuffer(bytes)
-		}
-	}
-
-	/**
-	 * Opens [path] as the active database, refreshing every piece of state that depends on which
-	 * database file is active -- [databaseTimestamp] and the per-database caches
-	 * [bookshelfTemplateId]/[templateCache] -- as one atomic operation. Does *not* load
-	 * [compressionDictionary] itself -- a different database can have a different dictionary (or
-	 * none) -- it only marks [compressionDictionaryStale] so the next content fetch that needs it
-	 * loads it lazily then (see [handleClient]), at most once per database change rather than
-	 * once per request. Only closes the previous database once the new one has opened
-	 * successfully, so a failed swap (this throws) leaves the previous, still-open database
-	 * serving requests rather than leaving [database] referencing an already-closed handle.
-	 */
-	private fun switchToDatabase(
-		path: String,
-		timestamp: Long,
-	) {
-		val newDatabase = SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READONLY)
-		if (::database.isInitialized) {
-			try {
-				database.close()
-			} catch (e: Exception) {
-				log.error("Cannot close previous database: {}", e.message)
-			}
-		}
-		database = newDatabase
-		databaseTimestamp = timestamp
-		compressionDictionaryStale = true
-		bookshelfTemplateId = -1
-		templateCache.clear()
-	}
-
-	/**
-	 * Loads brotli4j's native library if nothing else has yet, and turns its absence into a failed
-	 * request rather than a dead app.
-	 *
-	 * Nothing here owns that load: it happens as a side effect of `AssetsInstallationHelper`'s
-	 * install or `ToolsManager`'s tooling-jar update, neither of which runs on an ordinary cold
-	 * start. A process that skips both -- Android restarting the app straight into the editor, say --
-	 * reaches the first brotli row with the natives unregistered, and `DecoderJNI.nativeCreate`
-	 * raises `UnsatisfiedLinkError`. Being an Error rather than an Exception, that escapes
-	 * [handleClient]'s catch and kills the app from a coroutine worker instead of failing one
-	 * request (observed on-device, 20-Aug).
-	 *
-	 * Referencing [Brotli4jLoader] triggers the static init that performs the load, so this call is
-	 * the warm-up; afterwards `ensureAvailability` is a single static null-check, cheap enough to
-	 * leave on the per-decode path rather than tracking "warmed" state of our own.
-	 */
-	private fun ensureBrotliAvailable() {
-		try {
-			Brotli4jLoader.ensureAvailability()
-		} catch (e: UnsatisfiedLinkError) {
-			throw IOException("brotli4j's native library is unavailable, so brotli content cannot be decoded", e)
-		}
-	}
-
-	/**
-	 * Decompresses one Brotli-compressed Content row. Tries the shared dictionary first, since every
-	 * ADFA-5153-migrated row requires it, then falls back to a plain decode for rows that were never
-	 * dictionary-compressed: plugin-contributed Tier 3 docs (PluginDocumentationManager/BrotliCompressor
-	 * compress with no dictionary) or any row served from a pre-migration database. Attaching a
-	 * dictionary to a stream that wasn't compressed against one reliably fails to decode rather than
-	 * silently producing wrong bytes (verified empirically -- see docs/documentation-database.md), so
-	 * this ordering never lets a dictionary-compressed row fall through to the plain path by accident.
-	 */
-	private fun decompressBrotli(chunks: List<ByteArray>): ByteArray {
-		ensureBrotliAvailable()
-		val dictionary = compressionDictionary
-		if (dictionary != null) {
-			try {
-				return BrotliInputStream(chunksAsStream(chunks)).use { stream ->
-					stream.attachDictionary(dictionary)
-					stream.readBytes()
-				}
-			} catch (e: IOException) {
-				log.debug(
-					"Dictionary decode failed for a brotli row (likely dictionary-free plugin content); retrying without a dictionary: {}",
-					e.message,
-				)
-			}
-		}
-		return BrotliInputStream(chunksAsStream(chunks)).use { it.readBytes() }
-	}
-
-	/**
-	 * Stops the server by closing the listening socket. Safe to call from any thread.
-	 * Causes [start]'s accept loop to exit. If [start] hasn't bound the socket yet --
-	 * including if it hasn't been called at all -- this still records that a stop was
-	 * requested, so [start] aborts before binding instead of leaving an orphaned,
-	 * unstoppable listener; only the socket-close side of shutdown is a no-op then.
+	 * Records the shutdown request even if the server has not started, preventing a later
+	 * startup from binding the socket.
 	 */
 	fun stop() {
 		synchronized(lifecycleLock) {
@@ -402,9 +218,159 @@ class WebServer(
 		}
 	}
 
+	/**
+	 * Accepts connections on [socket] until it closes.
+	 *
+	 * Extracted from [start] so ADFA-5242's retry path can be driven by a socket whose accept()
+	 * fails: the rest of start() needs a live Android runtime -- TrafficStats, SQLite -- and this
+	 * loop needs neither. The bug it fixes was invisible precisely because nothing could reach here.
+	 */
+	internal fun acceptLoop(socket: ServerSocket) {
+		// 0 means accept() has been succeeding; any other value is the interval the next retry waits.
+		var backoffMs = 0L
+		// Retries spent at the ceiling, so a failure that never clears keeps saying so. Without this
+		// the escalation log went silent for good once the interval stopped changing.
+		var retriesAtCeiling = 0L
+		// Checked in the loop head, not only in the catch: stop() logs and swallows a throwing
+		// serverSocket.close(), which leaves closed == false, so accept() kept succeeding and the loop
+		// served on past a requested shutdown, holding the database open (ADFA-5242 review).
+		while (!shouldStopAccepting(socket)) {
+			val client =
+				try {
+					if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", socket)
+					socket.accept().also {
+						// Halved, not zeroed. Zeroing made every failure "the first of a burst", so an
+						// intermittent one -- a client that RSTs between SYN and accept(), which a WebView
+						// cancelling a request produces routinely -- logged a full stack trace and stalled
+						// the listener 50 ms every single time. That is the flood the backoff exists to
+						// stop. Decaying means a flapping listener keeps most of its interval and a
+						// genuinely recovered one is back to zero within a few accepts.
+						backoffMs = if (backoffMs <= initialAcceptBackoffMs) 0L else backoffMs / 2
+						// Reset on every success, not only once the interval reaches zero. The counter
+						// means "consecutive retries at the ceiling", and an accept that succeeds ends
+						// that run whatever the interval still is. Clearing it only at zero left a stale
+						// count behind: at the ceiling with 14 retries banked, one success then a return
+						// to the ceiling fired the heartbeat on the next retry instead of the fifteenth.
+						retriesAtCeiling = 0L
+						if (debugEnabled) log.debug("Returned from accept(), clientSocket is {}.", it)
+					}
+				} catch (e: IOException) {
+					// IOException, not SocketException: accept() is declared to throw the wider type, and
+					// "Too many open files" arrives as a bare IOException. Catching only the subtype let
+					// that one unwind to start()'s outermost handler, whose finally closes the listening
+					// socket and the database (ADFA-5242).
+					if (debugEnabled) log.debug("Caught IOException from accept().", e)
+
+					if (shouldStopAccepting(socket)) {
+						if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
+						break
+					}
+
+					val previous = backoffMs
+					backoffMs =
+						if (previous == 0L) {
+							initialAcceptBackoffMs
+						} else {
+							minOf(previous * 2, maxAcceptBackoffMs)
+						}
+					// The stack trace goes out once per burst, on the first failure. Repeats say only
+					// that it is still failing, and only when the interval changes: nineteen identical
+					// traces told nobody anything the first one had not. They do carry e.toString()
+					// rather than e.message, so the type is still there -- a burst can change cause
+					// mid-flight (EMFILE giving way to ECONNABORTED), and message alone is null for
+					// some IOExceptions, which logged a bare "null".
+					if (previous == 0L) {
+						log.error("Accept() failed, retrying in {} ms: {}", backoffMs, e.message, e)
+						retriesAtCeiling = 0L
+					} else if (backoffMs != previous) {
+						log.error("Accept() still failing, backing off to {} ms: {}", backoffMs, e.toString())
+					} else {
+						// At the ceiling the interval stops changing, so neither branch above fires again.
+						// A heartbeat roughly every 30 s keeps a permanent failure visible without
+						// returning to a line per retry -- the loop never gives up, so the log must not
+						// either.
+						retriesAtCeiling++
+						if (retriesAtCeiling % acceptHeartbeatRetries == 0L) {
+							log.error(
+								"Accept() still failing after {} retries at {} ms: {}",
+								retriesAtCeiling,
+								backoffMs,
+								e.toString(),
+							)
+						}
+					}
+
+					if (!pauseAfterFailedAccept(backoffMs)) {
+						log.info("Accept loop interrupted while backing off; shutting down.")
+						break
+					}
+					continue
+				}
+
+			// A client cannot be allowed to end the loop: anything escaping here reaches start()'s
+			// handler, whose finally closes the listener and the database for everyone.
+			//
+			// Throwable, not Exception. joinChunks allocates the whole row in one array (1 MB per
+			// chunk) and Pebble renders recursively, so one large row can raise OutOfMemoryError and a
+			// pathological template a StackOverflowError -- neither an Exception, both fatal to the
+			// listener through exactly the path this ticket exists to close.
+			try {
+				serveThenClose(client)
+			} catch (e: Throwable) {
+				log.error("Serving a client threw past its own handler; the listener stays up: {}", e.message, e)
+			}
+		}
+	}
+
+	/** Serves one connection and closes it, whatever happened. */
+	private fun serveThenClose(client: Socket) {
+		try {
+			handleClient(client)
+		} catch (e: Exception) {
+			reportClientFailure(client, e)
+		} finally {
+			// close() is declared to throw, and a client that reset mid-response makes it do so. That
+			// exception used to leave this function -- from a finally, so it replaced any in-flight one
+			// -- and unwound past the accept loop into start(), taking the listener and the database
+			// down with it. "Whatever happened" includes this.
+			try {
+				client.close()
+			} catch (e: IOException) {
+				if (debugEnabled) log.debug("Cannot close the client socket; it is being discarded anyway.", e)
+			}
+			if (debugEnabled) log.debug("clientSocket was {}.", client)
+		}
+	}
+
+	/** A client that went wrong: a disconnect is unremarkable, anything else earns a 500 if it can. */
+	private fun reportClientFailure(
+		client: Socket,
+		e: Exception,
+	) {
+		if (debugEnabled) log.debug("Caught exception while handling a client.", e)
+
+		if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
+			if (debugEnabled) log.debug("Client disconnected: {}", e.message)
+			return
+		}
+		log.error("Error handling client: {}", e.message, e)
+		try {
+			val output = client.outputStream
+
+			sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
+		} catch (e2: Exception) {
+			log.error("Error sending error response: {}", e2.message, e2)
+		}
+	}
+
+	/**
+	 * Starts the server, accepts client connections, and serves requests until shutdown.
+	 *
+	 * Opens the documentation source and binds the configured address. If startup fails,
+	 * the error is logged and allocated resources are released.
+	 */
 	fun start() {
-		//  Hal Eisen: Required to fix StrictMode.VmPolicy.Builder.detectUntaggedSockets()
-		TrafficStats.setThreadStatsTag(0xC0DE)
+		TrafficStats.setThreadStatsTag(socketStatsTag)
 		try {
 			log.info(
 				"Starting WebServer on {}, port {}, debugEnabled={}, debugEnablePath='{}', " +
@@ -419,7 +385,7 @@ class WebServer(
 			)
 
 			try {
-				switchToDatabase(config.databasePath, getDatabaseTimestamp(config.databasePath))
+				contentSource.open()
 			} catch (e: Exception) {
 				log.error("Cannot open database: {}", e.message)
 				return
@@ -438,77 +404,76 @@ class WebServer(
 			}
 			log.info("WebServer started successfully on '{}', port {}.", config.bindName, config.port)
 
-			while (true) {
-				var clientSocket: Socket? = null
-				try {
-					try {
-						if (debugEnabled) log.debug("About to call accept() on the server socket, {}.", serverSocket)
-						clientSocket = serverSocket.accept()
-
-						if (debugEnabled) log.debug("Returned from socket accept(), clientSocket is {}.", clientSocket)
-					} catch (e: java.net.SocketException) {
-						// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-						if (debugEnabled) log.debug("Caught java.net.SocketException '$e'.")
-
-						if (e.message?.contains("Closed", ignoreCase = true) == true) {
-							if (debugEnabled) log.debug("WebServer socket closed, shutting down.")
-							break
-						}
-						log.error("Accept() failed: {}", e.message)
-						continue
-					}
-					try {
-						clientSocket?.let { handleClient(it) }
-					} catch (e: Exception) {
-						// SLF4J placeholders produce wrong formatting here. --DS, 23-Feb-2026
-						if (debugEnabled) log.debug("Caught exception '$e'.")
-
-						if (e is java.net.SocketException && e.message?.contains("Closed", ignoreCase = true) == true) {
-							if (debugEnabled) log.debug("Client disconnected: {}", e.message)
-						} else {
-							log.error("Error handling client: {}", e.message)
-							clientSocket?.let { socket ->
-								try {
-									val output = socket.outputStream
-
-									sendError(PrintWriter(output, true), output, httpInternalServerError, "Internal Server Error 1")
-								} catch (e2: Exception) {
-									log.error("Error sending error response: {}", e2.message)
-								}
-							}
-						}
-					}
-				} finally {
-					clientSocket?.close()
-
-					// CodeRabbit objects to the following line because clientSocket may print out as "null." This is intentional. --DS
-					if (debugEnabled) log.debug("clientSocket was {}.", clientSocket)
-				}
-			}
+			acceptLoop(serverSocket)
 		} catch (e: Exception) {
-			log.error("Error: {}", e.message)
+			log.error("WebServer stopped on an unhandled exception: {}", e.message, e)
 		} finally {
 			if (::serverSocket.isInitialized) {
-				serverSocket.close()
-			}
-			// database is opened before the stopRequested check that can abort start()
-			// early (and before the accept loop on every other exit path), so it must be
-			// closed here too, not just serverSocket -- isInitialized guards the case
-			// where opening it above failed and this finally still runs.
-			if (::database.isInitialized) {
+				// Guarded for the same reason serveThenClose guards the client socket: close() is
+				// declared to throw, and a throw here skipped database.close() and the traffic-stats
+				// tag below, leaving the SQLite handle open for the life of the process.
 				try {
-					database.close()
-				} catch (e: Exception) {
-					log.error("Cannot close database: {}", e.message)
+					serverSocket.close()
+				} catch (e: IOException) {
+					log.error("Cannot close the server socket: {}", e.message, e)
 				}
 			}
+
+			// The source is opened before the stopRequested check that can abort start() early (and
+			// before the accept loop on every other exit path), so it has to be closed here too,
+			// not just serverSocket. Closing an unopened source is a no-op, and it closes under its
+			// own write lock, so a read in flight on another thread -- a WebView's, through the
+			// interceptor's separate source -- finishes before any handle goes.
+			contentSource.close()
 			TrafficStats.clearThreadStatsTag()
 		}
 	}
 
 	/**
-	 * Reads a single line from the stream (bytes until newline). Same stream is used for headers
-	 * and body so POST body bytes are not lost to a separate buffered reader. HTTP header lines are ASCII.
+	 * Whether an accept failure means the server is shutting down rather than having hit something
+	 * transient. `ServerSocket.accept()` is declared to throw `IOException`, of which
+	 * `SocketException` is one subtype, so only the listening socket closing ends the loop --
+	 * everything else, a `SocketTimeoutException` or a descriptor-exhaustion `IOException` included,
+	 * is retried. Getting this wrong is bad in a different way each way round: treating a transient
+	 * failure as terminal stops serving documentation until the app restarts, and treating the close
+	 * as transient spins the loop against a dead socket.
+	 *
+	 * Decided from state, not from the exception's message, which would spin forever against a
+	 * platform that worded a closed socket differently. [stopRequested] is what carries the decision:
+	 * libcore's [ServerSocket.close] calls `impl.close()` *before* setting its closed flag, so
+	 * accept() can unblock while [ServerSocket.isClosed] is still false, and [stop] sets
+	 * [stopRequested] before closing for exactly that reason. `isClosed` is the belt to that braces
+	 * -- it also covers a close that did not come through [stop] at all.
+	 */
+	internal fun shouldStopAccepting(socket: ServerSocket): Boolean = stopRequested || socket.isClosed
+
+	/**
+	 * Waits [delayMs] before the next accept() attempt, so a persistent failure cannot spin this loop
+	 * at full tilt while it clears. Only the failure path ever waits.
+	 *
+	 * "Too many open files" is the realistic cause, and it is not this server's own doing:
+	 * [handleClient] runs inline on this thread, so exactly one client socket is ever open and the
+	 * listener holds two descriptors in total. The pressure comes from the rest of the process --
+	 * Gradle, Termux, the editor -- and clears on its timescale, which is why the interval escalates
+	 * rather than the retries running out.
+	 *
+	 * Returns false if the wait was interrupted, which the caller must treat as shutdown: re-arming
+	 * the flag and carrying on made every later sleep throw at once, turning the backoff into a hot
+	 * spin -- the opposite of its purpose.
+	 */
+	private fun pauseAfterFailedAccept(delayMs: Long): Boolean =
+		try {
+			sleepMs(delayMs)
+			true
+		} catch (e: InterruptedException) {
+			Thread.currentThread().interrupt()
+			false
+		}
+
+	/**
+	 * Reads an HTTP header line from the input stream.
+	 *
+	 * @return The line decoded as ISO-8859-1 without its line terminator, or `null` if the stream ends before any data is read.
 	 */
 	private fun readLineFromStream(input: InputStream): String? {
 		val baos = ByteArrayOutputStream()
@@ -523,11 +488,12 @@ class WebServer(
 		return String(bytes, 0, len, Charsets.ISO_8859_1)
 	}
 
+	/**
+	 * Parses an HTTP request and routes supported GET requests to the appropriate handler.
+	 *
+	 * Malformed request lines receive a 400 response, while unsupported methods receive a 501 response.
+	 */
 	private fun handleClient(clientSocket: Socket) {
-		// Whether the client has already been told 200. Read by the error path, which must not put a
-		// second status line on a response that has already started (see the assignment below).
-		var responseStarted = false
-
 		if (debugEnabled) log.debug("In handleClient(), socket is {}.", clientSocket)
 
 		val input = clientSocket.getInputStream()
@@ -581,22 +547,44 @@ class WebServer(
 			return sendError(writer, output, 501, "Not Implemented")
 		}
 
-		// check to see if there is a newer version of the documentation.db database on the sdcard
-		// if there is use that for our responses
-		val debugDatabaseTimestamp = getDatabaseTimestamp(config.debugDatabasePath, true)
-		if (debugDatabaseTimestamp > databaseTimestamp && debugDatabaseTimestamp != failedDebugSwapTimestamp) {
-			try {
-				switchToDatabase(config.debugDatabasePath, debugDatabaseTimestamp)
-				failedDebugSwapTimestamp = -1
-			} catch (e: Exception) {
-				failedDebugSwapTimestamp = debugDatabaseTimestamp
-				log.error(
-					"Cannot swap to debug database '{}'; ignoring it until it changes: {}",
-					config.debugDatabasePath,
-					e.message,
-				)
-			}
+		// serveRequest applies any pending sdcard debug-database swap via the content source.
+		serveRequest(writer, output, path)
+	}
+
+	/**
+	 * Invalidates the cached bookshelf template identifier when the documentation database changes.
+	 */
+	private fun discardCachesIfDatabaseChanged() {
+		// Apply any pending swap first. The source swaps inside lookup()/withDatabase(), so checking
+		// the generation before those runs reads the generation from before the swap: on the very
+		// request that swaps, this would leave bookshelfTemplateId pointing at the previous
+		// database's template row -- rendering the old bookshelf, or 500ing if that id is absent.
+		contentSource.refreshDatabase()
+
+		if (contentSource.generation == cachedDatabaseGeneration) return
+
+		synchronized(cacheLock) {
+			val generation = contentSource.generation
+			if (generation == cachedDatabaseGeneration) return
+
+			bookshelfTemplateId = -1
+			cachedDatabaseGeneration = generation
 		}
+	}
+
+	/**
+	 * Serves a parsed request using the appropriate diagnostic endpoint or documentation content.
+	 *
+	 * @param writer The writer for the HTTP response.
+	 * @param output The output stream for the HTTP response.
+	 * @param path The normalized request path.
+	 */
+	private fun serveRequest(
+		writer: PrintWriter,
+		output: java.io.OutputStream,
+		path: String,
+	) {
+		discardCachesIfDatabaseChanged()
 
 		// Handle the special "pr" endpoint with highest priority
 		if (path.startsWith("pr/", false)) {
@@ -611,226 +599,66 @@ class WebServer(
 			}
 		}
 
-		// Lazily (re)loaded here -- the one place the dictionary is actually consumed (see
-		// decompressBrotli) -- rather than eagerly at database-open/swap time, but only once per
-		// database change: a swap (just above) marks compressionDictionaryStale rather than
-		// reloading immediately, so this only hits the database again when that flag is set.
-		// Only clears the flag on a clean load (definitive dictionary or definitive absence) --
-		// an unexpected exception leaves it set so the next request retries, rather than caching
-		// a transient failure as "no dictionary" for the rest of this database's lifetime.
-		if (compressionDictionaryStale) {
-			try {
-				compressionDictionary = loadCompressionDictionary(database)
-				compressionDictionaryStale = false
-			} catch (e: Exception) {
-				log.error("Could not load compression dictionary; will retry on the next request: {}", e.message)
-			}
-		}
-
-		// Database fetch
-		val query = """
-			SELECT C.content, CT.value, CT.compression, C.templateId
-			FROM   Content C, ContentTypes CT
-			WHERE  C.contentTypeID = CT.id
-			AND  C.path = ?
-		"""
-		val cursor = database.rawQuery(query, arrayOf(path))
-
-		// Process database fetch
-		try {
-			if (cursor.count != 1) {
-				return if (cursor.count == 0) {
-					sendError(writer, output, httpNotFound, "Not Found")
-				} else {
-					sendError(
-						writer,
-						output,
-						httpInternalServerError,
-						"Corrupt database - multiple records found when unique record expected, Path requested: '$path'.",
-					)
-				}
+		// Raw target first, percent-decoded on a miss -- the shared fallback in the content source,
+		// so this transport and the in-process interceptor cannot disagree about which pages exist.
+		val (queriedPath, lookup) = contentSource.lookupRequestPath(path)
+		when (lookup) {
+			is DocumentationLookup.Found -> {
+				sendContent(writer, output, lookup.content)
 			}
 
-			cursor.moveToFirst()
-			val firstChunk = cursor.getBlob(0)
-			val dbMimeType = cursor.getString(1)
-			var compression = cursor.getString(2)
-			val templateId = cursor.getInt(3)
-
-			// Fragment handling for large content (> 1MB). The chunks stay a list rather than
-			// being eagerly concatenated: the old accumulate-into-a-ByteArrayOutputStream-then-copy
-			// held both the doubling buffer and its toByteArray() copy of the *compressed* chunks
-			// live at once, on top of the decompressed output that follows -- for the largest
-			// bundled PDF (8.8 MB over 9 chunks) that's a real, if partial, reduction: the
-			// decompressed output still goes through a comparable accumulate-then-copy in
-			// decompressBrotli's own readBytes() call, so the compressed-side saving here doesn't
-			// eliminate that separate transient.
-			val chunks = mutableListOf(firstChunk)
-			if (firstChunk.size == contentChunkSize) {
-				val query2 = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
-				var fragmentNumber = 1
-				var nextChunk = firstChunk
-				while (nextChunk.size == contentChunkSize) {
-					val path2 = "$path-$fragmentNumber"
-					val cursor2 = database.rawQuery(query2, arrayOf(path2))
-					// Whether the client has already been told 200; see the assignment below.
-					var responseStarted = false
-					try {
-						if (cursor2.moveToFirst()) {
-							nextChunk = cursor2.getBlob(0)
-							chunks.add(nextChunk)
-							fragmentNumber++
-						} else {
-							break
-						}
-					} finally {
-						cursor2.close()
-					}
-				}
+			is DocumentationLookup.NotFound -> {
+				sendError(writer, output, httpNotFound, "Not Found")
 			}
 
-			// Content is compressed at rest with brotli -- most rows against the shared dictionary
-			// loaded into compressionDictionary (see ADFA-5153), but plugin-contributed Tier 3 docs
-			// (PluginDocumentationManager/BrotliCompressor) are plain brotli with no dictionary.
-			// This server always decompresses before responding, so it never needs to negotiate
-			// Content-Encoding with the client.
-			var dbContent =
-				if (compression == "brotli") {
-					compression = "none"
-					decompressBrotli(chunks)
-				} else {
-					joinChunks(chunks)
-				}
-
-			// If the file is associated with a template, instantiate that template and send the result to the client
-			if (templateId > 0) {
-				dbContent = instantiatePebbleTemplate(templateId, dbContent, path, dbMimeType, compression)
+			is DocumentationLookup.Ambiguous -> {
+				// queriedPath, not the raw target: it names the form the duplicate rows actually
+				// match, so a bug report quotes a query that reproduces.
+				sendError(
+					writer,
+					output,
+					httpInternalServerError,
+					"Corrupt database - ${lookup.rowCount} records found when unique record expected, Path queried: '$queriedPath'.",
+				)
 			}
 
-			// Built before the status line goes out: everything after the first println is on the
-			// wire (the writer autoflushes), so a throw past that point cannot be answered with a
-			// fresh error response. dbMimeType is a platform type from Cursor.getString, so a NULL
-			// ContentTypes.value throws here rather than there.
-			val contentTypeHeader = ContentTypeHeaders.headerValue(dbMimeType)
-
-			writer.println("HTTP/1.1 200 OK")
-			// From here on the client has been told 200. A failure while writing the body -- a
-			// dropped connection is the common one -- must not append a second status line to that
-			// response; sendError writes nothing at all when told the output has started, which is
-			// the only honest thing left to do with a half-sent reply.
-			responseStarted = true
-			writer.println("Content-Type: $contentTypeHeader")
-			writer.println("Content-Length: ${dbContent.size}")
-			writer.println("Connection: close")
-			writer.println()
-			writer.flush()
-			output.write(dbContent)
-			output.flush()
-		} catch (e: Exception) {
-			log.error("Error processing request: {}", e.message, e)
-			sendError(
-				writer,
-				output,
-				httpInternalServerError,
-				"Internal Server Error",
-				e.message ?: "",
-				outputStarted = responseStarted,
-			)
-		} finally {
-			cursor.close()
+			is DocumentationLookup.Failed -> {
+				sendError(writer, output, httpInternalServerError, "Internal Server Error", lookup.cause.message ?: "")
+			}
 		}
 	}
 
 	/**
-	 * Renders a Pebble template identified by `templateId` using the provided JSON data and returns the rendered output as bytes.
+	 * Sends the supplied content as an HTTP 200 response.
 	 *
-	 * @param templateId The database ID of the Pebble template to load and compile.
-	 * @param dbContent JSON bytes that will be parsed and supplied as the template context.
-	 * @param path The request/content path associated with this template (used for diagnostic/logging purposes).
-	 * @param dbMimeType The MIME type of the stored content (used for diagnostic/logging purposes).
-	 * @param compression The compression label of the stored content (always "none" by this point, since decompression already happened) (used for diagnostic/logging purposes).
-	 * @return The rendered template encoded as UTF-8 bytes.
-	 * @throws Exception If the template ID is not found, is duplicated in the database, or if template lookup/instantiation fails.
+	 * @param content The content and MIME type to send to the client.
 	 */
-	private fun instantiatePebbleTemplate(
-		templateId: Int,
-		dbContent: ByteArray,
-		path: String,
-		dbMimeType: String,
-		compression: String,
-	): ByteArray {
-		if (debugEnabled) log.debug("Processing template for templateId={}", templateId)
+	private fun sendContent(
+		writer: PrintWriter,
+		output: java.io.OutputStream,
+		content: DocumentationContent,
+	) {
+		val bytes = content.bytes
 
-		// 1. Get or Compile Template from Cache
-		val compiledTemplate =
-			templateCache.getOrPut(templateId) {
-				if (debugEnabled) {
-					log.debug(
-						"Template cache miss for ID {}, path {}, MIME type {}, compression {}}",
-						templateId,
-						path,
-						dbMimeType,
-						compression,
-					)
-				}
+		// Built before the status line goes out: the writer autoflushes, so everything after the
+		// first println is already on the wire, and a throw past that point would make sendError
+		// append a second status line to a response that already claimed 200 -- which a client
+		// parses as a malformed header rather than as an error.
+		val contentTypeHeader = ContentTypeHeaders.headerValue(content.mimeType)
 
-				val tQuery = "SELECT content FROM Templates WHERE id = ?"
-				val tCursor = database.rawQuery(tQuery, arrayOf(templateId.toString()))
-				tCursor.use { cursor ->
-					when {
-						cursor.count == 0 -> {
-							log.debug(
-								"Template not found, for ID {}, path {}, MIME type {}, compression {}",
-								templateId,
-								path,
-								dbMimeType,
-								compression,
-							)
-							throw Exception("Template ID $templateId not found in the database")
-						}
-
-						cursor.count > 1 -> {
-							log.debug(
-								"More than one template found, for ID {}, path {}, MIME type {}, compression {}",
-								templateId,
-								path,
-								dbMimeType,
-								compression,
-							)
-							throw Exception("Template ID $templateId is shared by more than one template")
-						}
-
-						!cursor.moveToFirst() -> {
-							log.debug(
-								"Template not found, for ID {}, path {}, MIME type {}, compression {}",
-								templateId,
-								path,
-								dbMimeType,
-								compression,
-							)
-							throw Exception("Template ID $templateId not found in database.")
-						}
-
-						else -> {
-							val templateBlob = cursor.getBlob(0)
-							if (debugEnabled) log.debug("templateBlob = '${String(templateBlob)}'")
-							pebbleEngine.getTemplate(templateBlob.toString(Charsets.UTF_8))
-						}
-					}
-				}
-			}
-
-		// Load JSON data into a template context Map<> for instantiation
-		val dbContentStr = dbContent.toString(Charsets.UTF_8)
-		if (dbContentStr.isBlank() || dbContentStr.trim() == "null") {
-			throw Exception("Template ID $templateId has empty or null JSON context")
+		try {
+			writer.println("HTTP/1.1 200 OK")
+			writer.println("Content-Type: $contentTypeHeader")
+			writer.println("Content-Length: ${bytes.size}")
+			writer.println("Connection: close")
+			writer.println()
+			writer.flush()
+			output.write(bytes)
+			output.flush()
+		} catch (e: Exception) {
+			log.error("Error processing request: {}", e.message, e)
+			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "", outputStarted = true)
 		}
-		val context: Map<String, Any> = gson.fromJson(dbContentStr, dbContextType)
-
-		// Evaluate template with loaded data and return the output
-		val sw = StringWriter()
-		compiledTemplate.evaluate(sw, context)
-		return sw.toString().toByteArray()
 	}
 
 	/**
@@ -850,6 +678,41 @@ class WebServer(
 		var html: String
 
 		try {
+			html = contentSource.withDatabase { database -> lastChangeTableHtml(database) }
+
+			if (debugEnabled) log.debug("html is '{}'.", html)
+		} catch (e: Exception) {
+			log.error("Error creating output for /pr/db endpoint: {}", e.message)
+			sendError(
+				writer,
+				output,
+				httpInternalServerError,
+				"Internal Server Error 4.1",
+				"Error creating output.",
+			)
+			return
+		}
+
+		try {
+			writeNormalToClient(writer, output, html)
+
+			if (debugEnabled) log.debug("Leaving handleDbEndpoint().")
+		} catch (e: Exception) {
+			log.error("Error handling /pr/db endpoint: {}", e.message)
+			sendError(writer, output, httpInternalServerError, "Internal Server Error 4", "Error generating database table.", true)
+		}
+	}
+
+	/**
+	 * Builds an HTML table containing the 20 most recent rows from the `LastChange` table.
+	 *
+	 * @param database The database containing the `LastChange` table.
+	 * @return The generated HTML table.
+	 */
+	private fun lastChangeTableHtml(database: SQLiteDatabase): String {
+		var html: String
+
+		run {
 			// First, get the schema of the LastChange table to determine column count
 			val schemaQuery = "PRAGMA table_info(LastChange)"
 			val schemaCursor = database.rawQuery(schemaQuery, arrayOf())
@@ -912,45 +775,28 @@ class WebServer(
 			} finally {
 				dataCursor.close()
 			}
-
-			if (debugEnabled) log.debug("html is '{}'.", html)
-		} catch (e: Exception) {
-			log.error("Error creating output for /pr/db endpoint: {}", e.message)
-			sendError(
-				writer,
-				output,
-				httpInternalServerError,
-				"Internal Server Error 4.1",
-				"Error creating output.",
-			)
-			return
 		}
 
-		try {
-			writeNormalToClient(writer, output, html)
-
-			if (debugEnabled) log.debug("Leaving handleDbEndpoint().")
-		} catch (e: Exception) {
-			log.error("Error handling /pr/db endpoint: {}", e.message)
-			sendError(writer, output, httpInternalServerError, "Internal Server Error 4", "Error generating database table.", true)
-		}
+		return html
 	}
 
 	/**
-	 * Handles the /pr/bs endpoint by invoking the bookshelf generator and sending a 500 error if generation fails.
+	 * Generates and sends the bookshelf HTML response.
 	 *
-	 * Calls realHandleBsEndpoint to produce and write the response body; if an exception occurs, sends an HTTP 500
-	 * error using the reported output-start state so no additional headers/body are written after output has begun.
-	 *
-	 * @param writer PrintWriter used for writing textual HTTP response headers.
-	 * @param output Raw OutputStream used for writing the response body bytes.
+	 * Clears the relevant template caches when cache clearing is enabled. Sends an HTTP 500
+	 * response if bookshelf generation fails before response output begins.
 	 */
 	private fun handleBsEndpoint(
 		writer: PrintWriter,
 		output: java.io.OutputStream,
 	) {
 		if (debugEnabled) log.debug("Entering handleBsEndpoint().")
-		if (clearCacheEnabled) templateCache.clear()
+		if (clearCacheEnabled) {
+			// The in-app WebViews are served by the shared interceptor's own source, not this
+			// server's, so the developer sentinel must clear both caches.
+			contentSource.clearTemplateCache()
+			DocumentationRequestInterceptor.clearSharedTemplateCache()
+		}
 
 		var outputStarted = false
 
@@ -1016,14 +862,9 @@ class WebServer(
 	}
 
 	/**
-	 * Builds the Bookshelf content, renders it with the `bookshelf` template, and sends the resulting response to the client.
+	 * Generates the bookshelf page and sends it to the client.
 	 *
-	 * @param writer PrintWriter for sending HTTP headers and control output.
-	 * @param output OutputStream for writing the response body bytes.
-	 * @param markOutputStarted Invoked right before the first response byte is written, so the
-	 *   caller's "did we already respond" flag is accurate even if the write itself then fails
-	 *   partway through -- not just after this function returns.
-	 * @return `true` if the templated response was written to the client, `false` if an error response was sent or no output was produced.
+	 * @return `true` if a response was produced, `false` if processing failed or no response was produced.
 	 */
 	private fun realHandleBsEndpoint(
 		writer: PrintWriter,
@@ -1032,31 +873,36 @@ class WebServer(
 	): Boolean {
 		if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
-		val jsonText: ByteArray
+		// Null means an error response has already been sent, so there is nothing left to write.
+		val jsonText =
+			contentSource.withDatabase { database ->
+				try {
+					val json = bookshelfJson(database)
+					if (debugEnabled) log.debug("json content = '{}'.", String(json, Charsets.UTF_8))
+					if (debugEnabled) log.debug("before fetch bookshelf template ID = '{}'", bookshelfTemplateId)
 
-		try {
-			jsonText = bookshelfJson(database)
-			if (debugEnabled) log.debug("json content = '${String(jsonText)}'.")
-			if (debugEnabled) log.debug("before fetch bookshelf template ID = '$bookshelfTemplateId'")
+					// Have we already fetched the template
+					if (bookshelfTemplateId == -1) {
+						database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf()).use { cursor ->
+							if (!isCursorOneRow(cursor, writer, output)) {
+								return@withDatabase null
+							}
 
-			if (bookshelfTemplateId == -1) {
-				database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf()).use { cursor ->
-					if (!isCursorOneRow(cursor, writer, output)) {
-						return false
+							cursor.moveToFirst()
+							bookshelfTemplateId = cursor.getInt(0)
+							if (debugEnabled) log.debug("after the fetch bookshelf template ID = '{}'", bookshelfTemplateId)
+						}
 					}
 
-					cursor.moveToFirst()
-					bookshelfTemplateId = cursor.getInt(0)
-					if (debugEnabled) log.debug("after the fetch bookshelf template ID = '$bookshelfTemplateId'")
+					json
+				} catch (e: Exception) {
+					log.error("Error processing request: {}", e.message)
+					sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
+					null
 				}
-			}
-		} catch (e: Exception) {
-			log.error("Error processing request: {}", e.message)
-			sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
-			return false
-		}
+			} ?: return false
 
-		val result = instantiatePebbleTemplate(bookshelfTemplateId, jsonText, "/bookshelf", "application/json", "none")
+		val result = contentSource.renderTemplate(bookshelfTemplateId, jsonText, "/bookshelf")
 
 		if (debugEnabled) log.debug("Bookshelf result is '{}'.", String(result))
 

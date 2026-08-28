@@ -19,6 +19,7 @@ package com.itsaky.androidide.preferences
 
 import android.os.Parcel
 import android.os.Parcelable
+import com.itsaky.androidide.idetooltips.TooltipTag
 
 /**
  * The preferences for the IDE.
@@ -26,19 +27,22 @@ import android.os.Parcelable
  * @author Akash Yadav
  */
 data object IDEPreferences : BaseIDEPreferences() {
+	override val children: List<IPreference> = mutableListOf()
 
-  override val children: List<IPreference> = mutableListOf()
-  override fun describeContents(): Int = 0
-  override fun writeToParcel(dest: Parcel, flags: Int) {}
-  
-  @JvmField
-  val CREATOR = object : Parcelable.Creator<IDEPreferences> {
-    override fun createFromParcel(source: Parcel?): IDEPreferences {
-      return IDEPreferences
-    }
-  
-    override fun newArray(size: Int): Array<IDEPreferences> {
-      return Array(size) { IDEPreferences }
-    }
-  }
+	override val tooltipTag: String = TooltipTag.PREFS_TOP
+
+	override fun describeContents(): Int = 0
+
+	override fun writeToParcel(
+		dest: Parcel,
+		flags: Int,
+	) = Unit
+
+	@JvmField
+	val CREATOR =
+		object : Parcelable.Creator<IDEPreferences> {
+			override fun createFromParcel(source: Parcel?): IDEPreferences = IDEPreferences
+
+			override fun newArray(size: Int): Array<IDEPreferences> = Array(size) { IDEPreferences }
+		}
 }
