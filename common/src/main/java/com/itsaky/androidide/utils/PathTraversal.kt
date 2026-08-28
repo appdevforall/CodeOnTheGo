@@ -24,6 +24,7 @@ import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.LinkOption
 import java.nio.file.Path
+import java.nio.file.attribute.BasicFileAttributes
 
 /**
  * Decides whether a relative path is safely inside a base directory.
@@ -96,9 +97,10 @@ class ContainedPathResolver(
 		) : Resolution
 
 		/**
-		 * Containment could not be determined: the base or the path's nearest existing ancestor
-		 * failed to resolve for a reason other than absence (EACCES after a mode change, EIO).
-		 * Not an escape -- refused because unproven, and [cause] says why.
+		 * Containment could not be determined: the base, an ancestor's existence probe, or the
+		 * nearest existing ancestor's resolution failed for a reason other than absence (EACCES
+		 * after a mode change, EIO). Not an escape -- refused because unproven, and [cause] says
+		 * why.
 		 */
 		data class Unverifiable(
 			val cause: IOException,
@@ -166,13 +168,31 @@ class ContainedPathResolver(
 			}
 
 		var ancestor = resolved
-		// NOFOLLOW_LINKS: plain Files.exists() follows symlinks, so a *dangling* symlink (one
-		// whose target does not currently exist) would read as absent here, walking straight
-		// past it to its parent instead of stopping to verify it. toRealPath() below throws
-		// IOException for a genuinely dangling target, correctly rejecting the path rather than
-		// trusting whatever ends up on the far side of it later.
-		while (!Files.exists(ancestor, LinkOption.NOFOLLOW_LINKS)) {
-			ancestor = ancestor.parent ?: return Resolution.Rejected(resolved)
+		// Probed with readAttributes(), not Files.exists(): exists() answers false both for absent
+		// and for undeterminable (a parent denying execute), so an entry that merely could not be
+		// checked would read as absent, the walk would carry on to a readable ancestor, and an
+		// unverified entry -- possibly a symlink -- would be vouched for as contained (ADFA-5257
+		// review). Only a confirmed NoSuchFileException advances the walk; any other failure is
+		// the same silent downgrade the base branch above refuses. NOFOLLOW_LINKS so a *dangling*
+		// symlink still reads as present here: toRealPath() below throws for its missing target,
+		// correctly rejecting the path rather than trusting whatever ends up on the far side of it
+		// later.
+		while (true) {
+			try {
+				Files.readAttributes(ancestor, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+				break
+				// Fully qualified for the same reason as the base branch above.
+			} catch (_: java.nio.file.NoSuchFileException) {
+				ancestor = ancestor.parent ?: return Resolution.Rejected(resolved)
+			} catch (e: IOException) {
+				log.warn(
+					"Cannot determine whether {} (an ancestor of {}) exists; refusing the path",
+					ancestor,
+					relativePath,
+					e,
+				)
+				return Resolution.Unverifiable(e)
+			}
 		}
 
 		// Re-resolved on every call, deliberately. Caching a directory once proven contained saves

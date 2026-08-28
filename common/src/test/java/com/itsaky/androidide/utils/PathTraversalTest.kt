@@ -26,6 +26,8 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
 
 class PathTraversalTest {
 	private val baseDir = File("/project/root")
@@ -189,6 +191,43 @@ class PathTraversalTest {
 			assertThat(ContainedPathResolver(base).resolve("child.txt")).isInstanceOf(Resolution.Unverifiable::class.java)
 		} finally {
 			root.setExecutable(true, false)
+		}
+	}
+
+	// The walk to the nearest existing ancestor must not read "cannot check" as "absent": an entry
+	// under a non-traversable directory may exist and be a symlink, and walking past it would vouch
+	// for a path nothing verified (ADFA-5257 review). Unverifiable for the same reason as the base
+	// test above -- a permission failure is not a traversal accusation.
+	@Test
+	fun `an intermediate entry that cannot be probed is unverifiable, not contained`() {
+		val root = tempFolder.newFolder("opaque")
+		val blocked = File(root, "blocked").apply { mkdirs() }
+		val originalPermissions = Files.getPosixFilePermissions(blocked.toPath())
+
+		Files.setPosixFilePermissions(blocked.toPath(), emptySet())
+		try {
+			// As root, or on a filesystem that ignores the mode, the probe still answers and the
+			// walk never sees a failure -- nothing to assert then. Fully qualified: kotlin's
+			// auto-imported NoSuchFileException is not the one Files.readAttributes throws.
+			val probeDenied =
+				try {
+					Files.readAttributes(
+						blocked.toPath().resolve("entry.txt"),
+						BasicFileAttributes::class.java,
+						LinkOption.NOFOLLOW_LINKS,
+					)
+					false
+				} catch (_: java.nio.file.NoSuchFileException) {
+					false
+				} catch (_: IOException) {
+					true
+				}
+			Assume.assumeTrue("This environment still probes entries under a mode-000 directory", probeDenied)
+
+			assertThat(ContainedPathResolver(root).resolve("blocked/entry.txt"))
+				.isInstanceOf(Resolution.Unverifiable::class.java)
+		} finally {
+			Files.setPosixFilePermissions(blocked.toPath(), originalPermissions)
 		}
 	}
 
