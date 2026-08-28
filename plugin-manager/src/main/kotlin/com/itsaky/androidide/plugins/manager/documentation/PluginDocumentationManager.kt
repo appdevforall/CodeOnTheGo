@@ -35,6 +35,13 @@ class PluginDocumentationManager(
 		// Bumped whenever previously written Tier 3 rows can no longer be read as they are.
 		// 1 was plain brotli; 2 compresses against the database's shared dictionary (ADFA-5240).
 		private const val TIER3_COMPRESSION_GENERATION = 2
+
+		// Aggregate cap on the payload bytes staged in memory before the insert transaction
+		// opens. Tier3AssetWalker caps each asset at 10 MiB but nothing bounded the sum, and
+		// enough valid assets would exhaust the heap -- as an OutOfMemoryError, which escapes
+		// catch (Exception). A small multiple of the per-asset cap: past it, an asset takes
+		// the same skip path as an oversized one.
+		private const val MAX_STAGED_BYTES = 32L * 1024L * 1024L
 	}
 
 	private val databaseName = "documentation.db"
@@ -261,8 +268,9 @@ class PluginDocumentationManager(
 					// holds documentation.db's exclusive lock, stalling WebServer's readers for
 					// all of it. Only the delete and inserts need the lock. The cost is holding
 					// every compressed payload in memory at once -- the same bytes the inserts
-					// below hand to SQLite.
+					// below hand to SQLite -- bounded by MAX_STAGED_BYTES.
 					val prepared = ArrayList<PreparedTier3Row>()
+					var stagedBytes = 0L
 					for (asset in Tier3AssetWalker.walk(pluginAssets, assetPath)) {
 						val ext = asset.relativePath.substringAfterLast('.', "")
 						if (ext.isEmpty()) {
@@ -295,6 +303,16 @@ class PluginDocumentationManager(
 								asset.bytes
 							}
 
+						if (stagedBytes + payload.size > MAX_STAGED_BYTES) {
+							Log.w(
+								TAG,
+								"Skipping Tier 3 asset '${asset.relativePath}' - staging it would exceed " +
+									"the $MAX_STAGED_BYTES byte aggregate limit",
+							)
+							skipped++
+							continue
+						}
+						stagedBytes += payload.size
 						prepared.add(PreparedTier3Row("plugin/$pluginId/$safeRelative", payload, row.id))
 					}
 
