@@ -3,7 +3,7 @@ package com.itsaky.androidide.plugins.security
 import android.content.SharedPreferences
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.util.Base64
-import android.util.Log
+import org.slf4j.LoggerFactory
 import java.security.GeneralSecurityException
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
@@ -19,7 +19,7 @@ import javax.crypto.spec.GCMParameterSpec
  * the others silently do not get.
  */
 class KeystoreSecretStore internal constructor(
-	private val tag: String,
+	private val alias: String,
 	private val keys: SecretKeySource,
 ) {
 	/**
@@ -27,10 +27,10 @@ class KeystoreSecretStore internal constructor(
 	 *   distinct per caller: plugins run in the host's process and UID and therefore share one
 	 *   Keystore, so a shared alias would let one caller's invalidated-key recovery destroy another's
 	 *   stored secret. It must also stay stable across releases, since a secret encrypted under one
-	 *   alias cannot be read under another.
-	 * @param tag the logcat tag to write under, so a line names the caller that emitted it.
+	 *   alias cannot be read under another. It is also what identifies the caller in this class's log
+	 *   lines, since every caller shares one logger here.
 	 */
-	constructor(alias: String, tag: String) : this(tag, AndroidKeystoreSource(alias, tag))
+	constructor(alias: String) : this(alias, AndroidKeystoreSource(alias))
 
 	/**
 	 * What was found under a preference key.
@@ -65,6 +65,8 @@ class KeystoreSecretStore internal constructor(
 		private const val TRANSFORM = "AES/GCM/NoPadding"
 		private const val IV_LEN = 12
 		private const val TAG_BITS = 128
+
+		private val log = LoggerFactory.getLogger(KeystoreSecretStore::class.java)
 	}
 
 	/**
@@ -83,7 +85,7 @@ class KeystoreSecretStore internal constructor(
 		try {
 			encryptWith(keys.getOrCreate(), plain)
 		} catch (e: KeyPermanentlyInvalidatedException) {
-			Log.w(tag, "Keystore key invalidated; regenerating and retrying encrypt", e)
+			log.warn("Keystore key '{}' invalidated; regenerating and retrying encrypt", alias, e)
 			keys.delete()
 			encryptWith(keys.getOrCreate(), plain)
 		}
@@ -116,7 +118,7 @@ class KeystoreSecretStore internal constructor(
 				plainBytes.fill(0)
 			}
 		} catch (e: Exception) {
-			Log.w(tag, "Failed to decrypt a stored secret", e)
+			log.warn("Failed to decrypt a stored secret under alias '{}'", alias, e)
 			null
 		}
 	}
@@ -146,7 +148,7 @@ class KeystoreSecretStore internal constructor(
 		return try {
 			editor.putString(key, encrypt(plain)).commit()
 		} catch (e: Exception) {
-			Log.e(tag, "Could not encrypt the secret for '$key'", e)
+			log.error("Could not encrypt the secret for '{}' under alias '{}'", key, alias, e)
 			false
 		}
 	}
@@ -190,9 +192,9 @@ class KeystoreSecretStore internal constructor(
 			// lost to process death leaves the legacy plaintext, which still reads back fine and gets
 			// re-upgraded on the next call, so blocking a read on disk I/O would buy nothing.
 			prefs.edit().putString(key, encrypt(stored)).apply()
-			Log.i(tag, "Upgraded a legacy plaintext value for '$key' to ciphertext")
+			log.info("Upgraded a legacy plaintext value for '{}' to ciphertext", key)
 		} catch (e: Exception) {
-			Log.w(tag, "Could not upgrade a legacy plaintext value for '$key' to ciphertext", e)
+			log.warn("Could not upgrade a legacy plaintext value for '{}' to ciphertext", key, e)
 		}
 		return Stored.Value(stored)
 	}

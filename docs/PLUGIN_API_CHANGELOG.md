@@ -66,7 +66,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   decryptable"), and the host's own `git-core/CryptoManager` is a fourth. Duplicating the
   source into each `.cgp` would not fix that: `compileOnly` against the host means one
   implementation in the process, loaded by the host's class loader.
-  `KeystoreSecretStore(alias, tag)` (`encrypt`, `decrypt`, `write`, `readAndMigrate`) and
+  `KeystoreSecretStore(alias)` (`encrypt`, `decrypt`, `write`, `readAndMigrate`) and
   `KeystoreSecretStore.Stored` / `.Absent` / `.Value` / `.Unreadable`. The `enc:v1:` marker
   it writes is deliberately **not** part of the surface: the on-disk format is the store's
   business, both formats are handled for the caller, and keeping it private is what leaves

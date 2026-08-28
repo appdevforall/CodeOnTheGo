@@ -2,7 +2,7 @@ package com.itsaky.androidide.plugins.security
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import android.util.Log
+import org.slf4j.LoggerFactory
 import java.security.KeyStore
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -33,11 +33,9 @@ internal interface SecretKeySource {
  * The real source: a hardware-backed key held under [alias] in the Android Keystore.
  *
  * @param alias the Keystore alias holding the key.
- * @param tag the logcat tag to write under.
  */
 internal class AndroidKeystoreSource(
 	private val alias: String,
-	private val tag: String,
 ) : SecretKeySource {
 	override fun getOrCreate(): SecretKey =
 		synchronized(KEYSTORE_LOCK) {
@@ -63,7 +61,7 @@ internal class AndroidKeystoreSource(
 			} catch (e: Exception) {
 				// The alias, not the key material: a Keystore secret key is non-exportable, so there is
 				// nothing here to leak, and naming the alias is what makes the line diagnosable.
-				Log.w(tag, "Failed to delete Keystore alias $alias", e)
+				log.warn("Failed to delete Keystore alias '{}'", alias, e)
 			}
 		}
 	}
@@ -82,5 +80,7 @@ internal class AndroidKeystoreSource(
 		 * irrelevant: these calls are rare and already doing binder IPC.
 		 */
 		val KEYSTORE_LOCK = Any()
+
+		val log = LoggerFactory.getLogger(AndroidKeystoreSource::class.java)
 	}
 }
