@@ -18,6 +18,7 @@
 package com.itsaky.androidide.activities
 
 import android.content.Context
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.PermissionsHelper
 import java.io.File
@@ -41,7 +42,7 @@ import java.io.File
  */
 internal fun Context.isIdeSetupComplete(): Boolean =
 	isJdkInstalled() &&
-		Environment.ANDROID_HOME.exists() &&
+		androidSdkHome().exists() &&
 		PermissionsHelper.areAllPermissionsGranted(this)
 
 /**
@@ -62,6 +63,32 @@ internal fun Context.isIdeSetupComplete(): Boolean =
  * install, not an unfinished setup.
  */
 private fun isJdkInstalled(): Boolean {
-	val jvmDir = File(Environment.PREFIX, "lib/jvm")
+	val jvmDir = File(jdkInstallPrefix(), "lib/jvm")
 	return jvmDir.isDirectory && (jvmDir.list()?.isNotEmpty() == true)
 }
+
+/**
+ * [Environment.PREFIX], or the same path it will hold once `Environment.init()` has run.
+ *
+ * `init()` runs inside the same unawaited loader coroutine that loads the JDK distributions (see
+ * [isJdkInstalled]), so on a cold start this main-thread read routinely happens first and finds the
+ * field still null -- and the field is not volatile, so even a completed `init()` guarantees nothing
+ * about visibility here (ADFA-5067 review). `File(null, "lib/jvm")` doesn't throw; it silently
+ * yields a *relative* path that exists nowhere, answering "not set up" on a fully set-up device and
+ * discarding the deep link. `init()` derives the field from constants (`new File(DEFAULT_ROOT)`
+ * then `"usr"`), and [Environment.DEFAULT_PREFIX] is that same path, so falling back to it reads
+ * the same directory without waiting on the loader. The field is still preferred when visible --
+ * it is what the rest of the app uses, and tests redirect it to a temp dir.
+ */
+@VisibleForTesting
+internal fun jdkInstallPrefix(): File = Environment.PREFIX ?: File(Environment.DEFAULT_PREFIX)
+
+/**
+ * [Environment.ANDROID_HOME], with the same pre-`Environment.init()` fallback as
+ * [jdkInstallPrefix]. Needed for the same race: before the fix in [jdkInstallPrefix], the only
+ * thing keeping [isIdeSetupComplete] from an NPE on this field was [isJdkInstalled] short-circuiting
+ * to false first. The literal mirrors [Environment]'s private `DEFAULT_ANDROID_HOME`
+ * (`DEFAULT_HOME + "/android-sdk"`), which `init()` assigns verbatim.
+ */
+@VisibleForTesting
+internal fun androidSdkHome(): File = Environment.ANDROID_HOME ?: File(Environment.DEFAULT_HOME, "android-sdk")

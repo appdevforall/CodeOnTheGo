@@ -27,6 +27,7 @@ import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.PermissionsHelper
 import io.mockk.every
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import org.junit.Rule
 import org.junit.Test
@@ -91,6 +92,58 @@ class DeepLinkSetupGateTest {
 		every { PermissionsHelper.areAllPermissionsGranted(any()) } returns true
 		try {
 			assertThat(IJdkDistributionProvider.getInstance().installedDistributions).isEmpty()
+			assertThat(context.isIdeSetupComplete()).isTrue()
+		} finally {
+			unmockkAll()
+			Environment.PREFIX = previousPrefix
+			Environment.ANDROID_HOME = previousHome
+		}
+	}
+
+	// The second cold-start race, same shape as the provider one (ADFA-5067 review):
+	// Environment.init() runs on the same unawaited loader coroutine, so PREFIX and ANDROID_HOME
+	// are still null when a cold-start main thread asks. The gate must fall back to the constant
+	// defaults init() itself would assign, not wait -- and not NPE on ANDROID_HOME.
+	@Test
+	fun `the toolchain paths do not wait for Environment-init`() {
+		val previousPrefix = Environment.PREFIX
+		val previousHome = Environment.ANDROID_HOME
+		Environment.PREFIX = null
+		Environment.ANDROID_HOME = null
+		try {
+			assertThat(jdkInstallPrefix().path).isEqualTo(Environment.DEFAULT_PREFIX)
+			assertThat(androidSdkHome().path).isEqualTo(Environment.DEFAULT_HOME + "/android-sdk")
+		} finally {
+			Environment.PREFIX = previousPrefix
+			Environment.ANDROID_HOME = previousHome
+		}
+	}
+
+	/**
+	 * The regression from the ADFA-5067 review: toolchain fully on disk, `Environment.PREFIX` never
+	 * assigned -- a cold start that beat the loader coroutine to `Environment.init()`. The old
+	 * `File(Environment.PREFIX, "lib/jvm")` read silently became the relative path `lib/jvm` and
+	 * answered false, so the link was discarded on a fully set-up device.
+	 *
+	 * [jdkInstallPrefix] is stubbed to a temp dir because its real null-fallback
+	 * (`Environment.DEFAULT_PREFIX`, i.e. `/data/data/...`) is not creatable on a test host; the
+	 * fallback's own value is pinned by the test above. What this test pins is that the predicate
+	 * consults [jdkInstallPrefix] rather than reading the unassigned field directly.
+	 */
+	@Test
+	fun `the setup predicate is true with the JDK on disk and PREFIX never assigned`() {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val prefix = tempFolder.newFolder("prefix-cold-start")
+		File(prefix, "lib/jvm/jdk-17").mkdirs()
+		val previousPrefix = Environment.PREFIX
+		val previousHome = Environment.ANDROID_HOME
+		Environment.PREFIX = null
+		Environment.ANDROID_HOME = tempFolder.newFolder("android-sdk-cold-start")
+		mockkStatic("com.itsaky.androidide.activities.SetupStateKt")
+		every { jdkInstallPrefix() } returns prefix
+		mockkObject(PermissionsHelper)
+		every { PermissionsHelper.areAllPermissionsGranted(any()) } returns true
+		try {
 			assertThat(context.isIdeSetupComplete()).isTrue()
 		} finally {
 			unmockkAll()
