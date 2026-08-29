@@ -2,8 +2,10 @@ package com.itsaky.androidide.quickbuild.runtime;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,10 @@ class PayloadPersistenceCorruptMetaTest {
 
 	private static byte[] bytes(String s) {
 		return s.getBytes(StandardCharsets.UTF_8);
+	}
+
+	private static InputStream stream(String text) {
+		return new ByteArrayInputStream(bytes(text));
 	}
 
 	@TempDir
@@ -160,7 +166,7 @@ class PayloadPersistenceCorruptMetaTest {
 		// pairing it with the new dex is precisely the startup crash the set-atomicity
 		// work exists to prevent.
 		PayloadPersistence store = store();
-		store.persist(1, "an-older-baseline", bytes("dex1"), bytes("arsc1"), null);
+		store.persist(1, "an-older-baseline", bytes("dex1"), stream("arsc1"), null);
 
 		store.persist(2, FP, bytes("dex2"), null, null);
 
