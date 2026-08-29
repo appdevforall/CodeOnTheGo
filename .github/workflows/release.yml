@@ -1,4 +1,19 @@
-name: Build and upload release version to Firebase App Distribution
+# Release-candidate variant of release.yml for the ADFA-2602 toolchain upgrade.
+# Lives ONLY on task/ADFA-2602-release-candidate; never merged. Reuses the
+# registered release.yml name so workflow_dispatch works: GitHub runs this
+# branch's copy when the branch is selected.
+#
+# Differences from the stock release.yml:
+#   - no merge_stage_to_main job (stock copy merges stage -> main; never
+#     dispatch the stock copy)
+#   - builds the dispatched branch, not main
+#   - assets come from the adfa-2602-rc draft release on this repo, not from
+#     the live dev-assets server (which still hosts the old toolchain)
+#   - documentation.db.br comes from the same draft release, not Google Drive
+#   - R2 upload / Slack / Telegram are gated behind the `publish` input
+#     (default off); Firebase App Distribution to testers stays on
+
+name: Build release candidate from branch (ADFA-2602)
 
 permissions:
   id-token: write
@@ -6,9 +21,17 @@ permissions:
   actions: write
 
 on:
-  schedule:
-    - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
   workflow_dispatch:
+    inputs:
+      asset_tag:
+        description: "Draft release tag holding the nine release .br assets"
+        required: false
+        default: "adfa-2602-rc"
+      publish:
+        description: "Also upload to Cloudflare R2 and announce on Slack/Telegram"
+        type: boolean
+        required: false
+        default: false
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -28,204 +51,70 @@ env:
   GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
 
 jobs:
-  merge_stage_to_main:
-    name: Merge stage to main
+  stage_assets:
+    name: Stage candidate release assets
     runs-on: self-hosted
-    timeout-minutes: 10
-
-    steps:
-      - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Git
-        run: |
-          git config user.name "ADFA"
-          git config user.email "dev-team@appdevforall.org"
-
-      - name: Merge stage to main
-        run: |
-          git fetch origin stage
-          git checkout main
-
-          if ! git merge origin/stage --no-ff -m "Daily merge from stage to main"; then
-            echo "Merge failed due to conflicts. Sending notification and stopping workflow."
-
-            CONFLICTED_FILES=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
-
-            git merge --abort
-
-            jq -n \
-              --arg conflicted_files "$CONFLICTED_FILES" \
-              '{
-                blocks: [
-                  {
-                    type: "header",
-                    text: {
-                      type: "plain_text",
-                      text: ":warning: Daily Merge Failed - Conflicts Detected",
-                      emoji: true
-                    }
-                  },
-                  {
-                    type: "section",
-                    text: {
-                      type: "mrkdwn",
-                      text: "@here The daily merge from `stage` to `main` failed due to merge conflicts."
-                    }
-                  },
-                  {
-                    type: "section",
-                    text: {
-                      type: "mrkdwn",
-                      text: "*Conflicted Files:*\n```\($conflicted_files)```"
-                    }
-                  },
-                  {
-                    type: "section",
-                    text: {
-                      type: "mrkdwn",
-                      text: "*Action Required:*\n1. Review the conflicts manually\n2. Resolve conflicts in the affected files\n3. Push the resolved changes to `stage`\n4. The next daily build will attempt the merge again"
-                    }
-                  },
-                  {
-                    type: "actions",
-                    elements: [
-                      {
-                        type: "button",
-                        text: {
-                          type: "plain_text",
-                          text: "View Repository",
-                          emoji: true
-                        },
-                        url: "https://github.com/${{ github.repository }}",
-                        action_id: "view-repo"
-                      }
-                    ]
-                  },
-                  {
-                    type: "divider"
-                  },
-                  {
-                    type: "context",
-                    elements: [
-                      {
-                        type: "mrkdwn",
-                        text: "Failed merge attempt from `stage` to `main` branch"
-                      }
-                    ]
-                  }
-                ]
-              }' > conflict_payload.json
-
-            curl -X POST -H "Content-type: application/json" --data @conflict_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
-            rm -f conflict_payload.json
-
-            echo "Merge conflicts detected in files: $CONFLICTED_FILES"
-            exit 1
-          fi
-
-          git push origin main
-          echo "Merge completed successfully"
-
-  download_assets:
-    name: Download release assets
-    runs-on: self-hosted
-    timeout-minutes: 10
-    needs: merge_stage_to_main
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: main
 
-      - name: Check if Nix is installed
-        id: check_nix
-        run: |
-          if command -v nix >/dev/null 2>&1; then
-            echo "nix is installed"
-            echo "nix_installed=true" >> $GITHUB_ENV
-          else
-            echo "nix is not installed"
-            echo "nix_installed=false" >> $GITHUB_ENV
-          fi
+      - name: Install jq
+        run: command -v jq || { sudo apt-get update && sudo apt-get install -y jq; }
 
-      - name: Install Flox
-        if: env.nix_installed == 'false'
-        uses: flox/install-flox-action@v2
-
-      - name: Set up SSH key
+      - name: Download candidate assets from draft release
         env:
-          GREENGEEKS_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
-          GREENGEEKS_KEY: ${{ secrets.GREENGEEKS_SSH_PRIVATE_KEY }}
-          GREENGEEKS_USER: ${{ vars.GREENGEEKS_SSH_USER }}
+          ASSET_TAG: ${{ inputs.asset_tag }}
         run: |
-          mkdir -p ~/.ssh
-          if [ -z "$GREENGEEKS_HOST" ]; then
-            echo "Error: SSH_HOST variable is not set"
-            exit 1
-          fi
-          # Write the SSH key, ensuring proper formatting
-          echo "$GREENGEEKS_KEY" > ~/.ssh/id_rsa
-          # Remove any trailing newlines and ensure proper key format
-          sed -i '' -e '$ { /^$/ d; }' ~/.ssh/id_rsa 2>/dev/null || sed -i '$ { /^$/ d; }' ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          # Verify key format
-          if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa; then
-            echo "Error: SSH key does not appear to be in correct format"
-            exit 1
-          fi
-          # Configure SSH to use only the key file and disable other auth methods
-          cat > ~/.ssh/config <<EOF
-          Host *
-            IdentitiesOnly yes
-            PreferredAuthentications publickey
-            StrictHostKeyChecking no
-            UserKnownHostsFile ~/.ssh/known_hosts
-            PubkeyAuthentication yes
-            PasswordAuthentication no
-            ChallengeResponseAuthentication no
-            GSSAPIAuthentication no
-            GSSAPIKeyExchange no
-            GSSAPIDelegateCredentials no
-          Host $GREENGEEKS_HOST
-            User $GREENGEEKS_USER
-            IdentityFile ~/.ssh/id_rsa
-            IdentitiesOnly yes
-            PreferredAuthentications publickey
-            PubkeyAuthentication yes
-            PasswordAuthentication no
-            ChallengeResponseAuthentication no
-            GSSAPIAuthentication no
-            GSSAPIKeyExchange no
-            GSSAPIDelegateCredentials no
-            NumberOfPasswordPrompts 0
-          EOF
-          chmod 600 ~/.ssh/config
-          # Disable SSH agent completely
-          unset SSH_AUTH_SOCK
-          unset SSH_AGENT_PID
-          # Remove any default SSH keys that might interfere
-          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null
-          ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          rm -rf .rc-assets && mkdir -p .rc-assets
+          # gh release download can't be assumed on the runner; the REST API
+          # lists drafts for tokens with push access, which GITHUB_TOKEN has.
+          release_json=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases?per_page=100")
+          echo "$release_json" | jq -r --arg tag "$ASSET_TAG" \
+            '.[] | select(.tag_name == $tag) | .assets[] | "\(.id)\t\(.name)"' > .rc-assets/manifest.tsv
+          [ -s .rc-assets/manifest.tsv ] || { echo "ERROR: no release with tag $ASSET_TAG or it has no assets"; exit 1; }
+          while IFS=$'\t' read -r id name; do
+            echo "downloading $name (asset $id)"
+            curl -sfL -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/octet-stream" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${id}" \
+              -o ".rc-assets/$name"
+          done < .rc-assets/manifest.tsv
+          rm .rc-assets/manifest.tsv
+          ls -la .rc-assets
 
-      - name: Download release assets
-        env:
-          SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
+      - name: Lay out assets/release tree
         run: |
-          flox activate -d flox/base -- ./gradlew :app:assetsDownloadRelease --no-daemon \
-            -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
-            -Dandroid.aapt2.daemonHeapSize=4096M \
-            -Dorg.gradle.workers.max=1 \
-            -Dorg.gradle.parallel=false
+          REL=assets/release
+          mkdir -p "$REL/common/data/common" "$REL/common/database" \
+                   "$REL/v7/data/common" "$REL/v8/data/common"
+
+          place() { # <file> <dest-dir> <min-bytes>
+            src=".rc-assets/$1"
+            [ -f "$src" ] || { echo "ERROR: missing asset $1"; exit 1; }
+            size=$(stat -c%s "$src" 2>/dev/null || stat -f%z "$src")
+            [ "$size" -ge "$3" ] || { echo "ERROR: $1 is only $size bytes"; exit 1; }
+            mv -f "$src" "$2/"
+            echo "staged $1 ($size bytes) -> $2"
+          }
+
+          place gradle-9.6.1-bin.zip.br      "$REL/common/data/common" 50000000
+          place gradle-api-9.6.1.jar.br      "$REL/common/data/common" 10000000
+          place localMvnRepository.zip.br    "$REL/common/data/common" 100000000
+          place core.cgt.br                  "$REL/common/data/common" 100000
+          place documentation.db.br          "$REL/common/database"    100000000
+          place android-sdk-v7.zip.br        "$REL/v7/data/common"     30000000
+          place bootstrap-v7.zip.br          "$REL/v7/data/common"     100000000
+          place android-sdk-v8.zip.br        "$REL/v8/data/common"     30000000
+          place bootstrap-v8.zip.br          "$REL/v8/data/common"     100000000
+
+          # the ABI files carry their target names inside the tree
+          mv "$REL/v7/data/common/android-sdk-v7.zip.br" "$REL/v7/data/common/android-sdk.zip.br"
+          mv "$REL/v7/data/common/bootstrap-v7.zip.br"   "$REL/v7/data/common/bootstrap.zip.br"
+          mv "$REL/v8/data/common/android-sdk-v8.zip.br" "$REL/v8/data/common/android-sdk.zip.br"
+          mv "$REL/v8/data/common/bootstrap-v8.zip.br"   "$REL/v8/data/common/bootstrap.zip.br"
 
       - name: Upload release assets
         uses: actions/upload-artifact@v4
@@ -234,202 +123,18 @@ jobs:
           path: assets/release
           retention-days: 1
 
-      - name: Cleanup google-services.json
-        if: always()
-        run: |
-          rm -f app/google-services.json
-          echo "google-services.json cleaned up successfully"
-
-      - name: Cleanup ssh
-        if: always()
-        run: |
-          # Remove SSH key
-          rm -f ~/.ssh/id_rsa
-          # Clean up SSH known_hosts (remove the entry for this host)
-          SSH_HOST="${{ vars.GREENGEEKS_SSH_HOST }}"
-          if [ -n "$SSH_HOST" ]; then
-            ssh-keygen -R "$SSH_HOST" 2>/dev/null || true
-          fi
-          # Remove entire .ssh directory if empty
-          rmdir ~/.ssh 2>/dev/null || true
-
-  download_documentation:
-    name: Download pre-compressed documentation DB
-    runs-on: self-hosted
-    timeout-minutes: 5
-    needs: download_assets
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Authenticate to Google Cloud for Drive access
-        id: auth_drive
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.IDENTITY_EMAIL }}
-          token_format: 'access_token'
-          access_token_scopes: 'https://www.googleapis.com/auth/drive.readonly'
-
-      - name: Download pre-compressed documentation.db.br from Google Drive
-        run: |
-          FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
-          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
-
-          if [ -z "$FILE_ID" ]; then
-            echo "ERROR: DOCUMENTATION_BR_FILE_ID secret not set"
-            exit 1
-          fi
-
-          echo "Downloading documentation.db.br from Google Drive..."
-
-          mkdir -p assets/release/common/database
-          curl -sL -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
-            -o assets/release/common/database/documentation.db.br
-
-          if [ ! -f assets/release/common/database/documentation.db.br ]; then
-            echo "ERROR: Failed to download documentation.db.br"
-            exit 1
-          fi
-
-          BR_MD5_FILE_ID="${{ secrets.DOCUMENTATION_BR_MD5_FILE_ID }}"
-          if [ -n "$BR_MD5_FILE_ID" ]; then
-            echo "Verifying MD5 checksum..."
-
-            EXPECTED_MD5=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
-              "https://www.googleapis.com/drive/v3/files/${BR_MD5_FILE_ID}?alt=media" \
-              | tr -d '\n')
-
-            ACTUAL_MD5=$(md5sum assets/release/common/database/documentation.db.br | awk '{print $1}')
-
-            echo "Expected MD5: $EXPECTED_MD5"
-            echo "Actual MD5:   $ACTUAL_MD5"
-
-            if [ "$ACTUAL_MD5" != "$EXPECTED_MD5" ]; then
-              echo "ERROR: MD5 checksum mismatch"
-
-              jq -n \
-                --arg expected "$EXPECTED_MD5" \
-                --arg actual "$ACTUAL_MD5" \
-                '{
-                  blocks: [
-                    {
-                      type: "header",
-                      text: {
-                        type: "plain_text",
-                        text: ":x: Release Build Failed - Documentation DB Integrity Check Failed",
-                        emoji: true
-                      }
-                    },
-                    {
-                      type: "section",
-                      text: {
-                        type: "mrkdwn",
-                        text: "@here The daily release build failed because *documentation.db.br* failed integrity verification."
-                      }
-                    },
-                    {
-                      type: "section",
-                      text: {
-                        type: "mrkdwn",
-                        text: "*Checksum Mismatch:*\n• Expected: `\($expected)`\n• Actual: `\($actual)`"
-                      }
-                    },
-                    {
-                      type: "section",
-                      text: {
-                        type: "mrkdwn",
-                        text: "*Possible Causes:*\n• File was corrupted during download\n• File on Google Drive was modified after compression\n• MD5 file on Drive is out of sync"
-                      }
-                    },
-                    {
-                      type: "section",
-                      text: {
-                        type: "mrkdwn",
-                        text: "*Action Required:*\n1. Re-run the compress_docdb workflow to regenerate the file and MD5\n2. Verify both files uploaded successfully to Google Drive"
-                      }
-                    }
-                  ]
-                }' > error_payload.json
-
-              curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
-              rm -f error_payload.json
-              exit 1
-            fi
-
-            echo "MD5 checksum verified successfully"
-          fi
-
-          FILE_SIZE_BYTES=$(stat -c%s assets/release/common/database/documentation.db.br 2>/dev/null || stat -f%z assets/release/common/database/documentation.db.br 2>/dev/null)
-          FILE_SIZE_HUMAN=$(du -h assets/release/common/database/documentation.db.br | cut -f1)
-
-          if [ "$FILE_SIZE_BYTES" -lt 100000 ]; then
-            echo "ERROR: Downloaded file is too small ($FILE_SIZE_HUMAN)"
-
-            jq -n '{
-              blocks: [
-                {
-                  type: "header",
-                  text: {
-                    type: "plain_text",
-                    text: ":x: Release Build Failed - Documentation DB Download Error",
-                    emoji: true
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "@here The daily release build failed because *documentation.db.br* could not be downloaded from Google Drive."
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Possible Causes:*\n• compress_docdb workflow has not run yet\n• File not found or incorrect file ID\n• Service account does not have access to the file"
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Action Required:*\n1. Verify compress_docdb workflow ran successfully\n2. Check that DOCUMENTATION_BR_FILE_ID secret is correct\n3. Ensure service account has Viewer access to the file"
-                  }
-                }
-              ]
-            }' > error_payload.json
-
-            curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
-            rm -f error_payload.json
-            exit 1
-          fi
-
-          echo "Successfully downloaded documentation.db.br ($FILE_SIZE_HUMAN)"
-
-      - name: Upload compressed documentation DB
-        uses: actions/upload-artifact@v4
-        with:
-          name: assets-db
-          path: assets/release/common/database/documentation.db.br
-          retention-days: 1
-
   build_apk:
-    name: Build Release APK
+    name: Build Release Candidate APK
     runs-on: self-hosted
-    timeout-minutes: 60
-    needs: [merge_stage_to_main, download_assets, download_documentation]
+    timeout-minutes: 90
+    needs: stage_assets
     strategy:
       matrix:
         include:
           - variant: v8
-            build_type: "RELEASE 64-bit"
+            build_type: "RELEASE CANDIDATE 64-bit (ADFA-2602)"
           - variant: v7
-            build_type: "RELEASE 32-bit"
+            build_type: "RELEASE CANDIDATE 32-bit (ADFA-2602)"
 
     steps:
       - name: Checkout repository
@@ -437,24 +142,12 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: main
-
-      - name: Set branch to main for build
-        id: determine_branch
-        run: |
-          echo "BRANCH_TO_CHECKOUT=main" >> $GITHUB_OUTPUT
 
       - name: Download release assets
         uses: actions/download-artifact@v4
         with:
           name: assets
           path: assets/release
-
-      - name: Download compressed documentation DB
-        uses: actions/download-artifact@v4
-        with:
-          name: assets-db
-          path: assets/release/common/database
 
       - name: Initialize submodules
         run: |
@@ -465,10 +158,8 @@ jobs:
         id: check_nix
         run: |
           if command -v nix >/dev/null 2>&1; then
-            echo "nix is installed"
             echo "nix_installed=true" >> $GITHUB_ENV
           else
-            echo "nix is not installed"
             echo "nix_installed=false" >> $GITHUB_ENV
           fi
 
@@ -481,7 +172,6 @@ jobs:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
-          echo "google-services.json created successfully"
 
       - name: Validate release version
         env:
@@ -493,10 +183,8 @@ jobs:
           fi
           if [[ ! "$NEXT_RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}$ ]]; then
             echo "ERROR: NEXT_RELEASE_VERSION format is invalid: $NEXT_RELEASE_VERSION"
-            echo "Expected format: YY.ww (two digits, dot, two digits, e.g., 25.50)"
             exit 1
           fi
-          echo "Validated NEXT_RELEASE_VERSION: $NEXT_RELEASE_VERSION"
 
       - name: Install advancecomp (advzip, used by recompressApk)
         run: |
@@ -521,21 +209,11 @@ jobs:
           apk_path=$(find app/build/outputs/apk/ -path "*${{ matrix.variant }}*/release/*.apk" | head -n 1)
           echo "APK_PATH=$apk_path" >> $GITHUB_OUTPUT
 
-      - name: Set branch name and build type
-        run: |
-          BRANCH_NAME=${{ steps.determine_branch.outputs.BRANCH_TO_CHECKOUT }}
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-          
-          BUILD_TYPE="${{ matrix.build_type }}"
-          echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
-
       - name: Get Commit Information
         id: commit_info
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | tr -d '\n\r' | sed 's/[*]/•/g')
-          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | tr -d '\n\r' | sed 's/[*]/-/g')
           echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
-          echo "COMMIT_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
 
       - name: Authenticate to Google Cloud via Workload Identity
         uses: google-github-actions/auth@v2
@@ -546,25 +224,18 @@ jobs:
       - name: Verify APK exists
         run: |
           if [ ! -f "${{ steps.find_apk.outputs.APK_PATH }}" ]; then
-            echo "ERROR: APK file not found at ${{ steps.find_apk.outputs.APK_PATH }}"
+            echo "ERROR: APK file not found"
             exit 1
           fi
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
 
       - name: Deploy to Firebase App Distribution
-        id: firebase_upload
         env:
           APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           BUILD_TYPE: ${{ matrix.build_type }}
           COMMIT_MSG: ${{ steps.commit_info.outputs.COMMIT_MSG }}
         run: |
-          echo "Starting Firebase deployment..."
-          echo "APK Path: $APK_PATH"
-          echo "Firebase App ID: $FIREBASE_APP_ID"
-
-          # Check if Firebase CLI is authenticated
-          echo "Checking Firebase authentication..."
           firebase projects:list || {
             echo "ERROR: Firebase authentication failed"
             exit 1
@@ -573,39 +244,21 @@ jobs:
           RELEASE_NOTES_FILE=$(mktemp)
           cat > "$RELEASE_NOTES_FILE" << EOF
           Build Type: $BUILD_TYPE
+          Branch: ${{ github.ref_name }}
           Commit: $COMMIT_MSG
           EOF
-          
-          echo "Running Firebase distribution command..."
-          set +e  # Disable exit on error temporarily
-          output=$(firebase appdistribution:distribute "$APK_PATH" \
+
+          firebase appdistribution:distribute "$APK_PATH" \
             --app "$FIREBASE_APP_ID" \
             --groups "testers" \
-            --release-notes-file "$RELEASE_NOTES_FILE" 2>&1)
-          exit_code=$?
-          set -e  # Re-enable exit on error
-          
-          echo "Firebase command exit code: $exit_code"
-          echo "Firebase command output:"
-          echo "$output"
-          
-          if [ $exit_code -ne 0 ]; then
-            echo "ERROR: Firebase deployment failed with exit code $exit_code"
-            exit 1
-          fi
-
-          FIREBASE_URL=$(echo "$output" | grep -oE 'https://console\.firebase\.google\.com/project/[^/]+/appdistribution/app/[^/]+/releases/[^?]+(\?[^"]*)?') || FIREBASE_URL=""
-
-          if [ -z "$FIREBASE_URL" ]; then
-            FIREBASE_URL="${{ env.FIREBASE_CONSOLE_URL }}"
-          fi
-
-          echo "FIREBASE_CONSOLE_URL=$FIREBASE_URL" >> $GITHUB_OUTPUT
+            --release-notes-file "$RELEASE_NOTES_FILE"
 
       - name: Install uv
+        if: ${{ inputs.publish }}
         uses: astral-sh/setup-uv@v6
 
       - name: Upload APK to Cloudflare R2
+        if: ${{ inputs.publish }}
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_KEY_ID: ${{ vars.CLOUDFLARE_KEY_ID }}
@@ -613,124 +266,30 @@ jobs:
         run: |
           uv run --with boto3 scripts/cloudflare-r2-upload.py "${{ steps.find_apk.outputs.APK_PATH }}"
 
-      - name: Clean up build folder after upload
-        run: |
-          echo "Cleaning up build folder after Firebase upload..."
-          rm -rf app/build/
-          echo "Build folder cleanup completed"
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Send Rich Slack Notification
+      - name: Send Slack Notification
+        if: ${{ inputs.publish }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-          COMMIT_AUTHOR: ${{ steps.commit_info.outputs.COMMIT_AUTHOR }}
           COMMIT_MSG: ${{ steps.commit_info.outputs.COMMIT_MSG }}
-          FIREBASE_CONSOLE_URL: ${{ steps.firebase_upload.outputs.FIREBASE_CONSOLE_URL }}
         run: |
-          BRANCH_NAME="${{ env.BRANCH_NAME }}"
-          BUILD_TYPE="${{ matrix.build_type }}"
-          
           jq -n \
             --arg commit_msg "$COMMIT_MSG" \
-            --arg build_type "$BUILD_TYPE" \
-            --arg commit_author "$COMMIT_AUTHOR" \
-            --arg firebase_url "$FIREBASE_CONSOLE_URL" \
-            --arg branch_name "$BRANCH_NAME" \
+            --arg build_type "${{ matrix.build_type }}" \
+            --arg branch_name "${{ github.ref_name }}" \
             '{
               blocks: [
-                {
-                  type: "header",
-                  text: {
-                    type: "plain_text",
-                    text: ":rocket: [Release] New Build Available",
-                    emoji: true
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "@here Please review and test this build."
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Build Type:* \($build_type)"
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Commit:* \($commit_msg)"
-                  }
-                },
-
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Author:* @\($commit_author)"
-                  }
-                },
-                {
-                  type: "actions",
-                  elements: [
-                    {
-                      type: "button",
-                      text: {
-                        type: "plain_text",
-                        text: "View on Firebase",
-                        emoji: true
-                      },
-                      url: $firebase_url,
-                      action_id: "firebase-console"
-                    }
-                  ]
-                },
-                {
-                  type: "divider"
-                },
-                {
-                  type: "context",
-                  elements: [
-                    {
-                      type: "mrkdwn",
-                      text: "Deployed from branch `\($branch_name)`"
-                    }
-                  ]
-                }
+                { type: "header", text: { type: "plain_text", text: "Release candidate build available", emoji: true } },
+                { type: "section", text: { type: "mrkdwn", text: "*Build Type:* \($build_type)\n*Commit:* \($commit_msg)\n*Branch:* `\($branch_name)`" } }
               ]
             }' > payload.json
-          
           curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
-
           rm -f payload.json
 
-      - name: Send Telegram message
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_EARLY_ACCESS_CHAT_ID: ${{ vars.TELEGRAM_EARLY_ACCESS_CHAT_ID }}
-          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
+      - name: Clean up build folder after upload
         run: |
-          GIT_LOG=$(git log --oneline --since "24 hours ago" || true)
-          if [ -z "$GIT_LOG" ]; then
-            GIT_LOG="(no commits in the last 24 hours)"
-          fi
-          APK_FILENAME=$(basename "$APK_PATH")
-          DOWNLOAD_URL="https://download.appdevforall.org/${APK_FILENAME}"
-          MESSAGE=$(printf "Download: %s\n\n%s" "$DOWNLOAD_URL" "$GIT_LOG")
-          MESSAGE="${MESSAGE:0:4096}"
-          curl -s -X POST -H "Content-Type: application/json" \
-            -d "$(jq -n --arg chat_id "$TELEGRAM_EARLY_ACCESS_CHAT_ID" --arg text "$MESSAGE" '{chat_id: $chat_id, text: $text}')" \
-            "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage"
+          rm -rf app/build/
 
       - name: Cleanup google-services.json
         if: always()
         run: |
           rm -f app/google-services.json
-          echo "google-services.json cleaned up successfully"
