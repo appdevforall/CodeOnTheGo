@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
+import com.itsaky.androidide.activities.editor.FileSaveOutcome
 import com.itsaky.androidide.activities.editor.PeerCursorOverlayManager
 import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
@@ -16,6 +17,7 @@ import com.itsaky.androidide.plugins.services.SelectionRange
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.widget.CodeEditor
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -252,6 +254,43 @@ class EditorProviderImpl(
 			activity.saveResult(index, SaveResult())
 		}
 		return true
+	}
+
+	/**
+	 * Saves [file]'s buffer whatever tab has focus, suspending until the bytes are on disk.
+	 *
+	 * Bounded by [SAVE_TIMEOUT_MS] for the same reason [onMain] is bounded: a wedged editor
+	 * must not park a plugin's coroutine for the rest of the session. Once bytes start moving
+	 * the save runs to completion under `NonCancellable`, because `CodeEditorView.save` is not
+	 * cancellation-atomic: interrupted between the write and its `markUnmodified()` it would
+	 * leave the file written but the buffer flagged dirty.
+	 *
+	 * The bound therefore cannot abort a write in progress, only outlast it - so the answer
+	 * comes from the outcome the save records, not from whether this coroutine got to see it
+	 * return. That is what keeps a `false` here from meaning "written, but reported unwritten".
+	 *
+	 * Must be awaited from a coroutine, never bridged with `runBlocking` on the main thread.
+	 * `CodeEditorView.save` runs the write on its own thread and resumes via
+	 * `Dispatchers.Main.immediate`; `runBlocking` parks the main thread without draining the
+	 * Android looper, so that resumption would never run. The timeout does not rescue that
+	 * case either - the cancellation has to resume on the same blocked looper.
+	 */
+	override suspend fun saveFile(file: File): Boolean {
+		val activity = activity() ?: return false
+		val outcome = AtomicReference(FileSaveOutcome.FAILED)
+		val returned = withTimeoutOrNull(SAVE_TIMEOUT_MS) { activity.saveFileResult(file, outcome) }
+		val reachedDisk = outcome.get().reachedDisk
+		if (returned == null) {
+			// Not "aborting": the write is NonCancellable, so it either had not started or ran
+			// to completion regardless of this bound.
+			log.warn(
+				"Save of {} outran the {}ms bound; outcome was {}",
+				file.name,
+				SAVE_TIMEOUT_MS,
+				outcome.get(),
+			)
+		}
+		return reachedDisk
 	}
 
 	// --- Buffer edits -------------------------------------------------------
@@ -491,6 +530,11 @@ class EditorProviderImpl(
 
 	companion object {
 		private const val MAIN_EDIT_TIMEOUT_SECONDS = 5L
+
+		// Generous next to MAIN_EDIT_TIMEOUT_SECONDS: this covers resolving the editor plus a
+		// whole file write, not a single main-thread hop, and a large buffer on slow storage
+		// legitimately takes seconds.
+		private const val SAVE_TIMEOUT_MS = 30_000L
 		private val log = LoggerFactory.getLogger(EditorProviderImpl::class.java)
 	}
 }

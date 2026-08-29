@@ -35,6 +35,29 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.36 — unreleased
+- **added — File-targeted editor save** _(ADFA-5259)_
+  Save a named file's open buffer and find out whether the bytes actually landed.
+  `saveCurrentFile` follows whichever tab the user has focused and returns as soon
+  as a save is dispatched, so a plugin that edits one file and then persists it can
+  save a different file, or read the file back before the write finishes.
+  `IdeEditorService.saveFile(File): Boolean` (`suspend`, `default` returning
+  `false`) resolves the editor by file, suspends until the write completes, and
+  reports the on-disk outcome — `true` also when the buffer was already clean,
+  `false` when the file has no open editor or the write failed. Throws
+  `SecurityException` on an authorization failure (no `FILESYSTEM_WRITE`, or a path
+  outside the plugin's allowed roots), as the other write methods do. Await it from
+  a coroutine; a `runBlocking` bridge on the main thread deadlocks.
+
+  Because an older IDE's `IdeEditorService` has no `saveFile` at all, calling it
+  there fails with `NoSuchMethodError` at the call site — floor
+  `plugin.min_ide_version` at `26.36` if you call it. The Kotlin `default` body is
+  not a Java default method: `plugin-api` sets no `-Xjvm-default`, so the compiler
+  emits an abstract interface method plus a `DefaultImpls` static (both visible in
+  the ABI dump). It therefore rescues neither a caller nor an implementer compiled
+  against an older `plugin-api` — the latter gets `AbstractMethodError`. Only the
+  host's own implementers benefit, and they are recompiled with it.
+
 ### 26.33 — 2026-08-12
 - **added — Plugin-contributed agent tools** _(ADFA-2592)_ **[verified]**
   Any `.cgp` can add tools to the AI agent, whose tool set was previously fixed at
