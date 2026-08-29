@@ -18,7 +18,16 @@
 package com.itsaky.androidide.preferences
 
 import com.itsaky.androidide.R
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GRADLE
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_AUTOLAUNCH
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_BUILDCACHE
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_DEBUG
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_INFO
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_OFFLINE
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_SCAN
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_STACKTRACE
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_WARNINGMODEALL
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILD_RUN
 import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_COMMANDS
 import com.itsaky.androidide.preferences.internal.BuildPreferences.LAUNCH_APP_AFTER_INSTALL
 import com.itsaky.androidide.preferences.internal.BuildPreferences.isBuildCacheEnabled
@@ -31,78 +40,76 @@ import com.itsaky.androidide.preferences.internal.BuildPreferences.isWarningMode
 import com.itsaky.androidide.preferences.internal.BuildPreferences.launchAppAfterInstall
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
-import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
-import kotlin.reflect.KMutableProperty0
 
 @Parcelize
 class BuildAndRunPreferences(
-    override val key: String = "idepref_build_n_run",
-    override val title: Int = string.idepref_build_title,
-    override val summary: Int? = string.idepref_buildnrun_summary,
-    override val children: List<IPreference> = mutableListOf(),
+	override val key: String = "idepref_build_n_run",
+	override val title: Int = string.idepref_build_title,
+	override val summary: Int? = string.idepref_buildnrun_summary,
+	override val children: List<IPreference> = mutableListOf(),
+	override val tooltipTag: String = PREFS_BUILD_RUN,
 ) : IPreferenceScreen() {
 
-    init {
-        addPreference(GradleOptions())
-        addPreference(RunOptions())
-    }
+	init {
+		addPreference(GradleOptions())
+		addPreference(RunOptions())
+	}
 }
 
 @Parcelize
 private class GradleOptions(
-    override val key: String = "idepref_build_gradle",
-    override val title: Int = string.gradle,
-    override val children: List<IPreference> = mutableListOf(),
+	override val key: String = "idepref_build_gradle",
+	override val title: Int = string.gradle,
+	override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceGroup() {
 
-  init {
-    addPreference(GradleCommands())
-  }
+	init {
+		addPreference(GradleCommands())
+	}
 }
 
 @Parcelize
 private class GradleCommands(
-    override val key: String = GRADLE_COMMANDS,
-    override val title: Int = string.idepref_build_customgradlecommands_title,
-    override val summary: Int? = string.idepref_build_customgradlecommands_summary,
-    override val icon: Int? = drawable.ic_bash_commands,
+	override val key: String = GRADLE_COMMANDS,
+	override val title: Int = string.idepref_build_customgradlecommands_title,
+	override val summary: Int? = string.idepref_build_customgradlecommands_summary,
+	override val icon: Int? = drawable.ic_bash_commands,
+	override val tooltipTag: String = PREFS_BUILDRUN_FLAGS,
 ) : PropertyBasedMultiChoicePreference() {
 
-    @IgnoredOnParcel
-    override val tooltipTag: String = PREFS_GRADLE
-
-    override fun getProperties(): Map<String, KMutableProperty0<Boolean>> {
-        return linkedMapOf(
-            "--stacktrace" to ::isStacktraceEnabled,
-            "--info" to ::isInfoEnabled,
-            "--debug" to ::isDebugEnabled,
-            "--scan" to ::isScanEnabled,
-            "--warning-mode all" to ::isWarningModeAllEnabled,
-            "--build-cache" to ::isBuildCacheEnabled,
-            "--offline" to ::isOfflineEnabled,
-        )
-    }
+	override fun getProperties(): List<PreferenceChoices.Entry> {
+		return listOf(
+			propertyEntry("--stacktrace", ::isStacktraceEnabled, PREFS_BUILDRUN_FLAGS_STACKTRACE),
+			propertyEntry("--info", ::isInfoEnabled, PREFS_BUILDRUN_FLAGS_INFO),
+			propertyEntry("--debug", ::isDebugEnabled, PREFS_BUILDRUN_FLAGS_DEBUG),
+			propertyEntry("--scan", ::isScanEnabled, PREFS_BUILDRUN_FLAGS_SCAN),
+			propertyEntry("--warning-mode all", ::isWarningModeAllEnabled, PREFS_BUILDRUN_FLAGS_WARNINGMODEALL),
+			propertyEntry("--build-cache", ::isBuildCacheEnabled, PREFS_BUILDRUN_FLAGS_BUILDCACHE),
+			propertyEntry("--offline", ::isOfflineEnabled, PREFS_BUILDRUN_FLAGS_OFFLINE),
+		)
+	}
 }
 
 
 @Parcelize
 private class RunOptions(
-    override val key: String = "ide.build.runOptions",
-    override val title: Int = R.string.title_run_options,
-    override val children: List<IPreference> = mutableListOf()
+	override val key: String = "ide.build.runOptions",
+	override val title: Int = R.string.title_run_options,
+	override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceGroup() {
 
-    init {
-        addPreference(LaunchAppAfterInstall())
-    }
+	init {
+		addPreference(LaunchAppAfterInstall())
+	}
 }
 
 @Parcelize
 private class LaunchAppAfterInstall(
-    override val key: String = LAUNCH_APP_AFTER_INSTALL,
-    override val title: Int = R.string.idepref_launchAppAfterInstall_title,
-    override val summary: Int? = R.string.idepref_launchAppAfterInstall_summary,
-    override val icon: Int? = drawable.ic_open_external
+	override val key: String = LAUNCH_APP_AFTER_INSTALL,
+	override val title: Int = R.string.idepref_launchAppAfterInstall_title,
+	override val summary: Int? = R.string.idepref_launchAppAfterInstall_summary,
+	override val icon: Int? = drawable.ic_open_external,
+	override val tooltipTag: String = PREFS_BUILDRUN_AUTOLAUNCH,
 ) :
-  SwitchPreference(setValue = ::launchAppAfterInstall::set, getValue = ::launchAppAfterInstall::get)
+	SwitchPreference(setValue = ::launchAppAfterInstall::set, getValue = ::launchAppAfterInstall::get)

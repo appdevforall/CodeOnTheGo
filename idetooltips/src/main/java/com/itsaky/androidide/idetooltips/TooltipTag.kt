@@ -40,16 +40,109 @@ object TooltipTag {
 	 */
 	fun gradleTaskTooltipTag(taskPath: String): String = "gradle." + taskPath.removePrefix(":")
 
-	// General Preferences
+	// Preferences - top level rows (Configure category and its screens)
 	const val PREFS_TOP = "prefs.top"
-	const val PREFS_EDITOR = "prefs.editor"
 	const val PREFS_GENERAL = "prefs.general"
+	const val PREFS_EDITOR = "prefs.editor"
 	const val PREFS_BUILD_RUN = "prefs.buildrun"
-	const val PREFS_GRADLE = "prefs.gradle"
 	const val PREFS_TERMUX = "prefs.termux"
+	const val PREFS_GIT = "prefs.git"
+	const val PREFS_PLUGIN_MANAGER = "prefs.pluginmanager"
+	const val PREFS_ABOUT = "prefs.about"
+	const val PREFS_DEVOPTIONS = "prefs.devoptions"
+
+	// Preferences - General screen
+	const val PREFS_GENERAL_UIMODE = "prefs.general.uimode"
+	const val PREFS_GENERAL_LANGUAGE = "prefs.general.language"
+	const val PREFS_GENERAL_OPENLAST = "prefs.general.openlast"
+	const val PREFS_GENERAL_CONFIRMOPEN = "prefs.general.confirmopen"
+
+	// Preferences - Editor screen (Common + Java categories)
+	const val PREFS_EDITOR_FONTSIZE = "prefs.editor.fontsize"
+	const val PREFS_EDITOR_TABSIZE = "prefs.editor.tabsize"
+	const val PREFS_EDITOR_NONPRINTING = "prefs.editor.nonprinting"
+	const val PREFS_EDITOR_NONPRINTING_LEADING = "prefs.editor.nonprinting.leading"
+	const val PREFS_EDITOR_NONPRINTING_TRAILING = "prefs.editor.nonprinting.trailing"
+	const val PREFS_EDITOR_NONPRINTING_INNER = "prefs.editor.nonprinting.inner"
+	const val PREFS_EDITOR_NONPRINTING_EMPTYLINES = "prefs.editor.nonprinting.emptylines"
+	const val PREFS_EDITOR_NONPRINTING_LINEBREAKS = "prefs.editor.nonprinting.linebreaks"
+	const val PREFS_EDITOR_SOFTTAB = "prefs.editor.softtab"
+	const val PREFS_EDITOR_WORDWRAP = "prefs.editor.wordwrap"
+	const val PREFS_EDITOR_MAGNIFIER = "prefs.editor.magnifier"
+	const val PREFS_EDITOR_WORDBOUNDARIES = "prefs.editor.wordboundaries"
+	const val PREFS_EDITOR_MATCHCASE = "prefs.editor.matchcase"
+	const val PREFS_EDITOR_DELETELINES = "prefs.editor.deletelines"
+	const val PREFS_EDITOR_SMARTBACKSPACE = "prefs.editor.smartbackspace"
+	const val PREFS_EDITOR_STICKYSCROLL = "prefs.editor.stickyscroll"
+	const val PREFS_EDITOR_PINLINES = "prefs.editor.pinlines"
+	const val PREFS_EDITOR_GOOGLESTYLE = "prefs.editor.googlestyle"
+
+	// Preferences - Editor > XML formatting options screen
 	const val PREFS_EDITOR_XML = "prefs.editor.xml"
-	const val PREFS_DEVELOPER = "prefs.developer"
+	const val PREFS_XML_TRIMFINALNEWLINE = "prefs.xml.trimfinalnewline"
+	const val PREFS_XML_INSERTFINALNEWLINE = "prefs.xml.insertfinalnewline"
+	const val PREFS_XML_SPLITATTRIBUTES = "prefs.xml.splitattributes"
+	const val PREFS_XML_JOINCDATALINES = "prefs.xml.joincdatalines"
+	const val PREFS_XML_JOINCOMMENTLINES = "prefs.xml.joincommentlines"
+	const val PREFS_XML_JOINCONTENTLINES = "prefs.xml.joincontentlines"
+	const val PREFS_XML_SPACEBEFORECLOSE = "prefs.xml.spacebeforeclose"
+	const val PREFS_XML_PRESERVEEMPTYCONTENT = "prefs.xml.preserveemptycontent"
+	const val PREFS_XML_PRESERVEATTRIBUTES = "prefs.xml.preserveattributes"
+	const val PREFS_XML_CLOSEBRACKET = "prefs.xml.closebracket"
+	const val PREFS_XML_TRIMWHITESPACE = "prefs.xml.trimwhitespace"
+	const val PREFS_XML_MAXLINEWIDTH = "prefs.xml.maxlinewidth"
+	const val PREFS_XML_PRESERVENEWLINES = "prefs.xml.preservenewlines"
+	const val PREFS_XML_SPLITATTRIBINDENT = "prefs.xml.splitattribindent"
+	const val PREFS_XML_EMPTYELEMENTS = "prefs.xml.emptyelements"
+
+	// Preferences - Build & Run screen
+	const val PREFS_BUILDRUN_AUTOLAUNCH = "prefs.buildrun.autolaunch"
+	const val PREFS_BUILDRUN_FLAGS = "prefs.buildrun.flags"
+	const val PREFS_BUILDRUN_FLAGS_STACKTRACE = "prefs.buildrun.flags.stacktrace"
+	const val PREFS_BUILDRUN_FLAGS_INFO = "prefs.buildrun.flags.info"
+	const val PREFS_BUILDRUN_FLAGS_DEBUG = "prefs.buildrun.flags.debug"
+	const val PREFS_BUILDRUN_FLAGS_SCAN = "prefs.buildrun.flags.scan"
+	const val PREFS_BUILDRUN_FLAGS_WARNINGMODEALL = "prefs.buildrun.flags.warningmodeall"
+	const val PREFS_BUILDRUN_FLAGS_BUILDCACHE = "prefs.buildrun.flags.buildcache"
+	const val PREFS_BUILDRUN_FLAGS_OFFLINE = "prefs.buildrun.flags.offline"
+
+	// Preferences - Terminal screen
+	const val PREFS_TERMUX_LOGLEVEL = "prefs.termux.loglevel"
+	const val PREFS_TERMUX_KEYLOGGING = "prefs.termux.keylogging"
+	const val PREFS_TERMUX_CRASHREPORTS = "prefs.termux.crashreports"
+	const val PREFS_TERMUX_SOFTKEYBOARD = "prefs.termux.softkeyboard"
+	const val PREFS_TERMUX_NOHARDKEYBOARD = "prefs.termux.nohardkeyboard"
+	const val PREFS_TERMUX_MARGIN = "prefs.termux.margin"
+
+	// Preferences - Git screen
+	const val PREFS_GIT_USERNAME = "prefs.git.username"
+	const val PREFS_GIT_USEREMAIL = "prefs.git.useremail"
+
+	// Preferences - Developer options screen
+	const val PREFS_DEVOPTIONS_DUMPLOGS = "prefs.devoptions.dumplogs"
+	const val PREFS_DEVOPTIONS_LOGSENDER = "prefs.devoptions.logsender"
+
+	// Plugin Manager screen
+	// The screen-level Plugin Manager tooltip, still live: ADFA-4928's Compose rewrite shows it from
+	// ManagerScreen and PluginManagerContent, anchored on the root view. This change replaced it with
+	// the granular tags below and removed it; restoring it, because those two call sites are the only
+	// plugin-manager tooltips that exist now and they are screen-level, which is what this tag means.
 	const val PLUGIN_MANAGER = "plugin.manager"
+
+	// Not attached to anything yet. ADFA-4928 replaced the Plugin Manager's View hierarchy with
+	// Compose while this change was open, so the anchors these tagged -- the toolbar, the FAB, the
+	// empty state, the list and its rows -- no longer exist. The tags and their seeded content are
+	// kept because they are the half that survives a UI rewrite; wiring them to the Compose tree
+	// needs Modifier.combinedClickable and a tooltip presentation that does not take an anchor View,
+	// which is its own change (see the follow-up on ADFA-5088).
+	const val PLUGIN_MANAGER_TOOLBAR = "plugin.manager.toolbar"
+	const val PLUGIN_MANAGER_DOWNLOAD = "plugin.manager.download"
+	const val PLUGIN_MANAGER_FAB_INSTALL = "plugin.manager.fab.install"
+	const val PLUGIN_MANAGER_EMPTY_STATE = "plugin.manager.emptystate"
+	const val PLUGIN_MANAGER_LIST = "plugin.manager.list"
+	const val PLUGIN_MANAGER_ITEM = "plugin.manager.item"
+	const val PLUGIN_MANAGER_ITEM_MENU = "plugin.manager.item.menu"
+
 	const val EXTERNAL_FILE_INSTALL = "external.file.install"
 	const val TEMPLATE_MANAGER = "template.manager"
 	const val TEMPLATE_TABBED_ACTIVITY = "template.tabbed.activity"
@@ -103,6 +196,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_KT_FIND_REFS = "editor.codeactions.kotlin.findrefs"
 	const val EDITOR_CODE_ACTIONS_KT_EXTRACT_VARIABLE = "editor.codeactions.kotlin.extractvariable"
 	const val EDITOR_CODE_ACTIONS_KT_EXTRACT_METHOD = "editor.codeactions.kotlin.extractmethod"
+	const val EDITOR_CODE_ACTIONS_KT_INLINE_VARIABLE = "editor.codeactions.kotlin.inlinevariable"
 
 	const val EXIT_TO_MAIN = "exit.to.main"
 

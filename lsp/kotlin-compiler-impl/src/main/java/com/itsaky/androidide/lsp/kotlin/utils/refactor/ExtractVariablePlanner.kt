@@ -146,7 +146,7 @@ private fun KaSession.scopeOptionFor(
  *
  * A block body with no declared type returns `Unit`, so a `return` that needs a type neither declared
  * nor renderable would emit a body that does not compile. Declining is always safe -- the
- * decline-rather-than-rewrite principle that ADR 0013 records, landing alongside extract method
+ * decline-rather-than-rewrite principle that ADR 0014 records, landing alongside extract method
  * (ADFA-5080).
  */
 private fun KaSession.convertExpressionBodyForm(
