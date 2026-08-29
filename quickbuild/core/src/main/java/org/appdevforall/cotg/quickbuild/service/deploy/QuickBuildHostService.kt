@@ -144,15 +144,6 @@ class QuickBuildHostService : Service() {
 			deathWatch = null
 		}
 
-		override fun disconnect(packageName: String?) {
-			enforceCaller("disconnect")
-			log.info("Proxy app {} disconnected", packageName)
-			// Unlink too: a stale recipient would otherwise fire on the process's eventual
-			// death and report a disconnect against whatever is registered by then.
-			clearDeathWatch()
-			connections.onDisconnected()
-		}
-
 		/**
 		 * Throws unless the caller is the proxy app the live session accepts.
 		 *
