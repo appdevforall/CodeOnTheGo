@@ -49,27 +49,25 @@ class WebServerTest {
 
 	private fun testConfig(port: Int) = testServerConfig(port)
 
-	// ADFA-5153/ADFA-5220: the dictionary is gated on the MAJOR version the database declares, so
-	// every test that expects the dictionary to load has to declare one. A relaxed mock answers the
-	// existence probe with moveToFirst() = false, i.e. "no version table", which would silently turn
-	// the dictionary tests below into no-ops rather than failing them.
+	// ADFA-5153/ADFA-5220: DocumentationContentSource gates the dictionary on the MAJOR version the
+	// database declares, so a test expecting the dictionary to load has to declare one. A relaxed
+	// mock answers the existence probe with moveToFirst() = false -- "no version table" -- which
+	// would quietly turn these tests into no-ops instead of failing them.
 	private fun stubDeclaredMajorVersion(
 		db: SQLiteDatabase,
-		major: Int?,
+		major: Int = DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY,
 	) {
 		every {
 			db.rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
-		} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns (major != null) }
-		if (major != null) {
-			every {
-				db.rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any())
-			} returns
-				mockk<Cursor>(relaxed = true) {
-					every { moveToFirst() } returns true
-					every { isNull(0) } returns false
-					every { getInt(0) } returns major
-				}
-		}
+		} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns true }
+		every {
+			db.rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any())
+		} returns
+			mockk<Cursor>(relaxed = true) {
+				every { moveToFirst() } returns true
+				every { isNull(0) } returns false
+				every { getInt(0) } returns major
+			}
 	}
 
 	private fun freePort(): Int = ServerSocket(0).use { it.localPort }
@@ -148,7 +146,7 @@ class WebServerTest {
 
 		val db = mockk<SQLiteDatabase>(relaxed = true)
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
-		stubDeclaredMajorVersion(db, DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY)
+		stubDeclaredMajorVersion(db)
 		every {
 			db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
 		} returns dictionaryExistsCursor
@@ -217,7 +215,7 @@ class WebServerTest {
 			db: SQLiteDatabase,
 			dictionaryBytes: String,
 		) {
-			stubDeclaredMajorVersion(db, DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY)
+			stubDeclaredMajorVersion(db)
 			every {
 				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
 			} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns true }
@@ -238,7 +236,13 @@ class WebServerTest {
 		stubDatabase(primaryDb, "dict-primary")
 		stubDatabase(debugDb, "dict-debug")
 
-		val config = testConfig(port).copy(debugDatabasePath = debugDbFile.absolutePath)
+		// ADFA-5175 rate-limits the debug-database stat to once a second; this test drops a newer
+		// file and expects the very next request to see it, so it opts out of the rate limit.
+		val config =
+			testConfig(port).copy(
+				debugDatabasePath = debugDbFile.absolutePath,
+				debugDatabaseCheckIntervalMs = 0,
+			)
 		every { SQLiteDatabase.openDatabase(config.databasePath, isNull(), any()) } returns primaryDb
 		every { SQLiteDatabase.openDatabase(config.debugDatabasePath, isNull(), any()) } returns debugDb
 
@@ -292,56 +296,41 @@ class WebServerTest {
 		}
 	}
 
-	// ADFA-5153/ADFA-5220: below MAJOR 2 the dictionary is neither read nor attached, and the
-	// CompressionDictionary probe does not even run -- table sniffing is precisely what the version
-	// gate replaces, since a database can carry the table while its content is still plain brotli.
+	// Stored Content.path rows are percent-encoded, so the raw target is what matches them and is
+	// queried first; the decoded form is the fallback on a miss. The lookup order lives in
+	// DocumentationContentSource, shared with the in-process transport, so the nointercept sentinel
+	// compares the two on equal terms.
 	@Test
-	fun `a database declaring a version below 2 is never asked for a dictionary`() {
-		assertDictionaryLoads(declaredMajor = 1, expected = 0)
+	fun `a percent-encoded request path is looked up verbatim first, then decoded on a miss`() {
+		assertLookedUpPaths(requested = "/a/my%20file.html", expected = listOf("a/my%20file.html", "a/my file.html"))
 	}
 
+	// URLDecoder turns "+" into a space; a stored path containing a literal plus must survive --
+	// and the protected decode is then the identity, so there is no fallback to query.
 	@Test
-	fun `a database with no version table is never asked for a dictionary`() {
-		assertDictionaryLoads(declaredMajor = null, expected = 0)
+	fun `a plus in a request path stays a plus`() {
+		assertLookedUpPaths(requested = "/a/c++.html", expected = listOf("a/c++.html"))
 	}
 
-	// A later format is still expected to carry the dictionary, so the gate is a floor, not a match.
+	// A malformed escape is not a reason to fail the request: look it up verbatim and 404 naturally.
 	@Test
-	fun `a database declaring a version above 2 still loads the dictionary`() {
-		assertDictionaryLoads(declaredMajor = 3, expected = 1)
+	fun `a malformed escape is looked up verbatim rather than failing the request`() {
+		assertLookedUpPaths(requested = "/a/%zz.html", expected = listOf("a/%zz.html"))
 	}
 
-	// The CompressionDictionary cursors are stubbed as *available* in every case, including the
-	// ones expecting zero queries: that is what makes this a test of the gate rather than of a
-	// missing table -- the queries are not skipped for want of an answer.
-	private fun assertDictionaryLoads(
-		declaredMajor: Int?,
-		expected: Int,
+	private fun assertLookedUpPaths(
+		requested: String,
+		expected: List<String>,
 	) {
 		val port = freePort()
 		val db = mockk<SQLiteDatabase>(relaxed = true)
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
-		stubDeclaredMajorVersion(db, declaredMajor)
-		every {
-			db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
-		} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns true }
-		every {
-			db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
-		} returns
-			mockk<Cursor>(relaxed = true) {
-				every { moveToFirst() } returns true
-				every { getBlob(0) } returns "test-dictionary-bytes".toByteArray()
-			}
-		every {
-			db.rawQuery(match { it.contains("FROM   Content") }, any())
-		} returns
-			mockk<Cursor>(relaxed = true) {
-				every { count } returns 1
-				every { moveToFirst() } returns true
-				every { getBlob(0) } returns "hello".toByteArray()
-				every { getString(1) } returns "text/plain"
-				every { getString(2) } returns "none"
-				every { getInt(3) } returns 0
+		val queried = mutableListOf<Array<String>>()
+		every { db.rawQuery(match { it.contains("FROM   Content") }, any()) } answers
+			{
+				@Suppress("UNCHECKED_CAST")
+				(secondArg<Array<String>?>())?.let { queried += it as Array<String> }
+				mockk<Cursor>(relaxed = true) { every { count } returns 0 }
 			}
 
 		val server = WebServer(testConfig(port))
@@ -349,28 +338,59 @@ class WebServerTest {
 		serverThread.start()
 		try {
 			awaitPortBound(port)
-			sendRawGetRequestAndAwaitClose(port, "/some/path")
-
-			verify(exactly = expected) {
-				db.rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
-			}
-			verify(exactly = expected) {
-				db.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null)
-			}
-			// The version itself is read once per database either way -- the gate is consulted, and
-			// its answer cached, exactly like the dictionary it guards.
-			verify(exactly = 1) {
-				db.rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
-			}
+			sendRawGetRequestAndAwaitClose(port, requested)
+			assertEquals(expected, queried.map { it.first() })
 		} finally {
 			server.stop()
 			serverThread.join(2_000)
 		}
 	}
 
-	// ADFA-5241: the helper decides the charset, but only a real response proves the header that
-	// reaches a client. Two thirds of the database's text rows are non-ASCII with no BOM, so an
-	// undeclared encoding renders them as mojibake in any client that does not assume UTF-8.
+	// ADFA-5179 rewrote the bookshelf query: the old JSON1/group_concat version turned an empty join
+	// into a 500 (group_concat over no rows is NULL, and reading that as a blob threw). The contract
+	// now is a normal page -- 200, rendered from the empty-shelf {"result":[]} payload. The sibling
+	// Bookshelf*Tests pin readBookshelf/bookshelfJson directly; this one proves the HTTP layer, where
+	// the blank-context render guard sits outside realHandleBsEndpoint's try/catch and would 500.
+	@Test
+	fun `an empty bookshelf join answers 200 with an empty shelf`() {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		// The bookshelf join matches nothing: a cursor whose moveToNext() is immediately false.
+		every { db.rawQuery(match { it.contains("FROM Content AS C") }, any()) } returns
+			mockk<Cursor>(relaxed = true) { every { moveToNext() } returns false }
+		// The bookshelf template: its id lookup, then its body -- a Pebble expression over the JSON
+		// context, so the assertion proves the empty-shelf payload actually reached the render.
+		every { db.rawQuery(match { it.contains("FROM Templates WHERE name") }, any()) } returns
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getInt(0) } returns 7
+			}
+		every { db.rawQuery(match { it.contains("FROM Templates WHERE id") }, any()) } returns
+			mockk<Cursor>(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns "shelf:{{ result | length }}".toByteArray()
+			}
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			val response = sendRawGetRequest(port, "/pr/bs")
+			assertTrue("Expected a 200 status line, got:\n$response", response.startsWith("HTTP/1.1 200"))
+			assertTrue("Expected the empty shelf to render, got:\n$response", response.endsWith("shelf:0"))
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
+	// ADFA-5241: the two transports have to answer the same way about what a response says, and
+	// only a real response proves what this one sends. The decision itself lives in
+	// ContentTypeHeaders, shared with DocumentationRequestInterceptor.
 	@Test
 	fun `a text response declares utf-8 and a binary one does not`() {
 		assertContentTypeHeader(storedMimeType = "text/html", expected = "text/html; charset=utf-8")
