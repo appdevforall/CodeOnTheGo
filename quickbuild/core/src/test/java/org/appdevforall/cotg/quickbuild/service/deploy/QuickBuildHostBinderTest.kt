@@ -47,7 +47,6 @@ class QuickBuildHostBinderTest {
 		assertThrows(SecurityException::class.java) { binder.connect(target, "com.example.quickbuild", 0) }
 		assertThrows(SecurityException::class.java) { binder.reportReloaded(1, 40) }
 		assertThrows(SecurityException::class.java) { binder.reportCrash(1, "boom") }
-		assertThrows(SecurityException::class.java) { binder.disconnect("com.example.quickbuild") }
 		assertThat(connections.target.value).isNull()
 	}
 
@@ -120,16 +119,6 @@ class QuickBuildHostBinderTest {
 			connections.reports.collect { seen += it }
 		}
 		return seen
-	}
-
-	@Test
-	fun `disconnect clears the registered target`() {
-		beginMatchingSession()
-		binder.connect(target, "com.example.quickbuild", 0)
-
-		binder.disconnect("com.example.quickbuild")
-
-		assertThat(connections.target.value).isNull()
 	}
 
 	@Test
@@ -234,18 +223,6 @@ class QuickBuildHostBinderTest {
 		recipient.binderDied()
 
 		assertThat(connections.target.value).isNull()
-	}
-
-	@Test
-	fun `a graceful disconnect unlinks the death watch`() {
-		beginMatchingSession()
-		val live = WatchableBinder()
-		binder.connect(targetOn(live.binder), "com.example.quickbuild", 0)
-
-		binder.disconnect("com.example.quickbuild")
-
-		// No stale recipient stays linked to fire on the process's eventual death.
-		assertThat(live.watching()).isEmpty()
 	}
 
 	/**
