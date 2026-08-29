@@ -19,26 +19,12 @@ import java.io.IOException;
 @TargetApi(30)
 final class DirectoryAssetsProvider implements AssetsProvider, Closeable {
 
-	/**
-	 * Whether {@code candidate} resolves strictly inside {@code root}.
-	 *
-	 * Both sides are canonicalized, so {@code ..} segments and symlinks resolve before the comparison rather than being compared as text. The trailing separator is what stops a sibling whose name merely starts with the root's - {@code /a/rootEvil} against root {@code /a/root} - and it also excludes {@code root} itself.
-	 *
-	 * @param root
-	 *            the override directory being served
-	 * @param candidate
-	 *            a path resolved against it
-	 * @return true when the candidate may be served; false when it escapes, or when either path cannot be canonicalized - unresolvable counts as outside, since a path this process cannot resolve is one it must not serve
-	 */
-	static boolean isWithinRoot(File root, File candidate) {
-		try {
-			return candidate.getCanonicalPath().startsWith(root.getCanonicalPath() + File.separator);
-		} catch (IOException error) {
-			return false;
-		}
-	}
-
 	private final File root;
+
+	/**
+	 * The root's canonical path with a trailing separator, resolved once: {@code root} is final, so its canonical form cannot change over the provider's lifetime. Null when the root could not be canonicalized, which refuses every lookup.
+	 */
+	private final String rootPrefix;
 
 	/**
 	 * @param root
@@ -46,6 +32,13 @@ final class DirectoryAssetsProvider implements AssetsProvider, Closeable {
 	 */
 	DirectoryAssetsProvider(File root) {
 		this.root = root;
+		String prefix;
+		try {
+			prefix = root.getCanonicalPath() + File.separator;
+		} catch (IOException unresolvableRoot) {
+			prefix = null;
+		}
+		this.rootPrefix = prefix;
 	}
 
 	/** Nothing held open between lookups; here so {@link ResourceStore} can treat providers uniformly. */
@@ -66,7 +59,7 @@ final class DirectoryAssetsProvider implements AssetsProvider, Closeable {
 		File candidate = new File(root, path);
 		// Same containment rule as AssetExtractor: the path arrives from outside
 		// this process's control and must not resolve outside the override dir.
-		if (!isWithinRoot(root, candidate)) {
+		if (!isWithinRoot(candidate)) {
 			return null;
 		}
 		if (!candidate.isFile()) {
@@ -83,6 +76,26 @@ final class DirectoryAssetsProvider implements AssetsProvider, Closeable {
 			// Raced by a concurrent clear; absent and unreadable look the same to the
 			// framework, which falls through to the baked-in copy.
 			return null;
+		}
+	}
+
+	/**
+	 * Whether {@code candidate} resolves strictly inside the served root.
+	 *
+	 * Both sides are canonicalized, so {@code ..} segments and symlinks resolve before the comparison rather than being compared as text. The root's half is resolved in the constructor instead of here, because this runs for every asset the app opens and this provider sits ahead of the baked-in APK in the loader's list. The trailing separator is what stops a sibling whose name merely starts with the root's - {@code /a/rootEvil} against root {@code /a/root} - and it also excludes the root itself.
+	 *
+	 * @param candidate
+	 *            a path resolved against the root
+	 * @return true when the candidate may be served; false when it escapes, or when either path could not be canonicalized - unresolvable counts as outside, since a path this process cannot resolve is one it must not serve
+	 */
+	boolean isWithinRoot(File candidate) {
+		if (rootPrefix == null) {
+			return false;
+		}
+		try {
+			return candidate.getCanonicalPath().startsWith(rootPrefix);
+		} catch (IOException error) {
+			return false;
 		}
 	}
 }

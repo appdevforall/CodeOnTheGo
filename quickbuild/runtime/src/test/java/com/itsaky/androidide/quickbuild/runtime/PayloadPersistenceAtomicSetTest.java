@@ -3,8 +3,10 @@ package com.itsaky.androidide.quickbuild.runtime;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.concurrent.CountDownLatch;
@@ -26,15 +28,36 @@ class PayloadPersistenceAtomicSetTest {
 		return s.getBytes(StandardCharsets.UTF_8);
 	}
 
+	private static InputStream stream(String text) {
+		return new ByteArrayInputStream(bytes(text));
+	}
+
 	@TempDir
 	File temp;
+
+	@Test
+	void aFailedPersistDoesNotBlockItsOwnRetry() throws IOException {
+		// The bar rises only on a published generation. A persist that threw part-way
+		// published nothing, so refusing the retry would strand the app on the older
+		// generation for the life of the process.
+		PayloadPersistence store = store();
+		store.persist(1, FP, bytes("dex1"), stream("arsc1"), null);
+		blockWrite(store, PayloadPersistence.KIND_ARSC, 2);
+		assertThrows(IOException.class,
+				() -> store.persist(2, FP, bytes("dex2"), stream("arsc2"), null));
+		unblockWrite(store, PayloadPersistence.KIND_ARSC, 2);
+
+		store.persist(2, FP, bytes("dex2"), stream("arsc2"), null);
+
+		assertThat(store.load(FP).generation).isEqualTo(2);
+	}
 
 	@Test
 	void aLaterPersistCollectsWhatATornWriteLeftBehind() throws IOException {
 		PayloadPersistence store = store();
 		store.persist(1, FP, bytes("dex1"), null, null);
 		blockWrite(store, PayloadPersistence.KIND_ARSC, 2);
-		assertThrows(IOException.class, () -> store.persist(2, FP, bytes("dex2"), bytes("arsc2"), null));
+		assertThrows(IOException.class, () -> store.persist(2, FP, bytes("dex2"), stream("arsc2"), null));
 
 		store.persist(3, FP, bytes("dex3"), null, null);
 
@@ -48,7 +71,7 @@ class PayloadPersistenceAtomicSetTest {
 		// Serving the subset that happens to be present is exactly the mixed store this
 		// layout exists to prevent, so a dangling reference must discard the store.
 		PayloadPersistence store = store();
-		store.persist(1, FP, bytes("dex1"), bytes("arsc1"), null);
+		store.persist(1, FP, bytes("dex1"), stream("arsc1"), null);
 		assertThat(payload(store, PayloadPersistence.KIND_ARSC, 1).delete()).isTrue();
 
 		assertThat(store.load(FP)).isNull();
@@ -74,14 +97,36 @@ class PayloadPersistenceAtomicSetTest {
 	}
 
 	@Test
+	void anOvertakenDeployIsRefusedRatherThanPublishedOverTheNewerOne() throws IOException {
+		// onPayload is oneway, so a slow older deploy can still be inside persist when a
+		// newer one finishes. Publishing it would leave disk a generation behind the
+		// running process, which shows up only on the next cold boot.
+		PayloadPersistence store = store();
+		store.persist(41, FP, bytes("dex41"), stream("arsc41"), null);
+
+		assertThrows(PayloadPersistence.StalePayloadException.class,
+				() -> store.persist(40, FP, bytes("dex40"), stream("arsc40"), null));
+
+		// Not merely refused - the store is untouched, still whole, still on 41.
+		PayloadPersistence.Loaded loaded = store.load(FP);
+		assertThat(loaded.generation).isEqualTo(41);
+		assertThat(loaded.dex).isEqualTo(bytes("dex41"));
+	}
+
+	@Test
 	void aStoreClaimingANewerGenerationIsNotInheritedFrom() throws IOException {
 		// The host's counter restarts if the project's state dir is wiped while the app
 		// stays installed, so a low generation can arrive at a store claiming a high one.
 		// Carrying gen 40's resources forward would pair this dex with a LATER build's
 		// table - the one direction cumulative deltas do not make safe.
-		PayloadPersistence store = store();
-		store.persist(40, FP, bytes("dex40"), bytes("arsc40"), null);
+		PayloadPersistence earlier = store();
+		earlier.persist(40, FP, bytes("dex40"), stream("arsc40"), null);
 
+		// A fresh store over the same directory, because that is the only shape this case
+		// has: the wipe happens between app processes, so gen 1 always arrives at a store
+		// object that has published nothing. A store that had published 40 in THIS process
+		// would be watching an overtaken deploy instead, and refuses it.
+		PayloadPersistence store = new PayloadPersistence(earlier.dir());
 		store.persist(1, FP, bytes("dex1"), null, null);
 
 		PayloadPersistence.Loaded loaded = store.load(FP);
@@ -94,10 +139,10 @@ class PayloadPersistenceAtomicSetTest {
 	@Test
 	void aTornPersistNeverPairsOneGenerationsDexWithAnothersResources() throws IOException {
 		PayloadPersistence store = store();
-		store.persist(1, FP, bytes("dex1"), bytes("arsc1"), null);
+		store.persist(1, FP, bytes("dex1"), stream("arsc1"), null);
 		blockWrite(store, PayloadPersistence.KIND_ARSC, 2);
 
-		assertThrows(IOException.class, () -> store.persist(2, FP, bytes("dex2"), bytes("arsc2"), null));
+		assertThrows(IOException.class, () -> store.persist(2, FP, bytes("dex2"), stream("arsc2"), null));
 
 		// The whole of generation 1, or nothing. Not gen 2's dex against gen 1's table,
 		// and not a discarded store either - gen 1 is still complete and bootable.
@@ -114,7 +159,7 @@ class PayloadPersistenceAtomicSetTest {
 		blockWrite(store, PayloadPersistence.KIND_ASSETS, 1);
 
 		assertThrows(IOException.class,
-				() -> store.persist(1, FP, bytes("dex1"), bytes("arsc1"), bytes("assets1")));
+				() -> store.persist(1, FP, bytes("dex1"), stream("arsc1"), stream("assets1")));
 
 		// No meta was ever published, so there is nothing to adopt - the boot falls back
 		// to the baseline rather than to a dex with no matching resources.
@@ -127,7 +172,7 @@ class PayloadPersistenceAtomicSetTest {
 		// two calls at once. Interleaved inheritance reads and orphan collection would
 		// publish a meta naming a file the other thread had just collected.
 		final PayloadPersistence store = store();
-		store.persist(1, FP, bytes("dex1"), bytes("arsc1"), bytes("assets1"));
+		store.persist(1, FP, bytes("dex1"), stream("arsc1"), stream("assets1"));
 		final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
 		Thread dexDeploys = new Thread(persister(store, failure, 2, 40, true));
 		Thread resourceDeploys = new Thread(persister(store, failure, 3, 41, false));
@@ -231,10 +276,15 @@ class PayloadPersistenceAtomicSetTest {
 						if (dex) {
 							store.persist(generation, FP, bytes("dex" + generation), null, null);
 						} else {
-							store.persist(generation, FP, null, bytes("arsc" + generation),
-									bytes("assets" + generation));
+							store.persist(generation, FP, null, stream("arsc" + generation),
+									stream("assets" + generation));
 						}
 					}
+				} catch (PayloadPersistence.StalePayloadException overtaken) {
+					// Expected here, and the reason this test still means something: the two
+					// threads interleave, so whichever falls behind is refused exactly as an
+					// overtaken deploy is on a device. What must still hold is the invariant
+					// asserted after the join - the store is never left half-published.
 				} catch (Throwable error) {
 					failure.set(error);
 				}
@@ -244,5 +294,21 @@ class PayloadPersistenceAtomicSetTest {
 
 	private PayloadPersistence store() {
 		return new PayloadPersistence(new File(temp, "payload"));
+	}
+
+	/**
+	 * Undoes {@link #blockWrite}, so the same generation can be persisted successfully on a retry.
+	 *
+	 * @param store
+	 *            the store whose write to unblock
+	 * @param kind
+	 *            the payload kind to unblock
+	 * @param generation
+	 *            the generation whose write to unblock
+	 */
+	private void unblockWrite(PayloadPersistence store, String kind, long generation) {
+		File target = payload(store, kind, generation);
+		assertThat(new File(target, "child").delete()).isTrue();
+		assertThat(target.delete()).isTrue();
 	}
 }
