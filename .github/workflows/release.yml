@@ -102,13 +102,13 @@ jobs:
 
           place gradle-9.6.1-bin.zip.br      "$REL/common/data/common" 50000000
           place gradle-api-9.6.1.jar.br      "$REL/common/data/common" 10000000
-          place localMvnRepository.zip.br    "$REL/common/data/common" 100000000
+          place localMvnRepository.zip.br    "$REL/common/data/common" 50000000
           place core.cgt.br                  "$REL/common/data/common" 100000
           place documentation.db.br          "$REL/common/database"    100000000
           place android-sdk-v7.zip.br        "$REL/v7/data/common"     30000000
-          place bootstrap-v7.zip.br          "$REL/v7/data/common"     100000000
+          place bootstrap-v7.zip.br          "$REL/v7/data/common"     50000000
           place android-sdk-v8.zip.br        "$REL/v8/data/common"     30000000
-          place bootstrap-v8.zip.br          "$REL/v8/data/common"     100000000
+          place bootstrap-v8.zip.br          "$REL/v8/data/common"     50000000
 
           # the ABI files carry their target names inside the tree
           mv "$REL/v7/data/common/android-sdk-v7.zip.br" "$REL/v7/data/common/android-sdk.zip.br"
