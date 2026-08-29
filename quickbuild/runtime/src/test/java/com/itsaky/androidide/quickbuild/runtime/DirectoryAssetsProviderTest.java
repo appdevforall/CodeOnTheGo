@@ -21,7 +21,7 @@ class DirectoryAssetsProviderTest {
 	void aDotDotEscapeIsRefused() {
 		File root = root();
 
-		assertThat(DirectoryAssetsProvider.isWithinRoot(root, new File(root, "assets/../../secret.json")))
+		assertThat(new DirectoryAssetsProvider(root).isWithinRoot(new File(root, "assets/../../secret.json")))
 				.isFalse();
 	}
 
@@ -31,7 +31,7 @@ class DirectoryAssetsProviderTest {
 
 		// Textually suspicious, canonically fine: the rule is about where the path lands,
 		// not about whether it spells "..".
-		assertThat(DirectoryAssetsProvider.isWithinRoot(root, new File(root, "assets/../assets/levels.json")))
+		assertThat(new DirectoryAssetsProvider(root).isWithinRoot(new File(root, "assets/../assets/levels.json")))
 				.isTrue();
 	}
 
@@ -39,7 +39,7 @@ class DirectoryAssetsProviderTest {
 	void aPathOutsideTheRootIsRefused() {
 		File root = root();
 
-		assertThat(DirectoryAssetsProvider.isWithinRoot(root, new File(tempDir.toFile(), "secret.json")))
+		assertThat(new DirectoryAssetsProvider(root).isWithinRoot(new File(tempDir.toFile(), "secret.json")))
 				.isFalse();
 	}
 
@@ -50,7 +50,7 @@ class DirectoryAssetsProviderTest {
 		// An embedded NUL makes getCanonicalPath throw rather than answer. A path this
 		// process cannot resolve is one it cannot prove is contained, so it must not serve
 		// it - refusing is the safe direction, and the framework falls through.
-		assertThat(DirectoryAssetsProvider.isWithinRoot(root, new File(root, "assets/le\0vels.json")))
+		assertThat(new DirectoryAssetsProvider(root).isWithinRoot(new File(root, "assets/le\0vels.json")))
 				.isFalse();
 	}
 
@@ -58,8 +58,22 @@ class DirectoryAssetsProviderTest {
 	void aPathUnderTheRootIsServable() {
 		File root = root();
 
-		assertThat(DirectoryAssetsProvider.isWithinRoot(root, new File(root, "assets/data/levels.json")))
+		assertThat(new DirectoryAssetsProvider(root).isWithinRoot(new File(root, "assets/data/levels.json")))
 				.isTrue();
+	}
+
+	@Test
+	void aRootThatCannotBeCanonicalizedRefusesEveryLookup() {
+		// The root is resolved once now, in the constructor, so its failure has to be
+		// carried rather than rediscovered per lookup - and it must refuse, not admit.
+		// Same direction as the per-path rule: a root this process cannot resolve is one
+		// it cannot prove anything is inside of.
+		DirectoryAssetsProvider provider = new DirectoryAssetsProvider(
+				new File(tempDir.toFile(), "over\0ride"));
+
+		assertThat(provider.isWithinRoot(new File(tempDir.toFile(), "override/assets/levels.json")))
+				.isFalse();
+		assertThat(provider.loadAssetFd("assets/data/levels.json", 0)).isNull();
 	}
 
 	@Test
@@ -68,7 +82,7 @@ class DirectoryAssetsProviderTest {
 
 		// Why the rule appends a separator before comparing: "/tmp/x/overrideEvil" starts
 		// with "/tmp/x/override" as text while being an unrelated directory.
-		assertThat(DirectoryAssetsProvider.isWithinRoot(root, new File(tempDir.toFile(), "overrideEvil/secret.json")))
+		assertThat(new DirectoryAssetsProvider(root).isWithinRoot(new File(tempDir.toFile(), "overrideEvil/secret.json")))
 				.isFalse();
 	}
 
@@ -81,7 +95,7 @@ class DirectoryAssetsProviderTest {
 
 		// Canonicalization is what catches this: the path is textually under the root and
 		// resolves outside it.
-		assertThat(DirectoryAssetsProvider.isWithinRoot(root, new File(root, "link/secret.json")))
+		assertThat(new DirectoryAssetsProvider(root).isWithinRoot(new File(root, "link/secret.json")))
 				.isFalse();
 	}
 
@@ -110,7 +124,7 @@ class DirectoryAssetsProviderTest {
 	void theRootItselfIsNotInsideItself() {
 		File root = root();
 
-		assertThat(DirectoryAssetsProvider.isWithinRoot(root, root)).isFalse();
+		assertThat(new DirectoryAssetsProvider(root).isWithinRoot(root)).isFalse();
 	}
 
 	private File root() {

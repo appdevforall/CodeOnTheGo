@@ -2,9 +2,11 @@ package com.itsaky.androidide.quickbuild.runtime;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,10 @@ class PayloadPersistenceTest {
 
 	private static File payload(PayloadPersistence store, String kind, long generation) {
 		return new File(store.dir(), PayloadPersistence.payloadFileName(kind, generation));
+	}
+
+	private static InputStream stream(String text) {
+		return new ByteArrayInputStream(bytes(text));
 	}
 
 	@TempDir
@@ -115,8 +121,8 @@ class PayloadPersistenceTest {
 		// gets the newest dex AND the newest resources even when they shipped apart.
 		PayloadPersistence store = store();
 		store.persist(1, FP, bytes("dex1"), null, null);
-		store.persist(2, FP, null, bytes("arsc2"), null);
-		store.persist(3, FP, bytes("dex3"), null, bytes("assets3"));
+		store.persist(2, FP, null, stream("arsc2"), null);
+		store.persist(3, FP, bytes("dex3"), null, stream("assets3"));
 
 		PayloadPersistence.Loaded loaded = store.load(FP);
 		assertThat(loaded.generation).isEqualTo(3);
@@ -139,7 +145,7 @@ class PayloadPersistenceTest {
 	@Test
 	void persistReturnsTheCumulativeResourceFiles() throws IOException {
 		PayloadPersistence store = store();
-		store.persist(1, FP, null, bytes("arsc1"), null);
+		store.persist(1, FP, null, stream("arsc1"), null);
 		PayloadPersistence.Persisted persisted = store.persist(2, FP, bytes("dex2"), null, null);
 
 		// The dex-only deploy still sees the previously persisted arsc.
@@ -151,7 +157,7 @@ class PayloadPersistenceTest {
 	@Test
 	void resourceOnlyHistoryLoadsWithNullDex() throws IOException {
 		PayloadPersistence store = store();
-		store.persist(1, FP, null, bytes("arsc1"), null);
+		store.persist(1, FP, null, stream("arsc1"), null);
 
 		PayloadPersistence.Loaded loaded = store.load(FP);
 		assertThat(loaded.generation).isEqualTo(1);
@@ -162,7 +168,7 @@ class PayloadPersistenceTest {
 	@Test
 	void roundTripsAFullPayload() throws IOException {
 		PayloadPersistence store = store();
-		store.persist(3, FP, bytes("dex3"), bytes("arsc3"), bytes("assets3"));
+		store.persist(3, FP, bytes("dex3"), stream("arsc3"), stream("assets3"));
 
 		PayloadPersistence.Loaded loaded = store.load(FP);
 		assertThat(loaded).isNotNull();

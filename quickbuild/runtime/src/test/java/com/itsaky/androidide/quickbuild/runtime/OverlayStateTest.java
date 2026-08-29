@@ -52,10 +52,10 @@ class OverlayStateTest {
 	}
 
 	@Test
-	void crashedSaysTheAppRunsTheLastWorkingVersionAndCarriesTheSummary() {
-		OverlayState state = OverlayState.crashed("java.lang.NullPointerException\n at Foo.bar");
-		assertThat(state.text()).contains("running the last working version");
-		assertThat(state.text()).contains("NullPointerException");
+	void crashedSaysTheAppRunsTheLastWorkingVersionAndNamesTheOutputPane() {
+		OverlayState state = OverlayState.crashed();
+		assertThat(state.text()).contains("on the last working version");
+		assertThat(state.text()).contains("Build Output");
 		assertThat(state.isError()).isTrue();
 	}
 
@@ -70,7 +70,7 @@ class OverlayStateTest {
 	@Test
 	void onlyBuildingIsBuilding() {
 		assertThat(OverlayState.hidden().isBuilding()).isFalse();
-		assertThat(OverlayState.crashed("x").isBuilding()).isFalse();
+		assertThat(OverlayState.crashed().isBuilding()).isFalse();
 	}
 
 	@Test

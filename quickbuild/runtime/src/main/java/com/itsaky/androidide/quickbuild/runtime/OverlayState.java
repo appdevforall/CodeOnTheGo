@@ -8,6 +8,13 @@ package com.itsaky.androidide.quickbuild.runtime;
 final class OverlayState {
 
 	/**
+	 * Where a reader goes for the whole failure, named on the crash banner.
+	 *
+	 * The banner is a strip over the user's own app and deliberately cannot scroll, so it names the surface that holds the failure rather than carrying any of it. Build Output is the pane CoGo already writes the reported summary to, so this points at something that exists rather than something we would have to build. Its length is half of {@link CrashSummary#MAX_BANNER_LINES}' arithmetic - lengthening it without revisiting that clips the pointer itself, which is the one line the banner cannot afford to lose.
+	 */
+	static final String FULL_OUTPUT_POINTER = "For more info, see Build Output in Code on the Go.";
+
+	/**
 	 * State for a compile error, carrying the message summary the banner names. The banner is position-free by design: the error location is CoGo's to show, so it never crosses the deploy channel.
 	 *
 	 * @param status
@@ -30,14 +37,14 @@ final class OverlayState {
 	}
 
 	/**
-	 * State for a payload that crashed and was rolled back, with a stack summary as {@code detail}.
+	 * State for a payload that crashed and was rolled back.
 	 *
-	 * @param detail
-	 *            one-line summary of the crash, appended to the banner; null renders the headline alone
+	 * The banner takes no stack summary. It covers the user's own app, so it says what happened and names where the detail is, and stops; {@link CrashSummary#forReport} still ships the whole thing to CoGo. A summary here would be text nobody can scroll, on a surface that ellipsizes, in front of an app the reader did not ask us to cover.
+	 *
 	 * @return the crash state
 	 */
-	static OverlayState crashed(String detail) {
-		return new OverlayState(Kind.CRASHED, detail, 0, -1);
+	static OverlayState crashed() {
+		return new OverlayState(Kind.CRASHED, null, 0, -1);
 	}
 
 	/**
@@ -125,8 +132,11 @@ final class OverlayState {
 			}
 			return sb.toString();
 		case CRASHED:
-			return "New code crashed - app is running the last working version"
-					+ (detail == null ? "" : "\n" + detail);
+			// "Live reload crashed", not "new code crashed": this state is set only from
+			// failReload, so it is the reload machinery that failed, never the user's own
+			// code. The old wording named the one event this banner cannot observe.
+			return "Live reload crashed. App is on the last working version." + "\n"
+					+ FULL_OUTPUT_POINTER;
 		case REINSTALL_PENDING:
 			return "Update needs your OK in Code on the Go - switch back to approve it\n"
 					+ "This app is running the last working version";

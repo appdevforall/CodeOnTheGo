@@ -4,11 +4,67 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
 
 class StreamsTest {
+
+	@Test
+	void aCopyRefusesAtTheCapRatherThanWritingPastIt() {
+		// The cap has to hold on the streaming path too, or moving resources off the heap
+		// would have quietly removed the only guard against a runaway payload.
+		byte[] data = new byte[64 * 1024 + 1];
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+		IOException thrown = assertThrows(IOException.class,
+				() -> Streams.copy(new ByteArrayInputStream(data), out, 64 * 1024));
+		assertThat(thrown).hasMessageThat().contains(String.valueOf(64 * 1024));
+		assertThat(out.size()).isAtMost(64 * 1024);
+	}
+
+	@Test
+	void aCopyReproducesTheStreamExactlyAcrossBufferBoundaries() throws IOException {
+		// Sized past the internal buffer on purpose: a copy that mishandled a partial
+		// final chunk would still pass on anything that fits in one read.
+		byte[] data = new byte[40 * 1024 + 7];
+		new Random(11).nextBytes(data);
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+		long copied = Streams.copy(new ByteArrayInputStream(data), out, 64 * 1024);
+
+		assertThat(copied).isEqualTo(data.length);
+		assertThat(out.toByteArray()).isEqualTo(data);
+	}
+
+	@Test
+	void aSizeHintDoesNotRaiseTheCap() {
+		// The hint arrives from the same descriptor the stream does, so an oversized one
+		// must never be read as permission to buffer that much.
+		byte[] data = new byte[64 * 1024 + 1];
+
+		IOException thrown = assertThrows(IOException.class,
+				() -> Streams.readFully(new ByteArrayInputStream(data), 64 * 1024, data.length));
+		assertThat(thrown).hasMessageThat().contains(String.valueOf(64 * 1024));
+	}
+
+	@Test
+	void aSizeHintNeverChangesTheBytesReturned() throws IOException {
+		// The hint only picks the starting buffer size. Each value here is one a real
+		// caller passes - an exact File.length(), the -1 a pipe reports, a stale length
+		// from a file that changed under the read, and one past the cap - and all four
+		// must return the same array, or presizing has become a correctness surface.
+		byte[] data = new byte[40 * 1024];
+		new Random(23).nextBytes(data);
+
+		assertThat(Streams.readFully(new ByteArrayInputStream(data), 64 * 1024, data.length))
+				.isEqualTo(data);
+		assertThat(Streams.readFully(new ByteArrayInputStream(data), 64 * 1024, -1L)).isEqualTo(data);
+		assertThat(Streams.readFully(new ByteArrayInputStream(data), 64 * 1024, 8L)).isEqualTo(data);
+		assertThat(Streams.readFully(new ByteArrayInputStream(data), 64 * 1024, Long.MAX_VALUE))
+				.isEqualTo(data);
+	}
 
 	@Test
 	void defaultOverloadAppliesThePayloadCap() {
@@ -67,7 +123,7 @@ class StreamsTest {
 	/**
 	 * Claims {@code size} zero bytes without ever allocating them.
 	 *
-	 * Makes the 256 MB default cap testable in-heap: the capped reader must throw before it buffers anywhere near that much.
+	 * Makes the default cap testable in-heap: the capped reader must throw before it buffers anywhere near that much.
 	 */
 	private static final class OversizedStream extends java.io.InputStream {
 

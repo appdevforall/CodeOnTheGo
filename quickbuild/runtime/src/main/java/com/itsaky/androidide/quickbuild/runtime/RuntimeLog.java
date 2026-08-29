@@ -27,6 +27,24 @@ final class RuntimeLog {
 	}
 
 	/**
+	 * Logs at debug level with the swallowed cause attached, mirroring {@link #e} and {@link #w}.
+	 *
+	 * Prefer this over concatenating the exception into the message: {@code toString()} names the exception and nothing else, while the attached trace names where it came from - which is the whole question on the skipped-step paths that log at this level.
+	 *
+	 * @param message
+	 *            the line to log; passed through unformatted
+	 * @param error
+	 *            the cause to attach, printed with its stack trace; may be null
+	 */
+	static void d(String message, Throwable error) {
+		try {
+			Log.d(TAG, message, error);
+		} catch (Throwable ignored) {
+			// Logging must never alter behavior.
+		}
+	}
+
+	/**
 	 * Logs at error level, for a failure that cost the user a reload.
 	 *
 	 * @param message
