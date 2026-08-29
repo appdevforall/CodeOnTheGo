@@ -21,7 +21,4 @@ interface IQuickBuildHost {
 
 	/** The payload for {@code generation} crashed in render/lifecycle. */
 	oneway void reportCrash(long generation, String stackSummary);
-
-	/** Drop the registration for {@code packageName}, so CoGo stops sending it payloads. */
-	void disconnect(String packageName);
 }
