@@ -1,5 +1,6 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -123,7 +124,7 @@ final class PayloadPersistence {
 	private static byte[] readBytes(File file) throws IOException {
 		InputStream in = new FileInputStream(file);
 		try {
-			return Streams.readFully(in);
+			return Streams.readFully(in, Streams.MAX_PAYLOAD_BYTES, file.length());
 		} finally {
 			Streams.closeQuietly(in);
 		}
@@ -153,10 +154,24 @@ final class PayloadPersistence {
 	 *             when the write, the sync, or both rename attempts fail
 	 */
 	private static void writeAtomic(File target, byte[] bytes) throws IOException {
+		writeAtomic(target, new ByteArrayInputStream(bytes));
+	}
+
+	/**
+	 * Writes temp-then-rename with an fsync, streaming so the contents are never held whole in memory.
+	 *
+	 * @param target
+	 *            the final path; its parent must already exist
+	 * @param in
+	 *            the contents, read to exhaustion; not closed, since the caller owns it
+	 * @throws IOException
+	 *             when the read, the write, the sync, or both rename attempts fail, or when the stream exceeds {@link Streams#MAX_PAYLOAD_BYTES}
+	 */
+	private static void writeAtomic(File target, InputStream in) throws IOException {
 		File temp = new File(target.getParentFile(), target.getName() + TEMP_SUFFIX);
 		FileOutputStream out = new FileOutputStream(temp);
 		try {
-			out.write(bytes);
+			Streams.copy(in, out, Streams.MAX_PAYLOAD_BYTES);
 			out.getFD().sync();
 		} finally {
 			Streams.closeQuietly(out);
@@ -171,6 +186,13 @@ final class PayloadPersistence {
 	}
 
 	private final File dir;
+
+	/**
+	 * Highest generation this process has published, or 0 before the first publish.
+	 *
+	 * Deliberately per-process rather than read from the store, and that is what separates the two cases a generation number alone conflates. An overtaken deploy is always two binder threads inside one live process, so it is caught here. A restarted host counter always arrives in a process that has published nothing yet - the store it finds was written by an earlier session or install - so this is 0 and the low generation is adopted, which is what the app needs for the deploy to work at all.
+	 */
+	private long highestPersistedGeneration;
 
 	/**
 	 * @param dir
@@ -261,12 +283,23 @@ final class PayloadPersistence {
 	 *
 	 * @param generation
 	 *            the generation now on screen; ignored unless the store currently publishes it, since a caller confirming a superseded generation has nothing here to record
-	 * @return true when {@link #GOOD_FILE} names {@code generation} after this call, which is also the moment {@link #quarantine} starts refusing to name it; false when the store no longer publishes it or the write failed, and the caller must go on treating it as unproven
+	 * @return true when {@link #GOOD_FILE} names {@code generation} after this call, which is also the moment {@link #quarantine} starts refusing to name it; false when the store no longer publishes it, when it is already quarantined, or when the write failed, and the caller must go on treating it as unproven. {@link #markGoodCanSucceed} separates the retryable false from the other two.
 	 */
 	synchronized boolean markGood(long generation) {
 		try {
 			File meta = new File(dir, META_FILE);
 			if (!meta.isFile() || generationIn(meta) != generation) {
+				return false;
+			}
+			if (generationIn(new File(dir, QUARANTINE_FILE)) == generation) {
+				// The crash guard got here first. Recording it good anyway leaves both
+				// markers naming the same generation, and the next boot then finds the
+				// published set quarantined AND the fallback set quarantined, which load()
+				// reads as corruption and answers by clearing the whole store - the app
+				// drops to install-time code with every save since discarded. quarantine()
+				// holds this same monitor and carries the mirror-image guard, so whichever
+				// of the two runs first, the second refuses.
+				RuntimeLog.w("not recording generation " + generation + " as good; it is quarantined");
 				return false;
 			}
 			if (generationIn(new File(dir, GOOD_FILE)) == generation) {
@@ -283,6 +316,21 @@ final class PayloadPersistence {
 	}
 
 	/**
+	 * Whether a {@link #markGood} that returned false is worth calling again.
+	 *
+	 * markGood returns the same false for three different situations and only one of them is transient. The store having moved on to a newer generation, or having quarantined this one, are both permanent for this generation - a caller that retried on those would spawn a write per resume for the rest of the process. A failed write is the one the caller should come back to.
+	 *
+	 * @param generation
+	 *            the generation whose markGood returned false
+	 * @return true when the store still publishes {@code generation} and has not quarantined it, so the false came from the write rather than from the store's state
+	 */
+	synchronized boolean markGoodCanSucceed(long generation) {
+		File meta = new File(dir, META_FILE);
+		return meta.isFile() && generationIn(meta) == generation
+				&& generationIn(new File(dir, QUARANTINE_FILE)) != generation;
+	}
+
+	/**
 	 * Writes {@code generation} as the newest payload, published as one atomic set.
 	 *
 	 * A null byte array keeps the previously persisted file of that kind, since deploys are per-kind deltas and the store is cumulative. The carried-forward file is referenced by name rather than copied, so a full disk cannot turn a delta deploy into a mixed store.
@@ -294,15 +342,25 @@ final class PayloadPersistence {
 	 * @param dex
 	 *            the dex bytes, or null to keep the persisted ones
 	 * @param arsc
-	 *            the relinked resource apk bytes, or null to keep the persisted ones
+	 *            the relinked resource apk, streamed straight to its store file, or null to keep the persisted one
 	 * @param assetsZip
-	 *            the changed-assets zip bytes, or null to keep the persisted ones
+	 *            the changed-assets zip, streamed straight to its store file, or null to keep the persisted one
 	 * @return the store's payload files after the write, for callers that apply resources from the persisted copies; each field is null when that kind was never persisted
+	 * @throws StalePayloadException
+	 *             when a generation this process already published is newer than this one, which means this deploy was overtaken while it read its payload
 	 * @throws IOException
 	 *             when the directory cannot be created or any write fails; meta.json lands last, so a failure leaves the store on the previous generation, whole
 	 */
-	synchronized Persisted persist(long generation, String fingerprint, byte[] dex, byte[] arsc,
-			byte[] assetsZip) throws IOException {
+	synchronized Persisted persist(long generation, String fingerprint, byte[] dex, InputStream arsc,
+			InputStream assetsZip) throws IOException {
+		if (generation < highestPersistedGeneration) {
+			// onPayload is oneway, so two deploys genuinely arrive on two binder threads.
+			// The older one can be overtaken while it reads its payload and then publish
+			// itself over the newer one, leaving disk a generation behind the running
+			// process - invisible until the next cold boot adopts it.
+			throw new StalePayloadException("refusing to persist generation " + generation
+					+ " over " + highestPersistedGeneration + " already published by this process");
+		}
 		if (!dir.isDirectory() && !dir.mkdirs()) {
 			throw new IOException("cannot create " + dir);
 		}
@@ -328,6 +386,9 @@ final class PayloadPersistence {
 			// longer exists and falling back to it would boot a LATER-numbered older build.
 			deleteQuietly(new File(dir, GOOD_FILE));
 		}
+		// Only after the publishing rename: a persist that threw part-way published
+		// nothing, and must not raise the bar against the retry that follows it.
+		highestPersistedGeneration = generation;
 		collectOrphans(dexName, arscName, assetsName);
 		return new Persisted(fileOrNull(arscName), fileOrNull(assetsName));
 	}
@@ -466,6 +527,28 @@ final class PayloadPersistence {
 			RuntimeLog.w("unreadable " + file.getName() + "; ignoring it", error);
 			return -1;
 		}
+	}
+
+	/**
+	 * The previous generation's file name for {@code kind}, when it is still there to carry forward.
+	 *
+	 * @param kind
+	 *            the payload kind this deploy did not carry
+	 * @param previous
+	 *            the inheritable published meta, or null when there is none
+	 * @return the name to reference, or null when there is nothing inheritable
+	 */
+	private String inherit(String kind, Map<String, Object> previous) {
+		if (previous == null) {
+			return null;
+		}
+		Object inherited = previous.get(kind);
+		// Only carry forward a name that still resolves; a meta naming a missing file
+		// would be published as corruption.
+		if (inherited instanceof String && new File(dir, (String) inherited).isFile()) {
+			return (String) inherited;
+		}
+		return null;
 	}
 
 	/**
@@ -633,21 +716,33 @@ final class PayloadPersistence {
 	 */
 	private String writeOrInherit(String kind, long generation, byte[] bytes,
 			Map<String, Object> previous) throws IOException {
-		if (bytes != null) {
-			String name = payloadFileName(kind, generation);
-			writeAtomic(new File(dir, name), bytes);
-			return name;
+		return writeOrInherit(kind, generation,
+				bytes == null ? null : new ByteArrayInputStream(bytes), previous);
+	}
+
+	/**
+	 * Streams one kind's contents to a generation-stamped name, or carries the previous name forward.
+	 *
+	 * @param kind
+	 *            the payload kind being written
+	 * @param generation
+	 *            the incoming generation, which stamps the new file's name
+	 * @param in
+	 *            the contents, or null when this deploy carried nothing of this kind; read to exhaustion, not closed
+	 * @param previous
+	 *            the inheritable published meta, or null when there is none
+	 * @return the file name the new meta should reference, or null when this kind has never been persisted
+	 * @throws IOException
+	 *             when the write fails
+	 */
+	private String writeOrInherit(String kind, long generation, InputStream in,
+			Map<String, Object> previous) throws IOException {
+		if (in == null) {
+			return inherit(kind, previous);
 		}
-		if (previous == null) {
-			return null;
-		}
-		Object inherited = previous.get(kind);
-		// Only carry forward a name that still resolves; a meta naming a missing file
-		// would be published as corruption.
-		if (inherited instanceof String && new File(dir, (String) inherited).isFile()) {
-			return (String) inherited;
-		}
-		return null;
+		String name = payloadFileName(kind, generation);
+		writeAtomic(new File(dir, name), in);
+		return name;
 	}
 
 	/**
@@ -703,6 +798,24 @@ final class PayloadPersistence {
 		Persisted(File arscFile, File assetsFile) {
 			this.arscFile = arscFile;
 			this.assetsFile = assetsFile;
+		}
+	}
+
+	/**
+	 * Refusal of a payload an already-persisted one has overtaken.
+	 *
+	 * Separate from a plain {@link IOException} so the deploy path can tell "this payload lost a race" from "the store is broken": the first is ordinary and must stay silent, and reporting it would put a crash banner on a screen that is running exactly what it should be.
+	 */
+	static final class StalePayloadException extends IOException {
+
+		private static final long serialVersionUID = 1L;
+
+		/**
+		 * @param message
+		 *            names both generations, since which one won is the whole content of the event
+		 */
+		StalePayloadException(String message) {
+			super(message);
 		}
 	}
 }

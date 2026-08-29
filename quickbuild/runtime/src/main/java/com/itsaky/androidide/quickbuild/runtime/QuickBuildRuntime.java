@@ -21,18 +21,12 @@ import java.nio.ByteBuffer;
  */
 final class QuickBuildRuntime {
 
-	/** Stack frames kept in a crash summary; enough to place the fault, short enough to read. */
-	private static final int MAX_CRASH_SUMMARY_FRAMES = 5;
-
 	/**
 	 * How long a restart deploy waits for the framework to take the app's state, across both phases of the handoff.
 	 *
 	 * Only spent when the app is actually in front, which in the normal loop it is not - the user is typing in CoGo, so every activity is already stopped and both phases pass at once. Bounded well under the host's 5 s disconnect wait, since the kill is owed either way.
 	 */
 	private static final long RESTART_HANDOFF_TIMEOUT_MILLIS = 1500;
-
-	/** Hard cap on a crash summary, since it crosses binder and lands in a banner. */
-	private static final int MAX_CRASH_SUMMARY_LENGTH = 2000;
 
 	/** The one runtime per process, or null before {@link #install}. */
 	private static volatile QuickBuildRuntime instance;
@@ -104,37 +98,29 @@ final class QuickBuildRuntime {
 		if (fd == null) {
 			return null;
 		}
+		// A regular-file fd knows its size, so the buffer is allocated once instead of
+		// doubling and copying its way up to a payload-sized array; a pipe reports -1,
+		// which readFully takes as unknown.
+		long size = fd.getStatSize();
 		InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(fd);
 		try {
-			return Streams.readFully(in);
+			return Streams.readFully(in, Streams.MAX_PAYLOAD_BYTES, size);
 		} finally {
 			in.close();
 		}
 	}
 
 	/**
-	 * Compact single-string stack summary for reportCrash / the overlay.
+	 * Wraps one payload fd as a stream, without reading any of it.
 	 *
-	 * @param error
-	 *            the failure to summarize; must be non-null
-	 * @return the exception, up to {@link #MAX_CRASH_SUMMARY_FRAMES} frames and its immediate cause, truncated to {@link #MAX_CRASH_SUMMARY_LENGTH} chars
+	 * Only the dex has to become a byte array, because {@code InMemoryDexClassLoader} takes one. Resources and assets are written straight to their store files and then reopened as files, so nothing is gained by holding a whole resource apk in the heap on the way past - and on a low-end device it is what an oversize deploy would die on.
+	 *
+	 * @param fd
+	 *            the payload fd, or null when this deploy carried nothing of that kind
+	 * @return a stream that owns {@code fd} and closes it, or null when {@code fd} was null
 	 */
-	private static String summarize(Throwable error) {
-		StringBuilder sb = new StringBuilder();
-		sb.append(error.toString());
-		StackTraceElement[] frames = error.getStackTrace();
-		int limit = Math.min(frames.length, MAX_CRASH_SUMMARY_FRAMES);
-		for (int i = 0; i < limit; i++) {
-			sb.append("\n at ").append(frames[i]);
-		}
-		Throwable cause = error.getCause();
-		if (cause != null && cause != error) {
-			sb.append("\nCaused by: ").append(cause.toString());
-		}
-		if (sb.length() > MAX_CRASH_SUMMARY_LENGTH) {
-			sb.setLength(MAX_CRASH_SUMMARY_LENGTH);
-		}
-		return sb.toString();
+	private static InputStream streamOf(ParcelFileDescriptor fd) {
+		return fd == null ? null : new ParcelFileDescriptor.AutoCloseInputStream(fd);
 	}
 
 	private final Application application;
@@ -230,12 +216,22 @@ final class QuickBuildRuntime {
 			ParcelFileDescriptor resourcesPayload, ParcelFileDescriptor assetsPayload,
 			String metadataJson) {
 		long startUptime = SystemClock.uptimeMillis();
-		PayloadStore.Payload previous = PayloadStore.INSTANCE.snapshot();
+		PayloadStore.Payload previous = null;
+		InputStream arscIn = null;
+		InputStream assetsIn = null;
 		try {
 			DeployMetadata metadata = parseMetadata(metadataJson);
 			byte[] dexBytes = readBytesAndClose(dexPayload);
-			byte[] arscBytes = readBytesAndClose(resourcesPayload);
-			byte[] assetsBytes = readBytesAndClose(assetsPayload);
+			arscIn = streamOf(resourcesPayload);
+			assetsIn = streamOf(assetsPayload);
+			PayloadPersistence.Persisted persisted;
+			// Read here rather than on the way in: draining the dex takes long enough for
+			// a newer deploy to land and finish, and a check against a generation read
+			// before that would pass. This is the fast path, not the guard - it can still
+			// be overtaken between here and the persist below, and what stops the older
+			// payload reaching disk is the store refusing a generation it has already
+			// published past.
+			previous = PayloadStore.INSTANCE.snapshot();
 			if (previous == null
 					|| !Generations.accepts(previous.generation, generation)) {
 				// Deliberately unreported: claiming a reload for a payload we refused
@@ -249,7 +245,7 @@ final class QuickBuildRuntime {
 				// generation label. A CoGo bug if it ever happens.
 				throw new IllegalStateException("restart deploy without a dex payload");
 			}
-			PayloadPersistence.Persisted persisted = persistPayload(generation, dexBytes, arscBytes, assetsBytes);
+			persisted = persistPayload(generation, dexBytes, arscIn, assetsIn);
 			if (metadata.restart) {
 				// Never applied in-memory: this process is already condemned, and the
 				// fresh one boots the persisted generation.
@@ -263,15 +259,26 @@ final class QuickBuildRuntime {
 				// Raced by a newer payload between the acceptance check and here.
 				return;
 			}
-			if (arscBytes != null) {
+			final PayloadStore.Payload rollback = previous;
+			ResourceStore.SwapFailure onSwapFailure = new ResourceStore.SwapFailure() {
+
+				@Override
+				public void onSwapFailed(Throwable error) {
+					// The swap lands after this method returns, so without this the deploy
+					// acks a reload the app is not showing: CoGo reports success while the
+					// screen still renders the previous table, and no banner fires.
+					failReload(generation, rollback, error);
+				}
+			};
+			if (resourcesPayload != null) {
 				ResourceStore.INSTANCE.applyTable(
-						openReadOnly(persisted.arscFile), generation, application);
+						openReadOnly(persisted.arscFile), generation, application, onSwapFailure);
 			}
-			if (assetsBytes != null) {
+			if (assetsPayload != null) {
 				ResourceStore.INSTANCE.applyAssets(
 						openReadOnly(persisted.assetsFile),
 						PayloadStore.INSTANCE.baselineFingerprint(),
-						application.getCacheDir());
+						application, onSwapFailure);
 			}
 			boolean resumed = tracker.hasResumedActivity();
 			pendingReloadStartUptime = startUptime;
@@ -295,7 +302,6 @@ final class QuickBuildRuntime {
 				client.reportReloaded(generation, SystemClock.uptimeMillis() - startUptime);
 			}
 			final long reloadGeneration = generation;
-			final PayloadStore.Payload rollback = previous;
 			mainHandler.post(new Runnable() {
 
 				@Override
@@ -303,12 +309,22 @@ final class QuickBuildRuntime {
 					reloadOnMain(reloadGeneration, rollback);
 				}
 			});
+		} catch (PayloadPersistence.StalePayloadException overtaken) {
+			// Deliberately unreported, like the acceptance check above: the screen is
+			// running the newer payload that overtook this one, so there is nothing wrong
+			// to tell the user about and nothing for the host to roll back.
+			RuntimeLog.w("dropping payload gen " + generation + ": " + overtaken.getMessage());
 		} catch (Throwable error) {
 			RuntimeLog.e("payload gen " + generation + " failed to apply", error);
 			Streams.closeQuietly(dexPayload);
 			Streams.closeQuietly(resourcesPayload);
 			Streams.closeQuietly(assetsPayload);
 			failReload(generation, previous, error);
+		} finally {
+			// Also covers the early returns: an overtaken or restart deploy leaves here
+			// without having read these, and an unclosed fd leaks for the process life.
+			Streams.closeQuietly(arscIn);
+			Streams.closeQuietly(assetsIn);
 		}
 	}
 
@@ -392,15 +408,18 @@ final class QuickBuildRuntime {
 			return;
 		}
 		try {
+			// No failure listener: there is no deploy in flight to fail here, and the store
+			// already logs a failed swap. Baseline resources stay live and the next deploy
+			// re-applies the current ones, which is what this method's contract promises.
 			if (pending.arscFile != null) {
 				ResourceStore.INSTANCE.applyTable(
-						openReadOnly(pending.arscFile), pending.generation, context);
+						openReadOnly(pending.arscFile), pending.generation, context, null);
 			}
 			if (pending.assetsFile != null) {
 				ResourceStore.INSTANCE.applyAssets(
 						openReadOnly(pending.assetsFile),
 						PayloadStore.INSTANCE.baselineFingerprint(),
-						context.getCacheDir());
+						context, null);
 			}
 			RuntimeLog.i("restored persisted resources for gen " + pending.generation);
 		} catch (Throwable error) {
@@ -516,9 +535,12 @@ final class QuickBuildRuntime {
 			quarantine(generation);
 			pendingReloadGeneration = -1;
 		}
-		String summary = summarize(error);
-		setOverlayState(OverlayState.crashed(summary));
-		client.reportCrash(generation, summary);
+		// The banner gets no summary at all: it is a few unscrollable lines over the user's
+		// own app, so a stack put there is clipped mid-frame and the frames naming the fault
+		// are the half nobody sees. It names Build Output instead, and the report below is
+		// what actually puts the text there.
+		setOverlayState(OverlayState.crashed());
+		client.reportCrash(generation, CrashSummary.forReport(error));
 	}
 
 	/**
@@ -548,7 +570,7 @@ final class QuickBuildRuntime {
 						// adopt it and die the same way again - and the marker is what
 						// sends that relaunch to the last generation that ran instead.
 						quarantine(doomed);
-						client.reportCrash(doomed, summarize(error));
+						client.reportCrash(doomed, CrashSummary.forReport(error));
 					}
 				} catch (Throwable ignored) {
 					// The crash guard itself must never throw.
@@ -565,7 +587,7 @@ final class QuickBuildRuntime {
 	 *
 	 * Called from a resumed activity, which is the bar that matters: the failure a fallback has to survive is a payload that throws on the way to the screen, so a generation that got there is one a fresh process can boot. Without this a quarantine drops the app to install-time code and discards every save since.
 	 *
-	 * The probation ends on the recorded write rather than on the resume that prompted it, so the two facts stay simultaneous: the moment this generation stops being blamed for a crash is the moment there is something to fall back to instead. A write that fails leaves it on probation, which is the safe direction - {@link PayloadPersistence#quarantine} refuses to name a recorded generation, so the cost of blaming one wrongly is a log line.
+	 * The probation ends on the recorded write rather than on the resume that prompted it, so the two facts stay simultaneous: the moment this generation stops being blamed for a crash is the moment there is something to fall back to instead. A write that fails leaves it on probation, which is the expensive direction, not a safe one: nothing recorded it, so a later crash anywhere in the app blames a generation that demonstrably reached the screen and quarantines it. That is why a failed write releases the latch and the next resume tries again.
 	 *
 	 * Written off the main thread, because the write is fsynced and this runs on the frame path; latched per generation, so it costs one short-lived thread per generation rather than one per resume. Losing the write to a process death only makes the fallback one generation older.
 	 */
@@ -582,6 +604,16 @@ final class QuickBuildRuntime {
 			public void run() {
 				if (store.markGood(generation)) {
 					bootProbation.proved(generation);
+					return;
+				}
+				// markGood answers three situations with one false, and only a failed
+				// write is worth coming back to. The other two - the store has moved on,
+				// or has quarantined this generation - can never succeed, and releasing
+				// the latch for them would start a write thread on every resume. The
+				// store-moved-on case is ordinary, not exotic: persist runs before apply,
+				// so meta.json is briefly ahead of the live generation on every deploy.
+				if (lastMarkedGoodGeneration == generation && store.markGoodCanSucceed(generation)) {
+					lastMarkedGoodGeneration = -1;
 				}
 			}
 		}, "qb-mark-good").start();
@@ -595,15 +627,15 @@ final class QuickBuildRuntime {
 	 * @param dex
 	 *            the dex bytes, or null to keep whatever is persisted
 	 * @param arsc
-	 *            the relinked resource apk bytes, or null to keep whatever is persisted
+	 *            the relinked resource apk, streamed to the store, or null to keep whatever is persisted
 	 * @param assetsZip
-	 *            the changed-assets zip bytes, or null to keep whatever is persisted
+	 *            the changed-assets zip, streamed to the store, or null to keep whatever is persisted
 	 * @return the store's payload files, which the resource paths then open read-only
 	 * @throws IOException
 	 *             when the store is unavailable or the write fails, so the deploy fails loudly instead of leaving the boot path behind the running generation
 	 */
 	private PayloadPersistence.Persisted persistPayload(long generation, byte[] dex,
-			byte[] arsc, byte[] assetsZip) throws IOException {
+			InputStream arsc, InputStream assetsZip) throws IOException {
 		PayloadPersistence store = PayloadStore.INSTANCE.persistence();
 		String fingerprint = PayloadStore.INSTANCE.baselineFingerprint();
 		if (store == null || fingerprint == null) {
@@ -644,6 +676,16 @@ final class QuickBuildRuntime {
 				top.recreate();
 			} else {
 				RuntimeLog.i("no live activity; gen " + generation + " applies on next launch");
+				if (pendingReloadGeneration == generation) {
+					// The activity that was resumed when this deploy was accepted is gone,
+					// so there is no frame left to ack on - the same situation the
+					// backgrounded branch already acks at apply time. Without this the
+					// host learns only from its deploy timeout, and the crash guard goes
+					// on blaming this generation for anything the app throws later.
+					pendingReloadGeneration = -1;
+					client.reportReloaded(generation,
+							SystemClock.uptimeMillis() - pendingReloadStartUptime);
+				}
 			}
 			// A foreground deploy's reportReloaded fires from onActivityResumed, after
 			// the reload rendered; a backgrounded one was acked at apply time.

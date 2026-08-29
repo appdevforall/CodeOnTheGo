@@ -44,10 +44,14 @@ class OverlayStateTextEdgeTest {
 	}
 
 	@Test
-	void crashedWithoutDetailRendersOnlyTheHeadline() {
-		OverlayState state = OverlayState.crashed(null);
+	void crashedIsExactlyTheHeadlineAndThePointer() {
+		// Pinned as an equality rather than a contains: the banner's height argument is
+		// that these two strings are the whole of it, so anything appended has to fail
+		// here rather than quietly cost lines the budget does not have.
+		OverlayState state = OverlayState.crashed();
 
 		assertThat(state.text())
-				.isEqualTo("New code crashed - app is running the last working version");
+				.isEqualTo("Live reload crashed. App is on the last working version.\n"
+						+ "For more info, see Build Output in Code on the Go.");
 	}
 }

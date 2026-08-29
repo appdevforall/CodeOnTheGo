@@ -35,6 +35,27 @@ final class ResourceStore {
 	/** Cache subdirectory holding the cumulative extracted assets and their baseline marker. */
 	private static final String ASSETS_ROOT_DIR = "quickbuild-assets";
 
+	/**
+	 * Hands a swap failure to the caller's listener without letting the listener's own failure escape.
+	 *
+	 * This runs on the main thread inside the swap's guard, so a throw here would replace a resource failure with an unrelated crash.
+	 *
+	 * @param onFailure
+	 *            the caller's listener; null is a no-op
+	 * @param error
+	 *            the failure to report, already logged
+	 */
+	private static void reportSwapFailure(SwapFailure onFailure, Throwable error) {
+		if (onFailure == null) {
+			return;
+		}
+		try {
+			onFailure.onSwapFailed(error);
+		} catch (Throwable reportFailure) {
+			RuntimeLog.e("resource swap failure listener threw", reportFailure);
+		}
+	}
+
 	private final ResourceSwapStrategy strategy;
 
 	/** The API 30+ loader, created on the first resource or assets payload and never replaced. */
@@ -54,6 +75,9 @@ final class ResourceStore {
 
 	/** Latches the unsupported-SDK warning so it is logged once, not once per deploy. */
 	private boolean warnedNoResourceReload;
+
+	/** Whether the application Resources has the loader; written under the monitor on the main thread. */
+	private boolean attachedAppResources;
 
 	/**
 	 * @param strategy
@@ -79,19 +103,21 @@ final class ResourceStore {
 	 *            the changed-assets zip; always closed, success or failure
 	 * @param baselineFingerprint
 	 *            the running baseline's fingerprint, which keys the cumulative dir
-	 * @param cacheRoot
-	 *            the app's cache directory, the parent of the cumulative dir
+	 * @param appContext
+	 *            application context, for the cache dir the cumulative override lives under and the Resources the loader attaches to
+	 * @param onFailure
+	 *            told when the posted provider swap fails, since that lands after this method returns; null when the caller has nothing to do about it
 	 * @throws IOException
 	 *             on a read, extraction, path-traversal or provider failure; the previous override stays live
 	 */
-	void applyAssets(ParcelFileDescriptor assetsFd, String baselineFingerprint, File cacheRoot)
-			throws IOException {
-		File assetsRoot = new File(cacheRoot, ASSETS_ROOT_DIR);
+	void applyAssets(ParcelFileDescriptor assetsFd, String baselineFingerprint, Context appContext,
+			SwapFailure onFailure) throws IOException {
+		File assetsRoot = new File(appContext.getCacheDir(), ASSETS_ROOT_DIR);
 		InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(assetsFd);
 		try {
 			int extracted = AssetExtractor.extractCumulative(in, assetsRoot, baselineFingerprint);
 			if (strategy == ResourceSwapStrategy.RESOURCES_LOADER) {
-				refreshAssetsProvider(AssetExtractor.currentDir(assetsRoot));
+				refreshAssetsProvider(AssetExtractor.currentDir(assetsRoot), appContext, onFailure);
 			}
 			RuntimeLog.i("merged " + extracted + " changed asset(s) into the override");
 		} finally {
@@ -113,15 +139,17 @@ final class ResourceStore {
 	 * @param generation
 	 *            the payload generation, used only by the API 28/29 path to name its file
 	 * @param appContext
-	 *            application context, used only by the API 28/29 path for its cache dir and Resources
+	 *            application context, for the Resources the loader attaches to and, on API 28/29, the cache dir and the Resources to mount onto
+	 * @param onFailure
+	 *            told when the posted provider swap fails, since that lands after this method returns; null when the caller has nothing to do about it
 	 * @throws IOException
 	 *             when the swap fails; an unsupported SDK is not a failure, it warns once and drops the payload
 	 */
-	void applyTable(ParcelFileDescriptor tableFd, long generation, Context appContext)
-			throws IOException {
+	void applyTable(ParcelFileDescriptor tableFd, long generation, Context appContext,
+			SwapFailure onFailure) throws IOException {
 		switch (strategy) {
 		case RESOURCES_LOADER:
-			applyTableWithLoader(tableFd);
+			applyTableWithLoader(tableFd, appContext, onFailure);
 			return;
 		case LEGACY_ASSET_PATH:
 			applyTableLegacy(tableFd, generation, appContext);
@@ -160,7 +188,7 @@ final class ResourceStore {
 				LegacyResourceSwap.addAssetPath(resources.getAssets(), zip.getAbsolutePath());
 				LegacyResourceSwap.flushCaches(resources);
 			} catch (Throwable error) {
-				RuntimeLog.d("legacy attachTo skipped: " + error);
+				RuntimeLog.d("legacy attachTo skipped", error);
 			}
 		}
 	}
@@ -205,14 +233,19 @@ final class ResourceStore {
 	 *
 	 * @param tableFd
 	 *            the relinked resource apk; loadFromApk dups it, so this method closes ours either way
+	 * @param appContext
+	 *            application context, whose Resources the loader is attached to on first use
+	 * @param onFailure
+	 *            told when the posted swap fails or is refused; null when the caller has nothing to do about it
 	 * @throws IOException
 	 *             when the apk cannot be loaded as a provider; the previous provider stays live and attached
 	 */
 	@TargetApi(30)
-	private void applyTableWithLoader(ParcelFileDescriptor tableFd) throws IOException {
+	private void applyTableWithLoader(ParcelFileDescriptor tableFd, final Context appContext,
+			SwapFailure onFailure) throws IOException {
 		try {
 			final ResourcesProvider next = ResourcesProvider.loadFromApk(tableFd, null);
-			swapProvidersOnMain(new Runnable() {
+			boolean willRun = swapProvidersOnMain(new Runnable() {
 
 				@Override
 				public void run() {
@@ -230,14 +263,38 @@ final class ResourceStore {
 							Streams.closeQuietly(next);
 							throw error;
 						}
+						attachAppResources(appContext);
 						Streams.closeQuietly(previous);
 					}
 				}
-			});
+			}, onFailure);
+			if (!willRun) {
+				// The swap will never run, so nothing else will ever close this provider.
+				Streams.closeQuietly(next);
+			}
 		} finally {
 			// loadFromApk dups the fd internally; ours must be closed either way.
 			Streams.closeQuietly(tableFd);
 		}
+	}
+
+	/**
+	 * Adds the loader to the application Resources, once.
+	 *
+	 * Activity Resources get the loader through {@link #attachTo}, but nothing ever creates the application's, so without this a Service, a ContentProvider or a notification builder keeps resolving the baseline table while the activity on screen resolves the new one - the two disagree about the same resource id. The API 28/29 path already mounts onto the application Resources explicitly; this makes the API 30+ path symmetric.
+	 *
+	 * Once is enough: the loader is long-lived and every later provider swap propagates to each Resources already attached to it. Callers hold the monitor and have just installed the providers, so the loader exists.
+	 *
+	 * @param appContext
+	 *            application context; null is ignored, which only costs the symmetry this restores
+	 */
+	@TargetApi(30)
+	private void attachAppResources(Context appContext) {
+		if (attachedAppResources || appContext == null) {
+			return;
+		}
+		attachedAppResources = true;
+		attachLoaderTo(appContext.getResources());
 	}
 
 	/**
@@ -257,7 +314,7 @@ final class ResourceStore {
 		} catch (Throwable error) {
 			// Already attached, or an unusual Resources implementation. Not worth
 			// crashing over.
-			RuntimeLog.d("attachTo skipped: " + error);
+			RuntimeLog.d("attachTo skipped", error);
 		}
 	}
 
@@ -288,14 +345,19 @@ final class ResourceStore {
 	 *
 	 * @param dir
 	 *            the merged override dir laid out as an APK root (assets under {@code assets/})
+	 * @param appContext
+	 *            application context, whose Resources the loader is attached to on first use
+	 * @param onFailure
+	 *            told when the posted swap fails or is refused; null when the caller has nothing to do about it
 	 * @throws IOException
 	 *             when the provider cannot be created; the previous one stays live and attached
 	 */
 	@TargetApi(30)
-	private void refreshAssetsProvider(File dir) throws IOException {
+	private void refreshAssetsProvider(File dir, final Context appContext, SwapFailure onFailure)
+			throws IOException {
 		final DirectoryAssetsProvider nextDir = new DirectoryAssetsProvider(dir);
 		final ResourcesProvider next = ResourcesProvider.empty(nextDir);
-		swapProvidersOnMain(new Runnable() {
+		boolean willRun = swapProvidersOnMain(new Runnable() {
 
 			@Override
 			public void run() {
@@ -315,11 +377,17 @@ final class ResourceStore {
 						Streams.closeQuietly(nextDir);
 						throw error;
 					}
+					attachAppResources(appContext);
 					Streams.closeQuietly(previous);
 					Streams.closeQuietly(previousDir);
 				}
 			}
-		});
+		}, onFailure);
+		if (!willRun) {
+			// The swap will never run, so nothing else will ever close this pair.
+			Streams.closeQuietly(next);
+			Streams.closeQuietly(nextDir);
+		}
 	}
 
 	/**
@@ -329,12 +397,15 @@ final class ResourceStore {
 	 *
 	 * Inline on the main thread, not posted, because the boot restore path runs during the first activity's creation and its swap must land before anything inflates.
 	 *
-	 * A swap failure is logged rather than thrown: on the posted path no caller is left to catch it, and the previous provider set stays live either way, which the next deploy replaces. The result is deliberately NOT returned to the deploy chain - that would make a deploy arriving on a binder thread block on a main-thread round trip in the hot reload path, which is the very thing posting the swap exists to avoid. Each swap un-commits its own fields on failure, so what stays live is a consistent previous generation.
+	 * A swap failure is never thrown from here: on the posted path no caller is left to catch it, and the previous provider set stays live either way. The result is still deliberately NOT returned synchronously to the deploy chain - that would make a deploy arriving on a binder thread block on a main-thread round trip in the hot reload path, which is the very thing posting the swap exists to avoid. It travels back through {@code onFailure} instead, so the deploy that queued the swap can fail rather than ack a swap that did not land. Each swap un-commits its own fields on failure, so what stays live is a consistent previous generation.
 	 *
 	 * @param swap
 	 *            the field swap + setProviders + close of the replaced provider, taking the store's monitor itself
+	 * @param onFailure
+	 *            told when the swap threw or was never accepted; may be null
+	 * @return true when the swap has run or is queued to run, false when the main looper refused it and the caller still owns the providers it created
 	 */
-	private void swapProvidersOnMain(final Runnable swap) {
+	private boolean swapProvidersOnMain(final Runnable swap, final SwapFailure onFailure) {
 		Runnable guarded = new Runnable() {
 
 			@Override
@@ -343,14 +414,39 @@ final class ResourceStore {
 					swap.run();
 				} catch (Throwable error) {
 					RuntimeLog.e("resource provider swap failed; previous set stays live", error);
+					reportSwapFailure(onFailure, error);
 				}
 			}
 		};
 		Looper main = Looper.getMainLooper();
 		if (Looper.myLooper() == main) {
 			guarded.run();
-		} else {
-			new Handler(main).post(guarded);
+			return true;
 		}
+		if (new Handler(main).post(guarded)) {
+			return true;
+		}
+		// The main looper is quitting, so the runnable will never run. Without this the
+		// deploy would ack a swap that never happened and the app would render the old
+		// table under the new generation's label.
+		IllegalStateException error = new IllegalStateException(
+				"main looper refused the resource provider swap");
+		RuntimeLog.e("resource provider swap was not queued; previous set stays live", error);
+		reportSwapFailure(onFailure, error);
+		return false;
+	}
+
+	/**
+	 * Told when a posted provider swap did not land, so the deploy that queued it can fail rather than ack.
+	 *
+	 * The swap runs after the method that queued it has returned, so this is the only way the failure reaches the deploy chain.
+	 */
+	interface SwapFailure {
+
+		/**
+		 * @param error
+		 *            the swap failure, already logged by the store
+		 */
+		void onSwapFailed(Throwable error);
 	}
 }
