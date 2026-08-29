@@ -53,6 +53,71 @@ Caveat on the last phase: 154m of "hands-on" counts ~6,900 words of machine-gene
 | Instrumented tests, fixtures, stale approvals, Spotless double cost | Doc | Four new entries in `docs/process/learnings.md` |
 | Reviewer-side revert check; dismiss stale approvals on `stage` | Deferred | Both change artifacts other people rely on (REVIEW.md, branch protection) — raised, not applied |
 
+## 2026-08-18 - ADFA-5172/5175/5176: the local WebServer's 1 s stall, and removing the socket instead
+
+### Time Breakdown
+
+Each phase's span runs from its first prompt to the next one, so the spans sum to the wall clock
+below, to within a minute of rounding. A span holds both agent work and any time nobody was at
+the keyboard; only the totals in Metrics attempt that split, and only as an estimate. Hands-on is per-phase raw, so it sums slightly
+above the adjusted total, which merges overlapping turns into one buffer.
+
+| Started | Phase | 👤 Hands-On Time | 🤖 Span (agent + away) | Problems |
+|---------|-------|-----------------|------------------------|----------|
+| Aug 17 9:42pm | Ticket read + accept-loop instrumentation | ▊ 7m | █▏ 12m | |
+| Aug 17 9:54pm | Build, drive, root-cause the stall | ▌ 5m | ███ 34m | ⚠ HelpActivity not exported, so the measurement needed a throwaway manifest tweak; one flaky arm |
+| Aug 17 10:28pm | Keep-alive design + ADFA-5175 filed | █ 10m | █ 10m | |
+| Aug 17 10:37pm | ADFA-5175 stage 1, transport pivot, ADFA-5176 spike | ▊ 8m | ███████████ 109m | ⚠ 3 Spotless whole-file reformats; direction changed mid-implementation |
+| Aug 18 12:26am | Extraction onto the ADFA-5153 base | ▌ 5m | █████████████ 133m | ⚠ merge conflicts, plus a stale KDoc and dangling brace from moving code by script |
+| Aug 18 2:39am | Tests, Pebble move, cleanup, two PRs | ▊ 8m | ██████████████ 142m | ⚠ tests written just before the API they cover moved |
+| Aug 18 5:01am | Review fixes, CodeRabbit replies, retro | █▏ 12m | ██████████████████ 182m | |
+
+### Metrics
+
+| Metric | Duration |
+|--------|----------|
+| Total wall-clock (first prompt to last) | 10h 21m (621m) |
+| Hands-on | 53m (9%) |
+| Automated agent time (estimated) | ~6h 20m (380m, 61%) |
+| Idle/testing/away (estimated) | ~3h 8m (188m, 30%) |
+| Retro analysis time | 6 min |
+| Cost | $347.53 (495 API calls, 618K output tokens) |
+
+Wall-clock is exact, from the message timestamps. Hands-on is the transcript script's adjusted
+figure. The last two are an estimate of how the 568 minutes that are not hands-on divide, since
+nothing in the transcript marks when the agent stopped working and the user walked away; they are
+sized from the work performed (build and test runs, device measurements, an adb pull of a 267 MB
+database) and add up to the wall clock rather than being measured independently.
+
+13 user messages, most of them one to three words. Only user-message timestamps are exact, so the agent/idle split is estimated from the work performed.
+
+### Key Observations
+- The two longest unattended stretches were the most productive: "build and drive" (30m, root cause established with kernel counters and a control-listener comparison) and "proceed" (130m, a cross-module extraction, built and device-verified). Three-word prompts, high leverage.
+- **The most valuable question came from the user, and should have come from the agent.** "Could we use a different transport?" arrived *after* ADFA-5175 was filed and keep-alive was already being built. The agent's own evidence -- drop rate scaling with connection *rate* -- pointed at "open fewer connections", and `shouldInterceptRequest` was the obvious mechanism. It designed a way to tune the mechanism instead of asking whether the mechanism was needed. Result: a filed ticket whose plan was invalidated a day later, and the keep-alive work stopped after stage 1.
+- Rework was formatting tax and transplant fixups, not logic: three whole-file Spotless reformats (~500 whitespace lines, kept out of behavioral diffs by hand), and 4-5 failed python patch asserts from over-long match anchors.
+- Zero substantive corrections from the user across 13 messages. Steering, not fixing.
+- The device work needed a temporary `android:exported="true"` on HelpActivity to be scriptable at all; it was kept on a throwaway branch and reverted, but it is a recurring cost of driving activities that are (correctly) not exported.
+- The retro script counted the agent's own screenshot reads as user turns. Fixing it moved hands-on **down**, from 57.4 to 52.9 minutes, as predicted -- six phantom turns lose their per-turn buffer and typing time, while their assistant output is re-attributed to the real prompt that caused it, so reading time is unchanged at 41.6 either way. (An earlier version of this entry reported 51 -> 53 and explained the rise; both numbers came from runs against different lengths of a transcript that was still growing, since the script always reads the whole file. Re-run against one fixed slice, the metric can only fall: reading is conserved by construction and the other two components shrink.)
+
+### Feedback
+**What worked:** Autonomy. The long unattended stretches were where the value was.
+**What didn't:** The transport question should have come from the agent, not the user.
+
+### Actions Taken
+
+| Issue | Action Type | Change |
+|-------|-------------|--------|
+| Designed keep-alive to tune a mechanism before asking whether the mechanism could go | CLAUDE.md | "Plan and size before building": new bullet -- when the evidence scales with a rate or volume, check whether the platform can remove the mechanism before planning the tuned version, citing ADFA-5172/5176 |
+| Ratchet reformats risk burying behavioral diffs | CLAUDE.md | Code style: land a whole-file reformat as its own commit, before the behavioral one. Superseded on `stage` by the fuller version in the Spotless paragraph, which also says to reformat first |
+| `ServerConfig`-style defaults that call framework APIs break any new JVM test | learnings.md | Added under Android / Kotlin, with the failure mode (constructor throws before the test body runs) |
+| Testing WebView interception without Robolectric | learnings.md | Added under MockK: `mockkStatic(android.os.Environment::class)` plus a mocked `Uri`, and split the decision from the framework construction |
+| How in-process WebView serving actually behaves | learnings.md | New "Serving content to a WebView" section: interception matches any URL so existing URL spaces need no rewriting; no response decoding; no POST body; no 206; WebView cannot render a PDF |
+| Android system SQLite may lack JSON1 | learnings.md | New "Android system SQLite" section, cross-referenced to ADFA-5179 |
+| Retro script counted screenshot reads as user turns | Skill | `analyze_transcript.py`: filter `[Image: original NxN...]` tool results out of the human role |
+| Bookshelf 500s where SQLite lacks JSON1 | Ticket | ADFA-5179 (Bug), linked to ADFA-5176 |
+| Documentation PDFs render blank in HelpActivity | Ticket | ADFA-5180 (Bug), linked to ADFA-5176 |
+| Tests written just before the API they cover moved | No action | One-off: the risk was flagged and the order was chosen deliberately; cost was ~10 lines of test edits |
+
 ## 2026-08-13 - ADFA-5088: individual Preferences/Plugin Manager tooltips + docdb SQL scripts
 
 ### Time Breakdown
