@@ -190,6 +190,8 @@ class PluginManager private constructor(
 
 			override fun saveCurrentFile(): Boolean = current()?.saveCurrentFile() ?: false
 
+			override suspend fun saveFile(file: File): Boolean = current()?.saveFile(file) ?: false
+
 			override fun insertTextAtCursor(text: String): Boolean = current()?.insertTextAtCursor(text) ?: false
 
 			override fun replaceSelection(text: String): Boolean = current()?.replaceSelection(text) ?: false
