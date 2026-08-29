@@ -1,7 +1,11 @@
 package com.itsaky.androidide.localWebServer
 
+// The codec and chunk helpers under test live in common (ADFA-5176/ADFA-5240); these tests stay
+// here, where the brotli4j host-native test wiring lives.
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
+import com.itsaky.androidide.documentation.chunksAsStream
+import com.itsaky.androidide.documentation.joinChunks
 import com.itsaky.androidide.utils.BrotliDictionaryCodec
 import com.itsaky.androidide.utils.toDirectByteBuffer
 import org.junit.Assert.assertArrayEquals
