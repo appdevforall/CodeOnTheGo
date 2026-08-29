@@ -18,6 +18,11 @@ class RuntimeLogTest {
 	}
 
 	@Test
+	void debugWithThrowableSwallowsTheLogThrow() {
+		assertDoesNotThrow(() -> RuntimeLog.d("debug message", new RuntimeException("cause")));
+	}
+
+	@Test
 	void environmentSanityTheLogStubActuallyThrows() {
 		// Self-validation: if Log stopped throwing here (e.g. returnDefaultValues flipped
 		// on), the no-throw assertions below would pass vacuously. Keep this canary.

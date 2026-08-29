@@ -143,6 +143,12 @@ final class QuickBuildClient implements ServiceConnection {
 		IQuickBuildHost connected = IQuickBuildHost.Stub.asInterface(service);
 		if (connected == null) {
 			RuntimeLog.w("null host proxy from onServiceConnected");
+			// Drop the binding before queueing a fresh one, like every other failure path
+			// here. bindService against a connection the framework still holds a live
+			// binding for is answered from the existing record rather than by a fresh
+			// connect, so a rebind stacked on top of one we never released can be dropped
+			// on the floor - and this branch has no other way back.
+			unbindQuietly();
 			scheduleRebind();
 			return;
 		}
@@ -158,6 +164,7 @@ final class QuickBuildClient implements ServiceConnection {
 		} catch (RemoteException error) {
 			RuntimeLog.e("connect() to CoGo failed", error);
 			host = null;
+			unbindQuietly();
 			scheduleRebind();
 		} catch (RuntimeException error) {
 			// SecurityException (and any other binder-propagatable runtime exception) from
@@ -302,7 +309,7 @@ final class QuickBuildClient implements ServiceConnection {
 		try {
 			context.unbindService(this);
 		} catch (Throwable error) {
-			RuntimeLog.d("unbindService: " + error);
+			RuntimeLog.d("unbindService", error);
 		}
 	}
 }

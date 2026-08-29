@@ -3,8 +3,10 @@ package com.itsaky.androidide.quickbuild.runtime;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,10 @@ class PayloadPersistenceQuarantineTest {
 
 	private static byte[] bytes(String s) {
 		return s.getBytes(StandardCharsets.UTF_8);
+	}
+
+	private static InputStream stream(String text) {
+		return new ByteArrayInputStream(bytes(text));
 	}
 
 	@TempDir
@@ -85,7 +91,7 @@ class PayloadPersistenceQuarantineTest {
 	@Test
 	void aQuarantinedGenerationWithNothingGoodBehindItDiscardsTheStore() throws IOException {
 		PayloadPersistence store = store();
-		store.persist(7, FP, bytes("dex7"), bytes("arsc7"), null);
+		store.persist(7, FP, bytes("dex7"), stream("arsc7"), null);
 
 		store.quarantine(7);
 
@@ -104,7 +110,7 @@ class PayloadPersistenceQuarantineTest {
 		// instead means the app comes back where the session already is, so nothing is
 		// re-sent and nothing crashes twice.
 		PayloadPersistence store = store();
-		store.persist(7, FP, bytes("dex7"), bytes("arsc7"), null);
+		store.persist(7, FP, bytes("dex7"), stream("arsc7"), null);
 		store.markGood(7);
 		store.persist(8, FP, bytes("dex8"), null, null);
 
@@ -120,14 +126,40 @@ class PayloadPersistenceQuarantineTest {
 	}
 
 	@Test
+	void aQuarantineThatBeatMarkGoodLeavesTheEarlierFallbackIntact() throws IOException {
+		// The race the guard exists for, in the order that used to lose. Booting from a
+		// persisted generation leaves it unproven, so the first resume starts the good
+		// write while the crash guard may already be quarantining that same generation.
+		// With both markers naming 8, the next boot finds the published set quarantined
+		// AND the fallback quarantined, reads that as corruption and clears the whole
+		// store - the app drops to install-time code and every save since goes with it.
+		// Landing on 7 is the entire point of the fallback file.
+		PayloadPersistence store = store();
+		store.persist(7, FP, bytes("dex7"), null, null);
+		store.markGood(7);
+		store.persist(8, FP, bytes("dex8"), null, null);
+
+		store.quarantine(8);
+		assertThat(store.markGood(8)).isFalse();
+
+		PayloadPersistence.Loaded loaded = store.load(FP);
+		assertThat(loaded).isNotNull();
+		assertThat(loaded.generation).isEqualTo(7);
+		assertThat(store.dir().exists()).isTrue();
+	}
+
+	@Test
 	void aRestartedGenerationCounterDropsTheFallbackFromTheOldSequence() throws IOException {
 		// The project's state dir was wiped while the app stayed installed, so numbering
 		// restarts. Falling back to 13 from the old sequence would boot an older build under
 		// a higher number - the one mismatch direction the store cannot make safe.
-		PayloadPersistence store = store();
-		store.persist(13, FP, bytes("dex13"), null, null);
-		store.markGood(13);
+		PayloadPersistence earlier = store();
+		earlier.persist(13, FP, bytes("dex13"), null, null);
+		earlier.markGood(13);
 
+		// A fresh store object over the same directory, because the wipe happens between
+		// app processes: gen 3 always arrives at a store that has published nothing yet.
+		PayloadPersistence store = new PayloadPersistence(earlier.dir());
 		store.persist(3, FP, bytes("dex3"), null, null);
 
 		assertThat(new File(store.dir(), PayloadPersistence.GOOD_FILE).exists()).isFalse();
@@ -148,6 +180,24 @@ class PayloadPersistenceQuarantineTest {
 
 		assertThat(new File(store.dir(), PayloadPersistence.QUARANTINE_FILE).exists()).isFalse();
 		assertThat(store.load(FP).generation).isEqualTo(8);
+	}
+
+	@Test
+	void markGoodCanSucceedSeparatesAFailedWriteFromAStoreThatMovedOn() throws IOException {
+		// markGood answers three situations with one false, and the caller may retry only
+		// the transient one. Reading a bare false as retryable starts a write thread on
+		// every resume; reading it as permanent strands the generation unproven for the
+		// process lifetime, which leaves the crash guard blaming it.
+		PayloadPersistence store = store();
+		store.persist(7, FP, bytes("dex7"), null, null);
+
+		assertThat(store.markGoodCanSucceed(7)).isTrue();
+
+		store.persist(8, FP, bytes("dex8"), null, null);
+		assertThat(store.markGoodCanSucceed(7)).isFalse();
+
+		store.quarantine(8);
+		assertThat(store.markGoodCanSucceed(8)).isFalse();
 	}
 
 	@Test
