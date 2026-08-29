@@ -236,7 +236,7 @@ class DocumentationContentSource(
 			try {
 				readContent(database, path)
 			} catch (e: Exception) {
-				log.error("Cannot read '{}': {}", path, e.message)
+				log.error("Cannot read '{}'", path, e)
 				DocumentationLookup.Failed(e)
 			}
 		}
@@ -347,7 +347,7 @@ class DocumentationContentSource(
 			try {
 				database?.close()
 			} catch (e: Exception) {
-				log.error("Cannot close the documentation database: {}", e.message)
+				log.error("Cannot close the documentation database", e)
 			}
 			database = null
 		}
@@ -366,7 +366,7 @@ class DocumentationContentSource(
 			open()
 			database != null
 		} catch (e: Exception) {
-			log.error("Cannot open the documentation database '{}': {}", databaseFile, e.message)
+			log.error("Cannot open the documentation database '{}'", databaseFile, e)
 			false
 		}
 	}
@@ -657,7 +657,7 @@ class DocumentationContentSource(
 		try {
 			previous?.close()
 		} catch (e: Exception) {
-			log.error("Cannot close previous database: {}", e.message)
+			log.error("Cannot close previous database", e)
 		}
 	}
 
