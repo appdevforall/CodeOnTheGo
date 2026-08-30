@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -122,11 +123,26 @@ class OutlineFragment : Fragment() {
 
 	private fun navigateTo(position: Position) {
 		val editorActivity = activity as? EditorHandlerActivity ?: return
-		editorActivity.binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
-		val editor = editorActivity.getCurrentEditor()?.editor ?: return
-		if (editor.isValidPosition(position, true)) {
-			editor.setSelection(position)
+		val drawer = editorActivity.binding.editorDrawerLayout
+		val editor = editorActivity.getCurrentEditor()?.editor
+		if (editor == null || !editor.isValidPosition(position, true)) {
+			drawer.closeDrawer(GravityCompat.START)
+			return
 		}
+		editor.setSelection(position)
+		if (!drawer.isDrawerOpen(GravityCompat.START)) {
+			editor.ensurePositionVisible(position.line, position.column, true)
+			return
+		}
+		drawer.addDrawerListener(
+			object : DrawerLayout.SimpleDrawerListener() {
+				override fun onDrawerClosed(drawerView: View) {
+					drawer.removeDrawerListener(this)
+					editor.ensurePositionVisible(position.line, position.column, true)
+				}
+			},
+		)
+		drawer.closeDrawer(GravityCompat.START)
 	}
 
 	private fun extensionOf(path: Path): String = path.fileName.toString().substringAfterLast('.', "")
