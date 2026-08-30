@@ -154,12 +154,12 @@ private fun OutlineRow(
 	val rowDescription = listOfNotNull(kindLabel, symbol.name, symbol.detail).joinToString(", ")
 	val indent = INDENT_STEP * minOf(row.depth, MAX_INDENT_DEPTH)
 	Row(
-		verticalAlignment = Alignment.CenterVertically,
+		verticalAlignment = Alignment.Top,
 		modifier =
 			modifier
 				.fillMaxWidth()
 				.clickable { onEvent(OutlineUiEvent.SymbolClicked(symbol)) }
-				.padding(start = 4.dp + indent, top = 8.dp, bottom = 8.dp, end = 12.dp)
+				.padding(start = 4.dp + indent, top = 5.dp, bottom = 5.dp, end = 12.dp)
 				.semantics { contentDescription = rowDescription },
 	) {
 		if (row.hasChildren) {
@@ -172,35 +172,37 @@ private fun OutlineRow(
 				contentDescription = toggleDescription,
 				modifier =
 					Modifier
-						.size(24.dp)
+						.size(22.dp)
 						.rotate(if (row.collapsed) -90f else 0f)
 						.clickable { onEvent(OutlineUiEvent.ToggleCollapsed(row.path)) },
 			)
 		} else {
-			Spacer(modifier = Modifier.size(24.dp))
+			Spacer(modifier = Modifier.size(22.dp))
 		}
 		Text(
-			text = symbol.kind.badge.toString(),
+			text = symbol.kind.badge,
 			fontFamily = FontFamily.Monospace,
 			fontWeight = FontWeight.Bold,
 			style = MaterialTheme.typography.bodyMedium,
 			color = badgeColorFor(symbol.kind),
-			modifier = Modifier.padding(horizontal = 6.dp),
+			modifier = Modifier.padding(start = 2.dp, end = 8.dp),
 		)
-		Column(modifier = Modifier.weight(1f)) {
+		Text(
+			text = symbol.name,
+			style = MaterialTheme.typography.bodyMedium,
+		)
+		symbol.detail?.let { detail ->
 			Text(
-				text = symbol.name,
-				style = MaterialTheme.typography.bodyMedium,
+				text = detail,
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onSurfaceVariant,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+				modifier =
+					Modifier
+						.weight(1f, fill = false)
+						.padding(start = 8.dp, top = 2.dp),
 			)
-			symbol.detail?.let { detail ->
-				Text(
-					text = detail,
-					style = MaterialTheme.typography.bodySmall,
-					color = MaterialTheme.colorScheme.onSurfaceVariant,
-					maxLines = 1,
-					overflow = TextOverflow.Ellipsis,
-				)
-			}
 		}
 	}
 }
