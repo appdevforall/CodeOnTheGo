@@ -115,9 +115,11 @@ composite-constants = { module = "com.itsaky.androidide.build:constants" }
 composite-desugaringCore = { module = "com.itsaky.androidide.build:desugaring-core" }
 composite-fuzzysearch = { module = "com.itsaky.androidide.build:fuzzysearch" }
 composite-googleJavaFormat = { module = "com.itsaky.androidide.build:google-java-format" }
+composite-javaCompiler = { module = "com.itsaky.androidide.build:java-compiler" }
 composite-javac = { module = "com.itsaky.androidide.build:javac" }
 composite-javapoet = { module = "com.itsaky.androidide.build:javapoet" }
 composite-jaxp = { module = "com.itsaky.androidide.build:jaxp" }
+composite-jdkCompiler = { module = "com.itsaky.androidide.build:jdk-compiler" }
 composite-jdt = { module = "com.itsaky.androidide.build:jdt" }
 composite-layoutlibApi = { module = "com.itsaky.androidide.build:layoutlib-api" }
 composite-treeview = { module = "com.itsaky.androidide.build:treeview" }

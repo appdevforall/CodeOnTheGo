@@ -16,7 +16,6 @@
  */
 package com.itsaky.androidide.lsp.java
 
-import androidx.annotation.RestrictTo
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
@@ -24,30 +23,19 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentSelectedEvent
 import com.itsaky.androidide.javac.services.fs.CacheFSInfoSingleton
 import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.clearCache
-import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.clearCachesForPaths
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.debug.IDebugAdapter
 import com.itsaky.androidide.lsp.debug.IDebugClient
-import com.itsaky.androidide.lsp.internal.model.CachedCompletion
-import com.itsaky.androidide.lsp.java.actions.JavaCodeActionsMenu
-import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
-import com.itsaky.androidide.lsp.java.compiler.SourceFileManager
+import com.itsaky.androidide.lsp.java.api.IJavaCompilerSession
 import com.itsaky.androidide.lsp.java.debug.JavaDebugAdapter
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
+import com.itsaky.androidide.lsp.java.loader.JavaCompilerLoader
 import com.itsaky.androidide.lsp.java.models.JavaServerSettings
-import com.itsaky.androidide.lsp.java.providers.CodeFormatProvider
-import com.itsaky.androidide.lsp.java.providers.CompletionProvider
-import com.itsaky.androidide.lsp.java.providers.DefinitionProvider
-import com.itsaky.androidide.lsp.java.providers.JavaDiagnosticProvider
-import com.itsaky.androidide.lsp.java.providers.JavaSelectionProvider
-import com.itsaky.androidide.lsp.java.providers.ReferenceProvider
-import com.itsaky.androidide.lsp.java.providers.SignatureProvider
 import com.itsaky.androidide.lsp.java.providers.snippet.JavaSnippetRepository
 import com.itsaky.androidide.lsp.java.utils.AnalyzeTimer
-import com.itsaky.androidide.lsp.java.utils.CancelChecker.Companion.isCancelled
 import com.itsaky.androidide.lsp.models.CodeFormatResult
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -62,12 +50,9 @@ import com.itsaky.androidide.lsp.models.ReferenceParams
 import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
 import com.itsaky.androidide.lsp.models.SignatureHelpParams
-import com.itsaky.androidide.lsp.util.LSPEditorActions
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager.getActiveDocumentCount
-import com.itsaky.androidide.projects.IProjectManager.Companion.getInstance
 import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.VMUtils
@@ -83,18 +68,34 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Objects
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 class JavaLanguageServer : ILanguageServer {
-	private val completionProvider: CompletionProvider = CompletionProvider()
-	private val diagnosticProvider = JavaDiagnosticProvider()
+	private val loader = JavaCompilerLoader(BaseApplication.baseInstance)
+
 	override var client: ILanguageClient? = null
 		private set
 
 	private var _settings: IServerSettings? = null
 	private var selectedFile: Path? = null
 	private val timer = AnalyzeTimer { analyzeSelected() }
-	private var cachedCompletion: CachedCompletion
+
+	// Lifecycle of the isolated javac session (extracted + DexClassLoader-loaded lazily via
+	// `loader`), which setupWithProject() defers instead of loading eagerly (ADFA-5052,
+	// extended by ADFA-5053 to also gate the carrier-APK load). All reads/writes of
+	// pendingWorkspace and compilerLifecycle go through compilerLifecycleLock, held for the
+	// *entire* reset/shutdown, not just the decision to run one -- otherwise a concurrent
+	// request could use a session mid-teardown, or shutdown() could destroy state a reset is
+	// still rebuilding.
+	private enum class CompilerLifecycle { PENDING, RESETTING, INITIALIZED, SHUTDOWN }
+
+	private val compilerLifecycleLock = ReentrantLock()
+
+	// Guarded by compilerLifecycleLock.
+	private var pendingWorkspace: Workspace? = null
+	private var compilerLifecycle = CompilerLifecycle.PENDING
+	private var codeActionsRegistered = false
 
 	val settings: IServerSettings
 		get() {
@@ -113,8 +114,6 @@ class JavaLanguageServer : ILanguageServer {
 	}
 
 	init {
-		cachedCompletion = CachedCompletion.EMPTY
-
 		applySettings(JavaServerSettings.getInstance())
 
 		if (!EventBus.getDefault().isRegistered(this)) {
@@ -123,21 +122,41 @@ class JavaLanguageServer : ILanguageServer {
 
 		val projectManager = ProjectManagerImpl.getInstance()
 		projectManager.indexingServiceManager.register(
-			service = JvmLibraryIndexingService(context = BaseApplication.baseInstance)
+			service = JvmLibraryIndexingService(context = BaseApplication.baseInstance),
 		)
 		projectManager.indexingServiceManager.register(
-			service = JvmGeneratedIndexingService(context = BaseApplication.baseInstance)
+			service = JvmGeneratedIndexingService(context = BaseApplication.baseInstance),
 		)
 
+		// Independent of javac -- reads its own snippet assets from lsp/java's (resident) assets,
+		// so this doesn't need to wait for the carrier.
 		JavaSnippetRepository.init()
 	}
 
 	override fun shutdown() {
 		(this.debugAdapter as? AutoCloseable?)?.close()
-		JavaCompilerProvider.getInstance().destroy()
-		SourceFileManager.clearCache()
-		CacheFSInfoSingleton.clearCache()
-		clearCache()
+		compilerLifecycleLock.withLock {
+			// Blocks here if a reset is in flight (RESETTING can only be observed by another
+			// thread while the lock is held, never by us once we've acquired it), so this never
+			// races ensureProjectReset()'s own destroy/rebuild. Gated on whether a session
+			// actually exists, not on compilerLifecycle == INITIALIZED: setupWithProject() sets
+			// PENDING again on every project switch even once the carrier's already loaded (see
+			// setupWithProject() below), so a switch queued without a .java-file interaction yet
+			// leaves state at PENDING while loader.currentSession() still holds a live session
+			// from the previous project -- gating on INITIALIZED alone would skip teardown here
+			// and leak that session's DexClassLoader.
+			if (loader.currentSession() != null) {
+				// Unregister before closing: once closed, loader.currentSession() is null and the
+				// session's action objects (bound to this session's DexClassLoader) would
+				// otherwise stay wired into the shared, app-wide editor actions menu.
+				loader.currentSession()?.unregisterCodeActions()
+				codeActionsRegistered = false
+				loader.close()
+				CacheFSInfoSingleton.clearCache()
+				clearCache()
+			}
+			compilerLifecycle = CompilerLifecycle.SHUTDOWN
+		}
 		EventBus.getDefault().unregister(this)
 		timer.cancel()
 	}
@@ -161,96 +180,125 @@ class JavaLanguageServer : ILanguageServer {
 	}
 
 	override fun setupWithProject(workspace: Workspace) {
-		LSPEditorActions.ensureActionsMenuRegistered(JavaCodeActionsMenu)
+		(
+			ProjectManagerImpl
+				.getInstance()
+				.indexingServiceManager
+				.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
+		)?.refresh()
 
-		(ProjectManagerImpl.getInstance()
-			.indexingServiceManager
-			.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?)
-			?.refresh()
-
-		// Once we have project initialized
-		// Destory the NO_MODULE_COMPILER instance
-		JavaCompilerService.NO_MODULE_COMPILER.destroy()
-
-		// Clear cached file managers
-		SourceFileManager.clearCache()
-
-		// Clear cached JAR file system for R.jar
-		// Using the cached instance will result in completions not being updated for updated resources
-		// TODO Clearing caches for JAR files ending with '/R.jar' is probably not a good idea
-		//    Maybe this could be improved by using data from the AndroidModule project model
-		clearCachesForPaths { path: String -> path.endsWith("/R.jar") }
-
-		// Clear cached module-specific compilers
-		JavaCompilerProvider.getInstance().destroy()
-
-		// Cache classpath locations
-		for (subModule in workspace.subProjects) {
-			if (subModule !is ModuleProject || subModule.path == workspace.rootProject.path) {
-				continue
+		// Deferred to ensureProjectReset(), run on the first real .java-file interaction instead
+		// of here -- this method runs for every project open regardless of language
+		// (DefaultLanguageServerRegistry dispatches to all registered servers unconditionally),
+		// and loading the javac carrier eagerly here would defeat the point of isolating it
+		// (ADFA-5052, extended by ADFA-5053).
+		compilerLifecycleLock.withLock {
+			pendingWorkspace = workspace
+			// Leave RESETTING alone: ensureProjectReset()'s own finally block re-checks
+			// pendingWorkspace once it re-acquires the lock, so a project switch mid-reset is
+			// picked up as another PENDING round rather than raced here.
+			if (compilerLifecycle != CompilerLifecycle.RESETTING) {
+				compilerLifecycle = CompilerLifecycle.PENDING
 			}
-			SourceFileManager.forModule(subModule)
 		}
-		startOrRestartAnalyzeTimer()
 	}
 
+	/**
+	 * Runs the javac-specific project reset deferred by [setupWithProject], for the most
+	 * recently opened project, the first time a real Java file is actually interacted with --
+	 * extracting and `DexClassLoader`-loading the carrier APK if this is the first interaction
+	 * of the whole session. No-ops if already up to date. Blocks concurrent callers (and
+	 * [shutdown]) for the entire reset, not just the decision to run one.
+	 */
+	private fun ensureProjectReset(): IJavaCompilerSession? =
+		compilerLifecycleLock.withLock {
+			if (compilerLifecycle != CompilerLifecycle.PENDING) return@withLock loader.currentSession()
+			val workspace = pendingWorkspace ?: return@withLock loader.currentSession()
+			pendingWorkspace = null
+			compilerLifecycle = CompilerLifecycle.RESETTING
+
+			val session: IJavaCompilerSession
+			try {
+				session = loader.getOrCreateSession(workspace)
+				session.resetProject(workspace)
+				if (!codeActionsRegistered) {
+					session.registerCodeActions()
+					codeActionsRegistered = true
+				}
+				startOrRestartAnalyzeTimer()
+			} catch (e: Exception) {
+				// Re-queue the workspace so the next real .java-file interaction retries the
+				// reset, instead of a half-destroyed/half-rebuilt state being silently claimed as
+				// INITIALIZED (pendingWorkspace is already null by this point).
+				log.warn("Failed to reset javac project state; will retry on next interaction", e)
+				pendingWorkspace = workspace
+				compilerLifecycle = CompilerLifecycle.PENDING
+				throw e
+			}
+
+			// A newer setupWithProject() may have queued another workspace while we were
+			// resetting (see the RESETTING guard above); if so, go back to PENDING instead of
+			// claiming INITIALIZED for a project we didn't actually reset for.
+			compilerLifecycle =
+				if (pendingWorkspace != null) {
+					CompilerLifecycle.PENDING
+				} else {
+					CompilerLifecycle.INITIALIZED
+				}
+
+			session
+		}
+
+	// complete() and formatCode() aren't suspend (fixed by the ILanguageServer contract), so --
+	// like onContentChange() below -- they can hold compilerLifecycleLock across both
+	// ensureProjectReset() and the actual use of the session it returns: releasing the lock in
+	// between would let a concurrent reset destroy() the session's compilers right after this
+	// thread resolved it but before it's used.
 	override fun complete(params: CompletionParams?): CompletionResult {
-		val compiler = getCompiler(params!!.file)
-		if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file)
-		) {
+		if (params == null || !settings.completionsEnabled()) {
 			return CompletionResult.EMPTY
 		}
-
-		if (diagnosticProvider.isAnalyzing()) {
-			log.warn("Cancelling source code analysis due to completion request")
-			diagnosticProvider.cancel()
+		return compilerLifecycleLock.withLock {
+			ensureProjectReset()?.complete(params) ?: CompletionResult.EMPTY
 		}
-
-		completionProvider.reset(
-			compiler,
-			settings,
-			cachedCompletion,
-		) { cachedCompletion: CachedCompletion ->
-			updateCachedCompletion(cachedCompletion)
-		}
-
-		return completionProvider.complete(params)
 	}
 
+	// findReferences/findDefinition/expandSelection/signatureHelp/analyze are suspend (also
+	// fixed by the contract), so they can't use the same withLock pattern: the Kotlin compiler
+	// rejects a suspension point inside a Lock-based critical section outright (risk of blocking
+	// a thread pool while suspended), regardless of whether the call actually suspends. The
+	// residual window between ensureProjectReset() and use is narrower than it looks, though:
+	// JavaCompilerProvider.forModule()/destroy() (what getCompiler() and resetProject() actually
+	// touch) are already mutually `synchronized`, so a concurrent reset can't corrupt the
+	// provider map underneath a call started here -- it can only race the destruction of the one
+	// JavaCompilerService instance already in use, a narrower, pre-existing hazard (predates
+	// ADFA-5053) left as-is rather than papered over with a lock the compiler won't allow anyway.
 	override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
-		val compiler = getCompiler(params.file)
-		return if (!settings.referencesEnabled()) {
-			ReferenceResult(emptyList())
-		} else {
-			ReferenceProvider(compiler, params.cancelChecker).findReferences(params)
+		if (!settings.referencesEnabled()) {
+			return ReferenceResult(emptyList())
 		}
+		return ensureProjectReset()?.findReferences(params) ?: ReferenceResult(emptyList())
 	}
 
 	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
-		val compiler = getCompiler(params.file)
-		return if (!settings.definitionsEnabled()) {
-			DefinitionResult(emptyList())
-		} else {
-			DefinitionProvider(compiler, settings, params.cancelChecker).findDefinition(params)
+		if (!settings.definitionsEnabled()) {
+			return DefinitionResult(emptyList())
 		}
+		return ensureProjectReset()?.findDefinition(params) ?: DefinitionResult(emptyList())
 	}
 
 	override suspend fun expandSelection(params: ExpandSelectionParams): Range {
-		val compiler = getCompiler(params.file)
-		return if (!settings.smartSelectionsEnabled()) {
-			params.selection
-		} else {
-			JavaSelectionProvider(compiler).expandSelection(params)
+		if (!settings.smartSelectionsEnabled()) {
+			return params.selection
 		}
+		return ensureProjectReset()?.expandSelection(params) ?: params.selection
 	}
 
 	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
-		val compiler = getCompiler(params.file)
-		return if (!settings.signatureHelpEnabled()) {
-			SignatureHelp(emptyList(), -1, -1)
-		} else {
-			SignatureProvider(compiler, params.cancelChecker).signatureHelp(params)
+		if (!settings.signatureHelpEnabled()) {
+			return SignatureHelp(emptyList(), -1, -1)
 		}
+		return ensureProjectReset()?.signatureHelp(params) ?: SignatureHelp(emptyList(), -1, -1)
 	}
 
 	override suspend fun analyze(file: Path): DiagnosticResult {
@@ -258,43 +306,31 @@ class JavaLanguageServer : ILanguageServer {
 			return DiagnosticResult.NO_UPDATE
 		}
 
+		// analyze() is often the first real .java-file interaction in a session (auto-triggered
+		// on file open, ahead of any completion request) -- without this gate, the javac carrier
+		// (and the R.jar/file-manager caches its reset clears) would never load for this project,
+		// and diagnostics could resolve against a stale previous project's classpath.
+		val session = ensureProjectReset() ?: return DiagnosticResult.NO_UPDATE
+
 		return if (!settings.codeAnalysisEnabled()) {
 			DiagnosticResult.NO_UPDATE
 		} else {
-			diagnosticProvider.analyze(file)
+			session.analyze(file)
 		}
 	}
 
 	override fun formatCode(params: FormatCodeParams?): CodeFormatResult =
-		CodeFormatProvider(settings).format(params)
-
-	override fun handleFailure(failure: LSPFailure?): Boolean {
-		return when (failure!!.type) {
-			FailureType.COMPLETION -> {
-				if (isCancelled(failure.error)) {
-					return true
-				}
-				JavaCompilerProvider.getInstance().destroy()
-				true
-			}
+		compilerLifecycleLock.withLock {
+			ensureProjectReset()?.formatCode(params) ?: CodeFormatResult.NONE
 		}
-	}
 
-	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-	fun getCompiler(file: Path?): JavaCompilerService {
-		if (!DocumentUtils.isJavaFile(file)) {
-			return JavaCompilerService.NO_MODULE_COMPILER
+	override fun handleFailure(failure: LSPFailure?): Boolean =
+		when (failure!!.type) {
+			FailureType.COMPLETION -> loader.currentSession()?.handleCompletionFailure(failure.error) ?: true
 		}
-		val module =
-			ProjectManagerImpl.getInstance().findModuleForFile(file!!)
-				?: return JavaCompilerService.NO_MODULE_COMPILER
-		return JavaCompilerProvider.get(module)
-	}
 
-	private fun updateCachedCompletion(cachedCompletion: CachedCompletion) {
-		Objects.requireNonNull(cachedCompletion)
-		this.cachedCompletion = cachedCompletion
-	}
+	/** For [JavaDebugAdapter]'s source-location resolution -- null if the carrier hasn't loaded yet. */
+	internal fun currentCompilerSession(): IJavaCompilerSession? = loader.currentSession()
 
 	private fun startOrRestartAnalyzeTimer() {
 		if (VMUtils.isJvm) {
@@ -314,14 +350,12 @@ class JavaLanguageServer : ILanguageServer {
 			return
 		}
 
-		// TODO Find an alternative to efficiently update changeDelta in JavaCompilerService instance
-		JavaCompilerService.NO_MODULE_COMPILER.onDocumentChange(event)
-		val module =
-			getInstance()
-				.findModuleForFile(event.changedFile)
-		if (module != null) {
-			val compiler = JavaCompilerProvider.get(module)
-			compiler.onDocumentChange(event)
+		// Held across the reset *and* the actual onContentChange call (ReentrantLock is
+		// reentrant, so ensureProjectReset()'s own withLock nests fine): otherwise a concurrent
+		// reset for a newer project could destroy() the session's compilers in the gap between
+		// this thread's reset finishing and its use.
+		compilerLifecycleLock.withLock {
+			ensureProjectReset()?.onContentChange(event)
 		}
 		startOrRestartAnalyzeTimer()
 	}
@@ -342,7 +376,7 @@ class JavaLanguageServer : ILanguageServer {
 	@Subscribe(threadMode = ThreadMode.ASYNC)
 	@Suppress("unused")
 	fun onFileClosed(event: DocumentCloseEvent) {
-		diagnosticProvider.clearTimestamp(event.closedFile)
+		loader.currentSession()?.onFileClosed(event.closedFile)
 
 		if (getActiveDocumentCount() == 0) {
 			selectedFile = null

@@ -61,90 +61,100 @@ import java.net.URI
 /**
  * Reusable [Context] for [ReusableCompiler].
  *
+ * This class (isolated, carrier-dexed) extends [Context] (resident, per ADR 0012's leaf-class
+ * relocation) and accesses its `protected ht`/`key()` members below via implicit `this` --
+ * unlike the three same-package-*sibling* cross-classloader accesses ADR 0012 found and fixed
+ * (`CacheFSInfo.getAttributes`/`RelativeFile.forClass`/`RelativeDirectory.forPackage`), this is
+ * protected access via *inheritance*, governed by a different rule (JVMS 5.4.4's second
+ * `protected` bullet: access is allowed when made through a reference typed as the accessing
+ * subclass itself, with no runtime-package/classloader-identity condition attached at all) --
+ * so, unlike those three, this one doesn't need `Context.ht`/`key()` widened to `public`.
+ *
  * @author Akash Yadav
  */
-class ReusableContext(cancelService: CancelService) : Context(), TaskListener {
-  
-  private val flowCompleted = mutableSetOf<URI>()
-  
-  init {
-    put(Log.logKey, ReusableLog.factory)
-    put(FSInfo::class.java, if (VMUtils.isJvm) CacheFSInfo() else CacheFSInfoSingleton)
-    put(JavaCompiler.compilerKey, ReusableJavaCompiler.factory)
-    put(JavacFlowListener.flowListenerKey, JavacFlowListener { this.hasFlowCompleted(it) })
-    put(JarPackageProvider::class.java, JarPackageProviderImpl)
-    
-    NBAttr.preRegister(this)
-    NBParserFactory.preRegister(this)
-    NBTreeMaker.preRegister(this)
-    NBJavacTrees.preRegister(this)
-    NBResolve.preRegister(this)
-    NBEnter.preRegister(this)
-    NBMemberEnter.preRegister(this, false)
-    NBClassFinder.preRegister(this)
-    NBClassReader.preRegister(this)
-    CancelService.preRegister(this, cancelService)
-  }
-  
-  @DefinedBy(COMPILER_TREE)
-  override fun started(e: TaskEvent) {
-    //    log.debug("Started: $e")
-    // Do nothing
-  }
-  
-  @DefinedBy(COMPILER_TREE)
-  override fun finished(e: TaskEvent) {
-    if (e.kind == ANALYZE) {
-      val cu = e.compilationUnit as JCCompilationUnit
-      if (cu.sourcefile != null) {
-        flowCompleted.add(cu.sourcefile.toUri())
-      }
-    }
-  }
-  
-  fun clear() {
-    drop(Arguments.argsKey)
-    drop(DiagnosticListener::class.java)
-    drop(Log.outKey)
-    drop(Log.errKey)
-    drop(JavaFileManager::class.java)
-    drop(JavacTask::class.java)
-    drop(JavacTrees::class.java)
-    drop(JavacElements::class.java)
-    
-    if (ht[Log.logKey] is ReusableLog) {
-      // log already init-ed - not first round
-      (Log.instance(this) as ReusableLog).clear()
-      Enter.instance(this).newRound()
-      (JavaCompiler.instance(this) as ReusableJavaCompiler).clear()
-      Types.instance(this).newRound()
-      Check.instance(this).newRound()
-      Modules.instance(this).newRound()
-      Annotate.instance(this).newRound()
-      CompileStates.instance(this).clear()
-      MultiTaskListener.instance(this).clear()
-    }
-  }
-  
-  /** **FOR INTERNAL USE ONLY!** */
-  fun <T> drop(k: Key<T>?) {
-    ht.remove(k)
-  }
-  
-  /** **FOR INTERNAL USE ONLY!** */
-  fun <T> drop(c: Class<T>?) {
-    drop(key(c))
-  }
-  
-  private fun hasFlowCompleted(fo: JavaFileObject?): Boolean {
-    return if (fo == null) {
-      false
-    } else {
-      try {
-        this.flowCompleted.contains(fo.toUri())
-      } catch (e: Exception) {
-        false
-      }
-    }
-  }
+class ReusableContext(
+	cancelService: CancelService,
+) : Context(),
+	TaskListener {
+	private val flowCompleted = mutableSetOf<URI>()
+
+	init {
+		put(Log.logKey, ReusableLog.factory)
+		put(FSInfo::class.java, if (VMUtils.isJvm) CacheFSInfo() else CacheFSInfoSingleton)
+		put(JavaCompiler.compilerKey, ReusableJavaCompiler.factory)
+		put(JavacFlowListener.flowListenerKey, JavacFlowListener { this.hasFlowCompleted(it) })
+		put(JarPackageProvider::class.java, JarPackageProviderImpl)
+
+		NBAttr.preRegister(this)
+		NBParserFactory.preRegister(this)
+		NBTreeMaker.preRegister(this)
+		NBJavacTrees.preRegister(this)
+		NBResolve.preRegister(this)
+		NBEnter.preRegister(this)
+		NBMemberEnter.preRegister(this, false)
+		NBClassFinder.preRegister(this)
+		NBClassReader.preRegister(this)
+		CancelService.preRegister(this, cancelService)
+	}
+
+	@DefinedBy(COMPILER_TREE)
+	override fun started(e: TaskEvent) {
+		//    log.debug("Started: $e")
+		// Do nothing
+	}
+
+	@DefinedBy(COMPILER_TREE)
+	override fun finished(e: TaskEvent) {
+		if (e.kind == ANALYZE) {
+			val cu = e.compilationUnit as JCCompilationUnit
+			if (cu.sourcefile != null) {
+				flowCompleted.add(cu.sourcefile.toUri())
+			}
+		}
+	}
+
+	fun clear() {
+		drop(Arguments.argsKey)
+		drop(DiagnosticListener::class.java)
+		drop(Log.outKey)
+		drop(Log.errKey)
+		drop(JavaFileManager::class.java)
+		drop(JavacTask::class.java)
+		drop(JavacTrees::class.java)
+		drop(JavacElements::class.java)
+
+		if (ht[Log.logKey] is ReusableLog) {
+			// log already init-ed - not first round
+			(Log.instance(this) as ReusableLog).clear()
+			Enter.instance(this).newRound()
+			(JavaCompiler.instance(this) as ReusableJavaCompiler).clear()
+			Types.instance(this).newRound()
+			Check.instance(this).newRound()
+			Modules.instance(this).newRound()
+			Annotate.instance(this).newRound()
+			CompileStates.instance(this).clear()
+			MultiTaskListener.instance(this).clear()
+		}
+	}
+
+	/** **FOR INTERNAL USE ONLY!** */
+	fun <T> drop(k: Key<T>?) {
+		ht.remove(k)
+	}
+
+	/** **FOR INTERNAL USE ONLY!** */
+	fun <T> drop(c: Class<T>?) {
+		drop(key(c))
+	}
+
+	private fun hasFlowCompleted(fo: JavaFileObject?): Boolean =
+		if (fo == null) {
+			false
+		} else {
+			try {
+				this.flowCompleted.contains(fo.toUri())
+			} catch (e: Exception) {
+				false
+			}
+		}
 }

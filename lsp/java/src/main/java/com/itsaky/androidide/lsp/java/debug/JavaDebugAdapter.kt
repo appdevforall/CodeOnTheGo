@@ -24,6 +24,7 @@ import com.itsaky.androidide.lsp.debug.model.ThreadInfoResult
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
 import com.itsaky.androidide.lsp.debug.model.ThreadListResponse
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
+import com.itsaky.androidide.lsp.java.api.IJavaCompilerSession
 import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
@@ -108,6 +109,12 @@ internal class JavaDebugAdapter :
 		): JavaDebugAdapter = checkNotNull(currentInstance(), message)
 	}
 
+	/** The current javac session, or null if the carrier hasn't been loaded yet this session. */
+	private fun currentCompilerSession(): IJavaCompilerSession? {
+		val lsp = ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
+		return (lsp as? JavaLanguageServer?)?.currentCompilerSession()
+	}
+
 	private fun connVm(): VmConnection {
 		checkIsConnected()
 		return this.vms.first()
@@ -146,7 +153,7 @@ internal class JavaDebugAdapter :
 
 		_listenerState?.invalidate()
 		listenerThread?.interrupt()
-		
+
 		_listenerState =
 			ListenerState(
 				client = client,
@@ -154,19 +161,20 @@ internal class JavaDebugAdapter :
 				args = args,
 			)
 
-		val failure = withContext(Dispatchers.IO) {
-			try {
-				logger.debug("startListening")
-				listenerState.startListening()
-				null
-			} catch (e: Throwable) {
-				if (e is CancellationException) {
-					throw e
+		val failure =
+			withContext(Dispatchers.IO) {
+				try {
+					logger.debug("startListening")
+					listenerState.startListening()
+					null
+				} catch (e: Throwable) {
+					if (e is CancellationException) {
+						throw e
+					}
+					logger.error("Failed to listen for incoming JDWP connections", e)
+					return@withContext DebugClientConnectionResult.Failure(cause = e)
 				}
-				logger.error("Failed to listen for incoming JDWP connections", e)
-				return@withContext DebugClientConnectionResult.Failure(cause = e)
 			}
-		}
 
 		if (failure != null) {
 			return failure
@@ -354,7 +362,7 @@ internal class JavaDebugAdapter :
 
 					val spec =
 						when (breakpoint) {
-							is PositionalBreakpoint ->
+							is PositionalBreakpoint -> {
 								specList.createBreakpoint(
 									source = breakpoint.source,
 									// +1 because we receive 0-indexed line numbers from the IDE
@@ -363,8 +371,9 @@ internal class JavaDebugAdapter :
 									qualifiedName = qualifiedName,
 									suspendPolicy = breakpoint.suspendPolicy.asJdiInt(),
 								)
+							}
 
-							is MethodBreakpoint ->
+							is MethodBreakpoint -> {
 								specList.createBreakpoint(
 									source = breakpoint.source,
 									methodId = breakpoint.methodId,
@@ -372,8 +381,11 @@ internal class JavaDebugAdapter :
 									qualifiedName = qualifiedName,
 									suspendPolicy = breakpoint.suspendPolicy.asJdiInt(),
 								)
+							}
 
-							else -> throw IllegalArgumentException("Unsupported breakpoint type: $breakpoint")
+							else -> {
+								throw IllegalArgumentException("Unsupported breakpoint type: $breakpoint")
+							}
 						}
 
 					val result =
@@ -385,19 +397,23 @@ internal class JavaDebugAdapter :
 					val resolveSuccess = result.getOrDefault(false)
 
 					when {
-						resolveSuccess && spec.isResolved ->
+						resolveSuccess && spec.isResolved -> {
 							BreakpointResult.Success(
 								breakpoint,
 								false,
 							)
+						}
 
-						resolveSuccess && !spec.isResolved ->
+						resolveSuccess && !spec.isResolved -> {
 							BreakpointResult.Success(
 								breakpoint,
 								true,
 							)
+						}
 
-						else -> BreakpointResult.Failure(breakpoint, failure)
+						else -> {
+							BreakpointResult.Failure(breakpoint, failure)
+						}
 					}
 				},
 			)
@@ -530,7 +546,7 @@ internal class JavaDebugAdapter :
 			event =
 				BreakpointHitEvent(
 					remoteClient = vm.client,
-					location = location.asLspLocation(),
+					location = location.asLspLocation(session = currentCompilerSession()),
 					threadId = thread.uniqueID().toString(),
 				),
 		)
@@ -548,7 +564,7 @@ internal class JavaDebugAdapter :
 			event =
 				LspStepEvent(
 					remoteClient = vm.client,
-					location = location.asLspLocation(),
+					location = location.asLspLocation(session = currentCompilerSession()),
 					threadId = thread.uniqueID().toString(),
 				),
 		)
@@ -631,8 +647,10 @@ internal class JDWPListenerThread(
 	override fun run() {
 		logger.debug("run::start")
 		if (!listenerState.isListening && !listenerState.isInvalidated) {
-			logger.warn("Listener should've been listening at this point, but it's not. " +
-					"Trying to start listening...")
+			logger.warn(
+				"Listener should've been listening at this point, but it's not. " +
+					"Trying to start listening...",
+			)
 			listenerState.startListening()
 		}
 

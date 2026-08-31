@@ -57,7 +57,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
-import com.itsaky.androidide.lsp.java.utils.CancelChecker
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
@@ -195,6 +194,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		const val STATE_KEY_SHOULD_INITIALIZE = "ide.editor.isInitializing"
 
 		private const val PLUGIN_SEARCH_TIMEOUT_SECONDS = 10L
+
+		private fun isCancellation(err: Throwable?): Boolean {
+			err ?: return false
+			return err is CancellationException || isCancellation(err.cause)
+		}
 	}
 
 	abstract fun doCloseAll()
@@ -613,7 +617,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			releaseServerListener()
 
 			if (result == null || !result.isSuccessful || error != null) {
-				if (!CancelChecker.isCancelled(error)) {
+				if (!isCancellation(error)) {
 					log.error("An error occurred initializing the project with Tooling API", error)
 				}
 

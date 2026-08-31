@@ -38,10 +38,8 @@ dependencies {
 	kapt(projects.annotationProcessors)
 
 	implementation(libs.androidide.ts)
-	implementation(libs.androidide.ts.java)
 	implementation(platform(libs.sora.bom))
 	implementation(libs.common.editor)
-	implementation(libs.common.javaparser)
 	implementation(libs.androidx.annotation)
 	implementation(libs.google.guava)
 	implementation(libs.google.gson)
@@ -54,14 +52,11 @@ dependencies {
 	implementation(projects.editorApi)
 	implementation(projects.resources)
 	implementation(projects.lsp.api)
+	implementation(projects.lsp.javaApi)
 	implementation(projects.lsp.jvmSymbolIndex)
 	implementation(projects.subprojects.libjdwp)
-	implementation(projects.subprojects.javacServices)
+	implementation(projects.subprojects.javacFs)
 	implementation(projects.idetooltips)
-
-	implementation(libs.composite.javac)
-	implementation(libs.composite.javapoet)
-	implementation(libs.composite.googleJavaFormat)
 
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.common.kotlin)
