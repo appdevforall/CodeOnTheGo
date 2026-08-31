@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +44,7 @@ fun ExtractVariableSheetContent(
 		modifier =
 			modifier
 				.fillMaxWidth()
+				.verticalScroll(rememberScrollState())
 				.navigationBarsPadding()
 				.padding(horizontal = 24.dp, vertical = 16.dp),
 		verticalArrangement = Arrangement.spacedBy(16.dp),

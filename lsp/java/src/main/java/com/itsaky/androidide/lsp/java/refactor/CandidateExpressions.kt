@@ -56,9 +56,11 @@ data class CandidateSyntax(
 /**
  * A cursor is the degenerate selection where the offsets are equal, so callers need one code path.
  *
- * Trimmed first, because a touch-screen selection routinely carries a leading or trailing space. Illegal
- * nodes on the way out are **skipped rather than terminating the walk**, so `c ? a : b` is still offered
- * from inside a branch, and a cursor on a bare literal still offers the call around it.
+ * Trimmed first, because a touch-screen selection routinely carries a leading or trailing space. An
+ * anchor that is conditionally evaluated -- a ternary branch, the right side of `&&`/`||` -- refuses
+ * the whole position up front (see [isConditionallyEvaluated]): extraction would change when it runs,
+ * and there is no rung that would not. Other illegal nodes on the way out are **skipped rather than
+ * terminating the walk**, so a cursor on a bare literal still offers the call around it.
  */
 fun candidateExpressionsAt(
 	task: JavacTask,
