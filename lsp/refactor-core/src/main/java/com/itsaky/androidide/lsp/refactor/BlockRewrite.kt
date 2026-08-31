@@ -114,6 +114,11 @@ fun servableOccurrences(
  * Extract Variable means, and what every IDE does -- so `foo(items.size()); items.add(x);
  * bar(items.size());` does fold to one read. What this rules out is the case where the *same* text
  * provably names two different values.
+ *
+ * A write inside an occurrence's *own* span counts as well as one in the gaps between them: `use(i++);
+ * use(i++);` increments twice and passes two values, so an expression that mutates what it reads can
+ * never be folded with a second copy of itself. When the candidate is that expression, it is served
+ * alone.
  */
 fun excludeUnsoundOccurrences(
 	occurrences: List<TextSpan>,
@@ -132,13 +137,18 @@ fun excludeUnsoundOccurrences(
 		to: Int,
 	): Boolean = writes.any { it in from until to }
 
-	val accepted = mutableListOf(ordered[candidateIndex])
+	fun writesWithin(span: TextSpan): Boolean = writeBetween(span.start, span.end)
+
+	val candidate = ordered[candidateIndex]
+	if (writesWithin(candidate)) return listOf(candidateSpan)
+
+	val accepted = mutableListOf(candidate)
 	for (i in candidateIndex - 1 downTo 0) {
-		if (writeBetween(ordered[i].end, ordered[candidateIndex].start)) break
+		if (writesWithin(ordered[i]) || writeBetween(ordered[i].end, candidate.start)) break
 		accepted.add(0, ordered[i])
 	}
 	for (i in candidateIndex + 1 until ordered.size) {
-		if (writeBetween(ordered[candidateIndex].end, ordered[i].start)) break
+		if (writesWithin(ordered[i]) || writeBetween(candidate.end, ordered[i].start)) break
 		accepted += ordered[i]
 	}
 	return accepted

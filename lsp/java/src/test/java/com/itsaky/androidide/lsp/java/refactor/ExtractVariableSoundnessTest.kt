@@ -3,6 +3,8 @@ package com.itsaky.androidide.lsp.java.refactor
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.lsp.refactor.RewriteSpan
+import com.itsaky.androidide.lsp.ui.NameProblem
+import com.itsaky.androidide.lsp.ui.validateVariableName
 import com.itsaky.androidide.resources.R
 import org.junit.After
 import org.junit.Test
@@ -316,6 +318,164 @@ class ExtractVariableSoundnessTest {
 		assertThat(taken).contains("count")
 	}
 
+	// --- This round: the third review pass ---
+
+	@Test
+	fun `a colon-form case group anchors the declaration inside itself`() {
+		// hal + itsaky, ScopeChain.kt:94 -- `truncateAtCeiling`'s `ifEmpty { frames.take(1) }` handed back
+		// the method rung, hoisting the declaration clean out of `x`'s scope.
+		val f =
+			fixture(
+				"""	void m(int k) {${'\n'}		switch (k) {${'\n'}			case 1:${'\n'}				int x = 5;${'\n'}				use(x + 1);${'\n'}				break;${'\n'}		}${'\n'}	}""",
+			)
+		val rungs =
+			f
+				.planAfter("use(x +")
+				.candidates
+				.first()
+				.scopes
+				.map { it.label }
+		assertThat(rungs).containsExactly(SWITCH_CASE)
+
+		val out = f.applyAfter("use(x +", "v")
+		assertThat(out.indexOf("int x = 5")).isLessThan(out.indexOf("int v ="))
+		assertWithMessage(out).that(compiles(out)).isTrue()
+	}
+
+	@Test
+	fun `a colon-form case group is a barrier, so nothing hoists out of the switch`() {
+		// hal + itsaky, ScopeChain.kt:55 -- the method rung compiled and removed a list element on a path
+		// that never evaluated the expression.
+		val f =
+			fixture(
+				"""	int m(int k, java.util.List<String> l) {${'\n'}		switch (k) {${'\n'}			case 1: return l.remove(0).length();${'\n'}			default: return 0;${'\n'}		}${'\n'}	}""",
+			)
+		val rungs =
+			f
+				.planAfter("l.remove(0).length")
+				.candidates
+				.first()
+				.scopes
+				.map { it.label }
+		assertThat(rungs).doesNotContain(METHOD_M)
+
+		val out = f.applyAfter("l.remove(0).length", "v")
+		assertThat(out.indexOf("switch (k)")).isLessThan(out.indexOf("int v ="))
+		assertWithMessage(out).that(compiles(out)).isTrue()
+	}
+
+	@Test
+	fun `an arrow case with a braced body offers one rung, not two`() {
+		// itsaky, ScopeChain.kt:131 -- the braceless branch fired on top of the block frame for the same
+		// braces, so the picker showed two options with the same label and one wrapped the block again.
+		val f =
+			fixture(
+				"""	void m(int k, int a, int b) {${'\n'}		switch (k) {${'\n'}			case 1 -> { use(a + b); }${'\n'}			default -> {}${'\n'}		}${'\n'}	}""",
+			)
+		assertThat(
+			f
+				.planAfter("use(a +")
+				.candidates
+				.first()
+				.scopes,
+		).hasSize(1)
+	}
+
+	@Test
+	fun `an occurrence inside a loop the rung is outside of is not folded`() {
+		// hal, ExtractVariablePlanner.kt:256 -- the loop walk started at the candidate, so a trailing
+		// occurrence inside a loop the candidate is not in froze the loop's per-iteration value.
+		val f =
+			fixture(
+				"""	void m(int limit) {${'\n'}		use(limit + 1);${'\n'}		while (limit < 10) {${'\n'}			use(limit + 1);${'\n'}			limit++;${'\n'}		}${'\n'}	}""",
+			)
+		val method =
+			f
+				.planAfter("use(limit +")
+				.candidates
+				.first()
+				.scopes
+				.first { it.label == METHOD_M }
+		assertThat(method.occurrences).hasSize(1)
+	}
+
+	@Test
+	fun `an array element write interrupts a run of occurrences`() {
+		// hal, Occurrences.kt:174 -- `getElement` answers nothing for an array access, so `arr[i] = 99`
+		// was invisible and the second site read the pre-assignment value.
+		val f =
+			fixture(
+				"""	void m(int[] arr, int i) {${'\n'}		use(arr[i] + 1);${'\n'}		arr[i] = 99;${'\n'}		use(arr[i] + 1);${'\n'}	}""",
+			)
+		val method =
+			f
+				.planAfter("use(arr[i] +")
+				.candidates
+				.first()
+				.scopes
+				.first { it.label == METHOD_M }
+		assertThat(method.occurrences).hasSize(1)
+	}
+
+	@Test
+	fun `an expression that writes what it reads is served alone`() {
+		// hal, BlockRewrite.kt:133 -- `writeBetween` covered only the gaps between occurrences, so `i++`
+		// folded with itself: two increments became one, and both sites read the same value.
+		val f = fixture("""	void m(int i) {${'\n'}		use(i++);${'\n'}		use(i++);${'\n'}	}""")
+		val method =
+			f
+				.planAfter("use(i")
+				.candidates
+				.first { it.label == "i++" }
+				.scopes
+				.first { it.label == METHOD_M }
+		assertThat(method.occurrences).hasSize(1)
+	}
+
+	@Test
+	fun `a functional interface that inherits its abstract method still offers its lambda`() {
+		// itsaky, ExtractVariablePlanner.kt:298 -- `enclosedElements` lists declared members only, so a
+		// lambda typed as `interface Mapper extends Function<..>` reported "nothing to extract".
+		val f =
+			fixture(
+				"""	interface Mapper extends java.util.function.Function<String, Integer> {}${'\n'}	void m(int n) {${'\n'}		Mapper mm = s -> s.length() + n;${'\n'}		use(mm);${'\n'}	}""",
+			)
+		val rungs =
+			f
+				.planAfter("s.length() +")
+				.candidates
+				.first()
+				.scopes
+				.map { it.label }
+		assertThat(rungs).containsExactly(LAMBDA)
+		assertWithMessage(f.applyAfter("s.length() +", "v")).that(compiles(f.applyAfter("s.length() +", "v"))).isTrue()
+	}
+
+	@Test
+	fun `a candidate inside a lambda in a loop condition is still offered`() {
+		// itsaky, CandidateExpressions.kt:234 -- the conditional-evaluation walk crossed the lambda
+		// boundary and refused a candidate whose own lambda body is a perfectly good rung.
+		val f =
+			fixture(
+				"""	void m(java.util.List<String> list, int n) {${'\n'}		while (list.stream().anyMatch(x -> x.length() + 1 > n)) {${'\n'}			tail();${'\n'}		}${'\n'}	}${'\n'}	void tail() {}""",
+			)
+		val rungs =
+			f
+				.planAfter("x.length() +")
+				.candidates
+				.first()
+				.scopes
+				.map { it.label }
+		assertThat(rungs).containsExactly(LAMBDA)
+	}
+
+	@Test
+	fun `a single underscore is rejected as a name`() {
+		// itsaky, NameSuggestion.kt:25 -- `_` is a keyword as of Java 9 and the shared identifier shape
+		// accepts it, so validation let through a name that does not compile.
+		assertThat(validateVariableName("_", emptySet(), JAVA_KEYWORDS)).isEqualTo(NameProblem.Keyword)
+	}
+
 	@After
 	fun closeFixtures() {
 		fixtures.forEach(JavacFixture::close)
@@ -340,6 +500,8 @@ class ExtractVariableSoundnessTest {
 	private companion object {
 		val METHOD_M = ScopeLabel(R.string.label_extract_scope_method, "m")
 		val SWITCH_RULE = ScopeLabel(R.string.label_extract_scope_switch_rule)
+		val SWITCH_CASE = ScopeLabel(R.string.label_extract_scope_switch_case)
+		val LAMBDA = ScopeLabel(R.string.label_extract_scope_lambda)
 		val WHILE_LOOP = ScopeLabel(R.string.label_extract_scope_while_loop)
 	}
 }

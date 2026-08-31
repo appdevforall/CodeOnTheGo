@@ -206,6 +206,11 @@ private fun isCaseLabel(path: TreePath): Boolean {
  * None of these has an inner rung to offer instead -- `frameFor` finds no frame for a condition, an
  * update or an operand -- so the only placement available is the wrong one, and declining is the honest
  * answer.
+ *
+ * The walk stops at a lambda body for the same reason [enclosingExecutableBody] does: the expression
+ * runs once per invocation of the lambda whatever surrounds the lambda itself, and the body *is* an
+ * inner rung. Without this, `while (list.stream().anyMatch(x -> x.length() + 1 > n))` refused a
+ * candidate that hoisting into the lambda would have placed correctly.
  */
 private fun isConditionallyEvaluated(path: TreePath): Boolean {
 	var child: Tree = path.leaf
@@ -213,6 +218,8 @@ private fun isConditionallyEvaluated(path: TreePath): Boolean {
 	while (current != null) {
 		val leaf = current.leaf
 		when {
+			leaf is LambdaExpressionTree && leaf.body === child -> return false
+
 			leaf is WhileLoopTree && leaf.condition === child -> return true
 
 			leaf is DoWhileLoopTree && leaf.condition === child -> return true

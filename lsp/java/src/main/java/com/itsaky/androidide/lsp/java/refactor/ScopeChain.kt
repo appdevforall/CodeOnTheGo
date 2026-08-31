@@ -46,8 +46,9 @@ data class ScopeFrame(
  * Lambda boundaries are *crossed* here: whether crossing is legal depends on what the candidate
  * references, which needs resolution, so [truncateAtCeiling] applies it afterwards.
  *
- * An old-style `case X:` group is deliberately not a rung -- its statements have no owning braces, so
- * the block geometry the rewrite reasons about does not exist. `case X: { ... }` works normally.
+ * A switch case is a barrier: hoisting past one changes the expression from "runs on this path" to
+ * "runs on every path", which compiles and silently reorders side effects. Every case form supplies a
+ * rung of its own first -- braces, an arrow rule body, or the colon group's own statement list.
  *
  * [indentUnit] is passed in rather than derived here: it is a property of the whole file, and deriving it
  * per rung re-scanned the entire source once for every ancestor of every candidate.
@@ -65,16 +66,14 @@ internal fun enclosingScopeFrames(
 	while (true) {
 		val parentPath = path.parentPath ?: break
 		val frame = frameFor(path.leaf, parentPath, root, positions, fileText, indentUnit)
-		if (frame == null) {
-			// Most nodes are not themselves anchorable -- an argument, an argument list, a member
-			// select. Keep climbing rather than stopping, otherwise the chain would end at the first
-			// such node and a candidate inside a lambda could never be hoisted out of it.
-			path = parentPath
-			continue
+		if (frame != null) {
+			frames += frame
+			if (isCeilingBlock(frame.scopeTree, parentPath)) break
 		}
-
-		frames += frame
-		if (isCeilingBlock(frame.scopeTree, parentPath)) break
+		if (parentPath.leaf is CaseTree) break
+		// Most nodes are not themselves anchorable -- an argument, an argument list, a member select.
+		// Keep climbing rather than stopping, otherwise the chain would end at the first such node and a
+		// candidate inside a lambda could never be hoisted out of it.
 		path = parentPath
 	}
 	return frames
@@ -82,16 +81,19 @@ internal fun enclosingScopeFrames(
 
 /**
  * Enforces "crossing a lambda boundary only when nothing lambda-scoped is referenced": if the candidate
- * uses a lambda parameter, that lambda's body is the ceiling and every outer rung disappears. Truncating
- * to nothing keeps the innermost rung, so this step never empties a chain on its own.
+ * uses a lambda parameter, that lambda's body is the ceiling and every outer rung disappears.
+ *
+ * Truncating to nothing empties the chain, which declines the candidate. Keeping the innermost rung
+ * instead would hand back a rung the ceiling just ruled out -- for a candidate reading a local declared
+ * in a case group, that is a declaration hoisted clean out of the local's scope, and the file stops
+ * compiling.
  */
 internal fun truncateAtCeiling(
 	frames: List<ScopeFrame>,
 	ceiling: TextSpan?,
 ): List<ScopeFrame> {
 	if (ceiling == null) return frames
-	val kept = frames.takeWhile { ceiling.start <= it.scopeSpan.start && it.scopeSpan.end <= ceiling.end }
-	return kept.ifEmpty { frames.take(1) }
+	return frames.takeWhile { ceiling.start <= it.scopeSpan.start && it.scopeSpan.end <= ceiling.end }
 }
 
 /** Null when [parentPath]'s leaf is not a position this refactoring anchors in. */
@@ -129,14 +131,24 @@ private fun frameFor(
 	}
 
 	if (parent is CaseTree && parent.caseKind == CaseTree.CaseKind.RULE && parent.body === inner) {
-		return if (inner is ExpressionTree) {
-			// `case A -> value;` parses the body as the expression and takes the `;` separately, so the
-			// span stops short of it. Replacing only the expression would leave `case A -> { ... };`.
-			val withTerminator = TextSpan(innerSpan.start, semicolonAfter(fileText, innerSpan.end))
-			expressionBodyFrame(SWITCH_RULE, inner, withTerminator, parent, root, positions, fileText, indentUnit, "yield")
-		} else {
-			bracelessFrame(SWITCH_RULE, innerSpan, parent, root, positions, fileText, indentUnit)
+		return when {
+			inner is ExpressionTree -> {
+				// `case A -> value;` parses the body as the expression and takes the `;` separately, so the
+				// span stops short of it. Replacing only the expression would leave `case A -> { ... };`.
+				val withTerminator = TextSpan(innerSpan.start, semicolonAfter(fileText, innerSpan.end))
+				expressionBodyFrame(SWITCH_RULE, inner, withTerminator, parent, root, positions, fileText, indentUnit, "yield")
+			}
+
+			// `case A -> { ... }` already produced a block frame for the same braces, and wrapping them
+			// again would offer a second rung with the same label emitting a redundant nested block.
+			inner is BlockTree -> null
+
+			else -> bracelessFrame(SWITCH_RULE, innerSpan, parent, root, positions, fileText, indentUnit)
 		}
+	}
+
+	if (parent is CaseTree && parent.caseKind == CaseTree.CaseKind.STATEMENT && inner !is BlockTree) {
+		return caseGroupFrame(parent, root, positions)
 	}
 
 	if (inner is StatementTree && inner !is BlockTree) {
@@ -145,6 +157,40 @@ private fun frameFor(
 	}
 
 	return null
+}
+
+/**
+ * An old-style `case X:` group, whose statements own no braces of their own.
+ *
+ * They still have a block's geometry -- an ordered statement list and a content region -- so the shared
+ * [BlockAnchor] machinery places the declaration among them, and a local declared in a case group is
+ * scoped to the whole switch block, so it compiles. Without this rung the only anchor above a colon-form
+ * case is outside the switch, where the expression would run on every path.
+ *
+ * The content region runs from the first statement to the last rather than from the `:`, so a group
+ * written on one line (`case 1: return f();`) expands the way a one-line block does.
+ */
+private fun caseGroupFrame(
+	case: CaseTree,
+	root: CompilationUnitTree,
+	positions: SourcePositions,
+): ScopeFrame? {
+	val caseSpan = spanOf(root, positions, case) ?: return null
+	val statementSpans = case.statements.mapNotNull { spanOf(root, positions, it) }
+	val first = statementSpans.firstOrNull() ?: return null
+	return ScopeFrame(
+		label = SWITCH_CASE,
+		scopeTree = case,
+		scopeSpan = caseSpan,
+		searchRange = caseSpan,
+		anchorForm =
+			AnchorForm.ExistingBlock(
+				BlockAnchor(
+					contentSpan = TextSpan(first.start, statementSpans.last().end),
+					statementSpans = statementSpans,
+				),
+			),
+	)
 }
 
 /** The statement is replaced by a braced block holding both lines. */
@@ -272,7 +318,7 @@ private fun blockLabel(
 
 		is SynchronizedTree -> ScopeLabel(R.string.label_extract_scope_synchronized_block)
 
-		is CaseTree -> SWITCH_RULE
+		is CaseTree -> if (owner.caseKind == CaseTree.CaseKind.RULE) SWITCH_RULE else SWITCH_CASE
 
 		else -> ScopeLabel(R.string.label_extract_scope_block)
 	}
@@ -304,6 +350,7 @@ private fun bodyLabel(
 
 private val LAMBDA = ScopeLabel(R.string.label_extract_scope_lambda)
 private val SWITCH_RULE = ScopeLabel(R.string.label_extract_scope_switch_rule)
+private val SWITCH_CASE = ScopeLabel(R.string.label_extract_scope_switch_case)
 
 /**
  * The region inside a block's braces.

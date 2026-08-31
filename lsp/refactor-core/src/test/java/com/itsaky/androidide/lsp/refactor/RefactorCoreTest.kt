@@ -81,6 +81,22 @@ class RefactorCoreTest {
 	}
 
 	@Test
+	fun `an occurrence whose own span holds a write never folds with another`() {
+		// hal, BlockRewrite.kt:133 -- `use(i++); use(i++);` increments twice and passes two values, but the
+		// gaps-only check saw no write *between* the sites and folded them into one.
+		val occurrences = listOf(TextSpan(0, 3), TextSpan(20, 23))
+		val sound = excludeUnsoundOccurrences(occurrences, candidateSpan = TextSpan(0, 3), writeOffsets = listOf(0, 20))
+		assertThat(sound).containsExactly(TextSpan(0, 3))
+	}
+
+	@Test
+	fun `a self-writing neighbour stops the walk without dropping the candidate`() {
+		val occurrences = listOf(TextSpan(0, 3), TextSpan(20, 25), TextSpan(40, 43))
+		val sound = excludeUnsoundOccurrences(occurrences, candidateSpan = TextSpan(20, 25), writeOffsets = listOf(0, 40))
+		assertThat(sound).containsExactly(TextSpan(20, 25))
+	}
+
+	@Test
 	fun `leading unplaceable occurrences are dropped and the candidate survives`() {
 		// The leading site shares the opening-brace line, so anchoring a replace-all there would refuse
 		// the whole rewrite; dropping it keeps the count achievable.

@@ -562,6 +562,7 @@
 	<string name="label_extract_scope_catch_block">catch block</string>
 	<string name="label_extract_scope_synchronized_block">synchronized block</string>
 	<string name="label_extract_scope_switch_rule">switch rule</string>
+	<string name="label_extract_scope_switch_case">switch case</string>
 	<string name="label_extract_scope_block">block</string>
 	<string name="label_extract_scope_if_branch">if branch</string>
 	<string name="label_extract_scope_else_branch">else branch</string>

@@ -7,6 +7,7 @@ import jdkx.lang.model.element.Modifier
 import jdkx.lang.model.element.TypeElement
 import jdkx.lang.model.element.VariableElement
 import jdkx.lang.model.util.Elements
+import openjdk.source.tree.ArrayAccessTree
 import openjdk.source.tree.AssignmentTree
 import openjdk.source.tree.BlockTree
 import openjdk.source.tree.CatchTree
@@ -136,9 +137,12 @@ internal fun referencedElements(
 }
 
 /**
- * Writes to any non-`final` variable the candidate reads, feeding [excludeUnsoundOccurrences]. A `final`
- * variable cannot be written, which is the role Kotlin's `val` check plays. Effectively-final locals need
- * no special case: a local that is never written has no write to find.
+ * Writes to any variable the candidate reads, feeding [excludeUnsoundOccurrences]. Effectively-final
+ * locals need no special case: a local that is never written has no write to find.
+ *
+ * Two sets, because `final` means different things to the two shapes. A `final` reference cannot be
+ * reassigned, which is the role Kotlin's `val` check plays -- but `final int[] arr` says nothing about
+ * `arr[i] = 99`, so an element write counts against every referenced variable, final or not.
  *
  * Bounded to [scopePath]'s subtree for the same reason as [findOccurrences], and given the candidate's
  * already-resolved elements rather than resolving them again.
@@ -151,12 +155,9 @@ internal fun writeOffsetsFor(
 	positions: SourcePositions,
 	trees: Trees,
 ): List<Int> {
-	val mutables =
-		candidateElements
-			.filterIsInstance<VariableElement>()
-			.filterNot { Modifier.FINAL in it.modifiers }
-			.toSet()
-	if (mutables.isEmpty()) return emptyList()
+	val referenced = candidateElements.filterIsInstance<VariableElement>().toSet()
+	if (referenced.isEmpty()) return emptyList()
+	val reassignable = referenced.filterNot { Modifier.FINAL in it.modifiers }.toSet()
 
 	val offsets = mutableListOf<Int>()
 
@@ -171,8 +172,12 @@ internal fun writeOffsetsFor(
 			} ?: return
 		val span = spanOf(root, positions, target) ?: return
 		if (span.start < frame.searchRange.start || span.end > frame.searchRange.end) return
-		val element = runCatching { trees.getElement(TreePath(path, target)) }.getOrNull()
-		if (element in mutables) offsets += span.start
+		// `getElement` answers nothing for an array access -- an element is not a declaration -- so the
+		// write is attributed to the array the access reads, which is what the candidate names too.
+		val written = arrayBaseOf(target) ?: target
+		val element = runCatching { trees.getElement(TreePath(path, written)) }.getOrNull() ?: return
+		val accepted = if (written === target) reassignable else referenced
+		if (element in accepted) offsets += span.start
 	}
 
 	val scanner =
@@ -189,6 +194,19 @@ internal fun writeOffsetsFor(
 	consider(scopePath)
 	scanner.scan(scopePath, null)
 	return offsets.sorted()
+}
+
+/**
+ * The array an assignment target indexes into, unwrapping nested accesses (`grid[r][c]` -> `grid`), or
+ * null when the target is not an array access at all.
+ */
+private fun arrayBaseOf(target: Tree): Tree? {
+	var current = target as? ArrayAccessTree ?: return null
+	while (true) {
+		val next = current.expression
+		if (next !is ArrayAccessTree) return next
+		current = next
+	}
 }
 
 internal val INCREMENT_KINDS =

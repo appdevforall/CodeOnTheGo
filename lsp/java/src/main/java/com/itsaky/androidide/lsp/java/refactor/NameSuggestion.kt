@@ -18,10 +18,12 @@ import openjdk.source.tree.TypeCastTree
 
 /**
  * The restricted identifiers -- `var`, `yield`, `record`, `sealed`, `permits` -- are legal variable names
- * and are deliberately absent. `true`, `false` and `null` are literals, so they are present.
+ * and are deliberately absent. `true`, `false` and `null` are literals, so they are present, as is `_`:
+ * a keyword since Java 9, and one the shared identifier shape accepts.
  */
 val JAVA_KEYWORDS =
 	setOf(
+		"_",
 		"abstract",
 		"assert",
 		"boolean",
