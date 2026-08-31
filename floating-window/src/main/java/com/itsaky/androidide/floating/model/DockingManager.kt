@@ -46,18 +46,18 @@ object DockingManager {
 	}
 
 	/** Remove the floating window for [id] and signal that the tab should return to the dock. */
-	fun dock(id: String): DockableContent? {
-		val tab = find(id) ?: return null
-		_windows.update { current -> current.filterNot { it.id == id } }
-		_events.tryEmit(DockingEvent.Redock(tab.content))
-		return tab.content
-	}
+	fun dock(id: String): DockableContent? = remove(id)?.also { _events.tryEmit(DockingEvent.Redock(it)) }
 
 	/** Remove the floating window for [id] and signal that the tab should be closed entirely. */
-	fun close(id: String): DockableContent? {
+	fun close(id: String): DockableContent? = remove(id)?.also { _events.tryEmit(DockingEvent.Close(it)) }
+
+	/**
+	 * Remove the floating window for [id] without emitting a [DockingEvent]. For a caller that has
+	 * already torn the tab down itself and must not have a listener act on it a second time.
+	 */
+	fun remove(id: String): DockableContent? {
 		val tab = find(id) ?: return null
 		_windows.update { current -> current.filterNot { it.id == id } }
-		_events.tryEmit(DockingEvent.Close(tab.content))
 		return tab.content
 	}
 

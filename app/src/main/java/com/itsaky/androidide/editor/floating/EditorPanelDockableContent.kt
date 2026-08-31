@@ -118,6 +118,9 @@ class EditorPanelDockableContent(
 		}
 	}
 
+	val isModified: Boolean
+		get() = editorView?.isModified == true
+
 	suspend fun save(): Boolean = editorView?.save() ?: false
 
 	fun release() {

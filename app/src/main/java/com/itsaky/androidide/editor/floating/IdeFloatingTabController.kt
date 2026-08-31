@@ -77,6 +77,31 @@ class IdeFloatingTabController(
 		FloatingTabService.ensureRunning(activity.applicationContext)
 	}
 
+	/**
+	 * Tears down every floating window because the project is closing: a docked plugin tab or file
+	 * panel is closed with the project, and an undocked one is the same tab in another window.
+	 *
+	 * File panels are saved (when [save] is set, i.e. the user chose "save and close") and released
+	 * inline, not through [onEvent]: that coroutine dies with the finishing activity, and it saves
+	 * unconditionally, which would defeat "close without saving". Hence [DockingManager.remove]
+	 * rather than [DockingManager.close] - the teardown is done, no listener should redo it.
+	 */
+	suspend fun closeAll(save: Boolean) {
+		for (tab in DockingManager.windows.value) {
+			val panel = tab.content as? EditorPanelDockableContent
+			if (save && panel != null && panel.isModified && !panel.save()) {
+				Toast
+					.makeText(
+						activity,
+						activity.getString(R.string.msg_floating_close_save_failed, panel.title),
+						Toast.LENGTH_LONG,
+					).show()
+			}
+			DockingManager.remove(tab.id)
+			panel?.release()
+		}
+	}
+
 	private fun onEvent(event: DockingEvent) {
 		when (val content = event.content) {
 			is EditorPanelDockableContent -> {
