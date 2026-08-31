@@ -83,7 +83,19 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   reaches the host's crash handler as an IDE crash, not your plugin's error path.
   `readAndMigrate` keeps a lost key (`Unreadable` — ask the user for the secret again) apart
   from a Keystore that would not answer (`Unavailable` — retry), so a transient failure does
-  not cost the user a credential that is still perfectly readable.
+  not cost the user a credential that is still perfectly readable. That split covers the cipher
+  step as well as key acquisition, and it enumerates the *permanent* failures rather than the
+  transient ones: a wrong key, an altered payload, a malformed one, an invalidated or
+  unrecoverable key are `Unreadable`, and anything else the Keystore surfaces — a dead binder, a
+  busy backend — is `Unavailable`. (Asking the platform is not an option here: `BackendBusyException`
+  is API 31+ and `KeyStoreException.isTransientFailure()` API 33+, against `minSdk 28`.)
+  A blank stored value is no credential, and all three entry points agree about the same bytes on
+  disk: `write` forgets one rather than storing it, `readAndMigrate` purges it and reports
+  `Absent`, `decrypt` returns null. (`encrypt`/`decrypt` used as a bare codec still round-trip
+  `""`; the rule is about what is *stored*.)
+  Every one of the four methods does Keystore binder IPC, so **call them off the main thread** —
+  `decrypt` and `write` additionally share one alias-scoped lock, and `write` holds it across a
+  synchronous flush.
   The `alias` is a constructor parameter and must stay **distinct per
   plugin**: plugins share the host's process, UID and therefore its Keystore, so a shared
   alias would let one plugin's invalidated-key recovery (`deleteEntry`) destroy another's

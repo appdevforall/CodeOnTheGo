@@ -5,8 +5,11 @@ import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.util.Base64
 import org.slf4j.LoggerFactory
 import java.security.GeneralSecurityException
+import java.security.UnrecoverableEntryException
 import java.util.concurrent.ConcurrentHashMap
+import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
+import javax.crypto.IllegalBlockSizeException
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
@@ -117,6 +120,9 @@ class KeystoreSecretStore internal constructor(
 	 * The key is not auth-bound, so a credential change does not invalidate it; an alias an OEM
 	 * Keystore drops anyway is regenerated once before retrying.
 	 *
+	 * Keystore IPC (a binder round trip per call, and a key generation on first use) plus AES/GCM,
+	 * so call this off the main thread.
+	 *
 	 * @param plain the value to encrypt.
 	 * @return the ciphertext to store.
 	 * @throws GeneralSecurityException on any Keystore or cipher failure, so the caller can tell the
@@ -151,10 +157,15 @@ class KeystoreSecretStore internal constructor(
 	 * Reads a stored value back, handling both formats: an `enc:v1:` value is decrypted and
 	 * anything else is returned unchanged as legacy plaintext.
 	 *
+	 * Keystore IPC plus AES/GCM for a ciphertext value, so call this off the main thread. It also
+	 * takes the same alias lock [write] holds across its synchronous flush, so a main-thread call
+	 * here can park on a background write's disk I/O.
+	 *
 	 * @param stored the stored string, ciphertext or legacy plaintext.
-	 * @return the plaintext, or null when a ciphertext value could not be decrypted. Null collapses
-	 *   "the key is lost" and "the Keystore would not answer"; use [readAndMigrate] where that
-	 *   difference decides what the user is told.
+	 * @return the plaintext, or null when nothing is stored (null or blank, matching [write], which
+	 *   forgets a blank secret rather than storing one) or a ciphertext value could not be
+	 *   decrypted. Null collapses "the key is lost" and "the Keystore would not answer"; use
+	 *   [readAndMigrate] where that difference decides what the user is told.
 	 */
 	fun decrypt(stored: String?): String? = (readStored(stored) as? Stored.Value)?.plain
 
@@ -240,14 +251,20 @@ class KeystoreSecretStore internal constructor(
 	}
 
 	/**
-	 * Classifies a stored string, keeping a lost key apart from an unreachable Keystore.
+	 * Classifies a stored string, keeping a value that is really gone apart from one the Keystore
+	 * merely would not open just now.
 	 *
-	 * The two failures are caught separately and deliberately: only the ciphertext-side failures
-	 * mean the value is gone, and reporting a momentarily unavailable Keystore the same way is what
-	 * asks a user to retype a credential that is still perfectly readable.
+	 * Both the key-acquisition and the cipher step make that split, and for the same reason:
+	 * reporting a momentarily unavailable Keystore as [Stored.Unreadable] asks a user to retype a
+	 * credential that is still perfectly readable, and reporting a permanent loss as
+	 * [Stored.Unavailable] has a conforming caller retry forever and never re-prompt.
 	 */
 	private fun readStored(stored: String?): Stored {
 		if (stored == null) return Stored.Absent
+		// The rule [write] and [readAndMigrate] already apply, applied here too so all three agree: a
+		// blank secret is no secret. Value("") would have [decrypt] call a credential configured over
+		// the exact bytes [readAndMigrate] purges and reports Absent for.
+		if (stored.isBlank()) return Stored.Absent
 		if (!stored.startsWith(ENC_PREFIX)) return Stored.Value(stored)
 		return synchronized(aliasLock) {
 			val key =
@@ -256,6 +273,13 @@ class KeystoreSecretStore internal constructor(
 				} catch (e: KeyPermanentlyInvalidatedException) {
 					log.warn("Keystore key '{}' is invalidated; a value stored under it is lost", alias, e)
 					return@synchronized Stored.Unreadable
+				} catch (e: UnrecoverableEntryException) {
+					// The alias is there but its key material cannot be recovered: permanent, exactly as an
+					// invalidated key is, and not something a retry fixes. One arm covers both shapes -
+					// KeyStore.getEntry declares this, AndroidKeyStoreSpi.engineGetKey raises the
+					// UnrecoverableKeyException subclass of it.
+					log.warn("Keystore key '{}' cannot be recovered; a value stored under it is lost", alias, e)
+					return@synchronized Stored.Unreadable
 				} catch (e: Exception) {
 					log.warn("Could not obtain the Keystore key for alias '{}'", alias, e)
 					return@synchronized Stored.Unavailable
@@ -263,11 +287,39 @@ class KeystoreSecretStore internal constructor(
 			try {
 				Stored.Value(decryptWith(key, stored))
 			} catch (e: Exception) {
-				log.warn("Failed to decrypt a stored secret under alias '{}'", alias, e)
-				Stored.Unreadable
+				val outcome = classifyCipherFailure(e)
+				log.warn("Could not decrypt a stored secret under alias '{}'; reporting {}", alias, outcome, e)
+				outcome
 			}
 		}
 	}
+
+	/**
+	 * Whether a cipher-step failure means the stored bytes are gone, or only that the Keystore would
+	 * not answer just now.
+	 *
+	 * Enumerates the *permanent* failures rather than the transient ones, because that is the short
+	 * closed list. Everything else a Keystore-backed `Cipher.init`/`doFinal` can surface -- a dead
+	 * binder, a `BackendBusyException` under load, a passing keymaster error -- is worth a retry, and
+	 * a value that fails one of those is intact: clear the failure and the same ciphertext reads back.
+	 * Asking the platform instead is not available in this module: `BackendBusyException` is API 31+
+	 * and `KeyStoreException.isTransientFailure()` API 33+, against `minSdk 28`.
+	 */
+	private fun classifyCipherFailure(e: Exception): Stored =
+		when (e) {
+			// GCM authentication failed -- a wrong key, or a payload altered since it was written. The
+			// subclass AEADBadTagException is the usual one; a provider may raise the plain type instead.
+			is BadPaddingException,
+			// The payload is not a whole number of blocks; it is not base64; or it is too short to hold
+			// an IV (the `require` in [decryptWith]). Malformed, and no retry makes it well-formed.
+			is IllegalBlockSizeException,
+			is IllegalArgumentException,
+			// Cipher.init raises this as readily as key acquisition does, and it is permanent in both.
+			is KeyPermanentlyInvalidatedException,
+			-> Stored.Unreadable
+
+			else -> Stored.Unavailable
+		}
 
 	private fun decryptWith(
 		key: SecretKey,

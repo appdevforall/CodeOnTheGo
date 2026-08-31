@@ -15,6 +15,7 @@ import java.io.IOException
 import java.security.GeneralSecurityException
 import java.security.KeyStoreException
 import java.security.ProviderException
+import java.security.UnrecoverableKeyException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.TimeUnit
@@ -160,7 +161,20 @@ class KeystoreSecretStoreTest {
 	@Test
 	fun `Given_an_unprefixed_legacy_plaintext_value_When_decrypt_Then_it_is_returned_unchanged`() {
 		assertThat(store.decrypt("legacy-plaintext")).isEqualTo("legacy-plaintext")
-		assertThat(store.decrypt("")).isEqualTo("")
+		assertThat(store.decrypt("  padded  ")).isEqualTo("  padded  ")
+	}
+
+	@Test
+	fun `Given_a_blank_stored_value_When_decrypt_and_readAndMigrate_Then_both_report_no_credential`() {
+		listOf("", "   ", "\t\n").forEach { blank ->
+			// decrypt returning "" while readAndMigrate returns Absent over the identical bytes lets one
+			// plugin send an empty API key on `decrypt(...) != null` and the same plugin, migrated to
+			// readAndMigrate, correctly find nothing - with nothing on disk having changed.
+			assertThat(store.decrypt(blank)).isNull()
+
+			prefs.edit().putString(KEY, blank).apply()
+			assertThat(store.readAndMigrate(prefs, KEY)).isEqualTo(KeystoreSecretStore.Stored.Absent)
+		}
 	}
 
 	@Test
@@ -278,6 +292,57 @@ class KeystoreSecretStoreTest {
 		// regenerate, because regenerating cannot bring the value back.
 		assertThat(store.readAndMigrate(prefs, KEY))
 			.isEqualTo(KeystoreSecretStore.Stored.Unreadable)
+	}
+
+	@Test
+	fun `Given_a_stored_secret_and_a_key_whose_material_cannot_be_recovered_When_readAndMigrate_Then_Unreadable_is_reported`() {
+		store.write(prefs, KEY, "hunter2")
+		// KeyStore.getEntry declares UnrecoverableEntryException and engineGetKey raises the
+		// UnrecoverableKeyException subclass; either means the entry is there but its key material is
+		// not - permanent, so Unavailable here would have a conforming caller retry forever.
+		keys.getFailure = UnrecoverableKeyException("Key material is gone")
+
+		assertThat(store.readAndMigrate(prefs, KEY))
+			.isEqualTo(KeystoreSecretStore.Stored.Unreadable)
+	}
+
+	@Test
+	fun `Given_the_cipher_fails_transiently_When_readAndMigrate_Then_Unavailable_is_reported_and_the_ciphertext_survives`() {
+		store.write(prefs, KEY, "hunter2")
+		// Key acquisition succeeds and only the cipher fails, which is the dead-binder / busy-backend
+		// shape. Reporting Unreadable here is the exact lie Stored.Unavailable was added to prevent.
+		keys.cipherUnreachable = true
+
+		assertThat(store.readAndMigrate(prefs, KEY))
+			.isEqualTo(KeystoreSecretStore.Stored.Unavailable)
+		assertThat(store.decrypt(prefs.getString(KEY, null))).isNull()
+
+		// The proof that Unavailable was the honest answer: the stored bytes were never the problem.
+		keys.cipherUnreachable = false
+		assertThat(store.readAndMigrate(prefs, KEY))
+			.isEqualTo(KeystoreSecretStore.Stored.Value("hunter2"))
+	}
+
+	@Test
+	fun `Given_a_permanently_lost_value_When_readAndMigrate_Then_Unreadable_survives_the_transient_default`() {
+		// The other side of the inversion: with everything unrecognised now defaulting to Unavailable,
+		// the failures that really do mean the value is gone must still be recognised.
+		store.write(prefs, KEY, "hunter2")
+		val body = prefs.getString(KEY, null)!!.removePrefix(ENC_PREFIX)
+		val raw = Base64.decode(body, Base64.NO_WRAP)
+		raw[raw.size - 1] = (raw[raw.size - 1].toInt() xor 0x01).toByte()
+
+		listOf(
+			// GCM authentication failure: AEADBadTagException.
+			ENC_PREFIX + Base64.encodeToString(raw, Base64.NO_WRAP),
+			// Not base64, and too short to hold an IV: IllegalArgumentException.
+			ENC_PREFIX + "!!!not-base64!!!",
+			ENC_PREFIX + Base64.encodeToString(ByteArray(4), Base64.NO_WRAP),
+		).forEach { stored ->
+			prefs.edit().putString(KEY, stored).apply()
+			assertThat(store.readAndMigrate(prefs, KEY))
+				.isEqualTo(KeystoreSecretStore.Stored.Unreadable)
+		}
 	}
 
 	@Test
@@ -506,6 +571,17 @@ class KeystoreSecretStoreTest {
 			}
 	}
 
+	/**
+	 * A key whose material the provider cannot fetch, which is the shape a dead binder or a busy
+	 * keymaster takes: `Cipher.init` asks a Keystore key for its encoding, the IPC fails, and an
+	 * unchecked [ProviderException] comes out of the cipher rather than out of key acquisition.
+	 */
+	private class UnreachableKey(
+		private val delegate: SecretKey,
+	) : SecretKey by delegate {
+		override fun getEncoded(): ByteArray = throw ProviderException("Keystore backend is busy")
+	}
+
 	/** An in-memory stand-in for the Android Keystore, which has no JVM provider. */
 	private class FakeKeySource : SecretKeySource {
 		@Volatile
@@ -533,10 +609,17 @@ class KeystoreSecretStoreTest {
 		@Volatile
 		var getFailure: Exception? = null
 
+		/**
+		 * Hands back a key the *cipher* cannot use, so key acquisition succeeds and only `Cipher.init`
+		 * fails - the one interleaving that tells a transient cipher failure apart from a lost key.
+		 */
+		@Volatile
+		var cipherUnreachable = false
+
 		override fun getOrCreate(): SecretKey {
 			if (invalidated) throw KeyPermanentlyInvalidatedException()
 			getFailure?.let { throw it }
-			return key
+			return if (cipherUnreachable) UnreachableKey(key) else key
 		}
 
 		override fun delete() {
