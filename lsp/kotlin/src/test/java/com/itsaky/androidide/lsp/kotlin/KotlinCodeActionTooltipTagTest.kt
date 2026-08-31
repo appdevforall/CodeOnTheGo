@@ -2,15 +2,18 @@ package com.itsaky.androidide.lsp.kotlin
 
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.actions.CommentLineAction
+import com.itsaky.androidide.lsp.actions.SurroundWithTryCatchAction
 import com.itsaky.androidide.lsp.actions.UncommentLineAction
 import com.itsaky.androidide.lsp.kotlin.KotlinCodeActionsMenu.KT_LANG
 import com.itsaky.androidide.lsp.kotlin.actions.AddImportAction
+import com.itsaky.androidide.lsp.kotlin.actions.ExtractMethodAction
+import com.itsaky.androidide.lsp.kotlin.actions.ExtractVariableAction
 import com.itsaky.androidide.lsp.kotlin.actions.FindReferencesAction
 import com.itsaky.androidide.lsp.kotlin.actions.GoToDefinitionAction
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
+import com.itsaky.androidide.lsp.kotlin.actions.InlineVariableAction
 import com.itsaky.androidide.lsp.kotlin.actions.NullSafetyAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
-import com.itsaky.androidide.lsp.kotlin.actions.SurroundWithTryCatchAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,7 +29,7 @@ import org.junit.Test
  */
 class KotlinCodeActionTooltipTagTest {
 	private val actualTags
-		get() = KotlinCodeActionsMenu.actions.associate { it.id to it.tooltipTag }
+		get() = KotlinCodeActionsMenu.actions.associate { it.id to it.retrieveTooltipTag(false) }
 
 	@Test
 	fun `every kotlin code action maps to its own tooltip tag`() {
@@ -40,7 +43,11 @@ class KotlinCodeActionTooltipTagTest {
 				OrganizeImportsAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_ORGANIZE_IMPORTS,
 				NullSafetyAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX,
 				ImplementMembersAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_IMPLEMENT_MEMBERS,
-				SurroundWithTryCatchAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH,
+				SurroundWithTryCatchAction.idFor(KT_LANG) to
+					TooltipTag.EDITOR_CODE_ACTIONS_KT_SURROUND_TRY_CATCH,
+				ExtractVariableAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_EXTRACT_VARIABLE,
+				ExtractMethodAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_EXTRACT_METHOD,
+				InlineVariableAction.ID to TooltipTag.EDITOR_CODE_ACTIONS_KT_INLINE_VARIABLE,
 			)
 		assertEquals(expected, actualTags)
 	}

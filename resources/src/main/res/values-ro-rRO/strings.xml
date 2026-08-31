@@ -159,8 +159,6 @@
   <string name="msg_open_projects">Dacă este activat, IDE va preântâmpina despre ultimul proiect deschis și va fi redeschis la următoarea pornire.</string>
   <string name="title_confirm_project_open">Confirmați deschiderea proiectului</string>
   <string name="msg_confirm_project_open">Întrebați înainte de a deschide ultimul proiect deschis.</string>
-  <string name="title_default_shell">Utilizați shell-ul sistemului în terminal</string>
-  <string name="msg_default_shell">Dacă este activat, \'/system/bin/sh\' va fi utilizat în terminal.</string>
   <string name="title_general">General</string>
   <string name="title_tab_size">Mărime Tab</string>
   <string name="msg_tab_size">Specificarea numărului de spații pentru TAB</string>

@@ -7,6 +7,8 @@
 	<string name="text_to_search">Teks untuk dicari</string>
 	<string name="about_option_email">Email</string>
 	<string name="about_option_website">Situs web</string>
+	<string name="about_option_youtube">YouTube</string>
+	<string name="about_option_bilibili">Bilibili</string>
 	<string name="about_footer">Code on the Go %1$s untuk %2$s</string>
 	<string name="about_subtitle">Tidak punya komputer? Tidak ada internet? Tidak masalah. Koding aplikasi di mana saja.</string>
 	<string name="msg_get_package_failed">Gagal mengekstrak nama paket.</string>
@@ -17,7 +19,7 @@
 	<string name="need_help">Butuh Bantuan?</string>
 	<string name="ide_preferences">Preferensi IDE</string>
 	<string name="discussions_on_telegram">Forum dukungan dan diskusi</string>
-	<string name="official_tg_channel">Saluran Telegram resmi</string>
+	<string name="official_tg_channel">Pengumuman di Telegram</string>
 	<string name="msg_empty_view">Tidak ada data</string>
 	<string name="title_terminal">Terminal</string>
 	<string name="reset">Atur ulang</string>
@@ -238,7 +240,7 @@
 	<string name="new_file">File baru</string>
 	<string name="create_auto_layout">Buat file layout</string>
 	<string name="new_java_class">Class Java baru</string>
-	<string name="new_xml_resource">Sumber XML baru</string>
+	<string name="new_xml_resource">Sumber daya XML baru</string>
 	<string name="new_folder">Folder baru</string>
 	<string name="title_confirm_delete">Konfirmasi penghapusan</string>
 	<string name="msg_confirm_delete">Apakah Anda yakin ingin menghapus:\n%s?</string>
@@ -318,8 +320,6 @@
 	<string name="title_confirm_project_open">Konfirmasi pembukaan proyek</string>
 	<string name="msg_confirm_project_open">Jika diaktifkan, Code on the Go akan meminta konfirmasi sebelum membuka proyek terakhir.</string>
 	<string name="msg_error_opening_project">Terjadi kesalahan saat membuka proyek.</string>
-	<string name="title_default_shell">Gunakan shell sistem di terminal</string>
-	<string name="msg_default_shell">Jika dicentang, \'/system/bin/sh\' akan digunakan di terminal.</string>
 	<string name="title_general">Umum</string>
 	<string name="title_tab_size">Ukuran tab</string>
 	<string name="msg_tab_size">Atur jumlah spasi yang digunakan oleh karakter tab untuk indentasi.</string>
@@ -507,6 +507,43 @@
 	<string name="action_suppress_unchecked_warning">Abaikan peringatan \'unchecked\'</string>
 	<string name="action_uncomment_line">Hapus komentar baris</string>
 	<string name="action_convert_to_statement">Ubah menjadi statement</string>
+
+	<!-- Extract variable refactoring (Kotlin) -->
+	<string name="action_extract_variable">Ekstrak variabel</string>
+	<string name="title_extract_variable">Ekstrak variabel</string>
+	<string name="label_extract_variable_expression">Ekspresi</string>
+	<string name="label_extract_variable_name">Nama</string>
+	<string name="label_extract_variable_scope">Deklarasikan di</string>
+	<plurals name="label_extract_variable_replace_all">
+		<item quantity="one">Ganti %1$d kemunculan</item>
+		<item quantity="other">Ganti semua %1$d kemunculan</item>
+	</plurals>
+	<string name="action_extract">Ekstrak</string>
+	<string name="msg_extract_variable_name_blank">Masukkan nama</string>
+	<string name="msg_extract_variable_name_invalid">Bukan nama Kotlin yang valid</string>
+	<string name="msg_extract_variable_name_keyword">Itu adalah kata kunci Kotlin</string>
+	<string name="msg_extract_variable_name_taken">Nama itu sudah digunakan</string>
+	<string name="msg_extract_variable_nothing_to_extract">Tidak ada ekspresi untuk diekstrak di sini</string>
+	<string name="msg_extract_variable_file_changed">File telah berubah. Coba ekstrak lagi.</string>
+
+	<!-- Extract method refactoring (Kotlin) -->
+	<string name="action_extract_method">Ekstrak metode</string>
+	<string name="title_extract_method">Ekstrak metode</string>
+	<string name="label_extract_method_signature">Tanda tangan</string>
+	<string name="msg_extract_method_file_changed">File telah berubah. Coba ekstrak lagi.</string>
+	<string name="msg_extract_method_not_single_region">Pilih sebuah ekspresi, atau pernyataan lengkap dalam satu blok</string>
+	<string name="msg_extract_method_could_not_analyse">Tidak dapat menganalisis pilihan. Coba lagi.</string>
+	<string name="msg_extract_method_multiple_outputs">Pilihan menghasilkan lebih dari satu nilai: %1$s</string>
+	<string name="msg_extract_method_output_not_returnable">Pilihan menghasilkan %1$s, yang tidak dapat dikembalikan sebagai nilai balik (return value)</string>
+	<string name="msg_extract_method_reassigns_outer_var">Pilihan memberi nilai baru ke %1$s, yang dideklarasikan di luar pilihan tersebut</string>
+	<string name="msg_extract_method_exits_region">Pilihan keluar dari dirinya sendiri dengan return, break, atau continue</string>
+	<string name="msg_extract_method_anonymous_extension_function">Pilihan berada di dalam fungsi ekstensi anonim</string>
+	<string name="msg_extract_method_inner_implicit_receiver">Pilihan menggunakan anggota dari penerima (receiver) %1$s yang melingkupinya</string>
+	<string name="msg_extract_method_uses_type_parameter">Pilihan menggunakan parameter tipe %1$s</string>
+	<string name="msg_extract_method_unrenderable_type">Sebuah tipe dalam pilihan tidak dapat dituliskan</string>
+	<string name="msg_extract_method_uses_backing_field">Pilihan menggunakan backing field dari properti, yang hanya ada di dalam pengakses (accessor) ini</string>
+	<string name="msg_extract_method_smart_cast_parameter">Pilihan menggunakan %1$s di bawah smart cast yang tidak berlaku di luar pilihan tersebut</string>
+	<string name="msg_extract_method_captured_local_declaration">Pilihan menggunakan %1$s, yang keluar dari cakupan (scope) setelah pilihan tersebut dipindahkan</string>
 	<string name="msg_select_fields">Pilih field</string>
 	<string name="msg_no_fields_selected">Tidak ada field yang dipilih</string>
 	<string name="msg_no_fields_found">Field tidak ditemukan</string>
@@ -621,6 +658,8 @@
 	<string name="msg_emptyview_idelogs">Log dari IDE ditampilkan di sini.</string>
 	<string name="msg_emptyview_diagnostics">Buka file untuk menampilkan hasil diagnostik.</string>
 	<string name="log_filter_hint">Filter baris</string>
+	<string name="msg_no_filter_matches">Tidak ditemukan entri log yang cocok.</string>
+	<string name="msg_no_search_matches">Tidak ditemukan hasil pencarian yang cocok.</string>
 	<string name="log_action_filter">Filter</string>
 	<string name="log_action_search">Cari</string>
 	<string name="log_action_share">Bagikan</string>
@@ -631,6 +670,9 @@
 	<string name="log_filter_level_info">Info</string>
 	<string name="log_filter_level_warning">Peringatan</string>
 	<string name="log_filter_level_error">Kesalahan</string>
+	<string name="log_filter_line_numbers">Nomor baris</string>
+	<string name="log_filter_timestamps">Stempel waktu</string>
+	<string name="log_filter_deltas">Selisih waktu</string>
 	<string name="tooltip_search_output">Cari dalam output</string>
 	<string name="tooltip_filter_output">Filter output</string>
 	<string name="msg_emptyview_buildoutput">"Build aplikasi atau jalankan task untuk melihat output build nya di sini."</string>
@@ -820,6 +862,7 @@
 	<string name="plugin_manager">Pengelola Plugin</string>
 	<string name="plugin_manager_title">Pengelola Plugin</string>
 	<string name="plugin_manager_summary">Kelola plugin dan ekstensi IDE</string>
+	<string name="msg_open_plugin_settings_failed">Tidak dapat membuka pengaturan plugin ini</string>
 	<string name="plugins">Plugin</string>
 	<string name="no_plugins_installed">Tidak ada plugin yang terinstal</string>
 	<string name="no_plugins_installed_hint">Ketuk tombol + untuk menginstal plugin pertama Anda</string>
@@ -832,7 +875,12 @@
 	<string name="enable_plugin">Aktifkan</string>
 	<string name="disable_plugin">Nonaktifkan</string>
 	<string name="uninstall_plugin">Hapus instalasi</string>
+	<string name="plugin_action_details">Detail</string>
 	<string name="plugin_details">Detail plugin</string>
+	<string name="plugin_author_by">oleh %1$s</string>
+	<string name="plugin_status_enabled">Diaktifkan</string>
+	<string name="plugin_status_disabled">Dinonaktifkan</string>
+	<string name="plugin_status_not_loaded">Tidak dimuat</string>
 	<string name="plugin_permissions">Izin</string>
 	<string name="plugin_dependencies">Dependensi</string>
 
@@ -875,6 +923,7 @@
 	<string name="cd_diagnostic_error">Ada kesalahan</string>
 	<string name="cd_diagnostic_warning">Peringatan</string>
 	<string name="cd_diagnostic_info">Informasi</string>
+	<string name="cd_show_help">Tampilkan bantuan</string>
 
 	<!-- Toolbar content descriptions for TalkBack (match actual function) -->
 	<string name="cd_toolbar_quick_run">Jalankan cepat</string>
@@ -900,6 +949,7 @@
 	<!-- Output actions content descriptions -->
 	<string name="cd_enable_word_wrap">Aktifkan pembungkus kata (word wrap)</string>
 	<string name="cd_disable_word_wrap">Nonaktifkan pembungkus kata (word wrap)</string>
+	<string name="cd_output_view_options">Buka opsi tampilan output.</string>
 
 	<string name="unknown_error">"Terjadi kesalahan yang tidak diketahui."</string>
 	<string name="build_in_progress_warning">Build sedang berlangsung. Permintaan baru diabaikan.</string>
@@ -944,6 +994,20 @@
 	<string name="msg_plugin_manager_init_failed">Gagal menginisialisasi Pengelola Plugin: %1$s</string>
 	<string name="checkbox_delete_source_after_install">Hapus file instalasi setelah terinstal</string>
 	<string name="action_discover_plugins">Temukan plugin</string>
+
+	<string name="msg_invalid_incoming_file">Tidak dapat membaca file. Mungkin file tersebut rusak atau tidak tersedia.</string>
+	<string name="msg_unsupported_file_type">Tipe file tidak didukung. Hanya file berformat .cgp dan .cgt yang dapat dibuka dengan cara ini.</string>
+	<string name="msg_ide_setup_incomplete">Penyiapan IDE belum selesai. Silakan coba lagi setelah penyiapan selesai.</string>
+	<string name="title_install_template_collection">Instal Koleksi Template</string>
+	<string name="msg_template_install_confirm">Instal \'%1$s\' dengan template berikut: %2$s?</string>
+	<string name="title_template_already_installed">Koleksi Template Telah Terinstal</string>
+	<string name="msg_template_name_conflict">Koleksi template bernama \'%1$s\' sudah terinstal. Koleksi yang baru berisi: %2$s. Apa yang ingin Anda lakukan?</string>
+	<string name="btn_overwrite">Timpa</string>
+	<string name="btn_rename_and_install">Ganti nama &amp; Instal</string>
+	<string name="hint_new_template_collection_name">Nama koleksi baru</string>
+	<string name="msg_template_installed">"%1$s" telah berhasil diinstal</string>
+	<string name="msg_template_invalid_file">File koleksi template tidak valid atau rusak.</string>
+	<string name="msg_template_install_failed">Gagal menginstal koleksi template: %1$s</string>
 
 	<string name="msg_template_warnings">\n\nPembuatan proyek selesai dengan peringatan/kesalahan. Buka Log IDE untuk detail.</string>
 
@@ -1061,6 +1125,7 @@
 	<string name="debugger_setup_description_footer"><![CDATA[Beberapa perangkat (termasuk perangkat Xiaomi model lama) juga memerlukan pemberian izin "Penggunaan baterai tanpa batasan" kepada Code on the Go. <a href="http://localhost:6174/i/debug-enable.html">Lihat informasi lebih lanjut, termasuk tips pemecahan masalah</a>.]]></string>
 
 	<!-- Tooltip Links HTML Template -->
+	<string name="tooltip_missing_fallback_html"><![CDATA[Maaf, kami tidak memiliki keterangan (tooltip) untuk itu. <a href="%1$s">Jelajahi dokumentasi</a>.]]></string>
 	<string name="title_alert">Kirim masukan</string>
 
 	<!-- Strings from BaseApplication.java -->

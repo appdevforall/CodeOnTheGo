@@ -84,6 +84,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -189,6 +190,8 @@ class PluginManager private constructor(
 
 			override fun saveCurrentFile(): Boolean = current()?.saveCurrentFile() ?: false
 
+			override suspend fun saveFile(file: File): Boolean = current()?.saveFile(file) ?: false
+
 			override fun insertTextAtCursor(text: String): Boolean = current()?.insertTextAtCursor(text) ?: false
 
 			override fun replaceSelection(text: String): Boolean = current()?.replaceSelection(text) ?: false
@@ -227,6 +230,24 @@ class PluginManager private constructor(
 				range: com.itsaky.androidide.plugins.services.SelectionRange,
 				newText: String,
 			): Boolean = current()?.replaceRange(file, range, newText) ?: false
+
+			override fun showPeerCursor(
+				file: File,
+				line: Int,
+				column: Int,
+				peerId: String,
+				peerName: String,
+				peerColor: Int,
+			): Boolean = current()?.showPeerCursor(file, line, column, peerId, peerName, peerColor) ?: false
+
+			override fun hidePeerCursor(
+				file: File,
+				peerId: String,
+			): Boolean = current()?.hidePeerCursor(file, peerId) ?: false
+
+			override fun clearPeerCursors(file: File) {
+				current()?.clearPeerCursors(file)
+			}
 
 			override fun addFileChangeCallback(callback: (File?) -> Unit) {
 				synchronized(editorCallbackLock) {
@@ -297,6 +318,7 @@ class PluginManager private constructor(
 
 	private val loadedPlugins = ConcurrentHashMap<String, LoadedPlugin>()
 	private val pluginStates = ConcurrentHashMap<String, Boolean>()
+	private val loadFailures = ConcurrentHashMap<String, String>()
 	private val pluginRegistry = PluginRegistry(context)
 	private val securityManager = PluginSecurityManager()
 	private val serviceRegistry = SharedServiceRegistry()
@@ -366,26 +388,27 @@ class PluginManager private constructor(
 
 			val pluginFiles =
 				pluginsDir.listFiles { file ->
-					file.isFile && file.name.endsWith(".cgp", ignoreCase = true)
+					file.isFile && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
 				} ?: return@withContext
 
 			logger.info("Found ${pluginFiles.size} plugin files")
+
+			loadFailures.clear()
 
 			// Load plugins in parallel
 			val loadJobs =
 				pluginFiles.map { pluginFile ->
 					async {
-						try {
-							logger.debug("Loading plugin: ${pluginFile.name}")
-							val result = loadPlugin(pluginFile)
-							result.onFailure { error ->
-								logger.error("Failed to load plugin from ${pluginFile.name}: ${error.message}", error)
+						logger.debug("Loading plugin: ${pluginFile.name}")
+						val result =
+							try {
+								loadPlugin(pluginFile)
+							} catch (e: CancellationException) {
+								throw e
+							} catch (e: Exception) {
+								Result.failure(e)
 							}
-						} catch (e: CancellationException) {
-							throw e
-						} catch (e: Exception) {
-							logger.error("Failed to load plugin from ${pluginFile.name}", e)
-						}
+						result.onFailure { error -> recordLoadFailure(pluginFile, error) }
 					}
 				}
 
@@ -468,7 +491,7 @@ class PluginManager private constructor(
 			return Result.failure(IllegalArgumentException(error))
 		}
 
-		if (!pluginFile.name.endsWith(".cgp", ignoreCase = true)) {
+		if (!pluginFile.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)) {
 			val error = "Only CGP plugins are supported. File: ${pluginFile.name}"
 			logger.error(error)
 			return Result.failure(IllegalArgumentException(error))
@@ -820,7 +843,7 @@ class PluginManager private constructor(
 		incomingFile: File,
 		existingPluginId: String,
 	): Boolean {
-		val existingFile = File(pluginsDir, "$existingPluginId.cgp")
+		val existingFile = File(pluginsDir, "$existingPluginId.$PLUGIN_ARCHIVE_EXTENSION")
 		val incomingSig = PluginLoader(context, incomingFile).getSignatureHash()
 		val existingSig = PluginLoader(context, existingFile).getSignatureHash()
 		if (incomingSig == null || existingSig == null) {
@@ -850,7 +873,7 @@ class PluginManager private constructor(
 		// Find and delete the plugin file (CGP)
 		val pluginFiles =
 			pluginsDir.listFiles { file ->
-				file.isFile && file.name.endsWith(".cgp", ignoreCase = true)
+				file.isFile && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
 			}
 
 		if (pluginFiles == null || pluginFiles.isEmpty()) {
@@ -898,6 +921,17 @@ class PluginManager private constructor(
 	}
 
 	fun getPlugin(pluginId: String): IPlugin? = loadedPlugins[pluginId]?.plugin
+
+	fun getLoadError(pluginId: String): String? = loadFailures[pluginId]
+
+	private fun recordLoadFailure(
+		pluginFile: File,
+		error: Throwable,
+	) {
+		logger.error("Failed to load plugin from ${pluginFile.name}", error)
+		val id = loadAndValidate(pluginFile).getOrNull()?.first?.id ?: pluginFile.nameWithoutExtension
+		loadFailures[id] = error.message ?: error.toString()
+	}
 
 	fun getAllPlugins(): List<PluginInfo> =
 		loadedPlugins.values.map { loadedPlugin ->
@@ -1324,6 +1358,7 @@ class PluginManager private constructor(
 							override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
 						}
 					},
+				activityProvider = delegatingActivityProvider,
 			)
 		}
 
@@ -1573,6 +1608,7 @@ class PluginManager private constructor(
 							override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
 						}
 					},
+				activityProvider = delegatingActivityProvider,
 			)
 		}
 
