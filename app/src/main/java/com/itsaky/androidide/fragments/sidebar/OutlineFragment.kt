@@ -131,18 +131,31 @@ class OutlineFragment : Fragment() {
 		}
 		editor.setSelection(position)
 		if (!drawer.isDrawerOpen(GravityCompat.START)) {
-			editor.ensurePositionVisible(position.line, position.column, true)
+			centerPositionInView(editor, position)
 			return
 		}
 		drawer.addDrawerListener(
 			object : DrawerLayout.SimpleDrawerListener() {
 				override fun onDrawerClosed(drawerView: View) {
 					drawer.removeDrawerListener(this)
-					editor.ensurePositionVisible(position.line, position.column, true)
+					centerPositionInView(editor, position)
 				}
 			},
 		)
 		drawer.closeDrawer(GravityCompat.START)
+	}
+
+	private fun centerPositionInView(
+		editor: com.itsaky.androidide.editor.ui.IDEEditor,
+		position: Position,
+	) {
+		val rowY = editor.layout.getCharLayoutOffset(position.line, position.column)[0]
+		val targetY =
+			(rowY - editor.height / 2f)
+				.toInt()
+				.coerceIn(0, editor.scrollMaxY)
+		editor.scroller.startScroll(editor.offsetX, editor.offsetY, 0, targetY - editor.offsetY, 0)
+		editor.postInvalidate()
 	}
 
 	private fun extensionOf(path: Path): String = path.fileName.toString().substringAfterLast('.', "")
