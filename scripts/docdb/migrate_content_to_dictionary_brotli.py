@@ -16,8 +16,15 @@ Three phases, in this order, because each one changes what the next one sees:
   3. migrate  -- rewrite every `ContentTypes.compression = 'brotli'` row so it is
                  compressed against the database's own dictionary rather than
                  plainly. WebServer tries a dictionary-attached decode first and
-                 falls back to a plain one, so a half-migrated database still
-                 serves -- which is what makes running this incrementally safe.
+                 falls back to a plain one, so a half-migrated database mostly
+                 still serves -- but only mostly: a plain row can decode against
+                 the dictionary to *different bytes without erroring*, so the
+                 fallback never fires and the page serves silent garbage. A run
+                 that declares the version therefore has to finish. The script
+                 says so at the end when it did not, refuses --only-if-smaller
+                 alongside migrate, and refuses a --path/--limit --yes migrate
+                 outright, since a scoped run may not make the declaration and
+                 content migrated without it cannot be decoded at all.
 
 Phase 1 feeds phase 3 for free: a row retyped to `image/gif` inherits that type's
 `compression = 'none'`, so phase 3's `compression = 'brotli'` selection simply
@@ -32,10 +39,17 @@ database rather than assumed:
     a base row plus its continuations -- concatenated, decoded, rewritten, and
     re-split. Treating such rows one at a time would destroy the content.
 
-  * A few rows decode identically with and without the dictionary: tiny,
-    already-compressed payloads where the compressor found nothing to reference.
-    Those are left alone, so "already migrated" covers them as well as genuinely
-    dictionary-bound rows, and re-running does not churn them.
+  * Neither decode classifies a row on its own. Some rows decode identically with
+    and without the dictionary (tiny payloads the compressor found nothing to
+    reference in); others decode *both* ways to different bytes, neither erroring
+    -- a 92-byte stored stream of repetitive HTML decodes plainly to the real
+    content and, with the dictionary attached, to the same length of garbage.
+    What settles those is the version the database declared before the run
+    started: below the dictionary version no row is dictionary-compressed, so the
+    plain decode is the content; at or above it, the dictionary decode is.
+    Whether there is anything to *do* is then a separate question, decided by
+    re-encoding and comparing against the stored bytes -- not by how the stored
+    bytes happen to decode, which says nothing about what re-encoding would gain.
 
   * Extensions nominate phase 1's candidates; magic bytes decide. A row is
     retyped to what its payload actually is, not to what its name suggests, and a
@@ -85,8 +99,23 @@ from dataclasses import dataclass, field
 
 CHUNK_BYTES = 1024 * 1024
 
+# Each worker holds ~3 copies of an item's plaintext while it works; the largest chunked items in
+# this database are ~160 MB, so the ceiling is memory, not cores.
+MAX_WORKERS = 64
+
 # WebServer looks continuations up with "languageId = 1" hardcoded, whatever the base row says.
 CONTINUATION_LANGUAGE_ID = 1
+
+
+# Every phase calls load_items, and verify_retype calls it again, so a note about the shape of the
+# data would otherwise print three or four times per run for the same row.
+_REPORTED: set[str] = set()
+
+
+def note_once(message: str) -> None:
+    if message not in _REPORTED:
+        _REPORTED.add(message)
+        print(message)
 
 
 def is_text_type(value: str) -> bool:
@@ -97,7 +126,11 @@ def is_text_type(value: str) -> bool:
     app's ContentTypeHeaders (ADFA-5241).
     """
     return value == "text" or value.startswith("text/")
-CONTINUATION = re.compile(r"^(.*)-(\d+)$")
+# The suffix must render back to the path it was parsed from. A zero-padded "-007" parses to 7
+# and renders as "-7", so the clash check probes a path no row holds while write_item UPDATEs the
+# row still named "-007" and INSERTs the next slice at "-8" -- one item split across two naming
+# schemes, reported as a success. A padded sibling is not one of ours; leave it standalone.
+CONTINUATION = re.compile(r"^(.*)-(0|[1-9]\d*)$")
 ALL_PHASES = ("retype", "renumber", "migrate")
 
 # Extensions worth a second look when a row claims to be text. The extension only
@@ -269,36 +302,43 @@ def inspect_item(item: Item, blobs: list[bytes]) -> Inspection:
                       before=before, after=len(payload))
 
 
-def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only_if_smaller: bool) -> Result:
+def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only_if_smaller: bool,
+                 db_was_migrated: bool) -> Result:
     """Decode an item, recompress it against the dictionary, and re-split it.
 
-    Classification deliberately tries the *plain* decode first. Attaching no
-    dictionary to a stream that needs one reliably fails, so a successful plain
-    decode proves the row is not yet migrated; the reverse test is not safe,
-    because a dictionary attached to a stream that never used one can decode to
-    different bytes without erroring.
+    Both decodes are attempted, because neither one alone classifies a row. Attaching a
+    dictionary to a stream that never used one *usually* throws -- but not always, and the same
+    is true the other way, so a decode that succeeds is evidence and not proof. [db_was_migrated]
+    is what the database declared BEFORE this run started, and it settles the case where both
+    decodes succeed and disagree.
     """
     stored = b"".join(blobs)
     before = len(stored)
 
     ok, plaintext = decode_plain(stored)
+    ok_dict, as_dict = decode_with_dictionary(stored)
+
     if not ok:
-        ok_dict, _ = decode_with_dictionary(stored)
         if ok_dict:
             return Result(item.base_path, "already", before=before, after=before)
         return Result(item.base_path, "error", before=before, detail="decodes neither plainly nor with the dictionary")
 
+    # Both decodes succeeded and returned different bytes, neither erroring. This is not exotic:
+    # a short stored stream (92 B of highly repetitive HTML, say) decodes plainly to the real
+    # content and, with the dictionary attached, to the same LENGTH of garbage with exit 0.
+    # Nothing in the stream says which is which, so the decision comes from the database rather
+    # than the row: the version it declared before this run started. Below the dictionary version,
+    # no row is dictionary-compressed by contract, so the plain decode is the content. At or above
+    # it, they all are, so the dictionary decode is -- and the row needs nothing done to it.
+    # Recompressing the wrong one of these stores garbage that the round-trip check below then
+    # happily validates, because it round-trips the garbage.
+    if ok_dict and as_dict != plaintext:
+        if db_was_migrated:
+            return Result(item.base_path, "already", before=before, after=before)
+
     # Decoding every row here anyway makes a mislabel sweep free: report a
     # text-typed row whose payload is recognisably binary, whatever its name.
     mislabelled = sniff(plaintext) if is_text_type(item.content_type) else ""
-
-    # A stream that decodes *both* ways is one the compressor never referenced the
-    # dictionary for -- small, already-compressed payloads like a 1 KB GIF. It is
-    # byte-identical in either form, so there is nothing to migrate, and skipping it
-    # keeps a re-run from recompressing it for no gain.
-    ok_dict, as_dict = decode_with_dictionary(stored)
-    if ok_dict and as_dict == plaintext:
-        return Result(item.base_path, "already", before=before, after=before, sniffed=mislabelled)
 
     ok, recompressed, stderr = encode_with_dictionary(plaintext, quality, window)
     if not ok:
@@ -313,6 +353,16 @@ def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only
             before=before,
             detail="recompressed bytes do not decode back to the original content",
         )
+
+    # "Nothing to do" is a property of the RE-ENCODED stream, not the stored one. The test this
+    # replaces decoded the stored stream twice and called any row that decoded both ways "already
+    # migrated" -- but a row stored at q1 also decodes identically with the dictionary attached,
+    # while re-encoding it at q11 against the dictionary is 36% smaller (5,858 -> 3,748 B on a real
+    # doc page). Every such row was skipped permanently and counted as a success: a whole-database
+    # run over content stored at q1 reported "already 300, saved 0 B" and exited 0 having done
+    # nothing. Comparing the bytes we would actually write is the question being asked.
+    if recompressed == stored:
+        return Result(item.base_path, "already", before=before, after=before, sniffed=mislabelled)
 
     if only_if_smaller and len(recompressed) >= before:
         return Result(item.base_path, "unchanged", before=before, after=before, sniffed=mislabelled,
@@ -335,7 +385,21 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
         """
     ).fetchall()
 
-    base_bytes_by_path = {row[1]: row[5] for row in rows}
+    # Sibling detection reads the WHOLE table, not just this phase's selection. Scoping it to the
+    # predicate made a continuation typed outside the phase invisible: the item loaded with the
+    # wrong slice set, the unselected row survived unmigrated and unreported, and a base whose
+    # "-1" was filtered out reported first_suffix 2, so write_item re-created the stream starting
+    # at -2 -- re-introducing the ADFA-5171 defect phase 2 had just normalised.
+    all_rows = connection.execute(
+        "SELECT id, path, languageID, contentTypeID, IFNULL(LENGTH(content), 0) FROM Content"
+    ).fetchall()
+    base_bytes_by_path = {path: length for _, path, _, _, length in all_rows}
+    selected_ids = {row[0] for row in rows}
+    unselected_by_id = {
+        row_id: (path, language_id, type_id)
+        for row_id, path, language_id, type_id, _ in all_rows
+        if row_id not in selected_ids
+    }
     rows_by_id = {row[0]: row for row in rows}
     items: dict[str, Item] = {}
     continuations: list[tuple[str, int, int, int]] = []
@@ -389,16 +453,66 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
     # 1 MiB, sitting next to independently named "-2"/"-3" pages, was grouped with them and phase 2
     # renamed those pages into its slice slots -- both URLs 404, and the app appends a foreign page's
     # bytes on reassembly. Verified against the real schema before and after this check.
+    def proven_slices(item: Item) -> str:
+        """'' when these really are slices of `item`, else why they cannot be proven to be."""
+        head = item.continuations[:-1]
+        if not all(length == CHUNK_BYTES for _, _, length in head):
+            return "a slice before the last is not exactly CHUNK_BYTES"
+        # `head` is empty when there is exactly one continuation, so the length rule above is
+        # vacuously true and proves nothing -- that is how an unrelated 11-byte "k/guide-2" got
+        # grouped under a real 1 MiB "k/guide" and renamed into its slice slot by phase 2, 404ing
+        # its own URL and corrupting the reassembly of the base. Slices of one payload are written
+        # by write_item with a single contentTypeID and languageID, so a sibling that disagrees
+        # with the base on either is somebody else's page. This cannot separate a coincidence that
+        # happens to match on both; phase 3's decode is the backstop for that.
+        for row_id, _, _ in item.continuations:
+            row = rows_by_id[row_id]
+            if row[3] != item.content_type_id:
+                return f"{row[1]} is contentTypeID {row[3]}, not the base's {item.content_type_id}"
+            if row[2] not in (CONTINUATION_LANGUAGE_ID, item.language_id):
+                return (f"{row[1]} is languageID {row[2]}, which is neither "
+                        f"{CONTINUATION_LANGUAGE_ID} nor the base's {item.language_id}")
+        return ""
+
     for item in list(items.values()):
         if not item.continuations:
             continue
-        head = item.continuations[:-1]
-        if all(length == CHUNK_BYTES for _, _, length in head):
+        unproven = proven_slices(item)
+        if not unproven:
             continue
+        # Reported, not silently dropped. A genuine slice set whose rows disagree with the base is
+        # indistinguishable here from an independent page that merely shares the name, and the two
+        # want opposite treatment -- normalise, or keep well away. Renaming the wrong one destroys a
+        # live page, so the safe branch is taken and the operator is told which item to look at.
+        note_once(
+            f"      note: {item.base_path} has {len(item.continuations)} '-N' sibling(s) that cannot "
+            f"be proven to be its slices ({unproven}); treated as independent pages. If they really "
+            f"are slices, the page will serve only its first {human(CHUNK_BYTES)} until they are fixed by hand"
+        )
         for row_id, _, _ in item.continuations:
             row = rows_by_id[row_id]
             items[row[1]] = standalone(row)
         item.continuations.clear()
+
+    # A sibling this phase did not select is still a row that exists. Left unmentioned it survives
+    # every run unmigrated while the database goes on to declare the dictionary version. Indexed
+    # by base path first: probing the whole unselected set per item is O(items x rows), and both
+    # are ~30k here.
+    unselected_slices: dict[str, list[int]] = {}
+    for path, _, _ in unselected_by_id.values():
+        match = CONTINUATION.match(path)
+        if match:
+            unselected_slices.setdefault(match.group(1), []).append(int(match.group(2)))
+
+    for item in items.values():
+        if not item.continuations:
+            continue
+        owned = {suffix for _, suffix, _ in item.continuations}
+        for suffix in sorted(set(unselected_slices.get(item.base_path, ())) - owned):
+            note_once(
+                f"      note: {item.base_path}-{suffix} names a slice of {item.base_path} but this "
+                f"phase did not select it; it is left as it is and does not count towards the migration"
+            )
 
     # An orphan is still a row this phase selected, so it becomes its own item and migrates
     # normally. If it really is a stray slice of some stream, its bytes decode neither plainly
@@ -407,7 +521,7 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
     for base_path, row_id, suffix, _ in orphans:
         row = rows_by_id[row_id]
         items[row[1]] = standalone(row)
-        print(
+        note_once(
             f"      note: {base_path}-{suffix} looks like a continuation of {base_path}, which is "
             f"not itself a migratable row; treated as an independent page"
         )
@@ -614,9 +728,9 @@ def content_types(connection: sqlite3.Connection) -> dict[str, tuple[int, str]]:
 
 
 def renumber_item(connection: sqlite3.Connection, item: Item, write: bool) -> str:
-    """Shift an item's continuations down so they start at -1. Returns a note, or ''."""
+    """Shift an item's continuations onto -1. Returns a note, or ''."""
     shift = item.first_suffix - 1
-    if shift <= 0:
+    if shift == 0:
         return ""
 
     expected = list(range(item.first_suffix, item.first_suffix + len(item.continuations)))
@@ -633,13 +747,15 @@ def renumber_item(connection: sqlite3.Connection, item: Item, write: bool) -> st
             return f"{target} already exists and belongs to another row; left alone"
 
     if write:
-        # One ascending pass, no temporary names. The suffixes were just verified
-        # contiguous, so the lowest target (first_suffix - shift) is free -- nothing
-        # occupies a suffix below first_suffix -- and every later target was vacated by
-        # the move before it. The parking pass this replaces invented
-        # "{base}-renumbering-{n}" paths that a real row could already hold, which would
-        # fail on UNIQUE(path) after the collision checks above had passed.
-        for row_id, suffix, _ in sorted(item.continuations, key=lambda entry: entry[1]):
+        # One pass, no temporary names. The suffixes were just verified contiguous, so when
+        # shifting DOWN the lowest target is free (nothing occupies a suffix below first_suffix)
+        # and every later target was vacated by the move before it -- hence ascending order. An
+        # item numbered from -0 shifts UP instead (shift < 0), where the same argument runs
+        # backwards: the highest target is free and each earlier move is vacated by the one after
+        # it, so the pass has to descend. Getting this direction wrong walks each row onto the one
+        # ahead of it and fails on UNIQUE(path) after the collision checks above have passed --
+        # which is what the "{base}-renumbering-{n}" parking pass this replaces existed to avoid.
+        for row_id, suffix, _ in sorted(item.continuations, key=lambda entry: entry[1], reverse=shift < 0):
             connection.execute(
                 # languageID too, for the same reason write_item normalises it: WebServer loads
                 # continuations with "languageId = 1" hardcoded, so a renumbered row left under
@@ -743,16 +859,17 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
             # then reports twice -- and if WebServer does not handle that compression at all, the row
             # serves raw compressed bytes to a browser.
             if compression != "none":
+                # NOT "fix the ContentTypes row": that row is a shared dimension. In the shipped
+                # database application/pdf, application/wasm, font/otf and font/ttf are all
+                # registered brotli and all four extensions are in BINARY_EXTENSIONS, so following
+                # that advice would set a legitimately compressed type to 'none' and make every
+                # row of it -- every PDF in the Dynamic Bookshelf -- serve as raw compressed bytes.
                 errors.append(
                     f"{item.base_path}: {target} is registered with compression '{compression}', not 'none'; "
-                    f"left as {item.content_type}. Fix the ContentTypes row, then re-run"
+                    f"left as {item.content_type}. Retype this row by hand, or exclude it with --path; "
+                    f"do not change the ContentTypes row, which every other row of that type shares"
                 )
                 continue
-
-            counts[target] = counts.get(target, 0) + 1
-            before_total += found.before
-            after_total += found.after
-            kept.add(item.base_path)
 
             if write:
                 try:
@@ -765,6 +882,16 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
                     continue
                 inserted_total += inserted
                 deleted_total += deleted
+
+            # Credited only once the write has actually happened. Crediting before it meant a row
+            # whose write raised PathClash was still reported retyped, still had its bytes booked
+            # into the plaintext totals, and was still handed to verify_retype -- which then read
+            # the untouched row and emitted two more errors describing a disagreement that did not
+            # exist, three errors for one failure.
+            counts[target] = counts.get(target, 0) + 1
+            before_total += found.before
+            after_total += found.after
+            kept.add(item.base_path)
             # found.slices is the only large thing here; dropping the reference lets this batch's
             # plaintext be collected before the next batch decodes its own.
             found.slices = []
@@ -814,6 +941,40 @@ def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> 
             errors.append(f"{item.base_path}: {note}")
         else:
             fixed += 1
+
+    # An item already numbered from -1 never reaches renumber_item, so it never got the languageID
+    # normalisation that lives there. WebServer's continuation query hardcodes "languageId = 1", so
+    # a slice left under another language is invisible and the page truncates at its first 1 MiB --
+    # the ADFA-5171 symptom, in an item this phase would otherwise report as healthy and pass to a
+    # run that declares the dictionary version.
+    relanguaged = 0
+    for item in chunked:
+        if item.first_suffix != 1 or not item.continuations:
+            continue
+        ids = [row_id for row_id, _, _ in item.continuations]
+        stray = [
+            row_id
+            for (row_id,) in connection.execute(
+                f"SELECT id FROM Content WHERE id IN ({','.join('?' * len(ids))}) AND languageID != ?",
+                [*ids, CONTINUATION_LANGUAGE_ID],
+            )
+        ]
+        if not stray:
+            continue
+        relanguaged += len(stray)
+        notes.append(
+            f"{item.base_path}: {len(stray)} continuation row(s) carried a languageID other than "
+            f"{CONTINUATION_LANGUAGE_ID}, which hides them from the app's chunk query"
+        )
+        if write:
+            connection.execute(
+                f"UPDATE Content SET languageID = ? WHERE id IN ({','.join('?' * len(stray))})",
+                [CONTINUATION_LANGUAGE_ID, *stray],
+            )
+    if relanguaged:
+        print(f"      {'set' if write else 'would set'} languageID = {CONTINUATION_LANGUAGE_ID} on "
+              f"{relanguaged} continuation row(s) that were hidden from the app")
+
     if write:
         connection.commit()
 
@@ -865,7 +1026,8 @@ def main() -> int:
                         help="renumber every -2-based chunked item, or only the ones phase 1 retyped (default: all)")
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2)), help="parallel compressors")
     parser.add_argument("--quality", type=int, default=11, help="brotli quality (default 11, as the pipeline uses)")
-    parser.add_argument("--window", type=int, default=22, help="brotli window log (default 22, the portable maximum)")
+    parser.add_argument("--window", type=int, default=22,
+                        help="brotli window log, 0 or 10-24 (default 22; the app's BrotliCompressor uses 24)")
     parser.add_argument("--limit", type=int, default=0, help="stop after this many items (for a smoke test)")
     parser.add_argument("--path", default="", help="only items whose base path contains this substring")
     parser.add_argument("--batch", type=int, default=200, help="items per write transaction")
@@ -883,6 +1045,14 @@ def main() -> int:
     if unknown:
         print(f"error: unknown phase(s) {', '.join(unknown)}; pick from {', '.join(ALL_PHASES)}", file=sys.stderr)
         return 2
+    # --phases "" and --phases "," both survived the comprehension as an empty list, whose
+    # unknown-phase check iterates nothing: the run printed "mode WRITING", skipped the brotli and
+    # CompressionDictionary preflight, executed no phase and exited 0. A CI step writing
+    # --phases "$PHASES" with the variable unset reported a successful migration of a database it
+    # had not touched, defeating the exit code this script goes to some trouble to make meaningful.
+    if not args.phase_list:
+        print(f"error: --phases selected no phases; pick from {', '.join(ALL_PHASES)}", file=sys.stderr)
+        return 2
 
     # A migrate run declares version DICTIONARY_MAJOR_VERSION, and a plain-brotli row left behind
     # in a database declaring that version can decode against the dictionary to different bytes
@@ -898,6 +1068,24 @@ def main() -> int:
         )
         return 2
 
+    # A run that may not declare the version may not write migrated content either -- the two
+    # travel together or not at all. --path/--limit scope the run, so may_declare_version withholds
+    # the declaration; phase 3 nevertheless recompressed those rows and COMMITTED them, printed a
+    # WARNING on stdout and exited 0. Because the app gates the dictionary on the declared version
+    # and not on the dictionary's presence, every row just rewritten decodes as "corrupt input",
+    # and the plaintext it was rewritten from is gone. Refused here, like --only-if-smaller above,
+    # rather than warned about after the damage. A scoped dry run is still useful and still allowed.
+    withheld = may_declare_version(args)
+    if write and "migrate" in args.phase_list and withheld:
+        print(
+            f"error: {withheld}, so this run may not declare database version "
+            f"{DICTIONARY_MAJOR_VERSION} -- and content migrated without that declaration cannot be "
+            f"decoded by the app at all. Re-run without --path/--limit to migrate, or drop --yes to "
+            f"see what a scoped run would do.",
+            file=sys.stderr,
+        )
+        return 2
+
     # range() raises on a zero batch, a negative one silently processes nothing, and
     # ProcessPoolExecutor raises on zero workers -- all after work may have started.
     if args.batch < 1:
@@ -905,6 +1093,24 @@ def main() -> int:
         return 2
     if args.workers < 1:
         print(f"error: --workers must be at least 1, got {args.workers}", file=sys.stderr)
+        return 2
+    # Same reason as the two above, and the same one-line shape: the brotli CLI rejects these, but
+    # only per row inside a worker, so a typo spent a whole pass failing every item one subprocess
+    # at a time -- and the run still declared the dictionary version at the end, leaving a database
+    # claiming every brotli row was migrated when not one had been.
+    if not 0 <= args.quality <= 11:
+        print(f"error: --quality must be between 0 and 11, got {args.quality}", file=sys.stderr)
+        return 2
+    if args.window != 0 and not 10 <= args.window <= 24:
+        print(f"error: --window must be 0 or between 10 and 24, got {args.window}", file=sys.stderr)
+        return 2
+    # Each worker holds roughly three copies of an item's plaintext (the decode, the dictionary
+    # decode and the round-trip), and the largest chunked items here reach ~160 MB, so a high
+    # worker count is an out-of-memory risk rather than a throughput win.
+    if args.workers > MAX_WORKERS:
+        print(f"error: --workers above {MAX_WORKERS} risks running the machine out of memory "
+              f"(~3x an item's plaintext per worker, and the largest items here are ~160 MB), "
+              f"got {args.workers}", file=sys.stderr)
         return 2
 
     connection = sqlite3.connect(args.database)
@@ -936,6 +1142,23 @@ def main() -> int:
             return 2
         dictionary = dictionary_row[0]
 
+    # write_item INSERTs continuations with languageID = CONTINUATION_LANGUAGE_ID, under
+    # PRAGMA foreign_keys = ON. Its call sites catch PathClash only, so on a database that numbers
+    # its languages differently the FK violation propagated out of main() from the middle of a
+    # phase, with earlier batches already committed and no summary printed. One query, up front.
+    if write and table_exists(connection, "Languages"):
+        if connection.execute(
+            "SELECT 1 FROM Languages WHERE id = ?", (CONTINUATION_LANGUAGE_ID,)
+        ).fetchone() is None:
+            print(
+                f"error: this database's Languages table has no id {CONTINUATION_LANGUAGE_ID}, but the "
+                f"app's continuation query hardcodes that id, so every slice this script writes would "
+                f"be invisible (and rejected by the foreign key). Nothing written.",
+                file=sys.stderr,
+            )
+            connection.close()
+            return 2
+
     def select(items: list[Item]) -> list[Item]:
         if args.path:
             items = [item for item in items if args.path in item.base_path]
@@ -953,7 +1176,25 @@ def main() -> int:
     retyped_paths: set[str] = set()
     started = time.time()
 
-    with futures.ProcessPoolExecutor(args.workers, initializer=_init_worker, initargs=(dictionary,)) as pool:
+    # Phase 3's tallies live out here, not next to its loop, because the summary below has to be
+    # printable whether or not that loop ran or finished -- see the abort handling after the try.
+    counts = {"migrated": 0, "already": 0, "unchanged": 0, "error": 0}
+    wrote_migrated_content = False
+    version_declared = False
+    migrate_started = False
+    before_total = after_total = 0
+    inserted_total = deleted_total = 0
+    # Not named `errors`: that name already holds this run's phase 1 and 2 failures,
+    # and reusing it here would discard them.
+    failed_items: list[Result] = []
+    mislabelled: list[Result] = []
+    aborted = ""
+
+    # Not a `with`: on the way out of one, ProcessPoolExecutor.shutdown waits for every future it
+    # has already queued, so a Ctrl-C hung on the work it was trying to abandon. Built explicitly
+    # so the finally can cancel instead.
+    pool = futures.ProcessPoolExecutor(args.workers, initializer=_init_worker, initargs=(dictionary,))
+    try:
         if "retype" in args.phase_list:
             candidates = select([
                 item for item in load_items(connection, "(CT.value = 'text' OR CT.value LIKE 'text/%')")
@@ -993,15 +1234,13 @@ def main() -> int:
         print(f"      stored now  {human(sum(item.stored_bytes for item in items))}")
         print()
 
-        counts = {"migrated": 0, "already": 0, "unchanged": 0, "error": 0}
-        wrote_migrated_content = False
-        version_declared = False
-        before_total = after_total = 0
-        inserted_total = deleted_total = 0
-        # Not named `errors`: that name already holds this run's phase 1 and 2 failures,
-        # and reusing it here would discard them.
-        failed_items: list[Result] = []
-        mislabelled: list[Result] = []
+        migrate_started = True
+
+        # Snapshotted BEFORE the first batch declares anything. This run declares the dictionary
+        # version as soon as it commits migrated content, so reading the declaration per item would
+        # flip the answer halfway through and start treating the still-plain rows as migrated.
+        starting_major = declared_major(connection)
+        db_was_migrated = starting_major is not None and starting_major >= DICTIONARY_MAJOR_VERSION
 
         for offset in range(0, len(items), args.batch):
             batch = items[offset : offset + args.batch]
@@ -1018,7 +1257,8 @@ def main() -> int:
                     continue
                 pending[
                     pool.submit(
-                        migrate_item, item, blobs, args.quality, args.window, args.only_if_smaller
+                        migrate_item, item, blobs, args.quality, args.window, args.only_if_smaller,
+                        db_was_migrated,
                     )
                 ] = item
 
@@ -1034,29 +1274,41 @@ def main() -> int:
                         Result(item.base_path, "error", detail=f"{type(exc).__name__}: {exc}")
                     )
                     continue
-                counts[result.status] += 1
-                before_total += result.before
-                after_total += result.after or result.before
-
                 if result.sniffed:
                     mislabelled.append(result)
-                if result.status == "error":
-                    failed_items.append(result)
-                elif result.status == "migrated" and write:
+
+                # The write can still fail, so nothing is credited until it has not. Counting
+                # first tallied a PathClash as "migrated" and subtracted its never-written bytes
+                # from the reported savings while counts["error"] stayed 0.
+                if result.status == "migrated" and write:
                     try:
                         inserted, deleted = write_item(connection, item, result.slices, renumber=False)
-                    except PathClash as clash:
+                    except (PathClash, sqlite3.IntegrityError) as clash:
+                        counts["error"] += 1
+                        # PathClash already names the item, and the failed_items loop prefixes the
+                        # path again when it prints. Strip it here, and report through failed_items
+                        # alone -- appending to `errors` too printed the same failure twice.
+                        detail, prefix = str(clash), f"{item.base_path}: "
+                        result.detail = detail[len(prefix):] if detail.startswith(prefix) else detail
                         failed_items.append(result)
-                        errors.append(str(clash))
                         result.slices = []
                         continue
                     inserted_total += inserted
                     deleted_total += deleted
                     wrote_migrated_content = True
-                    # Same reason as phase 1: a completed Future holds its Result, and pending keeps
-                    # every Future in the batch, so without this a batch of recompressed payloads
-                    # stays resident while the next batch reads its own.
-                    result.slices = []
+
+                counts[result.status] += 1
+                before_total += result.before
+                after_total += result.after or result.before
+                if result.status == "error":
+                    failed_items.append(result)
+                # Same reason as phase 1: a completed Future holds its Result, and pending keeps
+                # every Future in the batch, so without this a batch of recompressed payloads stays
+                # resident while the next batch reads its own. Outside the write branch it used to be
+                # indented into, because a dry run builds exactly the same payloads and never
+                # released them: 195,136 KB peak RSS against 117,888 KB, measured on 40 incompressible
+                # 2 MiB rows at --batch 40 with the only difference being this line's indentation.
+                result.slices = []
 
             if write:
                 # In the same transaction as the first batch of migrated content, not after the last
@@ -1086,7 +1338,27 @@ def main() -> int:
                 flush=True,
             )
 
+    # An abort must not skip the summary. Every one of these used to escape main() as a traceback,
+    # past both end-of-run version warnings, past report() and past the exit code -- leaving a
+    # database that had already declared the dictionary version with most of its rows still plain
+    # brotli, and nothing on screen connecting the two. Ctrl-C is how a multi-hour run most often
+    # ends, so this is the common case, not the exotic one.
+    except KeyboardInterrupt:
+        aborted = "interrupted with Ctrl-C"
+    except futures.process.BrokenProcessPool:
+        aborted = "a worker process died (killed by the OOM killer, most likely)"
+    except sqlite3.Error as exc:
+        aborted = f"the database rejected an operation: {type(exc).__name__}: {exc}"
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
     print("\n")
+    if aborted:
+        print(f"ABORTED         {aborted}")
+        print("                Committed batches are kept; what follows describes the work that")
+        print("                had finished when the run stopped.")
+    if aborted and not migrate_started:
+        print("                The migrate phase had not started.")
     print(f"migrated        {counts['migrated']:,}")
     print(f"already         {counts['already']:,}")
     if counts["unchanged"]:
@@ -1140,7 +1412,12 @@ def main() -> int:
         # So a declared database still holding plain rows is not merely incomplete: it can serve
         # silently wrong content. counts["error"] misses items that failed at the write (PathClash)
         # after counting as migrated; failed_items holds both, so it is the honest tally.
-        remaining = counts["unchanged"] + len(failed_items)
+        # Rows the run never reached count too. An abort leaves most of them unattempted, and they
+        # are exactly as exposed as a row that failed: plain brotli in a database declaring the
+        # dictionary version.
+        attempted = sum(counts.values())
+        unattempted = max(0, len(items) - attempted) if migrate_started else 0
+        remaining = counts["unchanged"] + len(failed_items) + unattempted
         if version_declared and remaining:
             print(
                 f"\nWARNING: this database declares version {DICTIONARY_MAJOR_VERSION}.x but "
@@ -1161,7 +1438,7 @@ def main() -> int:
         print("\nNothing written. Re-run with --yes on a copy to apply.")
 
     connection.close()
-    return 1 if errors or failed_items else 0
+    return 1 if aborted or errors or failed_items else 0
 
 
 if __name__ == "__main__":
