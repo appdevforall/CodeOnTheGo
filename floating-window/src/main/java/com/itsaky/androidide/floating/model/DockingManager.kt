@@ -74,15 +74,17 @@ object DockingManager {
 	) {
 		mutate(id) { state ->
 			when (mode) {
-				WindowMode.MAXIMIZED, WindowMode.MINIMIZED ->
+				WindowMode.MAXIMIZED, WindowMode.MINIMIZED -> {
 					if (state.mode == WindowMode.NORMAL) {
 						state.copy(mode = mode, restoreBounds = state.bounds)
 					} else {
 						state.copy(mode = mode)
 					}
+				}
 
-				WindowMode.NORMAL ->
+				WindowMode.NORMAL -> {
 					state.copy(mode = mode, bounds = state.restoreBounds)
+				}
 			}
 		}
 	}

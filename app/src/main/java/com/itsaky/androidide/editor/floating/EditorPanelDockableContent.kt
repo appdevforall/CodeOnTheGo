@@ -19,11 +19,11 @@ import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.ui.CodeEditorView
-import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import java.io.File
 import com.itsaky.androidide.resources.R as ResR
 
 /**

@@ -79,7 +79,7 @@ class IdeFloatingTabController(
 
 	private fun onEvent(event: DockingEvent) {
 		when (val content = event.content) {
-			is EditorPanelDockableContent ->
+			is EditorPanelDockableContent -> {
 				activity.lifecycleScope.launch {
 					content.save()
 					content.release()
@@ -88,12 +88,14 @@ class IdeFloatingTabController(
 						activity.openFile(content.file, null)
 					}
 				}
+			}
 
-			is PluginTabDockableContent ->
+			is PluginTabDockableContent -> {
 				if (event is DockingEvent.Redock) {
 					bringIdeToFront()
 					activity.selectPluginTabById(content.tabId)
 				}
+			}
 		}
 	}
 
