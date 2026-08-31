@@ -6,6 +6,7 @@ import com.itsaky.androidide.editor.language.outline.OutlineProvider
 import com.itsaky.androidide.ui.models.OutlineUiEffect
 import com.itsaky.androidide.ui.models.OutlineUiEvent
 import com.itsaky.androidide.ui.models.OutlineUiState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 
 class OutlineViewModel(
 	private val outlineProvider: OutlineProvider,
@@ -42,6 +44,7 @@ class OutlineViewModel(
 
 	companion object {
 		private const val DEBOUNCE_MILLIS = 250L
+		private val log = LoggerFactory.getLogger(OutlineViewModel::class.java)
 	}
 
 	init {
@@ -95,7 +98,15 @@ class OutlineViewModel(
 			collapsedPaths = emptySet()
 			_uiState.value = OutlineUiState.Loading(snapshot.fileName)
 		}
-		val symbols = outlineProvider.outlineOf(snapshot.extension, snapshot.text)
+		val symbols =
+			try {
+				outlineProvider.outlineOf(snapshot.extension, snapshot.text)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.error("Failed to compute outline for {}", snapshot.fileName, e)
+				emptyList()
+			}
 		_uiState.value =
 			if (symbols.isEmpty()) {
 				OutlineUiState.Empty(snapshot.fileName)
