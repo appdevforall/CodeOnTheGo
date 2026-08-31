@@ -550,10 +550,20 @@ class GradleBuildService :
 		}
 		try {
 			val projectDir = ProjectManagerImpl.getInstance().projectDir
-			val files = ZipUtils.unzipFile(extracted, projectDir)
-			if (files.isNotEmpty()) {
+			val result = ZipUtils.unzipFile(extracted, projectDir)
+			if (result.skipped.isNotEmpty()) {
+				log.warn("Gradle wrapper entries not extracted (existing symlinks left alone): {}", result.skipped)
+			}
+
+			// Success means the wrapper is actually usable, not merely that unzipFile returned: an
+			// entry skipped over a user's own symlink is fine as long as the files it needs exist.
+			val missing =
+				listOf("gradlew", "gradle/wrapper/gradle-wrapper.jar", "gradle/wrapper/gradle-wrapper.properties")
+					.filter { !File(projectDir, it).exists() }
+			if (missing.isEmpty()) {
 				return GradleWrapperCheckResult(true)
 			}
+			log.error("Gradle wrapper installation is incomplete; missing: {}", missing)
 		} catch (e: IOException) {
 			log.error("An error occurred while extracting Gradle wrapper", e)
 		}
