@@ -60,7 +60,7 @@ internal fun normalizeSource(text: String): String {
 		val previous = out.lastOrNull()
 		// Two combinable characters must stay apart: closing up `a - -b` would produce `a--b`, a different
 		// expression. Anything else loses nothing, so the space goes.
-		val clashesBehind = previous != null && previous in COMBINABLE && c in COMBINABLE
+		val clashesBehind = previous != null && previous == c && c in COMBINABLE
 		if (c in PUNCTUATION && !clashesBehind) pendingSpace = false
 		if (pendingSpace) {
 			out.append(' ')
@@ -75,7 +75,7 @@ internal fun normalizeSource(text: String): String {
 			val startsComment =
 				next + 1 < text.length && text[next] == '/' && (text[next + 1] == '/' || text[next + 1] == '*')
 			val clashesAhead =
-				c in COMBINABLE && next < text.length && text[next] in COMBINABLE && !startsComment
+				c in COMBINABLE && next < text.length && text[next] == c && !startsComment
 			// Dropping it here as well as behind is what makes `a + 1` and `a+1` the same string; doing only
 			// one side left `a+ 1`, which still failed to match.
 			if (!clashesAhead) i = next
@@ -128,10 +128,13 @@ private const val TEXT_BLOCK = "\"\"\""
 private val PUNCTUATION = "+-*/%=!<>&|^~:.?,;(){}[]".toSet()
 
 /**
- * The punctuation that can lex into a longer token when juxtaposed, so a space between two of them is
- * load-bearing: `a - -b` must not collapse into `a--b`.
+ * The characters whose *self*-adjacency lexes into a longer token, so a space between two of them is
+ * load-bearing: `a - -b` must not collapse into `a--b`. Only `+` and `-` qualify -- every other
+ * pairing (`* -`, `= -`, `> >`) lexes the same with or without the space, and keeping the space
+ * there would make the two spellings of one token stream normalize differently, defeating the
+ * occurrence search.
  */
-private val COMBINABLE = "+-*/%=!<>&|^~:.".toSet()
+private val COMBINABLE = "+-".toSet()
 
 /**
  * Whether a space is still needed where a comment was.

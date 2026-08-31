@@ -43,10 +43,11 @@ fun buildExtractionPlan(
 	selectionStart: Int,
 	selectionEnd: Int,
 	documentVersion: Int?,
-): ExtractionPlan =
-	runCatching {
+): ExtractionPlan {
+	var fileText = ""
+	return runCatching {
 		val root = task.root(file)
-		val fileText = root.sourceFile.getCharContent(true).toString()
+		fileText = root.sourceFile.getCharContent(true).toString()
 		val trees = Trees.instance(task.task)
 		val positions = trees.sourcePositions
 
@@ -70,8 +71,9 @@ fun buildExtractionPlan(
 		// leave the action running after its scope was cancelled.
 		if (error is CancellationException) throw error
 		logger.warn("Failed to build a Java extract-variable plan for {}", file, error)
-		ExtractionPlan.empty()
+		ExtractionPlan.empty(fileText, documentVersion)
 	}
+}
 
 /**
  * The pass itself, over an already-attributed unit.
@@ -194,10 +196,34 @@ private fun scopeOptionFor(
 	val writes = writeOffsetsFor(candidateElements, frame, scopePath, root, positions, trees)
 	if (hoistSkipsWrite(candidatePath, span, frame, anchorForm, root, positions, writes)) return null
 	val sound = excludeUnsoundOccurrences(matches, span, writes)
-	val occurrences =
+	val servable =
 		servableOccurrences(fileText, (anchorForm as? AnchorForm.ExistingBlock)?.block, sound, span)
+	val occurrences = dropLeadingOccurrencesHoistingOverWrites(anchorForm, servable, span, writes)
 
 	return ScopeOption(label = frame.label, anchorForm = anchorForm, occurrences = occurrences)
+}
+
+/**
+ * A replace-all anchors the declaration on the *first* served occurrence, so [hoistSkipsWrite]'s check of
+ * the candidate's own anchor says nothing about a leading occurrence whose anchor statement encloses a
+ * write: extracting the trailing `use(limit + 1)` of `if (c) { limit = 5; use(limit + 1); }
+ * use(limit + 1);` at the method rung would anchor on the `if` and hoist the declaration above
+ * `limit = 5`. Such leading occurrences are dropped rather than declining the rung, so the user's own
+ * site stays extractable.
+ */
+private fun dropLeadingOccurrencesHoistingOverWrites(
+	anchorForm: AnchorForm,
+	occurrences: List<TextSpan>,
+	span: TextSpan,
+	writes: List<Int>,
+): List<TextSpan> {
+	if (writes.isEmpty()) return occurrences
+	val block = (anchorForm as? AnchorForm.ExistingBlock)?.block ?: return occurrences
+	return occurrences.dropWhile { occurrence ->
+		occurrence != span &&
+			anchorOf(block, occurrence)
+				?.let { anchor -> writes.any { it in anchor.start until occurrence.start } } != false
+	}
 }
 
 /**

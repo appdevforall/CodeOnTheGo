@@ -288,8 +288,11 @@ fun namesInScopeAt(
 
 		val enclosing = runCatching { current.enclosingClass }.getOrNull()
 		if (enclosing != null && seenClasses.add(enclosing)) {
+			// Methods live in a separate namespace, so a local never shadows one: `int size = list.size();`
+			// is legal. Only fields and enum constants make the bare name mean something else.
 			runCatching { elements.getAllMembers(enclosing) }
 				.getOrNull()
+				?.filter { it.kind == ElementKind.FIELD || it.kind == ElementKind.ENUM_CONSTANT }
 				?.forEach { member -> names += member.simpleName.toString() }
 		}
 		scope = runCatching { current.enclosingScope }.getOrNull()

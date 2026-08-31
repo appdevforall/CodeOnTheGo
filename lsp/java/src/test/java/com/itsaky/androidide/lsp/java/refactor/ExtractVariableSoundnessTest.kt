@@ -267,6 +267,55 @@ class ExtractVariableSoundnessTest {
 		assertThat(scopes.map { it.occurrences.size }).containsExactly(1)
 	}
 
+	@Test
+	fun `replace-all does not hoist the declaration above a write to a leading occurrence`() {
+		// itsaky, ExtractVariablePlanner.kt:195 -- the rewrite anchors on the first served occurrence, whose
+		// anchor is the `if`, landing the declaration above `limit = 5`: the call inside the `if` read 1
+		// where it used to read 6. The leading occurrence is dropped instead, keeping the rung usable.
+		val f =
+			fixture(
+				"""	void m(boolean c) {${'\n'}		int limit = 0;${'\n'}		if (c) {${'\n'}			limit = 5;${'\n'}			use(limit + 1);${'\n'}		}${'\n'}		use(limit + 1);${'\n'}	}""",
+			)
+		val method =
+			f
+				.planAfter("}${'\n'}		use(limit +")
+				.candidates
+				.first { it.label == "limit + 1" }
+				.scopes
+				.first { it.label == METHOD_M }
+		assertThat(method.occurrences).hasSize(1)
+	}
+
+	@Test
+	fun `operator spacing before a sign does not defeat occurrence matching`() {
+		// itsaky, SourceNormalizer.kt:134 -- `a * -1` kept its space while `a*-1` never had one, so the
+		// two spellings of the same token stream diverged and the second site was left behind.
+		assertThat(normalizeSource("a * -1")).isEqualTo(normalizeSource("a*-1"))
+		assertThat(normalizeSource("x = -1")).isEqualTo(normalizeSource("x=-1"))
+		assertThat(normalizeSource("List<List<String> >")).isEqualTo(normalizeSource("List<List<String>>"))
+		assertThat(normalizeSource("a - -b")).isNotEqualTo(normalizeSource("a--b"))
+		assertThat(normalizeSource("a + +b")).isNotEqualTo(normalizeSource("a++b"))
+	}
+
+	@Test
+	fun `inherited method names do not block a local name`() {
+		// itsaky, Occurrences.kt:292 -- getAllMembers put every method in the hierarchy into takenNames,
+		// so ordinary locals like `size` or `toString` were refused for names that compile fine.
+		val f =
+			fixture(
+				"""	int count;${'\n'}	int m(java.util.List<String> list) {${'\n'}		use(list.size() + 1);${'\n'}		return 0;${'\n'}	}""",
+			)
+		val taken =
+			f
+				.planAfter("list.size() +")
+				.candidates
+				.first()
+				.takenNames
+		assertThat(taken).doesNotContain("toString")
+		assertThat(taken).doesNotContain("m")
+		assertThat(taken).contains("count")
+	}
+
 	@After
 	fun closeFixtures() {
 		fixtures.forEach(JavacFixture::close)
