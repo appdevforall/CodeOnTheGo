@@ -46,10 +46,19 @@ class BuildViewModel : ViewModel() {
 		gradleArgs: List<String> = emptyList(),
 		onTerminalState: ((BuildState) -> Unit)? = null,
 	) {
-		if (_buildState.value is BuildState.InProgress) {
-			log.warn("Build is already in progress. Ignoring new request.")
-			onTerminalState?.invoke(BuildState.Error("A build is already in progress."))
-			return
+		// Claim the slot before the coroutine is scheduled, and in one step: a check here and a set
+		// inside the launched block let two callers both read a free state and both reach
+		// executeTasks, running duplicate build-and-install flows.
+		while (true) {
+			val current = _buildState.value
+			if (current is BuildState.InProgress) {
+				log.warn("Build is already in progress. Ignoring new request.")
+				onTerminalState?.invoke(BuildState.Error("A build is already in progress."))
+				return
+			}
+			if (_buildState.compareAndSet(current, BuildState.InProgress)) {
+				break
+			}
 		}
 
 		viewModelScope.launch {
@@ -64,8 +73,6 @@ class BuildViewModel : ViewModel() {
 					onTerminalState?.invoke(state)
 				}
 			}
-
-			_buildState.value = BuildState.InProgress
 
 			val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 			if (buildService == null) {

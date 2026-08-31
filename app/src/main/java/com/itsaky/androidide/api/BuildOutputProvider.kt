@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -17,6 +18,8 @@ import java.lang.ref.WeakReference
  * This acts as a service locator to avoid memory leaks.
  */
 object BuildOutputProvider {
+	private val logger = LoggerFactory.getLogger(BuildOutputProvider::class.java)
+
 	// Both fields are written from the main thread (or a test) and read from the background thread
 	// a plugin calls in on, so the reader needs the write to be visible.
 	@Volatile
@@ -46,7 +49,8 @@ object BuildOutputProvider {
 	 * the log matters most.
 	 *
 	 * Line timing prefixes are stripped; ~22 characters a line of clock time no agent can use.
-	 * Does disk I/O, so call off the main thread.
+	 * Does disk I/O, so call off the main thread; a main-thread caller gets the live content or
+	 * nothing, never a blocking read.
 	 */
 	fun getBuildOutputContent(): String? {
 		val content = liveContent() ?: sessionFileTail() ?: return null
@@ -93,6 +97,14 @@ object BuildOutputProvider {
 	 */
 	private fun isMainThread(): Boolean = runCatching { Looper.myLooper() == Looper.getMainLooper() }.getOrDefault(true)
 
+	/**
+	 * Whether the caller is on a real Android main thread. The counterpart to [isMainThread], and
+	 * deliberately the opposite default: a JVM unit test has no main thread to block, so the file
+	 * read there is safe, while [isMainThread] treats the same absence as "already where the live
+	 * read has to happen".
+	 */
+	private fun isAndroidMainThread(): Boolean = runCatching { Looper.myLooper() == Looper.getMainLooper() }.getOrDefault(false)
+
 	/** Main thread only; see [liveContent]. */
 	private fun sheetContent(): String? =
 		bottomSheetRef
@@ -102,6 +114,12 @@ object BuildOutputProvider {
 			?.getShareableContent()
 
 	private fun sessionFileTail(): String? {
+		if (isAndroidMainThread()) {
+			// Reading up to WINDOW_MAX_CHARS off disk is an ANR waiting to happen. The contract is
+			// an off-main-thread call; a caller that breaks it gets null rather than a stalled UI.
+			logger.warn("Skipping the build output session file: getBuildOutputContent() was called on the main thread")
+			return null
+		}
 		val dir = sessionDirOverride ?: runCatching { IDEApplication.instance.cacheDir }.getOrNull() ?: return null
 		// Read without BuildOutputViewModel's lock: a concurrent append can leave the window starting
 		// mid-UTF-8-sequence, which decodes to a single U+FFFD rather than throwing.

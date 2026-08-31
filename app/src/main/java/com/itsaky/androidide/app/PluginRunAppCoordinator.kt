@@ -57,17 +57,25 @@ internal object PluginRunAppCoordinator {
 			}
 		}
 
-		activity.lifecycleScope.launch {
-			try {
-				startBuild(activity, ::report)
-			} catch (e: CancellationException) {
-				// The editor was destroyed before the build was even handed off. Nothing will
-				// report later, so the caller has to hear it here or wait out its own timeout.
+		val job =
+			activity.lifecycleScope.launch {
+				try {
+					startBuild(activity, ::report)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					logger.error("Failed to run the app for a plugin", e)
+					report(false, "Error: ${e.message}")
+				}
+			}
+
+		// An already-destroyed activity's scope drops the block without running it, so cancellation
+		// has to be reported from the job rather than from inside. Nothing else will report, and the
+		// caller would sit out its own timeout. A completed hand-off carries no cause, so the build
+		// still reports through runQuickBuild's callback.
+		job.invokeOnCompletion { cause ->
+			if (cause != null) {
 				report(false, "The editor was closed before the build started.")
-				throw e
-			} catch (e: Exception) {
-				logger.error("Failed to run the app for a plugin", e)
-				report(false, "Error: ${e.message}")
 			}
 		}
 	}
