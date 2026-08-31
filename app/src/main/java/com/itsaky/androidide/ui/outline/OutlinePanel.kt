@@ -22,7 +22,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -152,14 +154,29 @@ private fun OutlineRow(
 			.lowercase()
 			.replace('_', ' ')
 	val rowDescription = listOfNotNull(kindLabel, symbol.name, symbol.detail).joinToString(", ")
-	val indent = INDENT_STEP * minOf(row.depth, MAX_INDENT_DEPTH)
+	val cappedDepth = minOf(row.depth, MAX_INDENT_DEPTH)
+	val indent = INDENT_STEP * cappedDepth
+	val guideColor = MaterialTheme.colorScheme.outlineVariant
 	Row(
 		verticalAlignment = Alignment.Top,
 		modifier =
 			modifier
 				.fillMaxWidth()
 				.clickable { onEvent(OutlineUiEvent.SymbolClicked(symbol)) }
-				.padding(start = 4.dp + indent, top = 5.dp, bottom = 5.dp, end = 12.dp)
+				.drawBehind {
+					val step = INDENT_STEP.toPx()
+					val stroke = 1.dp.toPx()
+					val base = 15.dp.toPx()
+					for (level in 0 until cappedDepth) {
+						val x = base + level * step
+						drawLine(
+							color = guideColor,
+							start = Offset(x, 0f),
+							end = Offset(x, size.height),
+							strokeWidth = stroke,
+						)
+					}
+				}.padding(start = 4.dp + indent, top = 5.dp, bottom = 5.dp, end = 12.dp)
 				.semantics { contentDescription = rowDescription },
 	) {
 		if (row.hasChildren) {
