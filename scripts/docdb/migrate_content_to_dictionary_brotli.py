@@ -21,10 +21,10 @@ Three phases, in this order, because each one changes what the next one sees:
                  the dictionary to *different bytes without erroring*, so the
                  fallback never fires and the page serves silent garbage. A run
                  that declares the version therefore has to finish. The script
-                 says so at the end when it did not, refuses --only-if-smaller
-                 alongside migrate, and refuses a --path/--limit --yes migrate
-                 outright, since a scoped run may not make the declaration and
-                 content migrated without it cannot be decoded at all.
+                 says so at the end when it did not, and refuses a --path/--limit
+                 --yes migrate outright, since a scoped run may not make the
+                 declaration and content migrated without it cannot be decoded
+                 at all.
 
 Phase 1 feeds phase 3 for free: a row retyped to `image/gif` inherits that type's
 `compression = 'none'`, so phase 3's `compression = 'brotli'` selection simply
@@ -171,14 +171,16 @@ def _brotli(args: list[str], payload: bytes) -> tuple[bool, bytes, str]:
     return done.returncode == 0, done.stdout, done.stderr.decode("utf-8", "replace").strip()
 
 
-def decode_plain(payload: bytes) -> tuple[bool, bytes]:
-    ok, out, _ = _brotli(["-d", "-c"], payload)
-    return ok, out
+# Both decoders hand back stderr, as encode_with_dictionary always has. Discarding it meant every
+# non-zero exit read as "this row does not decode" -- so a vanished dictionary tempfile, an
+# OOM-killed child or a missing brotli binary were all reported to the operator as data corruption
+# in the content, which is the one explanation that sends them looking in the wrong place.
+def decode_plain(payload: bytes) -> tuple[bool, bytes, str]:
+    return _brotli(["-d", "-c"], payload)
 
 
-def decode_with_dictionary(payload: bytes) -> tuple[bool, bytes]:
-    ok, out, _ = _brotli(["-d", "-D", _DICTIONARY_PATH, "-c"], payload)
-    return ok, out
+def decode_with_dictionary(payload: bytes) -> tuple[bool, bytes, str]:
+    return _brotli(["-d", "-D", _DICTIONARY_PATH, "-c"], payload)
 
 
 def encode_with_dictionary(payload: bytes, quality: int, window: int) -> tuple[bool, bytes, str]:
@@ -270,7 +272,7 @@ class Result:
     """Phase 3's verdict on one item."""
 
     base_path: str
-    status: str  # migrated | already | unchanged | error
+    status: str  # migrated | already | error
     slices: list[bytes] = field(default_factory=list)
     before: int = 0
     after: int = 0
@@ -284,12 +286,13 @@ def inspect_item(item: Item, blobs: list[bytes]) -> Inspection:
     before = len(stored)
 
     if item.compression == "brotli":
-        ok, payload = decode_plain(stored)
+        ok, payload, plain_err = decode_plain(stored)
         if not ok:
-            ok, payload = decode_with_dictionary(stored)
+            ok, payload, dict_err = decode_with_dictionary(stored)
             if not ok:
                 return Inspection(item.base_path, "error", before=before,
-                                  detail="decodes neither plainly nor with the dictionary")
+                                  detail=f"decodes neither plainly ({plain_err or 'no stderr'}) nor "
+                                         f"with the dictionary ({dict_err or 'no stderr'})")
     else:
         payload = stored
 
@@ -302,7 +305,7 @@ def inspect_item(item: Item, blobs: list[bytes]) -> Inspection:
                       before=before, after=len(payload))
 
 
-def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only_if_smaller: bool,
+def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int,
                  db_was_migrated: bool) -> Result:
     """Decode an item, recompress it against the dictionary, and re-split it.
 
@@ -315,13 +318,23 @@ def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only
     stored = b"".join(blobs)
     before = len(stored)
 
-    ok, plaintext = decode_plain(stored)
-    ok_dict, as_dict = decode_with_dictionary(stored)
+    ok, plaintext, plain_err = decode_plain(stored)
+    ok_dict, as_dict, dict_err = decode_with_dictionary(stored)
+
+    # The mislabel census is computed on whichever decode is authoritative, and on every path that
+    # returns. Leaving it unset on the "already" branches meant a re-run over an already-migrated
+    # database reported zero mislabelled rows -- not because there were none, but because the only
+    # branch that filled it in was the one a migrated row never takes.
+    def census(content: bytes) -> str:
+        return sniff(content) if is_text_type(item.content_type) else ""
 
     if not ok:
         if ok_dict:
-            return Result(item.base_path, "already", before=before, after=before)
-        return Result(item.base_path, "error", before=before, detail="decodes neither plainly nor with the dictionary")
+            return Result(item.base_path, "already", before=before, after=before,
+                          sniffed=census(as_dict))
+        return Result(item.base_path, "error", before=before,
+                      detail=f"decodes neither plainly ({plain_err or 'no stderr'}) nor with the "
+                             f"dictionary ({dict_err or 'no stderr'})")
 
     # Both decodes succeeded and returned different bytes, neither erroring. This is not exotic:
     # a short stored stream (92 B of highly repetitive HTML, say) decodes plainly to the real
@@ -334,24 +347,26 @@ def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only
     # happily validates, because it round-trips the garbage.
     if ok_dict and as_dict != plaintext:
         if db_was_migrated:
-            return Result(item.base_path, "already", before=before, after=before)
+            return Result(item.base_path, "already", before=before, after=before,
+                          sniffed=census(as_dict))
 
     # Decoding every row here anyway makes a mislabel sweep free: report a
     # text-typed row whose payload is recognisably binary, whatever its name.
-    mislabelled = sniff(plaintext) if is_text_type(item.content_type) else ""
+    mislabelled = census(plaintext)
 
     ok, recompressed, stderr = encode_with_dictionary(plaintext, quality, window)
     if not ok:
         return Result(item.base_path, "error", before=before, detail=f"compression failed: {stderr}")
 
     # The migration is only worth anything if it round-trips exactly.
-    ok, roundtrip = decode_with_dictionary(recompressed)
+    ok, roundtrip, roundtrip_err = decode_with_dictionary(recompressed)
     if not ok or roundtrip != plaintext:
         return Result(
             item.base_path,
             "error",
             before=before,
-            detail="recompressed bytes do not decode back to the original content",
+            detail="recompressed bytes do not decode back to the original content"
+                   + (f" ({roundtrip_err})" if roundtrip_err else ""),
         )
 
     # "Nothing to do" is a property of the RE-ENCODED stream, not the stored one. The test this
@@ -364,10 +379,6 @@ def migrate_item(item: Item, blobs: list[bytes], quality: int, window: int, only
     if recompressed == stored:
         return Result(item.base_path, "already", before=before, after=before, sniffed=mislabelled)
 
-    if only_if_smaller and len(recompressed) >= before:
-        return Result(item.base_path, "unchanged", before=before, after=before, sniffed=mislabelled,
-                      detail=f"dictionary-compressed form is larger ({len(recompressed)} vs {before})")
-
     return Result(item.base_path, "migrated", slices=slice_stream(recompressed),
                   before=before, after=len(recompressed), sniffed=mislabelled)
 
@@ -378,7 +389,10 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
         SELECT C.id, C.path, C.languageID, C.contentTypeID, C.templateId,
                -- IFNULL: a row with NULL content has NULL length, which made the byte totals
                -- (and so the phase summary) throw before read_blobs could report the row.
-               IFNULL(LENGTH(C.content), 0), CT.value, CT.compression
+               -- CAST to BLOB first: LENGTH() on a TEXT-class value counts CHARACTERS, so a row
+               -- holding multi-byte UTF-8 measured short, and this number decides what counts as a
+               -- 1 MiB chunk base. The app measures the same rows with getBlob().size, i.e. bytes.
+               IFNULL(LENGTH(CAST(C.content AS BLOB)), 0), CT.value, CT.compression
           FROM Content C
           JOIN ContentTypes CT ON CT.id = C.contentTypeID
          WHERE {predicate}
@@ -391,7 +405,7 @@ def load_items(connection: sqlite3.Connection, predicate: str) -> list[Item]:
     # "-1" was filtered out reported first_suffix 2, so write_item re-created the stream starting
     # at -2 -- re-introducing the ADFA-5171 defect phase 2 had just normalised.
     all_rows = connection.execute(
-        "SELECT id, path, languageID, contentTypeID, IFNULL(LENGTH(content), 0) FROM Content"
+        "SELECT id, path, languageID, contentTypeID, IFNULL(LENGTH(CAST(content AS BLOB)), 0) FROM Content"
     ).fetchall()
     base_bytes_by_path = {path: length for _, path, _, _, length in all_rows}
     selected_ids = {row[0] for row in rows}
@@ -537,7 +551,12 @@ def read_blobs(connection: sqlite3.Connection, item: Item) -> list[bytes] | None
     """
     ids = [item.base_id] + [row_id for row_id, _, _ in item.continuations]
     placeholders = ",".join("?" * len(ids))
-    found = dict(connection.execute(f"SELECT id, content FROM Content WHERE id IN ({placeholders})", ids).fetchall())
+    # CAST to BLOB so a TEXT-class row arrives as bytes: sqlite3 hands back `str` otherwise, which
+    # fails in the worker at b"".join(blobs). Same reason as the LENGTH() casts in load_items -- the
+    # app reads these rows with getBlob(), and so should this.
+    found = dict(connection.execute(
+        f"SELECT id, CAST(content AS BLOB) FROM Content WHERE id IN ({placeholders})", ids
+    ).fetchall())
     blobs = [found.get(row_id) for row_id in ids]
     return None if any(blob is None for blob in blobs) else blobs
 
@@ -629,16 +648,6 @@ def write_item(
         deleted += 1
 
     return inserted, deleted
-
-
-def retype_rows(connection: sqlite3.Connection, item: Item, content_type_id: int) -> None:
-    """Point an item's rows at a different content type, leaving the bytes alone."""
-    ids = [item.base_id] + [row_id for row_id, _, _ in item.continuations]
-    placeholders = ",".join("?" * len(ids))
-    connection.execute(
-        f"UPDATE Content SET contentTypeID = ? WHERE id IN ({placeholders})",
-        [content_type_id, *ids],
-    )
 
 
 # The MAJOR the app requires before it will attach the dictionary at all
@@ -908,7 +917,7 @@ def phase_retype(connection, pool, args, write, items) -> tuple[set[str], list[s
     return kept, errors, notes
 
 
-def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> tuple[int, list[str], list[str]]:
+def phase_renumber(connection, args, write, select) -> tuple[int, list[str], list[str]]:
     """Shift -2-based continuation numbering down to the -1 the app expects.
 
     [select] applies --limit and --path here as it does to the other phases. Without
@@ -916,8 +925,6 @@ def phase_renumber(connection, args, write, retyped_paths: set[str], select) -> 
     rewrote every chunked item in the database.
     """
     items = select([item for item in load_items(connection, "1 = 1") if item.continuations])
-    if args.renumber_scope == "retyped":
-        items = [item for item in items if item.base_path in retyped_paths]
     # load_items only groups a "-<digits>" sibling under a base holding exactly CHUNK_BYTES -- the
     # app's own chunk-detection rule -- so every item here is genuinely chunked, and a
     # coincidentally named independent page (e.g. k/kotlin-1-2 next to the real page k/kotlin-1)
@@ -1022,8 +1029,6 @@ def main() -> int:
     parser.add_argument("--mov-type", choices=("quicktime", "mp4"), default="quicktime",
                         help="what to call the ftypqt .mov payloads: the honest video/quicktime (inserted into "
                              "ContentTypes) or the video/mp4 Chromium is likelier to play (default: quicktime)")
-    parser.add_argument("--renumber-scope", choices=("all", "retyped"), default="all",
-                        help="renumber every -2-based chunked item, or only the ones phase 1 retyped (default: all)")
     parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2)), help="parallel compressors")
     parser.add_argument("--quality", type=int, default=11, help="brotli quality (default 11, as the pipeline uses)")
     parser.add_argument("--window", type=int, default=22,
@@ -1031,12 +1036,6 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0, help="stop after this many items (for a smoke test)")
     parser.add_argument("--path", default="", help="only items whose base path contains this substring")
     parser.add_argument("--batch", type=int, default=200, help="items per write transaction")
-    parser.add_argument(
-        "--only-if-smaller",
-        action="store_true",
-        help="leave a row alone when its dictionary-compressed form is not smaller "
-             "(refused when the migrate phase runs: see the error it prints)",
-    )
     args = parser.parse_args()
     write = args.yes and not args.dry_run
 
@@ -1054,27 +1053,13 @@ def main() -> int:
         print(f"error: --phases selected no phases; pick from {', '.join(ALL_PHASES)}", file=sys.stderr)
         return 2
 
-    # A migrate run declares version DICTIONARY_MAJOR_VERSION, and a plain-brotli row left behind
-    # in a database declaring that version can decode against the dictionary to different bytes
-    # *without erroring* -- served as silently wrong content. --only-if-smaller deliberately
-    # leaves such rows, so the two cannot travel together.
-    if args.only_if_smaller and "migrate" in args.phase_list:
-        print(
-            "error: --only-if-smaller cannot be combined with the migrate phase: it deliberately "
-            "leaves rows plain-compressed in a database the run declares version "
-            f"{DICTIONARY_MAJOR_VERSION}, and a plain row in such a database can decode against "
-            "the dictionary to wrong bytes without erroring",
-            file=sys.stderr,
-        )
-        return 2
-
     # A run that may not declare the version may not write migrated content either -- the two
     # travel together or not at all. --path/--limit scope the run, so may_declare_version withholds
     # the declaration; phase 3 nevertheless recompressed those rows and COMMITTED them, printed a
     # WARNING on stdout and exited 0. Because the app gates the dictionary on the declared version
     # and not on the dictionary's presence, every row just rewritten decodes as "corrupt input",
-    # and the plaintext it was rewritten from is gone. Refused here, like --only-if-smaller above,
-    # rather than warned about after the damage. A scoped dry run is still useful and still allowed.
+    # and the plaintext it was rewritten from is gone. Refused here rather than warned about after
+    # the damage. A scoped dry run is still useful and still allowed.
     withheld = may_declare_version(args)
     if write and "migrate" in args.phase_list and withheld:
         print(
@@ -1178,7 +1163,7 @@ def main() -> int:
 
     # Phase 3's tallies live out here, not next to its loop, because the summary below has to be
     # printable whether or not that loop ran or finished -- see the abort handling after the try.
-    counts = {"migrated": 0, "already": 0, "unchanged": 0, "error": 0}
+    counts = {"migrated": 0, "already": 0, "error": 0}
     wrote_migrated_content = False
     version_declared = False
     migrate_started = False
@@ -1212,7 +1197,7 @@ def main() -> int:
             print()
 
         if "renumber" in args.phase_list:
-            _, phase_errors, phase_notes = phase_renumber(connection, args, write, retyped_paths, select)
+            _, phase_errors, phase_notes = phase_renumber(connection, args, write, select)
             errors += phase_errors
             notes += phase_notes
             print()
@@ -1257,8 +1242,7 @@ def main() -> int:
                     continue
                 pending[
                     pool.submit(
-                        migrate_item, item, blobs, args.quality, args.window, args.only_if_smaller,
-                        db_was_migrated,
+                        migrate_item, item, blobs, args.quality, args.window, db_was_migrated,
                     )
                 ] = item
 
@@ -1361,8 +1345,6 @@ def main() -> int:
         print("                The migrate phase had not started.")
     print(f"migrated        {counts['migrated']:,}")
     print(f"already         {counts['already']:,}")
-    if counts["unchanged"]:
-        print(f"left alone      {counts['unchanged']:,} (not smaller with the dictionary)")
     print(f"errors          {counts['error']:,}")
     if write:
         print(f"rows inserted   {inserted_total}    rows deleted    {deleted_total}")
@@ -1417,7 +1399,7 @@ def main() -> int:
         # dictionary version.
         attempted = sum(counts.values())
         unattempted = max(0, len(items) - attempted) if migrate_started else 0
-        remaining = counts["unchanged"] + len(failed_items) + unattempted
+        remaining = len(failed_items) + unattempted
         if version_declared and remaining:
             print(
                 f"\nWARNING: this database declares version {DICTIONARY_MAJOR_VERSION}.x but "

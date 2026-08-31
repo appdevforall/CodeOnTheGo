@@ -338,8 +338,9 @@ spotless {
 		targetExclude(
 			"scripts/debug-keystore/adfa-keystore.jks",
 			// leadingSpacesToTabs() would reindent Python, which PEP 8 indents with spaces --
-			// and every .py already here is space-indented. Only the ratchet has been hiding
-			// that mismatch: an edit to one of them would silently convert the whole file.
+			// as all but one .py here already is (scripts/r8-plugin-impact/analyze-plugin-impact.py
+			// uses tabs). Only the ratchet has been hiding the mismatch: an edit to a
+			// space-indented one would silently convert the whole file.
 			"**/*.py",
 			// Python bytecode: binary, generated, and Spotless fails the whole task (and so the
 			// pre-push hook) on one stray file rather than skipping it.
