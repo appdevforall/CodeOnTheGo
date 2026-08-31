@@ -133,7 +133,7 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 	) {
 		val file = data.requireFile()
 		val nioPath = file.toPath()
-		if (documentVersionOf(nioPath) != plan.documentVersion) {
+		if (plan.documentVersion == null || documentVersionOf(nioPath) != plan.documentVersion) {
 			flashInfo(R.string.msg_extract_method_file_changed)
 			return
 		}
@@ -234,6 +234,6 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 			}
 		}
 
-	/** -1 when the document is not open, which never matches a real version and so fails the guard. */
-	private fun documentVersionOf(path: Path): Int = FileManager.getActiveDocument(path)?.version ?: -1
+	/** Null when the document is not open, which the guard reads as "unverifiable" and refuses. */
+	private fun documentVersionOf(path: Path): Int? = FileManager.getActiveDocument(path)?.version
 }

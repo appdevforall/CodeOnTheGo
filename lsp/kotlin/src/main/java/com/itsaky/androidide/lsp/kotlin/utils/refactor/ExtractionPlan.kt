@@ -122,7 +122,7 @@ data class CandidateExpression(
  */
 data class ExtractionPlan(
 	override val fileText: String,
-	override val documentVersion: Int,
+	override val documentVersion: Int?,
 	val candidates: List<CandidateExpression>,
 ) : RefactoringPlan {
 	val isEmpty: Boolean get() = candidates.isEmpty()
@@ -130,7 +130,7 @@ data class ExtractionPlan(
 	companion object {
 		fun empty(
 			fileText: String = "",
-			documentVersion: Int = -1,
+			documentVersion: Int? = null,
 		) = ExtractionPlan(fileText, documentVersion, emptyList())
 	}
 }

@@ -42,7 +42,7 @@ internal fun buildExtractionPlan(
 	nioPath: Path,
 	selectionStart: Int,
 	selectionEnd: Int,
-	documentVersion: Int,
+	documentVersion: Int?,
 	cancelChecker: ScheduledCancelChecker,
 ): ExtractionPlan =
 	runCatching {

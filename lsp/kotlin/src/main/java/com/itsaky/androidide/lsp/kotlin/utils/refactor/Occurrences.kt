@@ -1,7 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import com.itsaky.androidide.lsp.refactor.TextSpan
-import com.itsaky.androidide.lsp.refactor.excludeUnsoundOccurrences
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.symbols.KaSymbol
 import org.jetbrains.kotlin.analysis.api.symbols.KaValueParameterSymbol
@@ -179,56 +178,8 @@ private inline fun <reified T : PsiElement> PsiElement.collectDescendantsOfType(
 	PsiTreeUtil.collectElementsOfType(this, T::class.java).toList()
 
 /**
- * Restricts [occurrences] to a contiguous run around [candidateSpan] that no write to a referenced
- * mutable interrupts.
- *
- * A `var` the candidate reads can be reassigned between two occurrences, and then the two sites do
- * not hold the same value even though they are the same expression:
- *
- * ```
- * var limit = 1
- * foo(limit + 1)   // occurrence
- * limit = 5
- * foo(limit + 1)   // same expression, different value
- * ```
- *
- * Rather than warn, unsound sites are simply excluded, so "Replace all N occurrences" can never
- * produce wrong code and N is always achievable. The walk grows outwards from the candidate -- never
- * dropping the site the user actually selected -- and stops in each direction at the first write it
- * would have to cross.
- */
-internal fun excludeUnsoundOccurrences(
-	occurrences: List<TextSpan>,
-	candidateSpan: TextSpan,
-	writeOffsets: List<Int>,
-): List<TextSpan> {
-	if (occurrences.isEmpty()) return occurrences
-	val ordered = occurrences.sortedBy { it.start }
-	val candidateIndex = ordered.indexOfFirst { it.start == candidateSpan.start && it.end == candidateSpan.end }
-	if (candidateIndex < 0) return listOf(candidateSpan)
-
-	val writes = writeOffsets.sorted()
-
-	fun writeBetween(
-		from: Int,
-		to: Int,
-	): Boolean = writes.any { it in from until to }
-
-	val accepted = mutableListOf(ordered[candidateIndex])
-	for (i in candidateIndex - 1 downTo 0) {
-		if (writeBetween(ordered[i].end, ordered[candidateIndex].start)) break
-		accepted.add(0, ordered[i])
-	}
-	for (i in candidateIndex + 1 until ordered.size) {
-		if (writeBetween(ordered[candidateIndex].end, ordered[i].start)) break
-		accepted += ordered[i]
-	}
-	return accepted
-}
-
-/**
  * Offsets of writes, within [searchRoot], to any mutable the candidate reads. Feeds
- * [excludeUnsoundOccurrences].
+ * `excludeUnsoundOccurrences` in `:lsp:refactor-core`.
  *
  * Counts plain assignment, the augmented forms (`+=` and friends) and `++`/`--`. A `val` cannot be
  * written, so only [KaVariableSymbol]s that report themselves mutable are tracked.
