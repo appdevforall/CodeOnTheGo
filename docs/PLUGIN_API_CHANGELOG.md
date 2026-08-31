@@ -67,12 +67,24 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   source into each `.cgp` would not fix that: `compileOnly` against the host means one
   implementation in the process, loaded by the host's class loader.
   `KeystoreSecretStore(alias)` (`encrypt`, `decrypt`, `write`, `readAndMigrate`) and
-  `KeystoreSecretStore.Stored` / `.Absent` / `.Value` / `.Unreadable`. The `enc:v1:` marker
-  it writes is deliberately **not** part of the surface: the on-disk format is the store's
-  business, both formats are handled for the caller, and keeping it private is what leaves
-  room for an `enc:v2:` later.
-  A class a plugin **instantiates**, not an interface it implements, so later additions to
-  it are additive. The `alias` is a constructor parameter and must stay **distinct per
+  `KeystoreSecretStore.Stored` / `.Absent` / `.Value` / `.Unreadable` / `.Unavailable`. The
+  `enc:v1:` marker it writes is deliberately **not** part of the surface: the on-disk format
+  is the store's business, both formats are handled for the caller, and keeping it private is
+  what leaves room for an `enc:v2:` later.
+  Additions to the **class** are additive, because a plugin instantiates it rather than
+  implementing it. `Stored` is the exception, and the one part of this entry that cannot grow
+  quietly: it is a public **sealed** interface, so a fifth case makes every plugin's exhaustive
+  `when` fail to compile, and a `.cgp` already built against four throws
+  `NoWhenBranchMatchedException` at runtime. Any new `Stored` case needs a `breaking` row —
+  including the `enc:v2:` state the paragraph above leaves room for, if it ever surfaces.
+  `encrypt` throws `GeneralSecurityException` and nothing else: whatever the Keystore actually
+  raises (`IOException` from `KeyStore.load`, the unchecked `ProviderException` from keygen) is
+  wrapped in one, so catching the documented type is enough — an unwrapped throwable here
+  reaches the host's crash handler as an IDE crash, not your plugin's error path.
+  `readAndMigrate` keeps a lost key (`Unreadable` — ask the user for the secret again) apart
+  from a Keystore that would not answer (`Unavailable` — retry), so a transient failure does
+  not cost the user a credential that is still perfectly readable.
+  The `alias` is a constructor parameter and must stay **distinct per
   plugin**: plugins share the host's process, UID and therefore its Keystore, so a shared
   alias would let one plugin's invalidated-key recovery (`deleteEntry`) destroy another's
   stored secret. It must also stay stable across releases, since a secret encrypted under

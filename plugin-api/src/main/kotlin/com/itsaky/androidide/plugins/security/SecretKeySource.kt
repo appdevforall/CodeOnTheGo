@@ -40,7 +40,19 @@ internal class AndroidKeystoreSource(
 	override fun getOrCreate(): SecretKey =
 		synchronized(KEYSTORE_LOCK) {
 			val store = KeyStore.getInstance(KEYSTORE).apply { load(null) }
-			(store.getEntry(alias, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+			val existing = store.getEntry(alias, null)
+			(existing as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+			if (existing != null) {
+				// Falling through replaces whatever is under the alias, so be loud about it: plugins
+				// share the host's UID and therefore its Keystore, and the entry class is the only clue
+				// to whose it was. The class, not the entry - a PrivateKeyEntry's toString prints its
+				// certificate chain.
+				log.warn(
+					"Keystore alias '{}' holds a {}, not a secret key; replacing it",
+					alias,
+					existing.javaClass.name,
+				)
+			}
 			val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
 			generator.init(
 				KeyGenParameterSpec

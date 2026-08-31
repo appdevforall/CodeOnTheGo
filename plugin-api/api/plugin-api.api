@@ -1231,6 +1231,13 @@ public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore$St
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Unavailable : com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Unavailable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Unreadable : com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
 	public static final field INSTANCE Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Unreadable;
 	public fun equals (Ljava/lang/Object;)Z
