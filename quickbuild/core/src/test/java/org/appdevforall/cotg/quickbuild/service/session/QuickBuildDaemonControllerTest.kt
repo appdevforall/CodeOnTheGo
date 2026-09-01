@@ -211,6 +211,28 @@ class QuickBuildDaemonControllerTest {
 		}
 
 	@Test
+	fun `a shrink retried while the daemon is briefly down keeps the request pending`() =
+		runTest {
+			val controller = controller()
+			daemon.isRunning = true
+			controller.onTrimMemory(
+				ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
+				buildInFlight = true,
+			)
+
+			// The retry lands while the daemon happens to be down (say, mid-restart). The
+			// KDoc promises a silent no-op here - the request must survive, not be
+			// consumed on the way to the guard.
+			daemon.isRunning = false
+			controller.shrinkIfPending(buildInFlight = false)
+			assertThat(daemon.shutdownCount).isEqualTo(0)
+
+			daemon.isRunning = true
+			controller.shrinkIfPending(buildInFlight = false)
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+		}
+
+	@Test
 	fun `the daemon config takes its min API from the baseline the proxy app build dexed`() =
 		runTest {
 			// A project whose effective dex level is not the protocol default. The daemon
