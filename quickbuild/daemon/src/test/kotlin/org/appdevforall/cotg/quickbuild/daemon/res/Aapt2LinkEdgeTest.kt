@@ -115,6 +115,32 @@ class Aapt2LinkEdgeTest {
 	}
 
 	@Test
+	fun `a diagnostic flood is capped with a marker naming how many were elided`() {
+		// A broken resource pass can name every file in the project; the whole list rides
+		// one protocol line into a phone-screen panel, so it is bounded the way DexTool's
+		// output is (MAX_DIAGNOSTIC_CHARS) - first 50 entries plus a "+K more" marker.
+		val script =
+			"i=1\n" +
+				"while [ \$i -le 60 ]; do\n" +
+				"  echo \"res/values/strings.xml:\$i: error: boom \$i\"\n" +
+				"  i=\$((i+1))\n" +
+				"done\n" +
+				"exit 1"
+		val link = Aapt2Link(fakeAapt2(script), File(tempDir, "android.jar"))
+
+		val result = link.relink(listOf(resDir), manifest, workDir)
+
+		assertThat(result).isInstanceOf(Aapt2Link.Result.Failed::class.java)
+		val diagnostics = (result as Aapt2Link.Result.Failed).diagnostics
+		assertThat(diagnostics).hasSize(51)
+		// The first parsed entries survive in order; the marker accounts for the rest.
+		assertThat(diagnostics.first().message).isEqualTo("boom 1")
+		assertThat(diagnostics[49].message).isEqualTo("boom 50")
+		assertThat(diagnostics.last().message).isEqualTo("+10 more aapt2 diagnostics elided")
+		assertThat(diagnostics.last().severity).isEqualTo(Diagnostic.Severity.ERROR)
+	}
+
+	@Test
 	fun `an empty compiled dir that cannot be deleted does not fail the reset`() {
 		// Only LEFTOVER ENTRIES can leak stale .flat files into the link. An empty
 		// res-compiled that survives deleteRecursively (read-only parent) is harmless and

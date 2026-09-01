@@ -34,6 +34,25 @@ class JavaCompileStepTest {
 	}
 
 	@Test
+	fun `javac emits release-17 bytecode whatever JDK the daemon runs on`() {
+		// --release pins bytecode AND platform APIs to kotlinc's -jvm-target level. On the
+		// JDK-17 host this passes vacuously; on a JDK-21 device (or a future toolchain
+		// bump) it goes red without the flag - major 65 next to Kotlin's 61 in one tree.
+		val widget =
+			File(tempDir, "Widget.java").apply {
+				writeText("package demo;\n\npublic class Widget { public int v() { return 1; } }\n")
+			}
+
+		val result = JavaCompileStep.compile(listOf(widget), emptyList(), outputDir())
+
+		assertThat(result.success).isTrue()
+		val classBytes = File(outputDir(), "demo/Widget.class").readBytes()
+		// Class-file major version lives at bytes 6-7 (big-endian); Java 17 is 61.
+		val major = ((classBytes[6].toInt() and 0xFF) shl 8) or (classBytes[7].toInt() and 0xFF)
+		assertThat(major).isEqualTo(61)
+	}
+
+	@Test
 	fun `an advisory javac note compiles successfully as a WARNING without a fabricated location`() {
 		// Raw-type use draws javac's file-level "uses unchecked or unsafe operations"
 		// note: no position exists, so line/column must read back null - inventing one

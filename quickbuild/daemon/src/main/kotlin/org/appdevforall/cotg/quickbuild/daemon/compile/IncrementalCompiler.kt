@@ -68,8 +68,9 @@ class IncrementalCompiler(
 		 * Both passes succeeded, with the outputs they touched and what each phase cost.
 		 *
 		 * @property classesDir single merged output dir for Kotlin and Java classes.
-		 * @property warnings kotlinc's and javac's warnings, already parsed into the protocol
-		 *   shape; a successful compile can still carry them.
+		 * @property warnings javac's warnings only, already in the protocol shape; a successful
+		 *   compile can still carry them. kotlinc runs with `-nowarn` (see [compileKotlin]), so
+		 *   it contributes none.
 		 * @property changedClassFiles the .class files this compile emitted, rewrote or deleted,
 		 *   relative to [classesDir], for the deploy policy to read. Diffed against the LAST
 		 *   SUCCESSFUL COMPILE's tree - no deploy ack reaches the daemon, so that tree is only a
@@ -159,7 +160,7 @@ class IncrementalCompiler(
 	init {
 		Files.createDirectories(icCachesDir)
 		Files.createDirectories(classesDir)
-		discardStaleIncrementalState(classpathJars)
+		val fingerprint = discardStaleIncrementalState(classpathJars)
 		val snapshotDir = workDir.resolve("cp-snap")
 		Files.createDirectories(snapshotDir)
 		// Snapshot the fixed session classpath once; a classpath change is a session
@@ -175,6 +176,10 @@ class IncrementalCompiler(
 					.saveSnapshot(snapshot)
 				snapshot
 			}
+		// Committed LAST, once the snapshots it describes actually exist. A throw anywhere
+		// above leaves the previous fingerprint in place, so the construction retry
+		// re-detects the change and wipes again instead of trusting half-built state.
+		fingerprintFile().writeText(fingerprint)
 	}
 
 	/**
@@ -193,21 +198,28 @@ class IncrementalCompiler(
 	 *
 	 * @param classpathJars the session classpath, fingerprinted before the per-jar snapshots are
 	 *   computed over it.
+	 * @return the computed fingerprint - NOT yet written: `init` commits it as its last
+	 *   statement, after the per-jar snapshots exist, so a throw mid-construction cannot leave
+	 *   a fingerprint describing snapshots that were never built (which would defeat the
+	 *   `assureNoClasspathSnapshotsChanges(true)` guard on the retry).
 	 */
-	private fun discardStaleIncrementalState(classpathJars: List<File>) {
-		val fingerprintFile = workDir.resolve("classpath-fingerprint.txt").toFile()
+	private fun discardStaleIncrementalState(classpathJars: List<File>): String {
 		val fingerprint =
 			classpathJars.joinToString("\n") { jar ->
 				"${jar.absolutePath}|${jar.length()}|${if (jar.isFile) contentCrc(jar) else -1L}"
 			}
-		val previous = if (fingerprintFile.isFile) fingerprintFile.readText() else null
+		val file = fingerprintFile()
+		val previous = if (file.isFile) file.readText() else null
 		if (previous != fingerprint) {
 			shrunkSnapshot.delete()
 			icCachesDir.toFile().deleteRecursively()
 			Files.createDirectories(icCachesDir)
 		}
-		fingerprintFile.writeText(fingerprint)
+		return fingerprint
 	}
+
+	/** One home for the fingerprint path; written only by `init`'s last statement. */
+	private fun fingerprintFile(): File = workDir.resolve("classpath-fingerprint.txt").toFile()
 
 	/**
 	 * CRC32 of a whole file, streamed - classpath jars run tens of MB, so no
@@ -322,10 +334,11 @@ class IncrementalCompiler(
 				)
 			}
 		val javaMillis = if (javaSources.isEmpty()) 0 else System.currentTimeMillis() - javaStartedAt
-		val warnings = logger.warnings.map { KotlincDiagnosticsParser.parse(it, Diagnostic.Severity.WARNING) }
+		// No kotlinc warnings to merge: compileKotlin passes -nowarn, so javac's
+		// diagnostics are the only warnings a result carries.
 		if (!javaDiagnostics.success) {
 			return Result.Failed(
-				javaDiagnostics.diagnostics + warnings,
+				javaDiagnostics.diagnostics,
 				statsSoFar(preSnapMillis, allSources.size, javaSources.size),
 			)
 		}
@@ -344,7 +357,7 @@ class IncrementalCompiler(
 		lastGoodOutputs = after
 		return Result.Success(
 			classesDir = classesDir.toFile(),
-			warnings = warnings + javaDiagnostics.diagnostics,
+			warnings = javaDiagnostics.diagnostics,
 			changedClassFiles = changedClassFiles,
 			kotlinMillis = kotlinMillis,
 			javaMillis = javaMillis,
@@ -447,7 +460,17 @@ class IncrementalCompiler(
 		val undeleted = mutableListOf<File>()
 		val rootPrefix = classesRoot.canonicalPath + File.separator
 		sources.filter { it.extension == "java" }.forEach { javaFile ->
-			val relStem = javaClassStem(javaFile) ?: return@forEach
+			val relStem =
+				javaClassStem(javaFile) ?: run {
+					// Not a failure (unlike the undeletable-class branch below): a source
+					// outside a java/ or kotlin/ root, as with extraSourceRoots, has no
+					// derivable stem. Logged anyway, because a silently unswept output is the
+					// stale-class bug this sweep exists to prevent.
+					compileLog(
+						"w: cannot derive a class output stem for ${javaFile.path}; its stale outputs are not swept",
+					)
+					return@forEach
+				}
 			// relStem is a raw join of path segments, so a `..` in the removed source's path
 			// would aim this delete sweep outside the output tree. The paths come from CoGo's
 			// own watcher, but nothing here has to trust that.
@@ -549,6 +572,9 @@ class IncrementalCompiler(
 				"quickbuild-payload",
 				"-no-stdlib",
 				"-no-reflect",
+				// Suppresses all kotlinc warnings: on every hot save their noise would drown
+				// the errors the user acts on. [Result.Success.warnings] therefore carries
+				// only javac's.
 				"-nowarn",
 			) + pluginArguments
 		return service.compileJvm(projectId, strategy, config, kotlinSources + javaSources, arguments)
@@ -683,7 +709,8 @@ class IncrementalCompiler(
 
 	companion object {
 		// ART (via d8 desugaring) handles Java-17 bytecode; matches the bundled JDK.
-		private const val JVM_TARGET = "17"
+		// Shared with JavaCompileStep's --release so both compilers pin the same level.
+		internal const val JVM_TARGET = "17"
 
 		/** Read-chunk size for [contentCrc]'s streamed jar checksum. */
 		private const val FINGERPRINT_READ_BUFFER_BYTES = 64 * 1024

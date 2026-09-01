@@ -64,6 +64,29 @@ class IncrementalCompilerEdgeTest {
 	}
 
 	@Test
+	fun `a construction that fails mid-snapshot does not commit the new classpath fingerprint`() {
+		// Seed a session so the fingerprint on disk describes snapshots that really exist.
+		compiler()
+		val fingerprintFile = File(workDir, "classpath-fingerprint.txt")
+		val seeded = fingerprintFile.readText()
+
+		// Change the classpath (a copy at a new path fingerprints differently) and block the
+		// snapshot dir with a plain file, so the per-jar snapshot seed throws mid-construction.
+		val movedStdlib = TestSdk.kotlinStdlib().copyTo(File(tempDir, "moved-stdlib.jar"))
+		val snapshotDir = File(workDir, "cp-snap")
+		snapshotDir.deleteRecursively()
+		snapshotDir.writeText("in the way")
+
+		val thrown = runCatching { IncrementalCompiler(listOf(movedStdlib), workDir.toPath()) }.exceptionOrNull()
+		assertThat(thrown).isNotNull()
+
+		// The fingerprint must still describe the LAST session whose snapshots were built:
+		// committed early, it would match the retry's classpath and let
+		// assureNoClasspathSnapshotsChanges(true) trust snapshots that were never built.
+		assertThat(fingerprintFile.readText()).isEqualTo(seeded)
+	}
+
+	@Test
 	fun `a java source that disappears from disk fails the compile, not the daemon`() {
 		val widget = widgetJava()
 		val kotlin = kotlinSource()

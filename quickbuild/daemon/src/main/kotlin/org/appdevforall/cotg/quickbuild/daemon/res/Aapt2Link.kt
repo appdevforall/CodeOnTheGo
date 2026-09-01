@@ -2,6 +2,7 @@ package org.appdevforall.cotg.quickbuild.daemon.res
 
 import org.appdevforall.cotg.quickbuild.protocol.Diagnostic
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipFile
@@ -57,6 +58,19 @@ class Aapt2Link(
 		 * before the client gives up, or the next request meets a still-wedged daemon.
 		 */
 		const val DEFAULT_TIMEOUT_MILLIS = 120_000L
+
+		/** Bound on parsed diagnostics per link; same reason as DexTool's MAX_DIAGNOSTIC_CHARS. */
+		private const val MAX_DIAGNOSTICS = 50
+
+		/**
+		 * Resource-input count above which the link arguments move into an `@argfile`. A
+		 * Material/AndroidX app's library-resource closure runs to a few thousand `-R` pairs at
+		 * ~120 bytes each, and bionic's exec argument budget is far below desktop Linux's 2 MiB,
+		 * so a big link can cross ARG_MAX and die as an unhelpful "cannot run program". Small
+		 * links stay inline, where they read directly in a log or a test. `internal` so the
+		 * boundary is testable.
+		 */
+		internal const val ARGFILE_THRESHOLD = 100
 	}
 
 	/** Outcome of one relink. */
@@ -187,7 +201,14 @@ class Aapt2Link(
 		val flatFiles = compiledDir.listFiles { file -> file.name.endsWith(".flat") }.orEmpty()
 		val linkedApk = File(workDir, "linked-res.apk")
 		linkedApk.delete()
-		val linkArguments = buildLinkArguments(linkedApk, manifest, flatFiles.toList(), stableIds, libraryResources)
+		val linkArguments =
+			try {
+				buildLinkArguments(linkedApk, manifest, flatFiles.toList(), stableIds, libraryResources)
+			} catch (e: IOException) {
+				return Result.Failed(
+					listOf(Diagnostic(Diagnostic.Severity.ERROR, "failed to write aapt2 argfile: ${e.message}")),
+				)
+			}
 		val linkStartedAt = System.currentTimeMillis()
 		val linkResult = run(linkArguments)
 		val linkMillis = System.currentTimeMillis() - linkStartedAt
@@ -217,7 +238,14 @@ class Aapt2Link(
 	 * @param stableIds null omits `--stable-ids` entirely; a missing path is omitted too, as
 	 *   defense in depth, but [relink] fails a named-but-missing file before reaching here.
 	 * @param libraryResources baseline `-R` inputs, emitted ahead of [flatFiles].
-	 * @return the full argv, aapt2's own path included as element 0.
+	 * @return the full argv, aapt2's own path included as element 0. Past [ARGFILE_THRESHOLD]
+	 *   resource inputs, the whole input list moves into an `@argfile` next to [linkedApk],
+	 *   passed as a single `-R @file`. aapt2 expands the file into its whitespace-split paths
+	 *   (flags cannot ride along - it rejects them as "missing required flag -o"), every entry
+	 *   keeps `-R` overlay semantics in file order, and the space-free scratch paths never trip
+	 *   the splitting. Both halves of that expansion are pinned by the argfile relink test.
+	 * @throws IOException when the argfile cannot be written; [relink] turns that into a
+	 *   [Result.Failed].
 	 */
 	internal fun buildLinkArguments(
 		linkedApk: File,
@@ -241,8 +269,14 @@ class Aapt2Link(
 		if (stableIds != null && stableIds.isFile) {
 			arguments += listOf("--stable-ids", stableIds.absolutePath)
 		}
-		libraryResources.forEach { arguments += listOf("-R", it.absolutePath) }
-		flatFiles.forEach { arguments += listOf("-R", it.absolutePath) }
+		val resourceInputs = libraryResources + flatFiles
+		if (resourceInputs.size <= ARGFILE_THRESHOLD) {
+			resourceInputs.forEach { arguments += listOf("-R", it.absolutePath) }
+			return arguments
+		}
+		val argfile = File(linkedApk.absoluteFile.parentFile, "link-inputs.txt")
+		argfile.writeText(resourceInputs.joinToString("\n") { it.absolutePath })
+		arguments += listOf("-R", "@${argfile.absolutePath}")
 		return arguments
 	}
 
@@ -329,7 +363,10 @@ class Aapt2Link(
 	 *
 	 * @param output aapt2's merged stdout/stderr, parsed line by line; unrecognized lines drop.
 	 * @param fallback prefix for the synthesized error, naming which phase failed.
-	 * @return at least one ERROR diagnostic; the fallback carries the raw output, truncated to
+	 * @return at least one ERROR diagnostic; capped at [MAX_DIAGNOSTICS] entries plus a
+	 *   "+K more" marker (a broken resource pass can name every file in the project, and the
+	 *   whole list rides a protocol line into a phone-screen panel - same rationale as
+	 *   DexTool's MAX_DIAGNOSTIC_CHARS). The fallback carries the raw output, truncated to
 	 *   2000 characters.
 	 */
 	private fun parseDiagnostics(
@@ -349,7 +386,15 @@ class Aapt2Link(
 						line = lineNumber.toIntOrNull(),
 					)
 				}.toList()
-		if (diagnostics.any { it.severity == Diagnostic.Severity.ERROR }) return diagnostics
-		return diagnostics + Diagnostic(Diagnostic.Severity.ERROR, "$fallback: ${output.trim().take(2000)}")
+		if (diagnostics.any { it.severity == Diagnostic.Severity.ERROR }) return diagnostics.capped()
+		return diagnostics.capped() +
+			Diagnostic(Diagnostic.Severity.ERROR, "$fallback: ${output.trim().take(2000)}")
+	}
+
+	/** First [MAX_DIAGNOSTICS] entries, plus one marker naming how many were elided. */
+	private fun List<Diagnostic>.capped(): List<Diagnostic> {
+		if (size <= MAX_DIAGNOSTICS) return this
+		return take(MAX_DIAGNOSTICS) +
+			Diagnostic(Diagnostic.Severity.ERROR, "+${size - MAX_DIAGNOSTICS} more aapt2 diagnostics elided")
 	}
 }
