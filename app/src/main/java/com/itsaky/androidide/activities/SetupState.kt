@@ -20,6 +20,7 @@ package com.itsaky.androidide.activities
 import android.content.Context
 import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.FileUtil
 import com.itsaky.androidide.utils.PermissionsHelper
 import java.io.File
 
@@ -92,3 +93,19 @@ internal fun jdkInstallPrefix(): File = Environment.PREFIX ?: File(Environment.D
  */
 @VisibleForTesting
 internal fun androidSdkHome(): File = Environment.ANDROID_HOME ?: File(Environment.DEFAULT_HOME, "android-sdk")
+
+/**
+ * [Environment.PROJECTS_DIR], with the same pre-`Environment.init()` fallback as
+ * [jdkInstallPrefix] and [androidSdkHome].
+ *
+ * The third field assigned by that same unawaited loader coroutine, and the one the sweep missed.
+ * It is worse than the other two here: they feed [isIdeSetupComplete], which merely answers "not
+ * set up" when they read null, but this one is handed straight to `resolveDeepLinkProject`'s
+ * non-null `projectsRoot` parameter -- so a null is not a wrong answer, it is
+ * `NullPointerException: Parameter specified as non-null is null` thrown inside a
+ * `lifecycleScope.launch` with no handler, i.e. the process dying when the user taps a link during
+ * a cold start. `init()` derives the field as `new File(FileUtil.getExternalStorageDir(),
+ * PROJECTS_FOLDER)`, which is what this reconstructs.
+ */
+@VisibleForTesting
+internal fun projectsRoot(): File = Environment.PROJECTS_DIR ?: File(FileUtil.getExternalStorageDir(), Environment.PROJECTS_FOLDER)

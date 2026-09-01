@@ -58,6 +58,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
+import com.itsaky.androidide.models.EditorIntentExtras
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
@@ -250,7 +251,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		observeStates()
 		startServices()
 
-		if (intent.getBooleanExtra("HAS_TEMPLATE_ISSUES", false)) {
+		if (intent.getBooleanExtra(EditorIntentExtras.EXTRA_HAS_TEMPLATE_ISSUES, false)) {
 			flashError(getString(string.msg_template_warnings))
 		}
 	}

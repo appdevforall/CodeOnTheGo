@@ -51,6 +51,7 @@ import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.PluginManagerActivity
+import com.itsaky.androidide.activities.projectsRoot
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.app.BaseApplication
@@ -78,6 +79,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.models.DeepLinkOpenRequest
 import com.itsaky.androidide.models.DeepLinkRequest
+import com.itsaky.androidide.models.EditorIntentExtras
 import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.OpenedFilesCache
@@ -92,6 +94,7 @@ import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.manager.ui.PluginToolbarHost
 import com.itsaky.androidide.plugins.manager.ui.PluginUiActionManager
 import com.itsaky.androidide.preferences.internal.EditorPreferences
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
@@ -402,10 +405,21 @@ open class EditorHandlerActivity :
 	private fun performPendingDeepLinkOpen(pending: DeepLinkOpenRequest) {
 		val root = File(pending.projectRoot)
 		val ctx = applicationContext
-		recordProjectOpenedBookkeeping(recentProjectRepository, root, project = null, analyticsManager = analyticsManager)
+		if (!pending.bookkeepingAlreadyRecorded) {
+			recordProjectOpenedBookkeeping(recentProjectRepository, root, project = null, analyticsManager = analyticsManager)
+		}
+
+		// Starting an activity from onDestroy() is a background activity start -- and therefore dropped
+		// silently by Android 10+ -- only once the finishing activity was the last one in its task.
+		// That cannot happen here: this activity is never its task's root. It is reachable only
+		// through MainActivity (openProject) or DeepLinkActivity, which routes through MainActivity
+		// when no editor is live, and it is not exported, so nothing else can launch it. Verified on
+		// an Android 13 device: every androidide task has MainActivity at Hist #0 with this activity
+		// above it, so finishing leaves the task non-empty and the app in the foreground. A
+		// Beepy -> Aegis1 deep-link switch completed with no dropped start.
 		ctx.startActivity(
 			Intent(ctx, EditorActivityKt::class.java).apply {
-				putExtra("PROJECT_PATH", pending.projectRoot)
+				putExtra(EditorIntentExtras.EXTRA_PROJECT_PATH, pending.projectRoot)
 				pending.fileRequest?.let { putExtra(PendingFileRequest.EXTRA_KEY, it) }
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 			},
@@ -1412,6 +1426,8 @@ open class EditorHandlerActivity :
 
 	override fun areFilesModified(): Boolean = editorViewModel.areFilesModified
 
+	override fun hasUnsavedWritableFiles(): Boolean = hasFilesThatFailedToSave()
+
 	override fun areFilesSaving(): Boolean = editorViewModel.areFilesSaving
 
 	override fun closeFile(
@@ -2201,6 +2217,16 @@ open class EditorHandlerActivity :
 	// nothing) that intermediate intent happened to carry.
 	private var capturedPendingFileRequestBeforeSwitch = false
 
+	// The project that is actually staying open if the in-flight switch is cancelled or declined,
+	// snapshotted when the switch is detected. Not re-derived at restore time: on the plain-switch
+	// path MainActivity.openProject's bookkeeping has already overwritten
+	// IProjectManager.projectDirPath to the NEW project before the intent is even delivered here, so
+	// reading that global on decline restored PROJECT_PATH to the project the user just refused --
+	// and the next config-change recreate then loaded it, with the open buffers still belonging to
+	// the project that stayed. onNewIntent computes this same value for isProjectSwitchIntent; this
+	// keeps it for the decline path, which runs long after that local has gone.
+	private var stayingProjectPathBeforeSwitch: String? = null
+
 	// Tracked so a slower, older deep-link resolve (still in flight when a second, faster-resolving
 	// deep link arrives via onNewIntent) can tell it's been superseded -- mirrors
 	// MainActivity.latestDeepLinkRequest's identical race on the cold-open path.
@@ -2213,12 +2239,28 @@ open class EditorHandlerActivity :
 		// staying project's pending file request on every subsequent decline for the rest of this
 		// instance's life.
 		val restore = pendingFileRequestBeforeSwitch
+		val staying = stayingProjectPathBeforeSwitch
 		pendingFileRequestBeforeSwitch = null
 		capturedPendingFileRequestBeforeSwitch = false
+		stayingProjectPathBeforeSwitch = null
 
-		val stayingProjectPath = IProjectManager.getInstance().projectDirPath
+		// The snapshot taken when the switch was detected, not the live global: on the plain-switch
+		// path the global already holds the NEW project by the time this runs.
+		val stayingProjectPath = staying ?: IProjectManager.getInstance().projectDirPath
 		if (stayingProjectPath.isBlank()) return
-		intent.putExtra("PROJECT_PATH", stayingProjectPath)
+
+		// Roll the process-wide bookkeeping back too, not just the intent. MainActivity.openProject
+		// writes both of these before this dialog can be answered, so a decline otherwise leaves the
+		// app pointing at the project the user just refused: applyDeepLinkFileRequest resolves file
+		// paths against projectDirPath, so a later deep-link file navigation would look inside the
+		// wrong project, and lastOpenedProject would reopen it on the next cold start. Recents and
+		// the analytics event are deliberately left alone -- the user did ask to open it, and an
+		// insert that already happened is not wrong, merely early.
+		if (IProjectManager.getInstance().projectDirPath != stayingProjectPath) {
+			ProjectManagerImpl.getInstance().projectPath = stayingProjectPath
+			GeneralPreferences.lastOpenedProject = stayingProjectPath
+		}
+		intent.putExtra(EditorIntentExtras.EXTRA_PROJECT_PATH, stayingProjectPath)
 		if (restore != null) {
 			intent.putExtra(PendingFileRequest.EXTRA_KEY, restore)
 		} else {
@@ -2404,18 +2446,18 @@ open class EditorHandlerActivity :
 		// currently-loading project's directory name (mirroring BaseEditorActivity.onCreate's own
 		// deepLinkTargetsAnotherProject check) is a synchronous, disk-free way to tell same from
 		// different without waiting on the deep-link path's own async resolve.
-		// "PREVIOUS_PROJECT_PATH", when present, is what IProjectManager.projectDirPath held before
+		// EditorIntentExtras.EXTRA_PREVIOUS_PROJECT_PATH, when present, is what IProjectManager.projectDirPath held before
 		// MainActivity.openProject's bookkeeping call overwrote it to the NEW path -- by the time this
 		// intent arrives here, the global itself already reads as the new path regardless of whether
 		// this is actually a switch, so re-reading it for the comparison below would never detect one.
 		val previousProjectPath =
-			intent.getStringExtra("PREVIOUS_PROJECT_PATH") ?: IProjectManager.getInstance().projectDirPath
+			intent.getStringExtra(EditorIntentExtras.EXTRA_PREVIOUS_PROJECT_PATH) ?: IProjectManager.getInstance().projectDirPath
 		val isProjectSwitchIntent =
 			(
 				deepLinkRequest != null &&
 					!projectNamesMatch(File(IProjectManager.getInstance().projectDirPath).name, deepLinkRequest.projectName)
 			) ||
-				intent.getStringExtra("PROJECT_PATH")?.let { it != previousProjectPath } == true
+				intent.getStringExtra(EditorIntentExtras.EXTRA_PROJECT_PATH)?.let { it != previousProjectPath } == true
 
 		// Preserve a not-yet-applied file-navigation request from the previous intent -- postProjectInit
 		// reads it lazily once a sync completes, and setIntent() below would otherwise silently drop it
@@ -2438,6 +2480,7 @@ open class EditorHandlerActivity :
 			pendingFileRequestBeforeSwitch =
 				IntentCompat.getParcelableExtra(getIntent(), PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
 			capturedPendingFileRequestBeforeSwitch = true
+			stayingProjectPathBeforeSwitch = previousProjectPath
 		}
 		setIntent(intent)
 
@@ -2464,7 +2507,21 @@ open class EditorHandlerActivity :
 		latestDeepLinkRequest = request
 
 		lifecycleScope.launch(Dispatchers.IO) {
-			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName) ?: return@launch
+			val projectDir = resolveDeepLinkProject(projectsRoot(), request.projectName)
+			if (projectDir == null) {
+				// No such project, so the switch this intent announced is never going to happen. Without
+				// this the capture above is stranded: setIntent() has already dropped the staying
+				// project's pending file request, nothing puts it back, and
+				// capturedPendingFileRequestBeforeSwitch stays true for the life of the instance -- so
+				// the next genuine switch skips its own capture and a later decline restores this stale
+				// one instead. The two lifecycle early-returns below deliberately don't do this: a
+				// finishing instance has nothing to restore into, and a superseded request must leave
+				// the capture alone for the newer switch that is still relying on it.
+				withContext(Dispatchers.Main) {
+					if (!isFinishing && !isDestroyed) restoreIntentToStayingProject()
+				}
+				return@launch
+			}
 			withContext(Dispatchers.Main) {
 				// The activity may have started finishing while resolveDeepLinkProject was still
 				// scanning disk -- lifecycleScope only cancels at ON_DESTROY, not the moment isFinishing
@@ -2515,7 +2572,7 @@ open class EditorHandlerActivity :
 		// "last opened project" record pointing at a project the app never actually opens. Letting the
 		// later request win (matching pendingCloseCallback's/askProjectOpenPermission's same
 		// last-request-wins pattern elsewhere in this file) keeps behavior consistent with bookkeeping.
-		val newProjectPath = intent.getStringExtra("PROJECT_PATH")?.takeIf { it.isNotBlank() } ?: return
+		val newProjectPath = intent.getStringExtra(EditorIntentExtras.EXTRA_PROJECT_PATH)?.takeIf { it.isNotBlank() } ?: return
 		val fileRequest =
 			IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
 		// No unconditional drain here (unlike this method's earlier version): switchToProject's own
@@ -2528,8 +2585,10 @@ open class EditorHandlerActivity :
 		// See onNewIntent's identical read: MainActivity.openProject's bookkeeping call already
 		// overwrote the live global to newProjectPath before this intent arrived.
 		val previousProjectPath =
-			intent.getStringExtra("PREVIOUS_PROJECT_PATH") ?: IProjectManager.getInstance().projectDirPath
-		switchToProject(newProjectPath, fileRequest, previousProjectPath)
+			intent.getStringExtra(EditorIntentExtras.EXTRA_PREVIOUS_PROJECT_PATH) ?: IProjectManager.getInstance().projectDirPath
+		// bookkeepingAlreadyRecorded: this intent came from MainActivity.openProject, which recorded
+		// the open before sending it.
+		switchToProject(newProjectPath, fileRequest, previousProjectPath, bookkeepingAlreadyRecorded = true)
 	}
 
 	/**
@@ -2548,6 +2607,7 @@ open class EditorHandlerActivity :
 		newProjectPath: String,
 		fileRequest: PendingFileRequest?,
 		previousProjectPath: String = IProjectManager.getInstance().projectDirPath,
+		bookkeepingAlreadyRecorded: Boolean = false,
 	) {
 		val currentProjectPath = previousProjectPath
 		when {
@@ -2560,7 +2620,7 @@ open class EditorHandlerActivity :
 			// wins, matching handlePlainProjectSwitch's own reasoning) is unconditionally correct
 			// here since this instance can't do anything else with a new request anyway.
 			isFinishing -> {
-				pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest)
+				pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest, bookkeepingAlreadyRecorded)
 			}
 
 			// Either no project has actually finished initializing in this instance yet (e.g. it was
@@ -2570,7 +2630,7 @@ open class EditorHandlerActivity :
 			// onDestroy()-deferred handoff used for a confirmed project switch instead of showing (or
 			// trying to show) a close dialog that can't work either way.
 			currentProjectPath.isBlank() || contentOrNull == null -> {
-				pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest)
+				pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest, bookkeepingAlreadyRecorded)
 				finish()
 			}
 
@@ -2616,7 +2676,7 @@ open class EditorHandlerActivity :
 				// only record the pending open if the user actually confirms -- see onDestroy() for
 				// why the reopen itself waits until this instance is torn down.
 				confirmProjectClose {
-					pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest)
+					pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest, bookkeepingAlreadyRecorded)
 				}
 			}
 		}
@@ -2678,8 +2738,10 @@ open class EditorHandlerActivity :
 					columnInvalidRaw != null -> flashError(getString(string.msg_deeplink_invalid_column, shown(columnInvalidRaw)))
 				}
 
-				val pos = Position(line, column)
-				openFileAndSelect(file, Range(pos, pos))
+				// Range.pointRange, not Range(pos, pos): the factory already exists for exactly this, and
+				// it hands back two distinct Positions -- passing one instance as both ends gives
+				// EditorFeatures.validateRange a Range whose clamps move each other.
+				openFileAndSelect(file, Range.pointRange(Position(line, column)))
 			}
 		}
 	}

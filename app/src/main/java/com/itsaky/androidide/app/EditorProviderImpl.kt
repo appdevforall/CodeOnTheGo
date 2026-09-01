@@ -241,8 +241,9 @@ class EditorProviderImpl(
 		column: Int,
 	): Boolean {
 		val activity = activity() ?: return false
-		val pos = Position(line.coerceAtLeast(0), column.coerceAtLeast(0))
-		activity.openFileAndSelect(file, Range(pos, pos))
+		// Same aliasing as the deep-link path: one Position handed in as both ends of a Range gets
+		// its two clamps applied to the same object by EditorFeatures.validateRange.
+		activity.openFileAndSelect(file, Range.pointRange(Position(line.coerceAtLeast(0), column.coerceAtLeast(0))))
 		return true
 	}
 

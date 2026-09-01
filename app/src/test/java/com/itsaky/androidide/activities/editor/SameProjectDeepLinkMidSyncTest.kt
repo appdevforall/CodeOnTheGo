@@ -21,6 +21,7 @@ import android.content.Intent
 import androidx.core.content.IntentCompat
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.app.BaseApplication
+import com.itsaky.androidide.deeplink.PendingDeepLinkOpen
 import com.itsaky.androidide.models.PendingFileRequest
 import com.itsaky.androidide.projects.IProjectManager
 import io.mockk.every
@@ -28,8 +29,12 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext.startKoin
+import org.koin.core.context.GlobalContext.stopKoin
+import org.koin.dsl.module
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -55,8 +60,19 @@ import org.robolectric.annotation.Config
 class SameProjectDeepLinkMidSyncTest {
 	open class TestApp : BaseApplication()
 
+	// switchToProject reads the Koin-provided PendingDeepLinkOpen on three of its four branches, and
+	// this activity is built but never created, so `isDestroyed` makes contentOrNull null and the
+	// binding-torn-down branch is the one taken. Without a Koin context that branch threw
+	// "KoinApplication has not been started" before the test could assert anything -- this test has
+	// been failing on the branch for exactly that reason, independently of what it is meant to check.
+	@Before
+	fun setUp() {
+		startKoin { modules(module { single { PendingDeepLinkOpen() } }) }
+	}
+
 	@After
 	fun tearDown() {
+		stopKoin()
 		unmockkAll()
 	}
 
@@ -92,9 +108,12 @@ class SameProjectDeepLinkMidSyncTest {
 				String::class.java,
 				PendingFileRequest::class.java,
 				String::class.java,
+				// bookkeepingAlreadyRecorded: false here, since this exercises the deep-link path, where
+				// MainActivity.openProject never ran and the open has not been recorded yet.
+				Boolean::class.javaPrimitiveType,
 			)
 		switchToProject.isAccessible = true
-		switchToProject.invoke(activity, projectPath, newRequest, projectPath)
+		switchToProject.invoke(activity, projectPath, newRequest, projectPath, false)
 
 		// postProjectInit's deferred retry reads exactly this extra once the sync completes: it
 		// must find the new request -- not nothing, and not the stale carried-forward one.

@@ -116,7 +116,10 @@ constructor(
 
 		@JvmStatic
 		fun pointRange(position: Position): Range {
-			return Range(position, position)
+			// Two copies, not the same instance twice. Position's fields are `var` and
+			// EditorFeatures.validateRange clamps range.start and range.end in place, so a Range whose
+			// two ends alias one object has each clamp silently move the other end too.
+			return Range(position.copy(), position.copy())
 		}
 	}
 

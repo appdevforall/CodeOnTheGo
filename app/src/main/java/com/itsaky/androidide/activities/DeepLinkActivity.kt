@@ -53,7 +53,16 @@ class DeepLinkActivity : Activity() {
 		// storage, ABI and onboarding are SplashActivity's to enforce, not this activity's to repeat.
 		if (!isIdeSetupComplete()) {
 			Toast.makeText(this, getString(string.msg_deeplink_setup_incomplete), Toast.LENGTH_LONG).show()
-			startActivity(Intent(this, SplashActivity::class.java))
+			// FLAG_ACTIVITY_NEW_TASK, matching the success branch below. A sender that starts this
+			// trampoline without it -- an in-app WebView host, another app's explicit intent, `am start`
+			// -- puts this activity in the *caller's* task, and an unflagged start here would run the
+			// whole terms/permissions/JDK-install onboarding inside that app's back stack, where
+			// back-press returns to them rather than exiting CoGo.
+			startActivity(
+				Intent(this, SplashActivity::class.java).apply {
+					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+				},
+			)
 			finish()
 			return
 		}

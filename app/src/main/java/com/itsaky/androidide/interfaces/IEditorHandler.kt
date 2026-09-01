@@ -53,6 +53,17 @@ interface IEditorHandler {
 
 	fun areFilesModified(): Boolean
 
+	/**
+	 * Whether any open file still holds unsaved edits *that a save could actually have written*.
+	 *
+	 * Not the same question as [areFilesModified], which is a cached flag recomputed only as a side
+	 * effect of a successful per-file write, and which counts read-only archive tabs (.zip/.apk and
+	 * friends) that `CodeEditorView.save()` never writes. Asking [areFilesModified] after a save to
+	 * decide whether the save worked therefore answers "still modified" forever whenever such a tab
+	 * is open, which is why this exists.
+	 */
+	fun hasUnsavedWritableFiles(): Boolean
+
 	fun areFilesSaving(): Boolean
 
 	/**

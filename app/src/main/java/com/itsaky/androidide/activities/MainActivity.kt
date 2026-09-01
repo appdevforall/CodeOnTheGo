@@ -49,6 +49,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.localWebServer.ServerConfig
 import com.itsaky.androidide.localWebServer.WebServer
 import com.itsaky.androidide.models.DeepLinkRequest
+import com.itsaky.androidide.models.EditorIntentExtras
 import com.itsaky.androidide.models.PendingFileRequest
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.IProjectManager
@@ -497,7 +498,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			}
 			openProject(root, pendingFileRequest = pendingFileRequest)
 		}
-		builder.setNegativeButton(string.no, null)
+		// Consumed on decline too, not just on confirm. "No" is a decision the user made about this
+		// request, so leaving it unconsumed meant every later recreate of this activity -- a dark-mode
+		// toggle or a font-scale change, neither of which MainActivity declares in configChanges --
+		// re-read the extra from the launch Intent and put the very same dialog back up, with no way
+		// to make it stop.
+		builder.setNegativeButton(string.no) { _, _ ->
+			if (isDeepLink) {
+				consumedDeepLinkRequests.add(latestDeepLinkRequest)
+			}
+		}
 		activeOpenPermissionDialog = builder.show()
 	}
 
@@ -524,10 +534,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		val intent =
 			Intent(this, EditorActivityKt::class.java).apply {
-				putExtra("PROJECT_PATH", root.absolutePath)
-				putExtra("PREVIOUS_PROJECT_PATH", previousProjectPath)
+				putExtra(EditorIntentExtras.EXTRA_PROJECT_PATH, root.absolutePath)
+				putExtra(EditorIntentExtras.EXTRA_PREVIOUS_PROJECT_PATH, previousProjectPath)
 				if (hasTemplateIssues) {
-					putExtra("HAS_TEMPLATE_ISSUES", true)
+					putExtra(EditorIntentExtras.EXTRA_HAS_TEMPLATE_ISSUES, true)
 				}
 				pendingFileRequest?.let { putExtra(PendingFileRequest.EXTRA_KEY, it) }
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -584,14 +594,23 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private fun handleDeepLinkRequest(request: DeepLinkRequest) {
 		latestDeepLinkRequest = request
 		lifecycleScope.launch(Dispatchers.IO) {
-			val projectDir = resolveDeepLinkProject(Environment.PROJECTS_DIR, request.projectName)
+			val projectDir = resolveDeepLinkProject(projectsRoot(), request.projectName)
 			withContext(Dispatchers.Main) {
 				// The activity may have started finishing while resolveDeepLinkProject was still
 				// scanning disk -- lifecycleScope only cancels at ON_DESTROY, not the moment isFinishing
 				// first flips true, so this continuation can otherwise still run and show a dialog on a
 				// dying window.
 				if (isFinishing || isDestroyed) return@withContext
-				projectDir ?: return@withContext
+				if (projectDir == null) {
+					// Consumed even though nothing opened: the project does not exist, so retrying on
+					// every recreate only re-shows "No project named X was found" indefinitely. Recorded
+					// only when this request is still the current one, so a superseded slow resolve
+					// cannot consume the newer request's slot.
+					if (latestDeepLinkRequest === request) {
+						consumedDeepLinkRequests.add(request)
+					}
+					return@withContext
+				}
 				// A second, faster-resolving deep link superseded this one while it was still resolving
 				// -- this stale, slower request must not now bounce the user back to its own (older)
 				// target after they've already been taken to the newer one.

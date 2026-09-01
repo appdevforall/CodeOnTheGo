@@ -105,6 +105,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.models.DiagnosticGroup
+import com.itsaky.androidide.models.EditorIntentExtras
 import com.itsaky.androidide.models.OpenedFile
 import com.itsaky.androidide.models.PendingFileRequest
 import com.itsaky.androidide.models.Range
@@ -523,7 +524,13 @@ abstract class BaseEditorActivity :
 	}
 
 	protected open fun postDestroy() {
-		if (isDestroying) {
+		// didCompleteLiveOnCreate as well as isDestroying, for the same reason preDestroy above and
+		// both of ProjectHandlerActivity's teardown hooks carry it -- and it matters more here, because
+		// everything below is process-wide rather than per-instance. An instance whose onCreate took the
+		// deep-link `deepLinkTargetsAnotherProject` bail (finish() + return) never registered any of
+		// this, but it *is* finishing, so isDestroying alone let it unregister the Lookup and clear all
+		// three registries out from under the live sibling that did register them.
+		if (didCompleteLiveOnCreate && isDestroying) {
 			Lookup.getDefault().unregisterAll()
 			ApiVersionsRegistry.getInstance().clear()
 			ResourceTableRegistry.getInstance().clear()
@@ -683,7 +690,7 @@ abstract class BaseEditorActivity :
 		// project instead of the one the link actually requested.
 		val explicitProjectPath =
 			savedInstanceState?.getString(KEY_PROJECT_PATH)?.takeIf { it.isNotBlank() }
-				?: intent?.getStringExtra("PROJECT_PATH")?.takeIf { it.isNotBlank() }
+				?: intent?.getStringExtra(EditorIntentExtras.EXTRA_PROJECT_PATH)?.takeIf { it.isNotBlank() }
 		val restoredProjectPath =
 			explicitProjectPath
 				?: if (deepLinkRequest == null) {

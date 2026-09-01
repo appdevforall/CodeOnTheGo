@@ -174,11 +174,20 @@ data class DeepLinkRequest(
 
 					val filePath = segments.subList(startIdx, endIdx).joinToString("/")
 
-					PendingFileRequest(
-						filePath = filePath,
-						lineRaw = lineRaw,
-						columnRaw = columnRaw,
-					)
+					// `.../file/line/5` peels "line/5" off and leaves nothing between startIdx and
+					// endIdx, so the file request would carry an empty path -- which resolves against
+					// nothing and surfaces to the user as the nonsense `File "" was not found in the
+					// project.` The link named no file, so it is a plain project-open link; the line and
+					// column, having nothing to apply to, go with it.
+					if (filePath.isEmpty()) {
+						null
+					} else {
+						PendingFileRequest(
+							filePath = filePath,
+							lineRaw = lineRaw,
+							columnRaw = columnRaw,
+						)
+					}
 				}
 
 			return DeepLinkRequest(projectName = projectName, fileRequest = fileRequest)
@@ -195,4 +204,14 @@ data class DeepLinkRequest(
 data class DeepLinkOpenRequest(
 	val projectRoot: String,
 	val fileRequest: PendingFileRequest?,
+	/**
+	 * Whether `recordProjectOpenedBookkeeping` has already run for [projectRoot].
+	 *
+	 * True for the plain project-switch path, where MainActivity.openProject records the open before
+	 * it even sends the intent; false for a deep link arriving at an already-live editor, which
+	 * never goes through MainActivity at all. Without the distinction the hand-off recorded every
+	 * plain switch twice -- two Recents inserts and, more visibly, two `trackProjectOpened` events
+	 * for one user action.
+	 */
+	val bookkeepingAlreadyRecorded: Boolean = false,
 ) : Parcelable

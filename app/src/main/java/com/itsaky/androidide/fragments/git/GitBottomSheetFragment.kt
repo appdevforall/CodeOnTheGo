@@ -688,11 +688,21 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						// succeeded means saveAll() did not throw, not that every write landed: a silent
 						// per-file failure (disk full, say) leaves a file modified with succeeded still
 						// true, and running a commit or pull then operates on a tree whose edits were
-						// never written. areFilesModified() reflects the per-file state each save updates.
-						if (succeeded && handler.areFilesModified() == false) {
+						// never written.
+						//
+						// hasUnsavedWritableFiles(), not areFilesModified(): the latter is a cached flag
+						// that counts read-only archive tabs, which no save ever writes, so with a .zip or
+						// .apk tab open it stays true forever and every git action here would be refused
+						// with no way for the user to clear it. Same question EditorHandlerActivity asks
+						// itself after its own saves.
+						if (succeeded && !handler.hasUnsavedWritableFiles()) {
 							action()
 						} else {
-							flashError(R.string.save_failed)
+							// The String overload, not flashError(Int): the Int one shows a ~1s
+							// auto-dismissing bar, and a user who looked away would never learn the git
+							// action was abandoned and their edits are still unwritten. Matches the
+							// reasoning EditorHandlerActivity spells out on its own save-failure path.
+							flashError(getString(R.string.save_failed))
 						}
 					}
 				}.setNegativeButton(R.string.no_save_before_git_action) { _, _ ->

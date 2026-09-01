@@ -153,20 +153,31 @@ class DeepLinkRequestTest {
 	}
 
 	@Test
-	fun `a file path that is only 'line' plus one segment is read as the keyword -- known limitation`() {
-		// Documents, rather than fixes, a case the previous test's approach can't resolve: with
-		// nothing else in the path, `file/line/Main.kt` is structurally identical to a real line
-		// suffix -- there's no delimiter in this URL scheme to tell "a directory named line" apart
-		// from "the line keyword" when it's the only content after `file`. Locking in current
-		// behavior so a future change doesn't alter it silently.
+	fun `a file path that is only 'line' plus one segment names no file, so there is no file request`() {
+		// The keyword ambiguity itself is still unresolved and still a known limitation: with nothing
+		// else in the path, `file/line/Main.kt` is structurally identical to a real line suffix, and
+		// this URL scheme has no delimiter to tell "a directory named line" from "the line keyword".
+		// What changed is what the parser does once it has peeled the pair off and found nothing left
+		// to open. It used to hand back a PendingFileRequest whose filePath was empty, which resolves
+		// against nothing and reached the user as `File "" was not found in the project.` A link that
+		// names no file is a plain project-open link, so the file request is dropped -- and the line
+		// value goes with it, having nothing left to apply to.
 		val request = parse("https://www.appdevforall.org/device/open/project/MyApp/file/line/Main.kt")
-		assertThat(request)
-			.isEqualTo(
-				DeepLinkRequest(
-					projectName = "MyApp",
-					fileRequest = PendingFileRequest(filePath = "", lineRaw = "Main.kt", columnRaw = null),
-				),
-			)
+		assertThat(request).isEqualTo(DeepLinkRequest(projectName = "MyApp", fileRequest = null))
+	}
+
+	@Test
+	fun `a numeric line with no file path is a plain project-open link`() {
+		// The shape the review actually reported: `file/line/5` peels cleanly, leaves an empty path,
+		// and must not become a file request for the empty string.
+		assertThat(parse("https://www.appdevforall.org/device/open/project/MyApp/file/line/5"))
+			.isEqualTo(DeepLinkRequest(projectName = "MyApp", fileRequest = null))
+	}
+
+	@Test
+	fun `an empty file path with both line and column is a plain project-open link`() {
+		assertThat(parse("https://www.appdevforall.org/device/open/project/MyApp/file/line/5/column/7"))
+			.isEqualTo(DeepLinkRequest(projectName = "MyApp", fileRequest = null))
 	}
 
 	@Test
