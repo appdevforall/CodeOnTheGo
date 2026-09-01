@@ -18,7 +18,7 @@ class FakeDaemon : QuickBuildDaemon {
 	val startConfigs = mutableListOf<DaemonConfig>()
 	val compileCalls = mutableListOf<Pair<List<File>, List<File>>>()
 
-	/** Removed-sources arg of each `compile`, recorded separately for Bug-12 assertions. */
+	/** Removed-sources arg of each `compile`, so removed-source assertions need not unpick the changed set. */
 	val compileRemovedFiles = mutableListOf<List<File>>()
 	val dexCalls = mutableListOf<List<File>>()
 	val relinkCalls = mutableListOf<RelinkInputs>()
