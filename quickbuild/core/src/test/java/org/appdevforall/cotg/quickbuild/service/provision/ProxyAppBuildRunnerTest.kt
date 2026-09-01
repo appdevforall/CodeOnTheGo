@@ -161,7 +161,7 @@ class ProxyAppBuildRunnerTest {
 	fun `a deferred rebuild - slot busy while parked - books no rebuild metric`() =
 		runTest {
 			provisioner.rebuildOutcome = { ProxyAppRebuildOutcome.BuildSlotBusy }
-			val result = runner().rebuildProxyApp(parkedRetry = true, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = true, superseded = { false }, userAskOutstanding = { true })
 			assertThat(result).isEqualTo(ProxyAppBuildRunner.ProxyAppRebuildResult.BuildSlotBusy)
 			assertThat(metrics.rebuilds).isEmpty()
 		}
@@ -170,7 +170,7 @@ class ProxyAppBuildRunnerTest {
 	fun `a first rebuild losing the slot books a failed rebuild metric`() =
 		runTest {
 			provisioner.rebuildOutcome = { ProxyAppRebuildOutcome.BuildSlotBusy }
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 			assertThat(result).isEqualTo(ProxyAppBuildRunner.ProxyAppRebuildResult.BuildSlotBusy)
 			assertThat(metrics.rebuilds).containsExactly(false)
 		}
@@ -184,7 +184,7 @@ class ProxyAppBuildRunnerTest {
 				ProxyAppRebuildOutcome.Success(proxyApp(newRoot), QuickBuildProjectLayout(newRoot))
 			}
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			assertThat(result)
 				.isInstanceOf(ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded::class.java)
@@ -219,10 +219,12 @@ class ProxyAppBuildRunnerTest {
 			}
 			deploy.reconnectGeneration = { 7L }
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			assertThat(result)
 				.isInstanceOf(ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded::class.java)
+			// The manager reads this to drop its deferred ask: one tap, one launch.
+			assertThat((result as ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded).answeredUserAsk).isTrue()
 			// Same (package, launcherActivity) shape the restart deploy launches with.
 			assertThat(launches).containsExactly("com.example.quickbuild" to "com.example.QbMain")
 			assertThat(metrics.rebuilds).containsExactly(true)
@@ -240,9 +242,30 @@ class ProxyAppBuildRunnerTest {
 			}
 			deploy.reconnectGeneration = { 7L }
 
-			runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			assertThat(launches).containsExactly("com.example.quickbuild" to null)
+		}
+
+	@Test
+	fun `a successful rebuild with no user ask outstanding does not relaunch the app`() =
+		runTest {
+			// The user did not click Quick Build - this rebaseline came from a save - so the
+			// reinstalled app stays in the background. The deploy channel's reconnect
+			// catch-up keeps it current for whenever the user opens it themselves.
+			provisioner.rebuildOutcome = {
+				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
+			}
+
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { false })
+
+			assertThat(result)
+				.isInstanceOf(ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded::class.java)
+			assertThat((result as ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded).answeredUserAsk).isFalse()
+			assertThat(launches).isEmpty()
+			// The rebuild still books as a success; only the relaunch fields stay empty.
+			assertThat(metrics.rebuilds).containsExactly(true)
+			assertThat(metrics.relaunches).containsExactly(false to null)
 		}
 
 	@Test
@@ -252,7 +275,7 @@ class ProxyAppBuildRunnerTest {
 				ProxyAppRebuildOutcome.Failure(QuickBuildMessage.Literal("bad build.gradle"))
 			}
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			assertThat(result)
 				.isEqualTo(ProxyAppBuildRunner.ProxyAppRebuildResult.Failed(QuickBuildMessage.Literal("bad build.gradle")))
@@ -268,7 +291,7 @@ class ProxyAppBuildRunnerTest {
 			}
 			daemon.startReply = DaemonReply.Failed("no memory")
 
-			runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			assertThat(launches).isEmpty()
 			// The Gradle build itself succeeded, so isSuccess stays true as before...
@@ -285,7 +308,7 @@ class ProxyAppBuildRunnerTest {
 			}
 			launchResult = false
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			// The relaunch is best-effort: the baseline and daemon are fine, so the
 			// rebuild result must not fail on it.
@@ -305,7 +328,7 @@ class ProxyAppBuildRunnerTest {
 			val reconnects = ArrayDeque(listOf<Long?>(null, 7L))
 			deploy.reconnectGeneration = { reconnects.removeFirst() }
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			assertThat(result)
 				.isInstanceOf(ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded::class.java)
@@ -323,7 +346,7 @@ class ProxyAppBuildRunnerTest {
 			}
 			deploy.reconnectGeneration = { null }
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			// Two starts were issued (the swallowed-start retry), then it gave up.
 			assertThat(launches).hasSize(2)
@@ -341,7 +364,7 @@ class ProxyAppBuildRunnerTest {
 				ProxyAppRebuildOutcome.InstallNotConfirmed(QuickBuildMessage.Literal("tap install"))
 			}
 
-			runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			assertThat(launches).isEmpty()
 			assertThat(metrics.relaunches).containsExactly(false to null)
@@ -354,7 +377,7 @@ class ProxyAppBuildRunnerTest {
 				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
 			}
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { true })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { true }, userAskOutstanding = { true })
 
 			assertThat(result).isEqualTo(ProxyAppBuildRunner.ProxyAppRebuildResult.Superseded)
 			assertThat(launches).isEmpty()
@@ -369,7 +392,7 @@ class ProxyAppBuildRunnerTest {
 				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
 			}
 			daemon.startReply = DaemonReply.Failed("no memory")
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 			assertThat(result)
 				.isEqualTo(ProxyAppBuildRunner.ProxyAppRebuildResult.DaemonRestartFailed("no memory"))
 		}
@@ -378,7 +401,7 @@ class ProxyAppBuildRunnerTest {
 	fun `a rebuild provisioner that throws becomes Failed, not a propagated exception`() =
 		runTest {
 			provisioner.rebuildOutcome = { throw IllegalStateException("gradle exploded") }
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 			assertThat(result)
 				.isEqualTo(ProxyAppBuildRunner.ProxyAppRebuildResult.Failed(QuickBuildMessage.Literal("gradle exploded")))
 			// A real attempt that died still books a failed rebuild.
@@ -402,6 +425,8 @@ class ProxyAppBuildRunnerTest {
 			assertThat(result)
 				.isEqualTo(ProxyAppBuildRunner.ProvisionResult.Failed(QuickBuildMessage.Literal("provision exploded")))
 		}
+
+	// Message-less throw fallbacks live in [ProxyAppBuildRunnerEdgeTest].
 
 	@Test
 	fun `a session assembly throw after the daemon started unwinds the session and daemon and becomes Failed`() =

@@ -410,8 +410,16 @@ sealed interface SessionEvent {
 	 * [QuickBuildNotice.RELINK_STUCK], [QuickBuildNotice.PROXY_APP_WONT_STAY_UP]) needs a fresh
 	 * proxy app build to deliver it, and stopping at Idle instead leaves an unchanged toolbar icon
 	 * and a second tap for the user to discover (T15).
+	 *
+	 * @property userInitiated true when a user gesture (the menu item, the dialog) asked for the
+	 *   restart. Copied into [QuickBuildSessionState.Provisioning.userInitiated], so the fresh
+	 *   session brings the proxy app forward when it goes live. False for an automatic
+	 *   reprovision, such as a Build Variants switch re-syncing the project, where nobody asked
+	 *   to leave the editor. Defaults to true; automatic callers opt out explicitly.
 	 */
-	data object SessionRestartAndReprovisionRequested : SessionEvent
+	data class SessionRestartAndReprovisionRequested(
+		val userInitiated: Boolean = true,
+	) : SessionEvent
 }
 
 /** Side effects the session manager must run after a transition. */

@@ -121,12 +121,22 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `provisioning ignores a QuickBuildTapped event`() {
-		val transition =
-			reducer.reduce(QuickBuildSessionState.Provisioning(), SessionEvent.QuickBuildTapped())
+	fun `a tap during provisioning records the ask instead of dropping it`() {
+		// The user clicked Quick Build, so the switch to the proxy app happens once enough
+		// building has happened - here, when the full build in flight lands. The case that
+		// matters is a save-triggered rebaseline: it provisions with userInitiated = false,
+		// so dropping the tap left that ask permanently unanswered.
+		val rebaselining =
+			QuickBuildSessionState.Provisioning(rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED)
+		val transition = reducer.reduce(rebaselining, SessionEvent.QuickBuildTapped())
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
+		// No effect on purpose: the build in flight already covers the tap's build half.
+		assertThat(transition.state).isEqualTo(rebaselining.copy(userInitiated = true))
 		assertThat(transition.effects).isEmpty()
+
+		// The recorded ask is answered when that build lands.
+		val landed = reducer.reduce(transition.state, SessionEvent.ProvisioningSucceeded(3))
+		assertThat(landed.effects).contains(SessionEffect.SwitchToProxyApp)
 	}
 
 	@Test
@@ -1025,7 +1035,7 @@ class SessionReducerTest {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Ready(3),
-				SessionEvent.SessionRestartAndReprovisionRequested,
+				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
@@ -1037,7 +1047,7 @@ class SessionReducerTest {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Idle(),
-				SessionEvent.SessionRestartAndReprovisionRequested,
+				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
@@ -1049,7 +1059,7 @@ class SessionReducerTest {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Deployed(4, 900),
-				SessionEvent.SessionRestartAndReprovisionRequested,
+				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
@@ -1061,7 +1071,7 @@ class SessionReducerTest {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Building(1),
-				SessionEvent.SessionRestartAndReprovisionRequested,
+				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
@@ -1073,7 +1083,7 @@ class SessionReducerTest {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Degraded(1),
-				SessionEvent.SessionRestartAndReprovisionRequested,
+				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
@@ -1088,12 +1098,31 @@ class SessionReducerTest {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 2),
-				SessionEvent.SessionRestartAndReprovisionRequested,
+				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
 		assertThat((transition.state as QuickBuildSessionState.Provisioning).rebaselineReason).isNull()
 		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownAndProvision))
+	}
+
+	@Test
+	fun `an automatic reprovision - a variant switch - goes live without stealing the screen`() {
+		// Nobody tapped anything: the restart was CoGo reacting to a Build Variants change.
+		// The fresh session must come up in the background, so the flag from the event rides
+		// into Provisioning instead of being assumed true.
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Ready(2),
+				SessionEvent.SessionRestartAndReprovisionRequested(userInitiated = false),
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = false))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownAndProvision))
+
+		// And the fresh session's landing leaves the user in the editor.
+		val landed = reducer.reduce(transition.state, SessionEvent.ProvisioningSucceeded(0))
+		assertThat(landed.effects).doesNotContain(SessionEffect.SwitchToProxyApp)
 	}
 
 	// Bryan's button spec (2026-07-29). The reducer owns two of the five decisions: WHO the
@@ -1231,13 +1260,31 @@ class SessionReducerTest {
 	// no message and no state change - "I saved my fix and nothing happened".
 
 	@Test
-	fun `degraded plus QuickBuildTapped retries the respawn and says so`() {
-		// Catches: dropping QuickBuildTapped from reduceDegraded, or emitting RespawnDaemon with
-		// no acknowledgement. A respawn already in flight answers with Superseded and reports
-		// nothing, so the effect alone can still leave the tap looking ignored.
+	fun `a tap while the respawn is in flight acks without racing a second respawn`() {
+		// Degraded with restartFailed = false means the DaemonDied respawn is still running,
+		// and a respawn never bumps the daemon epoch - so a second RespawnDaemon here would
+		// race the first for the same daemon rather than be answered with Superseded. The tap
+		// is still acknowledged, or it would look ignored (the in-flight respawn reports
+		// nothing when it lands).
 		val transition = reducer.reduce(QuickBuildSessionState.Degraded(3), SessionEvent.QuickBuildTapped())
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Degraded(3))
+		assertThat(transition.effects)
+			.isEqualTo(listOf(SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying)))
+	}
+
+	@Test
+	fun `a tap after the respawn gave up retries it`() {
+		// restartFailed = true means nothing is scheduled any more - here the tap IS the
+		// retry, so RespawnDaemon rides along and the flag resets so the status reads
+		// "restarting" again.
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Degraded(3, restartFailed = true),
+				SessionEvent.QuickBuildTapped(),
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Degraded(3, restartFailed = false))
 		assertThat(transition.effects)
 			.isEqualTo(
 				listOf(

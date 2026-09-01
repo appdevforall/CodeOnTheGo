@@ -103,8 +103,10 @@ class ProxyAppBuildRunnerEdgeTest {
 		)
 
 	@Test
-	fun `a message-less provisioner throw is reported by exception class name`() =
+	fun `a message-less provisioner throw surfaces a named failure, not a class name`() =
 		runTest {
+			// A bare NPE or `check` carries no message; the class name is diagnostic and
+			// belongs in the error log, not on a banner.
 			provisioner.provisionOutcome = { throw IllegalStateException() }
 
 			val result = runner().provision(superseded = { false })
@@ -112,7 +114,7 @@ class ProxyAppBuildRunnerEdgeTest {
 			assertThat(result)
 				.isEqualTo(
 					ProxyAppBuildRunner.ProvisionResult.Failed(
-						QuickBuildMessage.Literal(IllegalStateException::class.java.name),
+						QuickBuildMessage.ProvisioningFailedUnexpectedly,
 					),
 				)
 		}
@@ -185,7 +187,7 @@ class ProxyAppBuildRunnerEdgeTest {
 				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
 			}
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { true })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { true }, userAskOutstanding = { true })
 
 			assertThat(result).isEqualTo(ProxyAppBuildRunner.ProxyAppRebuildResult.Superseded)
 			// The superseded rebuild must NOT restart a daemon for a dead session.
@@ -193,18 +195,14 @@ class ProxyAppBuildRunnerEdgeTest {
 		}
 
 	@Test
-	fun `a message-less rebuild throw is reported by exception class name`() =
+	fun `a message-less rebuild throw surfaces the named rebuild failure, not a class name`() =
 		runTest {
 			provisioner.rebuildOutcome = { throw IllegalStateException() }
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			assertThat(result)
-				.isEqualTo(
-					ProxyAppBuildRunner.ProxyAppRebuildResult.Failed(
-						QuickBuildMessage.Literal(IllegalStateException::class.java.name),
-					),
-				)
+				.isEqualTo(ProxyAppBuildRunner.ProxyAppRebuildResult.Failed(QuickBuildMessage.RebuildFailed))
 		}
 
 	@Test
@@ -214,7 +212,7 @@ class ProxyAppBuildRunnerEdgeTest {
 				ProxyAppRebuildOutcome.InstallNotConfirmed(QuickBuildMessage.Literal("tap install"))
 			}
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			assertThat(result)
 				.isEqualTo(
@@ -232,7 +230,7 @@ class ProxyAppBuildRunnerEdgeTest {
 			}
 			daemon.startReply = DaemonReply.BuildFailed(emptyList())
 
-			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false })
+			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
 
 			assertThat(result)
 				.isEqualTo(
