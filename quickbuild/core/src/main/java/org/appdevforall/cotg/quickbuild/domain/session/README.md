@@ -23,15 +23,19 @@ stateDiagram-v2
 
     Idle --> Provisioning: QuickBuildTapped
     Idle --> Prebuilding: PrebuildRequested
+    Idle --> Idle: FileSaved (clears lastStartFailed)
 
     Prebuilding --> Prebuilding: QuickBuildTapped (queue the tap)
+    Prebuilding --> Prebuilding: FileSaved (clears lastStartFailed)
     Prebuilding --> Provisioning: PrebuildFinished (tap queued)
     Prebuilding --> Idle: PrebuildFinished (no tap)
     Prebuilding --> Idle: CancelRequested (tap queued)
 
-    Provisioning --> Ready: ProvisioningSucceeded
+    Provisioning --> Ready: ProvisioningSucceeded (SwitchToProxyApp if userInitiated)
+    Provisioning --> Provisioning: QuickBuildTapped (records the ask; userInitiated = true)
     Provisioning --> Idle: ProvisioningFailed
     Provisioning --> Idle: CancelRequested
+    Provisioning --> Invalidated: ProxyAppRebuildFailed (awaitingRetry)
     Provisioning --> Invalidated: ProxyAppRebuildInstallNotConfirmed
     Provisioning --> Invalidated: ProxyAppRebuildDeferred
 
@@ -47,6 +51,9 @@ stateDiagram-v2
     Building --> Ready: BuildFailed
     Building --> Ready: CancelRequested (not warming)
     Building --> Ready: WarmCompileFinished
+    Building --> Building: QuickBuildTapped (warming - TriggerLiveReload; real build - MarkBuildUserInitiated)
+    Building --> Building: ProxyAppCrashed (warming - carry as pendingCrash)
+    Building --> Building: ExternalBuildCompleted (RefreshBaseline)
     Building --> Invalidated: InvalidationDetected
     Building --> Degraded: DaemonDied
 
@@ -58,24 +65,33 @@ stateDiagram-v2
     Deployed --> Ready: ProxyAppCrashed (record failure)
     Deployed --> Deployed: ExternalBuildCompleted (RefreshBaseline)
 
-    Invalidated --> Provisioning: ProxyAppRebuildStarted
-    Invalidated --> Invalidated: QuickBuildTapped / HostForegrounded (RunProxyAppRebuild)
+    Invalidated --> Provisioning: ProxyAppRebuildStarted (carries the reason as rebaselineReason)
+    Invalidated --> Invalidated: QuickBuildTapped (awaiting retry - RunProxyAppRebuild + SwitchToProxyApp)
+    Invalidated --> Invalidated: HostForegrounded retry (RunProxyAppRebuild)
+    Invalidated --> Invalidated: InvalidationDetected (awaiting retry - re-park + RunProxyAppRebuild)
     Invalidated --> Building: BuildStarted (awaiting retry)
     Invalidated --> Deployed: BuildSucceeded (awaiting retry)
     Invalidated --> Ready: BuildFailed (awaiting retry)
     Invalidated --> Invalidated: DaemonDied (awaiting retry, RespawnDaemon)
 
-    Degraded --> Ready: DaemonRespawned
+    Degraded --> Ready: DaemonRespawned (not restartFailed)
+    Degraded --> Degraded: DaemonRespawned (restartFailed - the announced daemon already died)
+    Degraded --> Degraded: DaemonDied / DaemonRestartFailed (restartFailed = true, no auto-retry)
     Degraded --> Invalidated: InvalidationDetected
     Degraded --> Degraded: ExternalBuildCompleted (RefreshBaseline)
-    Degraded --> Degraded: QuickBuildTapped (SurfaceMessage + RespawnDaemon)
+    Degraded --> Degraded: QuickBuildTapped (restartFailed - SurfaceMessage + RespawnDaemon; else ack only)
     Degraded --> Building: BuildStarted
     Degraded --> Deployed: BuildSucceeded
     Degraded --> Ready: BuildFailed
 
     note right of Idle
         SessionRestartRequested from any
-        non-Idle state -> Idle (TeardownSession)
+        non-Idle state -> Idle (TeardownSession).
+        SessionRestartAndReprovisionRequested from any
+        state -> Provisioning (TeardownAndProvision;
+        StartProvisioning from Idle) with userInitiated
+        carried from the event - true for the menu and
+        dialog, false for a variant-switch reprovision.
     end note
 ```
 
