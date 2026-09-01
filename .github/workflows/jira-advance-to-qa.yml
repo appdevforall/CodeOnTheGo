@@ -1,62 +1,73 @@
 name: Advance Jira Ticket to QA
 
-# Runs on pull_request_review so it can reach the Jira secrets, including for
-# pull requests from forks. It must never check out or execute code from the
-# pull request. All pull request data is read through github-script's `context`
+# The event is only a wake-up signal: every decision is taken from the review
+# state this workflow reads back from GitHub, never from the payload that woke
+# it. It must never check out or execute code from a pull request. All pull
+# request data is read through github-script's `context` and the GraphQL API
 # rather than `${{ }}` interpolation, so a crafted branch name or title is never
 # parsed as source.
 on:
   pull_request_review:
-    types: [ submitted ]
+    types: [ submitted, dismissed ]
+  # The events that can *unblock* a ticket without anyone submitting a review: a
+  # sibling closing as abandoned, and a sibling leaving draft. Without these the
+  # gate below can hold a ticket for good, since nothing else re-runs this job.
+  # `converted_to_draft` and `reopened` are absent on purpose - both can only add
+  # a blocker, so re-running for them could never advance anything.
+  pull_request:
+    types: [ closed, ready_for_review ]
 
+# No `contents` grant: this workflow never reads the repository, only its pull
+# requests. It runs in the base-repo context with access to the Jira secrets even
+# for pull requests from forks, so it holds the narrowest set that works.
 permissions:
-  contents: read
   pull-requests: read
 
 jobs:
   resolve:
-    name: Resolve the ticket and check the rest of its pull requests
+    name: Decide whether the ticket may advance
     runs-on: ubuntu-latest
-    # Anyone with read access to a public repo can submit an approving review.
-    # Such a review does not satisfy branch protection, but it does fire this
-    # event. The association test is only a cheap pre-filter to avoid starting a
-    # runner for a drive-by approval; the authorization decision is the
-    # effective-permission check in the script. A review can also be submitted
-    # against a closed, merged or draft pull request, none of which mean the
-    # work is ready for QA.
-    if: >-
-      github.event.review.state == 'approved' &&
-      github.event.pull_request.state == 'open' &&
-      !github.event.pull_request.draft &&
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
+    # A comment-only review is the one event that cannot change any pull
+    # request's review decision, so it is worth dropping before a runner starts.
+    # Nothing else is pre-filtered: a drive-by approval from a stranger can start
+    # a runner, but it cannot move a ticket, because the gate below asks GitHub
+    # for its own review decision rather than counting reviews itself.
+    if: github.event_name == 'pull_request' || github.event.review.state != 'commented'
     outputs:
       key: ${{ steps.resolve.outputs.key }}
+      pulls: ${{ steps.resolve.outputs.pulls }}
     steps:
       - name: Resolve the ticket key
         id: resolve
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
+          # The catch below is for a broken automation, and it fails the run to
+          # say so. A transient 5xx is not that, and without retries it would
+          # land in the same place and turn an unrelated pull request red.
+          retries: 3
           script: |
             const KEY_PATTERN = /ADFA-\d+/i;
 
-            const pr = context.payload.pull_request;
-            const branch = pr.head.ref;
-            const BASE_REPO_ID = context.payload.repository.id;
+            /*
+             * A `community/` branch owns no ticket of its own, so it neither
+             * names the ticket that moves nor counts towards one that does.
+             */
+            const keyOf = ref => {
+              if (ref.startsWith('community/')) return null;
+              const match = ref.match(KEY_PATTERN);
+              return match ? match[0].toUpperCase() : null;
+            };
 
-            if (branch.startsWith('community/')) {
-              core.info(`Branch "${branch}" is a community contribution; no Jira ticket to advance.`);
-              return;
-            }
+            const pr = context.payload.pull_request;
 
             /*
              * A fork's head branch is named inside the author's own repository,
              * so its ADFA key is evidence of nothing: a fork branch called
              * "ADFA-1234-crash" would bind an unrelated ticket that a
-             * maintainer's approval then walks to QA. External contributions are
-             * expected to carry the `community/` prefix and have no ticket of
-             * their own in any case.
+             * maintainer's approval then walks to QA. lint-branch-name.yml
+             * already refuses the ADFA- prefix on an external branch.
              */
-            if (pr.head.repo?.id !== BASE_REPO_ID) {
+            if (pr.head.repo?.id !== context.payload.repository.id) {
               core.info(`Pull request #${pr.number} is from a fork; no Jira ticket to advance.`);
               return;
             }
@@ -65,153 +76,100 @@ jobs:
             // reading "fixes the ADFA-1234 crash" would otherwise pick the ticket
             // that moves. debug.yml extracts from the branch alone for the same
             // reason.
-            const match = branch.match(KEY_PATTERN);
-            if (!match) {
-              core.info(`No ADFA ticket referenced by branch "${branch}"; nothing to do.`);
+            const key = keyOf(pr.head.ref);
+            if (!key) {
+              core.info(`No ADFA ticket referenced by branch "${pr.head.ref}"; nothing to do.`);
               return;
             }
-            const key = match[0].toUpperCase();
 
             /*
-             * author_association does not prove write access: an org member may
-             * have no access to this repo, and a collaborator may be read-only.
-             * Ask for the effective permission instead, once per login, since the
-             * same reviewer usually appears on every branch of a stack.
+             * One ticket can own a stack of pull requests. Moving it on the first
+             * approval hands QA a ticket whose code is several branches from
+             * landing, so it advances only once every open pull request carrying
+             * the key is ready.
+             *
+             * `reviewDecision` is GitHub's own verdict on a pull request. It
+             * counts only opinionated reviews from people who can write to the
+             * repository and it honours dismissals, which is what this job would
+             * otherwise have to reconstruct by reading every review and looking
+             * up every reviewer's permission.
              */
-            const permissions = new Map();
-            const canMerge = async login => {
-              if (!permissions.has(login)) {
-                let permission;
-                try {
-                  const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    username: login,
-                  });
-                  permission = data.permission;
-                } catch (error) {
-                  /*
-                   * A 404 answers the question with "no access" -- App bots review
-                   * too, and a "name[bot]" login is not a username. Anything else
-                   * is a broken automation rather than a verdict: the token cannot
-                   * read collaborators, and every later approval would end as a
-                   * warning under a green check, which is the silent drift this
-                   * job exists to remove. Let it out to the catch below and turn
-                   * the run red.
-                   */
-                  if (error.status !== 404) {
-                    throw new Error(`could not read ${login}'s permission on this repository (${error.message})`);
+            const query = `
+              query($owner: String!, $repo: String!, $cursor: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequests(states: OPEN, first: 100, after: $cursor) {
+                    pageInfo { hasNextPage endCursor }
+                    nodes { number isDraft isCrossRepository headRefName reviewDecision }
                   }
-                  permission = 'none';
                 }
-                permissions.set(login, permission);
-              }
-              /*
-               * The legacy `permission` field reports "maintain" as "write", so
-               * those two values cover admin, maintain and write.
-               */
-              return ['admin', 'write'].includes(permissions.get(login));
-            };
+              }`;
 
-            const reviewer = context.payload.review.user.login;
-
+            const stack = [];
             try {
-              if (!await canMerge(reviewer)) {
-                core.info(`${reviewer} has "${permissions.get(reviewer)}" permission and cannot merge; leaving ${key} untouched.`);
-                return;
-              }
-
-              /*
-               * One ticket can own a stack of pull requests. Moving it on the
-               * first approval hands QA a ticket whose code is four branches from
-               * landing, and the later approvals then find it already at QA and
-               * say nothing. Advance only once every open pull request carrying
-               * this key -- the one that fired this event included -- is approved
-               * with no change request outstanding.
-               */
-              const open = await github.paginate(github.rest.pulls.list, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                state: 'open',
-                per_page: 100,
-              });
-              /*
-               * Fork heads are excluded for the reason given above, and because a
-               * stranger could otherwise hold the board still by opening a fork
-               * branch named after someone else's ticket.
-               */
-              const stack = open.filter(candidate => {
-                if (candidate.head.repo?.id !== BASE_REPO_ID) return false;
-                const candidateKey = candidate.head.ref.match(KEY_PATTERN);
-                return candidateKey && candidateKey[0].toUpperCase() === key;
-              });
-              if (!stack.some(member => member.number === pr.number)) {
-                stack.push(pr);
-              }
-
-              for (const member of stack) {
-                const label = member.number === pr.number
-                  ? `this pull request (#${member.number})`
-                  : `pull request #${member.number}`;
-
-                if (member.draft) {
-                  core.info(`${key}: ${label} is a draft; leaving the ticket where it is.`);
-                  return;
-                }
-
-                const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              let cursor = null;
+              for (;;) {
+                const { repository } = await github.graphql(query, {
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  pull_number: member.number,
-                  per_page: 100,
+                  cursor,
                 });
-
+                const { nodes, pageInfo } = repository.pullRequests;
                 /*
-                 * A reviewer's verdict is their latest non-comment review, and
-                 * only the verdicts of people who could merge count: anyone can
-                 * review a public repo, so counting everyone would let a drive-by
-                 * approval satisfy this gate and a drive-by change request hold
-                 * the board still.
+                 * Fork heads are excluded for the reason given above, and because
+                 * a stranger could otherwise hold the board still by opening a
+                 * fork branch named after someone else's ticket.
                  */
-                const verdicts = new Map();
-                for (const submitted of reviews) {
-                  if (submitted.state === 'COMMENTED' || submitted.state === 'PENDING') continue;
-                  if (!submitted.user || !await canMerge(submitted.user.login)) continue;
-                  verdicts.set(submitted.user.login, submitted.state);
-                }
-                /*
-                 * The review that fired this event is the newest verdict of the
-                 * reviewer who submitted it; listReviews need not show it yet.
-                 */
-                if (member.number === pr.number) {
-                  verdicts.set(reviewer, 'APPROVED');
-                }
-
-                const states = [...verdicts.values()];
-                if (states.includes('CHANGES_REQUESTED')) {
-                  core.info(`${key}: ${label} has an outstanding change request; leaving the ticket where it is.`);
-                  return;
-                }
-                if (!states.includes('APPROVED')) {
-                  core.info(`${key}: ${label} is not approved; leaving the ticket where it is.`);
-                  return;
-                }
+                stack.push(...nodes.filter(node =>
+                  !node.isCrossRepository && keyOf(node.headRefName) === key));
+                if (!pageInfo.hasNextPage) break;
+                cursor = pageInfo.endCursor;
               }
-
-              core.setOutput('key', key);
             } catch (error) {
-              core.setFailed(`Cannot decide whether ${key} may advance: ${error.message}. Leaving it untouched.`);
+              core.setFailed(`Cannot tell whether ${key} may advance: ${error.message}. Leaving it untouched.`);
+              return;
             }
+
+            /*
+             * Nothing open means nothing to hand QA: every pull request for the
+             * ticket has already been merged or closed. A late approval on one of
+             * them must not walk a ticket that QA deliberately bounced back.
+             */
+            if (!stack.length) {
+              core.info(`${key} has no open pull request; leaving the ticket where it is.`);
+              return;
+            }
+
+            const blocker = member => member.isDraft ? 'a draft'
+              : member.reviewDecision === 'CHANGES_REQUESTED' ? 'awaiting changes'
+              : 'not approved';
+            const blocked = stack.filter(member =>
+              member.isDraft || member.reviewDecision !== 'APPROVED');
+
+            if (blocked.length) {
+              /*
+               * A warning, not info: a ticket held back by a sibling is the one
+               * outcome nobody is watching for, and a hold that says nothing is
+               * the same silent drift this job exists to remove.
+               */
+              core.warning(
+                `${key} stays where it is: ` +
+                blocked.map(member => `#${member.number} is ${blocker(member)}`).join(', ') + '.'
+              );
+              return;
+            }
+
+            core.setOutput('key', key);
+            core.setOutput('pulls', stack.map(member => member.number).join(','));
 
   advance:
     name: Move linked Jira ticket to QA
     runs-on: ubuntu-latest
     needs: resolve
     if: needs.resolve.outputs.key != ''
-    # Two approvals landing seconds apart otherwise run two walks over one
-    # ticket. Backward transitions are global in this Jira workflow, so a stale
-    # walk can pull a ticket back out of QA. The group has to key on the ticket,
-    # not the pull request: a stack shares one ticket across several of them.
+    # Two events landing seconds apart otherwise run two walks over one ticket.
+    # Backward transitions are global in this Jira workflow, so a stale walk can
+    # pull a ticket back out of QA. The group has to key on the ticket, not the
+    # pull request: a stack shares one ticket across several of them.
     concurrency:
       group: jira-advance-${{ needs.resolve.outputs.key }}
       cancel-in-progress: false
@@ -221,7 +179,10 @@ jobs:
         env:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          # Both are derived values, not payload: the key matched /ADFA-\d+/ and
+          # the list is pull request numbers.
           TICKET_KEY: ${{ needs.resolve.outputs.key }}
+          TICKET_PULLS: ${{ needs.resolve.outputs.pulls }}
         with:
           script: |
             const JIRA_BASE = 'https://appdevforall.atlassian.net';
@@ -237,9 +198,9 @@ jobs:
             const TARGET = 'QA';
             const TARGET_INDEX = STATUSES.indexOf(TARGET);
 
-            const pr = context.payload.pull_request;
-            const reviewer = context.payload.review.user.login;
             const key = process.env.TICKET_KEY;
+            const pulls = process.env.TICKET_PULLS.split(',');
+            const repoUrl = context.payload.repository.html_url;
 
             const email = process.env.JIRA_EMAIL;
             const token = process.env.JIRA_API_TOKEN;
@@ -277,9 +238,10 @@ jobs:
             let current = null;
             const walked = [];
 
+            const trail = () => walked.join(' -> ');
             const trailSuffix = () => {
               if (walked.length <= 1) return ' The ticket was not moved.';
-              return ` It was moved ${walked.join(' -> ')} and is now at "${current}"; finish it by hand.`;
+              return ` It was moved ${trail()} and is now at "${current}"; finish it by hand.`;
             };
 
             try {
@@ -298,23 +260,13 @@ jobs:
 
               /*
                * There is no direct edge from "To Do" or "In Progress" to QA, so a
-               * ticket left behind has to be walked forward one hop at a time --
-               * the ticket that is behind belongs to the person who forgot.
-               * Backward transitions, by contrast, are global from every status,
-               * which is why each hop re-reads the ticket first: a walk that
-               * blindly asks for the next status can drag a ticket that someone
-               * else already advanced back down the board.
+               * ticket left behind has to be walked forward one hop at a time.
+               * Each hop resolves its transition by target status name from the
+               * live endpoint, which doubles as the freshness check: if someone
+               * else moved the ticket, the transition this run wants is no longer
+               * on offer and the walk stops instead of guessing.
                */
               while (index < TARGET_INDEX) {
-                const observed = await statusOf();
-                if (observed !== current) {
-                  core.warning(
-                    `${key} moved to "${observed}" while this run was walking it from "${current}"; ` +
-                    `something else is moving the same ticket. Stopping.${trailSuffix()}`
-                  );
-                  return;
-                }
-
                 const next = STATUSES[index + 1];
                 const { transitions } = await jira(`/issue/${key}/transitions`);
                 const hop = transitions.find(transition => transition.to && transition.to.name === next);
@@ -339,9 +291,25 @@ jobs:
                 current = next;
                 index += 1;
                 walked.push(current);
-              }
 
-              const trail = walked.join(' -> ');
+                /*
+                 * Backward transitions are global from every status, so another
+                 * run or a person can pull the ticket back down the board mid
+                 * walk. Re-read after each hop, and report where the ticket
+                 * actually is rather than where this run left it.
+                 */
+                if (index < TARGET_INDEX) {
+                  const observed = await statusOf();
+                  if (observed !== current) {
+                    current = observed;
+                    core.warning(
+                      `${key} is at "${observed}", not where this run left it; something else is ` +
+                      `moving the same ticket. Stopping.${trailSuffix()}`
+                    );
+                    return;
+                  }
+                }
+              }
 
               /*
                * The walk is already committed by this point, so a comment that
@@ -349,6 +317,22 @@ jobs:
                * sends whoever reads the log to a ticket already sitting where it
                * belongs.
                */
+              const link = number => ({
+                type: 'text',
+                text: `#${number}`,
+                marks: [{ type: 'link', attrs: { href: `${repoUrl}/pull/${number}` } }],
+              });
+              const sentence = [{ type: 'text', text: `Automatically moved to ${TARGET} (${trail()}): ` }];
+              pulls.forEach((number, position) => {
+                sentence.push({ type: 'text', text: position === 0 ? '' : ', ' }, link(number));
+              });
+              sentence.push({
+                type: 'text',
+                text: pulls.length > 1
+                  ? ' are all approved, with nothing else open for this ticket.'
+                  : ' is approved, and is the only pull request open for this ticket.',
+              });
+
               try {
                 await jira(`/issue/${key}/comment`, {
                   method: 'POST',
@@ -356,29 +340,24 @@ jobs:
                     body: {
                       type: 'doc',
                       version: 1,
-                      content: [{
-                        type: 'paragraph',
-                        content: [
-                          { type: 'text', text: `Automatically moved to ${TARGET} (${trail}): ` },
-                          {
-                            type: 'text',
-                            text: `pull request #${pr.number}`,
-                            marks: [{ type: 'link', attrs: { href: pr.html_url } }],
-                          },
-                          { type: 'text', text: ` was approved by ${reviewer}.` },
-                        ],
-                      }],
+                      content: [{ type: 'paragraph', content: sentence }],
                     },
                   }),
                 });
               } catch (error) {
-                core.warning(`${key} reached ${TARGET} (${trail}), but the Jira comment recording why could not be posted: ${error.message}.`);
+                core.warning(`${key} reached ${TARGET} (${trail()}), but the Jira comment recording why could not be posted: ${error.message}.`);
               }
 
-              core.info(`${key}: ${trail}`);
-              core.summary.addRaw(`Moved [${key}](${JIRA_BASE}/browse/${key}) to ${TARGET}: ${trail}`);
+              core.info(`${key}: ${trail()}`);
+              core.summary.addRaw(`Moved [${key}](${JIRA_BASE}/browse/${key}) to ${TARGET}: ${trail()}`);
               await core.summary.write();
             } catch (error) {
-              // A Jira outage or auth problem must never turn a pull request red.
-              core.warning(`Could not advance ${key} to ${TARGET}: ${error.message}.${trailSuffix()}`);
+              /*
+               * A Jira outage or auth problem must never turn a pull request red.
+               * Anything thrown once the ticket has reached QA is a reporting
+               * failure, not a failure to advance, and must not say otherwise.
+               */
+              core.warning(current === TARGET
+                ? `${key} reached ${TARGET} (${trail()}), but recording it failed: ${error.message}.`
+                : `Could not advance ${key} to ${TARGET}: ${error.message}.${trailSuffix()}`);
             }
