@@ -37,14 +37,17 @@ object DaemonMain {
 
 		logErr("started (pid=${ProcessHandle.current().pid()})")
 		val service = DaemonService()
-		serve(
-			input = System.`in`.bufferedReader(StandardCharsets.UTF_8),
-			output = protocolOut,
-			router = RequestRouter(service),
-		)
-		// The session's tools outlive the request loop, so release them here rather than
-		// leaving it to process teardown.
-		service.shutdown()
+		try {
+			serve(
+				input = System.`in`.bufferedReader(StandardCharsets.UTF_8),
+				output = protocolOut,
+				router = RequestRouter(service),
+			)
+		} finally {
+			// The session's tools outlive the request loop, so release them here rather than
+			// leaving it to process teardown - on the fatal-rethrow exit path too.
+			service.shutdown()
+		}
 		logErr("exiting")
 	}
 
