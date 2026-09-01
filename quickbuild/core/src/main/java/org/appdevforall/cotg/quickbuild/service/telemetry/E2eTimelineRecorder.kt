@@ -73,8 +73,7 @@ internal class E2eTimelineRecorder(
 	}
 
 	/**
-	 * Records the hot-swap-versus-restart decision, including the class-header parses it
-	 * needs.
+	 * Records the hot-swap-versus-restart decision.
 	 *
 	 * @param millis host-observed span
 	 */

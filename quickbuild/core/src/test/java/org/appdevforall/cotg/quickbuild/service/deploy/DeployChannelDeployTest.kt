@@ -160,6 +160,21 @@ class DeployChannelDeployTest {
 		}
 
 	@Test
+	fun `a payload throw beyond RemoteException degrades to Failed instead of escaping`() =
+		runTest {
+			// A binder proxy can throw more than RemoteException (the reason notifyBuildStatus
+			// catches Exception). An escape here would crash the deploy loop instead of
+			// failing the one deploy, and would bypass the orchestrator's repeated-failure
+			// tally, which only sees failures returned as results.
+			connect(ScriptedTarget(onPayloadThrow = { IllegalStateException("binder went weird") }))
+
+			val result = channel.deploy(3, null, null, null, "{}")
+
+			assertThat(result).isInstanceOf(DeployResult.Failed::class.java)
+			assertThat((result as DeployResult.Failed).message).contains("Deploy failed")
+		}
+
+	@Test
 	fun `a proxy app that never answers times out with the configured timeout`() =
 		runTest {
 			val target = ScriptedTarget()
