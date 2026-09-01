@@ -452,8 +452,8 @@ open class EditorHandlerActivity :
 		// not once the user actually chooses an option - see confirmProjectClose). Without this guard,
 		// a config change the user never asked for silently confirms that pending close/switch and
 		// discards the project it was showing. The two legitimate confirm paths (Close without saving,
-		// Save and close) both call finish() before their own onClosed callback runs, so isFinishing is
-		// already true there by the time onDestroy() drains it.
+		// Save and close) both route through closeProject(), whose deferred finish() must land before
+		// onDestroy() can run, so isFinishing is true here by the time onDestroy() drains it.
 		if (isFinishing) {
 			// The callback drain is additionally gated on closeDialogAnswered: isFinishing alone is
 			// also true when the task is swiped out of Recents while the dialog is still showing --
@@ -1537,9 +1537,10 @@ open class EditorHandlerActivity :
 			return
 		}
 
-		// If there are NO unsaved files, just perform the close action directly.
-		// The 'manualFinish' is false because this action doesn't exit the activity by itself.
-		performCloseAllFiles(manualFinish = false)
+		// If there are NO unsaved files, just perform the close action directly. This action
+		// doesn't exit the activity by itself (performCloseAllFiles never finishes; only
+		// closeProject does).
+		performCloseAllFiles()
 		runAfter()
 	}
 
@@ -2162,10 +2163,7 @@ open class EditorHandlerActivity :
 		confirmProjectClose()
 	}
 
-	private fun performCloseAllFiles(
-		manualFinish: Boolean,
-		onClosed: (() -> Unit)? = null,
-	) {
+	private fun performCloseAllFiles() {
 		val pluginManager = IDEApplication.getPluginManager()
 		val fileCount = editorViewModel.getOpenedFileCount()
 		for (i in 0 until fileCount) {
@@ -2187,8 +2185,18 @@ open class EditorHandlerActivity :
 			tabs.removeAllTabs()
 			editorContainer.removeAllViews()
 		}
+	}
 
-		if (manualFinish) {
+	// [onClosed] (e.g. arming a pending deep-link project switch -- see confirmProjectClose) runs
+	// synchronously here, before the deferred finish() above can land: onDestroy()'s drain reads
+	// what it arms, and onDestroy() cannot run before finish() does.
+	private fun closeProject(
+		saveFloatingFiles: Boolean,
+		onClosed: (() -> Unit)? = null,
+	) {
+		performCloseAllFiles()
+		lifecycleScope.launch {
+			floatingTabController.closeAll(save = saveFloatingFiles)
 			finish()
 		}
 		onClosed?.invoke()
@@ -2349,13 +2357,14 @@ open class EditorHandlerActivity :
 				(content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
 			}
 
-			// Activity is finishing either way; no need to reset confirmCloseInProgress. Null out
-			// pendingCloseCallback now so a later request arriving before onDestroy() actually runs
-			// (confirmCloseInProgress stays stuck true) parks its own callback instead of this
-			// already-consumed one being read and invoked again by onDestroy()'s drain below.
+			// Activity is finishing either way (closeProject defers the finish() until the floating
+			// tabs are closed, but nothing can cancel it); no need to reset confirmCloseInProgress.
+			// Null out pendingCloseCallback now so a later request arriving before onDestroy()
+			// actually runs (confirmCloseInProgress stays stuck true) parks its own callback instead
+			// of this already-consumed one being read and invoked again by onDestroy()'s drain below.
 			val onClosedNow = pendingCloseCallback
 			pendingCloseCallback = null
-			performCloseAllFiles(manualFinish = true, onClosed = onClosedNow)
+			closeProject(saveFloatingFiles = false, onClosed = onClosedNow)
 		}
 
 		// OPTION 2: Save and close
@@ -2421,11 +2430,12 @@ open class EditorHandlerActivity :
 					val onClosedNow = pendingCloseCallback
 					pendingCloseCallback = null
 					// contentOrNull can already be null here if the binding was torn down while the
-					// save was in flight -- performCloseAllFiles would NPE on the view manipulation it
-					// does, but onClosedNow (e.g. arming a pending deep-link project switch) has no such
-					// dependency and must still run, or a confirmed close silently drops it.
+					// save was in flight -- closeProject's performCloseAllFiles would NPE on the view
+					// manipulation it does, but onClosedNow (e.g. arming a pending deep-link project
+					// switch) has no such dependency and must still run, or a confirmed close silently
+					// drops it.
 					if (contentOrNull != null) {
-						performCloseAllFiles(manualFinish = true, onClosed = onClosedNow)
+						closeProject(saveFloatingFiles = true, onClosed = onClosedNow)
 					} else {
 						onClosedNow?.invoke()
 						// contentOrNull also goes null via isDestroying, which onPause() sets from

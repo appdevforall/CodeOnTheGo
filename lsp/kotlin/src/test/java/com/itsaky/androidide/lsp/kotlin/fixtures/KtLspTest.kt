@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.fixtures
 import com.itsaky.androidide.lsp.kotlin.compiler.index.toMetadata
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.UnpinnedAnalysis
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.progress.ICancelChecker
@@ -70,6 +71,7 @@ abstract class KtLspTest {
 	 * Runs [action] in a dangling-aware analysis session for [ktFile], the way an interactive request
 	 * (completion, code action) does. Tests have no upstream cancellation source, hence [ICancelChecker.NOOP].
 	 */
+	@OptIn(UnpinnedAnalysis::class)
 	internal fun <R> analyzeMaybeDanglingForTest(
 		ktFile: KtFile,
 		action: KaSession.() -> R,
