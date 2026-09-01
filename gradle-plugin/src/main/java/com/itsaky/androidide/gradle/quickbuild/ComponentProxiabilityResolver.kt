@@ -103,11 +103,14 @@ class ComponentProxiabilityResolver(
 				"androidx.startup.InitializationProvider" to
 					"resolves its own component by name at runtime; a renamed proxy breaks androidx App Startup",
 				"androidx.profileinstaller.ProfileInstallReceiver" to
-					"not on every proxy compile classpath, so the generated subclass would not compile",
+					"library plumbing whose class never travels in the payload; skipping keeps it out " +
+					"of the component list and the deploy policy's restart rule",
 				"com.itsaky.androidide.quickbuild.runtime.QuickBuildKeepAliveService" to
-					"CoGo binds this keep-alive by component name; a renamed proxy would leave the app freezer-eligible",
+					"the quick-build runtime's own keep-alive, not user code; skipping keeps it out " +
+					"of the component list and the deploy policy's restart rule",
 				"com.google.firebase.components.ComponentDiscoveryService" to
-					"Firebase reads this service's own metadata by component name; a renamed proxy makes it discover zero ComponentRegistrars",
+					"Firebase plumbing whose class never travels in the payload; skipping keeps it out " +
+					"of the component list and the deploy policy's restart rule",
 			)
 
 		/**

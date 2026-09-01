@@ -253,7 +253,10 @@ class QuickBuildManifestTransformerTest {
 						"<activity android:name=\"com.example.app.PrivateActivity\" android:exported=\"false\" />" +
 						"\n" +
 						"<activity android:name=\"com.example.app.FlaggedActivity\"" +
-						" android:exported=\"@bool/exposePreview\" />",
+						" android:exported=\"@bool/exposePreview\" />" +
+						"\n" +
+						"<activity android:name=\"com.example.app.AdminActivity\" android:exported=\"true\"" +
+						" android:permission=\"com.example.app.perm.ADMIN\" android:enabled=\"@bool/adminEnabled\" />",
 				).byteInputStream(),
 			)
 
@@ -272,6 +275,18 @@ class QuickBuildManifestTransformerTest {
 		// be copied through: collapsing it to false would deny a launch the flag allows.
 		assertThat(byName["com.example.app.FlaggedActivity"]!!.getAttributeNS(ns, "exported"))
 			.isEqualTo("@bool/exposePreview")
+		// permission and enabled are alias-DECLARED attributes, not inherited from the target:
+		// an alias that drops them leaves an exported, permission-guarded activity reachable
+		// unguarded under its real name, and resurrects a disabled entry point. Both can be
+		// resource references, so they get the same raw copy-through as exported.
+		val admin = byName["com.example.app.AdminActivity"]!!
+		assertThat(admin.getAttributeNS(ns, "permission")).isEqualTo("com.example.app.perm.ADMIN")
+		assertThat(admin.getAttributeNS(ns, "enabled")).isEqualTo("@bool/adminEnabled")
+		// A target that declares neither gets neither - an empty android:permission is not
+		// "no permission".
+		val main = byName["com.example.app.MainActivity"]!!
+		assertThat(main.hasAttributeNS(ns, "permission")).isFalse()
+		assertThat(main.hasAttributeNS(ns, "enabled")).isFalse()
 	}
 
 	@Test
@@ -292,6 +307,69 @@ class QuickBuildManifestTransformerTest {
 		// The skipped activity still holds its real name as an <activity>; an alias with the
 		// same name would collide with it at install time.
 		assertThat(aliasNames).containsExactly("com.example.app.MainActivity")
+	}
+
+	@Test
+	fun `a skipped launcher activity still reports the entry activity`() {
+		// The skip must not discard the launcher fact: the activity keeps its real manifest
+		// name, so it is still perfectly launchable - reporting entryActivity null would make
+		// the relaunch path fall back to the package launch intent for no reason.
+		val result =
+			transformerSeeingFinal("lib.widget.FinalLauncherActivity").transform(
+				manifest(
+					"""
+					<activity android:name="lib.widget.FinalLauncherActivity" android:exported="true">
+						<intent-filter>
+							<action android:name="android.intent.action.MAIN" />
+							<category android:name="android.intent.category.LAUNCHER" />
+						</intent-filter>
+					</activity>
+					<activity android:name="com.example.app.SettingsActivity" />
+					""".trimIndent(),
+				).byteInputStream(),
+			)
+
+		assertThat(result.entryActivity).isEqualTo("lib.widget.FinalLauncherActivity")
+		// The skipped activity is recorded with a null proxyClass, like the other
+		// kept-under-real-name components; it must not consume a proxy index.
+		assertThat(result.activities)
+			.containsExactly(
+				ProxiedComponent(
+					ComponentType.ACTIVITY,
+					"lib.widget.FinalLauncherActivity",
+					proxyClass = null,
+					isLauncher = true,
+				),
+				ProxiedComponent(
+					ComponentType.ACTIVITY,
+					"com.example.app.SettingsActivity",
+					"$proxyPackage.Proxy0Activity",
+					isLauncher = false,
+				),
+			).inOrder()
+		// It is still reported unproxied for the build log, and still gets no alias.
+		assertThat(result.unproxied.map { it.userClass })
+			.containsExactly("lib.widget.FinalLauncherActivity")
+		val ns = QuickBuildManifestTransformer.ANDROID_NS
+		val aliasNames =
+			result.document.getElementsByTagName("activity-alias").let { nodes ->
+				(0 until nodes.length).map { (nodes.item(it) as Element).getAttributeNS(ns, "name") }
+			}
+		assertThat(aliasNames).containsExactly("com.example.app.SettingsActivity")
+	}
+
+	@Test
+	fun `a skipped activity's shorthand name is normalised to the fully-qualified form`() {
+		// The other two kept-under-real-name sites (non-proxied kinds, the Application) already
+		// write the resolved FQN back; the skip path must match, or a consumer resolving the
+		// manifest name against the payload dex trips over `.Shorthand`.
+		val result =
+			transformerSeeingFinal("com.example.app.quickbuild.FinalHomeActivity").transform(
+				manifest("""<activity android:name=".FinalHomeActivity" />""").byteInputStream(),
+			)
+
+		assertThat(componentNames(result, "activity"))
+			.containsExactly("com.example.app.quickbuild.FinalHomeActivity")
 	}
 
 	@Test
@@ -655,13 +733,17 @@ class QuickBuildManifestTransformerTest {
 				).byteInputStream(),
 			)
 
-		assertThat(result.components.none { it.userClass == "androidx.compose.ui.tooling.PreviewActivity" })
-			.isTrue()
+		// Recorded, but with no proxy: it keeps its real manifest name, and only the
+		// launcher fact travels with it.
+		assertThat(
+			result.components.single { it.userClass == "androidx.compose.ui.tooling.PreviewActivity" }.proxyClass,
+		).isNull()
 		assertThat(result.unproxied.map { it.userClass })
 			.containsExactly("androidx.compose.ui.tooling.PreviewActivity")
 		// The real launcher activity still proxies normally, numbered from zero - the
 		// excluded PreviewActivity must not consume a proxy-index slot.
-		assertThat(result.activities.single().proxyClass).isEqualTo("$proxyPackage.Proxy0Activity")
+		assertThat(result.activities.single { it.proxyClass != null }.proxyClass)
+			.isEqualTo("$proxyPackage.Proxy0Activity")
 
 		val elements = result.document.getElementsByTagName("activity")
 		assertThat((elements.item(1) as Element).getAttributeNS(QuickBuildManifestTransformer.ANDROID_NS, "name"))

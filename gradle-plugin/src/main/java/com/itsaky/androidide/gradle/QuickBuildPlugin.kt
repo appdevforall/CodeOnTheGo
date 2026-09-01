@@ -6,6 +6,7 @@ import com.android.build.api.component.analytics.AnalyticsEnabledApplicationVari
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.ApplicationVariant
 import com.android.build.api.variant.ScopedArtifacts
+import com.android.build.api.variant.SourceDirectories
 import com.android.build.api.variant.impl.ApplicationVariantImpl
 import com.itsaky.androidide.gradle.quickbuild.BaselineGenerationAsset
 import com.itsaky.androidide.gradle.quickbuild.QuickBuildBaselineGenerationTask
@@ -106,6 +107,24 @@ class QuickBuildPlugin : Plugin<Project> {
 						"runtime AAR the proxy app would crash at launch, so the build stops " +
 						"here; this AGP version needs QuickBuildPlugin.runtimeConfigurationOrNull " +
 						"taught about its variant type. Use a Standard Run meanwhile.",
+				)
+
+		/**
+		 * The variant's assets source set, which carries the payload dex and the baseline
+		 * stamp into the proxy APK.
+		 *
+		 * AGP declares it nullable, but every application variant this plugin configures has
+		 * one. Should a future AGP ever return null, wiring nothing would build a proxy APK
+		 * whose manifest names classes with no dex behind them, so the build stops here.
+		 *
+		 * @throws GradleException when the variant exposes no assets source set.
+		 */
+		internal fun requireAssets(variant: ApplicationVariant): SourceDirectories.Layered =
+			variant.sources.assets
+				?: throw GradleException(
+					"Quick Build cannot add its payload dex to variant '${variant.name}': the " +
+						"variant exposes no assets source set. Without the dex the proxy app would " +
+						"crash at launch, so the build stops here. Use a Standard Run meanwhile.",
 				)
 	}
 
@@ -244,8 +263,8 @@ class QuickBuildPlugin : Plugin<Project> {
 				task.minApiLevel.set(payloadMinApi)
 				task.proxyClasses.set(buildDirectory.dir("$variantDir/proxy-classes"))
 			}
-		variant.sources.assets
-			?.addGeneratedSourceDirectory(dex, QuickBuildPayloadDexTask::generatedAssets)
+		requireAssets(variant)
+			.addGeneratedSourceDirectory(dex, QuickBuildPayloadDexTask::generatedAssets)
 
 		val stamp =
 			project.tasks.register(
@@ -262,8 +281,8 @@ class QuickBuildPlugin : Plugin<Project> {
 				)
 				task.generatedAssets.set(buildDirectory.dir("$variantDir/baseline-generation-assets"))
 			}
-		variant.sources.assets
-			?.addGeneratedSourceDirectory(stamp, QuickBuildBaselineGenerationTask::generatedAssets)
+		requireAssets(variant)
+			.addGeneratedSourceDirectory(stamp, QuickBuildBaselineGenerationTask::generatedAssets)
 
 		val report =
 			project.tasks.register(

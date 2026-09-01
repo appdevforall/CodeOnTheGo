@@ -1,6 +1,7 @@
 package com.itsaky.androidide.gradle
 
 import com.android.build.api.variant.ApplicationVariant
+import com.android.build.api.variant.Sources
 import com.google.common.truth.Truth.assertThat
 import org.gradle.api.GradleException
 import org.junit.jupiter.api.Test
@@ -40,6 +41,41 @@ class QuickBuildPluginTest {
 
 		assertThat(error).hasMessageThat().contains("demoDebug")
 		assertThat(error).hasMessageThat().contains("runtime")
+		assertThat(error).hasMessageThat().contains("Standard Run")
+	}
+
+	/** A variant whose [Sources.getAssets] is null - the shape AGP's nullable type allows. */
+	private fun variantWithoutAssets(): ApplicationVariant {
+		val sources =
+			Proxy.newProxyInstance(
+				Sources::class.java.classLoader,
+				arrayOf(Sources::class.java),
+			) { _, method, _ ->
+				when (method.name) {
+					"getAssets" -> null
+					else -> throw UnsupportedOperationException(method.name)
+				}
+			} as Sources
+		return Proxy.newProxyInstance(
+			ApplicationVariant::class.java.classLoader,
+			arrayOf(ApplicationVariant::class.java),
+		) { _, method, _ ->
+			when (method.name) {
+				"getName" -> "demoDebug"
+				"getSources" -> sources
+				else -> throw UnsupportedOperationException(method.name)
+			}
+		} as ApplicationVariant
+	}
+
+	@Test
+	fun `requireAssets fails the build loudly when the variant has no assets source set`() {
+		// Skipping the wiring on a null source set would ship a proxy APK whose manifest
+		// names Proxy0Activity with no payload dex to load it from.
+		val error = assertThrows<GradleException> { QuickBuildPlugin.requireAssets(variantWithoutAssets()) }
+
+		assertThat(error).hasMessageThat().contains("demoDebug")
+		assertThat(error).hasMessageThat().contains("assets")
 		assertThat(error).hasMessageThat().contains("Standard Run")
 	}
 
