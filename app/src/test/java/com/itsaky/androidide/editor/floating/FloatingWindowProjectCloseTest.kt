@@ -23,6 +23,12 @@ import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.floating.model.DockingEvent
 import com.itsaky.androidide.floating.model.DockingManager
 import com.itsaky.androidide.floating.window.WindowBounds
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.coVerifyOrder
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -98,6 +104,67 @@ class FloatingWindowProjectCloseTest {
 			controller.closeAll(save = true)
 
 			assertThat(DockingManager.windows.value).isEmpty()
+		}
+
+	@Test
+	fun `save and close writes a modified panel out before releasing it`() =
+		runTest {
+			val panel = floatingPanel("/tmp/adfa4501/Main.kt", modified = true)
+			coEvery { panel.save() } returns true
+			DockingManager.undock(panel, BOUNDS)
+
+			controller.closeAll(save = true)
+
+			coVerifyOrder {
+				panel.save()
+				panel.release()
+			}
+			assertThat(DockingManager.windows.value).isEmpty()
+		}
+
+	/** "Close without saving" must reach the panel too, not just the docked editors. */
+	@Test
+	fun `close without saving discards a modified panel`() =
+		runTest {
+			val panel = floatingPanel("/tmp/adfa4501/Draft.kt", modified = true)
+			DockingManager.undock(panel, BOUNDS)
+
+			controller.closeAll(save = false)
+
+			coVerify(exactly = 0) { panel.save() }
+			verify { panel.release() }
+			assertThat(DockingManager.windows.value).isEmpty()
+		}
+
+	/**
+	 * A file that went away under its panel (deleted directory, revoked permission) makes
+	 * `writeTo` throw. The project is closing: that must not crash the teardown, nor strand the
+	 * windows queued behind the bad one - which is the very state this ticket exists to prevent.
+	 */
+	@Test
+	fun `a panel whose save throws does not strand the windows behind it`() =
+		runTest {
+			val failing = floatingPanel("/tmp/adfa4501/Gone.kt", modified = true)
+			coEvery { failing.save() } throws RuntimeException("parent directory deleted")
+			val queued = floatingPanel("/tmp/adfa4501/Queued.kt", modified = false)
+			DockingManager.undock(failing, BOUNDS)
+			DockingManager.undock(queued, BOUNDS)
+
+			controller.closeAll(save = true)
+
+			assertThat(DockingManager.windows.value).isEmpty()
+			verify { failing.release() }
+			verify { queued.release() }
+		}
+
+	private fun floatingPanel(
+		path: String,
+		modified: Boolean,
+	): EditorPanelDockableContent =
+		mockk<EditorPanelDockableContent>(relaxed = true).also { panel ->
+			every { panel.id } returns path
+			every { panel.title } returns File(path).name
+			every { panel.isModified } returns modified
 		}
 
 	private companion object {

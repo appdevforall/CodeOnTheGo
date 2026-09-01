@@ -12,7 +12,9 @@ import com.itsaky.androidide.floating.permission.OverlayPermission
 import com.itsaky.androidide.floating.service.FloatingTabService
 import com.itsaky.androidide.floating.window.InitialBounds
 import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 
 /**
  * Bridges the editor activity to the floating-window system: turns an editor file tab into a
@@ -89,7 +91,7 @@ class IdeFloatingTabController(
 	suspend fun closeAll(save: Boolean) {
 		for (tab in DockingManager.windows.value) {
 			val panel = tab.content as? EditorPanelDockableContent
-			if (save && panel != null && panel.isModified && !panel.save()) {
+			if (save && panel != null && panel.isModified && !savePanel(panel)) {
 				Toast
 					.makeText(
 						activity,
@@ -101,6 +103,16 @@ class IdeFloatingTabController(
 			panel?.release()
 		}
 	}
+
+	private suspend fun savePanel(panel: EditorPanelDockableContent): Boolean =
+		try {
+			panel.save()
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			log.error("Failed to save floating panel '{}' while closing the project", panel.title, e)
+			false
+		}
 
 	private fun onEvent(event: DockingEvent) {
 		when (val content = event.content) {
@@ -132,5 +144,9 @@ class IdeFloatingTabController(
 			Intent(activity, activity.javaClass)
 				.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
 		)
+	}
+
+	private companion object {
+		private val log = LoggerFactory.getLogger(IdeFloatingTabController::class.java)
 	}
 }
