@@ -9,3 +9,5 @@ This folder holds the deploy side of the service layer: the exported host servic
 | [`DeployChannel.kt`](DeployChannel.kt) | The on-device `DeploySender`: passes payload files as read-only fds over the oneway `onPayload`, awaits the matching report, and bounds every wait. |
 | [`PayloadDeployer.kt`](PayloadDeployer.kt) | Routes a build's artifacts to hot swap vs process restart, handles relaunch/reconnect and the no-app retry, allocates generations, and maps each `DeployResult` to a `BuildOutcome`. |
 | [`BuildStatusJson.kt`](BuildStatusJson.kt) | Builds the string-valued `statusJson` for `onBuildStatus` (building, build_ok, build_failed, reinstall_pending) the proxy app's overlay reads. |
+| [`ProxyAppPriorityHold.kt`](ProxyAppPriorityHold.kt) | Keeps the connected proxy app out of the cached-app freezer by binding its keep-alive service; `BoundServicePriorityHold` is the on-device implementation. |
+| [`RetainedPayloadStore.kt`](RetainedPayloadStore.kt) | Retains the last confirmed deploy's bytes so a reconnect below the deployed generation can be answered by a re-send instead of a forced rebuild. |

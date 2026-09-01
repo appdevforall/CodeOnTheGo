@@ -126,13 +126,15 @@ internal class PayloadDeployer(
 			deployRecovering(generation, dexFile, arscFile, assets?.zip, metadata(restart = false))
 		return when (val result = recovered.result) {
 			is DeployResult.Reloaded -> {
-				// The app confirmed the payload, so these bytes are worth retaining for
-				// the reconnect re-send (concurrency.md rules 3-4).
-				retention?.retain(generation, dexFile, arscFile, assets?.zip, metadata(restart = false))
 				// t3: reportReloaded came back from the recreated activity's onResume,
 				// so the new code is live. One clock read feeds both, or the reported
 				// duration would run past the timeline's own total for the same loop.
+				// Read BEFORE the retention copy below: the copy is post-deploy
+				// bookkeeping, not save-to-live latency, so it stays out of the timed span.
 				val liveAt = clock()
+				// The app confirmed the payload, so these bytes are worth retaining for
+				// the reconnect re-send (concurrency.md rules 3-4).
+				retention?.retain(generation, dexFile, arscFile, assets?.zip, metadata(restart = false))
 				reportTimeline(recorder.completed(generation, liveAt))
 				BuildOutcome.Success(generation, liveAt - loopStartedAt)
 			}
@@ -265,11 +267,12 @@ internal class PayloadDeployer(
 				// re-send has no relaunch behind it, so the app would exit and stay closed.
 				// A below-deployed reconnect after this deploy falls back to the forced
 				// catch-up rebuild, which re-derives the route.
-				retention?.clear()
 				// t3: the relaunched process reconnected at the deployed generation, so
 				// the restart swap is live. Slower than a hot swap by a full process
-				// launch. One clock read feeds both, as on the hot-swap path.
+				// launch. One clock read feeds both, as on the hot-swap path - and read
+				// BEFORE the retention drop below, which is bookkeeping outside the span.
 				val liveAt = clock()
+				retention?.clear()
 				reportTimeline(recorder.completed(generation, liveAt))
 				BuildOutcome.Success(generation, liveAt - loopStartedAt, restarted = true)
 			}
