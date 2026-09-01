@@ -37,6 +37,17 @@ internal fun buildExtractionPlan(
 ): ExtractionPlan =
 	runCatching {
 		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+			if (live.isStale) {
+				/*
+				 * Joining another feature's scope hands over its text, which can be older than the buffer.
+				 * The caller stamps `documentVersion` from the live buffer, so the apply-time version guard
+				 * would compare an honest stamp against text one edit behind and pass - and offsets computed
+				 * here would replace the wrong span. Refusing is the only safe answer.
+				 */
+				logger.debug("refusing extract-variable plan for {}: pinned text is behind the buffer", nioPath)
+				return@withLiveKtFile ExtractionPlan.empty()
+			}
+
 			live.read { ktFile ->
 				val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
 				if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)

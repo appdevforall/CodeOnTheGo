@@ -93,10 +93,12 @@ internal suspend fun doSignatureHelp(params: SignatureHelpParams): SignatureHelp
 		return SignatureHelp.empty()
 	}
 
-	// Signature help is interactive (the user is typing arguments): run at INTERACTIVE priority so it
-	// preempts background diagnostics/indexing and is discarded when a newer interactive request wins.
-	// params.cancelChecker is request-scoped (CancellableRequestParams), so wrap it directly — no
-	// global Lookup fallback needed.
+	/*
+	 * Signature help is interactive (the user is typing arguments): run at INTERACTIVE priority so it
+	 * preempts background diagnostics/indexing and is discarded when a newer interactive request wins.
+	 * params.cancelChecker is request-scoped (CancellableRequestParams), so wrap it directly - no
+	 * global Lookup fallback needed.
+	 */
 	val cancelChecker = ScheduledCancelChecker(params.cancelChecker)
 
 	return try {

@@ -79,7 +79,7 @@ internal class SearchPlan(
 /**
  * Computes the usage result for [params].
  *
- * Structured so that no lock spans the whole search (R9): the target is resolved under one short
+ * Structured so that no lock spans the whole search: the target is resolved under one short
  * `project.read`, candidate selection holds nothing across the pass (`computeFiles` takes `project.read`
  * per file, for one path lookup), and each candidate then takes its own read lock and analysis session.
  * A whole-workspace search holding either for its full duration would block index refresh (which needs
@@ -462,10 +462,12 @@ private suspend fun usagesIn(
 		retryingOnPreemption(delegate, "Usage search in $path") { cancelChecker ->
 			env.ktSymbolIndex.withLiveKtFileAsync(path) { live ->
 				live.read { ktFile ->
-					// The name filter is pure PSI, so it runs before the analysis session opens. A text
-					// prefilter hit whose only mention is a comment or a string literal must not cost an
-					// analysis-lock acquisition, a FIR session and a match-set restore to rule out - and on a
-					// short, common name most candidates are exactly that.
+					/*
+					 * The name filter is pure PSI, so it runs before the analysis session opens. A text
+					 * prefilter hit whose only mention is a comment or a string literal must not cost an
+					 * analysis-lock acquisition, a FIR session and a match-set restore to rule out - and on a
+					 * short, common name most candidates are exactly that.
+					 */
 					val named = namedReferences(ktFile, plan.simpleName, cancelChecker)
 					if (named.isEmpty()) {
 						emptyList()
@@ -481,10 +483,12 @@ private suspend fun usagesIn(
 			}
 		}
 	} catch (e: AnalysisPreemptedException) {
-		// A preemption that outlived retryingOnPreemption's single retry is keystroke-driven work winning
-		// the lock, not the user cancelling. Rethrowing it would discard every location collected so far
-		// and report "no references" for a symbol with plenty, so it costs this file like any other
-		// failure. Genuine cancellation still propagates below (R12).
+		/*
+		 * A preemption that outlived retryingOnPreemption's single retry is keystroke-driven work winning
+		 * the lock, not the user cancelling. Rethrowing it would discard every location collected so far
+		 * and report "no references" for a symbol with plenty, so it costs this file like any other
+		 * failure. Genuine cancellation still propagates below.
+		 */
 		logger.debug("Usage search gave up on candidate {}: preempted twice", path)
 		emptyList()
 	} catch (e: Throwable) {

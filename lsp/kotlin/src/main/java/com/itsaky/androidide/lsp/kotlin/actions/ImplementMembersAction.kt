@@ -72,27 +72,46 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 		cancelChecker: ICancelChecker,
 	): List<TextEdit> =
 		runCatching {
-			// A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
-			// preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and the
-			// action silently inserted nothing. The file is re-pinned per attempt because the preemptor
-			// also refreshed the live PSI.
+			/*
+			 * A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
+			 * preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and the
+			 * action silently inserted nothing. The file is re-pinned per attempt because the preemptor
+			 * also refreshed the live PSI.
+			 */
 			retryingOnPreemption(cancelChecker, "Implement members for $nioPath") { checker ->
 				env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
-					live.read { ktFile ->
-						val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
-						live.analyzing(AnalysisPriority.COMMAND, checker) {
-							val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzing emptyList()
-							if (!isImplementable(classSymbol)) return@analyzing emptyList()
-
-							val classIndent = classIndentOf(ktFile, classOrObject)
-							val unit = detectIndentUnit(ktFile.text)
-							val memberIndent = memberIndentOf(ktFile, classOrObject, classIndent, unit)
-							val stubs = membersToImplement(classSymbol).mapNotNull { renderOverrideStub(it, memberIndent, unit) }
-							if (stubs.isEmpty()) return@analyzing emptyList()
-
-							buildInsertionEdit(ktFile, classOrObject, stubs, classIndent)
-						}
+					if (live.isStale) {
+						// Joining another feature's scope hands over text older than the buffer, so both the
+						// caret offset and the computed insertion point would land in the wrong place.
+						logger.debug("skipping implement-members for {}: pinned text is behind the buffer", nioPath)
+						return@withLiveKtFile emptyList()
 					}
+
+					val edits =
+						live.read { ktFile ->
+							val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
+							live.analyzing(AnalysisPriority.COMMAND, checker) {
+								val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzing emptyList()
+								if (!isImplementable(classSymbol)) return@analyzing emptyList()
+
+								val classIndent = classIndentOf(ktFile, classOrObject)
+								val unit = detectIndentUnit(ktFile.text)
+								val memberIndent = memberIndentOf(ktFile, classOrObject, classIndent, unit)
+								val stubs = membersToImplement(classSymbol).mapNotNull { renderOverrideStub(it, memberIndent, unit) }
+								if (stubs.isEmpty()) return@analyzing emptyList()
+
+								buildInsertionEdit(ktFile, classOrObject, stubs, classIndent)
+							}
+						}
+
+					if (live.isStale) {
+						// The analysis above is slow enough for the user to type through, and nothing between
+						// here and performCodeAction re-checks the offsets these edits were measured against.
+						logger.debug("dropping implement-members edits for {}: buffer moved while computing", nioPath)
+						return@withLiveKtFile emptyList()
+					}
+
+					edits
 				} ?: emptyList()
 			}
 		}.getOrElse { e ->

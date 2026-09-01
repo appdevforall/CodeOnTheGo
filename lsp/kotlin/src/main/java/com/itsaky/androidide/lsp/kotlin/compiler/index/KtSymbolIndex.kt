@@ -336,6 +336,13 @@ internal class KtSymbolIndex(
 	 * Never call this while holding `project.read` - it deadlocks. Acquire the scope first, then use
 	 * [LiveKtFile.read] / [LiveKtFile.analyzing] inside it, which take the read lock for you.
 	 *
+	 * The pin is process-wide, not per-caller: while any scope on [path] is open, *every* request for
+	 * that path joins it and sees the same instance and the same text, including requests from unrelated
+	 * features. So a scope's duration is a staleness window for everyone else - a caller that joins a
+	 * long-running scope can get text older than the buffer the user is looking at. Any site whose
+	 * output is an edit, or that indexes into the text with coordinates from its own request, must
+	 * therefore check [LiveKtFile.isStale] and degrade rather than compute against frozen text.
+	 *
 	 * Known gap: the instance is resolved *before* the pin is installed, so a request arriving in that
 	 * window sees no pin and can launch a refresh that completes inside this scope, firing
 	 * `registerInMemoryFile` and a FIR modification event underneath it. Instance identity still holds -
@@ -523,9 +530,11 @@ internal class KtSymbolIndex(
 		pins[path]?.let { return it.file }
 
 		if (FileManager.isActive(path)) {
-			// Peek, never block: getKtFile runs under project.read inside Analysis-API services, so a
-			// blocking getCurrentKtFile().get() (its refresh needs project.write) would deadlock. A miss
-			// falls through to the disk instance; the edit already scheduled a refresh for next time.
+			/*
+			 * Peek, never block: getKtFile runs under project.read inside Analysis-API services, so a
+			 * blocking refresh (which needs project.write) would deadlock. A miss falls through to the disk
+			 * instance; the edit already scheduled a refresh for next time.
+			 */
 			getCurrentKtFileIfPresent(path)?.let { return it }
 		}
 
