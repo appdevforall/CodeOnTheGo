@@ -112,6 +112,14 @@ fun PluginDetailsDialog(
 					DetailRow(stringResource(R.string.label_plugin_author), plugin.metadata.author)
 					DetailRow(stringResource(R.string.label_plugin_description), plugin.metadata.description)
 					DetailRow(stringResource(R.string.label_plugin_min_ide_version), plugin.metadata.minIdeVersion)
+					// Absent on a .cgp built before ADFA-5256; showing an empty row would read as
+					// "built from nothing" rather than "this build predates provenance".
+					plugin.metadata.vcsRevision?.let {
+						DetailRow(stringResource(R.string.label_plugin_built_from), it)
+					}
+					plugin.metadata.buildTimestamp?.let {
+						DetailRow(stringResource(R.string.label_plugin_built_at), it)
+					}
 					DetailRow(stringResource(R.string.plugin_permissions), plugin.metadata.permissions.joinToString(", "))
 				}
 			}

@@ -26,6 +26,10 @@ data class PluginMetadata(
 	val dependencies: List<String> = emptyList(),
 	val iconDayPath: String? = null,
 	val iconNightPath: String? = null,
+	/** Commit the plugin was built from, or null for a plugin built before provenance existed. */
+	val vcsRevision: String? = null,
+	/** `yyyyMMddHHmmss` UTC build stamp, commit-derived where the build could reach git. */
+	val buildTimestamp: String? = null,
 ) : Parcelable
 
 enum class PluginPermission(
