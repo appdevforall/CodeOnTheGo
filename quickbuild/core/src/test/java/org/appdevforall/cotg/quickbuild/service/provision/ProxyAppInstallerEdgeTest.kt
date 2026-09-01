@@ -5,6 +5,8 @@ package org.appdevforall.cotg.quickbuild.service.provision
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
@@ -46,13 +48,14 @@ class ProxyAppInstallerEdgeTest {
 	private val packages = FakePackages()
 	private val broadcasts = MutableSharedFlow<InstallBroadcast>(extraBufferCapacity = 16)
 
-	private fun installer() =
+	private fun TestScope.installer() =
 		ProxyAppInstaller(
 			packages = packages,
 			launchInstall = { true },
 			broadcasts = broadcasts,
 			timeoutMillis = 10_000L,
 			canShowConfirmDialog = { true },
+			ioDispatcher = StandardTestDispatcher(testScheduler),
 		)
 
 	@BeforeEach

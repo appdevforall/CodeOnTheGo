@@ -39,8 +39,8 @@ class FileGenerationStore(
 	 *
 	 * @param generation the value to store; the caller guarantees it is strictly greater than
 	 *   any previously saved one, since the installed proxy app keys its payloads by it.
-	 * @throws IOException when the value could not be persisted, including the second rename
-	 *   attempt after clearing the destination; unlike [load] this is never swallowed, since
+	 * @throws IOException when the value could not be persisted by any means - both renames
+	 *   AND the direct-write fallback failed; unlike [load] this is never swallowed, since
 	 *   losing it would let a later session reuse a generation.
 	 */
 	override fun save(generation: Long) {
@@ -52,7 +52,17 @@ class FileGenerationStore(
 			// keeps the store correct wherever the JVM tests run.
 			file.delete()
 			if (!tmp.renameTo(file)) {
-				throw IOException("Unable to persist generation $generation to $file")
+				// The old value is already deleted, so a bare throw here would leave NO
+				// counter at all - the next load() would restart the sequence, the exact
+				// reuse the class exists to rule out. Non-atomic beats lost.
+				try {
+					file.writeText(generation.toString())
+				} catch (e: IOException) {
+					throw IOException("Unable to persist generation $generation to $file", e)
+				} finally {
+					tmp.delete()
+				}
+				return
 			}
 		}
 	}

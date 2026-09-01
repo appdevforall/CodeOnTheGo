@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -78,11 +79,14 @@ class DaemonProcessClientEdgeTest {
 	/** @return paths to a fake-java script that runs [body] with `reply` already defined. */
 	private fun replyingPaths(body: String): ScriptedPaths = scriptedPaths("$replyOk\n$body")
 
-	/** @return the client's per-spawn deliberate-stop marker, which has no public surface. */
+	/** @return the current spawn's deliberate-stop marker, which has no public surface. */
 	private fun DaemonProcessClient.stopMarker(): AtomicBoolean {
-		val field = DaemonProcessClient::class.java.getDeclaredField("deliberateStop")
-		field.isAccessible = true
-		return field.get(this) as AtomicBoolean
+		val spawnField = DaemonProcessClient::class.java.getDeclaredField("spawn")
+		spawnField.isAccessible = true
+		val spawn = spawnField.get(this)!!
+		val markerField = spawn.javaClass.getDeclaredField("deliberateStop")
+		markerField.isAccessible = true
+		return markerField.get(spawn) as AtomicBoolean
 	}
 
 	private fun okConfigure(extra: String = "") =
@@ -312,6 +316,43 @@ class DaemonProcessClientEdgeTest {
 		val failed = reply as DaemonReply.Failed
 		assertThat(failed.message).contains("did not answer 'compile'")
 		assertThat(failed.daemonDied).isTrue()
+	}
+
+	@Test
+	fun `a replaced child's watcher frees its own in-flight request instead of orphaning it`() {
+		// A request holds requestMutex for its whole round trip. When the child dies while
+		// one is in flight and the watcher wakes only after the NEXT child is spawned, it
+		// must still fail its own spawn's pending requests - an orphan would burn the full
+		// request timeout with the mutex held, and the replacement's configure would queue
+		// behind it for the same time.
+		val paths =
+			replyingPaths(
+				"""
+				read line
+				reply "${'$'}line"
+				read line
+				sleep 60
+				""".trimIndent(),
+			)
+
+		withClient(paths, timeoutMillis = 30_000) { client ->
+			check(client.start(config()) is DaemonReply.Ok)
+			coroutineScope {
+				val orphan = async(Dispatchers.IO) { client.compile(emptyList(), emptyList()) }
+				delay(500) // let the compile take the request slot
+				val startedAt = System.currentTimeMillis()
+
+				val restart = client.start(config())
+				val orphanReply = orphan.await()
+				val elapsed = System.currentTimeMillis() - startedAt
+
+				assertThat(restart).isInstanceOf(DaemonReply.Ok::class.java)
+				assertThat(orphanReply).isInstanceOf(DaemonReply.Failed::class.java)
+				// Freed by the dead child's watcher (the restart path takes a few seconds
+				// of polite-shutdown budget), NOT by burning the 30 s request timeout.
+				assertThat(elapsed).isLessThan(15_000L)
+			}
+		}
 	}
 
 	@Test
