@@ -29,7 +29,6 @@ import org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.classify.TestSourceFilter
 import org.appdevforall.cotg.quickbuild.domain.classify.recompilesCode
-import org.appdevforall.cotg.quickbuild.domain.reload.ComponentKind
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationStore
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationTracker
 import org.appdevforall.cotg.quickbuild.domain.reload.LiveReloadExecutor
@@ -306,10 +305,21 @@ class QuickBuildSessionManager(
 	 * stamp, so the expiry ages the ask from the original request.
 	 *
 	 * See [switchToProxyApp] for why leaving mid-build is worse than making the user wait, and
-	 * [settleDeferredForegroundAsk] for when it is answered, expired or dropped. Only touched
-	 * on [dispatcher].
+	 * [settleDeferredForegroundAsk] for when it is answered, expired or dropped. A rebaseline
+	 * whose own relaunch answered it clears it first (see [rebuildProxyApp]), so one tap is
+	 * one launch. Only touched on [dispatcher].
 	 */
 	private var foregroundAskDeferredAtMillis: Long? = null
+
+	/**
+	 * Whether the build the deferred ask is waiting on is a rebaseline (a proxy app rebuild),
+	 * captured when the ask is first deferred. A rebaseline ask is exempt from the
+	 * [DEFERRED_FOREGROUND_ASK_MAX_AGE_MILLIS] expiry: the user clicked Quick Build, so the
+	 * switch happens once enough building has happened for their changes to be in the app -
+	 * however long the Gradle rebuild takes on a phone. Meaningless while
+	 * [foregroundAskDeferredAtMillis] is null; cleared with it. Only touched on [dispatcher].
+	 */
+	private var foregroundAskAwaitsRebaseline = false
 
 	/** Owns the daemon lifecycle protocol; see [QuickBuildDaemonController]. */
 	private val daemonController = QuickBuildDaemonController(daemon, scratch, paths)
@@ -505,7 +515,9 @@ class QuickBuildSessionManager(
 					provisioned,
 					selectedVariant,
 				)
-				dispatch(SessionEvent.SessionRestartAndReprovisionRequested)
+				// Not user-initiated: the user changed a build variant, not asked for the
+				// proxy app - the fresh session comes up in the background.
+				dispatch(SessionEvent.SessionRestartAndReprovisionRequested(userInitiated = false))
 			} else {
 				dispatch(SessionEvent.PrebuildRequested)
 			}
@@ -544,7 +556,9 @@ class QuickBuildSessionManager(
 	 * already promises.
 	 */
 	fun restartSessionAndReprovision() {
-		scope.launch { dispatch(SessionEvent.SessionRestartAndReprovisionRequested) }
+		// Explicitly user-initiated: both callers are gestures (the long-press menu item and
+		// the dialog button), so the rebuilt session is brought forward when it lands.
+		scope.launch { dispatch(SessionEvent.SessionRestartAndReprovisionRequested(userInitiated = true)) }
 	}
 
 	/**
@@ -840,24 +854,30 @@ class QuickBuildSessionManager(
 			// Leaving now shows the user the app they already had, for as long as the Gradle
 			// build takes, and it breaks the build's own install: the confirmation is a dialog
 			// only CoGo can raise, and Android does not deliver PENDING_USER_ACTION to a
-			// backgrounded app. The ask is answered when the rebaseline lands, dropped if it
-			// does not, and expired if landing takes so long the ask has gone stale.
+			// backgrounded app. The ask is answered when the rebaseline lands - however long
+			// that takes - and dropped if it does not land.
 			log.info("Quick Build asked for the proxy app mid-full-build; deferring until it lands")
 			// A re-defer keeps the original stamp: the expiry ages the ask from the user's
 			// tap, and re-stamping here would let N chained sub-bound builds keep an
 			// arbitrarily old ask alive. Only a genuinely new ask starts a fresh clock.
-			foregroundAskDeferredAtMillis = foregroundAskDeferredAtMillis ?: nowMillis()
+			if (foregroundAskDeferredAtMillis == null) {
+				foregroundAskDeferredAtMillis = nowMillis()
+				// Captured once, with the stamp: is the build being waited on a rebaseline?
+				// (A parked rebuild's retry shows as Invalidated with the retry under way; a
+				// running one as Provisioning with a rebaseline reason.)
+				foregroundAskAwaitsRebaseline =
+					when (val state = _state.value) {
+						is QuickBuildSessionState.Invalidated -> !state.awaitingRetry
+						is QuickBuildSessionState.Provisioning -> state.rebaselineReason != null
+						else -> false
+					}
+			}
 			return
 		}
 		foregroundAskDeferredAtMillis = null
-		// Same target the restart-deploy relaunch uses: the proxied launcher activity
-		// when one carries MAIN/LAUNCHER, else null so the launcher falls back to the
-		// default launch intent, which resolves an <activity-alias> launcher.
-		val launcherActivity =
-			session.proxyApp.components
-				.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
-				?.proxyClass
-		if (!launcher.launch(session.proxyApp.proxyAppPackage, launcherActivity)) {
+		foregroundAskAwaitsRebaseline = false
+		// Same target every launch path uses; see [ProxyAppInfo.launcherProxyClass].
+		if (!launcher.launch(session.proxyApp.proxyAppPackage, session.proxyApp.launcherProxyClass)) {
 			log.warn("Could not bring the proxy app {} to the foreground", session.proxyApp.proxyAppPackage)
 		}
 	}
@@ -884,11 +904,14 @@ class QuickBuildSessionManager(
 	 * Answers, expires or drops a foreground request that waited for a full Gradle build.
 	 *
 	 * Answered the moment the session is live again, which is what "not until the rebaseline is
-	 * done" means - unless the ask has aged past [DEFERRED_FOREGROUND_ASK_MAX_AGE_MILLIS], in
-	 * which case it expires: a stale ask must not beat where the user is now. Dropped when the
-	 * build did not get there - a dead session or a park - because the app the user would land
-	 * in is the stale one they asked to be taken away from, and showing it would read as the
-	 * rebuild having worked.
+	 * done" means - unless the rebaseline's own relaunch already answered it, in which case
+	 * [rebuildProxyApp] cleared the ask before landing and there is nothing left to do here.
+	 * A rebaseline ask is answered however old it is - the user clicked Quick Build,
+	 * so the switch happens once their changes are in the app, and a Gradle rebuild on a phone
+	 * routinely outlives any reasonable bound. Only a non-rebaseline ask still expires past
+	 * [DEFERRED_FOREGROUND_ASK_MAX_AGE_MILLIS]. Dropped when the build did not get there - a
+	 * dead session or a park - because the app the user would land in is the stale one they
+	 * asked to be taken away from, and showing it would read as the rebuild having worked.
 	 *
 	 * @param state the state just adopted.
 	 */
@@ -897,13 +920,14 @@ class QuickBuildSessionManager(
 		when {
 			state is QuickBuildSessionState.Ready || state is QuickBuildSessionState.Deployed -> {
 				val ageMillis = nowMillis() - askedAtMillis
-				if (ageMillis > DEFERRED_FOREGROUND_ASK_MAX_AGE_MILLIS) {
+				if (!foregroundAskAwaitsRebaseline && ageMillis > DEFERRED_FOREGROUND_ASK_MAX_AGE_MILLIS) {
 					log.info(
 						"Quick Build's deferred proxy app switch expired after {} ms: " +
 							"the user has moved on since asking",
 						ageMillis,
 					)
 					foregroundAskDeferredAtMillis = null
+					foregroundAskAwaitsRebaseline = false
 					return
 				}
 				// switchToProxyApp clears the ask itself, and re-checks the guard - a
@@ -917,6 +941,7 @@ class QuickBuildSessionManager(
 				(state is QuickBuildSessionState.Invalidated && state.awaitingRetry) -> {
 				log.info("Quick Build's deferred proxy app switch dropped: the full build did not land")
 				foregroundAskDeferredAtMillis = null
+				foregroundAskAwaitsRebaseline = false
 			}
 
 			else -> {
@@ -999,7 +1024,14 @@ class QuickBuildSessionManager(
 					// daemon up and the uid session registered. [live] is already set, so the
 					// failure effect's teardown unwinds both.
 					log.error("Installing the provisioned quick-build session threw", e)
-					dispatch(SessionEvent.ProvisioningFailed(QuickBuildMessage.Literal(e.message ?: e.javaClass.name)))
+					// Messageless throw: the class name lives in the log line above, not on
+					// the banner.
+					dispatch(
+						SessionEvent.ProvisioningFailed(
+							e.message?.let { QuickBuildMessage.Literal(it) }
+								?: QuickBuildMessage.ProvisioningFailedUnexpectedly,
+						),
+					)
 				}
 			}
 		}
@@ -1135,6 +1167,16 @@ class QuickBuildSessionManager(
 			buildRunner.rebuildProxyApp(
 				parkedRetry = installRetryPark != null,
 				superseded = { startEpoch != sessionEpoch },
+				// The user asked to see the app: either a tap deferred until this build
+				// lands (foregroundAskDeferredAtMillis) or a tap recorded onto the
+				// rebaseline itself (Provisioning.userInitiated). Anything else - a save,
+				// a foreground return - is not an ask, and the rebuilt app stays in the
+				// background. A relaunch here answers the deferred ask; the Succeeded
+				// branch below clears it so the landing does not launch again.
+				userAskOutstanding = {
+					foregroundAskDeferredAtMillis != null ||
+						(_state.value as? QuickBuildSessionState.Provisioning)?.userInitiated == true
+				},
 			)
 
 		when (result) {
@@ -1155,14 +1197,29 @@ class QuickBuildSessionManager(
 					notifyReinstallPending()
 					dispatch(SessionEvent.ProxyAppRebuildDeferred(installRetryPark.deployedGeneration))
 				} else {
-					// A first rebuild has no park to return to and no budget to
-					// protect, so report it like any other proxy-app-build failure.
+					// A first rebuild losing the Gradle slot is a routine collision (the
+					// gradle edit that invalidated the session usually also starts CoGo's
+					// own project sync), and nothing failed: the session and the running
+					// proxy app are both fine. So park for retry (the next save, tap or
+					// foreground return) instead of dropping to Idle with a failure banner.
+					// onProxyAppRebuildFailed returns the held batch to pending, so the
+					// retry re-reports the invalidation.
+					log.info("Gradle slot busy; parking the proxy app rebuild for retry")
 					session.orchestrator.onProxyAppRebuildFailed()
-					dispatch(SessionEvent.ProvisioningFailed(QuickBuildMessage.RebuildFailed))
+					rebuildPark?.let { park ->
+						dispatch(SessionEvent.ProxyAppRebuildFailed(park.reason, park.deployedGeneration))
+					} ?: dispatch(SessionEvent.ProvisioningFailed(QuickBuildMessage.RebuildFailed))
 				}
 			}
 
 			is ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded -> {
+				if (result.answeredUserAsk) {
+					// The runner's relaunch already brought the app forward for this ask.
+					// Cleared before the landing dispatches, so settleDeferredForegroundAsk
+					// does not launch it a second time for the same tap.
+					foregroundAskDeferredAtMillis = null
+					foregroundAskAwaitsRebaseline = false
+				}
 				try {
 					// Both delegates are built before adoptBaseline moves anything:
 					// executorFor can throw on a null entryActivity, which the rebuild
@@ -1197,7 +1254,13 @@ class QuickBuildSessionManager(
 				} catch (e: Throwable) {
 					log.error("Re-baselining after a successful proxy app rebuild threw", e)
 					session.orchestrator.onProxyAppRebuildFailed()
-					dispatch(SessionEvent.ProvisioningFailed(QuickBuildMessage.Literal(e.message ?: e.javaClass.name)))
+					// Messageless throw: the class name is in the log line above, where it
+					// helps; on a banner it would read as gibberish.
+					dispatch(
+						SessionEvent.ProvisioningFailed(
+							e.message?.let { QuickBuildMessage.Literal(it) } ?: QuickBuildMessage.RebuildFailed,
+						),
+					)
 				}
 			}
 
@@ -1442,10 +1505,10 @@ class QuickBuildSessionManager(
 		private val log = LoggerFactory.getLogger("QB-SessionManager")
 
 		/**
-		 * Oldest a deferred foreground ask may be and still be answered when the full build
-		 * lands. Manual QA (2026-08-13, F5) saw a rebaseline settle a 34-second-old ask on
-		 * top of a user who had deliberately returned to the editor mid-typing; past ~10 s
-		 * the ask no longer says anything about where the user wants to be.
+		 * Oldest a NON-rebaseline deferred foreground ask may be and still be answered when
+		 * the build lands. Rebaseline asks are exempt (see [foregroundAskAwaitsRebaseline]):
+		 * a Gradle rebuild on a phone routinely takes minutes, so an age bound there would
+		 * expire every real ask.
 		 */
 		private const val DEFERRED_FOREGROUND_ASK_MAX_AGE_MILLIS = 10_000L
 

@@ -63,8 +63,9 @@ class QuickBuildSessionManagerTest {
 	private val deploy =
 		FakeDeploy().apply {
 			// The rebaseline relaunch awaits the relaunched app's reconnect; model an app
-			// that comes back at the baseline stamp, so every successful rebaseline in these
-			// tests books exactly ONE launch (no swallowed-start retry).
+			// that comes back at the baseline stamp, so a rebaseline that DOES relaunch (one
+			// with a user ask outstanding) books exactly ONE launch (no swallowed-start
+			// retry). A rebaseline nobody asked for relaunches nothing.
 			reconnectGeneration = { 0L }
 		}
 	private val connections = ProxyAppConnections()
@@ -88,6 +89,9 @@ class QuickBuildSessionManagerTest {
 	/** Flat trace of metrics-sink calls, e.g. "started:CodeOnly:1", "proxyAppRebuild:true". */
 	private val metricsEvents = mutableListOf<String>()
 	private var metricsThrow = false
+
+	/** relaunchOk of each booked proxy app rebuild, in order. */
+	private val rebuildRelaunches = mutableListOf<Boolean>()
 
 	private val recordingMetrics =
 		object : QuickBuildMetricsSink {
@@ -124,6 +128,7 @@ class QuickBuildSessionManagerTest {
 				toRunningMillis: Long?,
 			) {
 				record { "proxyAppRebuild:$isSuccess" }
+				rebuildRelaunches += relaunchOk
 			}
 
 			private fun record(event: () -> String) {
@@ -1965,11 +1970,13 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a first proxy app rebuild that cannot get the Gradle slot is reported, not parked`() =
+	fun `a first proxy app rebuild that cannot get the Gradle slot parks for retry instead of dying`() =
 		runTest {
-			// Only a parked RETRY has somewhere to defer to. A first proxy app rebuild colliding
-			// with another build keeps the existing behaviour: surface it and go Idle, where
-			// the next tap re-provisions.
+			// The collision is routine, not exceptional: the gradle edit that invalidated the
+			// session is often the same edit that makes CoGo start its own project sync, which
+			// holds the device's single Gradle slot. The session and the running proxy app are
+			// both fine, so dropping to Idle turned contention into a dead session; parking
+			// keeps the next save, tap or foreground return as the retry.
 			proxyAppRebuildOutcome = { ProxyAppRebuildOutcome.BuildSlotBusy }
 			val manager = createManager()
 			manager.onQuickBuildTapped()
@@ -1978,12 +1985,27 @@ class QuickBuildSessionManagerTest {
 			manager.save(gradleFile)
 			advanceUntilIdle()
 
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle(lastStartFailed = true))
-			assertThat(userMessages).contains(QuickBuildMessage.RebuildFailed)
-			// Surfaced to the user as a failed proxy app rebuild, so it books like one - only a
-			// DEFERRED retry (slot busy while parked) skips the metrics sink.
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Invalidated(
+						InvalidationReason.GRADLE_CONFIG_CHANGED,
+						0,
+						awaitingRetry = true,
+					),
+				)
+			// No failure banner: nothing failed, and the park's own status names the wait.
+			assertThat(userMessages).doesNotContain(QuickBuildMessage.RebuildFailed)
+			// The lost-slot attempt still books like a failed rebuild - only a slot-busy retry
+			// FROM the park skips the metrics sink.
 			assertThat(metricsEvents.filter { it.startsWith("proxyAppRebuild:") })
 				.containsExactly("proxyAppRebuild:false")
+
+			// And the park recovers the same way a failed rebuild does: the next save retries.
+			proxyAppRebuildOutcome = { defaultProxyAppRebuildSuccess() }
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(proxyAppRebuildCount).isEqualTo(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
 	@Test
@@ -2520,6 +2542,7 @@ class QuickBuildSessionManagerTest {
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
+			val launchesBefore = launches.size
 
 			provisionOutcome = { defaultProvisionOutcome("fullDebug") }
 			manager.onProjectSynced("fullDebug")
@@ -2529,6 +2552,9 @@ class QuickBuildSessionManagerTest {
 			assertThat(daemon.shutdownCount).isEqualTo(1)
 			assertThat(daemon.startConfigs).hasSize(2)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			// Nobody tapped anything: the reprovision is CoGo reacting to the variant change,
+			// so the fresh session comes up in the background instead of stealing the screen.
+			assertThat(launches).hasSize(launchesBefore)
 		}
 
 	@Test
@@ -3388,10 +3414,13 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 
 			// The rebaseline landed: its own relaunch brings the reinstalled app back
-			// (ADFA-4128: the rebaseline shares the restart deploy's launch path), and the
-			// deferred ask is answered exactly once on top of it.
+			// (ADFA-4128: the rebaseline shares the restart deploy's launch path), and that
+			// relaunch IS the answer to the deferred ask - the landing must not launch again.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 2)
+			assertThat(launches).hasSize(launchesBefore + 1)
+			// The one launch came from the rebuild's relaunch, not from a settle after a
+			// skipped relaunch: the rebuild booked itself as relaunched.
+			assertThat(rebuildRelaunches.last()).isTrue()
 		}
 
 	@Test
@@ -3426,11 +3455,13 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a deferred foreground ask that has gone stale expires instead of yanking the user out of the editor`() =
+	fun `a rebaseline ask is answered however long the rebuild took - the tap said where the user wants to be`() =
 		runTest {
-			// F5 (manual QA, 2026-08-13): a rebaseline settled a 34-second-old ask on top of a
-			// user who had deliberately returned to the editor mid-typing. Past the age bound
-			// the ask no longer says where the user wants to be, so the landing build drops it.
+			// The user clicked Quick Build, so the switch happens once their changes are in
+			// the app - for a tap that started a rebaseline, that is the rebuild's landing,
+			// however slow the Gradle build was. A rebaseline ask is therefore EXEMPT from
+			// the 10 s age bound, which was sized for build-queue asks, not for multi-minute
+			// Gradle rebuilds.
 			var failProxyAppRebuild = true
 			proxyAppRebuildOutcome = {
 				if (failProxyAppRebuild) {
@@ -3456,14 +3487,12 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			assertThat(launches).hasSize(launchesBefore)
 
-			// The rebaseline grinds on well past the point where the ask still means anything.
+			// The rebaseline grinds on far past the old bound.
 			fakeNowMillis += 34_000L
 			rebGate.complete(Unit)
 			advanceUntilIdle()
 
-			// The build landed fine - the rebaseline's own relaunch brings the reinstalled
-			// app back (one launch), but the stale ask expired rather than adding a second
-			// deferred switch on top.
+			// The rebaseline's own relaunch answers the ask; the landing does not launch again.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 			assertThat(launches).hasSize(launchesBefore + 1)
 		}
@@ -3471,8 +3500,8 @@ class QuickBuildSessionManagerTest {
 	@Test
 	fun `a deferred foreground ask younger than the age bound is still answered when the build lands`() =
 		runTest {
-			// The boundary partner of the expiry test: a short rebaseline still owes the user
-			// the switch they asked for, so the expiry must not fire early.
+			// The short-rebuild half of the exemption: a quick rebaseline owes the user the
+			// switch they asked for just as much as a slow one.
 			var failProxyAppRebuild = true
 			proxyAppRebuildOutcome = {
 				if (failProxyAppRebuild) {
@@ -3500,17 +3529,16 @@ class QuickBuildSessionManagerTest {
 			rebGate.complete(Unit)
 			advanceUntilIdle()
 
-			// The rebaseline's own relaunch plus the answered ask.
+			// The rebaseline's own relaunch answers the ask; the landing does not launch again.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 2)
+			assertThat(launches).hasSize(launchesBefore + 1)
 		}
 
 	@Test
 	fun `a deferred foreground ask at exactly the age bound is still answered`() =
 		runTest {
-			// The boundary itself (F5): expiry is age STRICTLY past the 10 s bound. With only
-			// the 34 s / 9 s pair above, a `>` to `>=` flip - or the bound quietly changing -
-			// keeps every test green.
+			// The former boundary, kept as a regression check: under the rebaseline exemption
+			// every age is answered, so this must stay green if an age check is reintroduced.
 			var failProxyAppRebuild = true
 			proxyAppRebuildOutcome = {
 				if (failProxyAppRebuild) {
@@ -3538,16 +3566,16 @@ class QuickBuildSessionManagerTest {
 			rebGate.complete(Unit)
 			advanceUntilIdle()
 
-			// The rebaseline's own relaunch plus the answered ask.
+			// The rebaseline's own relaunch answers the ask; the landing does not launch again.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 2)
+			assertThat(launches).hasSize(launchesBefore + 1)
 		}
 
 	@Test
-	fun `a deferred foreground ask one millisecond past the age bound expires`() =
+	fun `a deferred foreground ask just past the age bound is answered too - the bound does not apply to rebaselines`() =
 		runTest {
-			// The expiry partner of the exact-bound test: together they pin the constant at
-			// 10 s in both directions.
+			// The first millisecond the former expiry would have fired; checks the exemption
+			// from the other side of the old bound.
 			var failProxyAppRebuild = true
 			proxyAppRebuildOutcome = {
 				if (failProxyAppRebuild) {
@@ -3575,19 +3603,18 @@ class QuickBuildSessionManagerTest {
 			rebGate.complete(Unit)
 			advanceUntilIdle()
 
-			// Only the rebaseline's own relaunch; the expired ask adds no second switch.
+			// The rebaseline's own relaunch answers the ask; the landing does not launch again.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 			assertThat(launches).hasSize(launchesBefore + 1)
 		}
 
 	@Test
-	fun `chained full builds settle the deferred ask exactly once, aged from the original tap`() =
+	fun `chained full builds settle the deferred ask exactly once`() =
 		runTest {
 			// The chained-build shape behind the re-defer question: a gradle edit mid-rebuild
 			// chains a second full build onto the first landing. The landing's settle runs
-			// before the chained invalidation can dispatch, so the ask is settled ONCE there,
-			// against the original tap's stamp - answered here (6 s old), and never again by
-			// the chained build's own landing.
+			// before the chained invalidation can dispatch, so the ask is settled ONCE there -
+			// and never again by the chained build's own landing.
 			var failProxyAppRebuild = true
 			proxyAppRebuildOutcome = {
 				if (failProxyAppRebuild) {
@@ -3624,131 +3651,42 @@ class QuickBuildSessionManagerTest {
 			fakeNowMillis += 6_000L
 			firstGate.complete(Unit)
 			advanceUntilIdle()
-			// The first landing relaunches the reinstalled app, and the 6-second-old ask is
-			// answered there, before the chained rebuild takes the session back to
-			// Provisioning.
-			assertThat(launches).hasSize(launchesBefore + 2)
+			// The first landing's relaunch answers the 6-second-old ask - one launch - before
+			// the chained rebuild takes the session back to Provisioning.
+			assertThat(launches).hasSize(launchesBefore + 1)
 			assertThat(proxyAppRebuildCount).isEqualTo(3)
 
 			fakeNowMillis += 6_000L
 			secondGate.complete(Unit)
 			advanceUntilIdle()
 
-			// The chained landing relaunches its own reinstall, but must not answer the
-			// same tap twice.
+			// The chained landing has no ask outstanding - the tap was answered at the first
+			// one - so the reinstalled app stays in the background and the tap is not
+			// answered twice.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 3)
+			assertThat(launches).hasSize(launchesBefore + 1)
 		}
 
 	@Test
-	fun `a deferred ask stale at a chained landing expires and the chained build cannot revive it`() =
+	fun `a save-triggered rebaseline stays in the background - no relaunch without a user ask`() =
 		runTest {
-			// The audit's chained-build fear, pinned in its observable form: the first build
-			// runs the ask past the 10 s bound, and a chained full build is already queued
-			// when it lands. Expiry is judged against the ORIGINAL tap - so nothing may
-			// switch at the stale first landing, and the chained landing moments later must
-			// not resurrect the dead ask either.
-			var failProxyAppRebuild = true
-			proxyAppRebuildOutcome = {
-				if (failProxyAppRebuild) {
-					ProxyAppRebuildOutcome.Failure(QuickBuildMessage.Literal("manifest does not build"))
-				} else {
-					defaultProxyAppRebuildSuccess()
-				}
-			}
-			val manager = createManager(nowMillis = { fakeNowMillis })
+			// The user did NOT click Quick Build - the rebaseline was CoGo reacting to a
+			// gradle-file save - so the reinstalled app must not be brought forward. The
+			// deploy channel reconnects in the background and its catch-up keeps the app
+			// current for whenever the user opens it themselves.
+			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
+			val launchesBefore = launches.size
 
 			manager.save(gradleFile)
 			advanceUntilIdle()
-			val launchesBefore = launches.size
-			failProxyAppRebuild = false
-			val firstGate = CompletableDeferred<Unit>()
-			proxyAppRebuildGate = firstGate
 
-			manager.onQuickBuildTapped()
-			advanceUntilIdle()
+			// The rebaseline landed and the session is live on the new baseline...
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
+			// ...without yanking the user out of the editor.
 			assertThat(launches).hasSize(launchesBefore)
-
-			gradleFile.setLastModified(System.currentTimeMillis() + 3_600_000L)
-			manager.save(gradleFile)
-			advanceUntilIdle()
-
-			val secondGate = CompletableDeferred<Unit>()
-			proxyAppRebuildGate = secondGate
-			fakeNowMillis += 11_000L
-			firstGate.complete(Unit)
-			advanceUntilIdle()
-			// Stale at the first landing: its own relaunch runs, but the expired ask adds
-			// no deferred switch; chained rebuild under way.
-			assertThat(launches).hasSize(launchesBefore + 1)
-			assertThat(proxyAppRebuildCount).isEqualTo(3)
-
-			fakeNowMillis += 2_000L
-			secondGate.complete(Unit)
-			advanceUntilIdle()
-
-			// The chained landing is only moments after the expiry; it relaunches its own
-			// reinstall, but the ask stays dead.
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 2)
-		}
-
-	@Test
-	fun `a new ask after an expiry stamps a fresh clock and is answered normally`() =
-		runTest {
-			// Guards the other direction of the preserve-on-re-defer fix: the expiry nulls the
-			// stamp, so the next tap's ask must age from ITS OWN deferral, not the dead one's.
-			var failProxyAppRebuild = true
-			proxyAppRebuildOutcome = {
-				if (failProxyAppRebuild) {
-					ProxyAppRebuildOutcome.Failure(QuickBuildMessage.Literal("manifest does not build"))
-				} else {
-					defaultProxyAppRebuildSuccess()
-				}
-			}
-			val manager = createManager(nowMillis = { fakeNowMillis })
-			manager.onQuickBuildTapped()
-			advanceUntilIdle()
-
-			manager.save(gradleFile)
-			advanceUntilIdle()
-			val launchesBefore = launches.size
-			failProxyAppRebuild = false
-			val firstGate = CompletableDeferred<Unit>()
-			proxyAppRebuildGate = firstGate
-
-			manager.onQuickBuildTapped()
-			advanceUntilIdle()
-
-			// First ask goes stale and expires; only the landing's own relaunch runs.
-			fakeNowMillis += 34_000L
-			firstGate.complete(Unit)
-			advanceUntilIdle()
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 1)
-
-			// Park again, then a fresh tap: 9 s is young against the new ask's own clock
-			// even though 43 s have passed since the expired one.
-			failProxyAppRebuild = true
-			manager.save(gradleFile)
-			advanceUntilIdle()
-			failProxyAppRebuild = false
-			val secondGate = CompletableDeferred<Unit>()
-			proxyAppRebuildGate = secondGate
-
-			manager.onQuickBuildTapped()
-			advanceUntilIdle()
-			assertThat(launches).hasSize(launchesBefore + 1)
-
-			fakeNowMillis += 9_000L
-			secondGate.complete(Unit)
-			advanceUntilIdle()
-
-			// The second landing's relaunch plus the fresh ask, answered normally.
-			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
-			assertThat(launches).hasSize(launchesBefore + 3)
 		}
 
 	@Test
@@ -4658,10 +4596,11 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
-	fun `a messageless throw during the rebuild's re-baseline surfaces the exception class name`() =
+	fun `a messageless throw during the rebuild's re-baseline surfaces a named failure, not a class name`() =
 		runTest {
-			// A bare `checkNotNull` / NPE carries no message; surfacing an empty string would
-			// flash a blank banner and tell the user nothing at all.
+			// A bare `checkNotNull` / NPE carries no message. The class name is diagnostic -
+			// it reads as gibberish on a banner - so the user gets the named rebuild failure
+			// and the error log keeps the class and stack.
 			val manager = createManager()
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
@@ -4670,8 +4609,7 @@ class QuickBuildSessionManagerTest {
 			manager.save(gradleFile)
 			advanceUntilIdle()
 
-			assertThat(userMessages)
-				.contains(QuickBuildMessage.Literal("java.lang.IllegalStateException"))
+			assertThat(userMessages).contains(QuickBuildMessage.RebuildFailed)
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle(lastStartFailed = true))
 		}
 

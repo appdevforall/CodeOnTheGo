@@ -32,7 +32,7 @@ class SessionReducer {
 		// above it never rests at Idle: it goes straight on to a fresh provision, so the toolbar
 		// icon turns BUILDING and the surfaces narrate the rebuild the user asked for. Idle has
 		// nothing to tear down, so it starts one without the teardown effect.
-		if (event == SessionEvent.SessionRestartAndReprovisionRequested) {
+		if (event is SessionEvent.SessionRestartAndReprovisionRequested) {
 			val effect =
 				if (state is QuickBuildSessionState.Idle) {
 					// Nothing to tear down, so this is an ordinary first provision.
@@ -40,8 +40,11 @@ class SessionReducer {
 				} else {
 					SessionEffect.TeardownAndProvision
 				}
+			// The flag rides through so only a restart the USER asked for brings the proxy
+			// app forward when the fresh session goes live; an automatic reprovision (a
+			// Build Variants switch) must leave them in the editor.
 			return SessionTransition(
-				QuickBuildSessionState.Provisioning(userInitiated = true),
+				QuickBuildSessionState.Provisioning(userInitiated = event.userInitiated),
 				listOf(effect),
 			)
 		}
@@ -176,6 +179,15 @@ class SessionReducer {
 						listOf(SessionEffect.StartWarmCompile)
 					},
 				)
+			}
+
+			is SessionEvent.QuickBuildTapped -> {
+				// The tap asks to see the app once the user's changes are in it. The build
+				// already in flight covers the building, so the tap needs no effect of its
+				// own; recording userInitiated is what makes ProvisioningSucceeded above
+				// switch to the proxy app. Without this a save-triggered rebaseline, which
+				// provisions with userInitiated = false, would never answer the tap.
+				SessionTransition(state.copy(userInitiated = true))
 			}
 
 			SessionEvent.CancelRequested -> {
@@ -619,17 +631,27 @@ class SessionReducer {
 			is SessionEvent.QuickBuildTapped -> {
 				// The one gesture the user has while the compiler is down, so it must not fall through
 				// to the else below - that would answer the tap with no build, no message and no Build
-				// Output line, since that pane is driven by status transitions. A failed respawn leaves
-				// the daemon epoch alone, so the retry really runs; the message goes out alongside it
-				// because a respawn still in flight answers with Superseded and would otherwise leave
-				// the tap unacknowledged. Clearing restartFailed makes the status honest again.
-				SessionTransition(
-					state.copy(restartFailed = false),
-					listOf(
-						SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying),
-						SessionEffect.RespawnDaemon,
-					),
-				)
+				// Output line, since that pane is driven by status transitions. The message goes out
+				// in both arms so the tap is never silent.
+				if (state.restartFailed) {
+					// Nothing is scheduled any more, so the tap is the retry; clearing
+					// restartFailed puts the status back to "restarting".
+					SessionTransition(
+						state.copy(restartFailed = false),
+						listOf(
+							SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying),
+							SessionEffect.RespawnDaemon,
+						),
+					)
+				} else {
+					// The DaemonDied respawn is still in flight, and a respawn never bumps the
+					// daemon epoch - so a second RespawnDaemon here would RACE the first for
+					// the same daemon rather than be answered with Superseded. Ack only.
+					SessionTransition(
+						state,
+						listOf(SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying)),
+					)
+				}
 			}
 
 			SessionEvent.BuildStarted -> {

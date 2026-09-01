@@ -4,7 +4,6 @@ import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
-import org.appdevforall.cotg.quickbuild.domain.reload.ComponentKind
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationStore
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationTracker
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
@@ -130,7 +129,12 @@ internal class ProxyAppBuildRunner(
 				throw e
 			} catch (e: Throwable) {
 				log.error("Provisioner threw instead of reporting an outcome", e)
-				ProvisionOutcome.Failure(QuickBuildMessage.Literal(e.message ?: e.javaClass.name))
+				// Messageless throw: the class name is in the log line above; a banner
+				// showing "java.lang.IllegalStateException" would tell the user nothing.
+				ProvisionOutcome.Failure(
+					e.message?.let { QuickBuildMessage.Literal(it) }
+						?: QuickBuildMessage.ProvisioningFailedUnexpectedly,
+				)
 			}
 
 		if (superseded()) {
@@ -207,7 +211,12 @@ internal class ProxyAppBuildRunner(
 						daemonController.markIntentionalTransition()
 						daemonController.shutdown()
 					}
-					ProvisionResult.Failed(QuickBuildMessage.Literal(e.message ?: e.javaClass.name))
+					// Class name and stack are in the log line above; see the provision()
+					// catch for why a messageless throw gets the named case.
+					ProvisionResult.Failed(
+						e.message?.let { QuickBuildMessage.Literal(it) }
+							?: QuickBuildMessage.ProvisioningFailedUnexpectedly,
+					)
 				}
 			}
 		}
@@ -265,6 +274,13 @@ internal class ProxyAppBuildRunner(
 			 * build. The manager moves the session's deployed generation to it.
 			 */
 			val baselineGeneration: Long,
+			/**
+			 * True when a user ask was outstanding and the runner relaunched the reinstalled
+			 * app for it (best-effort, like every foreground switch: a refused start is
+			 * logged, not retried). The manager drops its deferred ask on this, so the
+			 * landing does not launch the app a second time for the same tap.
+			 */
+			val answeredUserAsk: Boolean,
 		) : ProxyAppRebuildResult
 	}
 
@@ -283,11 +299,18 @@ internal class ProxyAppBuildRunner(
 	 *   never ran (a first rebuild losing the slot does surface as a failure, so it books like
 	 *   one).
 	 * @param superseded the manager's epoch check, probed once the Gradle build is done
+	 * @param userAskOutstanding whether the user has asked to see the proxy app (a Quick Build
+	 *   tap still waiting to be answered); read at relaunch time. Only then does a successful
+	 *   rebuild relaunch the reinstalled app, and it says so through
+	 *   [ProxyAppRebuildResult.Succeeded.answeredUserAsk]. A save-triggered rebuild must not
+	 *   pull the user out of the editor, so without an ask the app stays where it is and
+	 *   catches up over the deploy channel's reconnect when the user next opens it.
 	 * @return what happened; the daemon is left down for every result except a success
 	 */
 	suspend fun rebuildProxyApp(
 		parkedRetry: Boolean,
 		superseded: () -> Boolean,
+		userAskOutstanding: () -> Boolean,
 	): ProxyAppRebuildResult {
 		// Free the daemon's memory for the Gradle build about to peak; on a 3-4GB device
 		// the two must not coexist. Nothing is lost: the daemon's incremental state is
@@ -304,7 +327,11 @@ internal class ProxyAppBuildRunner(
 				throw e
 			} catch (e: Throwable) {
 				log.error("Proxy app rebuild threw instead of reporting an outcome", e)
-				ProxyAppRebuildOutcome.Failure(QuickBuildMessage.Literal(e.message ?: e.javaClass.name))
+				// Class name and stack are in the log line above; see the provision()
+				// catch for why a messageless throw gets a named case.
+				ProxyAppRebuildOutcome.Failure(
+					e.message?.let { QuickBuildMessage.Literal(it) } ?: QuickBuildMessage.RebuildFailed,
+				)
 			}
 		// Captured here so the relaunch below cannot leak into the build cost:
 		// durationMillis is the Gradle wall clock, and existing consumers parse it as such.
@@ -357,7 +384,17 @@ internal class ProxyAppBuildRunner(
 				daemonController.markIntentionalTransition()
 				when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
 					is DaemonReply.Ok -> {
-						val toRunningMillis = relaunchRebuiltProxyApp(outcome.proxyApp, startedAtNanos)
+						// Only a rebuild the user is waiting on brings the reinstalled app
+						// forward; a background rebaseline leaves it where it is and lets the
+						// reconnect catch-up bring it in sync when the user opens it themselves.
+						val askOutstanding = userAskOutstanding()
+						val toRunningMillis =
+							if (askOutstanding) {
+								relaunchRebuiltProxyApp(outcome.proxyApp, startedAtNanos)
+							} else {
+								log.info("Proxy app rebuilt with no user ask outstanding; staying in the background")
+								null
+							}
 						bookRebuildMetric(
 							relaunchOk = toRunningMillis != null,
 							toRunningMillis = toRunningMillis,
@@ -366,6 +403,7 @@ internal class ProxyAppBuildRunner(
 							outcome.proxyApp,
 							outcome.layout,
 							outcome.baselineGeneration,
+							answeredUserAsk = askOutstanding,
 						)
 					}
 
@@ -386,9 +424,8 @@ internal class ProxyAppBuildRunner(
 	/**
 	 * Relaunches the just-reinstalled proxy app and waits for its runtime to reconnect.
 	 *
-	 * The same machinery as the restart deploy's relaunch: the proxied launcher activity
-	 * when one carries MAIN/LAUNCHER, else null so the launcher falls back to the package's
-	 * default launch intent, which resolves an `<activity-alias>` launcher. Exactly two
+	 * The same machinery as the restart deploy's relaunch, aimed at the shared launch
+	 * target ([ProxyAppInfo.launcherProxyClass]). Exactly two
 	 * attempts, because a start can be silently swallowed by the task the killed process
 	 * left behind and a second one then lands - two, not a loop, so a genuinely dead app
 	 * surfaces instead of becoming a retry storm.
@@ -404,10 +441,7 @@ internal class ProxyAppBuildRunner(
 		proxyApp: ProxyAppInfo,
 		rebuildStartedAtNanos: Long,
 	): Long? {
-		val launcherActivity =
-			proxyApp.components
-				.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
-				?.proxyClass
+		val launcherActivity = proxyApp.launcherProxyClass
 		if (!launcher.launch(proxyApp.proxyAppPackage, launcherActivity)) {
 			log.warn(
 				"Proxy app {} could not be relaunched after the rebuild; open it manually",
