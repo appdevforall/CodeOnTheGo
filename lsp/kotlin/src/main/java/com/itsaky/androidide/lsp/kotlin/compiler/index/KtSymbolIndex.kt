@@ -227,7 +227,7 @@ internal class KtSymbolIndex(
 	 * version miss. For non-open paths (no active document) falls back to the disk [getKtFile].
 	 * Single-flight: concurrent callers at the same version share one parse.
 	 */
-	fun getCurrentKtFile(path: Path): CompletableFuture<KtFile?> =
+	private fun getCurrentKtFile(path: Path): CompletableFuture<KtFile?> =
 		getCurrentVersionedKtFile(path)?.thenApply { it.ktFile } ?: CompletableFuture.completedFuture(null)
 
 	/**
@@ -327,7 +327,7 @@ internal class KtSymbolIndex(
 	 * else `null`. Safe to call while holding `project.read` (unlike [getCurrentKtFile], which may
 	 * trigger a blocking refresh that needs `project.write`).
 	 */
-	fun getCurrentKtFileIfPresent(path: Path): KtFile? = currentFiles[path]?.getNow(null)?.ktFile
+	private fun getCurrentKtFileIfPresent(path: Path): KtFile? = currentFiles[path]?.getNow(null)?.ktFile
 
 	/**
 	 * Runs [block] with the file at [path] pinned, or returns `null` if the path has no Kotlin PSI.
@@ -502,9 +502,17 @@ internal class KtSymbolIndex(
 		}
 	}
 
-	fun getKtFile(vf: VirtualFile): KtFile? = getKtFile(vf.toNioPath(), vf)
+	/** [getKtFile] for [vf], keyed by the path it maps to. */
+	internal fun getKtFile(vf: VirtualFile): KtFile? = getKtFile(vf.toNioPath(), vf)
 
-	fun getKtFile(
+	/**
+	 * The resolution-side door: what the Analysis API service providers answer a path lookup with.
+	 *
+	 * A pinned path resolves to the pinned instance, so an open analysis and the declaration provider
+	 * cannot disagree about which instance is the file. Otherwise the live cache is peeked, then the
+	 * on-disk instance is loaded.
+	 */
+	internal fun getKtFile(
 		path: Path,
 		virtualFile: VirtualFile? = null,
 	): KtFile? {

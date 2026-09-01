@@ -3,11 +3,9 @@ package com.itsaky.androidide.lsp.kotlin.navigation
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.rangeOf
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
 import com.itsaky.androidide.lsp.models.DefinitionParams
@@ -15,7 +13,6 @@ import com.itsaky.androidide.lsp.models.DefinitionResult
 import com.itsaky.androidide.models.Location
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.progress.ICancelChecker
-import kotlinx.coroutines.future.await
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.components.containingDeclaration
 import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull
@@ -179,9 +176,7 @@ private fun locationOfPsi(declaration: PsiElement): Location? {
 /**
  * Computes the definition result for [params].
  *
- * Mirrors `doSignatureHelp`: the live-PSI await happens outside `project.read`, because the refresh
- * it waits on needs `project.write` and awaiting it under the read lock would deadlock. Every
- * failure short of cancellation collapses to an empty result, which the editor renders as
+ * Every failure short of cancellation collapses to an empty result, which the editor renders as
  * "Definition not found".
  *
  * The context is [AbstractCompilationEnvironment] rather than the concrete `CompilationEnvironment`
@@ -207,27 +202,23 @@ internal suspend fun findDefinitionAt(params: DefinitionParams): DefinitionResul
 		// (CancellableRequestParams), so it is the delegate the per-attempt checker wraps.
 		val locations =
 			retryingOnPreemption(params.cancelChecker, "Definition lookup for ${params.file}") { cancelChecker ->
-				// Awaited per attempt, not once: whatever preempted the first attempt also refreshed the
+				// Pinned per attempt, not once: whatever preempted the first attempt also refreshed the
 				// live PSI, unregistering the KtFile that attempt held, and analyzing it again would fail.
-				//
-				// Safe to await a (possibly blocking) refresh here: this runs outside any project.read/write
-				// block, so it can't deadlock against the refresh's project.write. Refreshed to the open
-				// document's current version, so the caret offset and the PSI it indexes into come from the
-				// same text - a stale snapshot points at the wrong element. (params.position is fixed by the
-				// request, so a retry after the user typed can still be one edit behind; that resolves to
-				// the wrong element or to nothing, never to a crash.)
-				val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).await()
-				if (ktFile == null) {
-					logger.warn("File {} cannot be loaded for definition lookup", params.file)
-					emptyList()
-				} else {
+				// Pinned to the open document's current version, so the caret offset and the PSI it indexes
+				// into come from the same text - a stale snapshot points at the wrong element.
+				// (params.position is fixed by the request, so a retry after the user typed can still be one
+				// edit behind; that resolves to the wrong element or to nothing, never to a crash.)
+				env.ktSymbolIndex.withLiveKtFileAsync(params.file) { live ->
 					cancelChecker.abortIfCancelled()
-					env.project.read {
+					live.read { ktFile ->
 						val element = referenceAtCaret(ktFile, offset) ?: return@read emptyList()
-						analyzeMaybeDangling(ktFile, AnalysisPriority.COMMAND, cancelChecker) {
+						live.analyzing(AnalysisPriority.COMMAND, cancelChecker, useSite = element) {
 							definitionLocations(element, cancelChecker)
 						}
 					}
+				} ?: run {
+					logger.warn("File {} cannot be loaded for definition lookup", params.file)
+					emptyList()
 				}
 			}
 		logger.debug("Definition result for {}: {} location(s)", params.file, locations.size)

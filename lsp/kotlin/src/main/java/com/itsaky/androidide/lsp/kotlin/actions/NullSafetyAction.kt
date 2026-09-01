@@ -11,7 +11,6 @@ import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.api.ILanguageClient
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.diagnostic.DiagnosticAction
 import com.itsaky.androidide.lsp.kotlin.utils.NullSafetyKind
 import com.itsaky.androidide.lsp.kotlin.utils.NullSafetyVariant
@@ -67,22 +66,19 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 
 			val nioPath = data.requireFile().toPath()
 
-			// Fetch the live KtFile BEFORE entering `read` (deadlock rule: its refresh needs write access).
-			val ktFile =
-				withContext(Dispatchers.IO) {
-					extra.compilationEnv.ktSymbolIndex
-						.getCurrentKtFile(nioPath)
-						.get()
-				} ?: return emptyList()
-
-			extra.compilationEnv.project.read {
-				val qe =
-					findNullableMemberAccess(
-						ktFile,
-						diagnostic.range.start.requireIndex(),
-						diagnostic.range.end.requireIndex(),
-					) ?: return@read emptyList()
-				nullSafetyVariants(qe)
+			// Off the main thread: acquiring the pin resolves the file first, which can block on a refresh.
+			withContext(Dispatchers.IO) {
+				extra.compilationEnv.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+					live.read { ktFile ->
+						val qe =
+							findNullableMemberAccess(
+								ktFile,
+								diagnostic.range.start.requireIndex(),
+								diagnostic.range.end.requireIndex(),
+							) ?: return@read emptyList()
+						nullSafetyVariants(qe)
+					}
+				} ?: emptyList()
 			}
 		}.getOrElse { e ->
 			if (e is CancellationException) throw e

@@ -26,7 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.future.await
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -210,7 +209,7 @@ internal class CompilationEnvironment(
 			) { path, _ ->
 				// Pull through the cache so a refresh (and its reindex) happens after every edit,
 				// independent of whether diagnostics run.
-				ktSymbolIndex.getCurrentKtFile(path).await()
+				ktSymbolIndex.refreshCurrentKtFile(path)
 			}
 	}
 

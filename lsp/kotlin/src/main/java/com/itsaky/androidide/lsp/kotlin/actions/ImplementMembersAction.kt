@@ -8,10 +8,8 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.membersToImplement
 import com.itsaky.androidide.lsp.kotlin.utils.renderOverrideStub
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
@@ -59,8 +57,7 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 
 	/**
 	 * Computes the edit that inserts stubs for the abstract members left unimplemented by the class or
-	 * object enclosing [offset] in the file at [nioPath]. The current [KtFile] is fetched BEFORE
-	 * entering [read] (deadlock rule: never block on `getCurrentKtFile(...).get()` inside `project.read`).
+	 * object enclosing [offset] in the file at [nioPath].
 	 *
 	 * Returns an empty list when there is nothing to do (cursor not in a class/object, the declaration
 	 * is abstract/an interface/enum, or every required member is already implemented) *and* whenever
@@ -77,25 +74,26 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 		runCatching {
 			// A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
 			// preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and the
-			// action silently inserted nothing. The file is re-fetched per attempt because the preemptor
+			// action silently inserted nothing. The file is re-pinned per attempt because the preemptor
 			// also refreshed the live PSI.
 			retryingOnPreemption(cancelChecker, "Implement members for $nioPath") { checker ->
-				val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return@retryingOnPreemption emptyList()
-				env.project.read {
-					val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
-					analyzeMaybeDangling(ktFile, AnalysisPriority.COMMAND, checker) {
-						val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzeMaybeDangling emptyList()
-						if (!isImplementable(classSymbol)) return@analyzeMaybeDangling emptyList()
+				env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+					live.read { ktFile ->
+						val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
+						live.analyzing(AnalysisPriority.COMMAND, checker) {
+							val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzing emptyList()
+							if (!isImplementable(classSymbol)) return@analyzing emptyList()
 
-						val classIndent = classIndentOf(ktFile, classOrObject)
-						val unit = detectIndentUnit(ktFile.text)
-						val memberIndent = memberIndentOf(ktFile, classOrObject, classIndent, unit)
-						val stubs = membersToImplement(classSymbol).mapNotNull { renderOverrideStub(it, memberIndent, unit) }
-						if (stubs.isEmpty()) return@analyzeMaybeDangling emptyList()
+							val classIndent = classIndentOf(ktFile, classOrObject)
+							val unit = detectIndentUnit(ktFile.text)
+							val memberIndent = memberIndentOf(ktFile, classOrObject, classIndent, unit)
+							val stubs = membersToImplement(classSymbol).mapNotNull { renderOverrideStub(it, memberIndent, unit) }
+							if (stubs.isEmpty()) return@analyzing emptyList()
 
-						buildInsertionEdit(ktFile, classOrObject, stubs, classIndent)
+							buildInsertionEdit(ktFile, classOrObject, stubs, classIndent)
+						}
 					}
-				}
+				} ?: emptyList()
 			}
 		}.getOrElse { e ->
 			if (e.isAnalysisCancellation()) {

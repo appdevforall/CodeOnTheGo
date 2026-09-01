@@ -3,8 +3,6 @@ package com.itsaky.androidide.lsp.kotlin.diagnostic
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.models.DiagnosticResult
@@ -68,77 +66,94 @@ private fun doAnalyze(
 	file: Path,
 	cancelChecker: ICancelChecker,
 ): DiagnosticResult {
-	val ktFile = env.ktSymbolIndex.getCurrentKtFile(file).get()
-	if (ktFile == null) {
-		logger.warn("File {} is not accessible", file)
-		return DiagnosticResult.NO_UPDATE
-	}
-
 	// Diagnostics yield to completion but preempt indexing. The wrapped checker turns a scheduler
 	// preemption into an AnalysisPreemptedException, which CompilationEnvironment's fileAnalyzer catches
 	// to re-schedule this run once the higher-priority work finishes.
 	val checker = ScheduledCancelChecker(cancelChecker)
 
-	val diagnostics =
-		env.project.read {
-			buildList {
-				PsiTreeUtil
-					.collectElementsOfType(ktFile, PsiErrorElement::class.java)
-					.forEach { errorElement ->
-						checker.abortIfCancelled()
-						add(
-							diagnosticItem(
-								file = ktFile,
-								message = errorElement.errorDescription,
-								range = errorElement.textRange,
-								severity = DiagnosticSeverity.ERROR,
-							),
-						)
+	var superseded = false
+	val result =
+		env.ktSymbolIndex.withLiveKtFile(file) { live ->
+			val diagnostics =
+				live.analyzing(AnalysisPriority.DIAGNOSTICS, checker) { ktFile ->
+					buildList {
+						PsiTreeUtil
+							.collectElementsOfType(ktFile, PsiErrorElement::class.java)
+							.forEach { errorElement ->
+								checker.abortIfCancelled()
+								add(
+									diagnosticItem(
+										file = ktFile,
+										message = errorElement.errorDescription,
+										range = errorElement.textRange,
+										severity = DiagnosticSeverity.ERROR,
+									),
+								)
+							}
+
+						// analyzeMaybeDangling installs a CancelCheckerProgressIndicator, so this is cancellable
+						// mid-`analyze`: it aborts at the compiler's internal checkCanceled() once `checker` reports
+						// preemption/cancellation. (Previously this analysis was not cancellable at all.)
+						ktFile
+							.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
+							.forEach { diagnostic ->
+								checker.abortIfCancelled()
+								// Extract plain data while still inside the analyze context; never let
+								// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
+								val action =
+									when (diagnostic) {
+										is KaFirDiagnostic.UnresolvedReference -> {
+											DiagnosticAction.ResolveReference(
+												diagnostic.reference,
+											)
+										}
+
+										is KaFirDiagnostic.UnsafeCall -> {
+											DiagnosticAction.NullSafetyFix
+										}
+
+										else -> {
+											DiagnosticAction.None
+										}
+									}
+
+								add(
+									diagnostic.toDiagnosticItem().apply {
+										extra = KotlinDiagnosticExtra(env, action)
+									},
+								)
+							}
 					}
-
-				// analyzeMaybeDangling installs a CancelCheckerProgressIndicator, so this is cancellable
-				// mid-`analyze`: it aborts at the compiler's internal checkCanceled() once `checker` reports
-				// preemption/cancellation. (Previously this analysis was not cancellable at all.)
-				analyzeMaybeDangling(ktFile, AnalysisPriority.DIAGNOSTICS, checker) {
-					ktFile
-						.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS)
-						.forEach { diagnostic ->
-							checker.abortIfCancelled()
-							// Extract plain data while still inside the analyze context; never let
-							// the KaLifetimeOwner diagnostic escape (see KotlinDiagnosticExtra).
-							val action =
-								when (diagnostic) {
-									is KaFirDiagnostic.UnresolvedReference -> {
-										DiagnosticAction.ResolveReference(
-											diagnostic.reference,
-										)
-									}
-
-									is KaFirDiagnostic.UnsafeCall -> {
-										DiagnosticAction.NullSafetyFix
-									}
-
-									else -> {
-										DiagnosticAction.None
-									}
-								}
-
-							add(
-								diagnostic.toDiagnosticItem().apply {
-									extra = KotlinDiagnosticExtra(env, action)
-								},
-							)
-						}
 				}
+
+			if (live.isStale) {
+				// The document moved on while this ran, so these diagnostics describe text the user has
+				// already replaced. Publishing them would paint the editor with stale squiggles.
+				superseded = true
+				null
+			} else {
+				logger.info("Found {} diagnostics", diagnostics.size)
+				DiagnosticResult(file = file, diagnostics = diagnostics)
 			}
 		}
 
-	logger.info("Found {} diagnostics", diagnostics.size)
+	if (result != null) {
+		return result
+	}
 
-	return DiagnosticResult(
-		file = file,
-		diagnostics = diagnostics,
-	)
+	if (superseded) {
+		logger.debug("dropping superseded diagnostics for {}", file)
+		/*
+		 * On the debounced path this is a self-send: doAnalyze runs as fileAnalyzer's own action, so the
+		 * send reads to the worker as a newer key and cancels the run it came from. Deliberate - the
+		 * reschedule still lands, and the only casualty is the NO_UPDATE publish below, which had nothing
+		 * to say anyway. Reached from KotlinLanguageServer.analyze() instead, it is a plain reschedule.
+		 */
+		env.fileAnalyzer.schedule(file)
+	} else {
+		logger.warn("File {} is not accessible", file)
+	}
+	return DiagnosticResult.NO_UPDATE
 }
 
 private fun KaDiagnosticWithPsi<*>.toDiagnosticItem(): DiagnosticItem {
