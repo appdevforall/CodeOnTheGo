@@ -462,11 +462,16 @@ tasks.named("sonarqube") {
 tasks.register<JacocoReport>("jacocoAggregateReport") {
 	val excludedProjects = emptySet<String>()
 
-	// Depend only on testV8DebugUnitTest tasks in subprojects
+	// Android modules run testV8DebugUnitTest; flavorless ones (plain java-library: :shared,
+	// :logger, :plugin-api, :eventbus ...) have a plain `test` and no such task. Depending only on
+	// the former meant nothing in CI ever ran their tests -- sonarqube reaches unit tests solely
+	// through this task -- so moving a test into one of those modules silently stopped running it,
+	// which is how ADFA-4649's ReflectUtils regression tests went unguarded (found in review of
+	// ADFA-5068).
 	dependsOn(
 		subprojects
 			.filterNot { it.name in excludedProjects }
-			.mapNotNull { it.tasks.findByName("testV8DebugUnitTest") },
+			.mapNotNull { it.tasks.findByName("testV8DebugUnitTest") ?: it.tasks.findByName("test") },
 	)
 
 	reports {
@@ -483,7 +488,9 @@ tasks.register<JacocoReport>("jacocoAggregateReport") {
 			"**/*Test*.*",
 		)
 
-	// Collect kotlin and java class directories for v8Debug and v8DebugUnitTest variant
+	// Collect kotlin and java class directories for v8Debug and v8DebugUnitTest variant, plus the
+	// flavorless layout (build/classes/{kotlin,java}/main) so a java-library module's coverage is
+	// reported rather than merely executed.
 	val classDirs =
 		subprojects
 			.filterNot { it.name in excludedProjects }
@@ -501,6 +508,12 @@ tasks.register<JacocoReport>("jacocoAggregateReport") {
 					fileTree(subproj.layout.buildDirectory.dir("intermediates/javac/v8DebugUnitTest/classes")) {
 						exclude(fileFilter)
 					},
+					fileTree(subproj.layout.buildDirectory.dir("classes/kotlin/main")) {
+						exclude(fileFilter)
+					},
+					fileTree(subproj.layout.buildDirectory.dir("classes/java/main")) {
+						exclude(fileFilter)
+					},
 				)
 			}
 
@@ -514,9 +527,13 @@ tasks.register<JacocoReport>("jacocoAggregateReport") {
 	val execFiles =
 		subprojects
 			.filterNot { it.name in excludedProjects }
-			.map { subproj ->
-				subproj.layout.buildDirectory.file(
-					"outputs/unit_test_code_coverage/v8DebugUnitTest/testV8DebugUnitTest.exec",
+			.flatMap { subproj ->
+				listOf(
+					subproj.layout.buildDirectory.file(
+						"outputs/unit_test_code_coverage/v8DebugUnitTest/testV8DebugUnitTest.exec",
+					),
+					// Where a plain java-library's `test` task writes its coverage.
+					subproj.layout.buildDirectory.file("jacoco/test.exec"),
 				)
 			}
 
