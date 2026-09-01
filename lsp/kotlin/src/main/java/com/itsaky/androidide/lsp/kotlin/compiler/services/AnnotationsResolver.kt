@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.services
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
+import com.itsaky.androidide.lsp.kotlin.compiler.index.ResolutionSideKtFileAccess
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolver
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
@@ -25,8 +26,9 @@ import org.jetbrains.kotlin.psi.KtUserType
 import org.jetbrains.kotlin.psi.declarationRecursiveVisitor
 import org.jetbrains.kotlin.util.collectionUtils.filterIsInstanceAnd
 
-internal class AnnotationsResolverFactory : KtLspService, KotlinAnnotationsResolverFactory {
-
+internal class AnnotationsResolverFactory :
+	KtLspService,
+	KotlinAnnotationsResolverFactory {
 	private lateinit var project: Project
 	private lateinit var index: KtSymbolIndex
 
@@ -34,15 +36,14 @@ internal class AnnotationsResolverFactory : KtLspService, KotlinAnnotationsResol
 		project: MockProject,
 		index: KtSymbolIndex,
 		modules: List<KtModule>,
-		libraryRoots: List<JavaRoot>
+		libraryRoots: List<JavaRoot>,
 	) {
 		this.project = project
 		this.index = index
 	}
 
-	override fun createAnnotationResolver(searchScope: GlobalSearchScope): KotlinAnnotationsResolver {
-		return AnnotationsResolver(project, searchScope, index)
-	}
+	override fun createAnnotationResolver(searchScope: GlobalSearchScope): KotlinAnnotationsResolver =
+		AnnotationsResolver(project, searchScope, index)
 }
 
 @Suppress("UnstableApiUsage")
@@ -51,58 +52,59 @@ internal class AnnotationsResolver(
 	private val scope: GlobalSearchScope,
 	private val index: KtSymbolIndex,
 ) : KotlinAnnotationsResolver {
-
 	private val declarationProvider by lazy {
 		project.createDeclarationProvider(scope, contextualModule = null)
 	}
 
+	@OptIn(ResolutionSideKtFileAccess::class)
 	private fun allDeclarations(): List<KtDeclaration> {
 		val virtualFiles = VirtualFileEnumeration.extract(scope) ?: return emptyList()
 
-		val filesInScope = virtualFiles
-			.filesIfCollection
-			.orEmpty()
-			.asSequence()
-			.filter { it in scope }
-			.mapNotNull { index.getKtFile(it) }
+		val filesInScope =
+			virtualFiles
+				.filesIfCollection
+				.orEmpty()
+				.asSequence()
+				.filter { it in scope }
+				.mapNotNull { index.getKtFile(it) }
 
 		return buildList {
-			val visitor = declarationRecursiveVisitor visit@{
-				val isLocal = when (it) {
-					is KtClassOrObject -> it.isLocal
-					is KtFunction -> it.isLocal
-					is KtProperty -> it.isLocal
-					else -> return@visit
-				}
+			val visitor =
+				declarationRecursiveVisitor visit@{
+					val isLocal =
+						when (it) {
+							is KtClassOrObject -> it.isLocal
+							is KtFunction -> it.isLocal
+							is KtProperty -> it.isLocal
+							else -> return@visit
+						}
 
-				if (!isLocal) {
-					add(it)
+					if (!isLocal) {
+						add(it)
+					}
 				}
-			}
 
 			filesInScope.forEach { it.accept(visitor) }
 		}
 	}
 
-	override fun declarationsByAnnotation(annotationClassId: ClassId): Set<KtAnnotated> {
-		return allDeclarations()
+	override fun declarationsByAnnotation(annotationClassId: ClassId): Set<KtAnnotated> =
+		allDeclarations()
 			.asSequence()
 			.filter { annotationClassId in annotationsOnDeclaration(it) }
 			.toSet()
-	}
 
-	override fun annotationsOnDeclaration(declaration: KtAnnotated): Set<ClassId> {
-		return declaration
+	override fun annotationsOnDeclaration(declaration: KtAnnotated): Set<ClassId> =
+		declaration
 			.annotationEntries
 			.asSequence()
 			.flatMap { it.typeReference?.resolveAnnotationClassIds(declarationProvider).orEmpty() }
 			.toSet()
-	}
 }
 
 private fun KtTypeReference.resolveAnnotationClassIds(
 	declarationProvider: KotlinDeclarationProvider,
-	candidates: MutableSet<ClassId> = mutableSetOf()
+	candidates: MutableSet<ClassId> = mutableSetOf(),
 ): Set<ClassId> {
 	val annotationTypeElement = typeElement as? KtUserType
 	val referencedName = annotationTypeElement?.referencedFqName ?: return emptySet()
@@ -132,8 +134,10 @@ private val KtUserType.referencedFqName: FqName?
 		return FqName.fromSegments(allQualifiers)
 	}
 
-
-private fun FqName.resolveToClassIds(to: MutableSet<ClassId>, declarationProvider: KotlinDeclarationProvider) {
+private fun FqName.resolveToClassIds(
+	to: MutableSet<ClassId>,
+	declarationProvider: KotlinDeclarationProvider,
+) {
 	toClassIdSequence().mapNotNullTo(to) { classId ->
 		val classes = declarationProvider.getAllClassesByClassId(classId)
 		val typeAliases = declarationProvider.getAllTypeAliasesByClassId(classId)
@@ -162,4 +166,3 @@ private fun FqName.toClassIdSequence(): Sequence<ClassId> {
 		}
 	}
 }
-

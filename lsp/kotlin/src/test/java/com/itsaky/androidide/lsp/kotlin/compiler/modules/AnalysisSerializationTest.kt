@@ -1,3 +1,5 @@
+@file:OptIn(UnpinnedAnalysis::class)
+
 package com.itsaky.androidide.lsp.kotlin.compiler.modules
 
 import com.google.common.truth.Truth.assertThat
