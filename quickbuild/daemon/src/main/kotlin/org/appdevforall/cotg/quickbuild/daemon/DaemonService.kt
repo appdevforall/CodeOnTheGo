@@ -197,12 +197,18 @@ class DaemonService(
 		val durationMillis = System.currentTimeMillis() - startedAt
 		return when (result) {
 			is IncrementalCompiler.Result.Success -> {
+				// javaAbiChange names the Java types whose ABI changed and so forced a full
+				// Kotlin recompile - the explanation for an otherwise surprising ktToCompile.
+				// Omitted when empty, the common case.
+				val abiChange = session.compiler.lastJavaAbiChange
 				log(
 					"compile ok: ${request.changedFiles.size} changed of ${request.allSources.size} " +
 						"in ${durationMillis}ms (kotlin=${result.kotlinMillis}ms java=${result.javaMillis}ms " +
 						"preSnap=${result.stats.preSnapMillis}ms postSnap=${result.stats.postSnapMillis}ms " +
 						"abiSnap=${result.stats.javaAbiSnapMillis}ms ktToCompile=${result.stats.kotlinToCompile} " +
-						"ordinal=${result.stats.compileOrdinal})",
+						"ordinal=${result.stats.compileOrdinal}" +
+						(if (abiChange.isEmpty()) "" else " javaAbiChange=${abiChange.sorted().joinToString(",")}") +
+						")",
 				)
 				DaemonResponse(
 					id = request.id,
