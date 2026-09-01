@@ -11,7 +11,6 @@ import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationImpactAnaly
 import org.appdevforall.cotg.quickbuild.domain.annotations.AnnotationProcessorProfile
 import org.appdevforall.cotg.quickbuild.domain.annotations.SwitchableAnnotationImpact
 import org.appdevforall.cotg.quickbuild.domain.classify.ChangeClassifier
-import org.appdevforall.cotg.quickbuild.domain.reload.ComponentKind
 import org.appdevforall.cotg.quickbuild.domain.reload.DeployPolicy
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationTracker
 import org.appdevforall.cotg.quickbuild.domain.reload.LiveReloadExecutor
@@ -150,10 +149,8 @@ internal class LiveSessionFactory(
 						componentInfoAvailable = proxyApp.supportsComponentInfo,
 					),
 				proxyAppPackage = proxyApp.proxyAppPackage,
-				launcherActivity =
-					proxyApp.components
-						.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }
-						?.proxyClass,
+				// The shared launch-target rule; see [ProxyAppInfo.launcherProxyClass].
+				launcherActivity = proxyApp.launcherProxyClass,
 				launcher = launcher,
 				clock = nowMillis,
 				metrics = metrics,
