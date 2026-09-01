@@ -5,6 +5,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.CompilationKind
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.UnpinnedAnalysis
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
@@ -239,6 +240,7 @@ internal class KtSymbolIndex(
 	 * pin with a version its PSI does not have, which makes [LiveKtFile.isStale] claim a superseded
 	 * instance is current.
 	 */
+	@OptIn(ResolutionSideKtFileAccess::class)
 	private fun getCurrentVersionedKtFile(path: Path): CompletableFuture<VersionedKtFile>? {
 		if (!DocumentUtils.isKotlinFile(path)) return null
 
@@ -468,6 +470,7 @@ internal class KtSymbolIndex(
 
 		override fun <R> read(block: (KtFile) -> R): R = project.read { guarded(block(pin.file)) }
 
+		@OptIn(UnpinnedAnalysis::class)
 		override fun <R> analyzing(
 			priority: AnalysisPriority,
 			cancelChecker: ScheduledCancelChecker,
@@ -480,6 +483,7 @@ internal class KtSymbolIndex(
 				)
 			}
 
+		@OptIn(UnpinnedAnalysis::class)
 		override fun <R> analyzingVariant(
 			name: String,
 			text: String,
@@ -510,6 +514,7 @@ internal class KtSymbolIndex(
 	}
 
 	/** [getKtFile] for [vf], keyed by the path it maps to. */
+	@ResolutionSideKtFileAccess
 	internal fun getKtFile(vf: VirtualFile): KtFile? = getKtFile(vf.toNioPath(), vf)
 
 	/**
@@ -517,8 +522,9 @@ internal class KtSymbolIndex(
 	 *
 	 * A pinned path resolves to the pinned instance, so an open analysis and the declaration provider
 	 * cannot disagree about which instance is the file. Otherwise the live cache is peeked, then the
-	 * on-disk instance is loaded.
+	 * on-disk instance is loaded. See [ResolutionSideKtFileAccess] for why this is opt-in.
 	 */
+	@ResolutionSideKtFileAccess
 	internal fun getKtFile(
 		path: Path,
 		virtualFile: VirtualFile? = null,
