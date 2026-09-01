@@ -10,15 +10,22 @@ final class CrashSummary {
 	/**
 	 * Lines {@link StatusOverlay}'s banner shows before it ellipsizes, sized against the whole rendered banner.
 	 *
-	 * The crash banner is the tallest state whose text this class controls: a headline of 56 characters and {@code OverlayState.FULL_OUTPUT_POINTER} at 50. Wrapped at 25 characters per line - the narrowest width measured on an A56 at 2x font scale - the headline costs 3 rendered lines and the pointer 2, so the banner is 5 at its tallest.
+	 * The crash banner: a headline of 56 characters and {@code OverlayState.FULL_OUTPUT_POINTER} at 50. Wrapped at 25 characters per line - the narrowest width measured on an A56 at 2x font scale - the headline costs 3 rendered lines and the pointer 2, so the crash banner is 5 at its tallest.
 	 *
 	 * Five is needed across the 25-to-27 band; from 28 characters up the headline folds into two as well and the banner fits in 4. The cap is left one line above the worst measured case rather than tightened onto it, because the line it would drop is the tail of the pointer - the reader is left told to look somewhere, without the name of the place - and because a font or locale wider than anything measured here should cost a blank line, not a truncated instruction.
 	 *
 	 * An earlier version also put a stack summary on the banner and needed 14 lines to fit it. Dropping the summary is what buys this back, so putting any detail on the banner again means recomputing here rather than raising the cap. {@code StatusOverlay} reads this instead of carrying a number of its own that could drift from it.
 	 *
-	 * One state is outside this arithmetic: {@code BUILD_FAILED}'s detail is a diagnostic line CoGo sends and nothing here caps its length, so a long one still ellipsizes. That predates this budget and is not addressed by it.
+	 * {@code BUILD_FAILED} is the tallest state, at exactly this cap: a 54-character headline (3 lines at the narrowest measure), one detail line clamped to {@link #BUILD_FAILED_DETAIL_CHARS}, and the pointer's 2.
 	 */
 	static final int MAX_BANNER_LINES = 6;
+
+	/**
+	 * Characters of {@code BUILD_FAILED} diagnostic detail the banner shows: one wrapped line.
+	 *
+	 * Of the {@link #MAX_BANNER_LINES} cap, the build-failed headline takes 3 lines (54 characters at the narrowest measured 25 per line) and the pointer takes 2, which leaves one line - 25 characters - for the diagnostic. An unclamped detail would push the pointer off the banner, and the pointer is the line that tells the user where to look.
+	 */
+	static final int BUILD_FAILED_DETAIL_CHARS = 25;
 
 	/** Frames a report to CoGo names; enough to place the fault, short enough to read. */
 	private static final int MAX_REPORT_FRAMES = 5;

@@ -70,7 +70,8 @@ class BuildStatusTest {
 		assertThat(status.message).isEqualTo("boom");
 		assertThat(status.moreErrors).isEqualTo(1);
 		assertThat(OverlayState.buildFailed(status).text())
-				.isEqualTo("Build failed - app is running the last working version\nboom (+1 more)");
+				.isEqualTo("Build failed - app is running the last working version\nboom (+1 more)\n"
+						+ "For more info, see Build Output in Code on the Go.");
 	}
 
 	@Test

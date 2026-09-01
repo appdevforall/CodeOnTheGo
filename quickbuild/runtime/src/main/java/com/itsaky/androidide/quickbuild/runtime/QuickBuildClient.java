@@ -169,7 +169,7 @@ final class QuickBuildClient implements ServiceConnection {
 		} catch (RuntimeException error) {
 			// SecurityException (and any other binder-propagatable runtime exception) from
 			// the host: expected when CoGo has no live session. Continue standalone.
-			RuntimeLog.w("CoGo rejected connect(); continuing standalone: " + error);
+			RuntimeLog.w("CoGo rejected connect(); continuing standalone", error);
 			host = null;
 			unbindQuietly();
 			scheduleRebind();
