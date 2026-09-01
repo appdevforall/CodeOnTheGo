@@ -53,19 +53,29 @@ class DaemonProcessClient(
 ) : QuickBuildDaemon {
 	private val requestMutex = Mutex()
 	private val nextId = AtomicLong(1)
-	private val pending = ConcurrentHashMap<Long, CompletableDeferred<JsonObject>>()
-
-	@Volatile private var process: Process? = null
-
-	@Volatile private var writer: BufferedWriter? = null
 
 	/**
-	 * Deliberate-stop marker of the child [process] currently holds, replaced on every spawn
-	 * rather than shared between them: a replaced child's watcher passes its identity guard and
-	 * only then reads this, so a shared flag the next [start] had already cleared would report a
-	 * death for a daemon that was deliberately replaced.
+	 * Everything owned by one spawned child JVM, installed whole by [start] and never shared
+	 * between spawns. The response pump and death watcher close over the instance they were
+	 * started for, so a watcher waking up late - after the NEXT child is already spawned -
+	 * can fail only its own child's requests and can never touch a newer session's state.
 	 */
-	@Volatile private var deliberateStop = AtomicBoolean(false)
+	private class Spawn(
+		val process: Process,
+		val writer: BufferedWriter,
+	) {
+		/** Requests awaiting responses on THIS child's stdout, keyed by request id. */
+		val pending = ConcurrentHashMap<Long, CompletableDeferred<JsonObject>>()
+
+		/**
+		 * Deliberate-stop marker for this child alone: its watcher passes its identity guard
+		 * and only then reads this, so a shared flag the next [start] had already cleared
+		 * would report a death for a daemon that was deliberately replaced.
+		 */
+		val deliberateStop = AtomicBoolean(false)
+	}
+
+	@Volatile private var spawn: Spawn? = null
 
 	@Volatile private var deathListener: ((Int) -> Unit)? = null
 
@@ -76,7 +86,7 @@ class DaemonProcessClient(
 		private set
 
 	override val isRunning: Boolean
-		get() = configured && process?.isAlive == true
+		get() = configured && spawn?.process?.isAlive == true
 
 	/**
 	 * Installs the unexpected-exit callback, replacing any previous one.
@@ -98,14 +108,9 @@ class DaemonProcessClient(
 	 *   the child shut down first, so a failed start never leaves a daemon behind.
 	 */
 	override suspend fun start(config: DaemonConfig): DaemonReply<Unit> {
+		// Also clears scratchFsType and marks the old child's stop on its own Spawn - the
+		// fresh Spawn below starts with a clean marker of its own.
 		shutdown()
-		// A fresh marker instead of clearing the old one: the child shutdown() just stopped
-		// keeps - and its watcher still reads - the instance it was marked on.
-		val stopFlag = AtomicBoolean(false)
-		this.deliberateStop = stopFlag
-		// Belongs to the session being replaced; a failed configure must not leave the
-		// previous daemon's filesystem stamped on the next session's timings.
-		this.scratchFsType = null
 
 		val proc =
 			try {
@@ -133,9 +138,9 @@ class DaemonProcessClient(
 				return DaemonReply.Failed("Failed to spawn daemon: ${e.message}", daemonDied = true)
 			}
 
-		process = proc
-		writer = proc.outputStream.bufferedWriter()
-		startReaders(proc, stopFlag)
+		val spawn = Spawn(proc, proc.outputStream.bufferedWriter())
+		this.spawn = spawn
+		startReaders(spawn)
 
 		val configureReply =
 			request(DaemonOps.CONFIGURE) {
@@ -297,26 +302,29 @@ class DaemonProcessClient(
 	 * nothing is running; the exit it causes is marked deliberate so no death listener fires.
 	 */
 	override suspend fun shutdown() {
-		val proc = process ?: return
+		val spawn = this.spawn ?: return
 		// Marked before anything can kill it, so every exit from here on is deliberate to the
 		// watcher no matter how late it observes it.
-		deliberateStop.set(true)
+		spawn.deliberateStop.set(true)
 		configured = false
+		// Belongs to the child being stopped: left in place it would stamp the previous
+		// daemon's filesystem on the next session's timings.
+		scratchFsType = null
 		// Best effort polite stop; the protocol also treats stdin EOF as shutdown.
 		withTimeoutOrNull(SHUTDOWN_TIMEOUT_MILLIS) { request(DaemonOps.SHUTDOWN) {} }
-		val out = writer
+		val proc = spawn.process
+		val out = spawn.writer
 		withContext(Dispatchers.IO) {
 			// EOF is the second polite signal, but close() blocks on the BufferedWriter
 			// monitor while a wedged write holds it - so it runs on [scope] rather than
 			// inline, and the kill path below (which closes the pipe and thereby frees any
 			// such writer) is always reached instead of deadlocking teardown.
-			scope.launch(Dispatchers.IO) { runCatching { out?.close() } }
+			scope.launch(Dispatchers.IO) { runCatching { out.close() } }
 			if (proc.isAlive && !proc.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
 				proc.destroyForcibly()
 			}
 		}
-		process = null
-		writer = null
+		this.spawn = null
 	}
 
 	/**
@@ -336,10 +344,11 @@ class DaemonProcessClient(
 		fill: JsonObject.() -> Unit,
 	): DaemonReply<JsonObject> =
 		requestMutex.withLock {
-			val out = writer ?: return DaemonReply.Failed("Daemon is not running", daemonDied = true)
+			val spawn = this.spawn ?: return DaemonReply.Failed("Daemon is not running", daemonDied = true)
+			val out = spawn.writer
 			val id = nextId.getAndIncrement()
 			val deferred = CompletableDeferred<JsonObject>()
-			pending[id] = deferred
+			spawn.pending[id] = deferred
 
 			val requestJson =
 				JsonObject().apply {
@@ -363,7 +372,7 @@ class DaemonProcessClient(
 				try {
 					withTimeoutOrNull(requestTimeoutMillis) { writeJob.await() }
 				} catch (e: CancellationException) {
-					pending.remove(id)
+					spawn.pending.remove(id)
 					// The caller's own cancellation propagates; a dead [scope] (client torn
 					// down under the caller) degrades to a reply instead.
 					if (coroutineContext.isActive) {
@@ -375,8 +384,8 @@ class DaemonProcessClient(
 				// The child wedged with a full stdin pipe. Only closing the pipe frees the
 				// blocked thread, so the daemon is killed; its death watcher then fails any
 				// pending requests and fires the respawn flow.
-				pending.remove(id)
-				process?.destroyForcibly()
+				spawn.pending.remove(id)
+				spawn.process.destroyForcibly()
 				return DaemonReply.Failed(
 					"Daemon stopped reading requests ('$op' write timed out)",
 					daemonDied = true,
@@ -384,7 +393,7 @@ class DaemonProcessClient(
 			}
 			val writeError = writeOutcome.exceptionOrNull()
 			if (writeError != null) {
-				pending.remove(id)
+				spawn.pending.remove(id)
 				return DaemonReply.Failed("Daemon write failed: ${writeError.message}", daemonDied = true)
 			}
 
@@ -396,11 +405,11 @@ class DaemonProcessClient(
 				} catch (e: Exception) {
 					null
 				} finally {
-					pending.remove(id)
+					spawn.pending.remove(id)
 				}
 					?: return DaemonReply.Failed(
 						"Daemon did not answer '$op' (dead or timed out)",
-						daemonDied = process?.isAlive != true,
+						daemonDied = !spawn.process.isAlive,
 					)
 
 			// Primitive-guarded like every other read: asBoolean on an object or array throws,
@@ -422,15 +431,12 @@ class DaemonProcessClient(
 	/**
 	 * Launches the stdout response pump, the stderr log drain, and the process-death watcher.
 	 *
-	 * @param proc the freshly spawned child; all three coroutines live on [scope] and end when its
-	 *   streams close, so they need no separate cancellation.
-	 * @param stopFlag [proc]'s own [deliberateStop] marker, closed over by the watcher so a later
-	 *   spawn's marker can never answer "was this exit deliberate?" for this child.
+	 * @param spawn the freshly spawned child's whole per-spawn state; all three coroutines
+	 *   live on [scope], end when the child's streams close, and close over [spawn] itself -
+	 *   so however late any of them wakes, it reads and fails only its own child's state.
 	 */
-	private fun startReaders(
-		proc: Process,
-		stopFlag: AtomicBoolean,
-	) {
+	private fun startReaders(spawn: Spawn) {
+		val proc = spawn.process
 		scope.launch(Dispatchers.IO) {
 			try {
 				proc.inputStream.bufferedReader().forEachLine { line ->
@@ -445,7 +451,7 @@ class DaemonProcessClient(
 						log.debug("daemon: {}", line)
 						return@forEachLine
 					}
-					pending.remove(id)?.complete(json)
+					spawn.pending.remove(id)?.complete(json)
 						?: log.warn("Daemon response for unknown request id {}", id)
 				}
 			} catch (e: IOException) {
@@ -463,20 +469,22 @@ class DaemonProcessClient(
 		}
 		scope.launch(Dispatchers.IO) {
 			val exitCode = runCatching { proc.waitFor() }.getOrDefault(-1)
-			// A child the respawn replaced dies asynchronously - destroyForcibly returns before
-			// the exit - so this can wake up after the NEXT child is already spawned. pending and
-			// configured below are shared across spawns, so touching them then would fail the new
-			// session's configure ("Daemon did not answer 'configure'").
-			if (process !== proc) {
+			// This child's own requests are failed FIRST, replaced or not: a request holds
+			// [requestMutex] for its whole round trip, so an orphan left pending would burn
+			// its full timeout and hold the replacement's configure behind the mutex. The
+			// per-spawn map is what makes this safe however late the watcher wakes - a
+			// child the respawn replaced dies asynchronously (destroyForcibly returns
+			// before the exit), and this can run after the NEXT child is already spawned.
+			val abandoned = IOException("Daemon process exited (code $exitCode)")
+			spawn.pending.values.forEach { it.completeExceptionally(abandoned) }
+			spawn.pending.clear()
+			if (this@DaemonProcessClient.spawn !== spawn) {
 				log.debug("Replaced quick-build daemon exited with code {}", exitCode)
 				return@launch
 			}
-			val abandoned = IOException("Daemon process exited (code $exitCode)")
-			pending.values.forEach { it.completeExceptionally(abandoned) }
-			pending.clear()
 			configured = false
-			// This child's own marker, not a shared flag - see [deliberateStop].
-			if (!stopFlag.get()) {
+			// This child's own marker, not a shared flag - see [Spawn.deliberateStop].
+			if (!spawn.deliberateStop.get()) {
 				log.error("Quick-build daemon died with exit code {}", exitCode)
 				deathListener?.invoke(exitCode)
 			}

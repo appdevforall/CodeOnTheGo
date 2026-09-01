@@ -60,6 +60,21 @@ class FileGenerationStoreTest {
 	}
 
 	@Test
+	fun `a save that cannot replace the target cleans up its temp file when it throws`() {
+		// A non-empty directory squatting on the counter path defeats both renames AND the
+		// direct-write fallback; the save must still throw - the value genuinely could not
+		// be persisted - without leaving the .tmp orphan for the next load to trip on.
+		val target = File(tempDir, "generation")
+		target.mkdirs()
+		File(target, "occupant").writeText("x")
+
+		val thrown = runCatching { FileGenerationStore(target).save(5) }.exceptionOrNull()
+
+		assertThat(thrown).isInstanceOf(java.io.IOException::class.java)
+		assertThat(File(tempDir, "generation.tmp").exists()).isFalse()
+	}
+
+	@Test
 	fun `forProject uses the canonical androidide state path`() {
 		val projectRoot = File(tempDir, "project")
 		val store = FileGenerationStore.forProject(projectRoot)

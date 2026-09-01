@@ -104,7 +104,12 @@ class QuickBuildScratch(
 	 *   as a side effect, since usable space cannot be read through a directory that is not there.
 	 */
 	fun freeSpaceShortfall(): QuickBuildMessage? {
-		root.mkdirs()
+		// An uncreatable root must not fall through to the space read: usableSpace on a
+		// nonexistent path is 0, which would report "not enough storage" - the wrong
+		// remedy on screen - for what is a permissions or path problem.
+		if (!root.isDirectory && !root.mkdirs()) {
+			return QuickBuildMessage.ScratchDirUnavailable(root.absolutePath)
+		}
 		val usable = root.usableSpace
 		if (usable >= minFreeBytes) return null
 		return QuickBuildMessage.NotEnoughStorage(
