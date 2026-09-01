@@ -2,6 +2,7 @@ package org.appdevforall.cotg.quickbuild.service.deploy
 
 import android.os.ParcelFileDescriptor
 import android.os.RemoteException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -193,6 +194,18 @@ class DeployChannel(
 					verdict.cancel()
 					log.error("Deploy of generation {} could not open a payload fd", generation, e)
 					return@coroutineScope DeployResult.Failed("Cannot open payload: ${e.message}")
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					// A binder proxy can throw more than RemoteException (see
+					// notifyBuildStatus below). The throw must come back as a failed
+					// deploy: escaping would crash the deploy loop, and it would bypass
+					// the orchestrator's repeated-failure tally
+					// (LiveReloadOrchestrator.recordFailureLocked), which only sees
+					// failures returned as results.
+					verdict.cancel()
+					log.error("Deploy of generation {} failed past the binder surface", generation, e)
+					return@coroutineScope DeployResult.Failed("Deploy failed: ${e.message}")
 				}
 
 				when (val report = verdict.await()) {

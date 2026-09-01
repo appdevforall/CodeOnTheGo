@@ -153,6 +153,92 @@ class PayloadDeployerRetentionTest {
 		}
 
 	@Test
+	fun `the retention copy runs outside the timed save-to-live span`() =
+		runTest {
+			// The live-at clock read (t3) happens before retain(): the copy is post-deploy
+			// bookkeeping, and a clock read after it would bill the copy - which scales with
+			// app size, not edit size - to every successful deploy's save-to-live latency.
+			var clockReadAfterRetention = false
+			val deployer =
+				PayloadDeployer(
+					deploy = deploy,
+					generations = GenerationTracker(MemoryGenerationStore()),
+					entryActivity = "com.example.app.MainActivity",
+					proxyAppPackage = "com.example.app",
+					launcherActivity = "com.example.app.Proxy0Activity",
+					launcher = ProxyAppLauncher { _, _ -> true },
+					restartDisconnectTimeoutMillis = 5_000,
+					restartReconnectTimeoutMillis = 15_000,
+					clock = {
+						if (store.load() != null) clockReadAfterRetention = true
+						1_000
+					},
+					reportTimeline = {},
+					retention = store,
+				)
+
+			deployer.deploy(
+				DeployDecision.Recreate,
+				artifact("built.dex", "dex-bytes"),
+				null,
+				null,
+				loopStartedAt = 0,
+				recorder = recorder(),
+			)
+
+			assertThat(store.load()).isNotNull()
+			assertThat(clockReadAfterRetention).isFalse()
+		}
+
+	@Test
+	fun `the restart path's retention clear also runs outside the timed span`() =
+		runTest {
+			// Same ordering rule as the hot-swap path: the clear is bookkeeping, so t3 is
+			// read while the previous deploy's bytes are still retained.
+			var tracking = false
+			var clockReadAfterClear = false
+			val deployer =
+				PayloadDeployer(
+					deploy = deploy,
+					generations = GenerationTracker(MemoryGenerationStore()),
+					entryActivity = "com.example.app.MainActivity",
+					proxyAppPackage = "com.example.app",
+					launcherActivity = "com.example.app.Proxy0Activity",
+					launcher = ProxyAppLauncher { _, _ -> true },
+					restartDisconnectTimeoutMillis = 5_000,
+					restartReconnectTimeoutMillis = 15_000,
+					clock = {
+						if (tracking && store.load() == null) clockReadAfterClear = true
+						1_000
+					},
+					reportTimeline = {},
+					retention = store,
+				)
+			deployer.deploy(
+				DeployDecision.Recreate,
+				artifact("built.dex", "gen-1-dex"),
+				null,
+				null,
+				loopStartedAt = 0,
+				recorder = recorder(),
+			)
+			assertThat(store.load()).isNotNull()
+			tracking = true
+
+			deployer.deploy(
+				DeployDecision.Restart(ComponentKind.SERVICE, "com.example.app.SyncService"),
+				artifact("built.dex", "gen-2-dex"),
+				null,
+				null,
+				loopStartedAt = 0,
+				recorder = recorder(),
+			)
+
+			assertThat(store.load()).isNull()
+			assertThat(clockReadAfterClear).isFalse()
+		}
+
+	@Test
 	fun `a restart deploy whose relaunch never comes back retains nothing`() =
 		runTest {
 			deploy.result = DeployResult.Reloaded(40)
