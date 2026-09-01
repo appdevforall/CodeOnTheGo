@@ -39,6 +39,10 @@ data class PluginManifest(
 	val iconDay: String? = null,
 	@SerializedName("icon_night")
 	val iconNight: String? = null,
+	@SerializedName("vcs_revision")
+	val vcsRevision: String? = null,
+	@SerializedName("build_timestamp")
+	val buildTimestamp: String? = null,
 )
 
 data class ExtensionInfo(
@@ -83,6 +87,8 @@ fun PluginManifest.toPluginMetadata() =
 		minIdeVersion = minIdeVersion,
 		dependencies = dependencies,
 		permissions = permissions,
+		vcsRevision = vcsRevision,
+		buildTimestamp = buildTimestamp,
 	)
 
 object PluginManifestParser {
