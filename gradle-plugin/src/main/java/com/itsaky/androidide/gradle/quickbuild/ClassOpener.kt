@@ -33,7 +33,10 @@ object ClassOpener {
 	 */
 	fun stripFinalModifier(classBytes: ByteArray): ByteArray {
 		val reader = ClassReader(classBytes)
-		val writer = ClassWriter(0)
+		// The reader enables ASM's copy-through of the constant pool and untouched methods
+		// (roughly halving the rewrite); the access flags still change because the visitors
+		// below rewrite them explicitly. Mirrors the daemon's FinalStripper.
+		val writer = ClassWriter(reader, 0)
 		reader.accept(
 			object : ClassVisitor(Opcodes.ASM9, writer) {
 				override fun visit(

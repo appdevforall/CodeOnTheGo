@@ -133,6 +133,10 @@ dependencies {
 
 	testImplementation(libs.tests.junit.jupiter)
 	testImplementation(libs.tests.google.truth)
+	// Parity pin for the duplicated ACC_FINAL transform: FinalStripper and the proxy build's
+	// ClassOpener must produce identical bytes (the dex verifier depends on it). Test-only,
+	// and no cycle - the gradle-plugin does not depend on the daemon.
+	testImplementation(projects.gradlePlugin)
 	// Shared offline-guard scanner (OfflineNetworkGuardTest).
 	testImplementation(testFixtures(projects.quickbuild.protocol))
 	testRuntimeOnly(libs.tests.junit.platformLauncher)
