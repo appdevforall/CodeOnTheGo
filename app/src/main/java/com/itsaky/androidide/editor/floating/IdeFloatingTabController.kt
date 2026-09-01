@@ -12,7 +12,9 @@ import com.itsaky.androidide.floating.permission.OverlayPermission
 import com.itsaky.androidide.floating.service.FloatingTabService
 import com.itsaky.androidide.floating.window.InitialBounds
 import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 
 /**
  * Bridges the editor activity to the floating-window system: turns an editor file tab into a
@@ -77,9 +79,44 @@ class IdeFloatingTabController(
 		FloatingTabService.ensureRunning(activity.applicationContext)
 	}
 
+	/**
+	 * Tears down every floating window because the project is closing: a docked plugin tab or file
+	 * panel is closed with the project, and an undocked one is the same tab in another window.
+	 *
+	 * File panels are saved (when [save] is set, i.e. the user chose "save and close") and released
+	 * inline, not through [onEvent]: that coroutine dies with the finishing activity, and it saves
+	 * unconditionally, which would defeat "close without saving". Hence [DockingManager.remove]
+	 * rather than [DockingManager.close] - the teardown is done, no listener should redo it.
+	 */
+	suspend fun closeAll(save: Boolean) {
+		for (tab in DockingManager.windows.value) {
+			val panel = tab.content as? EditorPanelDockableContent
+			if (save && panel != null && panel.isModified && !savePanel(panel)) {
+				Toast
+					.makeText(
+						activity,
+						activity.getString(R.string.msg_floating_close_save_failed, panel.title),
+						Toast.LENGTH_LONG,
+					).show()
+			}
+			DockingManager.remove(tab.id)
+			panel?.release()
+		}
+	}
+
+	private suspend fun savePanel(panel: EditorPanelDockableContent): Boolean =
+		try {
+			panel.save()
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			log.error("Failed to save floating panel '{}' while closing the project", panel.title, e)
+			false
+		}
+
 	private fun onEvent(event: DockingEvent) {
 		when (val content = event.content) {
-			is EditorPanelDockableContent ->
+			is EditorPanelDockableContent -> {
 				activity.lifecycleScope.launch {
 					content.save()
 					content.release()
@@ -88,12 +125,14 @@ class IdeFloatingTabController(
 						activity.openFile(content.file, null)
 					}
 				}
+			}
 
-			is PluginTabDockableContent ->
+			is PluginTabDockableContent -> {
 				if (event is DockingEvent.Redock) {
 					bringIdeToFront()
 					activity.selectPluginTabById(content.tabId)
 				}
+			}
 		}
 	}
 
@@ -105,5 +144,9 @@ class IdeFloatingTabController(
 			Intent(activity, activity.javaClass)
 				.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
 		)
+	}
+
+	private companion object {
+		private val log = LoggerFactory.getLogger(IdeFloatingTabController::class.java)
 	}
 }
