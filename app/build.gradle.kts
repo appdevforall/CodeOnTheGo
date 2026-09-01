@@ -38,6 +38,15 @@ plugins {
 	alias(libs.plugins.kotlin.compose)
 }
 
+// Forces :subprojects:kotlin-compiler-carrier to configure eagerly, ahead of app's own
+// configuration. Without this, org.gradle.configureondemand=true (gradle.properties) only
+// reaches that project lazily via copyKotlinCompilerCarrierToAssets's cross-project dependsOn,
+// which trips "DefaultClassLoaderScope must be locked before it can be used to compute a
+// classpath" for this (com.android.application) target specifically -- plugin-api, referenced
+// the same way by copyPluginApiJarToAssets below, doesn't hit this because app already
+// configures it naturally as a real compile dependency.
+evaluationDependsOn(":subprojects:kotlin-compiler-carrier")
+
 fun propOrEnv(name: String): String =
 	project.findProperty(name) as String?
 		?: System.getenv(name)
@@ -358,7 +367,6 @@ dependencies {
 	implementation(projects.gradlePluginConfig)
 	implementation(projects.subprojects.aaptcompiler)
 	implementation(projects.subprojects.javacServices)
-	implementation(projects.subprojects.kotlinAnalysisApi)
 	implementation(projects.subprojects.shizukuApi)
 	implementation(projects.subprojects.shizukuManager)
 	implementation(projects.subprojects.shizukuProvider)
@@ -484,6 +492,164 @@ tasks.register("downloadDocDb") {
 			project.logger.lifecycle("Failed to fetch documentation.db info: ${e.message}")
 		}
 	}
+}
+
+// Copies the Kotlin Analysis API "carrier" APK -- built by :subprojects:kotlin-compiler-carrier,
+// which bundles the isolated lsp:kotlin-compiler-impl module + the downloaded analysis-api jar --
+// straight into app's own assets, so it ships in the base APK and D8 never merges it into app's own
+// classes*.dex. KotlinCompilerLoader (lsp:kotlin) extracts and DexClassLoader-loads it lazily on
+// first Kotlin file interaction (ADFA-5010). Unlike plugin-api.jar/the big installer zips below, this
+// doesn't need the root assets/ + assets-<arch>.zip pipeline -- it's a few MB, not hundreds, and
+// belongs in the base APK unconditionally rather than an optional first-run download.
+tasks.register("copyKotlinCompilerCarrierToAssets") {
+	// The source directory below is AGP's own Provider<Directory> for the release variant's real
+	// APK output (see releaseApkOutputDir in kotlin-compiler-carrier's build.gradle.kts) --
+	// wiring inputs.dir() to it, rather than a hardcoded path guessing the output filename
+	// ("-unsigned", versioned, etc.), ties Gradle's dependency tracking to the actual producing
+	// task (packageV8Release) instead of just dependsOn ordering, which intermittently raced the
+	// file's own write-to-disk on some CI runs (same defect as ADFA-5053's
+	// copyJavaCompilerCarrierToAssets, fixed there the same way). See
+	// evaluationDependsOn(":subprojects:kotlin-compiler-carrier") above for why reading its
+	// extraProperty here, rather than project(...).layout... directly, avoids the "classloader
+	// scope must be locked" failure under org.gradle.configureondemand=true.
+	dependsOn(":subprojects:kotlin-compiler-carrier:assembleV8Release")
+	@Suppress("UNCHECKED_CAST")
+	val sourceDir =
+		project(":subprojects:kotlin-compiler-carrier").extensions.extraProperties["releaseApkOutputDir"]
+			as Provider<Directory>
+	val destFile = layout.projectDirectory.file("src/main/assets/data/common/kotlin-compiler-carrier.apk")
+	inputs.dir(sourceDir)
+	outputs.file(destFile)
+	doLast {
+		val apkFile =
+			sourceDir
+				.get()
+				.asFileTree
+				.matching { include("*.apk") }
+				.singleFile
+		apkFile.copyTo(destFile.asFile, overwrite = true)
+		optimizeCarrierApkPngs(destFile.asFile)
+	}
+}
+
+// The carrier APK's res/ entries (pulled in transitively, e.g. androidx.core's notification
+// backgrounds) are dead weight -- this APK is never installed or its resources loaded; it's only
+// ever opened as a raw dex source via DexClassLoader (ADFA-5010). Shrinks them with pngquant
+// (a lossy, palette-based recompression) purely for size; correctness of the images themselves
+// is moot since nothing ever renders them. Some are AAPT2-compiled nine-patches (npTc/npOl
+// chunks) that pngquant's re-encode will strip -- fine here, would not be elsewhere.
+// Skips quietly if pngquant isn't installed, since this runs unconditionally via preBuild.
+fun optimizeCarrierApkPngs(apkFile: File) {
+	if (!isPngquantAvailable()) {
+		project.logger.info("pngquant not found on PATH; skipping carrier APK PNG optimization")
+		return
+	}
+
+	val rawEntries = readRawZipEntries(apkFile)
+	val sizeByName =
+		ZipFile(apkFile).use { zip ->
+			zip
+				.entries()
+				.asSequence()
+				.filter { !it.isDirectory }
+				.associate { it.name to it.size }
+		}
+
+	val pngNames = rawEntries.keys.filter { it.startsWith("res/") && it.endsWith(".png", ignoreCase = true) }
+	if (pngNames.isEmpty()) {
+		return
+	}
+
+	// Under the project tree, not the system temp dir: pngquant is snap-confined here and
+	// cannot read files under /tmp.
+	val tempDir =
+		layout.buildDirectory
+			.dir("tmp/carrierPngquant")
+			.get()
+			.asFile
+	tempDir.deleteRecursively()
+	tempDir.mkdirs()
+	var savedBytes = 0L
+	var shrunkCount = 0
+	try {
+		val quantized = mutableMapOf<String, ByteArray>()
+		ZipFile(apkFile).use { zip ->
+			for (name in pngNames) {
+				val original = zip.getInputStream(zip.getEntry(name)).use { it.readBytes() }
+				val workFile = File(tempDir, name.substringAfterLast('/'))
+				workFile.writeBytes(original)
+				@Suppress("DEPRECATION")
+				project.exec {
+					commandLine(
+						"pngquant",
+						"--force",
+						"--ext",
+						".png",
+						"--skip-if-larger",
+						"--quality=65-100",
+						workFile.absolutePath,
+					)
+					isIgnoreExitValue = true
+				}
+				if (workFile.exists() && workFile.length() in 1 until original.size.toLong()) {
+					val newBytes = workFile.readBytes()
+					quantized[name] = newBytes
+					savedBytes += original.size - newBytes.size
+					shrunkCount++
+				}
+			}
+		}
+
+		if (quantized.isEmpty()) {
+			project.logger.info("pngquant found nothing to shrink in ${apkFile.name}'s res/ entries")
+			return
+		}
+
+		val tempZip = File(apkFile.parentFile, "${apkFile.name}.pngquant.tmp")
+		RawZipWriter(tempZip).use { writer ->
+			for ((name, raw) in rawEntries) {
+				val newBytes = quantized[name]
+				if (newBytes != null) {
+					val crc = CRC32().apply { update(newBytes) }.value
+					writer.addEntry(
+						name,
+						ZipEntry.STORED,
+						crc,
+						newBytes.size.toLong(),
+						newBytes.size.toLong(),
+						ByteArrayInputStream(newBytes),
+					)
+				} else {
+					val size = sizeByName.getValue(name)
+					writer.addEntry(
+						name,
+						raw.method,
+						raw.crc,
+						size,
+						raw.data.size.toLong(),
+						ByteArrayInputStream(raw.data),
+					)
+				}
+			}
+		}
+		Files.move(tempZip.toPath(), apkFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+		project.logger.lifecycle(
+			"pngquant shrank $shrunkCount/${pngNames.size} PNG(s) in ${apkFile.name}'s res/ (saved ${savedBytes / 1024}KB)",
+		)
+	} finally {
+		tempDir.deleteRecursively()
+	}
+}
+
+fun isPngquantAvailable(): Boolean =
+	try {
+		ProcessBuilder("pngquant", "--version").start().waitFor() == 0
+	} catch (_: Exception) {
+		false
+	}
+
+tasks.named("preBuild") {
+	dependsOn("copyKotlinCompilerCarrierToAssets")
 }
 
 tasks.register("copyPluginApiJarToAssets") {

@@ -60,7 +60,7 @@ fun buildExtractVariableRewrite(
  * refuse: the sheet would open, the user would fill it in, and the confirm would fail with the generic
  * quick-fix error instead of the action reporting up front that there is nothing to extract.
  */
-internal sealed interface BlockPlacement {
+sealed interface BlockPlacement {
 	/** The declaration becomes a new line above [anchor], at [anchor]'s indentation. */
 	data class LineAbove(
 		val anchor: TextSpan,
@@ -88,8 +88,10 @@ internal sealed interface BlockPlacement {
  *
  * [form]'s spans are substringed against [fileText] unchecked, so callers must pass the very text those
  * spans were computed against -- the plan's own text, never the live document.
+ *
+ * Public rather than internal: the planner that calls this sits in the carrier module.
  */
-internal fun blockPlacementFor(
+fun blockPlacementFor(
 	fileText: String,
 	form: AnchorForm.ExistingBlock,
 	firstTarget: TextSpan,
@@ -126,7 +128,7 @@ internal fun blockPlacementFor(
  * [candidateSpan] is never dropped: the site the user selected is always served. Only leading sites
  * matter, because a later occurrence never becomes the anchor.
  */
-internal fun servableOccurrences(
+fun servableOccurrences(
 	fileText: String,
 	form: AnchorForm,
 	occurrences: List<TextSpan>,
@@ -316,7 +318,7 @@ fun RewriteSpan.toTextEdit(fileText: String): TextEdit =
 		newText = newText,
 	)
 
-internal fun positionAt(
+fun positionAt(
 	text: String,
 	offset: Int,
 ): Position {

@@ -165,8 +165,10 @@ data class ExtractionPlan(
  * The space before a `.` or `?.` is then removed: a wrapped call chain is the most common multi-line
  * expression in Kotlin, and a plain collapse turns `items\n\t.filter { ... }` into
  * `items .filter { ... }`, which reads as a typo in a list the user is choosing from.
+ *
+ * Public rather than internal: the planner that calls this sits in the carrier module.
  */
-internal fun collapseForLabel(
+fun collapseForLabel(
 	text: String,
 	maxLength: Int = 80,
 ): String {
