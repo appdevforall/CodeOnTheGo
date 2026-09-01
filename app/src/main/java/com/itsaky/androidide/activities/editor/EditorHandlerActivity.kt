@@ -119,7 +119,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.forEachViewRecursively
 import com.itsaky.androidide.utils.hasVisibleDialog
-import com.itsaky.androidide.utils.projectNamesMatch
+import com.itsaky.androidide.utils.isDeepLinkTargetOfOpenProject
 import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
 import com.itsaky.androidide.utils.resolveDeepLinkProject
 import com.itsaky.androidide.utils.resolveWithinDirectory
@@ -406,6 +406,8 @@ open class EditorHandlerActivity :
 	private fun performPendingDeepLinkOpen(pending: DeepLinkOpenRequest) {
 		val root = File(pending.projectRoot)
 		val ctx = applicationContext
+		// Read BEFORE the bookkeeping call below, which overwrites this global with the new path.
+		val previousProjectPath = IProjectManager.getInstance().projectDirPath
 		if (!pending.bookkeepingAlreadyRecorded) {
 			recordProjectOpenedBookkeeping(recentProjectRepository, root, project = null, analyticsManager = analyticsManager)
 		}
@@ -421,6 +423,14 @@ open class EditorHandlerActivity :
 		ctx.startActivity(
 			Intent(ctx, EditorActivityKt::class.java).apply {
 				putExtra(EditorIntentExtras.EXTRA_PROJECT_PATH, pending.projectRoot)
+				// The same extra MainActivity.openProject sends, and for the same reason: the receiver
+				// falls back to IProjectManager.projectDirPath, which recordProjectOpenedBookkeeping has
+				// already overwritten to this very path. Omitting it made a delivery that lands on
+				// onNewIntent (rather than a fresh onCreate) compute previousProjectPath == newProjectPath,
+				// so switchToProject took its same-project branch and the confirmed switch silently
+				// no-opped -- with the process-wide global naming the new project while the editor still
+				// showed the old one.
+				putExtra(EditorIntentExtras.EXTRA_PREVIOUS_PROJECT_PATH, previousProjectPath)
 				pending.fileRequest?.let { putExtra(PendingFileRequest.EXTRA_KEY, it) }
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 			},
@@ -475,7 +485,18 @@ open class EditorHandlerActivity :
 			// rather than firing startActivity() synchronously right after finish(), because the two calls
 			// racing could otherwise have the new PROJECT_PATH redelivered to this dying instance via
 			// onNewIntent (which never reads it) instead of a genuinely new instance's onCreate.
-			drainPendingDeepLinkOpen()
+			//
+			// didCompleteLiveOnCreate too, for the same reason preDestroy/postDestroy here,
+			// ProjectHandlerActivity's teardown hooks and BaseEditorActivity's all carry it -- and it
+			// matters most of all on this line, because pendingDeepLinkOpen is a Koin `single`, more
+			// widely shared than any registry those guards protect. An instance that took
+			// BaseEditorActivity.onCreate's deepLinkTargetsAnotherProject bail (startActivity +
+			// finish() + return) never sets the flag, yet reaches here with isFinishing true; without
+			// this it drains a handoff a DIFFERENT, still-live instance armed, firing startActivity
+			// while that instance is alive -- precisely the race deferring to onDestroy exists to avoid.
+			if (didCompleteLiveOnCreate) {
+				drainPendingDeepLinkOpen()
+			}
 		}
 	}
 
@@ -864,7 +885,13 @@ open class EditorHandlerActivity :
 		selection: Range?,
 	) {
 		lifecycleScope.launch {
-			val editorView = openFile(file, selection)
+			// A copy here too, not just in the postInLifecycle block below. openFile hands this straight
+			// to CodeEditorView's constructor, whose content-load pipeline calls selection.validate()
+			// and ideEditor.validateRange(selection) -- both of which clamp start/end in place on the
+			// caller's own object. The caller is often not ours to mutate: IDEEditor.showDocument passes
+			// the Range out of an LSP ShowDocumentParams via IDELanguageClientImpl.openFileAndSelect, so
+			// clamping it corrupts the language server's own Location.
+			val editorView = openFile(file, selection?.let { Range(it) })
 
 			editorView?.editor?.also { editor ->
 				editor.postInLifecycle {
@@ -2380,7 +2407,22 @@ open class EditorHandlerActivity :
 					// on an instance that is going away -- but the handoff below is process-wide state
 					// that a new instance drains, so it must still happen. Mirrors the contentOrNull ==
 					// null branch further down, which exists for the same reason.
-					if (isFinishing || isDestroyed) {
+					// isDestroyed WITHOUT isFinishing is not teardown at all: it is a config-change
+					// recreate (dark mode, locale, density -- none in EditorActivityKt's configChanges),
+					// where a successor instance for this same project is already coming up. This
+					// continuation survives it only because saveAllAsync now runs on the process-wide
+					// appScope rather than lifecycleScope. Running the close callback here would arm a
+					// switch on behalf of an instance being replaced, and draining it would startActivity
+					// into that switch while the successor is on screen -- so this case is left alone for
+					// the successor to own. onDestroy's own drain is gated the same way, on isFinishing.
+					if (!isFinishing && isDestroyed) {
+						log.info(
+							"Save completed during a config-change recreate, not a teardown; leaving the " +
+								"close callback for the successor instance rather than acting on it here.",
+						)
+						return@runOnUiThread
+					}
+					if (isFinishing) {
 						val onClosedDuringTeardown = pendingCloseCallback
 						pendingCloseCallback = null
 						// Logged, not silent: this branch is the one that used to lose the switch, and it
@@ -2392,6 +2434,9 @@ open class EditorHandlerActivity :
 							onClosedDuringTeardown != null,
 						)
 						onClosedDuringTeardown?.invoke()
+						// isDestroyed too: onDestroy has already run and drained, so nothing else will.
+						// While it has not, onDestroy's own drain is still ahead of us and doing it here
+						// would fire the handoff twice.
 						if (isDestroyed) drainPendingDeepLinkOpen()
 						return@runOnUiThread
 					}
@@ -2486,7 +2531,11 @@ open class EditorHandlerActivity :
 		val isProjectSwitchIntent =
 			(
 				deepLinkRequest != null &&
-					!projectNamesMatch(File(IProjectManager.getInstance().projectDirPath).name, deepLinkRequest.projectName)
+					!isDeepLinkTargetOfOpenProject(
+						IProjectManager.getInstance().projectDirPath,
+						deepLinkRequest.projectName,
+						projectsRoot(),
+					)
 			) ||
 				intent.getStringExtra(EditorIntentExtras.EXTRA_PROJECT_PATH)?.let { it != previousProjectPath } == true
 
@@ -2553,7 +2602,22 @@ open class EditorHandlerActivity :
 				// finishing instance has nothing to restore into, and a superseded request must leave
 				// the capture alone for the newer switch that is still relying on it.
 				withContext(Dispatchers.Main) {
-					if (!isFinishing && !isDestroyed) restoreIntentToStayingProject()
+					// Two further conditions, both matching the sibling call sites.
+					//
+					// capturedPendingFileRequestBeforeSwitch: only restore what this path actually
+					// captured. With nothing captured, restoreIntentToStayingProject's `restore == null`
+					// arm runs intent.removeExtra(PendingFileRequest.EXTRA_KEY) and deletes a
+					// carried-forward request belonging to the staying project -- the corruption the
+					// other two call sites' `else if (onClosed != null)` guard exists to avoid.
+					//
+					// latestDeepLinkRequest === request: a slow, failing link must not clear a capture
+					// that a newer link's own decline path is still relying on.
+					if (!isFinishing && !isDestroyed &&
+						capturedPendingFileRequestBeforeSwitch &&
+						latestDeepLinkRequest === request
+					) {
+						restoreIntentToStayingProject()
+					}
 				}
 				return@launch
 			}

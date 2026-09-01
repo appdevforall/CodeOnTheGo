@@ -75,6 +75,33 @@ internal fun projectNamesMatch(
 	return Normalizer.normalize(a, Normalizer.Form.NFC) == Normalizer.normalize(b, Normalizer.Form.NFC)
 }
 
+/**
+ * Whether [openProjectPath] is the project a deep link naming [projectName] would resolve to.
+ *
+ * The name alone is not enough. A deep link can only ever resolve to `<projectsRoot>/<name>`, but a
+ * project can be opened from anywhere -- the file picker (`BaseFragment`'s ACTION_OPEN_DOCUMENT_TREE
+ * uses the projects dir as a starting hint, not a constraint), Recents, or a clone destination. With
+ * `/storage/emulated/0/Download/work/MyApp` open and an unrelated `<projectsRoot>/MyApp` on disk, a
+ * leaf-name comparison says "same project" and the link's file path is then resolved against the
+ * OPEN one -- for two clones of a repo the path exists in both, so the wrong file opens silently.
+ * So the parent has to match as well.
+ *
+ * Canonicalised, since either side can reach the same directory through a symlink; a failure to
+ * canonicalise (an unreadable parent) falls back to the absolute path rather than throwing.
+ */
+internal fun isDeepLinkTargetOfOpenProject(
+	openProjectPath: String,
+	projectName: String,
+	projectsRoot: File,
+): Boolean {
+	if (openProjectPath.isBlank()) return false
+	val open = File(openProjectPath)
+	if (!projectNamesMatch(open.name, projectName)) return false
+	return canonicalOrAbsolute(open.parentFile ?: return false) == canonicalOrAbsolute(projectsRoot)
+}
+
+private fun canonicalOrAbsolute(file: File): String = runCatching { file.canonicalPath }.getOrElse { file.absolutePath }
+
 /** Determines if the directory contains a valid Android project structure. */
 fun isValidProjectDirectory(selectedDir: File): Boolean {
 	if (isPluginProject(selectedDir)) {

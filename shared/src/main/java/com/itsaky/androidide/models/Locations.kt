@@ -119,8 +119,14 @@ open class Range
 			@JvmStatic
 			fun pointRange(position: Position): Range {
 				// Two copies, not the same instance twice. Position's fields are `var` and
-				// EditorFeatures.validateRange clamps range.start and range.end in place, so a Range whose
-				// two ends alias one object has each clamp silently move the other end too.
+				// EditorFeatures.validateRange clamps start and end in place, so aliasing one object as
+				// both ends makes each clamp move the other end too. For a POINT range that is currently
+				// harmless -- the two ends hold equal values and the column clamp depends only on the
+				// already-clamped line, so both writes compute the same result. This copies anyway
+				// because that is a property of today's clamp, not of the type: any future validate that
+				// treats start and end asymmetrically (ordering them, or clamping end against start)
+				// would silently corrupt every point range. It also keeps the caller's Position out of
+				// the returned Range, which callers do mutate.
 				return Range(position.copy(), position.copy())
 			}
 		}

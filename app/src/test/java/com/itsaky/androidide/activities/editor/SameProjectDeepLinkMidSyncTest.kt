@@ -21,6 +21,8 @@ import android.content.Intent
 import androidx.core.content.IntentCompat
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.app.BaseApplication
+import com.itsaky.androidide.databinding.ActivityEditorBinding
+import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.deeplink.PendingDeepLinkOpen
 import com.itsaky.androidide.models.PendingFileRequest
 import com.itsaky.androidide.projects.IProjectManager
@@ -32,6 +34,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.koin.core.context.GlobalContext
 import org.koin.core.context.GlobalContext.startKoin
 import org.koin.core.context.GlobalContext.stopKoin
 import org.koin.dsl.module
@@ -65,14 +68,31 @@ class SameProjectDeepLinkMidSyncTest {
 	// binding-torn-down branch is the one taken. Without a Koin context that branch threw
 	// "KoinApplication has not been started" before the test could assert anything -- this test has
 	// been failing on the branch for exactly that reason, independently of what it is meant to check.
+	private var startedKoin = false
+
+	// switchToProject reads the Koin-provided PendingDeepLinkOpen on three of its four branches, so a
+	// Koin context has to exist. It may already: run in the full :app suite rather than alone, another
+	// test's application has started one, and startKoin would throw
+	// KoinApplicationAlreadyStartedException. Join the existing context in that case and leave it
+	// running for whoever owns it; only tear down a context this test started itself.
 	@Before
 	fun setUp() {
-		startKoin { modules(module { single { PendingDeepLinkOpen() } }) }
+		val binding = module { single { PendingDeepLinkOpen() } }
+		val existing = GlobalContext.getOrNull()
+		if (existing == null) {
+			startedKoin = true
+			startKoin { modules(binding) }
+		} else {
+			existing.loadModules(listOf(binding))
+		}
 	}
 
 	@After
 	fun tearDown() {
-		stopKoin()
+		if (startedKoin) {
+			stopKoin()
+			startedKoin = false
+		}
 		unmockkAll()
 	}
 
@@ -91,9 +111,20 @@ class SameProjectDeepLinkMidSyncTest {
 			Robolectric
 				.buildActivity(EditorHandlerActivity::class.java, Intent())
 				.get()
-		// Non-null binding so switchToProject takes its same-project branch instead of the
-		// binding-torn-down handoff; nothing on the branch under test touches the views.
-		activity._binding = mockk(relaxed = true)
+		// Non-null binding AND a non-null `content` on it, so switchToProject takes its same-project
+		// branch instead of the binding-torn-down handoff; nothing on the branch under test touches the
+		// views themselves.
+		//
+		// `content` is set by reflection because view binding generates it as a public Java FIELD, and
+		// mockk stubs methods, not fields -- a relaxed mock therefore leaves it null, `contentOrNull`
+		// (which returns `_binding!!.content`) reads null, and the test silently exercised the
+		// binding-torn-down branch instead of the one it names. That is why it has been failing.
+		val activityBinding = mockk<ActivityEditorBinding>(relaxed = true)
+		ActivityEditorBinding::class.java
+			.getDeclaredField("content")
+			.apply { isAccessible = true }
+			.set(activityBinding, mockk<ContentEditorBinding>(relaxed = true))
+		activity._binding = activityBinding
 
 		// What onNewIntent's carry-forward guard re-arms from the previous intent: the earlier,
 		// still-unconsumed request. Without the fix, postProjectInit would find (and navigate to)

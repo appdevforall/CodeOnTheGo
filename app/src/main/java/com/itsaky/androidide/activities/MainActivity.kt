@@ -577,6 +577,12 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		setIntent(intent)
 		IntentCompat
 			.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+			// The same consumed gate onCreate applies. Without it an already-answered request comes
+			// back through this door: BaseEditorActivity.onCreate re-forwards the request here with
+			// CLEAR_TOP|SINGLE_TOP whenever deepLinkTargetsAnotherProject, and this activity is already
+			// in the back stack, so it arrives as onNewIntent. A request the user had declined then had
+			// its confirm dialog put straight back up.
+			?.takeIf { it !in consumedDeepLinkRequests }
 			?.let { handleDeepLinkRequest(it) }
 	}
 

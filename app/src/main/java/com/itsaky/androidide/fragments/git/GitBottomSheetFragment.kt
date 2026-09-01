@@ -673,7 +673,11 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 	private fun checkUnsavedChangesAndProceed(action: () -> Unit) {
 		val handler = requireActivity() as? IEditorHandler
-		if (handler?.areFilesModified() == true) {
+		// hasUnsavedWritableFiles(), matching the post-save check below. areFilesModified() is a cached
+		// flag that counts read-only archive tabs no save can ever write, so with a .zip or .apk open it
+		// raised this "save before the git action?" prompt on every commit, pull and push even with
+		// nothing actually dirty -- and the save it offered could not clear it.
+		if (handler?.hasUnsavedWritableFiles() == true) {
 			MaterialAlertDialogBuilder(requireContext())
 				.setTitle(R.string.title_files_unsaved)
 				.setMessage(R.string.msg_save_before_git_action)

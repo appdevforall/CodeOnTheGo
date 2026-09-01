@@ -82,6 +82,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
 import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.activities.MainActivity
+import com.itsaky.androidide.activities.projectsRoot
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.api.BuildOutputProvider
@@ -143,7 +144,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.getOrStoreInitialPadding
 import com.itsaky.androidide.utils.isAtLeastR
-import com.itsaky.androidide.utils.projectNamesMatch
+import com.itsaky.androidide.utils.isDeepLinkTargetOfOpenProject
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.AppLogsCoordinator
@@ -786,7 +787,8 @@ abstract class BaseEditorActivity :
 		// extra disk scan.
 		val projectDirPath = ProjectManagerImpl.getInstance().projectDirPath
 		val deepLinkTargetsAnotherProject =
-			deepLinkRequest != null && !projectNamesMatch(File(projectDirPath).name, deepLinkRequest.projectName)
+			deepLinkRequest != null &&
+				!isDeepLinkTargetOfOpenProject(projectDirPath, deepLinkRequest.projectName, projectsRoot())
 		if (projectDirPath.isBlank() || deepLinkTargetsAnotherProject) {
 			log.warn("No matching project available in EditorActivity.onCreate(); returning to MainActivity")
 			startActivity(

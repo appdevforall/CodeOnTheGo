@@ -61,6 +61,9 @@ data class DeepLinkRequest(
 		private val HOSTS = setOf("www.appdevforall.org", "appdevforall.org")
 		private const val PATH_PREFIX = "/device/open/project/"
 
+		/** See [parse]: an upper bound on the whole path, since the parsed pieces get parcelled. */
+		private const val MAX_LINK_PATH_LENGTH = 4096
+
 		private const val SEGMENT_PROJECT = "project"
 		private const val SEGMENT_FILE = "file"
 		private const val SEGMENT_LINE = "line"
@@ -133,6 +136,18 @@ data class DeepLinkRequest(
 			// a project literally named "file" (and open it, should one exist). Reject the malformed
 			// link outright instead of resolving a name the user never wrote.
 			if (uri.path?.contains("//") == true) {
+				return null
+			}
+
+			// A length ceiling, because everything downstream of here is parcelled. DeepLinkActivity is
+			// exported, so any co-installed app can send explicit ACTION_VIEW intents in a loop; the
+			// parsed name and path are kept in ConsumedRequests (up to 32 of them) and written verbatim
+			// to MainActivity's saved-instance Bundle, so unbounded names cross the ~1 MB Binder budget
+			// and crash the activity with TransactionTooLargeException on every rotation or
+			// backgrounding until the task is cleared. Rejecting is safe: this bounds a legitimate
+			// path far above anything the filesystem accepts (Linux caps a single name at 255 bytes),
+			// and a link this long cannot name a real project anyway.
+			if ((uri.path?.length ?: 0) > MAX_LINK_PATH_LENGTH) {
 				return null
 			}
 
