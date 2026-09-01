@@ -672,14 +672,15 @@ CREATE TABLE IF NOT EXISTS DocumentationDatabaseVersion (
 def declared_major(connection: sqlite3.Connection) -> int | None:
     """The MAJOR this database declares, or None when it declares none.
 
-    Reads the row with the highest rowid: the table is append-only by contract
-    (docs/documentation-database.md), so the row inserted last is the current version -- the same
-    row the app's DatabaseVersionResolver reads (ADFA-5220).
+    The table holds exactly one row by contract (ADFA-5220 / #1729,
+    docs/documentation-database.md). The ORDER BY is the defence for a file that breaks it,
+    matching the app's DatabaseVersionResolver: the newest changeTime wins, rowid breaking ties,
+    so both readers give the same answer over the same file.
     """
     if not table_exists(connection, "DocumentationDatabaseVersion"):
         return None
     row = connection.execute(
-        "SELECT major FROM DocumentationDatabaseVersion ORDER BY rowid DESC LIMIT 1"
+        "SELECT major FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1"
     ).fetchone()
     return row[0] if row is not None and row[0] is not None else None
 
@@ -706,11 +707,13 @@ def declare_dictionary_version(connection: sqlite3.Connection) -> None:
 
     Written in the same transaction as the first batch of migrated content, because the two facts
     have to travel together: content compressed against the dictionary, and a version saying so.
-    The log is append-only by contract (docs/documentation-database.md, DatabaseVersionResolver):
-    each change is another INSERT and the row inserted last is the current version, so prior
-    version rows are history to keep, never state to replace.
+    The table holds exactly one row by contract (ADFA-5220 / #1729,
+    docs/documentation-database.md, DatabaseVersionResolver): the version is the state the file
+    *is*, so the DELETE replaces whatever row is there rather than appending history -- the app
+    warns over a multi-row file.
     """
     connection.execute(VERSION_TABLE_SQL)
+    connection.execute("DELETE FROM DocumentationDatabaseVersion")
     connection.execute(
         "INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, 0, 0, ?, ?)",
         (
