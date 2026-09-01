@@ -41,16 +41,30 @@ jobs:
 
             const pr = context.payload.pull_request;
             const branch = pr.head.ref;
+            const BASE_REPO_ID = context.payload.repository.id;
 
             if (branch.startsWith('community/')) {
               core.info(`Branch "${branch}" is a community contribution; no Jira ticket to advance.`);
               return;
             }
 
-            // The branch is the only source of the key that the author of an
-            // untrusted pull request cannot choose freely; a title reading
-            // "fixes the ADFA-1234 crash" would otherwise pick the ticket that
-            // moves. debug.yml extracts from the branch alone for the same reason.
+            /*
+             * A fork's head branch is named inside the author's own repository,
+             * so its ADFA key is evidence of nothing: a fork branch called
+             * "ADFA-1234-crash" would bind an unrelated ticket that a
+             * maintainer's approval then walks to QA. External contributions are
+             * expected to carry the `community/` prefix and have no ticket of
+             * their own in any case.
+             */
+            if (pr.head.repo?.id !== BASE_REPO_ID) {
+              core.info(`Pull request #${pr.number} is from a fork; no Jira ticket to advance.`);
+              return;
+            }
+
+            // The key comes from the branch rather than the title: a title
+            // reading "fixes the ADFA-1234 crash" would otherwise pick the ticket
+            // that moves. debug.yml extracts from the branch alone for the same
+            // reason.
             const match = branch.match(KEY_PATTERN);
             if (!match) {
               core.info(`No ADFA ticket referenced by branch "${branch}"; nothing to do.`);
@@ -58,79 +72,136 @@ jobs:
             }
             const key = match[0].toUpperCase();
 
-            // author_association does not prove write access: an org member may
-            // have no access to this repo, and a collaborator may be read-only.
-            // Ask for the reviewer's effective permission instead. The legacy
-            // `permission` field reports "maintain" as "write", so those two
-            // values cover admin, maintain, and write.
-            const reviewer = context.payload.review.user.login;
-            let permission;
-            try {
-              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                username: reviewer,
-              });
-              permission = data.permission;
-            } catch (error) {
-              /*
-               * Fail closed, and fail loudly. A permission lookup that cannot run
-               * is a broken automation, not a transient outage: every later
-               * approval would end as a warning under a green check, which is the
-               * same silent drift this job exists to remove.
-               */
-              core.setFailed(`Could not read ${reviewer}'s permission on this repository (${error.message}); leaving ${key} untouched.`);
-              return;
-            }
-
-            if (!['admin', 'write'].includes(permission)) {
-              core.info(`${reviewer} has "${permission}" permission and cannot merge; leaving ${key} untouched.`);
-              return;
-            }
-
             /*
-             * One ticket can own a stack of pull requests. Moving it on the first
-             * approval hands QA a ticket whose code is four branches from landing,
-             * and the later approvals then find it already at QA and say nothing.
-             * Advance only once every open pull request carrying this key has an
-             * approval of its own.
+             * author_association does not prove write access: an org member may
+             * have no access to this repo, and a collaborator may be read-only.
+             * Ask for the effective permission instead, once per login, since the
+             * same reviewer usually appears on every branch of a stack.
              */
-            const open = await github.paginate(github.rest.pulls.list, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              per_page: 100,
-            });
-            const siblings = open.filter(candidate => {
-              if (candidate.number === pr.number) return false;
-              const key2 = candidate.head.ref.match(KEY_PATTERN);
-              return key2 && key2[0].toUpperCase() === key;
-            });
+            const permissions = new Map();
+            const canMerge = async login => {
+              if (!permissions.has(login)) {
+                let permission;
+                try {
+                  const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    username: login,
+                  });
+                  permission = data.permission;
+                } catch (error) {
+                  /*
+                   * A 404 answers the question with "no access" -- App bots review
+                   * too, and a "name[bot]" login is not a username. Anything else
+                   * is a broken automation rather than a verdict: the token cannot
+                   * read collaborators, and every later approval would end as a
+                   * warning under a green check, which is the silent drift this
+                   * job exists to remove. Let it out to the catch below and turn
+                   * the run red.
+                   */
+                  if (error.status !== 404) {
+                    throw new Error(`could not read ${login}'s permission on this repository (${error.message})`);
+                  }
+                  permission = 'none';
+                }
+                permissions.set(login, permission);
+              }
+              /*
+               * The legacy `permission` field reports "maintain" as "write", so
+               * those two values cover admin, maintain and write.
+               */
+              return ['admin', 'write'].includes(permissions.get(login));
+            };
 
-            for (const sibling of siblings) {
-              if (sibling.draft) {
-                core.info(`${key} also has draft pull request #${sibling.number}; leaving the ticket where it is.`);
+            const reviewer = context.payload.review.user.login;
+
+            try {
+              if (!await canMerge(reviewer)) {
+                core.info(`${reviewer} has "${permissions.get(reviewer)}" permission and cannot merge; leaving ${key} untouched.`);
                 return;
               }
-              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+
+              /*
+               * One ticket can own a stack of pull requests. Moving it on the
+               * first approval hands QA a ticket whose code is four branches from
+               * landing, and the later approvals then find it already at QA and
+               * say nothing. Advance only once every open pull request carrying
+               * this key -- the one that fired this event included -- is approved
+               * with no change request outstanding.
+               */
+              const open = await github.paginate(github.rest.pulls.list, {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                pull_number: sibling.number,
+                state: 'open',
                 per_page: 100,
               });
-              // A reviewer's verdict is their latest non-comment review.
-              const verdicts = new Map();
-              for (const submitted of reviews) {
-                if (submitted.state === 'COMMENTED' || submitted.state === 'PENDING') continue;
-                verdicts.set(submitted.user.login, submitted.state);
+              /*
+               * Fork heads are excluded for the reason given above, and because a
+               * stranger could otherwise hold the board still by opening a fork
+               * branch named after someone else's ticket.
+               */
+              const stack = open.filter(candidate => {
+                if (candidate.head.repo?.id !== BASE_REPO_ID) return false;
+                const candidateKey = candidate.head.ref.match(KEY_PATTERN);
+                return candidateKey && candidateKey[0].toUpperCase() === key;
+              });
+              if (!stack.some(member => member.number === pr.number)) {
+                stack.push(pr);
               }
-              if (![...verdicts.values()].includes('APPROVED')) {
-                core.info(`${key} also has open pull request #${sibling.number}, which is not approved; leaving the ticket where it is.`);
-                return;
-              }
-            }
 
-            core.setOutput('key', key);
+              for (const member of stack) {
+                const label = member.number === pr.number
+                  ? `this pull request (#${member.number})`
+                  : `pull request #${member.number}`;
+
+                if (member.draft) {
+                  core.info(`${key}: ${label} is a draft; leaving the ticket where it is.`);
+                  return;
+                }
+
+                const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: member.number,
+                  per_page: 100,
+                });
+
+                /*
+                 * A reviewer's verdict is their latest non-comment review, and
+                 * only the verdicts of people who could merge count: anyone can
+                 * review a public repo, so counting everyone would let a drive-by
+                 * approval satisfy this gate and a drive-by change request hold
+                 * the board still.
+                 */
+                const verdicts = new Map();
+                for (const submitted of reviews) {
+                  if (submitted.state === 'COMMENTED' || submitted.state === 'PENDING') continue;
+                  if (!submitted.user || !await canMerge(submitted.user.login)) continue;
+                  verdicts.set(submitted.user.login, submitted.state);
+                }
+                /*
+                 * The review that fired this event is the newest verdict of the
+                 * reviewer who submitted it; listReviews need not show it yet.
+                 */
+                if (member.number === pr.number) {
+                  verdicts.set(reviewer, 'APPROVED');
+                }
+
+                const states = [...verdicts.values()];
+                if (states.includes('CHANGES_REQUESTED')) {
+                  core.info(`${key}: ${label} has an outstanding change request; leaving the ticket where it is.`);
+                  return;
+                }
+                if (!states.includes('APPROVED')) {
+                  core.info(`${key}: ${label} is not approved; leaving the ticket where it is.`);
+                  return;
+                }
+              }
+
+              core.setOutput('key', key);
+            } catch (error) {
+              core.setFailed(`Cannot decide whether ${key} may advance: ${error.message}. Leaving it untouched.`);
+            }
 
   advance:
     name: Move linked Jira ticket to QA
@@ -272,27 +343,37 @@ jobs:
 
               const trail = walked.join(' -> ');
 
-              await jira(`/issue/${key}/comment`, {
-                method: 'POST',
-                body: JSON.stringify({
-                  body: {
-                    type: 'doc',
-                    version: 1,
-                    content: [{
-                      type: 'paragraph',
-                      content: [
-                        { type: 'text', text: `Automatically moved to ${TARGET} (${trail}): ` },
-                        {
-                          type: 'text',
-                          text: `pull request #${pr.number}`,
-                          marks: [{ type: 'link', attrs: { href: pr.html_url } }],
-                        },
-                        { type: 'text', text: ` was approved by ${reviewer}.` },
-                      ],
-                    }],
-                  },
-                }),
-              });
+              /*
+               * The walk is already committed by this point, so a comment that
+               * fails to post must not be reported as a failure to advance: that
+               * sends whoever reads the log to a ticket already sitting where it
+               * belongs.
+               */
+              try {
+                await jira(`/issue/${key}/comment`, {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    body: {
+                      type: 'doc',
+                      version: 1,
+                      content: [{
+                        type: 'paragraph',
+                        content: [
+                          { type: 'text', text: `Automatically moved to ${TARGET} (${trail}): ` },
+                          {
+                            type: 'text',
+                            text: `pull request #${pr.number}`,
+                            marks: [{ type: 'link', attrs: { href: pr.html_url } }],
+                          },
+                          { type: 'text', text: ` was approved by ${reviewer}.` },
+                        ],
+                      }],
+                    },
+                  }),
+                });
+              } catch (error) {
+                core.warning(`${key} reached ${TARGET} (${trail}), but the Jira comment recording why could not be posted: ${error.message}.`);
+              }
 
               core.info(`${key}: ${trail}`);
               core.summary.addRaw(`Moved [${key}](${JIRA_BASE}/browse/${key}) to ${TARGET}: ${trail}`);
