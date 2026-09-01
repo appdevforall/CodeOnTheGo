@@ -4,7 +4,8 @@ import java.io.DataInputStream
 
 /**
  * The hierarchy facts of one compiled class file - name, superclass, directly implemented
- * interfaces - which is what keeps [DeployPolicy]'s supertype index current across builds.
+ * interfaces. Currently unused: [DeployPolicy] keeps no supertype index. Kept for a planned
+ * deploy mode that redefines classes in place and will need the hierarchy.
  *
  * Parsed by a constant-pool walk rather than a bytecode library; these fields sit right after
  * the constant pool, so nothing past the interface list is read. Names are in dot form with

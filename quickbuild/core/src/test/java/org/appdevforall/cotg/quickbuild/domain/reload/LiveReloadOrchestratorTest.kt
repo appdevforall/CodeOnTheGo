@@ -2202,4 +2202,31 @@ class LiveReloadOrchestratorTest {
 			assertThat(executor.requests.last().route).isEqualTo(BuildRoute.CodeAndResources)
 			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).isEmpty()
 		}
+
+	@Test
+	fun `a manifest edit landing mid-build survives a failed build collapsing the set to Unknown`() =
+		runTest {
+			// A failed build hands its batch back into pending. When that batch is Unknown
+			// (built off an untrusted baseline) and a manifest edit landed mid-build, a bare
+			// plus collapses the union to Unknown and loses the manifest edit's full-build
+			// verdict - the next save then takes the fast daemon path with a change the
+			// daemon cannot absorb.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			orchestrator.onBaselineUntrusted()
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
+			runCurrent()
+			executor.finish(0, compileError())
+			runCurrent()
+			orchestrator.onFilesChanged(known(srcB))
+			runCurrent()
+
+			assertThat(executor.requests).hasSize(1)
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>())
+				.containsExactly(OrchestratorEvent.InvalidationRequired(InvalidationReason.MANIFEST_CHANGED))
+		}
 }
