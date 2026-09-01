@@ -56,6 +56,7 @@ import androidx.collection.MutableIntIntMap
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
+import androidx.core.os.BundleCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -89,6 +90,7 @@ import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.databinding.LayoutDiagnosticInfoBinding
+import com.itsaky.androidide.deeplink.ConsumedRequests
 import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.fragments.debug.DebuggerFragment
 import com.itsaky.androidide.fragments.output.ShareableOutputFragment
@@ -224,6 +226,48 @@ abstract class BaseEditorActivity :
 	// registered as their owner, so clearing them on its teardown would wipe out whatever a
 	// genuinely live sibling instance set up instead.
 	private var didCompleteLiveOnCreate = false
+
+	// The editor-side counterpart of MainActivity.consumedDeepLinkRequests, for the two deep-link
+	// extras this activity consumes from its intent (DeepLinkRequest in onCreate/onNewIntent,
+	// PendingFileRequest in postProjectInit): intent.removeExtra only mutates this process's Intent
+	// object, so after process death the system re-creates this activity from the *parceled* intent
+	// with the extras still on it, and the drained request would fire again with no user action --
+	// yanking the editor back to a file/line the user navigated away from before the kill. Persisted
+	// via onSaveInstanceState (restored at the top of onCreate) so consumption survives exactly the
+	// recreate paths removeExtra cannot cover.
+	protected val consumedDeepLinkRequests = ConsumedRequests<DeepLinkRequest>()
+	protected val consumedFileRequests = ConsumedRequests<PendingFileRequest>()
+
+	/**
+	 * Arms [request] on [target] for [postProjectInit]'s deferred read, un-marking it as consumed
+	 * first: a deliberately re-armed request (e.g. the same file/line navigation requested a second
+	 * time, parked mid-sync) must not be skipped by the consumed-check just because an equal-by-value
+	 * request was applied earlier. Every putExtra of this key onto a live activity's own intent goes
+	 * through here so arming and the consumed bookkeeping cannot drift apart.
+	 */
+	protected fun armPendingFileRequest(
+		target: Intent,
+		request: PendingFileRequest,
+	) {
+		consumedFileRequests.remove(request)
+		target.putExtra(PendingFileRequest.EXTRA_KEY, request)
+	}
+
+	/**
+	 * Removes the pending file request from this activity's intent and records it as consumed (see
+	 * [consumedFileRequests] for why removal alone is not durable). Returns the request when it was
+	 * still pending, or `null` when there was none or it had already been consumed -- i.e. the intent
+	 * carrying it is a post-process-death redelivery, not a new navigation.
+	 */
+	protected fun drainPendingFileRequest(): PendingFileRequest? {
+		val request =
+			IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
+				?: return null
+		val alreadyConsumed = request in consumedFileRequests
+		consumedFileRequests.add(request)
+		intent.removeExtra(PendingFileRequest.EXTRA_KEY)
+		return request.takeUnless { alreadyConsumed }
+	}
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	internal var _binding: ActivityEditorBinding? = null
@@ -453,6 +497,8 @@ abstract class BaseEditorActivity :
 		const val EDITOR_CONTAINER_SCALE_FACTOR = 0.87f
 		const val KEY_BOTTOM_SHEET_SHOWN = "editor_bottomSheetShown"
 		const val KEY_PROJECT_PATH = "saved_projectPath"
+		private const val KEY_CONSUMED_DEEP_LINK_REQUESTS = "saved_consumedDeepLinkRequests"
+		private const val KEY_CONSUMED_FILE_REQUESTS = "saved_consumedFileRequests"
 	}
 
 	protected abstract fun provideCurrentEditor(): CodeEditorView?
@@ -675,13 +721,33 @@ abstract class BaseEditorActivity :
 	 * building the editor UI.
 	 */
 	override fun onCreate(savedInstanceState: Bundle?) {
+		// Restored before the deep-link reads below: a savedInstanceState means this is a recreate
+		// (config change or post-process-death), and post-process-death the intent read next still
+		// carries every extra this task already consumed -- see consumedDeepLinkRequests' docs.
+		consumedDeepLinkRequests.restore(
+			savedInstanceState?.let {
+				BundleCompat.getParcelableArrayList(it, KEY_CONSUMED_DEEP_LINK_REQUESTS, DeepLinkRequest::class.java)
+			},
+		)
+		consumedFileRequests.restore(
+			savedInstanceState?.let {
+				BundleCompat.getParcelableArrayList(it, KEY_CONSUMED_FILE_REQUESTS, PendingFileRequest::class.java)
+			},
+		)
+
 		// DeepLinkActivity routes a deep link to this activity's class only when it believes a live
 		// singleTask instance already exists to handle it via onNewIntent (see
-		// ActionContextProvider.getActivity()'s docs on how that check can still be stale) -- if
+		// ActionContextProvider.getLiveActivity()'s docs on how that check can still be stale) -- if
 		// Android instead spins up a genuinely new instance, this onCreate runs and onNewIntent
-		// never does, so this is EXTRA_KEY's only other reader on the editor side.
+		// never does, so this is EXTRA_KEY's only other reader on the editor side. An
+		// already-consumed request is treated as absent: it can only be here again because a
+		// post-process-death recreate redelivered the parceled intent verbatim, and acting on it
+		// again would bounce the user back into a project switch they already performed (or
+		// abandoned) before the kill.
 		val deepLinkRequest =
-			IntentCompat.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+			IntentCompat
+				.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
+				?.takeUnless { it in consumedDeepLinkRequests }
 
 		// The OS can recreate EditorActivity after process death without routing through
 		// MainActivity, leaving the ProjectManagerImpl singleton's lateinit projectPath unset.
@@ -712,7 +778,7 @@ abstract class BaseEditorActivity :
 		//
 		// A deep link also forces this even when a project path IS already loaded: DeepLinkActivity
 		// routes here only when it believes a live instance already exists to handle the request via
-		// onNewIntent, but that check can be stale (see ActionContextProvider.getActivity()'s docs)
+		// onNewIntent, but that check can be stale (see ActionContextProvider.getLiveActivity()'s docs)
 		// -- Android may spin up this genuinely new instance instead, which inherits whatever project
 		// ProjectManagerImpl's process-wide singleton was last holding, not necessarily the one this
 		// deep link actually targets. Comparing against the project directory's name (matching how
@@ -742,11 +808,15 @@ abstract class BaseEditorActivity :
 		// new instance instead of redelivering via onNewIntent) -- forward its file/line/column
 		// request through the normal PendingFileRequest pipeline so postProjectInit still applies it
 		// once the project finishes initializing, instead of silently dropping it here.
-		deepLinkRequest?.fileRequest?.let { intent.putExtra(PendingFileRequest.EXTRA_KEY, it) }
+		deepLinkRequest?.fileRequest?.let { armPendingFileRequest(intent, it) }
 		// Consumed here -- mirror EditorHandlerActivity.onNewIntent's own drain of this same extra,
 		// so a launch intent redelivered verbatim after process death doesn't re-navigate to the
-		// same file/line a second time.
-		deepLinkRequest?.let { intent.removeExtra(DeepLinkRequest.EXTRA_KEY) }
+		// same file/line a second time. Recorded in consumedDeepLinkRequests too: the removeExtra
+		// alone doesn't survive process death (see that field's docs).
+		deepLinkRequest?.let {
+			consumedDeepLinkRequests.add(it)
+			intent.removeExtra(DeepLinkRequest.EXTRA_KEY)
+		}
 
 		editorViewModel.isBuildInProgress = false
 		editorViewModel.isInitializing = false
@@ -1060,6 +1130,10 @@ abstract class BaseEditorActivity :
 
 	override fun onSaveInstanceState(outState: Bundle) {
 		outState.putString(KEY_PROJECT_PATH, IProjectManager.getInstance().projectDirPath)
+		// See consumedDeepLinkRequests' docs: a post-process-death recreate is handed the parceled
+		// intent with already-drained extras still on it, and these are what stop them re-firing.
+		outState.putParcelableArrayList(KEY_CONSUMED_DEEP_LINK_REQUESTS, consumedDeepLinkRequests.toSavedList())
+		outState.putParcelableArrayList(KEY_CONSUMED_FILE_REQUESTS, consumedFileRequests.toSavedList())
 		super.onSaveInstanceState(outState)
 	}
 

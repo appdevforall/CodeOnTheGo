@@ -17,11 +17,15 @@
 
 package com.itsaky.androidide.deeplink
 
-import com.itsaky.androidide.models.DeepLinkRequest
+import android.os.Parcelable
 
 /**
- * The deep-link requests this task has already acted on, so a redelivered Intent carrying one of
- * them does not force its project open a second time (ADFA-5067).
+ * The deep-link-style requests (e.g. [com.itsaky.androidide.models.DeepLinkRequest],
+ * [com.itsaky.androidide.models.PendingFileRequest]) this task has already acted on, so a
+ * redelivered Intent carrying one of them does not force its navigation a second time (ADFA-5067).
+ * `Intent.removeExtra` alone cannot provide this: it mutates only this process's Intent object,
+ * while a recreate after process death is handed the system's *parceled* copy, extras intact --
+ * which is why consumers persist this set through `onSaveInstanceState`.
  *
  * Every consumed request is remembered, not just the latest. One slot was not enough: after link A
  * is consumed and link B arrives through `onNewIntent`, `setIntent` makes B the live Intent while
@@ -32,19 +36,28 @@ import com.itsaky.androidide.models.DeepLinkRequest
  * Kept out of the activity so the bookkeeping can be tested without one: this is the third distinct
  * lifecycle path (config change, process death, second link) whose correctness rests entirely on it.
  */
-internal class ConsumedDeepLinkRequests {
-	private val requests = LinkedHashSet<DeepLinkRequest>()
+class ConsumedRequests<T : Parcelable> {
+	private val requests = LinkedHashSet<T>()
 
 	/** For `onSaveInstanceState`; pairs with [restore]. */
-	fun toSavedList(): ArrayList<DeepLinkRequest> = ArrayList(requests)
+	fun toSavedList(): ArrayList<T> = ArrayList(requests)
 
 	/** Replaces the contents with [saved], which is null when there is no instance state to restore. */
-	fun restore(saved: List<DeepLinkRequest>?) {
+	fun restore(saved: List<T>?) {
 		requests.clear()
 		saved?.let(requests::addAll)
 	}
 
-	operator fun contains(request: DeepLinkRequest): Boolean = request in requests
+	operator fun contains(request: T): Boolean = request in requests
+
+	/**
+	 * Forgets [request], so an equal-by-value request deliberately re-armed by the caller (e.g. the
+	 * same file/line navigation requested a second time, parked on the Intent for a deferred apply)
+	 * is not mistaken for the already-consumed earlier one and silently skipped.
+	 */
+	fun remove(request: T) {
+		requests.remove(request)
+	}
 
 	/**
 	 * Records [request] as acted on. Null is accepted and ignored: the caller's "latest request" can
@@ -54,7 +67,7 @@ internal class ConsumedDeepLinkRequests {
 	 * that fires links in a loop. The evicted case degrades to the old behaviour -- one spurious
 	 * reopen of a link superseded 32 links ago -- which no real sequence reaches.
 	 */
-	fun add(request: DeepLinkRequest?) {
+	fun add(request: T?) {
 		request ?: return
 		requests += request
 		while (requests.size > MAX_REMEMBERED) {

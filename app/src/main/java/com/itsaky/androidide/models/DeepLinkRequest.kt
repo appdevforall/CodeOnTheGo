@@ -128,6 +128,14 @@ data class DeepLinkRequest(
 				return null
 			}
 
+			// Uri.pathSegments silently drops empty segments, shifting everything after them one slot
+			// left -- ".../project//file/Main.kt" would pass the prefix check above and then parse as
+			// a project literally named "file" (and open it, should one exist). Reject the malformed
+			// link outright instead of resolving a name the user never wrote.
+			if (uri.path?.contains("//") == true) {
+				return null
+			}
+
 			val segments = uri.pathSegments
 
 			val projectIdx = segments.indexOfFrom(0, SEGMENT_PROJECT)

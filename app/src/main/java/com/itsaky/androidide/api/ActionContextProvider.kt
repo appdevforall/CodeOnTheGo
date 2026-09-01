@@ -31,11 +31,21 @@ object ActionContextProvider {
 	}
 
 	/**
-	 * The current, live [EditorHandlerActivity], or `null` if there is none -- including one that
+	 * The current registered [EditorHandlerActivity], or `null` if there is none. Deliberately NOT
+	 * filtered on `isFinishing`/`isDestroyed` (unlike [getLiveActivity]): pre-existing consumers
+	 * depend on getting the instance even during a finishing window -- e.g. a floating
+	 * `EditorPanelDockableContent`, documented to outlive the activity, and `IDEApiFacade.runApp`,
+	 * which should still launch the built app rather than report "no active IDE window".
+	 */
+	fun getActivity(): EditorHandlerActivity? = activityRef?.get()
+
+	/**
+	 * Like [getActivity], but `null` also for an instance that is already tearing down -- one that
 	 * called `finish()` but hasn't run `onDestroy()` (and cleared itself via [clearActivity]) yet.
 	 * Android delivers `singleTask` intents to a finishing instance's [android.app.Activity.onNewIntent]
 	 * inconsistently (a genuinely new instance can be created instead), so callers that route based
-	 * on "is there a live editor to hand this off to" need this distinction, not just non-null.
+	 * on "is there a live editor to hand this off to" -- the deep-link routing in
+	 * [com.itsaky.androidide.activities.DeepLinkActivity] -- need this distinction, not just non-null.
 	 *
 	 * [setActivity] is called from both `onCreate` and `onResume`: `onCreate` closes the blind window
 	 * between `onCreate` and `onResume` where a caller like
@@ -43,8 +53,8 @@ object ActionContextProvider {
 	 * instance and start a second, redundant open flow via `MainActivity`; `onResume` lets an instance
 	 * reclaim this registration whenever it becomes foreground-active again, in case a different,
 	 * stale-duplicate instance briefly registered over it and was destroyed without anything else
-	 * restoring it. The `isFinishing`/`isDestroyed` filter above still excludes an instance that
+	 * restoring it. The `isFinishing`/`isDestroyed` filter here still excludes an instance that
 	 * registered but is already tearing down.
 	 */
-	fun getActivity(): EditorHandlerActivity? = activityRef?.get()?.takeIf { !it.isFinishing && !it.isDestroyed }
+	fun getLiveActivity(): EditorHandlerActivity? = activityRef?.get()?.takeIf { !it.isFinishing && !it.isDestroyed }
 }

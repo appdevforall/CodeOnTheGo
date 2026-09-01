@@ -28,12 +28,12 @@ import org.junit.Test
  * death, where the Intent the system hands back is the task's *launch* Intent rather than the last
  * one `setIntent` saw.
  */
-class ConsumedDeepLinkRequestsTest {
+class ConsumedRequestsTest {
 	private fun request(name: String) = DeepLinkRequest(projectName = name)
 
 	@Test
 	fun `a consumed request is recognised`() {
-		val consumed = ConsumedDeepLinkRequests()
+		val consumed = ConsumedRequests<DeepLinkRequest>()
 		consumed.add(request("alpha"))
 
 		assertThat(request("alpha") in consumed).isTrue()
@@ -44,7 +44,7 @@ class ConsumedDeepLinkRequestsTest {
 	// recreate is handed, so A's project reopened over whatever the user was doing.
 	@Test
 	fun `consuming a second request does not un-consume the first`() {
-		val consumed = ConsumedDeepLinkRequests()
+		val consumed = ConsumedRequests<DeepLinkRequest>()
 		consumed.add(request("alpha"))
 		consumed.add(request("beta"))
 
@@ -54,11 +54,11 @@ class ConsumedDeepLinkRequestsTest {
 
 	@Test
 	fun `the set survives a save and restore`() {
-		val consumed = ConsumedDeepLinkRequests()
+		val consumed = ConsumedRequests<DeepLinkRequest>()
 		consumed.add(request("alpha"))
 		consumed.add(request("beta"))
 
-		val restored = ConsumedDeepLinkRequests()
+		val restored = ConsumedRequests<DeepLinkRequest>()
 		restored.restore(consumed.toSavedList())
 
 		assertThat(request("alpha") in restored).isTrue()
@@ -67,7 +67,7 @@ class ConsumedDeepLinkRequestsTest {
 
 	@Test
 	fun `restoring nothing leaves an empty set, not a stale one`() {
-		val consumed = ConsumedDeepLinkRequests()
+		val consumed = ConsumedRequests<DeepLinkRequest>()
 		consumed.add(request("alpha"))
 		consumed.restore(null)
 
@@ -76,16 +76,27 @@ class ConsumedDeepLinkRequestsTest {
 
 	@Test
 	fun `a repeated request is remembered once`() {
-		val consumed = ConsumedDeepLinkRequests()
+		val consumed = ConsumedRequests<DeepLinkRequest>()
 		consumed.add(request("alpha"))
 		consumed.add(request("alpha"))
 
 		assertThat(consumed.toSavedList()).containsExactly(request("alpha"))
 	}
 
+	// A deliberate re-arm (the same navigation requested a second time) must not be mistaken for
+	// the already-consumed earlier request and silently skipped.
+	@Test
+	fun `removing a consumed request lets an equal one be acted on again`() {
+		val consumed = ConsumedRequests<DeepLinkRequest>()
+		consumed.add(request("alpha"))
+		consumed.remove(request("alpha"))
+
+		assertThat(request("alpha") in consumed).isFalse()
+	}
+
 	@Test
 	fun `a null request is ignored`() {
-		val consumed = ConsumedDeepLinkRequests()
+		val consumed = ConsumedRequests<DeepLinkRequest>()
 		consumed.add(null)
 
 		assertThat(consumed.toSavedList()).isEmpty()
@@ -94,7 +105,7 @@ class ConsumedDeepLinkRequestsTest {
 	// The cap bounds the saved Bundle; what it must not do is forget the most recent requests.
 	@Test
 	fun `past the cap the oldest is evicted and the newest kept`() {
-		val consumed = ConsumedDeepLinkRequests()
+		val consumed = ConsumedRequests<DeepLinkRequest>()
 		repeat(40) { consumed.add(request("project$it")) }
 
 		assertThat(consumed.toSavedList()).hasSize(32)

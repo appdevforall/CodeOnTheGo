@@ -293,8 +293,9 @@ open class EditorHandlerActivity :
 
 		// Registered here (right after super.onCreate() finishes wiring the toolbar/action registry),
 		// not just onResume (see there too), so this instance is discoverable via
-		// ActionContextProvider.getActivity() for almost its whole lifetime -- see that function's
-		// docs for the redundant-open race a gap between onCreate and onResume otherwise leaves open.
+		// ActionContextProvider.getLiveActivity() for almost its whole lifetime -- see that
+		// function's docs for the redundant-open race a gap between onCreate and onResume otherwise
+		// leaves open.
 		// Registering before super.onCreate() returns would instead expose a partially-constructed
 		// activity (no toolbar/action registry yet) to external callers like a floating
 		// EditorPanelDockableContent window, which is explicitly documented to outlive this activity
@@ -454,11 +455,18 @@ open class EditorHandlerActivity :
 		// Save and close) both call finish() before their own onClosed callback runs, so isFinishing is
 		// already true there by the time onDestroy() drains it.
 		if (isFinishing) {
-			// A "Close without saving" confirm deliberately leaves confirmCloseInProgress stuck true
-			// (see there) since this instance is finishing either way -- a later request that arrived in
-			// the window before onDestroy() actually ran got parked here with nothing else left to read
-			// it. Run and clear it now instead of silently orphaning it.
-			pendingCloseCallback?.invoke()
+			// The callback drain is additionally gated on closeDialogAnswered: isFinishing alone is
+			// also true when the task is swiped out of Recents while the dialog is still showing --
+			// an armed-but-unanswered pendingCloseCallback then means the user bailed, and running it
+			// here would startActivity into a project switch they never confirmed (see the field's
+			// docs). When the flag IS set, this drain still matters: a "Close without saving" confirm
+			// deliberately leaves confirmCloseInProgress stuck true (see there) since this instance
+			// is finishing either way -- a later request that arrived in the window before
+			// onDestroy() actually ran got parked here with nothing else left to read it. Run and
+			// clear it now instead of silently orphaning it.
+			if (closeDialogAnswered) {
+				pendingCloseCallback?.invoke()
+			}
 			pendingCloseCallback = null
 
 			// Drain any deep-link-triggered "close then reopen a different project" request recorded by
@@ -475,7 +483,7 @@ open class EditorHandlerActivity :
 		super.onResume()
 		// Re-asserted here too (not just onCreate) so this instance reclaims ActionContextProvider's
 		// registration whenever it becomes the foreground-active one again -- e.g. if a different,
-		// stale-duplicate instance briefly registered over it (see ActionContextProvider.getActivity()'s
+		// stale-duplicate instance briefly registered over it (see ActionContextProvider.getLiveActivity()'s
 		// docs) and was then destroyed, clearing the reference entirely with nothing left to restore it
 		// otherwise. A doomed instance whose onCreate() returned early (isFinishing) never reaches
 		// onResume() at all, so this can't re-expose a partially-constructed instance the way doing this
@@ -2204,6 +2212,16 @@ open class EditorHandlerActivity :
 	// guard below with no way to ever apply it.
 	private var pendingCloseCallback: (() -> Unit)? = null
 
+	// True only once the user actually answered the confirm-close dialog with one of its two
+	// confirm options ("Close without saving" / "Save and close"). onDestroy() gates its
+	// pendingCloseCallback drain on this rather than on isFinishing alone: isFinishing is true for
+	// ANY finish -- including the task being swiped out of Recents while the dialog is still up --
+	// and pendingCloseCallback is armed the moment the dialog opens, so without this flag that
+	// swipe ran the callback and performed a project switch the user never confirmed, out of
+	// onDestroy(), with the previous project's buffers never saved or closed. Reset whenever a
+	// fresh dialog is shown; a cancel/decline never sets it.
+	private var closeDialogAnswered = false
+
 	// Captured in onNewIntent, right before setIntent() replaces the intent, whenever the incoming
 	// intent targets a genuinely different project -- restored by cancelOrDecline()/the "Save and
 	// close" failure branch below if that switch attempt doesn't end up completing, so the staying
@@ -2261,11 +2279,11 @@ open class EditorHandlerActivity :
 			GeneralPreferences.lastOpenedProject = stayingProjectPath
 		}
 		intent.putExtra(EditorIntentExtras.EXTRA_PROJECT_PATH, stayingProjectPath)
-		if (restore != null) {
-			intent.putExtra(PendingFileRequest.EXTRA_KEY, restore)
-		} else {
-			intent.removeExtra(PendingFileRequest.EXTRA_KEY)
-		}
+		// The abandoned switch's own file request (if any) is drained first -- durably, so a
+		// post-process-death redelivery can't resurrect the navigation the user just declined --
+		// then the staying project's still-pending request, if any, is re-armed over it.
+		drainPendingFileRequest()
+		restore?.let { armPendingFileRequest(intent, it) }
 	}
 
 	private fun confirmProjectClose(onClosed: (() -> Unit)? = null) {
@@ -2282,6 +2300,7 @@ open class EditorHandlerActivity :
 		}
 		confirmCloseInProgress = true
 		pendingCloseCallback = onClosed
+		closeDialogAnswered = false
 
 		val builder = newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_project_close)
@@ -2324,6 +2343,7 @@ open class EditorHandlerActivity :
 		// OPTION 1: Close without saving
 		builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
 			dialog.dismiss()
+			closeDialogAnswered = true
 
 			for (i in 0 until editorViewModel.getOpenedFileCount()) {
 				(content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
@@ -2341,6 +2361,7 @@ open class EditorHandlerActivity :
 		// OPTION 2: Save and close
 		builder.setPositiveButton(string.save_and_close) { dialog, _ ->
 			dialog.dismiss()
+			closeDialogAnswered = true
 
 			saveAllAsync(notify = false) { saveSucceeded ->
 				runOnUiThread {
@@ -2465,7 +2486,7 @@ open class EditorHandlerActivity :
 		if (!isProjectSwitchIntent && !intent.hasExtra(PendingFileRequest.EXTRA_KEY)) {
 			IntentCompat
 				.getParcelableExtra(getIntent(), PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
-				?.let { intent.putExtra(PendingFileRequest.EXTRA_KEY, it) }
+				?.let { armPendingFileRequest(intent, it) }
 		}
 		// The reverse case: this IS a switch to a genuinely different project, so the carry-forward
 		// above is skipped and the old intent's own still-pending file request (for the project
@@ -2499,7 +2520,11 @@ open class EditorHandlerActivity :
 		// dialog below, it must not linger on the intent setIntent() just stored. Android redelivers
 		// that same intent verbatim to onCreate() if this process dies and gets recreated later, and
 		// BaseEditorActivity.onCreate() would then wrongly compare a live, unrelated project against
-		// this stale request's projectName and bounce the user out of it.
+		// this stale request's projectName and bounce the user out of it. The removeExtra only
+		// scrubs this process's Intent object, not the parceled copy that post-process-death
+		// redelivery is made from -- consumedDeepLinkRequests (persisted via onSaveInstanceState) is
+		// what makes the consumption stick there, gating onCreate's read.
+		consumedDeepLinkRequests.add(request)
 		intent.removeExtra(DeepLinkRequest.EXTRA_KEY)
 
 		// Tracked so a second deep link delivered moments later doesn't have its resolve complete
@@ -2545,13 +2570,17 @@ open class EditorHandlerActivity :
 		// Covers requirement #1 (cold open + file) and the tail of requirement #3 (a fresh
 		// EditorActivityKt instance always runs the normal init pipeline, whether started by
 		// MainActivity.openProject or by this activity's own onDestroy() hand-off).
-		val request =
-			IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
-				?: return
-		// Drain the extra regardless of outcome, not just on success -- otherwise a failed sync
-		// leaves it armed, and it fires later on the next unrelated *successful* sync/variant switch,
-		// silently yanking the editor back to this stale request instead of never reapplying.
-		intent.removeExtra(PendingFileRequest.EXTRA_KEY)
+		//
+		// Drained regardless of outcome, not just on success -- otherwise a failed sync leaves the
+		// extra armed, and it fires later on the next unrelated *successful* sync/variant switch,
+		// silently yanking the editor back to this stale request instead of never reapplying. (Two
+		// init failures return before this is ever called and drain at their own early returns
+		// instead -- see ProjectHandlerActivity.initializeProject.) The drain also records the
+		// request in consumedFileRequests, which is what makes it stick across process death: a
+		// recreate is handed the parceled intent with the extra still on it, and without the durable
+		// marker the restored editor would be yanked back to this file/line with no user action.
+		// drainPendingFileRequest returns null for exactly that redelivered-but-already-consumed case.
+		val request = drainPendingFileRequest() ?: return
 		if (!isSuccessful) return
 		applyDeepLinkFileRequest(request)
 	}
@@ -2650,24 +2679,36 @@ open class EditorHandlerActivity :
 					// showing -- navigating underneath it now would just get silently discarded if
 					// the user goes on to confirm that close.
 					flashError(getString(string.msg_project_close_in_progress))
+					// Drop only THIS request's own copy of the extra (the plain-switch path arms it
+					// on the intent before this runs). The extra can instead be an older,
+					// still-unapplied request for this staying project -- armed by the mid-sync
+					// branch below on an earlier call -- which has nothing to do with the in-flight
+					// close and which postProjectInit must still apply if the user cancels it;
+					// draining unconditionally here destroyed that older request along with this one.
+					val armedRequest =
+						IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
+					if (fileRequest != null && fileRequest == armedRequest) {
+						drainPendingFileRequest()
+					}
 				} else if (projectReady) {
-					fileRequest?.let { applyDeepLinkFileRequest(it) }
+					fileRequest?.let {
+						applyDeepLinkFileRequest(it)
+						// This request supersedes whatever onNewIntent's carry-forward guard just
+						// re-armed onto the intent from the PREVIOUS, still-unconsumed request --
+						// leaving it in place would have postProjectInit silently jump back to that
+						// stale target once the current sync completes, discarding this newer
+						// navigation.
+						drainPendingFileRequest()
+					}
 				} else {
 					// Mid-sync: arm the request on the intent so postProjectInit's deferred retry
 					// finds it once the sync completes -- this branch is the "must stay armed"
 					// case the projectReady comment above describes, and without the put the
 					// request dies with this call while onNewIntent's carry-forward has already
 					// re-armed the PREVIOUS, still-unconsumed request, sending the editor to that
-					// stale target instead (ADFA-5067 review). The put also supersedes that
-					// carried-forward value, so this arm needs no removeExtra below.
-					fileRequest?.let { intent.putExtra(PendingFileRequest.EXTRA_KEY, it) }
-				}
-				if (fileRequest != null && (confirmCloseInProgress || projectReady)) {
-					// This request supersedes whatever onNewIntent's carry-forward guard just
-					// re-armed onto the intent from the PREVIOUS, still-unconsumed request -- leaving
-					// it in place would have postProjectInit silently jump back to that stale target
-					// once the current sync completes, discarding this newer navigation.
-					intent.removeExtra(PendingFileRequest.EXTRA_KEY)
+					// stale target instead (ADFA-5067 review). The arm also supersedes that
+					// carried-forward value, so this branch needs no drain.
+					fileRequest?.let { armPendingFileRequest(intent, it) }
 				}
 			}
 

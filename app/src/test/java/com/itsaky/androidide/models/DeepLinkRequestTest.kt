@@ -208,6 +208,15 @@ class DeepLinkRequestTest {
 	}
 
 	@Test
+	fun `an empty path segment yields null`() {
+		// Uri.pathSegments drops empty segments, so ".../project//file/Main.kt" used to parse as a
+		// project literally named "file" -- surfacing as `No project named "file" was found`, or
+		// silently opening a real project of that name, instead of an honest invalid-link error.
+		assertThat(parse("https://www.appdevforall.org/device/open/project//file/Main.kt")).isNull()
+		assertThat(parse("https://www.appdevforall.org/device/open/project/MyApp//file/Main.kt")).isNull()
+	}
+
+	@Test
 	fun `null uri yields null`() {
 		assertThat(DeepLinkRequest.parse(null)).isNull()
 	}

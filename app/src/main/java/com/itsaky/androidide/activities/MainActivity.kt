@@ -40,7 +40,7 @@ import com.itsaky.androidide.activities.editor.EditorActivityKt
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
-import com.itsaky.androidide.deeplink.ConsumedDeepLinkRequests
+import com.itsaky.androidide.deeplink.ConsumedRequests
 import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -118,7 +118,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	// being silently dropped.
 	// Every request consumed in this task, not just the last one -- see the class for why one slot
 	// was not enough.
-	private val consumedDeepLinkRequests = ConsumedDeepLinkRequests()
+	private val consumedDeepLinkRequests = ConsumedRequests<DeepLinkRequest>()
 
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
@@ -441,20 +441,24 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		}
 	}
 
+	// [deepLinkRequest] is the request this open is being performed FOR, threaded through from
+	// handleDeepLinkRequest (null for non-deep-link opens) the same way root/pendingFileRequest
+	// already are -- NOT re-read from latestDeepLinkRequest at consume time. That field tracks
+	// whatever request arrived most recently, so reading it when the user answers a confirm dialog
+	// could record a newer link B as consumed while actually opening this call's A, leaving A
+	// unconsumed (re-shown on the next recreate) and B silently dropped.
 	private fun handleOpenProject(
 		root: File,
 		pendingFileRequest: PendingFileRequest? = null,
-		isDeepLink: Boolean = false,
+		deepLinkRequest: DeepLinkRequest? = null,
 	) {
 		if (GeneralPreferences.confirmProjectOpen) {
-			askProjectOpenPermission(root, pendingFileRequest, isDeepLink)
+			askProjectOpenPermission(root, pendingFileRequest, deepLinkRequest)
 			return
 		}
 		// No confirmation gate -- opening happens immediately below, so this is "confirm time" for
 		// consumedDeepLinkRequests' purposes.
-		if (isDeepLink) {
-			consumedDeepLinkRequests.add(latestDeepLinkRequest)
-		}
+		consumedDeepLinkRequests.add(deepLinkRequest)
 		openProject(root, pendingFileRequest = pendingFileRequest)
 	}
 
@@ -472,8 +476,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private fun askProjectOpenPermission(
 		root: File,
 		pendingFileRequest: PendingFileRequest? = null,
-		isDeepLink: Boolean = false,
+		deepLinkRequest: DeepLinkRequest? = null,
 	) {
+		val isDeepLink = deepLinkRequest != null
 		// A deep link is an explicit, just-tapped user action and may always replace whatever's
 		// showing (including another deep link's own dialog, e.g. two links arriving in quick
 		// succession) -- but not the reverse: tryOpenLastProject's auto-open scan can complete
@@ -493,9 +498,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			// The user has now actually confirmed -- "confirm time" for consumedDeepLinkRequests'
 			// purposes, unlike merely having shown this dialog (see its own docs on why that
 			// distinction matters for a recreate that happens while this dialog is still up).
-			if (isDeepLink) {
-				consumedDeepLinkRequests.add(latestDeepLinkRequest)
-			}
+			// deepLinkRequest, captured when this dialog was shown, is what gets recorded -- not
+			// latestDeepLinkRequest, which by answer time can already point at a NEWER link than the
+			// one this dialog was raised for (see handleOpenProject's doc).
+			consumedDeepLinkRequests.add(deepLinkRequest)
 			openProject(root, pendingFileRequest = pendingFileRequest)
 		}
 		// Consumed on decline too, not just on confirm. "No" is a decision the user made about this
@@ -504,9 +510,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		// re-read the extra from the launch Intent and put the very same dialog back up, with no way
 		// to make it stop.
 		builder.setNegativeButton(string.no) { _, _ ->
-			if (isDeepLink) {
-				consumedDeepLinkRequests.add(latestDeepLinkRequest)
-			}
+			consumedDeepLinkRequests.add(deepLinkRequest)
 		}
 		activeOpenPermissionDialog = builder.show()
 	}
@@ -620,7 +624,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				// askProjectOpenPermission and consumedDeepLinkRequests' own docs for why marking it
 				// here, before the user has necessarily responded to that confirm dialog, would be too
 				// early.
-				handleOpenProject(projectDir, pendingFileRequest = request.fileRequest, isDeepLink = true)
+				handleOpenProject(projectDir, pendingFileRequest = request.fileRequest, deepLinkRequest = request)
 			}
 		}
 	}

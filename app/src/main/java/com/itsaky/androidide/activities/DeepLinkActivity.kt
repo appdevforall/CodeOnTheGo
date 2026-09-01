@@ -82,7 +82,7 @@ class DeepLinkActivity : Activity() {
 		// which stays null for the whole duration of a Gradle sync even while EditorActivityKt is
 		// already open.
 		val target =
-			if (ActionContextProvider.getActivity() != null) {
+			if (ActionContextProvider.getLiveActivity() != null) {
 				EditorActivityKt::class.java
 			} else {
 				MainActivity::class.java
@@ -93,7 +93,7 @@ class DeepLinkActivity : Activity() {
 				putExtra(DeepLinkRequest.EXTRA_KEY, request)
 				// FLAG_ACTIVITY_CLEAR_TOP deliberately omitted: MainActivity has no special launch
 				// mode, so if an existing MainActivity instance sits lower in this task's back stack
-				// under a live EditorActivityKt - which ActionContextProvider.getActivity() can miss
+				// under a live EditorActivityKt - which ActionContextProvider.getLiveActivity() can miss
 				// even when that editor is alive (see its KDoc) - CLEAR_TOP would destroy that editor
 				// to clear the path down to MainActivity, discarding unsaved work with no prompt.
 				// Without it, this may at worst stack a redundant MainActivity instance, a harmless

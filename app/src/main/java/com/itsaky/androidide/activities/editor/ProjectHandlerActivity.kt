@@ -608,11 +608,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 		if (buildService == null) {
 			log.error("No build service found. Cannot initialize project.")
+			// This init failed before postProjectInit could ever run, so its regardless-of-outcome
+			// drain never happens here -- without this, a deep link's pending file navigation stays
+			// armed on the intent and fires on the next unrelated successful sync or variant
+			// switch, the stale jump that drain exists to prevent. Same for the tooling-server
+			// check below. (The handleMissingProjectDirectory returns above don't need it: they
+			// finish() this instance, and the request dies with it.)
+			withContext(Dispatchers.Main.immediate) { drainPendingFileRequest() }
 			return@launch
 		}
 
 		if (!buildService.isToolingServerStarted()) {
 			flashError(string.msg_tooling_server_unavailable)
+			withContext(Dispatchers.Main.immediate) { drainPendingFileRequest() }
 			return@launch
 		}
 
