@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,26 @@ class LegacyResourceSwapTest {
 
 		assertThat(zip.isFile()).isTrue();
 		assertThat(Files.readAllBytes(zip.toPath())).isEqualTo(apk);
+	}
+
+	@Test
+	void deletesThePartialFileWhenTheStreamFails() {
+		// The write streams straight into the file, so a stream that dies mid-copy has
+		// already left bytes on disk; the contract stays "a throw means nothing written".
+		InputStream failing = new InputStream() {
+			private int sent;
+
+			@Override
+			public int read() throws IOException {
+				if (sent++ < 10_000) {
+					return 7;
+				}
+				throw new IOException("stream died mid-copy");
+			}
+		};
+		assertThrows(IOException.class,
+				() -> LegacyResourceSwap.writeResourceApk(failing, tempDir, 9));
+		assertThat(tempDir.listFiles()).isEmpty();
 	}
 
 	@Test

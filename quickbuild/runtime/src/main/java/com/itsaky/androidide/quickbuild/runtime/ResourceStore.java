@@ -293,8 +293,10 @@ final class ResourceStore {
 		if (attachedAppResources || appContext == null) {
 			return;
 		}
-		attachedAppResources = true;
-		attachLoaderTo(appContext.getResources());
+		// Latched only on success: attachLoaderTo swallows its failures, so setting the
+		// flag first would record an attach that never happened and no later deploy
+		// would retry it. Callers hold the monitor, so the retry is bounded by deploys.
+		attachedAppResources = attachLoaderTo(appContext.getResources());
 	}
 
 	/**
@@ -302,19 +304,22 @@ final class ResourceStore {
 	 *
 	 * @param resources
 	 *            the Resources to attach to; attaching again, or an unusual implementation, is logged and ignored
+	 * @return whether the loader was attached; false when there is no loader yet or addLoaders threw (logged, not rethrown), so the caller can retry on a later deploy instead of recording a failed attach as done
 	 */
 	@TargetApi(30)
-	private void attachLoaderTo(Resources resources) {
+	private boolean attachLoaderTo(Resources resources) {
 		ResourcesLoader target = loader;
 		if (target == null) {
-			return;
+			return false;
 		}
 		try {
 			resources.addLoaders(target);
+			return true;
 		} catch (Throwable error) {
 			// Already attached, or an unusual Resources implementation. Not worth
 			// crashing over.
 			RuntimeLog.d("attachTo skipped", error);
+			return false;
 		}
 	}
 

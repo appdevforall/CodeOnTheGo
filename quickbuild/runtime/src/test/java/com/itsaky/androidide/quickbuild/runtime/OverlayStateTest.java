@@ -7,6 +7,24 @@ import org.junit.jupiter.api.Test;
 class OverlayStateTest {
 
 	@Test
+	void buildFailedClampsUnboundedDetailAndStillNamesBuildOutput() {
+		// The detail is a diagnostic line CoGo sends and its length is unbounded; the
+		// banner ellipsizes at CrashSummary.MAX_BANNER_LINES, so an unclamped detail
+		// would push the Build Output pointer off the bottom. The clamp keeps the
+		// detail to its one-line budget.
+		StringBuilder longDetail = new StringBuilder();
+		for (int i = 0; i < 300; i++) {
+			longDetail.append('x');
+		}
+		OverlayState state = OverlayState.buildFailed(BuildStatus.parse(
+				"{\"kind\": \"build_failed\", \"message\": \"" + longDetail
+						+ "\", \"moreErrors\": \"2\"}"));
+		String[] lines = state.text().split("\n");
+		assertThat(state.text()).contains(OverlayState.FULL_OUTPUT_POINTER);
+		assertThat(lines[1].length()).isAtMost(CrashSummary.BUILD_FAILED_DETAIL_CHARS);
+	}
+
+	@Test
 	void buildFailedNeverNamesAnErrorLocation() {
 		// Locating an error is CoGo's job (Build Output); the overlay is a stale-app warning,
 		// so no file path reaches the device even when CoGo knows one.

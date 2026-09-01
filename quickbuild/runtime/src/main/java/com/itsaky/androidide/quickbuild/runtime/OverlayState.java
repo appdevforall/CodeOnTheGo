@@ -125,11 +125,21 @@ final class OverlayState {
 			StringBuilder sb = new StringBuilder(
 					"Build failed - app is running the last working version");
 			if (detail != null) {
-				sb.append('\n').append(detail);
+				StringBuilder line = new StringBuilder(detail);
 				if (moreErrors > 0) {
-					sb.append(" (+").append(moreErrors).append(" more)");
+					line.append(" (+").append(moreErrors).append(" more)");
 				}
+				// The detail is a diagnostic line CoGo sends and its length is unbounded,
+				// so clamp it to the one line CrashSummary budgets for it; anything longer
+				// would push FULL_OUTPUT_POINTER off the banner. The explicit "..." matters:
+				// a hard cut mid-word reads as the whole message.
+				if (line.length() > CrashSummary.BUILD_FAILED_DETAIL_CHARS) {
+					line.setLength(CrashSummary.BUILD_FAILED_DETAIL_CHARS - 3);
+					line.append("...");
+				}
+				sb.append('\n').append(line);
 			}
+			sb.append('\n').append(FULL_OUTPUT_POINTER);
 			return sb.toString();
 		case CRASHED:
 			// "Live reload crashed", not "new code crashed": this state is set only from
