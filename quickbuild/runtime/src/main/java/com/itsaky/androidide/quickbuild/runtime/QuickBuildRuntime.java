@@ -56,6 +56,19 @@ final class QuickBuildRuntime {
 	}
 
 	/**
+	 * Runs a reload-failure body on its own thread. Package-private so the JVM test can pin the dispatch off the caller's thread, which is what keeps the quarantine fsync off the frame path.
+	 *
+	 * @param body
+	 *            the failure handling to run
+	 * @return the started thread, so a test can join it
+	 */
+	static Thread startFailReloadThread(Runnable body) {
+		Thread thread = new Thread(body, "qb-fail-reload");
+		thread.start();
+		return thread;
+	}
+
+	/**
 	 * Opens a persisted store file as a read-only fd, the form the resource paths take.
 	 *
 	 * @param file
@@ -124,11 +137,11 @@ final class QuickBuildRuntime {
 	}
 
 	private final Application application;
-
 	private final Handler mainHandler = new Handler(Looper.getMainLooper());
-	private final ActivityTracker tracker = new ActivityTracker(this);
 
+	private final ActivityTracker tracker = new ActivityTracker(this);
 	private final QuickBuildClient client = new QuickBuildClient(this);
+
 	private final StatusOverlay overlay = new StatusOverlay();
 
 	/** Whether the generation this process booted from the store has proved itself yet. */
@@ -511,7 +524,7 @@ final class QuickBuildRuntime {
 	/**
 	 * Reports the failure to CoGo and shows the banner; rolls back only when the store adopted the failed generation, so the app stays on the old one either way.
 	 *
-	 * A failure before the apply took - an oversize payload, a persist failure, a restart deploy missing its dex - leaves the store on the previous generation, so there is nothing to restore or quarantine; the report and banner still fire, or the host's only signal would be its deploy timeout. Only a failure superseded by a newer live generation stays silent, since that generation owns the store, the pending ack and the screen.
+	 * The body runs off the caller's thread, like {@link #markLiveGenerationGood}'s write: the rollback path fsyncs the quarantine marker to disk, and two of the three entry points - a rejected resource swap and a recreate that throws - land on main. Everything in the body is already safe off-main: the pending-reload field is volatile, the store calls are synchronized, the crash report is oneway, and the banner re-posts to main itself.
 	 *
 	 * @param generation
 	 *            the generation that failed, which CoGo marks bad
@@ -521,6 +534,21 @@ final class QuickBuildRuntime {
 	 *            the failure, summarized into both the report and the banner
 	 */
 	private void failReload(long generation, PayloadStore.Payload rollback, Throwable error) {
+		startFailReloadThread(new Runnable() {
+
+			@Override
+			public void run() {
+				failReloadNow(generation, rollback, error);
+			}
+		});
+	}
+
+	/**
+	 * The {@link #failReload} body: decides the failure action against the store's live generation, then reports and renders.
+	 *
+	 * A failure before the apply took - an oversize payload, a persist failure, a restart deploy missing its dex - leaves the store on the previous generation, so there is nothing to restore or quarantine; the report and banner still fire, or the host's only signal would be its deploy timeout. Only a failure superseded by a newer live generation stays silent, since that generation owns the store, the pending ack and the screen.
+	 */
+	private void failReloadNow(long generation, PayloadStore.Payload rollback, Throwable error) {
 		Generations.FailureAction action = Generations.onReloadFailure(
 				PayloadStore.INSTANCE.generation(), generation);
 		if (action == Generations.FailureAction.LEAVE_ALONE) {

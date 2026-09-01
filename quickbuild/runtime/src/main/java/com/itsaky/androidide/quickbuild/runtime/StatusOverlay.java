@@ -213,7 +213,8 @@ final class StatusOverlay {
 	 *            the banner whose margin the deferred read updates
 	 */
 	private void reapplyInsetAfterLayout(final ViewGroup decor, final TextView banner) {
-		banner.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+		final ViewTreeObserver observer = banner.getViewTreeObserver();
+		observer.addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
 			@Override
 			public void onGlobalLayout() {
 				Integer top = statusBarInsetTop(decor);
@@ -221,9 +222,17 @@ final class StatusOverlay {
 				if (action == InsetAction.WAIT) {
 					return;
 				}
-				// Fetched again rather than captured: this runs while the banner is
-				// attached, so it is the live observer the listener sits on.
-				banner.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+				// Captured at add time, not re-fetched: on the GIVE_UP branch the banner
+				// is detached, and a detached view's getViewTreeObserver() returns a
+				// fresh floating observer, so removing from it is a silent no-op and the
+				// listener leaks with the decor. When the framework has already merged
+				// the captured observer away (isAlive() false), the listener now lives
+				// on the decor's observer, so remove there.
+				if (observer.isAlive()) {
+					observer.removeOnGlobalLayoutListener(this);
+				} else {
+					decor.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+				}
 				if (action == InsetAction.APPLY) {
 					setTopMargin(banner, top);
 				}
