@@ -104,14 +104,30 @@ class ConsumedRequestsTest {
 
 	// The cap bounds the saved Bundle; what it must not do is forget the most recent requests.
 	@Test
-	fun `past the cap the oldest is evicted and the newest kept`() {
+	fun `past the cap the launch entry is pinned and the second-oldest evicted`() {
 		val consumed = ConsumedRequests<DeepLinkRequest>()
 		repeat(40) { consumed.add(request("project$it")) }
 
 		assertThat(consumed.toSavedList()).hasSize(32)
-		assertThat(request("project0") in consumed).isFalse()
-		assertThat(request("project7") in consumed).isFalse()
-		assertThat(request("project8") in consumed).isTrue()
+		// project0 is the first ever added, which is by construction the request on the task's launch
+		// Intent -- the one Android replays verbatim after process death, and the only one whose loss
+		// force-reopens a project over whatever the user was doing. It survives; eviction takes the
+		// second-oldest instead. This used to assert the opposite.
+		assertThat(request("project0") in consumed).isTrue()
+		assertThat(request("project8") in consumed).isFalse()
+		assertThat(request("project9") in consumed).isTrue()
 		assertThat(request("project39") in consumed).isTrue()
+	}
+
+	@Test
+	fun `re-adding a request refreshes its position rather than leaving it oldest`() {
+		val consumed = ConsumedRequests<DeepLinkRequest>()
+		repeat(32) { consumed.add(request("project$it")) }
+		// Touch the second-oldest; it must no longer be the eviction candidate.
+		consumed.add(request("project1"))
+		consumed.add(request("fresh"))
+
+		assertThat(request("project1") in consumed).isTrue()
+		assertThat(request("project2") in consumed).isFalse()
 	}
 }

@@ -61,8 +61,18 @@ data class DeepLinkRequest(
 		private val HOSTS = setOf("www.appdevforall.org", "appdevforall.org")
 		private const val PATH_PREFIX = "/device/open/project/"
 
-		/** See [parse]: an upper bound on the whole path, since the parsed pieces get parcelled. */
-		private const val MAX_LINK_PATH_LENGTH = 4096
+		/**
+		 * See [parse]: an upper bound on the whole path, since the parsed pieces get parcelled.
+		 *
+		 * Sized against the Binder budget rather than the filesystem. Up to
+		 * `ConsumedRequests.MAX_REMEMBERED` (32) of these are held per set, Parcel writes UTF-16
+		 * (2 bytes per char plus a length), and BaseEditorActivity saves TWO such sets while
+		 * MainActivity saves a third -- so the ceiling that matters is 32 x 3 x 2 bytes x this value.
+		 * At 4096 that was ~768 KB against a ~1 MB transaction limit, which is not a bound at all. At
+		 * 512 it is ~96 KB. Still far above any real project path: Linux caps a single name at 255
+		 * bytes, and a link longer than this cannot name a project that exists.
+		 */
+		private const val MAX_LINK_PATH_LENGTH = 512
 
 		private const val SEGMENT_PROJECT = "project"
 		private const val SEGMENT_FILE = "file"
@@ -237,4 +247,14 @@ data class DeepLinkOpenRequest(
 	 * for one user action.
 	 */
 	val bookkeepingAlreadyRecorded: Boolean = false,
+	/**
+	 * The project that was open when this switch was requested.
+	 *
+	 * Captured at request time, because by the time the handoff is performed the live
+	 * `IProjectManager` global no longer holds it: on the plain-switch path
+	 * `MainActivity.openProject` overwrote it with the NEW path before the intent was even delivered.
+	 * Reading the global there produced previous == new, which made the receiver treat a confirmed
+	 * switch as a same-project no-op.
+	 */
+	val previousProjectPath: String? = null,
 ) : Parcelable

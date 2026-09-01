@@ -63,15 +63,28 @@ class ConsumedRequests<T : Parcelable> {
 	 * Records [request] as acted on. Null is accepted and ignored: the caller's "latest request" can
 	 * legitimately be unset by the time a confirmation dialog is answered.
 	 *
-	 * Oldest-first eviction past [MAX_REMEMBERED] keeps the saved Bundle bounded against a sender
-	 * that fires links in a loop. The evicted case degrades to the old behaviour -- one spurious
-	 * reopen of a link superseded 32 links ago -- which no real sequence reaches.
+	 * Eviction past [MAX_REMEMBERED] keeps the saved Bundle bounded against a sender that fires links
+	 * in a loop -- but it deliberately does NOT evict the first entry. LinkedHashSet iterates in
+	 * insertion order, so `remove(first())` dropped the OLDEST, and the oldest is by construction the
+	 * request on the task's launch Intent: the one entry this class exists to remember, since that is
+	 * the Intent Android replays verbatim after process death. Evicting it force-reopened its project
+	 * over whatever the user was doing, which is the regression this class was written to prevent.
+	 *
+	 * So the launch entry is pinned and eviction takes the second-oldest instead, and a re-add
+	 * refreshes an entry's position so "oldest" tracks use rather than first sighting.
 	 */
 	fun add(request: T?) {
 		request ?: return
+		// Re-insert so position tracks recency: `requests += request` leaves an existing element where
+		// it was, which made a repeatedly-seen request look like the least recent.
+		requests.remove(request)
 		requests += request
 		while (requests.size > MAX_REMEMBERED) {
-			requests.remove(requests.first())
+			val iterator = requests.iterator()
+			iterator.next() // the launch-Intent entry, pinned
+			if (!iterator.hasNext()) break
+			iterator.next()
+			iterator.remove()
 		}
 	}
 

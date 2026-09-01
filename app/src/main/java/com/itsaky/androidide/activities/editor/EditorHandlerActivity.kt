@@ -61,6 +61,7 @@ import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
 import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
 import com.itsaky.androidide.deeplink.PendingDeepLinkOpen
+import com.itsaky.androidide.di.APPLICATION_SCOPE
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -133,6 +134,7 @@ import org.adfa.constants.CONTENT_KEY
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.koin.android.ext.android.inject
+import org.koin.core.qualifier.named
 import java.io.File
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
@@ -188,7 +190,7 @@ open class EditorHandlerActivity :
 
 	// The process-wide scope from AppModule, used only by saveAllAsync -- see there for why the
 	// activity's own scope is not enough.
-	private val appScope: CoroutineScope by inject()
+	private val appScope: CoroutineScope by inject(named(APPLICATION_SCOPE))
 
 	private var pluginEditorProvider: EditorProviderImpl? = null
 
@@ -406,8 +408,11 @@ open class EditorHandlerActivity :
 	private fun performPendingDeepLinkOpen(pending: DeepLinkOpenRequest) {
 		val root = File(pending.projectRoot)
 		val ctx = applicationContext
-		// Read BEFORE the bookkeeping call below, which overwrites this global with the new path.
-		val previousProjectPath = IProjectManager.getInstance().projectDirPath
+		// The value carried on the request, NOT the live global. Reading the global here was wrong on
+		// the plain-switch path: MainActivity.openProject had already overwritten it with the new path
+		// before the intent arrived, so previous == new and the receiver saw a same-project no-op.
+		// Falling back to the global still helps the deep-link path, where nothing pre-mutates it.
+		val previousProjectPath = pending.previousProjectPath ?: IProjectManager.getInstance().projectDirPath
 		if (!pending.bookkeepingAlreadyRecorded) {
 			recordProjectOpenedBookkeeping(recentProjectRepository, root, project = null, analyticsManager = analyticsManager)
 		}
@@ -992,7 +997,14 @@ open class EditorHandlerActivity :
 
 		log.info("Opening file at file index {} tab position {} file:{}", fileIndex, tabPosition, file)
 
-		val editor = CodeEditorView(this, file, selection!!)
+		// A copy, and a real Range rather than `!!`. CodeEditorView's async content-load pipeline calls
+		// selection.validate() and ideEditor.validateRange(selection), both of which clamp start/end in
+		// place -- on whatever object the CALLER owns. openFileAndSelect and openFile each copy before
+		// reaching here, but this is the third entry point IEditorHandler advertises and a caller can
+		// use it directly. The interface also declares `selection: Range?`, so `!!` turned a documented
+		// null into a KotlinNullPointerException for any caller honouring that nullability; no in-app
+		// caller passes null today, which is the only reason it had not fired.
+		val editor = CodeEditorView(this, file, selection?.let { Range(it) } ?: Range(Range.NONE))
 		editor.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
 
 		if (tabPosition >= totalTabs) {
@@ -1090,6 +1102,14 @@ open class EditorHandlerActivity :
 		// deep-link project switch exactly as if the guard that used to skip it were still there
 		// (found in review). The application scope has no such window. The activity is retained for
 		// the duration of the save, which is what NonCancellable already implied.
+		//
+		// That retention is real and deliberate: this lambda captures the activity, so a save still in
+		// flight after onDestroy holds the binding, the tabs and every editor buffer alive from an
+		// app-lifetime root -- tens of MB with many files open, and indefinitely if a write blocks on
+		// stuck SAF/FUSE storage. The narrower design is to move only what must outlive the activity
+		// (arming pendingDeepLinkOpen, a ~200-byte request) off the activity, and leave the save on
+		// lifecycleScope. That is a restructure of this method's contract with its callers, not a
+		// tweak, so it is left as a known cost rather than half-done here.
 		appScope.launch(Dispatchers.IO) {
 			// The whole body -- not just saveAll() -- runs NonCancellable. onDestroy() cancels the
 			// activity's Job as soon as it runs; leaving NonCancellable partway through (e.g.
@@ -2286,6 +2306,17 @@ open class EditorHandlerActivity :
 	private var latestDeepLinkRequest: DeepLinkRequest? = null
 
 	private fun restoreIntentToStayingProject() {
+		// Guarded here, not at the call sites. Only one of the three had this check, and the other two
+		// (cancelOrDecline and the save-failure branch) are reachable with no capture: onNewIntent and
+		// switchToProject answer "is this a switch?" with different predicates -- the former via
+		// isDeepLinkTargetOfOpenProject (normalised name plus canonicalised parent), the latter via raw
+		// string equality -- so they disagree whenever the open project's stored path reaches the same
+		// directory by another string (/sdcard vs /storage/emulated/0, a symlinked alias). With no
+		// capture taken, the `restore == null` arm below drains the staying project's own
+		// carried-forward file request, destroying a navigation it was never asked to touch.
+		if (!capturedPendingFileRequestBeforeSwitch) {
+			return
+		}
 		// Reset unconditionally, before the blank-path bail below: a blank projectDirPath (e.g. a
 		// post-process-death recreate with no PROJECT_PATH) must not leave these permanently set --
 		// every later switch's capture guard would otherwise stay false forever, silently losing the
@@ -2612,10 +2643,10 @@ open class EditorHandlerActivity :
 					//
 					// latestDeepLinkRequest === request: a slow, failing link must not clear a capture
 					// that a newer link's own decline path is still relying on.
-					if (!isFinishing && !isDestroyed &&
-						capturedPendingFileRequestBeforeSwitch &&
-						latestDeepLinkRequest === request
-					) {
+					// The capture check now lives inside restoreIntentToStayingProject; what stays here is
+					// the supersession check, which is specific to this async path: a slow, failing link
+					// must not clear a capture a newer link's decline still depends on.
+					if (!isFinishing && !isDestroyed && latestDeepLinkRequest === request) {
 						restoreIntentToStayingProject()
 					}
 				}
@@ -2723,7 +2754,13 @@ open class EditorHandlerActivity :
 			// wins, matching handlePlainProjectSwitch's own reasoning) is unconditionally correct
 			// here since this instance can't do anything else with a new request anyway.
 			isFinishing -> {
-				pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest, bookkeepingAlreadyRecorded)
+				pendingDeepLinkOpen.value =
+					DeepLinkOpenRequest(
+						newProjectPath,
+						fileRequest,
+						bookkeepingAlreadyRecorded,
+						previousProjectPath,
+					)
 			}
 
 			// Either no project has actually finished initializing in this instance yet (e.g. it was
@@ -2733,7 +2770,13 @@ open class EditorHandlerActivity :
 			// onDestroy()-deferred handoff used for a confirmed project switch instead of showing (or
 			// trying to show) a close dialog that can't work either way.
 			currentProjectPath.isBlank() || contentOrNull == null -> {
-				pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest, bookkeepingAlreadyRecorded)
+				pendingDeepLinkOpen.value =
+					DeepLinkOpenRequest(
+						newProjectPath,
+						fileRequest,
+						bookkeepingAlreadyRecorded,
+						previousProjectPath,
+					)
 				finish()
 			}
 
@@ -2791,7 +2834,13 @@ open class EditorHandlerActivity :
 				// only record the pending open if the user actually confirms -- see onDestroy() for
 				// why the reopen itself waits until this instance is torn down.
 				confirmProjectClose {
-					pendingDeepLinkOpen.value = DeepLinkOpenRequest(newProjectPath, fileRequest, bookkeepingAlreadyRecorded)
+					pendingDeepLinkOpen.value =
+						DeepLinkOpenRequest(
+							newProjectPath,
+							fileRequest,
+							bookkeepingAlreadyRecorded,
+							previousProjectPath,
+						)
 				}
 			}
 		}

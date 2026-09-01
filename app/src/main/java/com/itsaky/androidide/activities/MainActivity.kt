@@ -414,7 +414,12 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		if (!GeneralPreferences.autoOpenProjects) return
 
 		lifecycleScope.launch(Dispatchers.IO) {
-			val validProjects = findValidProjects(Environment.PROJECTS_DIR)
+			// projectsRoot(), not the raw static: findValidProjects takes a non-null File, and
+			// Environment.PROJECTS_DIR is assigned by the same unawaited loader coroutine SetupState's
+			// KDoc describes -- and is not volatile. A null read here throws
+			// Intrinsics.checkNotNullParameter inside a coroutine with no handler. The sibling call in
+			// RecentProjectsFragment is wrapped in try/catch(Throwable); this one was not.
+			val validProjects = findValidProjects(projectsRoot())
 			val lastOpenedPath = GeneralPreferences.lastOpenedProject
 
 			val projectToOpen =
@@ -470,6 +475,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	// onDestroy() to avoid leaking its window.
 	private var activeOpenPermissionDialog: AlertDialog? = null
 
+	// The request activeOpenPermissionDialog was raised for, so superseding or destroying the dialog
+	// can record THAT request rather than whichever one happens to be latest at the time.
+	private var activeOpenPermissionDialogRequest: DeepLinkRequest? = null
+
 	// Whether activeOpenPermissionDialog (if any) came from a deep link -- see askProjectOpenPermission.
 	private var activeOpenPermissionDialogIsDeepLink = false
 
@@ -488,7 +497,17 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		if (!isDeepLink && activeOpenPermissionDialogIsDeepLink && activeOpenPermissionDialog?.isShowing == true) {
 			return
 		}
+		// AlertDialog.dismiss() fires neither the negative button nor the OnCancel listener (and
+		// setCancelable(false) rules the latter out anyway), so the request the dialog being replaced
+		// was raised for would never be recorded. Its Intent is still the task's launch Intent, so any
+		// later recreate re-read it, found it unconsumed, and put the superseded dialog back up --
+		// confirming it then switched the user to a project they had already moved past. Superseding a
+		// dialog IS an answer to it, so record it here.
+		if (activeOpenPermissionDialog?.isShowing == true) {
+			consumedDeepLinkRequests.add(activeOpenPermissionDialogRequest)
+		}
 		activeOpenPermissionDialog?.dismiss()
+		activeOpenPermissionDialogRequest = deepLinkRequest
 		activeOpenPermissionDialogIsDeepLink = isDeepLink
 		val builder = DialogUtils.newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_open_project)
@@ -577,13 +596,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		setIntent(intent)
 		IntentCompat
 			.getParcelableExtra(intent, DeepLinkRequest.EXTRA_KEY, DeepLinkRequest::class.java)
-			// The same consumed gate onCreate applies. Without it an already-answered request comes
-			// back through this door: BaseEditorActivity.onCreate re-forwards the request here with
-			// CLEAR_TOP|SINGLE_TOP whenever deepLinkTargetsAnotherProject, and this activity is already
-			// in the back stack, so it arrives as onNewIntent. A request the user had declined then had
-			// its confirm dialog put straight back up.
-			?.takeIf { it !in consumedDeepLinkRequests }
-			?.let { handleDeepLinkRequest(it) }
+			// The consumed gate applies to a RE-FORWARD only. BaseEditorActivity bounces a request back
+			// here when a link names a project other than the one it holds, and without the gate an
+			// already-declined request had its dialog put straight back up. But gating every onNewIntent
+			// would be worse: DeepLinkRequest carries no nonce, so deliberately tapping the same URL
+			// again is equal by value to the earlier one, and an unconditional gate silently dropped it
+			// -- forever, for links naming a project that did not exist when first tapped.
+			?.takeIf {
+				!intent.getBooleanExtra(EditorIntentExtras.EXTRA_REFORWARDED_DEEP_LINK, false) ||
+					it !in consumedDeepLinkRequests
+			}?.let { handleDeepLinkRequest(it) }
 	}
 
 	/**
@@ -638,6 +660,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	override fun onDestroy() {
 		webServer?.stop()
 		ITemplateProvider.getInstance().release()
+		// Deliberately does NOT record the request consumed, unlike the supersession dismiss above.
+		// This dismiss is only about not leaking the window; if this is a config-change recreate the
+		// successor re-reads the launch Intent and should raise the dialog again, which is the
+		// behaviour a user who has answered nothing expects.
 		activeOpenPermissionDialog?.dismiss()
 		super.onDestroy()
 		_binding = null

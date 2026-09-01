@@ -40,6 +40,15 @@ import java.io.File
  * Deliberately *not* the whole of what [SplashActivity] enforces -- free storage and the x86 exit are
  * its business, and a caller that finds this false should send the user there rather than re-deciding
  * any of it.
+ *
+ * The consequence, which is easy to miss: SplashActivity is reached only when this answers FALSE, so
+ * whenever it answers true a deep link goes straight to the editor and Splash's low-storage dialog
+ * and x86 `finishAffinity()` never run -- nor OnboardingActivity's primary-user, SD-card-install and
+ * device-supported checks. A device that finished onboarding and has since filled its storage is
+ * stopped by Splash on a normal launch and waved through by a link, landing in an editor whose Gradle
+ * build then fails for want of disk. That is the accepted trade (a link must not re-run onboarding),
+ * but it means any check added to Splash or Onboarding is silently NOT applied to links: a new one
+ * that must cover them has to be added here too, or hoisted somewhere both paths share.
  */
 internal fun Context.isIdeSetupComplete(): Boolean =
 	isJdkInstalled() &&

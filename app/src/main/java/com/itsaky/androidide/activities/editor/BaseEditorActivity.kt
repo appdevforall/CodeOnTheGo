@@ -793,7 +793,12 @@ abstract class BaseEditorActivity :
 			log.warn("No matching project available in EditorActivity.onCreate(); returning to MainActivity")
 			startActivity(
 				Intent(this, MainActivity::class.java).apply {
-					deepLinkRequest?.let { putExtra(DeepLinkRequest.EXTRA_KEY, it) }
+					deepLinkRequest?.let {
+						putExtra(DeepLinkRequest.EXTRA_KEY, it)
+						// Marks this as a re-delivery rather than a fresh tap, so MainActivity applies its
+						// consumed gate here and only here.
+						putExtra(EditorIntentExtras.EXTRA_REFORWARDED_DEEP_LINK, true)
+					}
 					// This branch is reachable far more often now (any deepLinkTargetsAnotherProject
 					// mismatch, not just a rare cold process-death recreate) -- without CLEAR_TOP, a
 					// MainActivity instance already lower in the back stack (Main -> Open Project ->

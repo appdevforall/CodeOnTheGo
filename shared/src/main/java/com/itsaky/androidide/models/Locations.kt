@@ -39,8 +39,18 @@ data class Position
 			return index
 		}
 
-		/** Makes the indices 0 if they are negative. */
+		/**
+		 * Makes the indices 0 if they are negative.
+		 *
+		 * A no-op on [NONE]. That is a process-wide `@JvmField` singleton whose whole meaning is
+		 * (-1, -1), handed out freely as a "nothing here" default -- zeroing it in place would redefine
+		 * the sentinel for every structural comparison in the process from then on.
+		 */
 		fun zeroIfNegative() {
+			if (this === NONE) {
+				return
+			}
+
 			if (line < 0) {
 				line = 0
 			}
@@ -136,6 +146,12 @@ open class Range
 		 * @see Position.zeroIfNegative()
 		 */
 		fun validate() {
+			// NONE's two ends ARE the single Position.NONE instance, so validating the sentinel would
+			// redefine it process-wide. zeroIfNegative guards itself for the same reason; this guard is
+			// stated separately because this is the call the editor pipeline actually makes.
+			if (this === NONE) {
+				return
+			}
 			start.zeroIfNegative()
 			end.zeroIfNegative()
 		}

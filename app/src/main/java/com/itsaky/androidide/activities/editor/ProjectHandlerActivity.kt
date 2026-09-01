@@ -701,6 +701,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		if (service.isToolingServerStarted()) {
 			if (service.isBuildInProgress) {
 				log.info("Skipping project initialization while build is in progress")
+				// The third early return that never reaches postProjectInit, and so never reaches its
+				// drain -- the same reason initializeProject's two failure returns drain. Cold-opening a
+				// project by deep link while a Gradle build is already running otherwise left the
+				// PendingFileRequest armed on the intent: the editor never navigated (only a log line),
+				// and the request then fired on the first unrelated later sync, yanking the editor to
+				// that stale file and line.
+				lifecycleScope.launch(Dispatchers.Main.immediate) { drainPendingFileRequest() }
 				return
 			}
 			initializeProject()

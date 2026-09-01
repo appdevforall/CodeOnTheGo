@@ -17,7 +17,11 @@ import kotlinx.coroutines.SupervisorJob
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
+
+/** Qualifier for the process-lifetime [CoroutineScope]; see the binding for why it is named. */
+const val APPLICATION_SCOPE = "applicationScope"
 
 val coreModule =
 	module {
@@ -32,12 +36,16 @@ val coreModule =
 		viewModel { MainViewModel() }
 		viewModel { CloneRepositoryViewModel(get(), get()) }
 
-		single<CoroutineScope> {
+		// Named, because an unqualified single<CoroutineScope> is claimed by type alone: this one
+		// instance was serving both the Room database below and EditorHandlerActivity's saveAllAsync,
+		// and a second unqualified CoroutineScope added anywhere would silently retarget the save with
+		// no compile error and no failing test. Consumers now ask for it by name.
+		single<CoroutineScope>(named(APPLICATION_SCOPE)) {
 			CoroutineScope(SupervisorJob() + Dispatchers.IO)
 		}
 
 		single {
-			RecentProjectRoomDatabase.getDatabase(androidApplication(), get())
+			RecentProjectRoomDatabase.getDatabase(androidApplication(), get(named(APPLICATION_SCOPE)))
 		}
 
 		single {
