@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.compiler.index
 
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.UnpinnedAnalysis
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
@@ -96,6 +97,7 @@ internal fun KtFile.toMetadata(
 		)
 	}
 
+@OptIn(UnpinnedAnalysis::class)
 internal suspend fun indexSourceFile(
 	project: Project,
 	ktFile: KtFile,

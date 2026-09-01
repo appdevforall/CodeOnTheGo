@@ -28,3 +28,4 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 | [0012](0012-volatile-build-metadata-out-of-abis.md) | Keep volatile build metadata out of module ABIs | Proposed |
 | [0013](0013-refactoring-ui-lives-in-the-owning-lsp-module.md) | Refactoring UI lives in the owning LSP module | Proposed |
 | [0014](0014-refactorings-decline-rather-than-rewrite.md) | Interactive refactorings decline rather than rewrite unselected code | Proposed |
+| [0015](0015-one-pinned-ktfile-per-analysis.md) | One pinned live KtFile per analysis, enforced by the type system | Proposed |
