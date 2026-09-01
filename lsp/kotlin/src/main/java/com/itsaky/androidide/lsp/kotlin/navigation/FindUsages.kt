@@ -5,13 +5,11 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedExcept
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
 import com.itsaky.androidide.lsp.kotlin.utils.rangeOf
 import com.itsaky.androidide.lsp.models.ReferenceParams
@@ -20,7 +18,6 @@ import com.itsaky.androidide.models.Location
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.projects.FileManager
-import kotlinx.coroutines.future.await
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinModuleDependentsProvider
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
@@ -82,7 +79,7 @@ internal class SearchPlan(
 /**
  * Computes the usage result for [params].
  *
- * Structured so that no lock spans the whole search (R9): the target is resolved under one short
+ * Structured so that no lock spans the whole search: the target is resolved under one short
  * `project.read`, candidate selection holds nothing across the pass (`computeFiles` takes `project.read`
  * per file, for one path lookup), and each candidate then takes its own read lock and analysis session.
  * A whole-workspace search holding either for its full duration would block index refresh (which needs
@@ -158,21 +155,24 @@ internal suspend fun planAt(params: ReferenceParams): SearchPlan? {
 	val offset = params.position.requireIndex()
 
 	return retryingOnPreemption(params.cancelChecker, "Usage search target for ${params.file}") { cancelChecker ->
-		// Awaited per attempt and outside project.read, exactly as in findDefinitionAt: the refresh this
-		// waits on needs project.write, and a preemption invalidates the KtFile it returned.
-		val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).await()
-		if (ktFile == null) {
-			logger.warn("File {} cannot be loaded for usage search", params.file)
-			null
-		} else {
-			cancelChecker.abortIfCancelled()
-			env.project.read {
-				val target = targetAtCaret(ktFile, offset) ?: return@read null
-				analyzeMaybeDangling(ktFile, AnalysisPriority.COMMAND, cancelChecker) {
-					planFor(target)
+		// Pinned per attempt, exactly as in findDefinitionAt: a preemption refreshes the live PSI, so the
+		// instance the previous attempt held is no longer the one the file resolves to.
+		var pinned = false
+		val plan =
+			env.ktSymbolIndex.withLiveKtFileAsync(params.file) { live ->
+				pinned = true
+				cancelChecker.abortIfCancelled()
+				live.read { ktFile ->
+					val target = targetAtCaret(ktFile, offset) ?: return@read null
+					live.analyzing(AnalysisPriority.COMMAND, cancelChecker) {
+						planFor(target)
+					}
 				}
 			}
+		if (!pinned) {
+			logger.warn("File {} cannot be loaded for usage search", params.file)
 		}
+		plan
 	}
 }
 
@@ -387,7 +387,7 @@ internal fun candidateFiles(
 				.asSequence()
 				.filter { it.isSourceModule }
 				.flatMap { it.computeFiles(extended = true) }
-				// A source module's files are .kt *and* .java, and `ktFileFor` rejects a non-Kotlin path
+				// A source module's files are .kt *and* .java, and acquisition rejects a non-Kotlin path
 				// anyway (searching .java is a non-goal). Dropping them here, on the extension alone,
 				// stops a Java-heavy workspace spending most of the prefilter's I/O - the part the user
 				// waits on - reading files whose result is already known to be nothing. The extensions
@@ -449,8 +449,8 @@ private fun Char.isIdentifierChar(): Boolean = isLetterOrDigit() || this == '_' 
 /**
  * Every usage of [plan]'s target in the file at [path].
  *
- * One analysis session per file, so a preemption costs this file rather than the whole search, and the
- * live-PSI await stays outside `project.read` (R9).
+ * One analysis session per file, so a preemption costs this file rather than the whole search. The pin
+ * covers both the open case (the live editor buffer) and the closed one (the indexed on-disk instance).
  */
 context(env: AbstractCompilationEnvironment)
 private suspend fun usagesIn(
@@ -460,32 +460,35 @@ private suspend fun usagesIn(
 ): List<Location> =
 	try {
 		retryingOnPreemption(delegate, "Usage search in $path") { cancelChecker ->
-			val ktFile = ktFileFor(path)
-			if (ktFile == null) {
-				logger.debug("Skipping candidate {}: no PSI", path)
-				emptyList()
-			} else {
-				env.project.read {
-					// The name filter is pure PSI, so it runs before the analysis session opens. A text
-					// prefilter hit whose only mention is a comment or a string literal must not cost an
-					// analysis-lock acquisition, a FIR session and a match-set restore to rule out - and on a
-					// short, common name most candidates are exactly that.
+			env.ktSymbolIndex.withLiveKtFileAsync(path) { live ->
+				live.read { ktFile ->
+					/*
+					 * The name filter is pure PSI, so it runs before the analysis session opens. A text
+					 * prefilter hit whose only mention is a comment or a string literal must not cost an
+					 * analysis-lock acquisition, a FIR session and a match-set restore to rule out - and on a
+					 * short, common name most candidates are exactly that.
+					 */
 					val named = namedReferences(ktFile, plan.simpleName, cancelChecker)
 					if (named.isEmpty()) {
 						emptyList()
 					} else {
-						analyzeMaybeDangling(ktFile, AnalysisPriority.COMMAND, cancelChecker) {
+						live.analyzing(AnalysisPriority.COMMAND, cancelChecker) {
 							matchingReferences(named, plan, ktFile, path, cancelChecker)
 						}
 					}
 				}
+			} ?: run {
+				logger.debug("Skipping candidate {}: no PSI", path)
+				emptyList()
 			}
 		}
 	} catch (e: AnalysisPreemptedException) {
-		// A preemption that outlived retryingOnPreemption's single retry is keystroke-driven work winning
-		// the lock, not the user cancelling. Rethrowing it would discard every location collected so far
-		// and report "no references" for a symbol with plenty, so it costs this file like any other
-		// failure. Genuine cancellation still propagates below (R12).
+		/*
+		 * A preemption that outlived retryingOnPreemption's single retry is keystroke-driven work winning
+		 * the lock, not the user cancelling. Rethrowing it would discard every location collected so far
+		 * and report "no references" for a symbol with plenty, so it costs this file like any other
+		 * failure. Genuine cancellation still propagates below.
+		 */
 		logger.debug("Usage search gave up on candidate {}: preempted twice", path)
 		emptyList()
 	} catch (e: Throwable) {
@@ -493,22 +496,6 @@ private suspend fun usagesIn(
 		// One unresolvable file must not lose the whole result.
 		logger.debug("Usage search skipped candidate {}", path, e)
 		emptyList()
-	}
-
-/**
- * PSI for a candidate file: refreshed to the live editor buffer when the file is open, the indexed
- * on-disk instance otherwise.
- *
- * The open case must be awaited here, outside `project.read`, because the refresh it waits on needs
- * `project.write`. `getKtFile` cannot do it - it runs under `project.read` inside Analysis API
- * services, so it only ever peeks the live cache.
- */
-context(env: AbstractCompilationEnvironment)
-private suspend fun ktFileFor(path: Path): KtFile? =
-	if (FileManager.isActive(path)) {
-		env.ktSymbolIndex.getCurrentKtFile(path).await()
-	} else {
-		env.ktSymbolIndex.getKtFile(path)
 	}
 
 /**

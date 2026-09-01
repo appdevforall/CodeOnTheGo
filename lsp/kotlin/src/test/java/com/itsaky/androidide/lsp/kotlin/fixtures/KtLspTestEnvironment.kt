@@ -11,6 +11,8 @@ import com.itsaky.androidide.lsp.kotlin.compiler.registrar.AnalysisApiServicePro
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.LspAnalysisApiServiceRegistrar
 import com.itsaky.androidide.lsp.kotlin.compiler.services.AnalysisPermissionOptions
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
+import org.appdevforall.codeonthego.indexing.api.IndexQuery
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor
@@ -77,6 +79,17 @@ internal class KtLspTestEnvironment(
 	 */
 	val sourceRoots: List<Path> =
 		moduleSpecs.map { spec -> baseDir.resolve(spec.dirName).createDirectories() }
+
+	/**
+	 * Invoked with every query the backing symbol index receives, before it runs.
+	 *
+	 * The fixture aliases one index as both `sourceIndex` and `libraryIndex`, so a single
+	 * `findSymbolBySimpleName` call fires this hook twice. The hook exists so a test can observe
+	 * state *at query time* rather than after the fact, which is the only way to assert what a query
+	 * does or does not run inside.
+	 */
+	@Volatile
+	var onSymbolIndexQuery: ((IndexQuery) -> Unit)? = null
 
 	private val rootByModule: Map<String, Path> =
 		moduleSpecs.map { it.name }.zip(sourceRoots).toMap()
@@ -210,6 +223,11 @@ internal class KtLspTestEnvironment(
 			object : JvmSymbolIndex(inMemoryJvmBackingIndex, BackgroundIndexer(inMemoryJvmBackingIndex)) {
 				// ensure we're not filtering out anything
 				override fun isActive(sourceId: String) = true
+
+				override fun query(query: IndexQuery): Sequence<JvmSymbol> {
+					onSymbolIndexQuery?.invoke(query)
+					return super.query(query)
+				}
 			}
 
 		val inMemoryFileMetaBackingIndex = InMemoryIndex(KtFileMetadataDescriptor)
