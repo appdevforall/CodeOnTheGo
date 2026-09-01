@@ -94,6 +94,19 @@ class QuickBuildScratchTest {
 	}
 
 	@Test
+	fun `an uncreatable root reports ScratchDirUnavailable, not a storage shortfall`() {
+		// usableSpace on a nonexistent path is 0, so without its own guard an uncreatable
+		// root would read as "not enough storage" - the wrong remedy on screen - when the
+		// real problem is the path.
+		val blocker = File(root, "blocker").apply { writeText("a file, not a dir") }
+		val blocked = QuickBuildScratch(File(blocker, "scratch"))
+
+		val message = blocked.freeSpaceShortfall()
+
+		assertThat(message).isInstanceOf(QuickBuildMessage.ScratchDirUnavailable::class.java)
+	}
+
+	@Test
 	fun `remove deletes the tree and tolerates a missing one`() {
 		val project = File(projects, "MyApp")
 		val tree = (scratch.prepare(project) as QuickBuildScratch.Preparation.Ready).dir

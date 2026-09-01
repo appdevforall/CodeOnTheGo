@@ -3,8 +3,13 @@
 package org.appdevforall.cotg.quickbuild.service.provision
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -52,9 +57,12 @@ class ProxyAppInstallerTest {
 	/** Scripted "can the confirm dialog be launched right now" probe. */
 	private var confirmDialogShowable = true
 
-	private fun installer(
+	// A TestScope extension so the installer's IO hops run on the test scheduler's
+	// virtual time instead of a real Dispatchers.IO thread.
+	private fun TestScope.installer(
 		timeoutMillis: Long = 180_000L,
 		promptTimeoutMillis: Long = 45_000L,
+		broadcastFlow: Flow<InstallBroadcast> = broadcasts,
 	) = ProxyAppInstaller(
 		packages = packages,
 		launchInstall = { file ->
@@ -62,10 +70,11 @@ class ProxyAppInstallerTest {
 			onLaunch()
 			launchResult
 		},
-		broadcasts = broadcasts,
+		broadcasts = broadcastFlow,
 		timeoutMillis = timeoutMillis,
 		promptTimeoutMillis = promptTimeoutMillis,
 		canShowConfirmDialog = { confirmDialogShowable },
+		ioDispatcher = StandardTestDispatcher(testScheduler),
 	)
 
 	@BeforeEach
@@ -536,6 +545,54 @@ class ProxyAppInstallerTest {
 			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS))
 			advanceUntilIdle()
 			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+		}
+
+	@Test
+	fun `a confirmed dialog suppresses the re-prompt - the user is reading it`() =
+		runTest {
+			// PENDING_USER_ACTION with a showable dialog is the OS saying the confirm
+			// dialog exists. The prompt-timeout re-issue exists for the silent lost-prompt
+			// case only; re-committing here would stack a second dialog over the one the
+			// user is reading.
+			val result = async { installer(promptTimeoutMillis = 45_000L).ensureInstalled(apk, PKG) }
+			runCurrent()
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.PENDING_USER_ACTION))
+			runCurrent()
+
+			advanceTimeBy(46_000L)
+			runCurrent()
+			assertThat(installLaunches).containsExactly(apk)
+
+			// The slow reader eventually confirms; the one committed install lands.
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS))
+			advanceUntilIdle()
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+		}
+
+	@Test
+	fun `a completed broadcast flow degrades to Failed instead of throwing`() =
+		runTest {
+			// ensureInstalled promises never to throw; first() on a flow that completes
+			// without a match throws NoSuchElementException, which would kill the
+			// provisioning scope instead of failing the one install.
+			val outcome = installer(broadcastFlow = emptyFlow()).ensureInstalled(apk, PKG)
+
+			assertThat(outcome).isInstanceOf(InstallOutcome.Failed::class.java)
+		}
+
+	@Test
+	fun `cancellation during the install launch is not swallowed into a Failed outcome`() =
+		runTest {
+			// A CancellationException from the launch path is the session going away, not
+			// an install failure; reporting InstallCouldNotStart would have the caller
+			// keep working in a cancelled scope.
+			onLaunch = { throw CancellationException("session torn down") }
+
+			val thrown =
+				runCatching { installer().ensureInstalled(apk, PKG) }.exceptionOrNull()
+
+			assertThat(thrown).isInstanceOf(CancellationException::class.java)
 		}
 
 	@Test
