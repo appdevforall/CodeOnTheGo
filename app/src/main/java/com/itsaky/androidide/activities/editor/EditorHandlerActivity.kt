@@ -1307,7 +1307,7 @@ open class EditorHandlerActivity :
 
 		// If there are NO unsaved files, just perform the close action directly.
 		// The 'manualFinish' is false because this action doesn't exit the activity by itself.
-		performCloseAllFiles(manualFinish = false)
+		performCloseAllFiles()
 		runAfter()
 	}
 
@@ -1907,7 +1907,7 @@ open class EditorHandlerActivity :
 		confirmProjectClose()
 	}
 
-	private fun performCloseAllFiles(manualFinish: Boolean) {
+	private fun performCloseAllFiles() {
 		val pluginManager = IDEApplication.getPluginManager()
 		val fileCount = editorViewModel.getOpenedFileCount()
 		for (i in 0 until fileCount) {
@@ -1929,8 +1929,12 @@ open class EditorHandlerActivity :
 			tabs.removeAllTabs()
 			editorContainer.removeAllViews()
 		}
+	}
 
-		if (manualFinish) {
+	private fun closeProject(saveFloatingFiles: Boolean) {
+		performCloseAllFiles()
+		lifecycleScope.launch {
+			floatingTabController.closeAll(save = saveFloatingFiles)
 			finish()
 		}
 	}
@@ -1951,7 +1955,7 @@ open class EditorHandlerActivity :
 				(content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
 			}
 
-			performCloseAllFiles(manualFinish = true)
+			closeProject(saveFloatingFiles = false)
 		}
 
 		// OPTION 2: Save and close
@@ -1961,7 +1965,7 @@ open class EditorHandlerActivity :
 			saveAllAsync(notify = false) {
 				runOnUiThread {
 					if (contentOrNull == null) return@runOnUiThread
-					performCloseAllFiles(manualFinish = true)
+					closeProject(saveFloatingFiles = true)
 				}
 				recentProjectsViewModel.updateProjectModifiedDate(
 					editorViewModel.getProjectName(),
