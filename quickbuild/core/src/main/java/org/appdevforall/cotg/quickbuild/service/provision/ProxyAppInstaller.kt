@@ -1,12 +1,16 @@
 package org.appdevforall.cotg.quickbuild.service.provision
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.slf4j.LoggerFactory
@@ -141,6 +145,10 @@ sealed interface InstallOutcome {
  * broadcasts with real messages, and a lastUpdateTime change backstops the MIUI intent
  * fallback, which never broadcasts through our receiver. A broadcast with no package name is
  * accepted as ours, erring toward a retryable failure rather than a false success.
+ *
+ * Blocking work - the APK hashing and every [InstalledPackages] read (binder calls into
+ * PackageManager) - runs under [ioDispatcher], so [ensureInstalled] is safe to call from the
+ * session's single-threaded dispatcher (concurrency.md).
  */
 class ProxyAppInstaller(
 	/** Installed-package facts; every read goes through here so tests need no PackageManager. */
@@ -165,6 +173,8 @@ class ProxyAppInstaller(
 	 * always-true keeps the plain wait-for-the-user behavior for callers without a probe.
 	 */
 	private val canShowConfirmDialog: () -> Boolean = { true },
+	/** Where the blocking work (APK hashing, PackageManager reads) runs; injectable for tests. */
+	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
 	/**
 	 * Gets [packageName] installed from [apk], skipping the install when the bytes on
@@ -180,33 +190,59 @@ class ProxyAppInstaller(
 		apk: File,
 		packageName: String,
 	): InstallOutcome {
-		val initialStamp = packages.lastUpdateTime(packageName)
-		val existingUid = packages.uid(packageName)
+		val initialStamp = withContext(ioDispatcher) { packages.lastUpdateTime(packageName) }
+		val existingUid = withContext(ioDispatcher) { packages.uid(packageName) }
 		if (existingUid != null && isSameContent(apk, packageName)) {
 			log.info("{} already runs these bytes; skipping reinstall", packageName)
 			return InstallOutcome.Installed(existingUid)
 		}
 
 		return coroutineScope {
+			// Set when the OS reported PENDING_USER_ACTION, which means a confirm dialog
+			// exists; re-issuing the prompt then would stack a second dialog on it.
+			var pendingUserActionSeen = false
 			// Subscribe before committing the install so a fast broadcast cannot slip
 			// past us. PENDING_USER_ACTION is decisive too when no confirm dialog can be
 			// launched, since nobody will ever tap.
 			val verdict =
 				async(start = CoroutineStart.UNDISPATCHED) {
-					broadcasts.first { broadcast ->
-						(broadcast.packageName == null || broadcast.packageName == packageName) &&
-							(
-								broadcast.isTerminal ||
+					try {
+						Result.success(
+							broadcasts.first { broadcast ->
+								val ours =
+									broadcast.packageName == null || broadcast.packageName == packageName
+								if (ours && broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION) {
+									pendingUserActionSeen = true
+								}
+								ours &&
 									(
-										broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION &&
-											!canShowConfirmDialog()
+										broadcast.isTerminal ||
+											(
+												broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION &&
+													!canShowConfirmDialog()
+											)
 									)
-							)
+							},
+						)
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						// If the flow completes without a match, first() throws and no
+						// verdict can arrive this way. Captured as a failure so that
+						// ensureInstalled still never throws.
+						Result.failure(e)
 					}
 				}
 			val stampChanged = async { awaitStampChange(packageName, initialStamp) }
 
-			val started = runCatching { launchInstall(apk) }.getOrDefault(false)
+			val started =
+				try {
+					launchInstall(apk)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					false
+				}
 			if (!started) {
 				verdict.cancel()
 				stampChanged.cancel()
@@ -215,7 +251,12 @@ class ProxyAppInstaller(
 
 			val awaitVerdict: suspend () -> InstallOutcome = {
 				select<InstallOutcome> {
-					verdict.onAwait { broadcast -> classify(broadcast, packageName) }
+					verdict.onAwait { result ->
+						result.fold(
+							onSuccess = { broadcast -> classify(broadcast, packageName) },
+							onFailure = { InstallOutcome.Failed(QuickBuildMessage.InstallFailed) },
+						)
+					}
 					stampChanged.onAwait { resolveUid(packageName) }
 				}
 			}
@@ -229,13 +270,23 @@ class ProxyAppInstaller(
 					// lifecycle-bound. The deferreds are reused, so a late verdict still resolves.
 					withTimeoutOrNull(promptTimeoutMillis) { awaitVerdict() }
 						?: run {
-							if (canShowConfirmDialog()) {
+							// A seen PENDING_USER_ACTION means the OS confirmed a dialog
+							// exists - the user is reading it, and a re-commit would put a
+							// second dialog over the first. Only the silent case (no status
+							// at all) is the lost-prompt one the re-issue repairs.
+							if (canShowConfirmDialog() && !pendingUserActionSeen) {
 								log.info(
 									"no install verdict for {} in {}ms; re-issuing the prompt",
 									packageName,
 									promptTimeoutMillis,
 								)
-								runCatching { launchInstall(apk) }
+								try {
+									launchInstall(apk)
+								} catch (e: CancellationException) {
+									throw e
+								} catch (e: Exception) {
+									// The first commit is still pending; keep waiting on it.
+								}
 							}
 							awaitVerdict()
 						}
@@ -322,7 +373,7 @@ class ProxyAppInstaller(
 		initialStamp: Long?,
 	) {
 		while (true) {
-			val stamp = packages.lastUpdateTime(packageName)
+			val stamp = withContext(ioDispatcher) { packages.lastUpdateTime(packageName) }
 			if (stamp != null && stamp != initialStamp) return
 			delay(DEFAULT_POLL_MILLIS)
 		}
@@ -338,7 +389,8 @@ class ProxyAppInstaller(
 		// The uid should exist the moment the install lands; retry briefly for the
 		// window between the success broadcast and PackageManager visibility.
 		repeat(UID_RETRIES) {
-			packages.uid(packageName)?.let { return InstallOutcome.Installed(it) }
+			withContext(ioDispatcher) { packages.uid(packageName) }
+				?.let { return InstallOutcome.Installed(it) }
 			delay(DEFAULT_POLL_MILLIS)
 		}
 		return InstallOutcome.Failed(QuickBuildMessage.InstalledButUnresolvable(packageName))
@@ -352,14 +404,17 @@ class ProxyAppInstaller(
 	 * @param packageName the applicationId whose installed APK is compared against it
 	 * @return true only on a confirmed match, so an unreadable file errs toward reinstalling
 	 */
-	private fun isSameContent(
+	private suspend fun isSameContent(
 		apk: File,
 		packageName: String,
-	): Boolean {
-		val installed = packages.apkFile(packageName) ?: return false
-		val candidate = sha256OrNull(apk) ?: return false
-		return candidate == sha256OrNull(installed)
-	}
+	): Boolean =
+		withContext(ioDispatcher) {
+			// Two full-APK hashes; off the caller's dispatcher (concurrency.md forbids
+			// blocking the session thread).
+			val installed = packages.apkFile(packageName) ?: return@withContext false
+			val candidate = sha256OrNull(apk) ?: return@withContext false
+			candidate == sha256OrNull(installed)
+		}
 
 	companion object {
 		private val log = LoggerFactory.getLogger("QB-ProxyInstaller")
@@ -368,8 +423,11 @@ class ProxyAppInstaller(
 		const val DEFAULT_TIMEOUT_MILLIS = 180_000L
 
 		/**
-		 * Long enough that a user reading the dialog is never re-prompted under it, short
-		 * enough that a dialog that never appeared does not burn the whole budget in silence.
+		 * How long a committed install may sit with no status at all before the prompt is
+		 * re-issued. Only the silent case is repaired: a seen PENDING_USER_ACTION means a
+		 * dialog exists and the user is reading it, so no re-issue. The silent case is a
+		 * dialog that was never launched, e.g. a CoGo process death took the Activity that
+		 * owned it.
 		 */
 		const val DEFAULT_PROMPT_TIMEOUT_MILLIS = 45_000L
 		const val DEFAULT_POLL_MILLIS = 1_000L

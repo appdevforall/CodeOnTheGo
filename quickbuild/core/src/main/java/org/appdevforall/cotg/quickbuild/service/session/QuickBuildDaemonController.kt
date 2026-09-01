@@ -33,6 +33,11 @@ internal class QuickBuildDaemonController(
 	 * Exactly one transition since a respawn captured the epoch means the superseding shutdown
 	 * itself, so a daemon the stale start brought up is a zombie the respawn must stop; more
 	 * than one means a successor flow already started a fresh daemon to leave alone.
+	 *
+	 * That reading holds only if every restart flow bumps TWICE - once for its shutdown and
+	 * once for its start - while a lone shutdown bumps once. Nothing here enforces it: the
+	 * session manager's transition paths carry the obligation, and a flow that bumps a
+	 * different number of times silently breaks the zombie-versus-successor distinction.
 	 */
 	private var daemonEpoch = 0L
 
@@ -186,8 +191,10 @@ internal class QuickBuildDaemonController(
 	suspend fun shrinkIfPending(buildInFlight: Boolean) {
 		if (buildInFlight) return
 		if (!pendingLowMemoryTeardown) return
-		pendingLowMemoryTeardown = false
+		// Consumed only past the isRunning guard: clearing first would discard the request
+		// while the daemon is briefly down, not the silent no-op the KDoc promises.
 		if (!daemon.isRunning) return
+		pendingLowMemoryTeardown = false
 		log.info("Quick Build: tearing down the compile daemon for low memory; the next build re-warms it")
 		markIntentionalTransition()
 		daemon.shutdown()
