@@ -712,7 +712,10 @@ class LiveReloadOrchestrator(
 
 				else -> {
 					val newSavesArrivedMidBuild = !pending.isEmpty || pendingForced
-					pending = flight.batch + pending
+					// unionPendingLocked, not bare plus: if flight.batch is Unknown (built off an
+					// untrusted baseline), plus would collapse the union to Unknown and lose the
+					// full-Gradle-build verdict of a manifest or gradle edit that landed mid-build.
+					pending = unionPendingLocked(flight.batch, pending)
 					// The dead attempt's t0 must not outlive it: its batch is back in pending but
 					// waiting on the user, not queueing, which is not latency this loop owes. A
 					// save that landed MID-build did genuinely queue behind this one, so its

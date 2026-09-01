@@ -3,18 +3,20 @@ package org.appdevforall.cotg.quickbuild.domain.reload
 /**
  * Kind of a manifest component the proxy app build recorded (setup.json `components`).
  *
- * The restart closure referred to throughout this file is [DeployPolicy]'s: a
- * restart-sensitive component class plus its user-side supertypes and their nested classes,
- * any recompile of which forces a proxy-app process restart.
+ * The restart rule referred to throughout this file is [DeployPolicy]'s: a manifest that
+ * declares even one restart-sensitive component makes EVERY deploy a process restart. The
+ * policy does not look at what the compile touched, so there is no per-build set of
+ * affected classes to compute; "outside the restart rule" below means the kind never makes
+ * a deploy restart-sensitive on its own.
  */
 enum class ComponentKind {
-	/** An `<activity>`; outside the restart closure, since recreate already refreshes it. */
+	/** An `<activity>`; outside the restart rule, since recreate already refreshes it. */
 	ACTIVITY,
 
 	/** A `<service>`; a live instance cannot be swapped, so it forces a process restart. */
 	SERVICE,
 
-	/** A `<receiver>`; outside the restart closure, being instantiated fresh per delivery. */
+	/** A `<receiver>`; outside the restart rule, being instantiated fresh per delivery. */
 	RECEIVER,
 
 	/** A `<provider>`; like a service, a live instance forces a process restart. */
@@ -83,7 +85,9 @@ fun ComponentInfo.isRestartSensitive(): Boolean = kind in RESTART_SENSITIVE_KIND
  * @property launcher true for the launcher activity - its [proxyClass] is the explicit
  *   relaunch target after a restart-deploy.
  * @property supertypes the user-side (project-compiled) superclass chain recorded from
- *   class headers at proxy app build time; seeds the restart closure's supertype index.
+ *   class headers at proxy app build time. Carried but currently unread: [DeployPolicy]
+ *   keeps no supertype index. Kept for a planned deploy mode that redefines classes in
+ *   place and will need the hierarchy.
  */
 data class ComponentInfo(
 	val kind: ComponentKind,
