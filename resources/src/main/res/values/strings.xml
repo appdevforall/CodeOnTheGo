@@ -1165,6 +1165,7 @@
 	<string name="quick_build_setup_failed">Quick Build setup failed. Check the Build Output for what went wrong.</string>
 	<string name="quick_build_slot_busy">Another build is running. Wait for it to finish, then start Quick Build again.</string>
 	<string name="quick_build_rebuild_failed">Quick Build could not rebuild your app. Check the Build Output for what went wrong.</string>
+	<string name="quick_build_provisioning_failed_unexpectedly">Quick Build setup failed unexpectedly. Check the Build Output for what went wrong.</string>
 	<string name="quick_build_reinstall_return_to_cogo">Your app needs a reinstall - return to CoGo to confirm.</string>
 	<string name="quick_build_reinstall_declined">Your app needs a reinstall - the install prompt was cancelled. Tap Quick Build to try again.</string>
 	<string name="quick_build_reinstall_timed_out">Your app needs a reinstall - the install prompt went unanswered for %1$d seconds. Tap Quick Build to try again.</string>

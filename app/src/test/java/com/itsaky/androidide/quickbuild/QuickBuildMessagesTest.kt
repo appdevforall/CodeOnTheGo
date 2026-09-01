@@ -48,6 +48,7 @@ class QuickBuildMessagesTest {
 		assertResolvesTo(QuickBuildMessage.InstallCouldNotStart, R.string.quick_build_install_could_not_start)
 		assertResolvesTo(QuickBuildMessage.InstallFailed, R.string.quick_build_install_failed)
 		assertResolvesTo(QuickBuildMessage.RebuildFailed, R.string.quick_build_rebuild_failed)
+		assertResolvesTo(QuickBuildMessage.ProvisioningFailedUnexpectedly, R.string.quick_build_provisioning_failed_unexpectedly)
 		assertResolvesTo(QuickBuildMessage.DaemonRejectedConfiguration, R.string.quick_build_daemon_rejected_config)
 	}
 
@@ -110,6 +111,7 @@ class QuickBuildMessagesTest {
 				QuickBuildMessage.InstalledButUnresolvable("com.example.app"),
 				QuickBuildMessage.ForeignAppInstalled("com.example.other"),
 				QuickBuildMessage.RebuildFailed,
+				QuickBuildMessage.ProvisioningFailedUnexpectedly,
 				QuickBuildMessage.DaemonRestartFailed("detail"),
 				QuickBuildMessage.NotEnoughStorage(512, 64),
 				QuickBuildMessage.ScratchDirUnavailable("/data/scratch"),
