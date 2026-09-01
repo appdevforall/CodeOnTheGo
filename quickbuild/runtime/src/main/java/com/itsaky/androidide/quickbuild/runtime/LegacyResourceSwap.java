@@ -115,16 +115,27 @@ final class LegacyResourceSwap {
 	 *             when {@code dir} cannot be created, the stream exceeds the payload cap, or the write fails
 	 */
 	static File writeResourceApk(InputStream apk, File dir, long generation) throws IOException {
-		byte[] bytes = Streams.readFully(apk);
 		if (!dir.isDirectory() && !dir.mkdirs()) {
 			throw new IOException("cannot create " + dir);
 		}
 		File zip = new File(dir, APK_PREFIX + generation + APK_SUFFIX);
 		FileOutputStream out = new FileOutputStream(zip);
+		boolean written = false;
 		try {
-			out.write(bytes);
+			// Streamed rather than read into a byte[] first: buffering held the whole apk
+			// in heap (plus the growth doubling and a final copy) on the small-heap
+			// API 28/29 devices this path serves. The copy enforces the same payload cap.
+			Streams.copy(apk, out, Streams.MAX_PAYLOAD_BYTES);
+			written = true;
 		} finally {
-			out.close();
+			if (written) {
+				out.close();
+			} else {
+				// A failed copy leaves a partial file on disk; delete it so a throw still
+				// means nothing was written.
+				Streams.closeQuietly(out);
+				zip.delete();
+			}
 		}
 		return zip;
 	}

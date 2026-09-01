@@ -21,7 +21,8 @@ class OverlayStateTextEdgeTest {
 				.buildFailed(failed("{\"kind\":\"build_failed\",\"message\":\"boom\"}"));
 
 		assertThat(state.text()).isEqualTo(
-				"Build failed - app is running the last working version\nboom");
+				"Build failed - app is running the last working version\nboom\n"
+						+ "For more info, see Build Output in Code on the Go.");
 	}
 
 	@Test
@@ -30,7 +31,8 @@ class OverlayStateTextEdgeTest {
 				failed("{\"kind\":\"build_failed\",\"message\":\"boom\",\"moreErrors\":\"3\"}"));
 
 		assertThat(state.text()).isEqualTo(
-				"Build failed - app is running the last working version\nboom (+3 more)");
+				"Build failed - app is running the last working version\nboom (+3 more)\n"
+						+ "For more info, see Build Output in Code on the Go.");
 	}
 
 	@Test
@@ -40,7 +42,8 @@ class OverlayStateTextEdgeTest {
 				.buildFailed(failed("{\"kind\":\"build_failed\",\"moreErrors\":\"3\"}"));
 
 		assertThat(state.text())
-				.isEqualTo("Build failed - app is running the last working version");
+				.isEqualTo("Build failed - app is running the last working version\n"
+						+ "For more info, see Build Output in Code on the Go.");
 	}
 
 	@Test
