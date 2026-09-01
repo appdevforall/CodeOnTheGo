@@ -66,6 +66,12 @@ object JavaCompileStep {
 					"-proc:none",
 					"-encoding",
 					"UTF-8",
+					// Pin bytecode AND platform APIs to the same level kotlinc targets
+					// (-jvm-target). Without this a daemon running on JDK 21 emits major-65
+					// classes next to Kotlin's major-61 in one tree, and java.* resolves
+					// against the running JDK's own modules instead of release-17 signatures.
+					"--release",
+					IncrementalCompiler.JVM_TARGET,
 				)
 			val task = compiler.getTask(StringWriter(), manager, collector, options, null, units)
 			val success = task.call()
