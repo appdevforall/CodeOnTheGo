@@ -334,6 +334,135 @@ class Aapt2LinkTest {
 		assertThat(arguments).doesNotContain("-R")
 	}
 
+	// A Material/AndroidX library-resource closure runs to a few thousand -R pairs, and bionic's
+	// exec argument budget is far below desktop Linux's - a long-argv link dies as an unhelpful
+	// "cannot run program". Past ARGFILE_THRESHOLD inputs the arguments move into an @argfile,
+	// which aapt2 expands in place.
+
+	@Test
+	fun `an input list at the threshold keeps the arguments inline`() {
+		val link = Aapt2Link(File(tempDir, "aapt2"), File(tempDir, "android.jar"))
+		val libraryResources = (1..Aapt2Link.ARGFILE_THRESHOLD).map { File(tempDir, "merged_res/r$it.arsc.flat") }
+
+		val arguments =
+			link.buildLinkArguments(
+				linkedApk = File(workDir, "linked-res.apk"),
+				manifest = manifest,
+				flatFiles = emptyList(),
+				stableIds = null,
+				libraryResources = libraryResources,
+			)
+
+		assertThat(arguments.count { it == "-R" }).isEqualTo(Aapt2Link.ARGFILE_THRESHOLD)
+		assertThat(arguments.filter { it.startsWith("@") }).isEmpty()
+	}
+
+	@Test
+	fun `a large input list moves the resource inputs into an @argfile, order preserved`() {
+		val link = Aapt2Link(File(tempDir, "aapt2"), File(tempDir, "android.jar"))
+		val libraryResources = (1..Aapt2Link.ARGFILE_THRESHOLD).map { File(tempDir, "merged_res/r$it.arsc.flat") }
+		val projectFlat = File(tempDir, "compiled/values_strings.arsc.flat")
+
+		val arguments =
+			link.buildLinkArguments(
+				linkedApk = File(workDir, "linked-res.apk"),
+				manifest = manifest,
+				flatFiles = listOf(projectFlat),
+				stableIds = null,
+				libraryResources = libraryResources,
+			)
+
+		// The flags stay inline - aapt2 expands @file into FILE paths only, and rejects flags
+		// inside it with "missing required flag -o" - so only the inputs collapse, into one
+		// `-R @file` next to the linked apk.
+		assertThat(arguments)
+			.containsAtLeast("-o", File(workDir, "linked-res.apk").absolutePath, "--manifest", manifest.absolutePath)
+			.inOrder()
+		val rIndices = arguments.withIndex().filter { it.value == "-R" }.map { it.index }
+		assertThat(rIndices).hasSize(1)
+		val argfileArgument = arguments[rIndices.single() + 1]
+		assertThat(argfileArgument).startsWith("@")
+		val argfile = File(argfileArgument.removePrefix("@"))
+		assertThat(argfile.parentFile.absolutePath).isEqualTo(workDir.absolutePath)
+		// One path per line, order preserved, the fresh flat still last so it wins on conflict.
+		val lines = argfile.readLines()
+		assertThat(lines).hasSize(Aapt2Link.ARGFILE_THRESHOLD + 1)
+		assertThat(lines.first()).isEqualTo(libraryResources.first().absolutePath)
+		assertThat(lines.last()).isEqualTo(projectFlat.absolutePath)
+	}
+
+	@Test
+	@EnabledIf("org.appdevforall.cotg.quickbuild.daemon.TestSdk#aapt2ToolchainAvailable")
+	fun `relink links through an @argfile when the flat count crosses the threshold`() {
+		writeStrings(
+			"""
+			<?xml version="1.0" encoding="utf-8"?>
+			<resources>
+				<string name="app_name">FRESH_EDIT</string>
+			</resources>
+			""".trimIndent(),
+		)
+		File(resDir, "drawable").mkdirs()
+		repeat(Aapt2Link.ARGFILE_THRESHOLD + 1) { i ->
+			File(resDir, "drawable/shape_$i.xml").writeText(
+				"""
+				<?xml version="1.0" encoding="utf-8"?>
+				<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval" />
+				""".trimIndent(),
+			)
+		}
+		// A stale library copy of app_name rides along, FIRST in the argfile. If entries past
+		// the first lost their -R overlay semantics (fell back to positional), the fresh edit
+		// - last in the file - would lose to it, so the value assertion below pins the
+		// expansion semantics, not just "aapt2 exited 0".
+		val staleRes = File(tempDir, "stale-res/values").apply { mkdirs() }.parentFile
+		File(staleRes, "values/strings.xml").writeText(
+			"""
+			<?xml version="1.0" encoding="utf-8"?>
+			<resources>
+				<string name="app_name">STALE_BASELINE</string>
+			</resources>
+			""".trimIndent(),
+		)
+		val staleCompileDir = File(tempDir, "stale-compiled").apply { mkdirs() }
+		val compileResult =
+			ProcessBuilder(
+				TestSdk.aapt2()!!.absolutePath,
+				"compile",
+				"--dir",
+				staleRes.absolutePath,
+				"-o",
+				staleCompileDir.absolutePath,
+			).redirectErrorStream(true)
+				.start()
+		assertThat(compileResult.waitFor()).isEqualTo(0)
+		val staleFlat = staleCompileDir.listFiles { file -> file.name.endsWith(".flat") }!!.single()
+		val link = Aapt2Link(TestSdk.aapt2()!!, TestSdk.androidJar()!!)
+
+		val result = link.relink(listOf(resDir), manifest, workDir, libraryResources = listOf(staleFlat))
+
+		// The real binary accepted the argfile form and produced a whole usable apk.
+		assertThat(result).isInstanceOf(Aapt2Link.Result.Success::class.java)
+		assertThat(File(workDir, "link-inputs.txt").isFile).isTrue()
+		val apk = (result as Aapt2Link.Result.Success).resourceApk
+		ZipFile(apk).use { zip ->
+			assertThat(zip.getEntry("resources.arsc")).isNotNull()
+			assertThat(zip.getEntry("res/drawable/shape_0.xml")).isNotNull()
+		}
+		val dumped =
+			ProcessBuilder(TestSdk.aapt2()!!.absolutePath, "dump", "resources", apk.absolutePath)
+				.redirectErrorStream(true)
+				.start()
+				.let {
+					it.inputStream
+						.bufferedReader()
+						.readText()
+						.also { _ -> it.waitFor() }
+				}
+		assertThat(dumped).contains("FRESH_EDIT")
+		assertThat(dumped).doesNotContain("STALE_BASELINE")
+	}
+
 	@Test
 	@EnabledIf("org.appdevforall.cotg.quickbuild.daemon.TestSdk#aapt2ToolchainAvailable")
 	fun `relink resolves a dependency-AAR-only style reference via libraryResources`() {
