@@ -34,12 +34,14 @@ enum class ComponentType(
  * the user FQN in the manifest and the runtime's instantiate hooks route them through the payload
  * loader by that real name. For the Application nothing addresses it by manifest name anyway; for
  * services and receivers the real name IS the addressing - see
- * [QuickBuildManifestTransformer.transformComponents].
+ * [QuickBuildManifestTransformer.transformComponents]. An activity the proxiability resolver
+ * skipped also carries a null [proxyClass]: it keeps its real `<activity>` entry, so it stays
+ * launchable and its [isLauncher] fact must survive.
  *
  * @property type which manifest element this came from.
  * @property userClass fully-qualified user class.
  * @property proxyClass fully-qualified generated proxy class that replaces it in the
- *   manifest, or null for the Application, service and receiver entries.
+ *   manifest, or null for the Application, service, receiver and skipped-activity entries.
  * @property isLauncher whether an activity declares the MAIN/LAUNCHER intent filter.
  */
 data class ProxiedComponent(
@@ -66,7 +68,8 @@ data class UnproxiedComponent(
  *
  * @property document the transformed manifest, mutated in place from the parsed input.
  * @property components every recorded component, in manifest order per type - proxied or (for
- *   services, receivers and the Application) kept under its real name with a null proxyClass.
+ *   services, receivers, the Application and skipped activities) kept under its real name with
+ *   a null proxyClass.
  * @property unproxied components left under their real name, for the caller to log.
  */
 class ManifestTransformResult(
@@ -74,11 +77,14 @@ class ManifestTransformResult(
 	val components: List<ProxiedComponent>,
 	val unproxied: List<UnproxiedComponent> = emptyList(),
 ) {
-	/** The proxied activities, in manifest order. */
+	/** The recorded activities, in manifest order; a skipped one carries a null proxyClass. */
 	val activities: List<ProxiedComponent>
 		get() = components.filter { it.type == ComponentType.ACTIVITY }
 
-	/** User class of the LAUNCHER activity, or null when the manifest declares none. */
+	/**
+	 * User class of the LAUNCHER activity, or null when the manifest declares none. A skipped
+	 * launcher still counts: it keeps its real manifest name, so it is launchable as-is.
+	 */
 	val entryActivity: String?
 		get() = activities.firstOrNull { it.isLauncher }?.userClass
 }
@@ -201,7 +207,8 @@ class QuickBuildManifestTransformer(
 	 * @param application the `<application>` element, mutated in place.
 	 * @param manifestPackage the manifest's package, for expanding android:name shorthand.
 	 * @param unproxied accumulator for components [skipProxy] rejects.
-	 * @return the proxied activities, in manifest order; skipped ones are absent.
+	 * @return the recorded activities, in manifest order; a skipped one appears with a null
+	 *   [ProxiedComponent.proxyClass] and consumes no proxy index.
 	 */
 	private fun transformActivities(
 		application: Element,
@@ -209,24 +216,42 @@ class QuickBuildManifestTransformer(
 		unproxied: MutableList<UnproxiedComponent>,
 	): List<ProxiedComponent> {
 		val activities = mutableListOf<ProxiedComponent>()
-		// android:exported per renamed activity, so the back-reference alias below can carry the
-		// target's own value. The raw attribute, not a parsed boolean: the value may be a
-		// resource reference (@bool/...), which parses as neither true nor false and must be
-		// copied through rather than collapsed. Kept local rather than added to
+		// The alias-declared attributes per renamed activity, so the back-reference alias below
+		// can carry the target's own values. The raw attributes, not parsed booleans: any of
+		// them may be a resource reference (@bool/...), which parses as neither true nor false
+		// and must be copied through rather than collapsed. Kept local rather than added to
 		// ProxiedComponent, which is shared with the setup.json writer.
-		val exportedByUserClass = mutableMapOf<String, String>()
+		val aliasAttrsByUserClass = mutableMapOf<String, Map<String, String>>()
 		var proxyIndex = 0
 		application.childElements("activity").forEachIndexed { index, activity ->
 			val userClass = requireComponentName(activity, "activity", index, manifestPackage)
 			rejectUnsupported(activity, "activity", userClass)
-			// An alias targeting a skipped activity (below) then finds no proxy mapping
+			// An alias targeting a skipped activity (below) then finds a null proxy mapping
 			// and correctly leaves its targetActivity pointed at the real class.
 			if (skipProxy(userClass, unproxied)) {
+				// Written back fully qualified, for the same reason as the non-proxied kinds
+				// in transformComponents: consumers resolve this name against the payload
+				// dex, so shorthand left verbatim is fragile.
+				activity.setAttributeNS(ANDROID_NS, "android:name", userClass)
+				// Recorded with a null proxyClass rather than dropped: the activity keeps its
+				// real manifest name and stays launchable, so dropping it would discard the
+				// isLauncher fact and misreport a skipped launcher as entryActivity == null.
+				activities.add(
+					ProxiedComponent(
+						type = ComponentType.ACTIVITY,
+						userClass = userClass,
+						proxyClass = null,
+						isLauncher = isLauncher(activity),
+					),
+				)
 				return@forEachIndexed
 			}
 			val proxyClass = "$proxyPackage.${proxySimpleName(proxyIndex, ComponentType.ACTIVITY)}"
 			proxyIndex++
-			exportedByUserClass[userClass] = activity.getAttributeNS(ANDROID_NS, "exported")
+			aliasAttrsByUserClass[userClass] =
+				listOf("exported", "permission", "enabled").associateWith {
+					activity.getAttributeNS(ANDROID_NS, it)
+				}
 			activity.setAttributeNS(ANDROID_NS, "android:name", proxyClass)
 			activities.add(
 				ProxiedComponent(
@@ -260,19 +285,33 @@ class QuickBuildManifestTransformer(
 		// activity was reachable under its real name before the rename, and a pinned shortcut or
 		// share target the app itself published records that name, so forcing false rejects a
 		// launch that works under a standard run. Never widen it - an absent attribute reads as
-		// false, which is also what a merged manifest states explicitly from API 31.
+		// false, which is also what a merged manifest states explicitly from API 31. The
+		// target's permission and enabled travel with it: both are alias-DECLARED attributes,
+		// not inherited, so dropping them would leave a permission-guarded activity reachable
+		// unguarded under its real name, or resurrect a disabled entry point.
 		val document = application.ownerDocument
 		activities.forEach { component ->
+			// A skipped activity kept its real <activity> entry, so it needs no alias - and one
+			// with the same name would collide with it at install time.
+			val proxyClass = component.proxyClass ?: return@forEach
+			val attrs = aliasAttrsByUserClass[component.userClass].orEmpty()
 			val alias = document.createElement("activity-alias")
 			alias.setAttributeNS(ANDROID_NS, "android:name", component.userClass)
-			alias.setAttributeNS(ANDROID_NS, "android:targetActivity", component.proxyClass!!)
+			alias.setAttributeNS(ANDROID_NS, "android:targetActivity", proxyClass)
 			alias.setAttributeNS(
 				ANDROID_NS,
 				"android:exported",
 				// An absent attribute is only implicitly false before API 31, where it is a hard
 				// manifest error, so the alias states it.
-				exportedByUserClass[component.userClass]?.takeIf { it.isNotBlank() } ?: "false",
+				attrs["exported"]?.takeIf { it.isNotBlank() } ?: "false",
 			)
+			// Unlike exported, these stay absent when the target declares neither: an empty
+			// android:permission is not "no permission".
+			listOf("permission", "enabled").forEach { name ->
+				attrs[name]?.takeIf { it.isNotBlank() }?.let {
+					alias.setAttributeNS(ANDROID_NS, "android:$name", it)
+				}
+			}
 			application.appendChild(alias)
 		}
 		return activities

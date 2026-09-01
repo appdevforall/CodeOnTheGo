@@ -1,5 +1,6 @@
 package com.itsaky.androidide.gradle.quickbuild
 
+import com.android.build.api.variant.BuiltArtifact
 import com.android.build.api.variant.BuiltArtifactsLoader
 import com.android.tools.r8.CompilationFailedException
 import com.android.tools.r8.CompilationMode
@@ -177,14 +178,19 @@ abstract class QuickBuildPayloadTransformTask : DefaultTask() {
 	@TaskAction
 	fun divert() {
 		val root = payloadClasses.get().asFile.cleanDirectory()
-		allJars.get().forEachIndexed { index, jar ->
+		// AGP hands over declared artifact locations, not guaranteed files. The retained-jar
+		// walk below already tolerates a missing directory, so the copies here skip missing
+		// inputs the same way instead of throwing on them.
+		val jars = allJars.get().filter { it.asFile.exists() }
+		val directories = allDirectories.get().filter { it.asFile.exists() }
+		jars.forEachIndexed { index, jar ->
 			jar.asFile.copyTo(File(root, "jars/$index.jar"))
 		}
-		allDirectories.get().forEachIndexed { index, dir ->
+		directories.forEachIndexed { index, dir ->
 			dir.asFile.copyRecursively(File(root, "dirs/$index"))
 		}
 
-		writeRetainedApkJar()
+		writeRetainedApkJar(jars, directories)
 	}
 
 	/**
@@ -199,15 +205,18 @@ abstract class QuickBuildPayloadTransformTask : DefaultTask() {
 		return name == "R.class" || (name.startsWith("R$") && name.endsWith(".class"))
 	}
 
-	/** Collects every R class from the inputs into [outputJar] so the APK keeps them. */
-	private fun writeRetainedApkJar() {
+	/** Collects every R class from the (existing) inputs into [outputJar] so the APK keeps them. */
+	private fun writeRetainedApkJar(
+		jars: List<RegularFile>,
+		directories: List<Directory>,
+	) {
 		val seen = HashSet<String>()
 		JarOutputStream(outputJar.get().asFile.outputStream()).use { out ->
 			// A zip must contain at least one entry even when no R classes exist.
 			out.putNextEntry(JarEntry("META-INF/com.itsaky.androidide.quickbuild.diverted"))
 			out.closeEntry()
 
-			allDirectories.get().forEach { dir ->
+			directories.forEach { dir ->
 				dir.asFile.walkTopDown().filter { it.isFile && isResourceClass(it.name) }.forEach { file ->
 					val entry = file.relativeTo(dir.asFile).invariantSeparatorsPath
 					if (seen.add(entry)) {
@@ -217,7 +226,7 @@ abstract class QuickBuildPayloadTransformTask : DefaultTask() {
 					}
 				}
 			}
-			allJars.get().forEach { jar ->
+			jars.forEach { jar ->
 				JarFile(jar.asFile).use { jf ->
 					jf.entries().asSequence().filter { !it.isDirectory && isResourceClass(it.name) }.forEach { entry ->
 						if (seen.add(entry.name)) {
@@ -273,7 +282,11 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 	@get:Classpath
 	abstract val runtimeAar: ConfigurableFileCollection
 
-	/** Effective dex min API; at least 30 because Quick Build is gated to API 30+ devices. */
+	/**
+	 * Effective dex min API - the payload floor, NOT the device floor: at least 30 so d8 skips
+	 * desugaring, while the emitted dex format still loads on the API 28+ devices Quick Build
+	 * supports. See QuickBuildPlugin.MIN_PAYLOAD_API.
+	 */
 	@get:Input
 	abstract val minApiLevel: Property<Int>
 
@@ -643,8 +656,8 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 				.get()
 				.load(apkDirectory.get())
 				?.elements
-				?.firstOrNull()
-				?.outputFile
+				?.takeIf { it.isNotEmpty() }
+				?.let { selectUniversalApk(it, apkDirectory.get().asFile) }
 				?: apkDirectory
 					.get()
 					.asFile
@@ -734,6 +747,39 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	 * @return absolute paths of every `.flat` unit found, sorted; empty when neither source
 	 *   exists, which the caller logs rather than treating as an error.
 	 */
+	companion object {
+		/**
+		 * Picks the one APK every device can install out of AGP's built-artifact metadata.
+		 *
+		 * With APK splits enabled the metadata lists each split beside the universal APK in no
+		 * contractual order, so "the first element" is an arbitrary split that installs - or
+		 * fails to - depending on the device it meets. Only the unfiltered (universal) element
+		 * is safe to hand to CoGo.
+		 *
+		 * @param elements the loaded metadata's artifacts; must be non-empty.
+		 * @param apkDirectory the APK output directory, for the error message only.
+		 * @return the universal APK's path, as recorded in the metadata.
+		 * @throws GradleException when every element is a split: Quick Build does not support
+		 *   splits, and picking one here would only fail later, on the device.
+		 */
+		internal fun selectUniversalApk(
+			elements: Collection<BuiltArtifact>,
+			apkDirectory: File,
+		): String =
+			elements.firstOrNull { it.filters.isEmpty() }?.outputFile
+				?: throw GradleException(
+					"Quick Build: every APK under '$apkDirectory' is a split (" +
+						elements
+							.flatMap { it.filters }
+							.map { "${it.filterType}=${it.identifier}" }
+							.distinct()
+							.sorted()
+							.joinToString(", ") +
+						"); Quick Build does not support APK splits yet - disable splits for " +
+						"this variant or use a Standard Run",
+				)
+	}
+
 	private fun collectLibraryResourcePaths(): List<String> {
 		val mergedRes =
 			mergedResSearchDir.orNull
