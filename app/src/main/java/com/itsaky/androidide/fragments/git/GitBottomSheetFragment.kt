@@ -30,6 +30,7 @@ import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.git.core.models.GitStatus
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.idetooltips.attachTooltip
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.utils.flashSuccess
@@ -376,21 +377,20 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 		binding.btnAbortMerge.apply {
 			setOnClickListener {
-				val dialog =
-					MaterialAlertDialogBuilder(requireContext())
-						.setTitle(R.string.abort_merge)
-						.setMessage(R.string.confirm_abort_merge)
-						.setPositiveButton(R.string.abort_merge) { _, _ ->
-							viewModel.abortMerge {
-								val activity = requireActivity()
-								if (activity is EditorHandlerActivity) {
-									activity.checkForExternalFileChanges(force = true)
-								}
+				MaterialAlertDialogBuilder(requireContext())
+					.setTitle(R.string.abort_merge)
+					.setMessage(R.string.confirm_abort_merge)
+					.setPositiveButton(R.string.abort_merge) { _, _ ->
+						viewModel.abortMerge {
+							val activity = requireActivity()
+							if (activity is EditorHandlerActivity) {
+								activity.checkForExternalFileChanges(force = true)
 							}
-						}.setNegativeButton(android.R.string.cancel, null)
-						.create()
-				dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_ABORT_MERGE)
-				dialog.show()
+						}
+					}.setNegativeButton(android.R.string.cancel, null)
+					.create()
+					.attachTooltip(TooltipTag.GIT_DIALOG_ABORT_MERGE)
+					.show()
 			}
 			setTooltipOnView(TooltipTag.PROJECT_GIT_ABORT)
 		}
@@ -527,14 +527,13 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						binding.btnPull.isEnabled = true
 						binding.pullProgress.visibility = View.GONE
 						val message = state.message ?: getString(R.string.info_merge_conflicts)
-						val dialog =
-							MaterialAlertDialogBuilder(requireContext())
-								.setTitle(getString(R.string.merge_conflicts))
-								.setMessage(message)
-								.setPositiveButton(android.R.string.ok, null)
-								.create()
-						dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_MERGE_CONFLICTS)
-						dialog.show()
+						MaterialAlertDialogBuilder(requireContext())
+							.setTitle(getString(R.string.merge_conflicts))
+							.setMessage(message)
+							.setPositiveButton(android.R.string.ok, null)
+							.create()
+							.attachTooltip(TooltipTag.GIT_DIALOG_MERGE_CONFLICTS)
+							.show()
 						viewModel.resetPullState()
 						refreshEditorContent()
 					}
@@ -553,14 +552,13 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 									getString(resId)
 								}
 							}
-						val dialog =
-							MaterialAlertDialogBuilder(requireContext())
-								.setTitle(R.string.pull_failed)
-								.setMessage(message)
-								.setPositiveButton(android.R.string.ok, null)
-								.create()
-						dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_PULL_FAIL)
-						dialog.show()
+						MaterialAlertDialogBuilder(requireContext())
+							.setTitle(R.string.pull_failed)
+							.setMessage(message)
+							.setPositiveButton(android.R.string.ok, null)
+							.create()
+							.attachTooltip(TooltipTag.GIT_DIALOG_PULL_FAIL)
+							.show()
 					}
 				}
 			}
@@ -675,18 +673,17 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	private fun checkUnsavedChangesAndProceed(action: () -> Unit) {
 		val handler = requireActivity() as? IEditorHandler
 		if (handler?.areFilesModified() == true) {
-			val dialog =
-				MaterialAlertDialogBuilder(requireContext())
-					.setTitle(R.string.title_files_unsaved)
-					.setMessage(R.string.msg_save_before_git_action)
-					.setPositiveButton(R.string.save_before_git_action) { _, _ ->
-						handler.saveAllAsync { action() }
-					}.setNegativeButton(R.string.no_save_before_git_action) { _, _ ->
-						action()
-					}.setNeutralButton(android.R.string.cancel, null)
-					.create()
-			dialog.setTooltipOnDialog(TooltipTag.GIT_DIALOG_SAVE)
-			dialog.show()
+			MaterialAlertDialogBuilder(requireContext())
+				.setTitle(R.string.title_files_unsaved)
+				.setMessage(R.string.msg_save_before_git_action)
+				.setPositiveButton(R.string.save_before_git_action) { _, _ ->
+					handler.saveAllAsync { action() }
+				}.setNegativeButton(R.string.no_save_before_git_action) { _, _ ->
+					action()
+				}.setNeutralButton(android.R.string.cancel, null)
+				.create()
+				.attachTooltip(TooltipTag.GIT_DIALOG_SAVE)
+				.show()
 		} else {
 			action()
 		}
@@ -696,17 +693,6 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		branchPopupWindow.dismiss()
 		super.onDestroyView()
 		_binding = null
-	}
-
-	private fun AlertDialog.setTooltipOnDialog(tag: String) {
-		onLongPress { view ->
-			TooltipManager.showIdeCategoryTooltip(
-				context = view.context,
-				anchorView = view,
-				tag = tag,
-			)
-			true
-		}
 	}
 
 	private fun View.setTooltipOnView(tag: String) {

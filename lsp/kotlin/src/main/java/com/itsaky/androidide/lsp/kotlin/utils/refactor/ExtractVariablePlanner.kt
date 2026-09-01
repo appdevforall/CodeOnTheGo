@@ -3,8 +3,6 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.renderName
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
@@ -24,9 +22,6 @@ private val logger = LoggerFactory.getLogger("ExtractVariablePlanner")
 /**
  * Computes the whole [ExtractionPlan] in one background analysis pass.
  *
- * The current [KtFile] is fetched *before* entering [read] -- blocking on
- * `getCurrentKtFile(...).get()` inside `project.read` deadlocks.
- *
  * Returns an empty plan both when there is genuinely nothing to extract and whenever anything in
  * this pipeline throws: the action framework only catches [IllegalArgumentException] and this runs on
  * a scope with no exception handler, so an uncaught throw would crash the app. Degrading to an empty
@@ -41,22 +36,34 @@ internal fun buildExtractionPlan(
 	cancelChecker: ScheduledCancelChecker,
 ): ExtractionPlan =
 	runCatching {
-		val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return ExtractionPlan.empty()
-		env.project.read {
-			val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
-			if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
-
-			/* PsiFileImpl.getText() allocates a fresh String each call, so the plan pass reads it once and
-			 * threads it down to every candidate and rung. */
-			val fileText = ktFile.text
-			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
-				ExtractionPlan(
-					fileText = fileText,
-					documentVersion = documentVersion,
-					candidates = syntax.expressions.mapNotNull { candidateFor(it, fileText) },
-				)
+		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+			if (live.isStale) {
+				/*
+				 * Joining another feature's scope hands over its text, which can be older than the buffer.
+				 * The caller stamps `documentVersion` from the live buffer, so the apply-time version guard
+				 * would compare an honest stamp against text one edit behind and pass - and offsets computed
+				 * here would replace the wrong span. Refusing is the only safe answer.
+				 */
+				logger.debug("refusing extract-variable plan for {}: pinned text is behind the buffer", nioPath)
+				return@withLiveKtFile ExtractionPlan.empty()
 			}
-		}
+
+			live.read { ktFile ->
+				val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
+				if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
+
+				/* PsiFileImpl.getText() allocates a fresh String each call, so the plan pass reads it once and
+				 * threads it down to every candidate and rung. */
+				val fileText = ktFile.text
+				live.analyzing(AnalysisPriority.INTERACTIVE, cancelChecker) {
+					ExtractionPlan(
+						fileText = fileText,
+						documentVersion = documentVersion,
+						candidates = syntax.expressions.mapNotNull { candidateFor(it, fileText) },
+					)
+				}
+			}
+		} ?: ExtractionPlan.empty()
 	}.getOrElse { error ->
 		logger.warn("Failed to build extract-variable plan for {}", nioPath, error)
 		ExtractionPlan.empty()
@@ -146,7 +153,7 @@ private fun KaSession.scopeOptionFor(
  *
  * A block body with no declared type returns `Unit`, so a `return` that needs a type neither declared
  * nor renderable would emit a body that does not compile. Declining is always safe -- the
- * decline-rather-than-rewrite principle that ADR 0013 records, landing alongside extract method
+ * decline-rather-than-rewrite principle that ADR 0014 records, landing alongside extract method
  * (ADFA-5080).
  */
 private fun KaSession.convertExpressionBodyForm(

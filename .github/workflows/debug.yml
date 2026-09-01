@@ -197,12 +197,29 @@ jobs:
         run: |
           flox activate -d flox/base -- ./gradlew :plugin-api:apiCheck --no-daemon
 
-      - name: Run spotlessCheck
+      # testDebugUnitTest, not testV8DebugUnitTest: :plugin-api declares no product flavors, so the
+      # v8 task every other module has does not exist here. Named as its own step rather than left
+      # to jacocoAggregateReport, which is not on the PR path at all.
+      - name: Run plugin-api unit tests
         run: |
-          flox activate -d flox/base -- ./gradlew spotlessCheck --no-daemon || {
-            echo "::error::Spotless found formatting violations in this branch. Run './gradlew spotlessApply' locally, then commit and push the formatted files."
-            exit 1
-          }
+          flox activate -d flox/base -- ./gradlew :plugin-api:testDebugUnitTest --no-daemon
+
+      # Combined with a compile task on purpose: spotlessCheck alone never pulls a
+      # source-tree-writing task into the graph, so the implicit-dependency failure ADFA-5244 fixed
+      # cannot reproduce in a standalone run. Without this step a regression of that exclude is
+      # invisible to CI and shows up only on a developer's machine at push time.
+      - name: Run spotlessCheck alongside a compile task
+        run: |
+          # Two tasks, so two possible causes: the message must not name one of them. Blaming
+          # Spotless for a compile error is the exact misdiagnosis this step exists to catch.
+          set +e
+          flox activate -d flox/base -- ./gradlew :common:compileV8DebugKotlin spotlessCheck --no-daemon
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Gradle failed on ':common:compileV8DebugKotlin spotlessCheck'. If the output above shows formatting violations, run './gradlew spotlessApply' locally and commit the result; if it shows a compile error, spotlessApply will not help. The Gradle output says which."
+            exit "$status"
+          fi
 
       - name: Install advancecomp (advzip, used by recompressApk)
         run: |
