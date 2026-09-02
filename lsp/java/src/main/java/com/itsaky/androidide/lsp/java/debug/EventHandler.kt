@@ -37,278 +37,278 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 internal class EventHandler(
-    private val vm: VirtualMachine,
-    private val threadState: ThreadState,
-    private val stopOnVmStart: Boolean,
-    private val consumer: EventConsumer
+	private val vm: VirtualMachine,
+	private val threadState: ThreadState,
+	private val stopOnVmStart: Boolean,
+	private val consumer: EventConsumer,
 ) : AutoCloseable {
+	internal val eventRequestSpecList = EventRequestSpecList(vm)
 
-    internal val eventRequestSpecList = EventRequestSpecList(vm)
+	@Volatile
+	private var connected = true
+	private var vmDied = false
+	private var completed = false
 
-    @Volatile
-    private var connected = true
-    private var vmDied = false
-    private var completed = false
+	@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
+	private val adapterContext = newSingleThreadContext("JDWPEventHandler")
+	private val adapterScope = CoroutineScope(adapterContext)
+	private var eventsJob: Job? = null
 
-    @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
-    private val adapterContext = newSingleThreadContext("JDWPEventHandler")
-    private val adapterScope = CoroutineScope(adapterContext)
-    private var eventsJob: Job? = null
+	companion object {
+		private val logger = LoggerFactory.getLogger(EventHandler::class.java)
+	}
 
-    companion object {
-        private val logger = LoggerFactory.getLogger(EventHandler::class.java)
-    }
+	/**
+	 * Run the event handler.
+	 */
+	fun startListening() {
+		eventsJob =
+			adapterScope.launch {
+				val job = coroutineContext.job
+				val queue = vm.eventQueue()
+				while (connected && job.isActive && !job.isCancelled) {
+					try {
+						val events = queue.remove()
+						var resumeVm = false
+						for (event in events.eventIterator()) {
+							logger.info("startListening: received event: {}", event)
+							val stopForEvent = handleEvent(event)
+							logger.info(
+								"startListening: handled event: {}, resumeVm={}, stopForEvent={}",
+								event,
+								resumeVm,
+								stopForEvent,
+							)
 
-    /**
-     * Run the event handler.
-     */
-    fun startListening() {
-        eventsJob = adapterScope.launch {
-            val job = coroutineContext.job
-            val queue = vm.eventQueue()
-            while (connected && job.isActive && !job.isCancelled) {
-                try {
-                    val events = queue.remove()
-                    var resumeVm = false
-                    for (event in events.eventIterator()) {
-                        logger.info("startListening: received event: {}", event)
-                        val stopForEvent = handleEvent(event)
-                        logger.info(
-                            "startListening: handled event: {}, resumeVm={}, stopForEvent={}",
-                            event,
-                            resumeVm,
-                            stopForEvent
-                        )
+							resumeVm = resumeVm || !stopForEvent
+						}
 
-                        resumeVm = resumeVm || !stopForEvent
-                    }
+						if (resumeVm) {
+							logger.debug("resuming VM")
+							events.resume()
+						} else if (events.suspendPolicy() == EventRequest.SUSPEND_ALL) {
+							// notify consumer that the VM has interrupted
+							logger.info("startListening: VM interrupted")
+							setCurrentThread(events)
+							consumer.vmInterrupted()
+						}
+					} catch (interrupt: InterruptedException) {
+						logger.debug("event handler interrupted")
+						// Ignore, changes will be seen at top of the loop
+					} catch (err: VMDisconnectedException) {
+						handleDisconnectedException()
+					}
+				}
 
-                    if (resumeVm) {
-                        logger.debug("resuming VM")
-                        events.resume()
-                    } else if (events.suspendPolicy() == EventRequest.SUSPEND_ALL) {
-                        // notify consumer that the VM has interrupted
-                        logger.info("startListening: VM interrupted")
-                        setCurrentThread(events)
-                        consumer.vmInterrupted()
-                    }
-                } catch (interrupt: InterruptedException) {
-                    logger.debug("event handler interrupted")
-                    // Ignore, changes will be seen at top of the loop
-                } catch (err: VMDisconnectedException) {
-                    handleDisconnectedException()
-                }
-            }
+				completed = true
+				eventsJob = null
+				logger.info("EventHandler completed")
+			}
+	}
 
-            completed = true
-            eventsJob = null
-            logger.info("EventHandler completed")
-        }
-    }
+	private fun setCurrentThread(set: EventSet) {
+		val thread: ThreadReference?
+		if (set.size > 0) {
+			/*
+			 * If any event in the set has a thread associated with it,
+			 * they all will, so just grab the first one.
+			 */
+			val event = set.iterator().next() // Is there a better way?
+			thread = eventThread(event)
+		} else {
+			thread = null
+		}
+		setCurrentThread(thread)
+	}
 
-    private fun setCurrentThread(set: EventSet) {
-        val thread: ThreadReference?
-        if (set.size > 0) {
-            /*
-             * If any event in the set has a thread associated with it,
-             * they all will, so just grab the first one.
-             */
-            val event = set.iterator().next() // Is there a better way?
-            thread = eventThread(event)
-        } else {
-            thread = null
-        }
-        setCurrentThread(thread)
-    }
+	private fun setCurrentThread(thread: ThreadReference?) {
+		threadState.invalidateAll()
+		threadState.setCurrentThread(thread)
+	}
 
-    private fun setCurrentThread(thread: ThreadReference?) {
-        threadState.invalidateAll()
-        threadState.setCurrentThread(thread)
-    }
+	/**
+	 * Handle the event.
+	 *
+	 * @param event The event to handle.
+	 * @return `true` if the VM should be stopped, false otherwise.
+	 */
+	private fun handleEvent(event: Event): Boolean {
+		consumer.receivedEvent(event)
 
-    /**
-     * Handle the event.
-     *
-     * @param event The event to handle.
-     * @return `true` if the VM should be stopped, false otherwise.
-     */
-    private fun handleEvent(event: Event): Boolean {
-        consumer.receivedEvent(event)
+		return when (event) {
+			is ExceptionEvent -> exceptionEvent(event)
+			is BreakpointEvent -> breakpointEvent(event)
+			is WatchpointEvent -> fieldWatchEvent(event)
+			is StepEvent -> stepEvent(event)
+			is MethodEntryEvent -> methodEntryEvent(event)
+			is MethodExitEvent -> methodExitEvent(event)
+			is ClassPrepareEvent -> classPrepareEvent(event)
+			is ClassUnloadEvent -> classUnloadEvent(event)
+			is ThreadStartEvent -> threadStartEvent(event)
+			is ThreadDeathEvent -> threadDeathEvent(event)
+			is VMStartEvent -> vmStartEvent(event)
+			else -> handleExitEvent(event)
+		}
+	}
 
-        return when (event) {
-            is ExceptionEvent -> exceptionEvent(event)
-            is BreakpointEvent -> breakpointEvent(event)
-            is WatchpointEvent -> fieldWatchEvent(event)
-            is StepEvent -> stepEvent(event)
-            is MethodEntryEvent -> methodEntryEvent(event)
-            is MethodExitEvent -> methodExitEvent(event)
-            is ClassPrepareEvent -> classPrepareEvent(event)
-            is ClassUnloadEvent -> classUnloadEvent(event)
-            is ThreadStartEvent -> threadStartEvent(event)
-            is ThreadDeathEvent -> threadDeathEvent(event)
-            is VMStartEvent -> vmStartEvent(event)
-            else -> handleExitEvent(event)
-        }
-    }
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun vmStartEvent(event: VMStartEvent): Boolean {
+		consumer.vmStartEvent(event)
+		return stopOnVmStart
+	}
 
-    /**
-     * @see [handleEvent]
-     */
-    private fun vmStartEvent(event: VMStartEvent): Boolean {
-        consumer.vmStartEvent(event)
-        return stopOnVmStart
-    }
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun breakpointEvent(event: BreakpointEvent): Boolean {
+		consumer.breakpointEvent(event)
+		return true
+	}
 
-    /**
-     * @see [handleEvent]
-     */
-    private fun breakpointEvent(event: BreakpointEvent): Boolean {
-        consumer.breakpointEvent(event)
-        return true
-    }
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun methodEntryEvent(event: MethodEntryEvent): Boolean {
+		consumer.methodEntryEvent(event)
+		return true
+	}
 
-    /**
-     * @see [handleEvent]
-     */
-    private fun methodEntryEvent(event: MethodEntryEvent): Boolean {
-        consumer.methodEntryEvent(event)
-        return true
-    }
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun methodExitEvent(event: MethodExitEvent): Boolean = consumer.methodExitEvent(event)
 
-    /**
-     * @see [handleEvent]
-     */
-    private fun methodExitEvent(event: MethodExitEvent): Boolean {
-        return consumer.methodExitEvent(event)
-    }
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun fieldWatchEvent(event: WatchpointEvent): Boolean {
+		consumer.fieldWatchEvent(event)
+		return true
+	}
 
-    /**
-     * @see [handleEvent]
-     */
-    private fun fieldWatchEvent(event: WatchpointEvent): Boolean {
-        consumer.fieldWatchEvent(event)
-        return true
-    }
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun stepEvent(event: StepEvent): Boolean {
+		consumer.stepEvent(event)
+		return true
+	}
 
-    /**
-     * @see [handleEvent]
-     */
-    private fun stepEvent(event: StepEvent): Boolean {
-        consumer.stepEvent(event)
-        return true
-    }
-
-    /**
-     * @see [handleEvent]
-     */
-    private fun classPrepareEvent(event: ClassPrepareEvent): Boolean {
-        consumer.classPrepareEvent(event)
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun classPrepareEvent(event: ClassPrepareEvent): Boolean {
+		consumer.classPrepareEvent(event)
 
 		val success = eventRequestSpecList.resolve(event)
 		if (!success) {
 			logger.error("Error resolving event request for event: $event")
 		}
 		return false
-    }
+	}
 
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun classUnloadEvent(event: ClassUnloadEvent): Boolean {
+		consumer.classUnloadEvent(event)
+		return false
+	}
 
-    /**
-     * @see [handleEvent]
-     */
-    private fun classUnloadEvent(event: ClassUnloadEvent): Boolean {
-        consumer.classUnloadEvent(event)
-        return false
-    }
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun exceptionEvent(event: ExceptionEvent): Boolean {
+		consumer.exceptionEvent(event)
+		return true
+	}
 
-    /**
-     * @see [handleEvent]
-     */
-    private fun exceptionEvent(event: ExceptionEvent): Boolean {
-        consumer.exceptionEvent(event)
-        return true
-    }
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun threadStartEvent(event: ThreadStartEvent): Boolean {
+		threadState.addThread(event.thread())
+		consumer.threadStartEvent(event)
+		return false
+	}
 
-    /**
-     * @see [handleEvent]
-     */
-    private fun threadStartEvent(event: ThreadStartEvent): Boolean {
-        threadState.addThread(event.thread())
-        consumer.threadStartEvent(event)
-        return false
-    }
+	/**
+	 * @see [handleEvent]
+	 */
+	private fun threadDeathEvent(event: ThreadDeathEvent): Boolean {
+		threadState.addThread(event.thread())
+		consumer.threadDeathEvent(event)
+		return false
+	}
 
-    /**
-     * @see [handleEvent]
-     */
-    private fun threadDeathEvent(event: ThreadDeathEvent): Boolean {
-        threadState.addThread(event.thread())
-        consumer.threadDeathEvent(event)
-        return false
-    }
+	private fun eventThread(event: Event) =
+		when (event) {
+			is ClassPrepareEvent -> event.thread()
+			is LocatableEvent -> event.thread()
+			is ThreadStartEvent -> event.thread()
+			is ThreadDeathEvent -> event.thread()
+			is VMStartEvent -> event.thread()
+			else -> null
+		}
 
-    private fun eventThread(event: Event) = when (event) {
-        is ClassPrepareEvent -> event.thread()
-        is LocatableEvent -> event.thread()
-        is ThreadStartEvent -> event.thread()
-        is ThreadDeathEvent -> event.thread()
-        is VMStartEvent -> event.thread()
-        else -> null
-    }
+	@Synchronized
+	private fun handleDisconnectedException() {
+		// Flush the event queue. Dealing only with vm death or disconnection to ensure
+		// proper termination of this handler
 
-    @Synchronized
-    private fun handleDisconnectedException() {
-        // Flush the event queue. Dealing only with vm death or disconnection to ensure
-        // proper termination of this handler
+		val queue = vm.eventQueue()
+		while (connected) {
+			try {
+				val eventSet = queue.remove()
+				val iter = eventSet.eventIterator()
+				while (iter.hasNext()) {
+					handleExitEvent(iter.next())
+				}
+			} catch (exc: InterruptedException) {
+				// ignore
+			} catch (exc: InternalError) {
+				// ignore
+			}
+		}
+	}
 
-        val queue = vm.eventQueue()
-        while (connected) {
-            try {
-                val eventSet = queue.remove()
-                val iter = eventSet.eventIterator()
-                while (iter.hasNext()) {
-                    handleExitEvent(iter.next())
-                }
-            } catch (exc: InterruptedException) {
-                // ignore
-            } catch (exc: InternalError) {
-                // ignore
-            }
-        }
-    }
+	private fun handleExitEvent(event: Event): Boolean {
+		when (event) {
+			is VMDeathEvent -> {
+				vmDied = true
+				return vmDeathEvent(event)
+			}
 
-    private fun handleExitEvent(event: Event): Boolean {
-        when (event) {
-            is VMDeathEvent -> {
-                vmDied = true
-                return vmDeathEvent(event)
-            }
+			is VMDisconnectEvent -> {
+				connected = false
+				if (!vmDied) {
+					vmDisconnectEvent(event)
+				}
 
-            is VMDisconnectEvent -> {
-                connected = false
-                if (!vmDied) {
-                    vmDisconnectEvent(event)
-                }
+				return false
+			}
 
-                return false
-            }
+			else -> {
+				throw IllegalArgumentException("Unknown event type: $event")
+			}
+		}
+	}
 
-            else -> throw IllegalArgumentException("Unknown event type: $event")
-        }
-    }
+	private fun vmDeathEvent(event: VMDeathEvent): Boolean {
+		consumer.vmDeathEvent(event)
+		return false
+	}
 
-    private fun vmDeathEvent(event: VMDeathEvent): Boolean {
-        consumer.vmDeathEvent(event)
-        return false
-    }
+	private fun vmDisconnectEvent(event: VMDisconnectEvent): Boolean {
+		consumer.vmDisconnectEvent(event)
+		return false
+	}
 
-    private fun vmDisconnectEvent(event: VMDisconnectEvent): Boolean {
-        consumer.vmDisconnectEvent(event)
-        return false
-    }
-
-    override fun close() {
-        connected = false
-        eventsJob?.cancel(CancellationException("EventHandler closed"))
-        eventsJob = null
-    }
+	override fun close() {
+		connected = false
+		eventsJob?.cancel(CancellationException("EventHandler closed"))
+		eventsJob = null
+	}
 }
