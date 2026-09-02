@@ -191,6 +191,7 @@ class WADBConnectionViewModel : ViewModel() {
 			AdbPairingService.ACTION_PAIR_STARTED -> {
 				_status.update { ConnectionStatus.Pairing }
 			}
+
 			AdbPairingService.ACTION_PAIR_SUCCEEDED -> {
 				_status.update { ConnectionStatus.Paired }
 
