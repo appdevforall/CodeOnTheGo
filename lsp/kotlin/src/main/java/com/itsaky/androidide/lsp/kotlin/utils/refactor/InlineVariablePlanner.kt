@@ -3,8 +3,6 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaCallableMemberCall
 import org.jetbrains.kotlin.analysis.api.resolution.KaImplicitReceiverValue
@@ -56,9 +54,6 @@ private val logger = LoggerFactory.getLogger("InlineVariablePlanner")
 /**
  * Computes the whole [InlineVariablePlan] in one background analysis pass.
  *
- * The current [KtFile] is fetched *before* entering [read] -- blocking on `getCurrentKtFile(...).get()`
- * inside `project.read` deadlocks.
- *
  * Anything thrown in this pipeline degrades to [InlineRefusal.CouldNotAnalyse] plus a log line: the
  * action framework catches only `IllegalArgumentException` and this runs on a scope with no exception
  * handler, so an uncaught throw would crash the app. Cancellation is the exception -- it is re-thrown,
@@ -72,16 +67,14 @@ internal fun buildInlineVariablePlan(
 	cancelChecker: ScheduledCancelChecker,
 ): InlineVariablePlan =
 	runCatching {
-		val ktFile =
-			env.ktSymbolIndex.getCurrentKtFile(nioPath).get()
-				?: return InlineVariablePlan.refused(InlineRefusal.CouldNotAnalyse)
-
-		env.project.read {
-			val fileText = ktFile.text
-			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
-				planFor(ktFile, fileText, offset, documentVersion)
+		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+			live.read { ktFile ->
+				val fileText = ktFile.text
+				live.analyzing(AnalysisPriority.INTERACTIVE, cancelChecker) {
+					planFor(ktFile, fileText, offset, documentVersion)
+				}
 			}
-		}
+		} ?: InlineVariablePlan.refused(InlineRefusal.CouldNotAnalyse)
 	}.getOrElse { error ->
 		if (error is CancellationException) throw error
 		logger.warn("Failed to build inline-variable plan for {}", nioPath, error)
