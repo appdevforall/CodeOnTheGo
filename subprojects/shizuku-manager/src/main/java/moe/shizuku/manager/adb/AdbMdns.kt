@@ -19,18 +19,21 @@ class AdbMdns(
 	private val observer: Consumer<Int>,
 ) {
 	/**
-	 * Pass a [context] that outlives this object - an Application or a Service, never an Activity.
-	 * getSystemService caches NsdManager per Context, and the manager holds that Context for its
-	 * own lifetime, which the framework keeps alive; stopServiceDiscovery() does not release it.
-	 * An Activity passed here is therefore retained for the life of the process, so a caller
-	 * holding only an Activity should pass its applicationContext.
+	 * Takes an NsdManager that neither retains [context] nor is shared with another [AdbMdns].
 	 *
-	 * The application context is deliberately not forced here: each Context gets its own
-	 * NsdManager, and the pairing and connect discoveries want to stay separate clients.
+	 * getSystemService caches NsdManager per Context, and the manager holds that Context for its
+	 * own lifetime while the framework keeps the manager alive, so one taken from an Activity or a
+	 * Service retains it for the whole process; stopServiceDiscovery() does not release it. A
+	 * fresh attribution context off the application context avoids that, and since the cache is
+	 * per-ContextImpl it also keeps each instance a separate NsdService client - which matters
+	 * below Android 13, where a second concurrent resolveService fails with FAILURE_ALREADY_ACTIVE.
 	 */
 	constructor(context: Context, serviceType: String, observer: Consumer<Int>) :
 		this(
-			nsdManager = context.getSystemService(NsdManager::class.java),
+			nsdManager =
+				context.applicationContext
+					.createAttributionContext(null)
+					.getSystemService(NsdManager::class.java),
 			serviceType = serviceType,
 			observer = observer,
 		)
@@ -151,8 +154,12 @@ class AdbMdns(
 	) : NsdManager.ResolveListener {
 		override fun onResolveFailed(
 			nsdServiceInfo: NsdServiceInfo,
-			i: Int,
-		) {}
+			errorCode: Int,
+		) {
+			// An empty body here hid every resolve failure: no port is delivered and the caller
+			// just times out. FAILURE_ALREADY_ACTIVE (3) means two resolves raced on one manager.
+			Log.w(TAG, "onResolveFailed: ${nsdServiceInfo.serviceName}, $errorCode")
+		}
 
 		override fun onServiceResolved(nsdServiceInfo: NsdServiceInfo) {
 			adbMdns.onServiceResolved(nsdServiceInfo)
