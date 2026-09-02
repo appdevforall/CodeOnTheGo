@@ -69,6 +69,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.floating.model.DockingManager
 import com.itsaky.androidide.floating.window.OverlayDialogs
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -236,6 +237,14 @@ open class EditorHandlerActivity :
 
 		supportFragmentManager.registerFragmentLifecycleCallbacks(pluginFontScalingListener, true)
 		floatingTabController.start()
+
+		lifecycleScope.launch {
+			DockingManager.windows.collect { windows ->
+				if (windows.isEmpty()) {
+					dismissCrashDialogsAboveFloatingWindows()
+				}
+			}
+		}
 
 		editorViewModel._displayedFile.observe(
 			this,
@@ -1498,14 +1507,29 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	/**
+	 * Shows [dialog] above any floating windows, tracking it when it was actually raised.
+	 *
+	 * Only a raised dialog is tracked: it carries no app token, so nothing else will dismiss it.
+	 * An untouched one is an ordinary activity dialog the platform tears down. Dismissed entries
+	 * are pruned here rather than through [Dialog.setOnDismissListener], which has no additive form
+	 * and would silently drop a listener the caller had set.
+	 */
 	private fun showAboveFloatingWindows(dialog: Dialog) {
-		crashDialogsAboveFloatingWindows.add(dialog)
-		dialog.setOnDismissListener { crashDialogsAboveFloatingWindows.remove(dialog) }
-		OverlayDialogs.show(dialog)
+		crashDialogsAboveFloatingWindows.removeAll { !it.isShowing }
+		if (OverlayDialogs.show(dialog)) {
+			crashDialogsAboveFloatingWindows.add(dialog)
+		}
 	}
 
 	private fun dismissCrashDialogsAboveFloatingWindows() {
-		crashDialogsAboveFloatingWindows.toList().forEach { it.dismiss() }
+		crashDialogsAboveFloatingWindows
+			.toList()
+			.forEach { dialog ->
+				if (dialog.isShowing) {
+					dialog.dismiss()
+				}
+			}
 		crashDialogsAboveFloatingWindows.clear()
 	}
 
