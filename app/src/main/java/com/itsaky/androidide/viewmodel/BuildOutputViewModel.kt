@@ -47,6 +47,16 @@ class BuildOutputViewModel(
 ) : AndroidViewModel(application) {
 	private val lock = ReentrantLock()
 
+	@Volatile
+	private var sessionGeneration = 0
+
+	/** Token for output produced by the current build session. */
+	val currentSessionToken: Int
+		get() = sessionGeneration
+
+	/** Returns whether [token] still belongs to the current build session. */
+	fun isCurrentSession(token: Int): Boolean = token == sessionGeneration
+
 	/**
 	 * Case-insensitive line filter applied to the *editor view* of the build output.
 	 * The session file always receives the unfiltered text.
@@ -88,32 +98,38 @@ class BuildOutputViewModel(
 
 	/**
 	 * Appends text to the session file. File I/O is performed on a background dispatcher; call from
-	 * any thread. Prefer calling before switching to Main so disk write does not block the UI.
+	 * any thread. [sessionToken] values invalidated by [clear] are rejected inside the file lock.
 	 */
-	suspend fun append(text: String) {
-		if (text.isEmpty()) return
-		withContext(Dispatchers.IO) {
+	suspend fun append(
+		text: String,
+		sessionToken: Int,
+	): Boolean {
+		if (text.isEmpty()) return false
+		return withContext(Dispatchers.IO) {
 			lock.withLock {
+				if (!isCurrentSession(sessionToken)) return@withLock false
 				try {
 					FileOutputStream(sessionFile, true).use {
 						it.write(text.toByteArray(StandardCharsets.UTF_8))
 					}
 					cachedContentSnapshot =
 						(cachedContentSnapshot + text).takeLast(CACHE_SNAPSHOT_MAX_CHARS)
+					true
 				} catch (e: Exception) {
 					log.error("Failed to append build output to session file", e)
+					false
 				}
 			}
 		}
 	}
 
 	/**
-	 * Returns the last [WINDOW_SIZE_CHARS] characters from the session file for the editor to
+	 * Returns the last [EDITOR_WINDOW_MAX_CHARS] characters from the session file for the editor to
 	 * display (e.g. initial view or after rotation). Returns empty string if no content.
 	 */
 	fun getWindowForEditor(): String =
 		lock.withLock {
-			readTailFromFile(sessionFile, WINDOW_SIZE_CHARS)
+			readTailFromFile(sessionFile, EDITOR_WINDOW_MAX_CHARS)
 		}
 
 	/**
@@ -159,6 +175,7 @@ class BuildOutputViewModel(
 	 */
 	fun clear() {
 		lock.withLock {
+			sessionGeneration++
 			cachedContentSnapshot = ""
 			try {
 				if (sessionFile.exists()) {
@@ -194,6 +211,19 @@ class BuildOutputViewModel(
 	}
 
 	companion object {
+		internal const val EDITOR_WINDOW_MAX_CHARS = 512 * 1024
+		private const val EDITOR_WINDOW_REFRESH_CHARS = 128 * 1024
+		private const val EDITOR_WINDOW_REFRESH_BASE_CHARS =
+			EDITOR_WINDOW_MAX_CHARS - EDITOR_WINDOW_REFRESH_CHARS
+
+		internal fun wouldExceedEditorWindow(
+			currentChars: Int,
+			incomingChars: Int,
+		): Boolean = currentChars > EDITOR_WINDOW_MAX_CHARS - incomingChars
+
+		internal fun editorSourceCharsAfterRefresh(windowChars: Int): Int =
+			windowChars.coerceAtMost(EDITOR_WINDOW_REFRESH_BASE_CHARS)
+
 		// Must mirror formatLinePrefix exactly; the round-trip is covered by BuildOutputFilterTest.
 		// Anchored to line start so timestamp-shaped text inside a message is never stripped.
 		private val PREFIX_REGEX =
@@ -261,10 +291,8 @@ class BuildOutputViewModel(
 		}
 
 		private const val SESSION_FILE_NAME = "build_output_session.txt"
-		private const val WINDOW_SIZE_CHARS = 512 * 1024
-
 		/** Max length of [cachedContentSnapshot] to bound memory. */
-		private const val CACHE_SNAPSHOT_MAX_CHARS = WINDOW_SIZE_CHARS
+		private const val CACHE_SNAPSHOT_MAX_CHARS = EDITOR_WINDOW_MAX_CHARS
 		private val log = org.slf4j.LoggerFactory.getLogger(BuildOutputViewModel::class.java)
 	}
 }
