@@ -157,6 +157,11 @@ class IDEApplication :
 		val cachedFilesDir: File by lazy { instance.filesDir }
 	}
 
+	/**
+	 * Only a *finishing* activity releases the reference here. A plain pause leaves the activity
+	 * alive - backgrounded, or something drawn on top of it - and callers like FlashbarUtils'
+	 * `withActivity` still need it; [onActivityDestroyed] covers the rest.
+	 */
 	override fun onActivityPostPaused(activity: Activity) {
 		super.onActivityPostPaused(activity)
 		if (foregroundActivity == activity && activity.isFinishing) {
