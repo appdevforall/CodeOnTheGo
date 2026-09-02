@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.activities.editor
 
+import android.app.Dialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -68,6 +69,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.floating.window.OverlayDialogs
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -220,6 +222,8 @@ open class EditorHandlerActivity :
 		pluginEditorProvider = null
 	}
 
+	private val crashDialogsAboveFloatingWindows = mutableListOf<Dialog>()
+
 	private val floatingTabController by lazy {
 		com.itsaky.androidide.editor.floating
 			.IdeFloatingTabController(this)
@@ -329,6 +333,7 @@ open class EditorHandlerActivity :
 
 	override fun onDestroy() {
 		super.onDestroy()
+		dismissCrashDialogsAboveFloatingWindows()
 		ActionContextProvider.clearActivity(this)
 	}
 
@@ -1493,6 +1498,17 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	private fun showAboveFloatingWindows(dialog: Dialog) {
+		crashDialogsAboveFloatingWindows.add(dialog)
+		dialog.setOnDismissListener { crashDialogsAboveFloatingWindows.remove(dialog) }
+		OverlayDialogs.show(dialog)
+	}
+
+	private fun dismissCrashDialogsAboveFloatingWindows() {
+		crashDialogsAboveFloatingWindows.toList().forEach { it.dismiss() }
+		crashDialogsAboveFloatingWindows.clear()
+	}
+
 	private fun showPluginCrashDialog(event: PluginCrashedEvent) {
 		val dialogView = layoutInflater.inflate(R.layout.dialog_plugin_crash, null)
 		dialogView.findViewById<TextView>(R.id.plugin_crash_message).text =
@@ -1514,7 +1530,7 @@ open class EditorHandlerActivity :
 			}
 		}
 
-		builder.show()
+		showAboveFloatingWindows(builder.create())
 
 		dialogView.findViewById<View>(R.id.plugin_crash_view_logs).setOnClickListener {
 			showPluginCrashLogDialog(event)
@@ -1522,20 +1538,22 @@ open class EditorHandlerActivity :
 	}
 
 	private fun showPluginCrashLogDialog(event: PluginCrashedEvent) {
-		newMaterialDialogBuilder(this)
-			.setTitle(getString(string.title_plugin_crash_log, event.pluginName))
-			.setMessage(event.stackTrace)
-			.setPositiveButton(string.close, null)
-			.setNeutralButton(string.copy) { _, _ ->
-				val clipboard = getSystemService(ClipboardManager::class.java)
-				clipboard?.setPrimaryClip(
-					ClipData.newPlainText(
-						getString(string.title_plugin_crash_log, event.pluginName),
-						event.stackTrace,
-					),
-				)
-				flashSuccess(string.msg_crash_log_copied)
-			}.show()
+		showAboveFloatingWindows(
+			newMaterialDialogBuilder(this)
+				.setTitle(getString(string.title_plugin_crash_log, event.pluginName))
+				.setMessage(event.stackTrace)
+				.setPositiveButton(string.close, null)
+				.setNeutralButton(string.copy) { _, _ ->
+					val clipboard = getSystemService(ClipboardManager::class.java)
+					clipboard?.setPrimaryClip(
+						ClipData.newPlainText(
+							getString(string.title_plugin_crash_log, event.pluginName),
+							event.stackTrace,
+						),
+					)
+					flashSuccess(string.msg_crash_log_copied)
+				}.create(),
+		)
 	}
 
 	private fun tearDownDisabledPluginContributions(pluginId: String) {

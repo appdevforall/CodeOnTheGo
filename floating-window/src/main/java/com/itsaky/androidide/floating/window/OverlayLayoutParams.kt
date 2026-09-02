@@ -16,7 +16,7 @@ import android.view.WindowManager
  * focusable so the IME can attach.
  */
 object OverlayLayoutParams {
-	private val overlayType: Int =
+	val overlayType: Int =
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 			WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 		} else {
