@@ -1,12 +1,13 @@
 package com.itsaky.androidide.handlers
 
 import com.itsaky.androidide.lsp.java.providers.snippet.JavaSnippetScope
+import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetScope
 import com.itsaky.androidide.lsp.snippets.DefaultSnippet
 import com.itsaky.androidide.lsp.snippets.ISnippetScope
 import com.itsaky.androidide.lsp.snippets.SnippetRegistry
-import com.itsaky.androidide.plugins.extensions.SnippetContribution
 import com.itsaky.androidide.lsp.snippets.UserSnippetLoader
 import com.itsaky.androidide.lsp.xml.providers.snippet.XML_SNIPPET_SCOPES
+import com.itsaky.androidide.plugins.extensions.SnippetContribution
 import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import org.slf4j.LoggerFactory
 
@@ -16,9 +17,9 @@ object SnippetHandler {
 
 	fun loadUserSnippets() {
 		loadUserSnippetsForLanguage("java", JavaSnippetScope.entries)
+		loadUserSnippetsForLanguage("kt", KotlinSnippetScope.entries)
 		loadUserSnippetsForLanguage("xml", XML_SNIPPET_SCOPES)
 	}
-
 
 	fun loadPluginSnippets() {
 		val allSnippets = PluginSnippetManager.getInstance().getAllSnippets()
