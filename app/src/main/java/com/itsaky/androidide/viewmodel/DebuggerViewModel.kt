@@ -113,59 +113,66 @@ class DebuggerViewModel : ViewModel() {
 			_debugeePackage.update { value }
 		}
 
-	val allThreads = state.map {
-		logger.debug("Updating all threads")
-		it.threads
-	}.stateIn(
-		scope = viewModelScope,
-		started = SharingStarted.Eagerly,
-		initialValue = emptyList(),
-	)
+	val allThreads =
+		state
+			.map {
+				logger.debug("Updating all threads")
+				it.threads
+			}.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.Eagerly,
+				initialValue = emptyList(),
+			)
 
-	val selectedThread = state
-		.map { state ->
-			state.selectedThread to state.threadIndex
-		}.stateIn(
-			scope = viewModelScope,
-			started = SharingStarted.Eagerly,
-			initialValue = null to -1,
-		)
+	val selectedThread =
+		state
+			.map { state ->
+				state.selectedThread to state.threadIndex
+			}.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.Eagerly,
+				initialValue = null to -1,
+			)
 
-	val allFrames = selectedThread
-		.map { (thread, _) ->
-			thread?.getFrames() ?: emptyList()
-		}.stateIn(
-			scope = viewModelScope,
-			started = SharingStarted.Eagerly,
-			initialValue = emptyList(),
-		)
+	val allFrames =
+		selectedThread
+			.map { (thread, _) ->
+				thread?.getFrames() ?: emptyList()
+			}.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.Eagerly,
+				initialValue = emptyList(),
+			)
 
-	val selectedFrame = state
-		.map { state ->
-			state.selectedFrame() to state.frameIndex
-		}.stateIn(
-			scope = viewModelScope,
-			started = SharingStarted.Eagerly,
-			initialValue = null to -1,
-		)
+	val selectedFrame =
+		state
+			.map { state ->
+				state.selectedFrame() to state.frameIndex
+			}.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.Eagerly,
+				initialValue = null to -1,
+			)
 
-	val selectedFrameVariables = selectedFrame
-		.map { (frame, _) ->
-			frame?.getVariables() ?: emptyList()
-		}.stateIn(
-			scope = viewModelScope,
-			started = SharingStarted.Eagerly,
-			initialValue = emptyList(),
-		)
+	val selectedFrameVariables =
+		selectedFrame
+			.map { (frame, _) ->
+				frame?.getVariables() ?: emptyList()
+			}.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.Eagerly,
+				initialValue = emptyList(),
+			)
 
-	val variablesTree = state
-		.map { state ->
-			state.variablesTree
-		}.stateIn(
-			scope = viewModelScope,
-			started = SharingStarted.Eagerly,
-			initialValue = DebuggerState.DEFAULT.variablesTree,
-		)
+	val variablesTree =
+		state
+			.map { state ->
+				state.variablesTree
+			}.stateIn(
+				scope = viewModelScope,
+				started = SharingStarted.Eagerly,
+				initialValue = DebuggerState.DEFAULT.variablesTree,
+			)
 
 	override fun onCleared() {
 		super.onCleared()
@@ -176,14 +183,17 @@ class DebuggerViewModel : ViewModel() {
 		_connectionState.update { state }
 	}
 
-	private fun setDebuggerState(newState: DebuggerState, because: String) {
+	private fun setDebuggerState(
+		newState: DebuggerState,
+		because: String,
+	) {
 		logger.debug("Updating debugger state because {}: {}", because, newState)
 		state.update { newState }
 	}
 
 	private suspend inline fun setDebuggerState(
 		because: String,
-		crossinline newState: suspend (DebuggerState) -> DebuggerState
+		crossinline newState: suspend (DebuggerState) -> DebuggerState,
 	) {
 		val currentState = state.value
 		val newState = newState(currentState)
@@ -229,13 +239,13 @@ class DebuggerViewModel : ViewModel() {
 	suspend fun setThreads(
 		threads: List<ThreadInfo>,
 		selectedThreadIndex: Int = -1,
-		selectedFrameIndex: Int = -1
+		selectedFrameIndex: Int = -1,
 	) {
 		logger.debug(
 			"setThreads(selectedThreadIndex={}, selectedFrameIndex={}, threads={})",
 			selectedThreadIndex,
 			selectedFrameIndex,
-			threads
+			threads,
 		)
 
 		withContext(Dispatchers.IO) {
@@ -270,11 +280,16 @@ class DebuggerViewModel : ViewModel() {
 
 				var frameIndex = selectedFrameIndex
 				if (frameIndex < 0) {
-					frameIndex = if (resolvableThreads
-							.getOrNull(threadIndex)
-							?.getFrames()
-							?.firstOrNull() != null
-					) 0 else -1
+					frameIndex =
+						if (resolvableThreads
+								.getOrNull(threadIndex)
+								?.getFrames()
+								?.firstOrNull() != null
+						) {
+							0
+						} else {
+							-1
+						}
 				}
 
 				DebuggerState(
@@ -343,38 +358,39 @@ class DebuggerViewModel : ViewModel() {
 		}
 	}
 
-	suspend fun setSelectedThreadIndex(index: Int) = withContext(Dispatchers.IO) {
-		setDebuggerState(because = "selected thread index changed") { current ->
-			check(index in 0..<current.threads.size) {
-				"Invalid thread index: $index"
-			}
-
-			val thread = current.threads[index]
-			if (thread.resolvedOrNull?.state?.isInteractable != true) {
-				// thread is non-interactive
-				// do not change the thread index
-				logger.warn("Attempt to interact with non-interactive thread: $thread")
-				return@setDebuggerState current
-			}
-
-			val frameIndex =
-				if (current.threads
-						.getOrNull(index)
-						?.getFrames()
-						?.firstOrNull() != null
-				) {
-					0
-				} else {
-					-1
+	suspend fun setSelectedThreadIndex(index: Int) =
+		withContext(Dispatchers.IO) {
+			setDebuggerState(because = "selected thread index changed") { current ->
+				check(index in 0..<current.threads.size) {
+					"Invalid thread index: $index"
 				}
 
-			current.copy(
-				threadIndex = index,
-				frameIndex = frameIndex,
-				variablesTree = createVariablesTree(current.threads, index, frameIndex),
-			)
+				val thread = current.threads[index]
+				if (thread.resolvedOrNull?.state?.isInteractable != true) {
+					// thread is non-interactive
+					// do not change the thread index
+					logger.warn("Attempt to interact with non-interactive thread: $thread")
+					return@setDebuggerState current
+				}
+
+				val frameIndex =
+					if (current.threads
+							.getOrNull(index)
+							?.getFrames()
+							?.firstOrNull() != null
+					) {
+						0
+					} else {
+						-1
+					}
+
+				current.copy(
+					threadIndex = index,
+					frameIndex = frameIndex,
+					variablesTree = createVariablesTree(current.threads, index, frameIndex),
+				)
+			}
 		}
-	}
 
 	@OptIn(ExperimentalStdlibApi::class)
 	fun observeLatestSelectedThread(
@@ -412,23 +428,24 @@ class DebuggerViewModel : ViewModel() {
 		}
 	}
 
-	suspend fun setSelectedFrameIndex(index: Int) = withContext(Dispatchers.IO) {
-		setDebuggerState(because = "selected frame index changed") { current ->
-			check(index in 0..<(current.selectedThread?.getFrames()?.size ?: 0)) {
-				"Invalid frame index: $index"
-			}
+	suspend fun setSelectedFrameIndex(index: Int) =
+		withContext(Dispatchers.IO) {
+			setDebuggerState(because = "selected frame index changed") { current ->
+				check(index in 0..<(current.selectedThread?.getFrames()?.size ?: 0)) {
+					"Invalid frame index: $index"
+				}
 
-			current.copy(
-				frameIndex = index,
-				variablesTree =
-					createVariablesTree(
-						current.threads,
-						current.threadIndex,
-						index,
-					),
-			)
+				current.copy(
+					frameIndex = index,
+					variablesTree =
+						createVariablesTree(
+							current.threads,
+							current.threadIndex,
+							index,
+						),
+				)
+			}
 		}
-	}
 
 	@OptIn(ExperimentalStdlibApi::class)
 	fun observeLatestSelectedFrame(
