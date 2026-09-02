@@ -1135,8 +1135,21 @@ abstract class BaseEditorActivity :
 		postDestroy()
 	}
 
+	/**
+	 * The project path [onSaveInstanceState] persists, and therefore the project a recreate reopens.
+	 *
+	 * Open because the live [IProjectManager] global is not always the right answer: while a project
+	 * switch is proposed but not yet confirmed, `MainActivity.openProject`'s bookkeeping has already
+	 * moved that global to the *incoming* project, so saving it would hand the successor a project
+	 * the user has not agreed to open -- against a retained ViewModel still holding the previous
+	 * project's tabs and buffers. [EditorHandlerActivity] overrides this to name the project that is
+	 * actually staying open (ADFA-5067 review).
+	 */
+	protected open val projectPathForInstanceState: String
+		get() = IProjectManager.getInstance().projectDirPath
+
 	override fun onSaveInstanceState(outState: Bundle) {
-		outState.putString(KEY_PROJECT_PATH, IProjectManager.getInstance().projectDirPath)
+		outState.putString(KEY_PROJECT_PATH, projectPathForInstanceState)
 		// See consumedDeepLinkRequests' docs: a post-process-death recreate is handed the parceled
 		// intent with already-drained extras still on it, and these are what stop them re-firing.
 		outState.putParcelableArrayList(KEY_CONSUMED_DEEP_LINK_REQUESTS, consumedDeepLinkRequests.toSavedList())

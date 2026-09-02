@@ -33,5 +33,43 @@ import com.itsaky.androidide.models.DeepLinkOpenRequest
  */
 internal class PendingDeepLinkOpen {
 	@Volatile
-	var value: DeepLinkOpenRequest? = null
+	private var request: DeepLinkOpenRequest? = null
+
+	/**
+	 * The activity instance that armed [request], compared by identity only and never dereferenced,
+	 * so holding it here cannot keep a destroyed activity alive in any way that matters -- the
+	 * reference is dropped the moment the hand-off is drained or superseded.
+	 */
+	@Volatile
+	private var owner: Any? = null
+
+	/** Records the hand-off [owner] confirmed, replacing any earlier one. */
+	fun arm(
+		owner: Any,
+		request: DeepLinkOpenRequest,
+	) {
+		this.owner = owner
+		this.request = request
+	}
+
+	/**
+	 * Hands back and clears the request [owner] armed, or null if it armed none -- so an instance
+	 * only ever performs its own hand-off.
+	 *
+	 * The ownership test replaces the `isFinishing && didCompleteLiveOnCreate` pair this used to be
+	 * gated on, which asked two different questions and got both wrong at the edges. isFinishing was
+	 * false whenever the deferred `finish()` never ran (its `lifecycleScope` coroutine cancelled at
+	 * ON_DESTROY, or a config-change recreate landing mid-save), so a confirmed switch was stranded
+	 * in this process-wide `single` and fired later against an unrelated project close.
+	 * didCompleteLiveOnCreate was standing in for "did I arm this?" -- which is now asked directly.
+	 */
+	fun drainArmedBy(owner: Any): DeepLinkOpenRequest? {
+		if (this.owner !== owner) {
+			return null
+		}
+		val drained = request
+		request = null
+		this.owner = null
+		return drained
+	}
 }

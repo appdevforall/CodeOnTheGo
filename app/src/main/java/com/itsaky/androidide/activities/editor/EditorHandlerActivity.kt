@@ -442,15 +442,12 @@ open class EditorHandlerActivity :
 		)
 	}
 
-	// Drains pendingDeepLinkOpen (if armed) and performs its hand-off -- shared by onDestroy() (the
+	// Drains the hand-off THIS instance armed (if any) and performs it -- shared by onDestroy() (the
 	// normal case) and confirmProjectClose's "Save and close" completion once isDestroyed confirms
-	// onDestroy() already ran (the race case) -- so the one-shot "check, null, perform" sequence has
+	// onDestroy() already ran (the race case) -- so the one-shot "check, clear, perform" sequence has
 	// a single copy instead of being kept in sync by hand across both call sites.
 	private fun drainPendingDeepLinkOpen() {
-		pendingDeepLinkOpen.value?.let { pending ->
-			pendingDeepLinkOpen.value = null
-			performPendingDeepLinkOpen(pending)
-		}
+		pendingDeepLinkOpen.drainArmedBy(handoffOwner)?.let(::performPendingDeepLinkOpen)
 	}
 
 	override fun onDestroy() {
@@ -458,7 +455,24 @@ open class EditorHandlerActivity :
 		ActionContextProvider.clearActivity(this)
 		// Not dismissing this would leak the dialog's window (WindowLeaked) past this activity's
 		// death -- e.g. a rotation while the confirm-close dialog is showing.
-		activeProjectCloseDialog?.dismiss()
+		//
+		// dismiss() alone was not enough: it tears the window down WITHOUT dispatching the negative
+		// button or the OnCancelListener, so a dialog still on screen at destroy time died with its
+		// decline handling never run -- leaving the intent and the process-wide bookkeeping pointing
+		// at a switch the user never confirmed (ADFA-5067 review). cancel() would dispatch it, but
+		// cancelOrDecline() can recursively show a fresh dialog for a superseding request, which is
+		// exactly what must not happen from here; declineInFlightProjectClose() is its rollback half.
+		//
+		// The Bundle is handled separately: onSaveInstanceState runs BEFORE onDestroy, so by now it
+		// has already been written -- see projectPathForInstanceState for the half of this fix that
+		// keeps the un-confirmed project out of it in the first place.
+		activeProjectCloseDialog?.let { dialog ->
+			if (dialog.isShowing && !closeDialogAnswered) {
+				declineInFlightProjectClose()
+			}
+			dialog.dismiss()
+		}
+		activeProjectCloseDialog = null
 
 		// Both gated on isFinishing: onDestroy() also runs for a non-finishing recreate (a config
 		// change EditorActivityKt's own configChanges doesn't cover - dark mode, locale, display size
@@ -470,39 +484,43 @@ open class EditorHandlerActivity :
 		// Save and close) both route through closeProject(), whose deferred finish() must land before
 		// onDestroy() can run, so isFinishing is true here by the time onDestroy() drains it.
 		if (isFinishing) {
-			// The callback drain is additionally gated on closeDialogAnswered: isFinishing alone is
-			// also true when the task is swiped out of Recents while the dialog is still showing --
-			// an armed-but-unanswered pendingCloseCallback then means the user bailed, and running it
+			// The callback drain is additionally gated on closeCommitted: isFinishing alone is also
+			// true when the task is swiped out of Recents while the dialog is still showing -- an
+			// armed-but-uncommitted pendingCloseCallback then means the user bailed, and running it
 			// here would startActivity into a project switch they never confirmed (see the field's
 			// docs). When the flag IS set, this drain still matters: a "Close without saving" confirm
 			// deliberately leaves confirmCloseInProgress stuck true (see there) since this instance
 			// is finishing either way -- a later request that arrived in the window before
 			// onDestroy() actually ran got parked here with nothing else left to read it. Run and
 			// clear it now instead of silently orphaning it.
-			if (closeDialogAnswered) {
+			//
+			// closeCommitted, NOT closeDialogAnswered: the latter went true the instant "Save and
+			// close" was tapped, so a finish() landing while the save was still writing made this
+			// line commit the switch and skip the save-failure abort entirely, abandoning the user's
+			// edits with no message (ADFA-5067 review). Committing is now the save's own decision.
+			if (closeCommitted) {
 				pendingCloseCallback?.invoke()
 			}
 			pendingCloseCallback = null
-
-			// Drain any deep-link-triggered "close then reopen a different project" request recorded by
-			// onNewIntent's confirmProjectClose(onClosed) callback. This deliberately waits until onDestroy --
-			// which only runs once the framework has committed to tearing this singleTask instance down --
-			// rather than firing startActivity() synchronously right after finish(), because the two calls
-			// racing could otherwise have the new PROJECT_PATH redelivered to this dying instance via
-			// onNewIntent (which never reads it) instead of a genuinely new instance's onCreate.
-			//
-			// didCompleteLiveOnCreate too, for the same reason preDestroy/postDestroy here,
-			// ProjectHandlerActivity's teardown hooks and BaseEditorActivity's all carry it -- and it
-			// matters most of all on this line, because pendingDeepLinkOpen is a Koin `single`, more
-			// widely shared than any registry those guards protect. An instance that took
-			// BaseEditorActivity.onCreate's deepLinkTargetsAnotherProject bail (startActivity +
-			// finish() + return) never sets the flag, yet reaches here with isFinishing true; without
-			// this it drains a handoff a DIFFERENT, still-live instance armed, firing startActivity
-			// while that instance is alive -- precisely the race deferring to onDestroy exists to avoid.
-			if (didCompleteLiveOnCreate) {
-				drainPendingDeepLinkOpen()
-			}
 		}
+
+		// Drain any deep-link-triggered "close then reopen a different project" request this instance
+		// recorded. Deliberately waits until onDestroy -- which only runs once the framework has
+		// committed to tearing this singleTask instance down -- rather than firing startActivity()
+		// synchronously right after finish(), because the two calls racing could otherwise have the
+		// new PROJECT_PATH redelivered to this dying instance via onNewIntent (which never reads it)
+		// instead of a genuinely new instance's onCreate.
+		//
+		// Outside the isFinishing guard, and keyed on ownership rather than didCompleteLiveOnCreate.
+		// isFinishing was the wrong question: closeProject() arms the hand-off and then defers its
+		// finish() into a lifecycleScope coroutine that ON_DESTROY cancels, so a destroy that beat
+		// the finish() left a confirmed switch sitting in this Koin `single` -- to fire later against
+		// an unrelated project close, since nothing else clears it. A config-change recreate landing
+		// mid-save reached here the same way. drainArmedBy answers "did I arm this?" directly, which
+		// is what didCompleteLiveOnCreate was standing in for: an instance that took
+		// BaseEditorActivity.onCreate's deepLinkTargetsAnotherProject bail armed nothing, so it now
+		// drains nothing rather than stealing a live instance's hand-off.
+		drainPendingDeepLinkOpen()
 	}
 
 	override fun onResume() {
@@ -1427,10 +1445,25 @@ open class EditorHandlerActivity :
 	 * tab, via [notifyFilesUnsaved]) must scope this to just the file(s) actually being closed, or
 	 * an unrelated, still-open file's save failure would block a close it has nothing to do with.
 	 */
-	private fun hasFilesThatFailedToSave(files: List<File> = editorViewModel.getOpenedFiles()) =
-		files.any { file ->
+	private fun hasFilesThatFailedToSave(files: List<File> = editorViewModel.getOpenedFiles()): Boolean {
+		// Fail closed once the view binding is gone. [getEditorForFile] resolves through
+		// contentOrNull and returns null for EVERY file the moment it is null, so the per-file test
+		// below would report "nothing failed" for a whole set of genuinely modified buffers. Every
+		// caller uses this to decide whether it is safe to close, discard or commit, so an answer
+		// that cannot be computed must read as "unsafe" -- the direction the ViewModel-backed
+		// areFilesModified this replaced happened to fail in.
+		//
+		// areFilesModified is the fallback rather than a bare `true` because it is retained across
+		// activity recreation and is only ever recomputed while the binding is alive (see
+		// saveResult's contentOrNull-guarded block), so it holds the last state actually observed
+		// rather than a stale-by-construction guess. It is coarser -- one flag for all open files,
+		// not per-file -- which can over-report for a narrowed [files] set; over-reporting blocks a
+		// close, under-reporting loses the buffer.
+		contentOrNull ?: return editorViewModel.areFilesModified
+		return files.any { file ->
 			getEditorForFile(file)?.isModified == true && file.extension.lowercase() !in ARCHIVE_EXTENSIONS
 		}
+	}
 
 	/**
 	 * Runs [action] with the "files are saving" flag raised.
@@ -2277,6 +2310,23 @@ open class EditorHandlerActivity :
 	// fresh dialog is shown; a cancel/decline never sets it.
 	private var closeDialogAnswered = false
 
+	// True once the close is actually being PERFORMED, which is a later moment than
+	// closeDialogAnswered for "Save and close": that option only commits after its save comes back
+	// clean, so between the tap and the save resolving the close is answered but not yet committed.
+	// onDestroy() gates its pendingCloseCallback drain on this, because a finish() arriving inside
+	// that window used to commit the switch on the answered flag alone and skip the
+	// `!saveSucceeded || hasFilesThatFailedToSave()` abort entirely -- discarding the user's unsaved
+	// edits with nothing shown (ADFA-5067 review). "Close without saving" sets it immediately: there
+	// is no write to wait on and closeProject() runs in the same breath. Reset with the dialog.
+	private var closeCommitted = false
+
+	// Identity token for this instance's entry in the process-wide PendingDeepLinkOpen, so an
+	// instance only ever drains the hand-off it armed itself. A plain Any() rather than `this`: the
+	// token is stored in a Koin `single` that outlives every activity, and parking an Activity
+	// reference there -- even one only ever compared by identity -- is the kind of thing that turns
+	// into a leak the first time someone dereferences it.
+	private val handoffOwner = Any()
+
 	// Captured in onNewIntent, right before setIntent() replaces the intent, whenever the incoming
 	// intent targets a genuinely different project -- restored by cancelOrDecline()/the "Save and
 	// close" failure branch below if that switch attempt doesn't end up completing, so the staying
@@ -2304,6 +2354,29 @@ open class EditorHandlerActivity :
 	// deep link arrives via onNewIntent) can tell it's been superseded -- mirrors
 	// MainActivity.latestDeepLinkRequest's identical race on the cold-open path.
 	private var latestDeepLinkRequest: DeepLinkRequest? = null
+
+	// While a switch is proposed but unconfirmed, IProjectManager's global already names the INCOMING
+	// project (MainActivity.openProject's bookkeeping runs before the intent is even delivered), so
+	// the base implementation would persist a project the user has not agreed to open -- and
+	// onSaveInstanceState runs before onDestroy, so onDestroy's decline rollback below cannot undo it.
+	// The snapshot is null except in exactly that window, so this is the global everywhere else.
+	override val projectPathForInstanceState: String
+		get() = stayingProjectPathBeforeSwitch ?: super.projectPathForInstanceState
+
+	// The state-rollback half of confirmProjectClose's cancelOrDecline, without its other half --
+	// re-confirming a superseding request, which shows a NEW dialog and must never run from
+	// onDestroy(), where the window it would attach to is already going away.
+	private fun declineInFlightProjectClose() {
+		confirmCloseInProgress = false
+		val abandoned = pendingCloseCallback
+		pendingCloseCallback = null
+		// Only a switch (onClosed != null) put a foreign PROJECT_PATH on the intent and moved the
+		// process-wide bookkeeping; a plain manual close has nothing to roll back, and touching the
+		// intent for one would corrupt whatever legitimate pending state it holds.
+		if (abandoned != null) {
+			restoreIntentToStayingProject()
+		}
+	}
 
 	private fun restoreIntentToStayingProject() {
 		// Guarded here, not at the call sites. Only one of the three had this check, and the other two
@@ -2367,6 +2440,7 @@ open class EditorHandlerActivity :
 		confirmCloseInProgress = true
 		pendingCloseCallback = onClosed
 		closeDialogAnswered = false
+		closeCommitted = false
 
 		val builder = newMaterialDialogBuilder(this)
 		builder.setTitle(string.title_confirm_project_close)
@@ -2410,6 +2484,10 @@ open class EditorHandlerActivity :
 		builder.setNeutralButton(string.close_without_saving) { dialog, _ ->
 			dialog.dismiss()
 			closeDialogAnswered = true
+			// Committed in the same breath: there is no write to wait on, and closeProject() runs
+			// below unconditionally. Only "Save and close" has a window between answered and
+			// committed.
+			closeCommitted = true
 
 			for (i in 0 until editorViewModel.getOpenedFileCount()) {
 				(content.editorContainer.getChildAt(i) as? CodeEditorView)?.editor?.markUnmodified()
@@ -2434,23 +2512,86 @@ open class EditorHandlerActivity :
 				runOnUiThread {
 					confirmCloseInProgress = false
 
+					// The save outcome is decided FIRST, before any teardown branching. It used to be
+					// checked only after the two returns below, so a finish() or a config-change
+					// recreate landing while the write was still in flight committed the close without
+					// ever consulting it -- abandoning the user's unsaved edits with nothing shown
+					// (ADFA-5067 review). A failed write must abort the close on every path.
+					//
+					// Answerable during teardown now that hasFilesThatFailedToSave() falls back to the
+					// retained ViewModel's areFilesModified once the binding is gone; it previously
+					// resolved every file through the binding and so reported "nothing failed" for a
+					// whole set of unwritten buffers.
+					if (!saveSucceeded || hasFilesThatFailedToSave()) {
+						// closeCommitted stays false, so onDestroy's drain leaves the callback alone.
+						val superseding = pendingCloseCallback
+						pendingCloseCallback = null
+						if (isFinishing || isDestroyed) {
+							// No window for a Flashbar and no instance left to re-confirm on. The
+							// buffers are still on disk unchanged and the switch simply does not
+							// happen. Logged because the branch is otherwise invisible from the UI.
+							log.warn(
+								"Save failed during teardown (isFinishing={}, isDestroyed={}); abandoning the " +
+									"confirmed close rather than switching projects over unwritten changes.",
+								isFinishing,
+								isDestroyed,
+							)
+							return@runOnUiThread
+						}
+						// Routed through the String overload (indefinite duration, must-dismiss) rather
+						// than flashError(Int) (a ~1s auto-dismissing toast) -- a user who looks away
+						// right after tapping "Save and close" must not miss that the close was aborted
+						// and the activity is still open with unsaved changes.
+						flashError(getString(string.save_failed))
+						// A later, superseding request (e.g. a third deep link arriving while this save
+						// was in flight) must not be silently dropped just because THIS attempt's save
+						// failed -- give it its own confirmation, mirroring cancelOrDecline()'s handling
+						// of the identical race on the cancel path.
+						if (superseding !== onClosed) {
+							confirmProjectClose(superseding)
+						} else if (onClosed != null) {
+							// Mirrors cancelOrDecline()'s identical restoration -- this failed "Save and
+							// close" is itself a decline of the switch, and nothing superseded it.
+							restoreIntentToStayingProject()
+						}
+						return@runOnUiThread
+					}
+
+					// The save landed, so the close is now genuinely committed and onDestroy may act
+					// on the callback if this instance is torn down before the branches below finish.
+					closeCommitted = true
+
 					// Teardown: no window for a message, and no point re-confirming a superseded request
 					// on an instance that is going away -- but the handoff below is process-wide state
-					// that a new instance drains, so it must still happen. Mirrors the contentOrNull ==
+					// that gets drained by owner, so it must still happen. Mirrors the contentOrNull ==
 					// null branch further down, which exists for the same reason.
 					// isDestroyed WITHOUT isFinishing is not teardown at all: it is a config-change
 					// recreate (dark mode, locale, density -- none in EditorActivityKt's configChanges),
 					// where a successor instance for this same project is already coming up. This
 					// continuation survives it only because saveAllAsync now runs on the process-wide
-					// appScope rather than lifecycleScope. Running the close callback here would arm a
-					// switch on behalf of an instance being replaced, and draining it would startActivity
-					// into that switch while the successor is on screen -- so this case is left alone for
-					// the successor to own. onDestroy's own drain is gated the same way, on isFinishing.
+					// appScope rather than lifecycleScope.
+					//
+					// This used to return here and "leave the close callback for the successor
+					// instance" -- but nothing handed it over: pendingCloseCallback is a per-instance
+					// field on the dying instance, the hand-off was never armed, and onNewIntent had
+					// already recorded the deep-link request consumed and stripped it from the intent,
+					// with the consumed mark persisted through onSaveInstanceState. The successor
+					// therefore had no way to learn a switch had been confirmed, and re-tapping the
+					// same URL was gated out as value-equal, so the switch was lost permanently and
+					// silently (ADFA-5067 review). Arm and drain it here instead. The successor may
+					// flash up on the old project for a moment before the new one replaces it; that is
+					// a strictly better outcome than dropping a switch the user explicitly confirmed.
 					if (!isFinishing && isDestroyed) {
 						log.info(
-							"Save completed during a config-change recreate, not a teardown; leaving the " +
-								"close callback for the successor instance rather than acting on it here.",
+							"Save completed during a config-change recreate; performing the confirmed close " +
+								"here rather than leaving it for a successor that cannot recover it.",
 						)
+						val onClosedDuringRecreate = pendingCloseCallback
+						pendingCloseCallback = null
+						onClosedDuringRecreate?.invoke()
+						// onDestroy has already run for this instance (isDestroyed), so its own
+						// ownership-keyed drain is behind us and nothing else will fire this.
+						drainPendingDeepLinkOpen()
 						return@runOnUiThread
 					}
 					if (isFinishing) {
@@ -2469,32 +2610,6 @@ open class EditorHandlerActivity :
 						// While it has not, onDestroy's own drain is still ahead of us and doing it here
 						// would fire the handoff twice.
 						if (isDestroyed) drainPendingDeepLinkOpen()
-						return@runOnUiThread
-					}
-					// saveAll()'s return value is gradleSaved (whether a build file changed), not
-					// "everything saved successfully" -- check actual editor state instead, so a
-					// failed write (disk full, permission) doesn't silently discard unsaved changes.
-					// !saveSucceeded is checked too: an exception can abort the save before it even
-					// gets to a given file, which would leave that file's modified flag unchanged.
-					if (!saveSucceeded || hasFilesThatFailedToSave()) {
-						// Routed through the String overload (indefinite duration, must-dismiss) rather
-						// than flashError(Int) (a ~1s auto-dismissing toast) -- a user who looks away
-						// right after tapping "Save and close" must not miss that the close was aborted
-						// and the activity is still open with unsaved changes.
-						flashError(getString(string.save_failed))
-						// A later, superseding request (e.g. a third deep link arriving while this save
-						// was in flight) must not be silently dropped just because THIS attempt's save
-						// failed -- give it its own confirmation, mirroring cancelOrDecline()'s handling
-						// of the identical race on the cancel path.
-						val superseding = pendingCloseCallback
-						pendingCloseCallback = null
-						if (superseding !== onClosed) {
-							confirmProjectClose(superseding)
-						} else if (onClosed != null) {
-							// Mirrors cancelOrDecline()'s identical restoration -- this failed "Save and
-							// close" is itself a decline of the switch, and nothing superseded it.
-							restoreIntentToStayingProject()
-						}
 						return@runOnUiThread
 					}
 					recentProjectsViewModel.updateProjectModifiedDate(
@@ -2754,13 +2869,15 @@ open class EditorHandlerActivity :
 			// wins, matching handlePlainProjectSwitch's own reasoning) is unconditionally correct
 			// here since this instance can't do anything else with a new request anyway.
 			isFinishing -> {
-				pendingDeepLinkOpen.value =
+				pendingDeepLinkOpen.arm(
+					handoffOwner,
 					DeepLinkOpenRequest(
 						newProjectPath,
 						fileRequest,
 						bookkeepingAlreadyRecorded,
 						previousProjectPath,
-					)
+					),
+				)
 			}
 
 			// Either no project has actually finished initializing in this instance yet (e.g. it was
@@ -2770,13 +2887,15 @@ open class EditorHandlerActivity :
 			// onDestroy()-deferred handoff used for a confirmed project switch instead of showing (or
 			// trying to show) a close dialog that can't work either way.
 			currentProjectPath.isBlank() || contentOrNull == null -> {
-				pendingDeepLinkOpen.value =
+				pendingDeepLinkOpen.arm(
+					handoffOwner,
 					DeepLinkOpenRequest(
 						newProjectPath,
 						fileRequest,
 						bookkeepingAlreadyRecorded,
 						previousProjectPath,
-					)
+					),
+				)
 				finish()
 			}
 
@@ -2834,13 +2953,15 @@ open class EditorHandlerActivity :
 				// only record the pending open if the user actually confirms -- see onDestroy() for
 				// why the reopen itself waits until this instance is torn down.
 				confirmProjectClose {
-					pendingDeepLinkOpen.value =
+					pendingDeepLinkOpen.arm(
+						handoffOwner,
 						DeepLinkOpenRequest(
 							newProjectPath,
 							fileRequest,
 							bookkeepingAlreadyRecorded,
 							previousProjectPath,
-						)
+						),
+					)
 				}
 			}
 		}
