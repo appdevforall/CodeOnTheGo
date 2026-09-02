@@ -51,6 +51,12 @@ dependencies {
 	api(projects.subprojects.flashbar)
 	implementation(libs.monitor)
 
+	// BrotliDictionaryCodec's tests live in :app (BrotliDictionaryDecodeTest), not here, so
+	// `:common:test` passing says nothing about it. They need brotli4j's per-OS/arch desktop
+	// native, and the host dispatch for that is wired only in app/build.gradle.kts -- moving them
+	// means extracting that into build-logic first, where a third copy of the same dispatch
+	// already lives. Tracked separately; jacocoAggregateReport runs both modules' suites, so CI
+	// coverage is unaffected either way.
 	testImplementation(projects.testing.common)
 	testImplementation(libs.tests.kotlinx.coroutines)
 	testImplementation(libs.tests.google.truth)
