@@ -113,17 +113,48 @@ class TsAnalyzeWorker(
 
 		document.requestCancellationAndWaitIfParsing()
 
-		messageChannel.clear()
-		analyzerJob?.cancel(CancellationException("Requested to be stopped"))
+		drainPendingMessages()
+
+		val job = analyzerJob
+		job?.cancel(CancellationException("Requested to be stopped"))
 
 		// Cancelling does not wake a thread parked in take(), and closing the dispatcher does not stop
 		// it either - kotlinx reroutes the rejected dispatch to Dispatchers.IO. Hand the loop a message
-		// so it can see isDestroyed and return.
+		// so it can see isDestroyed and return; it frees the natives on its way out.
 		messageChannel.offer(Stop)
 
 		analyzerScope.cancel(CancellationException("Requested to be stopped"))
-		document.close()
-		analyzerContext.close()
+
+		if (job == null) {
+			// start() was never called, so there is no loop to do it.
+			closeNatives()
+		}
+	}
+
+	/**
+	 * Releases the document and the dispatcher. Runs on the analyzer thread once its loop has
+	 * finished, so nothing can still be reading what it frees.
+	 */
+	private fun closeNatives() {
+		try {
+			document.close()
+		} finally {
+			analyzerContext.close()
+		}
+	}
+
+	/**
+	 * Empties the queue, recycling each message's pooled natives. [LinkedBlockingQueue.clear] would
+	 * drop them without recycling, and stop() runs on every reset - so that churn would be
+	 * per-interaction, not per-close.
+	 */
+	private fun drainPendingMessages() {
+		while (true) {
+			when (val pending = messageChannel.poll() ?: return) {
+				is Mod -> (pending.data.edit as? TreeSitterInputEdit?)?.recycle()
+				else -> Unit
+			}
+		}
 	}
 
 	fun start() {
@@ -132,8 +163,17 @@ class TsAnalyzeWorker(
 		analyzerJob =
 			analyzerScope
 				.launch {
-					while (!isDestroyed && isActive) {
-						processNextMessage()
+					try {
+						while (!isDestroyed && isActive) {
+							processNextMessage()
+						}
+					} finally {
+						// Freed here, by the thread that uses them, rather than by whoever calls
+						// stop(): the loop can be mid doMod()/updateStyles() when stop() runs, and a
+						// caller-side close would pull the text and tree out from under it. Same idiom
+						// as LineSpansGenerator, which posts its own tree.close() onto its executor.
+						// stop() cannot wait for this instead - it is on the setText/reset hot path.
+						closeNatives()
 					}
 				}.also { job ->
 					job.invokeOnCompletion { error ->

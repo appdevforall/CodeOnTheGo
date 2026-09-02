@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*******************************************************************************
+/* *****************************************************************************
  *    sora-editor - the awesome code editor for Android
  *    https://github.com/Rosemoe/sora-editor
  *    Copyright (C) 2020-2023  Rosemoe
@@ -39,7 +39,9 @@
  *     additional information or have any questions
  ******************************************************************************/
 
-@file:Suppress("ktlint:standard:kdoc", "ktlint:standard:no-consecutive-comments")
+// Two licence grants: AndroidIDE's GPL-3 and, below it, sora-editor's LGPL-2.1. They stay
+// separate blocks so neither is framed as part of the other; that trips one ktlint rule.
+@file:Suppress("ktlint:standard:no-consecutive-comments")
 
 package io.github.rosemoe.sora.editor.ts
 
@@ -104,10 +106,10 @@ class LineSpansGenerator(
 		const val REDRAW_DEBOUNCE_DELAY_MS = 32L
 	}
 
-/**
-* Thread-safe cache for calculated line spans.
-* Automatically evicts the least recently used lines.
-*/
+	/**
+	 * Thread-safe cache for calculated line spans.
+	 * Automatically evicts the least recently used lines.
+	 */
 	private val caches = LruCache<Int, MutableList<Span>>(CACHE_THRESHOLD)
 	private val calculatingLines = ConcurrentHashMap.newKeySet<Int>()
 
@@ -118,10 +120,10 @@ class LineSpansGenerator(
 	private val tsDispatcher = tsExecutor.asCoroutineDispatcher()
 	private val scope = CoroutineScope(SupervisorJob() + tsDispatcher)
 
-/**
-* Tracks content changes so the worker can instantly abort
-* outdated calculations when the user types.
-*/
+	/**
+	 * Tracks content changes so the worker can instantly abort
+	 * outdated calculations when the user types.
+	 */
 	private val contentVersion = AtomicInteger(0)
 	private val mainHandler = Handler(Looper.getMainLooper())
 	private var isRefreshScheduled = AtomicBoolean(false)
@@ -238,16 +240,14 @@ class LineSpansGenerator(
 		return applyDecorations(list, startIndex, endIndex)
 	}
 
-// ---------------------------------------------------------------------------
-// Plugin editor decorations
-//
-// After the base (tree-sitter) spans for a region are built, every registered
-// EditorDecorationProvider is given the region and returns additive, foreground-only color
-// spans, which are merged in here. The IDE is feature-agnostic — it knows nothing about what a
-// provider decorates (brackets, indent guides, markers, ...). Providers run on this analyze
-// thread and receive the full document content so they can use context outside the region.
-// ---------------------------------------------------------------------------
-
+	/**
+	 * Merges plugin editor decorations into the base tree-sitter spans for a region.
+	 *
+	 * Every registered EditorDecorationProvider is given the region and returns additive,
+	 * foreground-only colour spans. The IDE is feature-agnostic - it knows nothing about what a
+	 * provider decorates (brackets, indent guides, markers, ...). Providers run on this analyze
+	 * thread and receive the full document content, so they can use context outside the region.
+	 */
 	private fun applyDecorations(
 		list: MutableList<Span>,
 		startIndex: Int,
@@ -274,12 +274,12 @@ class LineSpansGenerator(
 		return mergeDecorations(list, startIndex, endIndex, decos)
 	}
 
-/**
-* Merges additive, foreground-only decoration spans into [list]: overrides only the foreground
-* color of the covered characters while preserving every base style underneath, and keeps the
-* strictly-ascending, non-overlapping span ordering the renderer requires. Decoration offsets are
-* absolute; they are clipped to the region and converted to line-relative columns.
-*/
+	/**
+	 * Merges additive, foreground-only decoration spans into [list]: overrides only the foreground
+	 * color of the covered characters while preserving every base style underneath, and keeps the
+	 * strictly-ascending, non-overlapping span ordering the renderer requires. Decoration offsets are
+	 * absolute; they are clipped to the region and converted to line-relative columns.
+	 */
 	private fun mergeDecorations(
 		list: MutableList<Span>,
 		startIndex: Int,
@@ -411,13 +411,13 @@ class LineSpansGenerator(
 		}
 	}
 
-/**
-* Shifts span columns horizontally to prevent visual flickering during inline edits.
-*
-* @param line Line index of the modification.
-* @param startColumn Column index where the shift begins.
-* @param colDiff Number of columns to shift.
-*/
+	/**
+	 * Shifts span columns horizontally to prevent visual flickering during inline edits.
+	 *
+	 * @param line Line index of the modification.
+	 * @param startColumn Column index where the shift begins.
+	 * @param colDiff Number of columns to shift.
+	 */
 	private fun shiftSpansOnLine(
 		line: Int,
 		startColumn: Int,
@@ -430,11 +430,11 @@ class LineSpansGenerator(
 		}
 	}
 
-/**
-* Rebuilds the line cache for vertical text shifts (line additions or deletions).
-*
-* @param action Logic to determine how each cached line is re-inserted.
-*/
+	/**
+	 * Rebuilds the line cache for vertical text shifts (line additions or deletions).
+	 *
+	 * @param action Logic to determine how each cached line is re-inserted.
+	 */
 	private inline fun rebuildCache(action: (line: Int, spans: MutableList<Span>, cache: LruCache<Int, MutableList<Span>>) -> Unit) {
 		val snapshot = caches.snapshot()
 		caches.evictAll()
@@ -491,9 +491,9 @@ class LineSpansGenerator(
 			}
 		}
 
-/**
-* Groups redraw requests together to avoid overloading the UI thread.
-*/
+	/**
+	 * Groups redraw requests together to avoid overloading the UI thread.
+	 */
 	private fun scheduleRefresh() {
 		if (!isRefreshScheduled.compareAndSet(false, true)) return
 
