@@ -108,8 +108,12 @@ return doSafeExecQueryCursor(
 	node = node,
 	recycleNodeAfterUse = recycleNodeAfterUse,
 	matchCondition = { match ->
-	match != null && canAccess() && node.canAccess() && !node.hasChanges() && matchCondition(
-		match)
+	// query.canAccess() belongs here, not only in the pre-loop check below: the query is shared
+	// between the analyzer, the span generator and the bracket matcher, and whoever frees it does
+	// so on another thread. Without it, a free landing mid-loop makes the next nextMatch()
+	// dereference a dangling TSQuery and take the process down (ADFA-5401).
+	match != null && canAccess() && query.canAccess() && node.canAccess() && !node.hasChanges() &&
+		matchCondition(match)
 	},
 	whileTrue = whileTrue,
 	onClosedOrEdited = onClosedOrEdited,

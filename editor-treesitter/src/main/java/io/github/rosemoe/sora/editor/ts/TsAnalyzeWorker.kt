@@ -43,8 +43,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException
 import java.util.concurrent.LinkedBlockingQueue
@@ -77,6 +75,10 @@ class TsAnalyzeWorker(
 	private var analyzerJob: Job? = null
 
 	private var isInitialized = false
+
+	// Written by whoever calls stop(), read by the analyzer loop and by the query guards it
+	// passes as matchCondition; the only happens-before edge otherwise is the Stop message.
+	@Volatile
 	private var isDestroyed = false
 
 	val document = TsTextDocument(languageSpec.language)
@@ -118,21 +120,6 @@ class TsAnalyzeWorker(
 		// it either - kotlinx reroutes the rejected dispatch to Dispatchers.IO. Hand the loop a message
 		// so it can see isDestroyed and return.
 		messageChannel.offer(Stop)
-
-		// The document's native objects are freed just below, and the shared TSQuery right after this
-		// returns, so the loop must be *finished*, not merely cancelled. Anything still in doMod would
-		// be reading memory that is about to go away (ADFA-5401).
-		val stopped =
-			runBlocking {
-				withTimeoutOrNull(STOP_TIMEOUT_MS) {
-					analyzerJob?.join()
-					true
-				}
-			} != null
-
-		if (!stopped) {
-			log.warn("Analyzer did not stop within {} ms; freeing its document anyway", STOP_TIMEOUT_MS)
-		}
 
 		analyzerScope.cancel(CancellationException("Requested to be stopped"))
 		document.close()

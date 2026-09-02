@@ -13,9 +13,9 @@
  *
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
- *
- * -----------------------------------------------------------------------------
- *
+ */
+
+/*******************************************************************************
  *    sora-editor - the awesome code editor for Android
  *    https://github.com/Rosemoe/sora-editor
  *    Copyright (C) 2020-2023  Rosemoe
@@ -37,7 +37,9 @@
  *
  *     Please contact Rosemoe by email 2073412493@qq.com if you need
  *     additional information or have any questions
- */
+ ******************************************************************************/
+
+@file:Suppress("ktlint:standard:kdoc", "ktlint:standard:no-consecutive-comments")
 
 package io.github.rosemoe.sora.editor.ts
 
@@ -71,7 +73,6 @@ import kotlinx.coroutines.launch
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -95,9 +96,6 @@ class LineSpansGenerator(
 	companion object {
 		const val CACHE_THRESHOLD = 100
 		const val TAG = "LineSpansGenerator"
-
-		/** Upper bound on waiting for an in-flight query when tearing the generator down. */
-		private const val SHUTDOWN_TIMEOUT_MS = 500L
 
 		/**
 		 * Delay in milliseconds to batch UI redraws, preventing frame drops
@@ -136,10 +134,10 @@ class LineSpansGenerator(
 		}
 	}
 
-/**
-* Queues the native tree destruction in the background
-* so it doesn't close while a query is running.
-*/
+	/**
+	 * Queues the native tree destruction in the background
+	 * so it doesn't close while a query is running.
+	 */
 	fun destroy() {
 		scope.cancel()
 		caches.evictAll()
@@ -149,17 +147,6 @@ class LineSpansGenerator(
 
 		tsExecutor.execute { runCatching { tree.close() } }
 		tsExecutor.shutdown()
-
-		// The shared TSQuery is freed on the main thread immediately after this returns
-		// (TSLanguageRegistry.destroy -> TsLanguageSpec.close), and captureRegion guards only the
-		// tree, not the query. Draining the executor first is what makes "no query is running" true
-		// rather than merely likely - a capture measures well under a millisecond, so the timeout is
-		// a safety valve, not a wait (ADFA-5401).
-		runCatching {
-			if (!tsExecutor.awaitTermination(SHUTDOWN_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-				Log.w(TAG, "Tree-sitter query executor did not drain within $SHUTDOWN_TIMEOUT_MS ms")
-			}
-		}.onFailure { Thread.currentThread().interrupt() }
 	}
 
 	fun captureRegion(
