@@ -48,8 +48,9 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   requires and shows it (`prepareDialog` does so without showing; build the dialog with
   `create()` rather than showing it from its builder).
   `PluginWindows.showToast(Context, CharSequence, Int)` posts the toast against the
-  application context, which imposes no window type. Both are no-ops while the plugin is
-  docked, so one call site is correct in either state. Neither can be applied by the IDE
+  application context, which imposes no window type. Both keep the ordinary
+  activity-backed behaviour while the plugin is docked, so one call site is correct in
+  either state. Neither can be applied by the IDE
   on a plugin's behalf: `Window` has no theme attribute for its type, and a toast is
   posted by the system against whatever context built it.
 - **added — File-targeted editor save** _(ADFA-5259)_

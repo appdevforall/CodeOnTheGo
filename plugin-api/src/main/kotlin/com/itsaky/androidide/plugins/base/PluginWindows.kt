@@ -20,8 +20,8 @@ import android.widget.Toast
  * `Window` exposes no theme attribute for its type, and a toast is posted by the system against
  * whatever context built it -- so route both through here.
  *
- * Both entry points are no-ops for a docked plugin, whose context is the IDE activity, so a single
- * call site is correct in either state.
+ * Both entry points keep the ordinary activity-backed behaviour for a docked plugin, whose context
+ * is the IDE activity, so a single call site is correct in either state.
  */
 object PluginWindows {
 	/** Applies the window type [dialog]'s context requires, then shows it. */
