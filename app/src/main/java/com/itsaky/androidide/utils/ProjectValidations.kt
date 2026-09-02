@@ -1,6 +1,7 @@
 package com.itsaky.androidide.utils
 
 import java.io.File
+import java.io.IOException
 import java.text.Normalizer
 import kotlin.collections.filter
 import kotlin.collections.orEmpty
@@ -23,6 +24,32 @@ internal fun findValidProjects(projectsRoot: File): List<File> {
 }
 
 /**
+ * The outcome of [lookupValidProjectByName], which unlike a bare `File?` keeps "no project by that
+ * name" apart from "whether one exists could not be determined".
+ *
+ * Callers act on the two very differently: a definitive absence is worth remembering (so a link
+ * naming a project that does not exist stops re-reporting itself on every recreate), while an
+ * unverifiable result says nothing at all about the project and must leave every such decision
+ * untouched.
+ */
+internal sealed interface ProjectNameLookup {
+	data class Found(
+		val dir: File,
+	) : ProjectNameLookup
+
+	/** No project of that name exists under the projects root. */
+	data object NotFound : ProjectNameLookup
+
+	/**
+	 * A filesystem failure other than absence (EACCES right after a storage-permission change, EIO
+	 * on a flaky SD/FUSE mount) stopped the lookup from reaching an answer.
+	 */
+	data class Unverifiable(
+		val cause: IOException,
+	) : ProjectNameLookup
+}
+
+/**
  * Resolves [name] directly to `[projectsRoot]/[name]` and validates just that one directory --
  * the O(1) counterpart to [findValidProjects] for callers (e.g. deep links) that already know the
  * exact project name and don't need every project under [projectsRoot] scanned to find it.
@@ -31,20 +58,23 @@ internal fun findValidProjects(projectsRoot: File): List<File> {
  * [resolveWithinDirectory] rather than a bare `File(projectsRoot, name)` -- [findValidProjects]
  * only ever matches against names of directories it already enumerated under [projectsRoot], so it
  * can't be pointed outside it, but a direct `File(root, name)` join can (e.g. `name = "../../etc"`).
+ *
+ * Reports *why* it found nothing -- see [ProjectNameLookup]; [findValidProjectByName] is this
+ * reduced to a nullable directory for callers that cannot act on the difference.
  */
-internal fun findValidProjectByName(
+internal fun lookupValidProjectByName(
 	projectsRoot: File,
 	name: String,
-): File? {
+): ProjectNameLookup {
 	// A project name is always a single path segment. resolveWithinDirectory's lexical check only
 	// rejects ".."/a leading separator, so without this, name = "." would resolve to projectsRoot
 	// itself (opening the whole projects directory as "a project" if it happens to satisfy
 	// isValidProjectDirectory), and an embedded separator like "foo/bar" would resolve two levels
 	// deep instead of naming a direct child.
 	if (name.isEmpty() || name == "." || name.contains("/") || name.contains("\\")) {
-		return null
+		return ProjectNameLookup.NotFound
 	}
-	if (!projectsRoot.isProjectCandidateDir()) return null
+	if (!projectsRoot.isProjectCandidateDir()) return ProjectNameLookup.NotFound
 
 	// A deep-link name is typically authored/normalized as NFC by web tooling, but an on-disk
 	// project directory imported from elsewhere (e.g. a git clone authored on macOS, which
@@ -52,14 +82,37 @@ internal fun findValidProjectByName(
 	// identical. Try both normal forms -- still O(1) filesystem lookups, not a directory scan --
 	// rather than reporting a visually-identical project as "not found".
 	val candidateNames = linkedSetOf(name, Normalizer.normalize(name, Normalizer.Form.NFC), Normalizer.normalize(name, Normalizer.Form.NFD))
+	// Remembered rather than returned on the spot: a later candidate form may still resolve cleanly,
+	// and a definite Found has to win over an earlier form's transient IO failure.
+	var unverifiable: IOException? = null
+	val resolver = ContainedPathResolver(projectsRoot)
 	for (candidateName in candidateNames) {
-		val candidate = resolveWithinDirectory(projectsRoot, candidateName) ?: continue
-		if (candidate.isProjectCandidateDir() && isValidProjectDirectory(candidate)) {
-			return candidate
+		when (val resolution = resolver.resolve(candidateName)) {
+			is ContainedPathResolver.Resolution.Contained -> {
+				val candidate = resolution.file
+				if (candidate.isProjectCandidateDir() && isValidProjectDirectory(candidate)) {
+					return ProjectNameLookup.Found(candidate)
+				}
+			}
+
+			is ContainedPathResolver.Resolution.Unverifiable -> {
+				unverifiable = resolution.cause
+			}
+
+			// A traversal attempt is a definitive "not this project", not an unknown.
+			is ContainedPathResolver.Resolution.Rejected -> {
+				Unit
+			}
 		}
 	}
-	return null
+	return unverifiable?.let(ProjectNameLookup::Unverifiable) ?: ProjectNameLookup.NotFound
 }
+
+/** [lookupValidProjectByName] reduced to the project directory, or null for any other outcome. */
+internal fun findValidProjectByName(
+	projectsRoot: File,
+	name: String,
+): File? = (lookupValidProjectByName(projectsRoot, name) as? ProjectNameLookup.Found)?.dir
 
 /**
  * True if [a] and [b] name the same project, tolerating an NFC/NFD codepoint difference (e.g. an

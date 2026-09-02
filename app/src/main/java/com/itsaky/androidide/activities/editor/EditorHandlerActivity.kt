@@ -108,6 +108,7 @@ import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.ui.ARCHIVE_EXTENSIONS
 import com.itsaky.androidide.ui.CodeEditorView
+import com.itsaky.androidide.utils.DeepLinkProjectLookup
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
 import com.itsaky.androidide.utils.EditorActivityActions
@@ -2737,8 +2738,8 @@ open class EditorHandlerActivity :
 		latestDeepLinkRequest = request
 
 		lifecycleScope.launch(Dispatchers.IO) {
-			val projectDir = resolveDeepLinkProject(projectsRoot(), request.projectName)
-			if (projectDir == null) {
+			val lookup = resolveDeepLinkProject(projectsRoot(), request.projectName)
+			if (lookup !is DeepLinkProjectLookup.Found) {
 				// No such project, so the switch this intent announced is never going to happen. Without
 				// this the capture above is stranded: setIntent() has already dropped the staying
 				// project's pending file request, nothing puts it back, and
@@ -2776,7 +2777,7 @@ open class EditorHandlerActivity :
 				// A newer deep link's onNewIntent call already superseded this one -- switching to
 				// this stale target now would undo the newer request the user actually tapped.
 				if (latestDeepLinkRequest !== request) return@withContext
-				switchToProject(projectDir.absolutePath, request.fileRequest)
+				switchToProject(lookup.projectDir.absolutePath, request.fileRequest)
 			}
 		}
 	}

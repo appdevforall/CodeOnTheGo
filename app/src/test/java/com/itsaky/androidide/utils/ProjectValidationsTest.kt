@@ -102,4 +102,49 @@ class ProjectValidationsTest {
 
 		assertThat(findValidProjectByName(root, "..")).isNull()
 	}
+
+	// The tri-state lookup findValidProjectByName now delegates to (ADFA-5067 review). These pin the
+	// two outcomes a unit test can actually produce; Unverifiable needs a real EACCES/EIO from the
+	// filesystem mid-call, which is not reliably provokable in a JVM test -- see the class docs.
+	@Test
+	fun `lookup reports Found for an existing project`() {
+		val root = tempFolder.newFolder("projects")
+		val project = makeValidProject(root, "MyApp")
+
+		val lookup = lookupValidProjectByName(root, "MyApp")
+
+		assertThat(lookup).isInstanceOf(ProjectNameLookup.Found::class.java)
+		assertThat((lookup as ProjectNameLookup.Found).dir.canonicalFile).isEqualTo(project.canonicalFile)
+	}
+
+	@Test
+	fun `lookup reports NotFound for a name with no project`() {
+		val root = tempFolder.newFolder("projects")
+
+		assertThat(lookupValidProjectByName(root, "DoesNotExist")).isEqualTo(ProjectNameLookup.NotFound)
+	}
+
+	// A traversal attempt is a definite "not this project", not an unknown -- callers are allowed to
+	// remember a NotFound, and must not be handed something they have to treat as maybe-transient.
+	@Test
+	fun `lookup reports NotFound for a traversal attempt`() {
+		val root = tempFolder.newFolder("projects")
+
+		assertThat(lookupValidProjectByName(root, "../etc")).isEqualTo(ProjectNameLookup.NotFound)
+		assertThat(lookupValidProjectByName(root, ".")).isEqualTo(ProjectNameLookup.NotFound)
+		assertThat(lookupValidProjectByName(root, "")).isEqualTo(ProjectNameLookup.NotFound)
+	}
+
+	// findValidProjectByName is now a thin reduction of lookupValidProjectByName; this pins that the
+	// refactor did not change what the many existing callers see.
+	@Test
+	fun `findValidProjectByName still agrees with the lookup it delegates to`() {
+		val root = tempFolder.newFolder("projects")
+		makeValidProject(root, "MyApp")
+
+		for (name in listOf("MyApp", "DoesNotExist", "../etc", ".", "")) {
+			val expected = (lookupValidProjectByName(root, name) as? ProjectNameLookup.Found)?.dir
+			assertThat(findValidProjectByName(root, name)).isEqualTo(expected)
+		}
+	}
 }

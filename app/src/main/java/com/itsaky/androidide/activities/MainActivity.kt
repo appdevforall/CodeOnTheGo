@@ -61,6 +61,7 @@ import com.itsaky.androidide.shortcuts.ShortcutContext
 import com.itsaky.androidide.shortcuts.ShortcutExecutionContext
 import com.itsaky.androidide.shortcuts.ShortcutManager
 import com.itsaky.androidide.templates.ITemplateProvider
+import com.itsaky.androidide.utils.DeepLinkProjectLookup
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
@@ -120,6 +121,22 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	// was not enough.
 	private val consumedDeepLinkRequests = ConsumedRequests<DeepLinkRequest>()
 
+	// The subset of consumedDeepLinkRequests recorded because the project could not be resolved,
+	// rather than because anything was actually opened.
+	//
+	// The two have to be told apart by onNewIntent's re-forward gate. That gate exists to stop a
+	// bounce loop: this activity opens a project, the editor decides the link names a different one
+	// and bounces it straight back, and without the gate its dialog goes right back up. But a request
+	// that failed to resolve never reached the editor at all, so no bounce can originate from it --
+	// and DeepLinkRequest carries no nonce, so a genuinely new tap of the same URL is equal by value
+	// to the failed one. Tapping a link for a project that does not exist yet, creating it, and
+	// tapping again therefore died silently, forever, which is exactly the teacher-sends-a-student-a-
+	// link flow the feature is for (ADFA-5067 review).
+	//
+	// Persisted alongside consumedDeepLinkRequests: without that, the same tap-create-tap sequence
+	// across a process death lands back in the identical hole.
+	private val unresolvedDeepLinkRequests = ConsumedRequests<DeepLinkRequest>()
+
 	private val onBackPressedCallback =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
@@ -159,6 +176,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		consumedDeepLinkRequests.restore(
 			savedInstanceState?.let {
 				BundleCompat.getParcelableArrayList(it, KEY_CONSUMED_DEEP_LINK_REQUESTS, DeepLinkRequest::class.java)
+			},
+		)
+		unresolvedDeepLinkRequests.restore(
+			savedInstanceState?.let {
+				BundleCompat.getParcelableArrayList(it, KEY_UNRESOLVED_DEEP_LINK_REQUESTS, DeepLinkRequest::class.java)
 			},
 		)
 		// A config change this activity doesn't declare (e.g. font scale, day/night) recreates it with
@@ -604,7 +626,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			// -- forever, for links naming a project that did not exist when first tapped.
 			?.takeIf {
 				!intent.getBooleanExtra(EditorIntentExtras.EXTRA_REFORWARDED_DEEP_LINK, false) ||
-					it !in consumedDeepLinkRequests
+					it !in consumedDeepLinkRequests ||
+					// A request consumed only because its project could not be resolved never reached
+					// the editor, so this bounce cannot be the loop the gate guards against -- it is a
+					// fresh tap that happens to be value-equal to the earlier failure. Let it retry.
+					it in unresolvedDeepLinkRequests
 			}?.let { handleDeepLinkRequest(it) }
 	}
 
@@ -624,25 +650,38 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	 * project open with no user interaction at all. `DeepLinkTargetsNotExportedTest` pins that.
 	 */
 	private fun handleDeepLinkRequest(request: DeepLinkRequest) {
+		// This attempt supersedes any earlier unresolved one for the same request. If it fails to
+		// resolve again the failure branch re-records it; if it succeeds the request must stop being
+		// exempt from the re-forward gate, or the bounce loop that gate exists to stop could resume.
+		unresolvedDeepLinkRequests.remove(request)
 		latestDeepLinkRequest = request
 		lifecycleScope.launch(Dispatchers.IO) {
-			val projectDir = resolveDeepLinkProject(projectsRoot(), request.projectName)
+			val lookup = resolveDeepLinkProject(projectsRoot(), request.projectName)
 			withContext(Dispatchers.Main) {
 				// The activity may have started finishing while resolveDeepLinkProject was still
 				// scanning disk -- lifecycleScope only cancels at ON_DESTROY, not the moment isFinishing
 				// first flips true, so this continuation can otherwise still run and show a dialog on a
 				// dying window.
 				if (isFinishing || isDestroyed) return@withContext
-				if (projectDir == null) {
+				if (lookup !is DeepLinkProjectLookup.Found) {
 					// Consumed even though nothing opened: the project does not exist, so retrying on
 					// every recreate only re-shows "No project named X was found" indefinitely. Recorded
 					// only when this request is still the current one, so a superseded slow resolve
 					// cannot consume the newer request's slot.
-					if (latestDeepLinkRequest === request) {
+					//
+					// NotFound only. An Unverifiable result -- an EACCES straight after a
+					// storage-permission change, an EIO on a flaky SD/FUSE mount -- says nothing about
+					// whether the project exists, and recording it made a momentary filesystem failure
+					// silence a valid link on every later delivery (ADFA-5067 review).
+					if (lookup is DeepLinkProjectLookup.NotFound && latestDeepLinkRequest === request) {
 						consumedDeepLinkRequests.add(request)
+						// Tracked apart from the general consumed set so the re-forward gate in
+						// onNewIntent can let this request through again -- see the field's docs.
+						unresolvedDeepLinkRequests.add(request)
 					}
 					return@withContext
 				}
+				val projectDir = lookup.projectDir
 				// A second, faster-resolving deep link superseded this one while it was still resolving
 				// -- this stale, slower request must not now bounce the user back to its own (older)
 				// target after they've already been taken to the newer one.
@@ -672,9 +711,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	override fun onSaveInstanceState(outState: Bundle) {
 		super.onSaveInstanceState(outState)
 		outState.putParcelableArrayList(KEY_CONSUMED_DEEP_LINK_REQUESTS, consumedDeepLinkRequests.toSavedList())
+		outState.putParcelableArrayList(KEY_UNRESOLVED_DEEP_LINK_REQUESTS, unresolvedDeepLinkRequests.toSavedList())
 	}
 
 	companion object {
 		private const val KEY_CONSUMED_DEEP_LINK_REQUESTS = "consumedDeepLinkRequests"
+		private const val KEY_UNRESOLVED_DEEP_LINK_REQUESTS = "unresolvedDeepLinkRequests"
 	}
 }
