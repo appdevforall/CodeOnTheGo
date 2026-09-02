@@ -91,11 +91,47 @@
             android:name=".activities.OnboardingActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="false" />
+        <!--
+            Not exported: this activity has no intent-filter, so nothing outside the app ever needs
+            to launch it, and DeepLinkActivity (same app) still can. Exported, any co-installed app
+            could send it a forged DEEP_LINK_REQUEST extra directly, skipping DeepLinkActivity's URI
+            validation, to force an arbitrary project open and navigate to a file inside it.
+        -->
         <activity
             android:name=".activities.MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.AndroidIDE" />
+        <!--
+            taskAffinity="" alongside excludeFromRecents: the latter applies to a TASK via its root
+            activity, and this trampoline shares the app's default affinity. On a cold start the link
+            creates a task rooted here, then hands off with FLAG_ACTIVITY_NEW_TASK. Same affinity, so
+            MainActivity and the editor land in that very task, which now carries
+            EXCLUDE_FROM_RECENTS on its base intent, leaving the whole IDE session with no Recents
+            card to return to. An empty affinity keeps this activity in a task of its own so it can
+            never root the real one, which is what makes excludeFromRecents mean what it says here.
+        -->
+        <activity
+            android:name=".activities.DeepLinkActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="www.appdevforall.org"
+                    android:pathPrefix="/device/open/project/" />
+                <data
+                    android:scheme="https"
+                    android:host="appdevforall.org"
+                    android:pathPrefix="/device/open/project/" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".activities.editor.EditorActivityKt"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|fontScale"

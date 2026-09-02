@@ -241,8 +241,9 @@ class EditorProviderImpl(
 		column: Int,
 	): Boolean {
 		val activity = activity() ?: return false
-		val pos = Position(line.coerceAtLeast(0), column.coerceAtLeast(0))
-		activity.openFileAndSelect(file, Range(pos, pos))
+		// pointRange rather than an open-coded Range(pos, pos): same factory, and it keeps this
+		// Position out of the Range that openFileAndSelect's pipeline goes on to clamp in place.
+		activity.openFileAndSelect(file, Range.pointRange(Position(line.coerceAtLeast(0), column.coerceAtLeast(0))))
 		return true
 	}
 
