@@ -52,7 +52,10 @@ import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.PluginManagerActivity
 import com.itsaky.androidide.activities.projectsRoot
+import com.itsaky.androidide.analytics.DeepLinkMetric
+import com.itsaky.androidide.analytics.DeepLinkOutcome
 import com.itsaky.androidide.analytics.IAnalyticsManager
+import com.itsaky.androidide.analytics.depth
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.EditorEvents
@@ -2740,6 +2743,20 @@ open class EditorHandlerActivity :
 		lifecycleScope.launch(Dispatchers.IO) {
 			val lookup = resolveDeepLinkProject(projectsRoot(), request.projectName)
 			if (lookup !is DeepLinkProjectLookup.Found) {
+				// Mirrors MainActivity's identical branch. Without it this path emitted RECEIVED and
+				// then nothing, which reads exactly like the silent drop-off the paired events exist
+				// to expose -- a missing instrument masquerading as the bug it was added to find.
+				analyticsManager.trackDeepLink(
+					DeepLinkMetric(
+						request.depth(),
+						if (lookup is DeepLinkProjectLookup.NotFound) {
+							DeepLinkOutcome.PROJECT_NOT_FOUND
+						} else {
+							DeepLinkOutcome.PROJECT_UNVERIFIABLE
+						},
+						request.projectName,
+					),
+				)
 				// No such project, so the switch this intent announced is never going to happen. Without
 				// this the capture above is stranded: setIntent() has already dropped the staying
 				// project's pending file request, nothing puts it back, and
