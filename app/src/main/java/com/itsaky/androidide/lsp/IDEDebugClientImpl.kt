@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp
 
 import android.annotation.SuppressLint
 import android.widget.RemoteViews.RemoteView
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.eventbus.events.EventReceiver
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.lookup.Lookup
@@ -22,13 +23,14 @@ import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.newFixedThreadPoolContext
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -47,11 +49,23 @@ class IDEDebugClientImpl(
 	AutoCloseable {
 	private val logger = LoggerFactory.getLogger(IDEDebugClientImpl::class.java)
 
-	@OptIn(DelicateCoroutinesApi::class)
-	private val clientContext = newFixedThreadPoolContext(4, "IDEDebugClient")
-	private val clientScope = CoroutineScope(clientContext + SupervisorJob())
+	// limitedParallelism bounds concurrency the way a fixed pool did, but owns no thread, so there
+	// is nothing to close and nothing to leak per editor session (ADFA-5375).
+	@OptIn(ExperimentalCoroutinesApi::class)
+	private val clientContext = Dispatchers.IO.limitedParallelism(4)
+	private val clientScope =
+		CoroutineScope(
+			clientContext + SupervisorJob() +
+				CoroutineExceptionHandler { _, error ->
+					// The IDE's uncaught handler exits the process; a failed debugger call must not.
+					logger.error("Unhandled error in debug client", error)
+				},
+		)
 	private val clients = CopyOnWriteArraySet<RemoteClient>()
 	val breakpoints = BreakpointHandler()
+
+	@Volatile
+	private var closed = false
 
 	companion object {
 		@JvmStatic
@@ -163,6 +177,10 @@ class IDEDebugClientImpl(
 		action: String,
 		block: (RemoteClient) -> Unit,
 	) {
+		if (isClosed(action)) {
+			return
+		}
+
 		clientOrNull?.also(block)
 			?: logger.error("Cannot perform $action action. Not connected to a remote client.")
 	}
@@ -223,6 +241,10 @@ class IDEDebugClientImpl(
 	@Suppress("UNUSED")
 	@Subscribe(threadMode = ThreadMode.ASYNC)
 	fun onContentChange(event: DocumentChangeEvent) {
+		if (isClosed("document change")) {
+			return
+		}
+
 		clientScope.launch { breakpoints.change(event) }
 	}
 
@@ -230,11 +252,18 @@ class IDEDebugClientImpl(
 		file: File,
 		line: Int,
 	) {
+		if (isClosed("toggle breakpoint")) {
+			return
+		}
+
 		clientScope.launch { breakpoints.toggle(file, line) }
 	}
 
 	override fun onBreakpointHit(event: BreakpointHitEvent) {
 		logger.debug("onBreakpointHit: {}", event)
+		if (isClosed("breakpoint hit")) {
+			return
+		}
 
 		clientScope.launch {
 			connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
@@ -246,6 +275,9 @@ class IDEDebugClientImpl(
 
 	override fun onStep(event: StepEvent) {
 		logger.debug("onStep: {}", event)
+		if (isClosed("step")) {
+			return
+		}
 
 		clientScope.launch {
 			updateThreadInfo(event.remoteClient, event.threadId)
@@ -257,6 +289,9 @@ class IDEDebugClientImpl(
 
 	override fun onAttach(client: RemoteClient) {
 		logger.debug("onAttach: client={}", client)
+		if (isClosed("attach")) {
+			return
+		}
 
 		check(client !in clients) {
 			"Already attached to client"
@@ -281,6 +316,10 @@ class IDEDebugClientImpl(
 
 	override fun onDisconnect(client: RemoteClient) {
 		logger.debug("onDisconnect: client={}", client)
+		if (isClosed("disconnect")) {
+			return
+		}
+
 		breakpoints.unhighlightHighlightedLocation()
 		clients -= client
 		connectionState = DebuggerConnectionState.DETACHED
@@ -333,16 +372,36 @@ class IDEDebugClientImpl(
 	}
 
 	/**
-	 * Detaches from EventBus, cancels in-flight work and releases the OS threads owned by the
-	 * client pool and by [breakpoints]. Called when the owning [DebuggerViewModel] is cleared;
-	 * the client is unusable afterwards.
+	 * Detaches from EventBus and cancels in-flight work, so nothing keeps calling into a
+	 * [DebuggerViewModel] that has already been cleared. The client is unusable afterwards; every
+	 * entry point below turns into a logged no-op.
 	 */
 	override fun close() {
+		if (closed) {
+			return
+		}
+		closed = true
+
 		unregister()
 		clientScope.cancelIfActive("IDEDebugClientImpl closed")
-		clientContext.close()
 		breakpoints.close()
 		clients.clear()
+	}
+
+	/** Whether in-flight work is still allowed; false once [close] has run. */
+	@VisibleForTesting
+	internal val isClientScopeActive: Boolean
+		get() = clientScope.isActive
+
+	/**
+	 * Guards the entry points reachable from a stale reference or from the JDWP listener thread,
+	 * which is not stopped by cancelling [clientScope].
+	 */
+	private fun isClosed(action: String): Boolean {
+		if (closed) {
+			logger.warn("Ignoring {}: the debug client is closed", action)
+		}
+		return closed
 	}
 
 	private suspend fun openLocation(event: LocatableEvent) = openLocation(event.location)

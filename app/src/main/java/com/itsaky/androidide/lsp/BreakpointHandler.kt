@@ -15,12 +15,12 @@ import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.repositories.BreakpointRepository
 import com.itsaky.androidide.repositories.StoredBreakpointsType
-import com.itsaky.androidide.tasks.cancelIfActive
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.newSingleThreadContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.TreeMap
@@ -58,16 +57,37 @@ private data class BpState(
 }
 
 class BreakpointHandler : AutoCloseable {
-	@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
-	private val dispatcher = newSingleThreadContext("BreakpointHandler")
-	private val scope = CoroutineScope(dispatcher)
+	// limitedParallelism(1) gives the sequential confinement this class relies on without owning a
+	// thread, so there is nothing to close and nothing to leak per editor session (ADFA-5375).
+	// Without a handler an failure here escapes to the process-wide uncaught handler and takes the
+	// app down; the breakpoint consumer is not worth a crash.
+	private val exceptionHandler =
+		CoroutineExceptionHandler { _, error ->
+			logger.error("Unhandled error while processing breakpoint events", error)
+		}
+
+	@OptIn(ExperimentalCoroutinesApi::class)
+	private val scope =
+		CoroutineScope(Dispatchers.IO.limitedParallelism(1) + SupervisorJob() + exceptionHandler)
+
+	// Persistence deliberately outlives [close]: a debounced save must still land when the editor
+	// goes away, which is exactly when the user is most likely to lose a just-added breakpoint.
+	private val saveScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
 	private val events = Channel<BreakpointEvent>(capacity = Channel.UNLIMITED)
 	private val _highlightedLocation = MutableStateFlow<Pair<String, Int>?>(null)
+
+	@Volatile
 	private var onSetBreakpoints: ((List<BreakpointDefinition>) -> Unit)? = null
 	private val listeners = CopyOnWriteArrayList<EventListener>()
 
 	private val stateRef = AtomicReference(BpState.EMPTY)
+
+	@Volatile
 	private var saveJob: Job? = null
+
+	@Volatile
+	private var closed = false
 
 	val highlightedLocationState: StateFlow<Pair<String, Int>?>
 		get() = _highlightedLocation.asStateFlow()
@@ -86,6 +106,9 @@ class BreakpointHandler : AutoCloseable {
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(BreakpointHandler::class.java)
+
+		/** How long a burst of breakpoint edits is coalesced before it reaches disk. */
+		private const val SAVE_DEBOUNCE_MS = 1000L
 
 		@VisibleForTesting
 		internal fun computeNewBreakpointPosition(
@@ -173,15 +196,36 @@ class BreakpointHandler : AutoCloseable {
 	}
 
 	/**
-	 * Cancels in-flight work and releases the OS thread backing the handler. The handler is
-	 * unusable afterwards; a new debugger session needs a new instance.
+	 * Detaches the handler from its owner. Closing [events] lets the consumer drain what is already
+	 * queued and then finish on its own, rather than cancelling it and dropping those edits; the
+	 * scope owns no thread, so an idle scope costs nothing. Listeners are dropped first so the
+	 * drained events cannot call back into a destroyed editor.
 	 */
 	override fun close() {
-		scope.cancelIfActive("BreakpointHandler closed")
-		events.close()
+		if (closed) {
+			return
+		}
+		closed = true
+
+		unhighlightHighlightedLocation()
 		listeners.clear()
 		onSetBreakpoints = null
-		dispatcher.close()
+		events.close()
+		flushPendingSave()
+	}
+
+	/**
+	 * Writes a debounced save immediately instead of waiting out the remaining delay. Without this,
+	 * a breakpoint toggled in the last [SAVE_DEBOUNCE_MS] before the editor closes is lost.
+	 */
+	private fun flushPendingSave() {
+		val pending = saveJob ?: return
+		if (!pending.isActive) {
+			return
+		}
+
+		pending.cancel()
+		saveJob = saveScope.launch { writeBreakpoints() }
 	}
 
 	fun addListener(listener: EventListener) {
@@ -208,15 +252,30 @@ class BreakpointHandler : AutoCloseable {
 				breakpoint
 			}
 
-	suspend fun change(event: DocumentChangeEvent) {
-		events.send(BreakpointEvent.DocChange(event))
+	fun change(event: DocumentChangeEvent) {
+		offer(BreakpointEvent.DocChange(event), "document change")
 	}
 
-	suspend fun toggle(
+	fun toggle(
 		file: File,
 		line: Int,
 	) {
-		events.send(BreakpointEvent.Toggle(file, line))
+		offer(BreakpointEvent.Toggle(file, line), "toggle at $file:$line")
+	}
+
+	/**
+	 * The channel is unbounded, so the only way this fails is a closed handler - which is a race a
+	 * caller cannot avoid, not an error worth throwing into its scope. `send` here would raise
+	 * ClosedSendChannelException on a scope with no handler, and the IDE's uncaught handler turns
+	 * that into a process exit.
+	 */
+	private fun offer(
+		event: BreakpointEvent,
+		description: String,
+	) {
+		if (events.trySend(event).isFailure) {
+			logger.debug("Dropping {}: the breakpoint handler is closed", description)
+		}
 	}
 
 	private fun refreshBreakpoints(loadedBreakpoints: StoredBreakpointsType) {
@@ -375,22 +434,30 @@ class BreakpointHandler : AutoCloseable {
 	}
 
 	private fun onSave() {
+		if (closed) {
+			return
+		}
+
 		saveJob?.cancel()
 		saveJob =
-			scope.launch(Dispatchers.IO) {
-				delay(1000)
-				val snap = stateRef.get()
-				val breakpointsToSave =
-					buildList {
-						addAll(snap.positional.values())
-						addAll(snap.method.values())
-					}
-				BreakpointRepository.saveBreakpoints(
-					projectDir = IProjectManager.getInstance().projectDir,
-					breakpoints = breakpointsToSave,
-				)
-				logger.debug("Breakpoints saved to disk.")
+			saveScope.launch {
+				delay(SAVE_DEBOUNCE_MS)
+				writeBreakpoints()
 			}
+	}
+
+	private suspend fun writeBreakpoints() {
+		val snap = stateRef.get()
+		val breakpointsToSave =
+			buildList {
+				addAll(snap.positional.values())
+				addAll(snap.method.values())
+			}
+		BreakpointRepository.saveBreakpoints(
+			projectDir = IProjectManager.getInstance().projectDir,
+			breakpoints = breakpointsToSave,
+		)
+		logger.debug("Breakpoints saved to disk.")
 	}
 
 	private fun notifyBreakpointsUpdated(newBreakpoints: List<BreakpointDefinition>) {

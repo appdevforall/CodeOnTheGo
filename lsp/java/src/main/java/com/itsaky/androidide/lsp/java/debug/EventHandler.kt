@@ -23,12 +23,12 @@ import com.sun.jdi.event.WatchpointEvent
 import com.sun.jdi.request.EventRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.newSingleThreadContext
 import org.slf4j.LoggerFactory
 
 /**
@@ -49,8 +49,10 @@ internal class EventHandler(
 	private var vmDied = false
 	private var completed = false
 
-	@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
-	private val adapterContext = newSingleThreadContext("JDWPEventHandler")
+	// A handler exists per debug session, so a thread-owning dispatcher here leaked a thread per
+	// session; limitedParallelism(1) keeps the sequencing and owns nothing (ADFA-5397).
+	@OptIn(ExperimentalCoroutinesApi::class)
+	private val adapterContext = Dispatchers.IO.limitedParallelism(1)
 	private val adapterScope = CoroutineScope(adapterContext)
 	private var eventsJob: Job? = null
 
@@ -310,5 +312,6 @@ internal class EventHandler(
 		connected = false
 		eventsJob?.cancel(CancellationException("EventHandler closed"))
 		eventsJob = null
+		adapterScope.cancel(CancellationException("EventHandler closed"))
 	}
 }

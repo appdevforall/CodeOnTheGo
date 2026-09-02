@@ -27,13 +27,11 @@ import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.termux.shared.reflection.ReflectionUtils
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
@@ -48,8 +46,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 class MemoryUsageWatcher(
 	private val updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
 ) {
-	@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
-	private val coroutineDispatcher = newSingleThreadContext("MemoryUsageWatcher")
+	// One watcher exists per editor activity, so a thread-owning dispatcher here leaked a thread per
+	// destroyed editor; limitedParallelism(1) keeps the sequencing and owns nothing (ADFA-5396).
+	@OptIn(ExperimentalCoroutinesApi::class)
+	private val coroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
 	private val coroutineScope = CoroutineScope(coroutineDispatcher)
 	private val memoryUsage = ConcurrentHashMap<Int, ProcessMemoryInfo>()
 	private val watching = AtomicBoolean(false)
