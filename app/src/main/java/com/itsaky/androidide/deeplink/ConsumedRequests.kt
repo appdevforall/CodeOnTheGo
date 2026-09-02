@@ -39,13 +39,34 @@ import android.os.Parcelable
 class ConsumedRequests<T : Parcelable> {
 	private val requests = LinkedHashSet<T>()
 
-	/** For `onSaveInstanceState`; pairs with [restore]. */
-	fun toSavedList(): ArrayList<T> = ArrayList(requests)
+	/**
+	 * The launch-Intent entry: the first request this set ever recorded, and the one Android replays
+	 * verbatim after process death. Held by value rather than by position because [add] reorders the
+	 * set to track recency -- a re-add used to slide this entry off slot 0, leaving the positional
+	 * pin in [add]'s eviction loop protecting whichever arbitrary request happened to land there.
+	 */
+	private var pinned: T? = null
 
-	/** Replaces the contents with [saved], which is null when there is no instance state to restore. */
+	/** For `onSaveInstanceState`; pairs with [restore]. [pinned] leads, so [restore] can re-establish it. */
+	fun toSavedList(): ArrayList<T> {
+		val saved = ArrayList<T>(requests.size)
+		pinned?.let(saved::add)
+		requests.filterTo(saved) { it != pinned }
+		return saved
+	}
+
+	/**
+	 * Replaces the contents with [saved], which is null when there is no instance state to restore.
+	 *
+	 * [MAX_REMEMBERED] is re-applied here: the cap exists to bound the saved Bundle against a sender
+	 * firing links in a loop, and restoring an over-long list unchecked would carry an oversized set
+	 * straight back into the next `onSaveInstanceState`.
+	 */
 	fun restore(saved: List<T>?) {
 		requests.clear()
+		pinned = saved?.firstOrNull()
 		saved?.let(requests::addAll)
+		evictExcess()
 	}
 
 	operator fun contains(request: T): Boolean = request in requests
@@ -57,6 +78,12 @@ class ConsumedRequests<T : Parcelable> {
 	 */
 	fun remove(request: T) {
 		requests.remove(request)
+		// Dropping the pinned entry releases the pin too, so the next add() re-establishes it rather
+		// than leaving a pin on a request no longer in the set -- which would exempt nothing and let
+		// eviction reach the real launch entry again.
+		if (pinned == request) {
+			pinned = null
+		}
 	}
 
 	/**
@@ -64,27 +91,38 @@ class ConsumedRequests<T : Parcelable> {
 	 * legitimately be unset by the time a confirmation dialog is answered.
 	 *
 	 * Eviction past [MAX_REMEMBERED] keeps the saved Bundle bounded against a sender that fires links
-	 * in a loop -- but it deliberately does NOT evict the first entry. LinkedHashSet iterates in
-	 * insertion order, so `remove(first())` dropped the OLDEST, and the oldest is by construction the
-	 * request on the task's launch Intent: the one entry this class exists to remember, since that is
-	 * the Intent Android replays verbatim after process death. Evicting it force-reopened its project
-	 * over whatever the user was doing, which is the regression this class was written to prevent.
+	 * in a loop -- but it deliberately does NOT evict [pinned], the request on the task's launch
+	 * Intent. That is the one entry this class exists to remember, since it is the Intent Android
+	 * replays verbatim after process death; evicting it force-reopened its project over whatever the
+	 * user was doing, the regression this class was written to prevent.
 	 *
-	 * So the launch entry is pinned and eviction takes the second-oldest instead, and a re-add
-	 * refreshes an entry's position so "oldest" tracks use rather than first sighting.
+	 * A re-add refreshes an entry's position so "oldest" tracks use rather than first sighting --
+	 * except for [pinned], which is left where it is. Reordering it was the bug: the pin used to be
+	 * positional (slot 0), so re-tapping the same URL, or [remove] followed by [add] on a re-armed
+	 * request, slid the launch entry down and handed its protection to an unrelated request.
 	 */
 	fun add(request: T?) {
 		request ?: return
+		if (pinned == null) {
+			pinned = request
+		}
 		// Re-insert so position tracks recency: `requests += request` leaves an existing element where
-		// it was, which made a repeatedly-seen request look like the least recent.
-		requests.remove(request)
+		// it was, which made a repeatedly-seen request look like the least recent. Skipped for the
+		// pinned entry, whose position no longer carries meaning and must stay stable for [toSavedList].
+		if (request != pinned) {
+			requests.remove(request)
+		}
 		requests += request
+		evictExcess()
+	}
+
+	/** Drops the oldest non-[pinned] entries until the set is back within [MAX_REMEMBERED]. */
+	private fun evictExcess() {
 		while (requests.size > MAX_REMEMBERED) {
-			val iterator = requests.iterator()
-			iterator.next() // the launch-Intent entry, pinned
-			if (!iterator.hasNext()) break
-			iterator.next()
-			iterator.remove()
+			// firstOrNull, not first(): a set of nothing but the pinned entry has no eligible victim,
+			// and looping forever on it would hang whichever lifecycle callback got here.
+			val victim = requests.firstOrNull { it != pinned } ?: return
+			requests.remove(victim)
 		}
 	}
 

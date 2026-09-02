@@ -130,4 +130,66 @@ class ConsumedRequestsTest {
 		assertThat(request("project1") in consumed).isTrue()
 		assertThat(request("project2") in consumed).isFalse()
 	}
+
+	// The pin used to be positional -- the eviction loop simply skipped slot 0 -- while add()
+	// reordered every entry it saw. Re-tapping the same URL therefore slid the launch entry off
+	// slot 0 and handed its protection to an unrelated request, so a sender firing links in a loop
+	// (DeepLinkActivity is exported) could evict it and force its project open after process death.
+	// Each of these needs a SECOND entry present before the launch entry is re-added. With the set
+	// holding nothing else, remove-then-append puts the launch entry straight back on slot 0 and the
+	// old positional pin still covered it -- so a version of these tests without "other" passed
+	// against the unfixed code and pinned nothing.
+	@Test
+	fun `re-adding the launch entry does not surrender its pin`() {
+		val consumed = ConsumedRequests<DeepLinkRequest>()
+		consumed.add(request("project0"))
+		consumed.add(request("other"))
+		// The user taps the launch link a second time -- nothing gates a non-reforwarded repeat.
+		// The positional pin moved project0 off slot 0 here, handing its protection to "other".
+		consumed.add(request("project0"))
+		repeat(40) { consumed.add(request("flood$it")) }
+
+		assertThat(consumed.toSavedList()).hasSize(32)
+		assertThat(request("project0") in consumed).isTrue()
+	}
+
+	@Test
+	fun `an interleaved remove and re-add still leaves the launch entry pinned`() {
+		val consumed = ConsumedRequests<DeepLinkRequest>()
+		consumed.add(request("project0"))
+		consumed.add(request("other"))
+		// armPendingFileRequest's deliberate re-arm: forget it, then record it again.
+		consumed.remove(request("project0"))
+		consumed.add(request("project0"))
+		repeat(40) { consumed.add(request("flood$it")) }
+
+		assertThat(request("project0") in consumed).isTrue()
+	}
+
+	@Test
+	fun `the pin survives a save and restore`() {
+		val consumed = ConsumedRequests<DeepLinkRequest>()
+		consumed.add(request("project0"))
+		consumed.add(request("other"))
+		consumed.add(request("project0"))
+
+		val restored = ConsumedRequests<DeepLinkRequest>()
+		restored.restore(consumed.toSavedList())
+		repeat(40) { restored.add(request("flood$it")) }
+
+		assertThat(request("project0") in restored).isTrue()
+	}
+
+	// restore() used to addAll() unchecked, so an over-long list came back oversized and went
+	// straight into the next onSaveInstanceState -- the Bundle bound the cap exists to enforce.
+	@Test
+	fun `restore re-applies the cap`() {
+		val oversized = (0 until 40).map { request("project$it") }
+
+		val restored = ConsumedRequests<DeepLinkRequest>()
+		restored.restore(oversized)
+
+		assertThat(restored.toSavedList()).hasSize(32)
+		assertThat(request("project0") in restored).isTrue()
+	}
 }
