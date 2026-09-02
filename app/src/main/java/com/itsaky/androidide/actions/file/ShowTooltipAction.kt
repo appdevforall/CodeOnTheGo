@@ -30,8 +30,11 @@ import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 
+// The context is used only to build the label and icon below; it is deliberately not stored.
+// EDITOR_TEXT_ACTIONS is never cleared (see EditorActivityActions.clear), so the static
+// ActionsRegistry outlives every editor activity - retaining one here leaks that activity.
 class ShowTooltipAction(
-	private val context: Context,
+	context: Context,
 	override val order: Int,
 ) : BaseEditorAction() {
 	companion object {
