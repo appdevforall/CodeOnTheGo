@@ -36,6 +36,7 @@ import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -52,10 +53,6 @@ class BuildOutputFragment :
 	ViewOptionsOutputFragment {
 	private val buildOutputViewModel: BuildOutputViewModel by activityViewModels()
 
-	companion object {
-		private const val LAYOUT_TIMEOUT_MS = 2000L
-	}
-
 	override val currentEditor: IDEEditor? get() = editor
 
 	private val outputBuffer = BuildOutputBuffer()
@@ -67,18 +64,15 @@ class BuildOutputFragment :
 	// so a re-render never misses or duplicates a concurrently flushed batch.
 	private val editorContentMutex = Mutex()
 
-	// Bumped only when a build session is cleared (new build) so live streaming logs
-	// are never dropped from the disk session file during filter re-renders.
-	@Volatile
-	private var sessionGeneration = 0
+	// Keeps producer-side disk appends ordered and provides an atomic restore snapshot boundary.
+	private val appendMutex = Mutex()
 
 	// Bumped on every wholesale content replacement (filtered re-render or clear) so an
 	// in-flight batch flush drained before the replacement can detect it and drop itself.
 	@Volatile
 	private var editorContentGeneration = 0
 
-	@Volatile
-	private var visibleEditorChars = 0
+	// Written on Main and read by the background batch processor.
 	@Volatile
 	private var editorSourceChars = 0
 	private val noMatchTracker = FilterNoMatchTracker()
@@ -98,11 +92,9 @@ class BuildOutputFragment :
 		setupSearchLayout()
 
 		viewLifecycleOwner.lifecycleScope.launch {
-			launch { restoreWindowFromViewModel() }
-			launch(Dispatchers.Default) { processLogs() }
 			launch {
-				val content = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
-				buildOutputViewModel.setCachedSnapshot(content)
+				restoreWindowFromViewModel()
+				withContext(Dispatchers.Default) { processLogs() }
 			}
 			launch {
 				combine(
@@ -124,19 +116,23 @@ class BuildOutputFragment :
 		showTimestamps: Boolean = buildOutputViewModel.showTimestamps.value,
 		showDeltas: Boolean = buildOutputViewModel.showDeltas.value,
 	) {
-		editorContentMutex.withLock {
-			editorContentGeneration++
-			val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
-			val filtered =
-				withContext(Dispatchers.Default) {
-					BuildOutputViewModel.fitEditorWindow(
-						BuildOutputViewModel.filterLines(window, query, showTimestamps, showDeltas),
-					)
-				}
+		val renderGeneration =
 			withContext(Dispatchers.Main) {
-				editor?.setText(filtered)
-				visibleEditorChars = filtered.length
-				editorSourceChars = window.length
+				editorContentGeneration++
+				editorContentGeneration
+			}
+		val window =
+			snapshotEditorWindow()
+		val filtered =
+			withContext(Dispatchers.Default) {
+				BuildOutputViewModel.filterLines(window, query, showTimestamps, showDeltas)
+			}
+		withContext(Dispatchers.Main) {
+			editorContentMutex.withLock {
+				if (renderGeneration != editorContentGeneration) return@withLock
+				val editor = editor ?: return@withLock
+				editor.setText(filtered)
+				editorSourceChars = BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
 				val isSourceEmpty = window.isBlank()
 				updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
 				if (noMatchTracker.onRender(isSourceEmpty = isSourceEmpty, isFilteredEmpty = filtered.isBlank())) {
@@ -296,23 +292,16 @@ class BuildOutputFragment :
 
 	private suspend fun restoreWindowFromViewModel() =
 		withContext(Dispatchers.Default) {
-			val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
-			val content =
-				BuildOutputViewModel.fitEditorWindow(
-					BuildOutputViewModel.filterLines(
-						window,
-						buildOutputViewModel.filterText.value,
-						buildOutputViewModel.showTimestamps.value,
-						buildOutputViewModel.showDeltas.value,
-					),
-				)
 			val generationAtRestore = editorContentGeneration
-			val visibleCharsAtRestore = visibleEditorChars
-			val sourceCharsAtRestore = editorSourceChars
-			fun isRestoreCurrent() =
-				editorContentGeneration == generationAtRestore &&
-					visibleEditorChars == visibleCharsAtRestore &&
-					editorSourceChars == sourceCharsAtRestore
+			val window = snapshotEditorWindow()
+			val content =
+				BuildOutputViewModel.filterLines(
+					window,
+					buildOutputViewModel.filterText.value,
+					buildOutputViewModel.showTimestamps.value,
+					buildOutputViewModel.showDeltas.value,
+				)
+			fun isRestoreCurrent() = editorContentGeneration == generationAtRestore
 			val isSourceEmpty = window.isBlank()
 			val isFilteredEmpty = content.isBlank()
 
@@ -322,10 +311,12 @@ class BuildOutputFragment :
 				if (!isSourceEmpty && isFilteredEmpty) {
 					editorContentMutex.withLock {
 						if (isRestoreCurrent()) {
-							editor?.setText("")
-							visibleEditorChars = 0
-							editorSourceChars = window.length
-							onContentReplaced()
+							editor?.run {
+								setText("")
+								editorSourceChars =
+									BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
+								onContentReplaced()
+							}
 						}
 					}
 				}
@@ -340,30 +331,22 @@ class BuildOutputFragment :
 					}
 				if (layoutCompleted != null) {
 					editorContentMutex.withLock {
-						if (isRestoreCurrent()) {
-							editor.appendBatch(content)
-							visibleEditorChars += content.length
-							editorSourceChars = window.length
+						if (isRestoreCurrent() && editor.appendBatchIfReady(content)) {
+							editorSourceChars =
+								BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
 							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 						}
 					}
 				} else {
-					// Timeout: defer append until layout is ready so content is not lost
-					val job =
-						viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-							editor.run {
-								awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
-								editorContentMutex.withLock {
-									if (isRestoreCurrent()) {
-										appendBatch(content)
-										visibleEditorChars += content.length
-										editorSourceChars = window.length
-										updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
-									}
-								}
-							}
+					// Layout timed out; keep waiting so the restored content is not lost.
+					editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
+					editorContentMutex.withLock {
+						if (isRestoreCurrent() && editor.appendBatchIfReady(content)) {
+							editorSourceChars =
+								BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
+							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 						}
-					job.join()
+					}
 				}
 			}
 		}
@@ -371,6 +354,8 @@ class BuildOutputFragment :
 	override fun onDestroyView() {
 		searchLayout = null
 		filterBar = null
+		editorContentGeneration++
+		editorSourceChars = 0
 		editor?.release()
 		super.onDestroyView()
 	}
@@ -380,12 +365,8 @@ class BuildOutputFragment :
 		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
 		// when the fragment is detached, otherwise an IllegalStateException is thrown.
 		if (!isAdded || activity == null) return
-		// Invalidate in-flight flushes before deleting content, so a batch drained from the
-		// buffer earlier cannot re-seed the cleared session.
-		sessionGeneration++
 		outputBuffer.clear()
 		editorContentGeneration++
-		visibleEditorChars = 0
 		editorSourceChars = 0
 		noMatchTracker.reset()
 		buildOutputViewModel.clear()
@@ -405,10 +386,33 @@ class BuildOutputFragment :
 	}
 
 	fun appendOutput(output: String?) {
-		if (!output.isNullOrEmpty()) {
-			outputBuffer.offer(output, sessionGeneration)
+		val text = output ?: return
+		if (text.isEmpty()) return
+		val sessionToken = buildOutputViewModel.currentSessionToken
+		lifecycleScope.launch {
+			appendMutex.withLock {
+				val normalized =
+					withContext(Dispatchers.Default) {
+						if (text.endsWith('\n')) text else "$text\n"
+					}
+				if (
+					buildOutputViewModel.append(normalized, sessionToken) &&
+					buildOutputViewModel.isCurrentSession(sessionToken)
+				) {
+					outputBuffer.offer(normalized, sessionToken)
+				}
+			}
 		}
 	}
+
+	private suspend fun snapshotEditorWindow(): String =
+		appendMutex.withLock {
+			val snapshot = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
+			// The snapshot already contains everything persisted before this boundary.
+			outputBuffer.clear()
+			buildOutputViewModel.setCachedSnapshot(snapshot)
+			snapshot
+		}
 
 	/**
 	 * Main log orchestrator: Consumes, Batches, and Dispatches.
@@ -419,107 +423,122 @@ class BuildOutputFragment :
 		while (true) {
 			val batch = outputBuffer.takeBatch()
 			val editorGenAtDrain = editorContentGeneration
-			flushToEditor(batch.text, batch.sessionGeneration, editorGenAtDrain)
+			try {
+				flushToEditor(
+					batch.text,
+					batch.sourceChars,
+					batch.sessionToken,
+					editorGenAtDrain,
+				)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.error("Failed to flush a build output batch to the editor", e)
+			}
 		}
 	}
 
 	/**
 	 * Performs the safe UI update on the Main Thread.
 	 *
-	 * Appends to the session file on a background dispatcher before switching to Main.
+	 * Applies output already persisted by the producer before switching to Main.
 	 * Uses [IDEEditor.awaitLayout] to guarantee the editor has physical dimensions (width > 0)
 	 * before attempting to insert text, preventing the Sora library's `ArrayIndexOutOfBoundsException`.
 	 */
 	private suspend fun flushToEditor(
 		text: String,
-		sessionGen: Int,
+		sourceChars: Int,
+		sessionToken: Int,
 		editorGen: Int,
 	) {
-		editorContentMutex.withLock {
-			// A clear (new build) after this batch was drained invalidates session append.
-			if (sessionGen != sessionGeneration) return
-
-			buildOutputViewModel.append(text) { sessionGen == sessionGeneration }
-			if (sessionGen != sessionGeneration) return
-			val refreshEditorWindow =
-				BuildOutputViewModel.wouldExceedEditorWindow(editorSourceChars, text.length)
-
-			// The session file always gets the full text; the editor only shows matching lines
-			val visibleText =
-				BuildOutputViewModel.filterLines(
-					text,
-					buildOutputViewModel.filterText.value,
-					buildOutputViewModel.showTimestamps.value,
-					buildOutputViewModel.showDeltas.value,
-				)
-			if (visibleText.isEmpty() && !refreshEditorWindow) {
-				withContext(Dispatchers.Main) {
-					if (sessionGen == sessionGeneration) editorSourceChars += text.length
-				}
-				return
-			}
-			val refreshedWindow =
-				if (refreshEditorWindow) {
-					val window = withContext(Dispatchers.IO) { buildOutputViewModel.getWindowForEditor() }
-					withContext(Dispatchers.Default) {
-						Pair(
-							BuildOutputViewModel.fitEditorWindow(
-								BuildOutputViewModel.filterLines(
-									window,
-									buildOutputViewModel.filterText.value,
-									buildOutputViewModel.showTimestamps.value,
-									buildOutputViewModel.showDeltas.value,
-								),
-							),
-							window.length,
-						)
+		if (!buildOutputViewModel.isCurrentSession(sessionToken)) return
+		val refreshEditorWindow =
+			BuildOutputViewModel.wouldExceedEditorWindow(editorSourceChars, sourceChars)
+		val visibleText =
+			BuildOutputViewModel.filterLines(
+				text,
+				buildOutputViewModel.filterText.value,
+				buildOutputViewModel.showTimestamps.value,
+				buildOutputViewModel.showDeltas.value,
+			)
+		val refreshedWindow =
+			if (refreshEditorWindow) {
+				val window =
+					appendMutex.withLock {
+						val snapshot = buildOutputViewModel.getCachedContentSnapshot()
+						outputBuffer.clear()
+						snapshot
 					}
-				} else {
-					null
+				withContext(Dispatchers.Default) {
+					Pair(
+						BuildOutputViewModel.filterLines(
+							window,
+							buildOutputViewModel.filterText.value,
+							buildOutputViewModel.showTimestamps.value,
+							buildOutputViewModel.showDeltas.value,
+						),
+						window.length,
+					)
 				}
+			} else {
+				null
+			}
 
-			withContext(Dispatchers.Main) {
+		withContext(Dispatchers.Main) {
+			editorContentMutex.withLock {
+				if (
+					editorGen != editorContentGeneration ||
+					!buildOutputViewModel.isCurrentSession(sessionToken)
+				) {
+					return@withLock
+				}
+				val editor = editor ?: return@withLock
 				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
-				if (editorGen != editorContentGeneration) return@withContext
 				if (refreshedWindow != null) {
 					editorContentGeneration++
-					editor?.setText(refreshedWindow.first)
-					visibleEditorChars = refreshedWindow.first.length
-					editorSourceChars = refreshedWindow.second
+					editor.setText(refreshedWindow.first)
+					editorSourceChars =
+						BuildOutputViewModel.editorSourceCharsAfterRefresh(refreshedWindow.second)
 					onContentReplaced()
-					return@withContext
+					return@withLock
 				}
-				editor?.run {
-					val layoutCompleted =
-						withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-							awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
-						}
-					if (layoutCompleted != null) {
-						// clearOutput() or renderFiltered() may have run since the file append.
-						if (editorGen == editorContentGeneration) {
-							appendBatch(visibleText)
-							visibleEditorChars += visibleText.length
-							editorSourceChars += text.length
-							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
-						}
-					} else {
-						// Timeout: defer append until layout is ready (same as restoreWindowFromViewModel)
-						viewLifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
-							editor?.run {
-								awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
-								editorContentMutex.withLock {
-									if (editorGen == editorContentGeneration) {
-										appendBatch(visibleText)
-										visibleEditorChars += visibleText.length
-										editorSourceChars += text.length
-										updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
-									}
-								}
-							}
-						}
+				if (visibleText.isEmpty()) {
+					editorSourceChars += sourceChars
+					return@withLock
+				}
+
+				val layoutCompleted =
+					withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+						editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
+					}
+				if (layoutCompleted != null) {
+					if (editor.appendBatchIfReady(visibleText)) {
+						editorSourceChars += sourceChars
+					}
+				} else {
+					editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
+					if (
+						editorGen == editorContentGeneration &&
+						buildOutputViewModel.isCurrentSession(sessionToken) &&
+						editor.appendBatchIfReady(visibleText)
+					) {
+						editorSourceChars += sourceChars
+						updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 					}
 				}
 			}
 		}
+	}
+
+	private fun IDEEditor.appendBatchIfReady(text: String): Boolean {
+		if (!isReadyToAppend) return false
+		val previousLength = this.text.length
+		appendBatch(text)
+		return this.text.length == previousLength + text.length
+	}
+
+	companion object {
+		private const val LAYOUT_TIMEOUT_MS = 2000L
+		private val log = org.slf4j.LoggerFactory.getLogger(BuildOutputFragment::class.java)
 	}
 }

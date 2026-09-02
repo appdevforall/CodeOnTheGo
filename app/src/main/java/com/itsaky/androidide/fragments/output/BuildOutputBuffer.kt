@@ -22,8 +22,8 @@ import kotlinx.coroutines.channels.Channel
 /**
  * Thread-safe pending build output with fixed memory and batch budgets.
  *
- * Inputs are indivisible: one input larger than [maxBatchChars] is emitted alone, while one larger
- * than [maxPendingChars] is omitted. Other inputs are never split or reordered.
+ * Inputs are indivisible unless one exceeds [maxPendingChars], in which case only its newest tail
+ * is retained. Older pending output is evicted first, while batches preserve the retained order.
  */
 internal class BuildOutputBuffer(
 	private val maxPendingChars: Int = DEFAULT_MAX_PENDING_CHARS,
@@ -31,20 +31,22 @@ internal class BuildOutputBuffer(
 ) {
 	data class Batch(
 		val text: String,
-		val sessionGeneration: Int,
+		val sessionToken: Int,
+		val sourceChars: Int,
 	)
 
 	private sealed interface Entry {
-		val sessionGeneration: Int
+		val sessionToken: Int
 
 		data class Text(
 			val value: String,
-			override val sessionGeneration: Int,
+			override val sessionToken: Int,
 		) : Entry
 
 		data class Omission(
 			var lineCount: Long,
-			override val sessionGeneration: Int,
+			var sourceChars: Int,
+			override val sessionToken: Int,
 		) : Entry
 	}
 
@@ -52,7 +54,6 @@ internal class BuildOutputBuffer(
 	private val available = Channel<Unit>(Channel.CONFLATED)
 	private val lock = Any()
 	private var retainedChars = 0
-	private var omission: Entry.Omission? = null
 
 	internal val pendingChars: Int
 		get() = synchronized(lock) { retainedChars }
@@ -64,33 +65,35 @@ internal class BuildOutputBuffer(
 
 	fun offer(
 		text: String,
-		sessionGeneration: Int,
+		sessionToken: Int,
 	) {
 		if (text.isEmpty()) return
-		val needsNewline = !text.endsWith('\n')
-		val normalizedLength = text.length.toLong() + if (needsNewline) 1 else 0
-		val lineCount = text.count { it == '\n' }.toLong() + if (needsNewline) 1 else 0
+		val normalized = if (text.endsWith('\n')) text else "$text\n"
 		synchronized(lock) {
-			if (
-				normalizedLength > maxPendingChars.toLong() ||
-				normalizedLength > (maxPendingChars - retainedChars).toLong()
-			) {
-				val existingOmission = omission
-				if (
-					existingOmission?.sessionGeneration == sessionGeneration &&
-					entries.lastOrNull() === existingOmission
-				) {
-					existingOmission.lineCount += lineCount
-				} else {
-					val marker = Entry.Omission(lineCount, sessionGeneration)
-					omission = marker
-					entries.addLast(marker)
-				}
-			} else {
-				val normalized = if (needsNewline) "$text\n" else text
-				entries.addLast(Entry.Text(normalized, sessionGeneration))
-				retainedChars += normalizedLength.toInt()
+			val existingOmission = entries.firstOrNull() as? Entry.Omission
+			if (existingOmission != null) entries.removeFirst()
+
+			var retained = normalized
+			var omittedLines = existingOmission?.lineCount ?: 0
+			var omittedChars = existingOmission?.sourceChars ?: 0
+			if (retained.length > maxPendingChars) {
+				val droppedPrefix = retained.dropLast(maxPendingChars)
+				omittedLines += lineCount(droppedPrefix)
+				omittedChars = saturatedAdd(omittedChars, droppedPrefix.length)
+				retained = retained.takeLast(maxPendingChars)
 			}
+			while (retainedChars > maxPendingChars - retained.length) {
+				val evicted = entries.removeFirst() as Entry.Text
+				retainedChars -= evicted.value.length
+				omittedLines += lineCount(evicted.value)
+				omittedChars = saturatedAdd(omittedChars, evicted.value.length)
+			}
+
+			if (omittedLines > 0) {
+				entries.addFirst(Entry.Omission(omittedLines, omittedChars, sessionToken))
+			}
+			entries.addLast(Entry.Text(retained, sessionToken))
+			retainedChars += retained.length
 			available.trySend(Unit)
 		}
 	}
@@ -107,7 +110,6 @@ internal class BuildOutputBuffer(
 		synchronized(lock) {
 			entries.clear()
 			retainedChars = 0
-			omission = null
 			while (available.tryReceive().isSuccess) {
 				// Discard stale wakeups from the cleared build session.
 			}
@@ -116,11 +118,12 @@ internal class BuildOutputBuffer(
 
 	private fun takeAvailableBatch(): Batch? {
 		if (entries.isEmpty()) return null
-		val sessionGeneration = entries.first().sessionGeneration
+		val sessionToken = entries.first().sessionToken
 		val batch = StringBuilder(minOf(retainedChars, maxBatchChars))
+		var sourceChars = 0
 		while (entries.isNotEmpty()) {
 			val entry = entries.first()
-			if (entry.sessionGeneration != sessionGeneration) break
+			if (entry.sessionToken != sessionToken) break
 			val value =
 				when (entry) {
 					is Entry.Text -> entry.value
@@ -130,14 +133,30 @@ internal class BuildOutputBuffer(
 
 			entries.removeFirst()
 			batch.append(value)
-			if (entry is Entry.Text) retainedChars -= entry.value.length
-			if (entry is Entry.Omission && omission === entry) omission = null
+			when (entry) {
+				is Entry.Text -> {
+					retainedChars -= entry.value.length
+					sourceChars = saturatedAdd(sourceChars, entry.value.length)
+				}
+				is Entry.Omission -> sourceChars = saturatedAdd(sourceChars, entry.sourceChars)
+			}
 		}
 		if (entries.isNotEmpty()) available.trySend(Unit)
-		return Batch(batch.toString(), sessionGeneration)
+		return Batch(batch.toString(), sessionToken, sourceChars)
 	}
 
-	private fun omissionMarker(lineCount: Long): String = "[$lineCount build output lines omitted]\n"
+	private fun lineCount(text: String): Long =
+		text.count { it == '\n' }.toLong() + if (text.endsWith('\n')) 0 else 1
+
+	private fun saturatedAdd(
+		left: Int,
+		right: Int,
+	): Int = (left.toLong() + right).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+
+	private fun omissionMarker(lineCount: Long): String {
+		val noun = if (lineCount == 1L) "line" else "lines"
+		return "[$lineCount build output $noun omitted]\n"
+	}
 
 	companion object {
 		private const val DEFAULT_MAX_PENDING_CHARS = 256 * 1024

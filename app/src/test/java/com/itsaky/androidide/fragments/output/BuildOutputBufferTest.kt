@@ -17,15 +17,19 @@
 
 package com.itsaky.androidide.fragments.output
 
+import android.app.Application
+import androidx.test.core.app.ApplicationProvider
+import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class BuildOutputBufferTest {
 	private fun BuildOutputBuffer.offer(text: String) {
-		offer(text, sessionGeneration = 0)
+		offer(text, sessionToken = 0)
 	}
 
 	@Test
@@ -36,7 +40,7 @@ class BuildOutputBufferTest {
 			buffer.offer("first")
 			buffer.offer("second\n")
 
-			assertEquals("first\nsecond\n", buffer.takeBatch().text)
+			assertThat(buffer.takeBatch().text).isEqualTo("first\nsecond\n")
 		}
 
 	@Test
@@ -50,10 +54,10 @@ class BuildOutputBufferTest {
 
 			val first = buffer.takeBatch().text
 			val second = buffer.takeBatch().text
-			assertEquals("aa\nbb\n", first)
-			assertEquals("cc\n", second)
-			assertTrue(first.length <= 6)
-			assertTrue(second.length <= 6)
+			assertThat(first).isEqualTo("aa\nbb\n")
+			assertThat(second).isEqualTo("cc\n")
+			assertThat(first.length).isAtMost(6)
+			assertThat(second.length).isAtMost(6)
 		}
 
 	@Test
@@ -63,43 +67,36 @@ class BuildOutputBufferTest {
 
 			buffer.offer("oversized")
 
-			assertEquals("oversized\n", buffer.takeBatch().text)
+			assertThat(buffer.takeBatch().text).isEqualTo("oversized\n")
 		}
 
 	@Test
-	fun `overflow is coalesced before retained output resumes`() =
+	fun `overflow evicts oldest output and keeps newest output`() =
+		runTest {
+			val buffer = BuildOutputBuffer(maxPendingChars = 11, maxBatchChars = 128)
+
+			buffer.offer("one")
+			buffer.offer("two")
+			buffer.offer("three")
+			buffer.offer("four")
+
+			val batch = buffer.takeBatch()
+			assertThat(batch.text).isEqualTo("[2 build output lines omitted]\nthree\nfour\n")
+			assertThat(batch.sourceChars).isEqualTo(19)
+			assertThat(buffer.pendingChars).isAtMost(11)
+		}
+
+	@Test
+	fun `oversized input retains its newest bounded tail`() =
 		runTest {
 			val buffer = BuildOutputBuffer(maxPendingChars = 8, maxBatchChars = 128)
 
-			buffer.offer("one")
-			buffer.offer("two")
-			buffer.offer("dropped one")
-			buffer.offer("dropped two\nand three")
+			buffer.offer("0123456789")
 
-			assertEquals(
-				"one\ntwo\n[3 build output lines omitted]\n",
-				buffer.takeBatch().text,
-			)
-			assertTrue(buffer.pendingChars <= 8)
-		}
-
-	@Test
-	fun `overflow after resumed output starts a new omission marker`() =
-		runTest {
-			val buffer = BuildOutputBuffer(maxPendingChars = 8, maxBatchChars = 4)
-
-			buffer.offer("one")
-			buffer.offer("two")
-			buffer.offer("first dropped")
-			assertEquals("one\n", buffer.takeBatch().text)
-
-			buffer.offer("new")
-			buffer.offer("second dropped")
-
-			assertEquals("two\n", buffer.takeBatch().text)
-			assertEquals("[1 build output lines omitted]\n", buffer.takeBatch().text)
-			assertEquals("new\n", buffer.takeBatch().text)
-			assertEquals("[1 build output lines omitted]\n", buffer.takeBatch().text)
+			val batch = buffer.takeBatch()
+			assertThat(batch.text).isEqualTo("[1 build output line omitted]\n3456789\n")
+			assertThat(batch.sourceChars).isEqualTo(11)
+			assertThat(buffer.pendingChars).isEqualTo(0)
 		}
 
 	@Test
@@ -112,45 +109,57 @@ class BuildOutputBufferTest {
 			buffer.clear()
 			buffer.offer("new")
 
-			assertEquals("new\n", buffer.takeBatch().text)
+			assertThat(buffer.takeBatch().text).isEqualTo("new\n")
 		}
 
 	@Test
-	fun `in-flight batch keeps the session generation from its producer`() =
+	fun `in-flight batch keeps the session token from its producer`() =
 		runTest {
 			val buffer = BuildOutputBuffer(maxPendingChars = 64, maxBatchChars = 64)
 
-			buffer.offer("old", sessionGeneration = 3)
+			buffer.offer("old", sessionToken = 3)
 			val inFlight = buffer.takeBatch()
 			buffer.clear()
-			buffer.offer("new", sessionGeneration = 4)
+			buffer.offer("new", sessionToken = 4)
 
-			assertEquals(3, inFlight.sessionGeneration)
-			assertEquals(4, buffer.takeBatch().sessionGeneration)
+			assertThat(inFlight.sessionToken).isEqualTo(3)
+			assertThat(buffer.takeBatch().sessionToken).isEqualTo(4)
 		}
 
 	@Test
-	fun `repeated live batches refresh to the newest bounded editor tail`() {
-		val chunk = "x".repeat(200 * 1024)
-		val newest = "newest build output\n"
-		var session = ""
-		var visible = ""
-		var refreshCount = 0
+	fun `clear invalidates stale view model session tokens`() =
+		runTest {
+			val viewModel =
+				BuildOutputViewModel(ApplicationProvider.getApplicationContext<Application>())
+			viewModel.clear()
+			val staleToken = viewModel.currentSessionToken
 
-		for (batch in listOf(chunk, chunk, chunk + newest)) {
-			session += batch
-			visible =
-				if (BuildOutputViewModel.wouldExceedEditorWindow(visible.length, batch.length)) {
-					refreshCount++
-					session.takeLast(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS)
-				} else {
-					visible + batch
-				}
+			assertThat(viewModel.append("old\n", staleToken)).isTrue()
+			viewModel.clear()
+
+			assertThat(viewModel.append("stale\n", staleToken)).isFalse()
+			assertThat(viewModel.getFullContent()).isEmpty()
 		}
 
-		assertEquals(1, refreshCount)
-		assertTrue(visible.length <= BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS)
-		assertTrue(visible.endsWith(newest))
+	@Test
+	fun `window refresh uses hysteresis after reaching the editor limit`() {
+		val batchChars = 32 * 1024
+		var sourceChars = BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS
+		var refreshCount = 0
+
+		repeat(6) {
+			if (BuildOutputViewModel.wouldExceedEditorWindow(sourceChars, batchChars)) {
+				refreshCount++
+				sourceChars =
+					BuildOutputViewModel.editorSourceCharsAfterRefresh(
+						BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS,
+					)
+			} else {
+				sourceChars += batchChars
+			}
+		}
+
+		assertThat(refreshCount).isEqualTo(2)
 	}
 
 	@Test
@@ -171,11 +180,11 @@ class BuildOutputBufferTest {
 					showTimestamps = true,
 					showDeltas = true,
 				)
-			sourceChars = window.length
+			sourceChars = BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
 		}
 
-		assertEquals("", visible)
-		assertEquals(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS, sourceChars)
+		assertThat(visible).isEmpty()
+		assertThat(sourceChars).isLessThan(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS)
 	}
 
 	@Test
@@ -191,6 +200,6 @@ class BuildOutputBufferTest {
 				showDeltas = false,
 			)
 
-		assertEquals("newest output\n", visible)
+		assertThat(visible).isEqualTo("newest output\n")
 	}
 }
