@@ -177,6 +177,10 @@ class DebuggerViewModel : ViewModel() {
 	override fun onCleared() {
 		super.onCleared()
 		Lookup.getDefault().unregister(IDEDebugClientImpl::class.java)
+
+		// The client owns two thread-backed coroutine contexts. Without this, every destroyed
+		// editor activity leaks those threads for the life of the process (ADFA-5375).
+		debugClient.close()
 	}
 
 	fun setConnectionState(state: DebuggerConnectionState) {

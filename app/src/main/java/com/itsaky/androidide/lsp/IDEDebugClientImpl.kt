@@ -19,6 +19,7 @@ import com.itsaky.androidide.lsp.debug.model.StepType
 import com.itsaky.androidide.lsp.debug.model.ThreadListRequestParams
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -42,7 +43,8 @@ class IDEDebugClientImpl(
 	private val viewModel: DebuggerViewModel,
 ) : IDebugClient,
 	IDebugEventHandler,
-	EventReceiver {
+	EventReceiver,
+	AutoCloseable {
 	private val logger = LoggerFactory.getLogger(IDEDebugClientImpl::class.java)
 
 	@OptIn(DelicateCoroutinesApi::class)
@@ -328,6 +330,19 @@ class IDEDebugClientImpl(
 		}
 
 		viewModel.setThreads(threads, selectedThreadIndex)
+	}
+
+	/**
+	 * Detaches from EventBus, cancels in-flight work and releases the OS threads owned by the
+	 * client pool and by [breakpoints]. Called when the owning [DebuggerViewModel] is cleared;
+	 * the client is unusable afterwards.
+	 */
+	override fun close() {
+		unregister()
+		clientScope.cancelIfActive("IDEDebugClientImpl closed")
+		clientContext.close()
+		breakpoints.close()
+		clients.clear()
 	}
 
 	private suspend fun openLocation(event: LocatableEvent) = openLocation(event.location)

@@ -15,6 +15,7 @@ import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.repositories.BreakpointRepository
 import com.itsaky.androidide.repositories.StoredBreakpointsType
+import com.itsaky.androidide.tasks.cancelIfActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -56,9 +57,10 @@ private data class BpState(
 	}
 }
 
-class BreakpointHandler {
+class BreakpointHandler : AutoCloseable {
 	@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
-	private val scope = CoroutineScope(newSingleThreadContext("BreakpointHandler"))
+	private val dispatcher = newSingleThreadContext("BreakpointHandler")
+	private val scope = CoroutineScope(dispatcher)
 	private val events = Channel<BreakpointEvent>(capacity = Channel.UNLIMITED)
 	private val _highlightedLocation = MutableStateFlow<Pair<String, Int>?>(null)
 	private var onSetBreakpoints: ((List<BreakpointDefinition>) -> Unit)? = null
@@ -168,6 +170,18 @@ class BreakpointHandler {
 				process(event)
 			}
 		}
+	}
+
+	/**
+	 * Cancels in-flight work and releases the OS thread backing the handler. The handler is
+	 * unusable afterwards; a new debugger session needs a new instance.
+	 */
+	override fun close() {
+		scope.cancelIfActive("BreakpointHandler closed")
+		events.close()
+		listeners.clear()
+		onSetBreakpoints = null
+		dispatcher.close()
 	}
 
 	fun addListener(listener: EventListener) {
