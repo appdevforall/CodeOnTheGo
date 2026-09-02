@@ -36,6 +36,22 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.36 — unreleased
+- **added — Dialogs and toasts from a floating window** _(ADFA-4500)_
+  Show a dialog or a toast from a plugin tab the user has undocked into a floating
+  window. An undocked fragment runs against a window context created for
+  `TYPE_APPLICATION_OVERLAY`, and the platform requires every window added through it
+  to carry that same type. A `Dialog` builds a `TYPE_APPLICATION` window and a `Toast`
+  a `TYPE_TOAST` one, so both `AlertDialog.Builder(requireContext()).show()` and
+  `Toast.makeText(requireContext(), ...)` throw `IllegalArgumentException` once the tab
+  is floating — the toast after any work preceding it has already run.
+  `PluginWindows.showDialog(Dialog)` applies the window type the dialog's context
+  requires and shows it (`prepareDialog` does so without showing; build the dialog with
+  `create()` rather than showing it from its builder).
+  `PluginWindows.showToast(Context, CharSequence, Int)` posts the toast against the
+  application context, which imposes no window type. Both are no-ops while the plugin is
+  docked, so one call site is correct in either state. Neither can be applied by the IDE
+  on a plugin's behalf: `Window` has no theme attribute for its type, and a toast is
+  posted by the system against whatever context built it.
 - **added — File-targeted editor save** _(ADFA-5259)_
   Save a named file's open buffer and find out whether the bytes actually landed.
   `saveCurrentFile` follows whichever tab the user has focused and returns as soon
