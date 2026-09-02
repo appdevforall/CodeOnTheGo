@@ -39,303 +39,326 @@ import java.util.concurrent.CopyOnWriteArraySet
  * @author Akash Yadav
  */
 class IDEDebugClientImpl(
-    private val viewModel: DebuggerViewModel,
-) : IDebugClient, IDebugEventHandler, EventReceiver {
+	private val viewModel: DebuggerViewModel,
+) : IDebugClient,
+	IDebugEventHandler,
+	EventReceiver {
+	private val logger = LoggerFactory.getLogger(IDEDebugClientImpl::class.java)
 
-    private val logger = LoggerFactory.getLogger(IDEDebugClientImpl::class.java)
+	@OptIn(DelicateCoroutinesApi::class)
+	private val clientContext = newFixedThreadPoolContext(4, "IDEDebugClient")
+	private val clientScope = CoroutineScope(clientContext + SupervisorJob())
+	private val clients = CopyOnWriteArraySet<RemoteClient>()
+	val breakpoints = BreakpointHandler()
 
-    @OptIn(DelicateCoroutinesApi::class)
-    private val clientContext = newFixedThreadPoolContext(4, "IDEDebugClient")
-    private val clientScope = CoroutineScope(clientContext + SupervisorJob())
-    private val clients = CopyOnWriteArraySet<RemoteClient>()
-    val breakpoints = BreakpointHandler()
+	companion object {
+		@JvmStatic
+		fun getInstance() = Lookup.getDefault().lookup(IDEDebugClientImpl::class.java)
 
-    companion object {
-        @JvmStatic
-        fun getInstance() = Lookup.getDefault().lookup(IDEDebugClientImpl::class.java)
+		@JvmStatic
+		fun requireInstance() =
+			checkNotNull(getInstance()) {
+				"Cannot lookup IDEDebugClientImpl"
+			}
+	}
 
-        @JvmStatic
-        fun requireInstance() = checkNotNull(getInstance()) {
-            "Cannot lookup IDEDebugClientImpl"
-        }
-    }
+	val connectionStateFlow: StateFlow<DebuggerConnectionState>
+		get() = viewModel.connectionState
 
-    val connectionStateFlow: StateFlow<DebuggerConnectionState>
-        get() = viewModel.connectionState
+	var connectionState: DebuggerConnectionState
+		get() = viewModel.connectionState.value
+		private set(value) {
+			logger.debug("move to connection state: {}", value)
+			viewModel.setConnectionState(value)
+		}
 
-    var connectionState: DebuggerConnectionState
-        get() = viewModel.connectionState.value
-        private set(value) {
-            logger.debug("move to connection state: {}", value)
-            viewModel.setConnectionState(value)
-        }
+	val debugeePackage: String
+		get() = viewModel.debugeePackage
 
-    val debugeePackage: String
-        get() = viewModel.debugeePackage
+	internal val requireClient: RemoteClient
+		get() = checkNotNull(clientOrNull)
 
-    internal val requireClient: RemoteClient
-        get() = checkNotNull(clientOrNull)
+	internal val clientOrNull: RemoteClient?
+		get() = clients.firstOrNull()
 
-    internal val clientOrNull: RemoteClient?
-        get() = clients.firstOrNull()
+	/**
+	 * Returns true if the client is connected.
+	 *
+	 * @return `true` if the client is connected, `false` otherwise.
+	 */
+	fun isVmConnected() = connectionState >= DebuggerConnectionState.ATTACHED
 
-    /**
-     * Returns true if the client is connected.
-     *
-     * @return `true` if the client is connected, `false` otherwise.
-     */
-    fun isVmConnected() = connectionState >= DebuggerConnectionState.ATTACHED
+	/**
+	 * Returns true if the client is connected and suspended.
+	 *
+	 * The VM may or may not be able to view/alter its state. Check [connectionState]
+	 * to get the actual state.
+	 *
+	 * @return `true` if the client is connected and suspended, `false` otherwise.
+	 */
+	fun isVmSuspended() = connectionState >= DebuggerConnectionState.SUSPENDED
 
-    /**
-     * Returns true if the client is connected and suspended.
-     *
-     * The VM may or may not be able to view/alter its state. Check [connectionState]
-     * to get the actual state.
-     *
-     * @return `true` if the client is connected and suspended, `false` otherwise.
-     */
-    fun isVmSuspended() = connectionState >= DebuggerConnectionState.SUSPENDED
+	fun suspendVm() =
+		withClient("suspend vm") { client ->
+			if (!client.capabilities.suspensionSupport) {
+				logger.error("Remote client does not support suspending")
+				return@withClient
+			}
 
-    fun suspendVm() = withClient("suspend vm") { client ->
-        if (!client.capabilities.suspensionSupport) {
-            logger.error("Remote client does not support suspending")
-            return@withClient
-        }
+			if (isVmSuspended()) {
+				logger.warn("Ignoring attempt to suspend VM when it is already suspended")
+				return@withClient
+			}
 
-        if (isVmSuspended()) {
-            logger.warn("Ignoring attempt to suspend VM when it is already suspended")
-            return@withClient
-        }
+			logger.debug("suspending client: {}", client.name)
+			clientScope.launch {
+				if (client.adapter.suspendClient(client)) {
+					connectionState = DebuggerConnectionState.SUSPENDED
+					updateThreadInfo(client)
+				}
+			}
+		}
 
-        logger.debug("suspending client: {}", client.name)
-        clientScope.launch {
-            if (client.adapter.suspendClient(client)) {
-                connectionState = DebuggerConnectionState.SUSPENDED
-                updateThreadInfo(client)
-            }
-        }
-    }
+	fun resumeVm() =
+		withClient("resume vm") { client ->
+			if (!client.capabilities.suspensionSupport) {
+				logger.error("Remote client does not support resuming")
+				return@withClient
+			}
 
-    fun resumeVm() = withClient("resume vm") { client ->
-        if (!client.capabilities.suspensionSupport) {
-            logger.error("Remote client does not support resuming")
-            return@withClient
-        }
+			if (!isVmSuspended()) {
+				logger.warn("Ignoring attempt to resume VM when it is not suspended")
+				return@withClient
+			}
 
-        if (!isVmSuspended()) {
-            logger.warn("Ignoring attempt to resume VM when it is not suspended")
-            return@withClient
-        }
+			logger.debug("resuming client: {}", client.name)
+			clientScope.launch {
+				if (client.adapter.resumeClient(client)) {
+					connectionState = DebuggerConnectionState.ATTACHED
+					updateThreadInfo(client)
+				}
+			}
+		}
 
-        logger.debug("resuming client: {}", client.name)
-        clientScope.launch {
-            if (client.adapter.resumeClient(client)) {
-                connectionState = DebuggerConnectionState.ATTACHED
-                updateThreadInfo(client)
-            }
-        }
-    }
+	fun killVm() =
+		withClient("kill vm") { client ->
+			if (!client.capabilities.killSupport) {
+				logger.error("Remote client does not support killing debug application")
+				return@withClient
+			}
 
-    fun killVm() = withClient("kill vm") { client ->
-        if (!client.capabilities.killSupport) {
-            logger.error("Remote client does not support killing debug application")
-            return@withClient
-        }
+			logger.debug("killing client: {}", client.name)
+			clientScope.launch { client.adapter.killClient(client) }
+		}
 
-        logger.debug("killing client: {}", client.name)
-        clientScope.launch { client.adapter.killClient(client) }
-    }
+	fun stepOver() = doStep(type = StepType.Over)
 
-    fun stepOver() = doStep(type = StepType.Over)
-    fun stepInto() = doStep(type = StepType.Into)
-    fun stepOut() = doStep(type = StepType.Out)
+	fun stepInto() = doStep(type = StepType.Into)
 
-    private inline fun withClient(action: String, block: (RemoteClient) -> Unit) {
-        clientOrNull?.also(block)
-            ?: logger.error("Cannot perform $action action. Not connected to a remote client.")
-    }
+	fun stepOut() = doStep(type = StepType.Out)
 
-    private fun doStep(
-        type: StepType,
-        countFilter: Int = 1
-    ) = withClient("step $type") { client ->
-        if (!client.capabilities.stepSupport) {
-            logger.error("Remote client does not support stepping")
-            return@withClient
-        }
+	private inline fun withClient(
+		action: String,
+		block: (RemoteClient) -> Unit,
+	) {
+		clientOrNull?.also(block)
+			?: logger.error("Cannot perform $action action. Not connected to a remote client.")
+	}
 
-        clientScope.launch {
-            val params = StepRequestParams(
-                remoteClient = client,
-                type = type,
-                countFilter = countFilter
-            )
+	private fun doStep(
+		type: StepType,
+		countFilter: Int = 1,
+	) = withClient("step $type") { client ->
+		if (!client.capabilities.stepSupport) {
+			logger.error("Remote client does not support stepping")
+			return@withClient
+		}
 
-            val response = client.adapter.step(params)
-            if (response.result != StepResult.Success) {
-                logger.error("Failed to perform step action, result={}", response.result)
-            }
-        }
-    }
+		clientScope.launch {
+			val params =
+				StepRequestParams(
+					remoteClient = client,
+					type = type,
+					countFilter = countFilter,
+				)
 
-    init {
-        register()
-        breakpoints.begin { breakpoints ->
+			val response = client.adapter.step(params)
+			if (response.result != StepResult.Success) {
+				logger.error("Failed to perform step action, result={}", response.result)
+			}
+		}
+	}
 
-            // if we're already connected to a client, update the client as well
-            clientOrNull?.also { client ->
-                if (!client.capabilities.breakpointSupport) {
-                    logger.error("Remote client does not support breakpoints")
-                    return@also
-                }
+	init {
+		register()
+		breakpoints.begin { breakpoints ->
 
-                clientScope.launch {
-                    clientOrNull?.also { client ->
-                        val response = client.adapter.setBreakpoints(
-                            BreakpointRequest(
-                                remoteClient = client,
-                                breakpoints = breakpoints
-                            )
-                        )
+			// if we're already connected to a client, update the client as well
+			clientOrNull?.also { client ->
+				if (!client.capabilities.breakpointSupport) {
+					logger.error("Remote client does not support breakpoints")
+					return@also
+				}
 
-                        logger.debug("breakpoint result: {}", response.results)
-                    } ?: logger.info("client ${client.name} disconnected while updating breakpoints")
-                }
-            } ?: logger.info("deferring breakpoint update, no clients connected")
-        }
-    }
+				clientScope.launch {
+					clientOrNull?.also { client ->
+						val response =
+							client.adapter.setBreakpoints(
+								BreakpointRequest(
+									remoteClient = client,
+									breakpoints = breakpoints,
+								),
+							)
 
-    @SuppressLint("ImplicitSamInstance")
-    @Suppress("UNUSED")
-    @Subscribe(threadMode = ThreadMode.ASYNC)
-    fun onContentChange(event: DocumentChangeEvent) {
-        clientScope.launch { breakpoints.change(event) }
-    }
+						logger.debug("breakpoint result: {}", response.results)
+					} ?: logger.info("client ${client.name} disconnected while updating breakpoints")
+				}
+			} ?: logger.info("deferring breakpoint update, no clients connected")
+		}
+	}
 
-    fun toggleBreakpoint(file: File, line: Int) {
-        clientScope.launch { breakpoints.toggle(file, line) }
-    }
+	@SuppressLint("ImplicitSamInstance")
+	@Suppress("UNUSED")
+	@Subscribe(threadMode = ThreadMode.ASYNC)
+	fun onContentChange(event: DocumentChangeEvent) {
+		clientScope.launch { breakpoints.change(event) }
+	}
 
-    override fun onBreakpointHit(event: BreakpointHitEvent) {
-        logger.debug("onBreakpointHit: {}", event)
+	fun toggleBreakpoint(
+		file: File,
+		line: Int,
+	) {
+		clientScope.launch { breakpoints.toggle(file, line) }
+	}
 
-        clientScope.launch {
-            connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
-            updateThreadInfo(event.remoteClient, event.threadId)
+	override fun onBreakpointHit(event: BreakpointHitEvent) {
+		logger.debug("onBreakpointHit: {}", event)
 
-            openLocation(event)
-        }
-    }
+		clientScope.launch {
+			connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
+			updateThreadInfo(event.remoteClient, event.threadId)
 
-    override fun onStep(event: StepEvent) {
-        logger.debug("onStep: {}", event)
+			openLocation(event)
+		}
+	}
 
-        clientScope.launch {
-            updateThreadInfo(event.remoteClient, event.threadId)
-            connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
+	override fun onStep(event: StepEvent) {
+		logger.debug("onStep: {}", event)
 
-            openLocation(event)
-        }
-    }
+		clientScope.launch {
+			updateThreadInfo(event.remoteClient, event.threadId)
+			connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
 
-    override fun onAttach(client: RemoteClient) {
-        logger.debug("onAttach: client={}", client)
+			openLocation(event)
+		}
+	}
 
-        check(client !in clients) {
-            "Already attached to client"
-        }
+	override fun onAttach(client: RemoteClient) {
+		logger.debug("onAttach: client={}", client)
 
-        clients += client
-        connectionState = DebuggerConnectionState.ATTACHED
-        breakpoints.unhighlightHighlightedLocation()
+		check(client !in clients) {
+			"Already attached to client"
+		}
 
-        clientScope.launch {
-            updateThreadInfo(client)
+		clients += client
+		connectionState = DebuggerConnectionState.ATTACHED
+		breakpoints.unhighlightHighlightedLocation()
 
-            val breakpoints = breakpoints.allBreakpoints
-            client.adapter.setBreakpoints(
-                BreakpointRequest(
-                    remoteClient = client,
-                    breakpoints = breakpoints
-                )
-            )
-        }
-    }
+		clientScope.launch {
+			updateThreadInfo(client)
 
-    override fun onDisconnect(client: RemoteClient) {
-        logger.debug("onDisconnect: client={}", client)
-        breakpoints.unhighlightHighlightedLocation()
-        clients -= client
-        connectionState = DebuggerConnectionState.DETACHED
-        clientScope.launch { updateThreadInfo(client) }
-    }
+			val breakpoints = breakpoints.allBreakpoints
+			client.adapter.setBreakpoints(
+				BreakpointRequest(
+					remoteClient = client,
+					breakpoints = breakpoints,
+				),
+			)
+		}
+	}
 
-    suspend fun updateThreadInfo(
-        client: RemoteClient,
-        selectedThreadId: String? = null,
-    ) {
-        val adapter = client.adapter
-        var selectedThreadIndex = -1
-        val threads = when (connectionState) {
-            DebuggerConnectionState.DETACHED,
-            DebuggerConnectionState.ATTACHED -> emptyList()
+	override fun onDisconnect(client: RemoteClient) {
+		logger.debug("onDisconnect: client={}", client)
+		breakpoints.unhighlightHighlightedLocation()
+		clients -= client
+		connectionState = DebuggerConnectionState.DETACHED
+		clientScope.launch { updateThreadInfo(client) }
+	}
 
-            DebuggerConnectionState.SUSPENDED,
-            DebuggerConnectionState.AWAITING_BREAKPOINT -> {
-                val threadResponse = adapter.allThreads(
-                    ThreadListRequestParams(
-                        remoteClient = client
-                    )
-                )
+	suspend fun updateThreadInfo(
+		client: RemoteClient,
+		selectedThreadId: String? = null,
+	) {
+		val adapter = client.adapter
+		var selectedThreadIndex = -1
+		val threads =
+			when (connectionState) {
+				DebuggerConnectionState.DETACHED,
+				DebuggerConnectionState.ATTACHED,
+				-> {
+					emptyList()
+				}
 
-                val threads = threadResponse.threads
-                if (threads.isEmpty()) {
-                    logger.error("Failed to get info about active threads in VM: {}", client.name)
-                } else if (selectedThreadId != null) {
-                    selectedThreadIndex = threads.indexOfFirst {
-                        it.descriptor().id == selectedThreadId
-                    }
-                }
+				DebuggerConnectionState.SUSPENDED,
+				DebuggerConnectionState.AWAITING_BREAKPOINT,
+				-> {
+					val threadResponse =
+						adapter.allThreads(
+							ThreadListRequestParams(
+								remoteClient = client,
+							),
+						)
 
-                threads
-            }
-        }
+					val threads = threadResponse.threads
+					if (threads.isEmpty()) {
+						logger.error("Failed to get info about active threads in VM: {}", client.name)
+					} else if (selectedThreadId != null) {
+						selectedThreadIndex =
+							threads.indexOfFirst {
+								it.descriptor().id == selectedThreadId
+							}
+					}
 
-        if (threads.isNotEmpty() && selectedThreadIndex < 0) {
-            selectedThreadIndex = 0
-        }
+					threads
+				}
+			}
 
-        viewModel.setThreads(threads, selectedThreadIndex)
-    }
+		if (threads.isNotEmpty() && selectedThreadIndex < 0) {
+			selectedThreadIndex = 0
+		}
 
-    private suspend fun openLocation(event: LocatableEvent) = openLocation(event.location)
+		viewModel.setThreads(threads, selectedThreadIndex)
+	}
 
-    private suspend fun openLocation(location: Location) {
-        val file = location.source.path
-        val position = Position(location.line, 0)
+	private suspend fun openLocation(event: LocatableEvent) = openLocation(event.location)
 
-        if (!IDELanguageClientImpl.isInitialized()) {
-            logger.error("Cannot open {}:{} because language client is not initialized", file, position.line)
-            return
-        }
+	private suspend fun openLocation(location: Location) {
+		val file = location.source.path
+		val position = Position(location.line, 0)
 
-        val activity = IDELanguageClientImpl.getInstance().activity
+		if (!IDELanguageClientImpl.isInitialized()) {
+			logger.error("Cannot open {}:{} because language client is not initialized", file, position.line)
+			return
+		}
 
-        if (activity == null) {
-            logger.error("Cannot open {}:{} because activity is null", file, position.line)
-            return
-        }
+		val activity = IDELanguageClientImpl.getInstance().activity
 
-        breakpoints.highlightLocation(file, position.line)
+		if (activity == null) {
+			logger.error("Cannot open {}:{} because activity is null", file, position.line)
+			return
+		}
 
-        withContext(Dispatchers.Main.immediate) {
-            activity.openFileAndSelect(
-                file = File(file),
-                selection = Range(
-                    start = position,
-                    end = position
-                )
-            )
-        }
-    }
+		breakpoints.highlightLocation(file, position.line)
+
+		withContext(Dispatchers.Main.immediate) {
+			activity.openFileAndSelect(
+				file = File(file),
+				selection =
+					Range(
+						start = position,
+						end = position,
+					),
+			)
+		}
+	}
 }

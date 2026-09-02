@@ -36,12 +36,12 @@ import java.util.concurrent.atomic.AtomicReference
 
 private interface BreakpointEvent {
 	data class DocChange(
-		val event: DocumentChangeEvent
+		val event: DocumentChangeEvent,
 	) : BreakpointEvent
 
 	data class Toggle(
 		val file: File,
-		val line: Int
+		val line: Int,
 	) : BreakpointEvent
 
 	object Save : BreakpointEvent
@@ -49,7 +49,7 @@ private interface BreakpointEvent {
 
 private data class BpState(
 	val positional: Table<String, Int, PositionalBreakpoint>,
-	val method: Table<String, String, MethodBreakpoint>
+	val method: Table<String, String, MethodBreakpoint>,
 ) {
 	companion object {
 		val EMPTY = BpState(ImmutableTable.of(), ImmutableTable.of())
@@ -57,7 +57,6 @@ private data class BpState(
 }
 
 class BreakpointHandler {
-
 	@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
 	private val scope = CoroutineScope(newSingleThreadContext("BreakpointHandler"))
 	private val events = Channel<BreakpointEvent>(capacity = Channel.UNLIMITED)
@@ -75,12 +74,13 @@ class BreakpointHandler {
 		get() = highlightedLocationState.value
 
 	val allBreakpoints: List<BreakpointDefinition>
-		get() = stateRef.get().let { s ->
-			buildList {
-				addAll(s.positional.values())
-				addAll(s.method.values())
+		get() =
+			stateRef.get().let { s ->
+				buildList {
+					addAll(s.positional.values())
+					addAll(s.method.values())
+				}
 			}
-		}
 
 	companion object {
 		private val logger = LoggerFactory.getLogger(BreakpointHandler::class.java)
@@ -97,15 +97,12 @@ class BreakpointHandler {
 			var newColumn = column
 
 			if (changeType == ChangeType.INSERT) {
-
 				// insertion before breakpoint line
 				if (line > start.line) {
 					// shift down
 					newLine += end.line - start.line
-				}
-
-				// insertion on breakpoint line, after start column
-				else if (line == start.line && column > start.column) {
+				} else if (line == start.line && column > start.column) {
+					// insertion on breakpoint line, after start column
 					if (start.line == end.line) {
 						// same line insertion, shift column right
 						newColumn += end.column - start.column
@@ -121,25 +118,20 @@ class BreakpointHandler {
 				if (line > end.line) {
 					// shift up
 					newLine -= end.line - start.line
-				}
-
-				// breakpoint after last line of deletion, after end column
-				else if (line == end.line && column > end.column) {
+				} else if (line == end.line && column > end.column) {
+					// breakpoint after last line of deletion, after end column
 					if (start.line == end.line) {
 						// Single-line deletion
-						newColumn -= (end.column - start.column);
+						newColumn -= (end.column - start.column)
 					} else {
 						// Multi-line deletion
 						newLine = start.line
-						newColumn = start.column + (column - end.column);
+						newColumn = start.column + (column - end.column)
 					}
-				}
-
-				// breakpoint within deleted range
-				else if ((line > start.line || (line == start.line && column >= start.column))
-					&& (line < end.line || (line == end.line && column <= end.column))
+				} else if ((line > start.line || (line == start.line && column >= start.column)) &&
+					(line < end.line || (line == end.line && column <= end.column))
 				) {
-					// mark for deletion
+					// breakpoint within deleted range: mark for deletion
 					newLine = -1
 					newColumn = -1
 				}
@@ -149,7 +141,10 @@ class BreakpointHandler {
 		}
 	}
 
-	fun highlightLocation(file: String, line: Int) {
+	fun highlightLocation(
+		file: String,
+		line: Int,
+	) {
 		this._highlightedLocation.update { file to line }
 		notifyHighlighted(file, line)
 	}
@@ -189,7 +184,8 @@ class BreakpointHandler {
 	}
 
 	suspend fun positionalBreakpointsInFile(file: File): List<PositionalBreakpoint> =
-		BreakpointRepository.getStoredBreakpoints(IProjectManager.getInstance().projectDir)
+		BreakpointRepository
+			.getStoredBreakpoints(IProjectManager.getInstance().projectDir)
 			.mapNotNull { breakpoint ->
 				if (breakpoint.source.path != file.absolutePath || breakpoint !is PositionalBreakpoint) {
 					return@mapNotNull null
@@ -202,7 +198,10 @@ class BreakpointHandler {
 		events.send(BreakpointEvent.DocChange(event))
 	}
 
-	suspend fun toggle(file: File, line: Int) {
+	suspend fun toggle(
+		file: File,
+		line: Int,
+	) {
 		events.send(BreakpointEvent.Toggle(file, line))
 	}
 
@@ -218,23 +217,25 @@ class BreakpointHandler {
 			}
 		}
 
-		val snap = BpState(
-			positional = ImmutableTable.copyOf(newPos),
-			method = ImmutableTable.copyOf(newMethod)
-		)
+		val snap =
+			BpState(
+				positional = ImmutableTable.copyOf(newPos),
+				method = ImmutableTable.copyOf(newMethod),
+			)
 
 		stateRef.set(snap)
 	}
 
-	private fun process(event: BreakpointEvent) = runCatching {
-		when (event) {
-			is BreakpointEvent.DocChange -> onChange(event)
-			is BreakpointEvent.Toggle -> onToggle(event)
-			is BreakpointEvent.Save -> onSave()
+	private fun process(event: BreakpointEvent) =
+		runCatching {
+			when (event) {
+				is BreakpointEvent.DocChange -> onChange(event)
+				is BreakpointEvent.Toggle -> onToggle(event)
+				is BreakpointEvent.Save -> onSave()
+			}
+		}.onFailure { err ->
+			logger.error("Failed to handle event {}", event.javaClass.simpleName, err)
 		}
-	}.onFailure { err ->
-		logger.error("Failed to handle event {}", event.javaClass.simpleName, err)
-	}
 
 	private fun onChange(event: BreakpointEvent.DocChange) {
 		val ev = event.event
@@ -243,11 +244,16 @@ class BreakpointHandler {
 
 		val path = ev.file.toRealPath().toString()
 		logger.debug(
-			"change({}): range={},{}-{},{}", when (ev.changeType) {
+			"change({}): range={},{}-{},{}",
+			when (ev.changeType) {
 				ChangeType.NEW_TEXT -> "new text"
 				ChangeType.DELETE -> "delete"
 				ChangeType.INSERT -> "insert"
-			}, start.line, start.column, end.line, end.column
+			},
+			start.line,
+			start.column,
+			end.line,
+			end.column,
 		)
 
 		if (end.line - start.line == 0) {
@@ -284,13 +290,14 @@ class BreakpointHandler {
 		for ((_, bp) in fileBreakpoints) {
 			val line = bp.line
 			val column = bp.column
-			val (newLine, newColumn) = computeNewBreakpointPosition(
-				line,
-				column,
-				start,
-				end,
-				ev.changeType
-			)
+			val (newLine, newColumn) =
+				computeNewBreakpointPosition(
+					line,
+					column,
+					start,
+					end,
+					ev.changeType,
+				)
 
 			if (newLine == line && newColumn == column) {
 				logger.debug("keep breakpoint at line {} in file {}", line, path)
@@ -324,10 +331,11 @@ class BreakpointHandler {
 		val (file, line) = event
 		val path = file.canonicalPath
 
-		val breakpoint = PositionalBreakpoint(
-			source = Source(path = file.absolutePath, name = file.name),
-			line = line
-		)
+		val breakpoint =
+			PositionalBreakpoint(
+				source = Source(path = file.absolutePath, name = file.name),
+				line = line,
+			)
 
 		val current = stateRef.get()
 		val newPos = HashBasedTable.create(current.positional)
@@ -354,50 +362,68 @@ class BreakpointHandler {
 
 	private fun onSave() {
 		saveJob?.cancel()
-		saveJob = scope.launch(Dispatchers.IO) {
-			delay(1000)
-			val snap = stateRef.get()
-			val breakpointsToSave = buildList {
-				addAll(snap.positional.values())
-				addAll(snap.method.values())
+		saveJob =
+			scope.launch(Dispatchers.IO) {
+				delay(1000)
+				val snap = stateRef.get()
+				val breakpointsToSave =
+					buildList {
+						addAll(snap.positional.values())
+						addAll(snap.method.values())
+					}
+				BreakpointRepository.saveBreakpoints(
+					projectDir = IProjectManager.getInstance().projectDir,
+					breakpoints = breakpointsToSave,
+				)
+				logger.debug("Breakpoints saved to disk.")
 			}
-			BreakpointRepository.saveBreakpoints(
-				projectDir = IProjectManager.getInstance().projectDir,
-				breakpoints = breakpointsToSave
-			)
-			logger.debug("Breakpoints saved to disk.")
-		}
 	}
 
 	private fun notifyBreakpointsUpdated(newBreakpoints: List<BreakpointDefinition>) {
 		onSetBreakpoints?.invoke(newBreakpoints)
 	}
 
-	private fun notifyAdded(file: String, line: Int) {
+	private fun notifyAdded(
+		file: String,
+		line: Int,
+	) {
 		for (listener in listeners) {
 			listener.onAddBreakpoint(file, line)
 		}
 	}
 
-	private fun notifyRemoved(file: String, line: Int) {
+	private fun notifyRemoved(
+		file: String,
+		line: Int,
+	) {
 		for (listener in listeners) {
 			listener.onRemoveBreakpoint(file, line)
 		}
 	}
 
-	private fun notifyToggled(file: String, line: Int) {
+	private fun notifyToggled(
+		file: String,
+		line: Int,
+	) {
 		for (listener in listeners) {
 			listener.onToggle(file, line)
 		}
 	}
 
-	private fun notifyMoved(file: String, oldLine: Int, newLine: Int) {
+	private fun notifyMoved(
+		file: String,
+		oldLine: Int,
+		newLine: Int,
+	) {
 		for (listener in listeners) {
 			listener.onMoveBreakpoint(file, oldLine, newLine)
 		}
 	}
 
-	private fun notifyHighlighted(file: String, line: Int) {
+	private fun notifyHighlighted(
+		file: String,
+		line: Int,
+	) {
 		for (listener in listeners) {
 			listener.onHighlightLine(file, line)
 		}
@@ -410,11 +436,32 @@ class BreakpointHandler {
 	}
 
 	interface EventListener {
-		fun onAddBreakpoint(file: String, line: Int) {}
-		fun onRemoveBreakpoint(file: String, line: Int) {}
-		fun onToggle(file: String, line: Int) {}
-		fun onMoveBreakpoint(file: String, oldLine: Int, newLine: Int) {}
-		fun onHighlightLine(file: String, line: Int) {}
+		fun onAddBreakpoint(
+			file: String,
+			line: Int,
+		) {}
+
+		fun onRemoveBreakpoint(
+			file: String,
+			line: Int,
+		) {}
+
+		fun onToggle(
+			file: String,
+			line: Int,
+		) {}
+
+		fun onMoveBreakpoint(
+			file: String,
+			oldLine: Int,
+			newLine: Int,
+		) {}
+
+		fun onHighlightLine(
+			file: String,
+			line: Int,
+		) {}
+
 		fun onUnhighlight()
 	}
 }
