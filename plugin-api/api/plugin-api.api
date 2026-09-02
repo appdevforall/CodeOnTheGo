@@ -143,8 +143,8 @@ public final class com/itsaky/androidide/plugins/base/PluginFragmentHelper {
 
 public final class com/itsaky/androidide/plugins/base/PluginWindows {
 	public static final field INSTANCE Lcom/itsaky/androidide/plugins/base/PluginWindows;
-	public static final fun prepareDialog (Landroid/app/Dialog;)V
-	public static final fun showDialog (Landroid/app/Dialog;)V
+	public static final fun prepareDialog (Landroid/app/Dialog;)Z
+	public static final fun showDialog (Landroid/app/Dialog;)Z
 	public static final fun showToast (Landroid/content/Context;Ljava/lang/CharSequence;)V
 	public static final fun showToast (Landroid/content/Context;Ljava/lang/CharSequence;I)V
 	public static synthetic fun showToast$default (Landroid/content/Context;Ljava/lang/CharSequence;IILjava/lang/Object;)V
