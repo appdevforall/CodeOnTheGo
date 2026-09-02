@@ -23,6 +23,8 @@ import android.view.View
 import android.view.animation.LinearInterpolator
 import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.transition.TransitionManager
@@ -65,6 +67,24 @@ class TemplateDetailsFragment :
 	private val projectCreationManager by lazy { ProjectCreationManager(requireContext()) }
 	private var blinkAnimator: ObjectAnimator? = null
 
+	/**
+	 * The blink is an endlessly repeating animator, and an animator keeps the main thread's
+	 * Choreographer loop alive process-wide -- it does not pause when this fragment's activity is
+	 * merely stopped. This fragment is inflated by activity_main.xml on every launch and is never
+	 * removed, so tying the blink to anything but the view lifecycle leaves it running behind the
+	 * editor forever.
+	 */
+	private val blinkWhileStarted =
+		object : DefaultLifecycleObserver {
+			override fun onStart(owner: LifecycleOwner) {
+				startBlinkingIndicator()
+			}
+
+			override fun onStop(owner: LifecycleOwner) {
+				stopBlinkingIndicator()
+			}
+		}
+
 	override fun onViewCreated(
 		view: View,
 		savedInstanceState: Bundle?,
@@ -75,14 +95,13 @@ class TemplateDetailsFragment :
 		setupTooltips()
 		setupObservers()
 		setupClickListeners()
-		startBlinkingIndicator()
+		viewLifecycleOwner.lifecycle.addObserver(blinkWhileStarted)
 	}
 
 	override fun onDestroyView() {
 		super.onDestroyView()
 
-		blinkAnimator?.cancel()
-		blinkAnimator = null
+		stopBlinkingIndicator()
 
 		scrollGateKeeper?.detach()
 		scrollGateKeeper = null
@@ -209,6 +228,10 @@ class TemplateDetailsFragment :
 	}
 
 	private fun startBlinkingIndicator() {
+		if (blinkAnimator != null) {
+			return
+		}
+
 		blinkAnimator =
 			ObjectAnimator.ofFloat(binding.scrollIndicator, View.ALPHA, 1f, 0.2f, 1f).apply {
 				duration = 1200
@@ -216,5 +239,13 @@ class TemplateDetailsFragment :
 				repeatCount = ObjectAnimator.INFINITE
 				start()
 			}
+	}
+
+	private fun stopBlinkingIndicator() {
+		blinkAnimator?.cancel()
+		blinkAnimator = null
+
+		// cancelling mid-repeat leaves the indicator at whatever alpha it had reached
+		_binding?.scrollIndicator?.alpha = 1f
 	}
 }
