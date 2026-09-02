@@ -151,7 +151,9 @@ class WADBConnectionViewModel : ViewModel() {
 			if (_adbMdnsConnector == null) {
 				_adbMdnsConnector =
 					AdbMdns(
-						context = context,
+						// The caller is the editor activity, and AdbMdns's NsdManager outlives it
+						// while holding whatever Context it was created from - see AdbMdns.
+						context = context.applicationContext,
 						serviceType = AdbMdns.TLS_CONNECT,
 						observer = adbConnectListener,
 					)

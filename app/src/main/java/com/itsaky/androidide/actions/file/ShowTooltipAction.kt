@@ -30,9 +30,13 @@ import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 
-// The context is used only to build the label and icon below; it is deliberately not stored.
-// EDITOR_TEXT_ACTIONS is never cleared (see EditorActivityActions.clear), so the static
-// ActionsRegistry outlives every editor activity - retaining one here leaks that activity.
+/**
+ * Editor text action that shows the tooltip for the current selection.
+ *
+ * [context] initializes [label] and [icon] only and must not be retained: EDITOR_TEXT_ACTIONS is
+ * never cleared (see EditorActivityActions.clear), so the static ActionsRegistry outlives every
+ * editor activity, and an action holding one leaks it. [execAction] uses the anchor view's context.
+ */
 class ShowTooltipAction(
 	context: Context,
 	override val order: Int,

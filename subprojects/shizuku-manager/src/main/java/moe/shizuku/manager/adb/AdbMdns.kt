@@ -18,13 +18,19 @@ class AdbMdns(
 	private val serviceType: String,
 	private val observer: Consumer<Int>,
 ) {
+	/**
+	 * Pass a [context] that outlives this object - an Application or a Service, never an Activity.
+	 * getSystemService caches NsdManager per Context, and the manager holds that Context for its
+	 * own lifetime, which the framework keeps alive; stopServiceDiscovery() does not release it.
+	 * An Activity passed here is therefore retained for the life of the process, so a caller
+	 * holding only an Activity should pass its applicationContext.
+	 *
+	 * The application context is deliberately not forced here: each Context gets its own
+	 * NsdManager, and the pairing and connect discoveries want to stay separate clients.
+	 */
 	constructor(context: Context, serviceType: String, observer: Consumer<Int>) :
 		this(
-			// Application context, not the caller's: NsdManager is cached per-Context and keeps a
-			// strong mContext reference, while the framework holds its NsdCallbackImpl from a native
-			// global ref for the manager's lifetime. Obtaining it from an Activity leaks that
-			// Activity for the life of the process, and stopServiceDiscovery() does not release it.
-			nsdManager = context.applicationContext.getSystemService(NsdManager::class.java),
+			nsdManager = context.getSystemService(NsdManager::class.java),
 			serviceType = serviceType,
 			observer = observer,
 		)
