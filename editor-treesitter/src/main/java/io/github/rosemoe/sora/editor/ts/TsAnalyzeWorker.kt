@@ -43,6 +43,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException
 import java.util.concurrent.LinkedBlockingQueue
@@ -60,6 +62,9 @@ class TsAnalyzeWorker(
 ) {
 	companion object {
 		private val log = LoggerFactory.getLogger(TsAnalyzeWorker::class.java)
+
+		/** Upper bound on waiting for the analyzer loop to finish before freeing its document. */
+		private const val STOP_TIMEOUT_MS = 500L
 	}
 
 	var stylesReceiver: StyleReceiver? = null
@@ -106,11 +111,32 @@ class TsAnalyzeWorker(
 
 		document.requestCancellationAndWaitIfParsing()
 
-		analyzerContext.close()
 		messageChannel.clear()
 		analyzerJob?.cancel(CancellationException("Requested to be stopped"))
+
+		// Cancelling does not wake a thread parked in take(), and closing the dispatcher does not stop
+		// it either - kotlinx reroutes the rejected dispatch to Dispatchers.IO. Hand the loop a message
+		// so it can see isDestroyed and return.
+		messageChannel.offer(Stop)
+
+		// The document's native objects are freed just below, and the shared TSQuery right after this
+		// returns, so the loop must be *finished*, not merely cancelled. Anything still in doMod would
+		// be reading memory that is about to go away (ADFA-5401).
+		val stopped =
+			runBlocking {
+				withTimeoutOrNull(STOP_TIMEOUT_MS) {
+					analyzerJob?.join()
+					true
+				}
+			} != null
+
+		if (!stopped) {
+			log.warn("Analyzer did not stop within {} ms; freeing its document anyway", STOP_TIMEOUT_MS)
+		}
+
 		analyzerScope.cancel(CancellationException("Requested to be stopped"))
 		document.close()
+		analyzerContext.close()
 	}
 
 	fun start() {
@@ -205,7 +231,7 @@ class TsAnalyzeWorker(
 
 	private fun processNextMessage() {
 		val message = messageChannel.take()
-		if (isDestroyed) {
+		if (isDestroyed || message is Stop) {
 			return
 		}
 
@@ -394,6 +420,15 @@ internal data class Init(
 internal data class Mod(
 	override val data: TextMod,
 ) : Message<TextMod>
+
+/**
+ * Wakes the worker's blocking [java.util.concurrent.LinkedBlockingQueue.take] so it can observe
+ * that it has been destroyed. Cancelling the job cannot do this: take() is a blocking call, not a
+ * suspension point (ADFA-5401).
+ */
+internal data object Stop : Message<Unit> {
+	override val data = Unit
+}
 
 internal data class TextInit(
 	val text: String,
