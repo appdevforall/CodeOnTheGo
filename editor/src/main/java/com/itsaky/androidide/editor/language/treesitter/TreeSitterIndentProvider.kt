@@ -161,6 +161,13 @@ class TreeSitterIndentProvider(
 
 			optimizeCursorRange(positions, content, cursor)
 
+			if (!indentsQuery.canAccess() || !cursor.canAccess()) {
+				// The spec that owns indentsQuery is closed from the editor's teardown, on another
+				// thread; running a cursor over a freed query is a native crash (ADFA-5401).
+				log.info("Cannot compute indents. The indents query is no longer accessible.")
+				return@use defaultIndents
+			}
+
 			cursor.exec(indentsQuery, tree.rootNode)
 
 			val indents = getIndents(languageSpec.indentsQuery, cursor)
@@ -492,7 +499,11 @@ class TreeSitterIndentProvider(
 		val indents = IndentsContainer()
 
 		var match: TSQueryMatch? = cursor.nextMatch()
-		while (match != null) {
+
+		// Re-checked every iteration, not just before the loop: the query is shared and whoever
+		// frees it does so on another thread, so a free landing mid-traversal would make the next
+		// nextMatch() dereference a dangling TSQuery (ADFA-5401).
+		while (match != null && query.canAccess() && cursor.canAccess()) {
 			for (capture in match.captures) {
 				val captureName = query.getCaptureNameForId(capture.index)
 				if (!indents.containsKey(captureName)) {
