@@ -37,7 +37,10 @@ import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.activities.editor.EditorActivityKt
+import com.itsaky.androidide.analytics.DeepLinkMetric
+import com.itsaky.androidide.analytics.DeepLinkOutcome
 import com.itsaky.androidide.analytics.IAnalyticsManager
+import com.itsaky.androidide.analytics.depth
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.deeplink.ConsumedRequests
@@ -664,6 +667,20 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 				// dying window.
 				if (isFinishing || isDestroyed) return@withContext
 				if (lookup !is DeepLinkProjectLookup.Found) {
+					// The two are deliberately distinct events, matching the code's own split: a rise in
+					// PROJECT_NOT_FOUND means published links naming projects people do not have, while a
+					// rise in PROJECT_UNVERIFIABLE means storage trouble on the device.
+					analyticsManager.trackDeepLink(
+						DeepLinkMetric(
+							request.depth(),
+							if (lookup is DeepLinkProjectLookup.NotFound) {
+								DeepLinkOutcome.PROJECT_NOT_FOUND
+							} else {
+								DeepLinkOutcome.PROJECT_UNVERIFIABLE
+							},
+							request.projectName,
+						),
+					)
 					// Consumed even though nothing opened: the project does not exist, so retrying on
 					// every recreate only re-shows "No project named X was found" indefinitely. Recorded
 					// only when this request is still the current one, so a superseded slow resolve

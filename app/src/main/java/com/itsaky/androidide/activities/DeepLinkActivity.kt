@@ -22,9 +22,15 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import com.itsaky.androidide.activities.editor.EditorActivityKt
+import com.itsaky.androidide.analytics.DeepLinkDepth
+import com.itsaky.androidide.analytics.DeepLinkMetric
+import com.itsaky.androidide.analytics.DeepLinkOutcome
+import com.itsaky.androidide.analytics.IAnalyticsManager
+import com.itsaky.androidide.analytics.depth
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.resources.R.string
+import org.koin.android.ext.android.inject
 
 /**
  * The sole `<intent-filter>` holder for `https://appdevforall.org/device/open/project/...` (and the
@@ -38,6 +44,8 @@ import com.itsaky.androidide.resources.R.string
  * since it never calls `setContentView` and has no theming needs of its own.
  */
 class DeepLinkActivity : Activity() {
+	private val analyticsManager: IAnalyticsManager by inject()
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
@@ -52,6 +60,10 @@ class DeepLinkActivity : Activity() {
 		// user is told, and sent to the normal entry point, which decides what they actually need --
 		// storage, ABI and onboarding are SplashActivity's to enforce, not this activity's to repeat.
 		if (!isIdeSetupComplete()) {
+			// Depth is UNKNOWN rather than parsed: the readiness gate deliberately runs before the
+			// URI is looked at, and reordering it just to enrich a metric would put parsing ahead of
+			// the check that exists to stop this activity acting on anything at all.
+			analyticsManager.trackDeepLink(DeepLinkMetric(DeepLinkDepth.UNKNOWN, DeepLinkOutcome.SETUP_INCOMPLETE))
 			Toast.makeText(this, getString(string.msg_deeplink_setup_incomplete), Toast.LENGTH_LONG).show()
 			// FLAG_ACTIVITY_NEW_TASK, matching the success branch below. A sender that starts this
 			// trampoline without it -- an in-app WebView host, another app's explicit intent, `am start`
@@ -69,12 +81,20 @@ class DeepLinkActivity : Activity() {
 
 		val request = DeepLinkRequest.parse(intent?.data)
 		if (request == null) {
+			// Counted, not just shown: this activity is exported, so a rise here is as likely to be
+			// another app poking it with an arbitrary Uri as it is a broken published link.
+			analyticsManager.trackDeepLink(DeepLinkMetric(DeepLinkDepth.UNKNOWN, DeepLinkOutcome.INVALID_LINK))
 			// A Toast, not flashError -- this activity finishes immediately below, tearing down its
 			// window before a view-based Flashbar could ever render.
 			Toast.makeText(this, getString(string.msg_deeplink_invalid_link), Toast.LENGTH_LONG).show()
 			finish()
 			return
 		}
+
+		// The one place every accepted link passes through, whichever activity ends up handling it.
+		// Paired with a terminal outcome logged wherever the request is finally resolved, so a link
+		// that is accepted here and then quietly goes nowhere shows up as a gap between the two.
+		analyticsManager.trackDeepLink(DeepLinkMetric(request.depth(), DeepLinkOutcome.RECEIVED, request.projectName))
 
 		// ActionContextProvider tracks the live EditorHandlerActivity instance (set in its onCreate
 		// and re-asserted in onResume, cleared in onDestroy) -- this reflects "is an editor instance
