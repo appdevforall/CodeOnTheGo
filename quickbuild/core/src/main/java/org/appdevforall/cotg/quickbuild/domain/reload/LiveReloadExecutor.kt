@@ -147,6 +147,15 @@ sealed interface BuildOutcome {
 		val message: String,
 		val daemonDied: Boolean = false,
 	) : BuildOutcome
+
+	companion object {
+		/**
+		 * Fallback copy for a messageless throwable escaping the pipeline. The class name is
+		 * in the ERROR log line the catch already writes, where it helps; on the status
+		 * surface it reads as gibberish.
+		 */
+		const val UNEXPECTED_FAILURE = "Quick Build stopped unexpectedly"
+	}
 }
 
 /**

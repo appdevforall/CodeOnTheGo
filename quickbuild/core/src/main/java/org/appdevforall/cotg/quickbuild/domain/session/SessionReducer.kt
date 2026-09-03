@@ -172,8 +172,8 @@ class SessionReducer {
 					QuickBuildSessionState.Ready(event.generation),
 					// Behaviour 2: nothing else launches the freshly installed proxy app, so a
 					// tap gets its answer here. A rebuild routed through this state stays in
-					// the editor.
-					if (state.userInitiated) {
+					// the editor, and one whose own relaunch already answered the tap says so.
+					if (state.userInitiated && !event.askAlreadyAnswered) {
 						listOf(SessionEffect.StartWarmCompile, SessionEffect.SwitchToProxyApp)
 					} else {
 						listOf(SessionEffect.StartWarmCompile)

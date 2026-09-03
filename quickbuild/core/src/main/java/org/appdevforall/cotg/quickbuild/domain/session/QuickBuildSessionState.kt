@@ -222,9 +222,12 @@ sealed interface SessionEvent {
 	 *
 	 * @property generation the generation the freshly installed proxy app starts at; every later
 	 *   deploy must be strictly newer.
+	 * @property askAlreadyAnswered the path that provisioned already brought the app forward for
+	 *   the outstanding tap, so landing must not switch to it a second time.
 	 */
 	data class ProvisioningSucceeded(
 		val generation: Long,
+		val askAlreadyAnswered: Boolean = false,
 	) : SessionEvent
 
 	/**

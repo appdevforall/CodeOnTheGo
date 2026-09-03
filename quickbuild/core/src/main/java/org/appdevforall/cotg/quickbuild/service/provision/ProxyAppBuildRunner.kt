@@ -275,10 +275,11 @@ internal class ProxyAppBuildRunner(
 			 */
 			val baselineGeneration: Long,
 			/**
-			 * True when a user ask was outstanding and the runner relaunched the reinstalled
-			 * app for it (best-effort, like every foreground switch: a refused start is
-			 * logged, not retried). The manager drops its deferred ask on this, so the
-			 * landing does not launch the app a second time for the same tap.
+			 * True when a user ask was outstanding and the relaunch of the reinstalled app
+			 * for it succeeded. A refused start leaves this false, so the ask stays
+			 * outstanding and the landing answers it instead of dropping it on the floor.
+			 * The manager clears its deferred ask on a true, and tells the reducer the ask
+			 * is answered, so the app is not launched a second time for the same tap.
 			 */
 			val answeredUserAsk: Boolean,
 		) : ProxyAppRebuildResult
@@ -403,7 +404,7 @@ internal class ProxyAppBuildRunner(
 							outcome.proxyApp,
 							outcome.layout,
 							outcome.baselineGeneration,
-							answeredUserAsk = askOutstanding,
+							answeredUserAsk = askOutstanding && toRunningMillis != null,
 						)
 					}
 
