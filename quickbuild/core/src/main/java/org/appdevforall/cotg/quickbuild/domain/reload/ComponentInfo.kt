@@ -85,9 +85,10 @@ fun ComponentInfo.isRestartSensitive(): Boolean = kind in RESTART_SENSITIVE_KIND
  *   (services/receivers are addressed by it via explicit intents, and the appComponentFactory
  *   instantiates the manifest name through the payload loader), and null for an activity the
  *   build could not proxy, which also keeps its real name.
- * @property launcher true for the launcher activity when it was proxied - its [proxyClass] is
- *   then the explicit relaunch target after a restart-deploy. False for a launcher activity the
- *   build skipped, which has no proxy to relaunch into.
+ * @property launcher true whenever the activity carries the MAIN/LAUNCHER intent filter,
+ *   proxied or not. When it was proxied, [proxyClass] is the explicit relaunch target after a
+ *   restart-deploy; for a launcher the build skipped, [proxyClass] is null and there is no
+ *   proxy to relaunch into, so read it with `?.proxyClass` rather than asserting.
  * @property supertypes the user-side (project-compiled) superclass chain recorded from
  *   class headers at proxy app build time. Carried but currently unread: [DeployPolicy]
  *   keeps no supertype index. Kept for a planned deploy mode that redefines classes in
