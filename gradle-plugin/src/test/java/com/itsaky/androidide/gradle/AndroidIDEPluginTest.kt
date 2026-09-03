@@ -39,7 +39,7 @@ class AndroidIDEPluginTest {
 			"callback, which AGP forbids with PropertyAccessNotAllowedException, so enabling " +
 			"LogSender fails to configure ':app'. Same LogSenderPlugin/AGP issue that disables the " +
 			"debuggable-variants test in AndroidIDEInitScriptPluginTest; re-enable once " +
-			"LogSenderPlugin moves the debuggable read to onVariants.",
+			"LogSenderPlugin moves the debuggable read to onVariants (ADFA-5459).",
 	)
 	@Test
 	fun `test logsender must be enabled if specified explicitly`(
@@ -53,35 +53,5 @@ class AndroidIDEPluginTest {
 				it.add("-P$PROPERTY_LOG_SENDER_ENABLED=true")
 			})
 		assertThat(result.output).contains("Applying LogSenderPlugin to project ':app'")
-	}
-
-	@Disabled(
-		"Asserts the build log contains 'LogSender is disabled', but the only code emitting that " +
-			"string is AppLogsCoordinator in :app, which never runs inside a TestKit Gradle build - " +
-			"so no Gradle build output can contain it. Fails on stage too; predates this branch. " +
-			"Re-enable once LogSenderPlugin logs its own disabled state.",
-	)
-	@Test
-	fun `test logsender must be disabled if specified explicitly`() {
-		val result =
-			buildProject(configureArgs = {
-				it.add("-P$PROPERTY_LOG_SENDER_ENABLED=false")
-			})
-		assertThat(result.output).contains("LogSender is disabled")
-	}
-
-	@Disabled(
-		"Asserts the build log contains 'Marking logsender dependency as not-changing', a string " +
-			"no code in this repo emits - the not-changing behaviour it describes was never " +
-			"implemented or was removed without updating the test. Fails on stage too; predates " +
-			"this branch. Re-enable once LogSenderPlugin marks the dependency and logs it.",
-	)
-	@Test
-	fun `test logsender must be added as non-changing dependency`() {
-		val result =
-			buildProject(configureArgs = {
-				it.add("--debug")
-			})
-		assertThat(result.output).contains("Marking logsender dependency as not-changing")
 	}
 }

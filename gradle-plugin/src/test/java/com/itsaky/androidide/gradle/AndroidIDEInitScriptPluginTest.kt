@@ -53,7 +53,7 @@ class AndroidIDEInitScriptPluginTest {
 			"PropertyAccessNotAllowedException - so enabling LogSender fails to configure ':app' on " +
 			"both 8.14.3 and 9.5.1. That is a LogSenderPlugin/AGP issue (the known-logsender bucket), " +
 			"orthogonal to the init-script plugin injection this suite covers. Re-enable once " +
-			"LogSenderPlugin moves the debuggable read to onVariants.",
+			"LogSenderPlugin moves the debuggable read to onVariants (ADFA-5459).",
 	)
 	@ParameterizedTest
 	@ValueSource(strings = ["8.14.3", "9.5.1"])
@@ -90,7 +90,7 @@ class AndroidIDEInitScriptPluginTest {
 	@Disabled(
 		"AGP 7.3.0 on Gradle 7.5.1 fails to configure the fixture with 'Protocol message " +
 			"contained an invalid tag (zero)'. Predates - and is unrelated to - the Gradle 9 work; " +
-			"needs a separate look at whether AGP_VERSION_MININUM is still buildable at all.",
+			"needs a separate look at whether AGP_VERSION_MININUM is still buildable at all (ADFA-5459).",
 	)
 	@Test
 	fun `test behavior on minimum supported version`() {
@@ -99,7 +99,7 @@ class AndroidIDEInitScriptPluginTest {
 		)
 	}
 
-	@Disabled("Same AGP 7.3.0 / Gradle 7.5.1 fixture failure as the test above.")
+	@Disabled("Same AGP 7.3.0 / Gradle 7.5.1 fixture failure as the test above (ADFA-5459).")
 	@Test
 	fun `test behavior with apply plugin syntax`() {
 		assertIdePluginApplied(
