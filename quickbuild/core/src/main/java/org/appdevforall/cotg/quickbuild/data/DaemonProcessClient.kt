@@ -124,8 +124,7 @@ class DaemonProcessClient(
 	 *   [DaemonReply.Failed] (spawn failure, protocol mismatch, or a rejected configuration) with
 	 *   the child shut down first, so a failed start never leaves a daemon behind.
 	 */
-	override suspend fun start(config: DaemonConfig): DaemonReply<Unit> =
-		startMutex.withLock { startLocked(config) }
+	override suspend fun start(config: DaemonConfig): DaemonReply<Unit> = startMutex.withLock { startLocked(config) }
 
 	/**
 	 * The [start] body, run under [startMutex].
