@@ -31,7 +31,7 @@ stateDiagram-v2
     Prebuilding --> Idle: PrebuildFinished (no tap)
     Prebuilding --> Idle: CancelRequested (tap queued)
 
-    Provisioning --> Ready: ProvisioningSucceeded (SwitchToProxyApp if userInitiated)
+    Provisioning --> Ready: ProvisioningSucceeded (SwitchToProxyApp if userInitiated and not askAlreadyAnswered)
     Provisioning --> Provisioning: QuickBuildTapped (records the ask; userInitiated = true)
     Provisioning --> Idle: ProvisioningFailed
     Provisioning --> Idle: CancelRequested
