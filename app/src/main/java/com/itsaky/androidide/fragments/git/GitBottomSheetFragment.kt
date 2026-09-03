@@ -33,6 +33,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.idetooltips.attachTooltip
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.preferences.internal.GitPreferences
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
@@ -672,12 +673,42 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 	private fun checkUnsavedChangesAndProceed(action: () -> Unit) {
 		val handler = requireActivity() as? IEditorHandler
-		if (handler?.areFilesModified() == true) {
+		// hasUnsavedWritableFiles(), matching the post-save check below. areFilesModified() is a cached
+		// flag that counts read-only archive tabs no save can ever write, so with a .zip or .apk open it
+		// raised this "save before the git action?" prompt on every commit, pull and push even with
+		// nothing actually dirty -- and the save it offered could not clear it.
+		if (handler?.hasUnsavedWritableFiles() == true) {
 			MaterialAlertDialogBuilder(requireContext())
 				.setTitle(R.string.title_files_unsaved)
 				.setMessage(R.string.msg_save_before_git_action)
 				.setPositiveButton(R.string.save_before_git_action) { _, _ ->
-					handler.saveAllAsync { action() }
+					handler.saveAllAsync { succeeded ->
+						// saveAllAsync is owned by the activity's lifecycle and can still invoke this
+						// callback after onDestroyView() clears _binding -- the user navigating away while
+						// the save is in flight -- and action() dereferences binding, so bail out first.
+						if (_binding == null) {
+							return@saveAllAsync
+						}
+						// succeeded means saveAll() did not throw, not that every write landed: a silent
+						// per-file failure (disk full, say) leaves a file modified with succeeded still
+						// true, and running a commit or pull then operates on a tree whose edits were
+						// never written.
+						//
+						// hasUnsavedWritableFiles(), not areFilesModified(): the latter is a cached flag
+						// that counts read-only archive tabs, which no save ever writes, so with a .zip or
+						// .apk tab open it stays true forever and every git action here would be refused
+						// with no way for the user to clear it. Same question EditorHandlerActivity asks
+						// itself after its own saves.
+						if (succeeded && !handler.hasUnsavedWritableFiles()) {
+							action()
+						} else {
+							// The String overload, not flashError(Int): the Int one shows a ~1s
+							// auto-dismissing bar, and a user who looked away would never learn the git
+							// action was abandoned and their edits are still unwritten. Matches the
+							// reasoning EditorHandlerActivity spells out on its own save-failure path.
+							flashError(getString(R.string.save_failed))
+						}
+					}
 				}.setNegativeButton(R.string.no_save_before_git_action) { _, _ ->
 					action()
 				}.setNeutralButton(android.R.string.cancel, null)

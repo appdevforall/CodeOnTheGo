@@ -20,247 +20,273 @@ package com.itsaky.androidide.models
 import com.google.gson.annotations.SerializedName
 import java.nio.file.Path
 
-data class Location(var file: Path, var range: Range)
+data class Location(
+	var file: Path,
+	var range: Range,
+)
 
-data class Position @JvmOverloads constructor(
-	@SerializedName("line") var line: Int,
-	@SerializedName("column") var column: Int,
-	@SerializedName("index") var index: Int = -1
-) : Comparable<Position> {
-
-	fun requireIndex(): Int {
-		if (index == -1) {
-			throw IllegalArgumentException("No index provided")
-		}
-		return index
-	}
-
-	/** Makes the indices 0 if they are negative. */
-	fun zeroIfNegative() {
-		if (line < 0) {
-			line = 0
+data class Position
+	@JvmOverloads
+	constructor(
+		@SerializedName("line") var line: Int,
+		@SerializedName("column") var column: Int,
+		@SerializedName("index") var index: Int = -1,
+	) : Comparable<Position> {
+		fun requireIndex(): Int {
+			if (index == -1) {
+				throw IllegalArgumentException("No index provided")
+			}
+			return index
 		}
 
-		if (column < 0) {
-			column = 0
-		}
-	}
-
-	companion object {
-
-		@JvmField
-		val NONE = Position(-1, -1)
-	}
-
-	override fun compareTo(other: Position): Int {
-
-		val byLine =
-			when {
-				line < other.line -> -1
-				line > other.line -> 1
-				else -> 0
+		/**
+		 * Makes the indices 0 if they are negative.
+		 *
+		 * A no-op on [NONE]. That is a process-wide `@JvmField` singleton whose whole meaning is
+		 * (-1, -1), handed out freely as a "nothing here" default -- zeroing it in place would redefine
+		 * the sentinel for every structural comparison in the process from then on.
+		 */
+		fun zeroIfNegative() {
+			if (this === NONE) {
+				return
 			}
 
-		if (byLine != 0) {
-			return byLine
+			if (line < 0) {
+				line = 0
+			}
+
+			if (column < 0) {
+				column = 0
+			}
 		}
 
-		return when {
-			column < other.column -> -1
-			column > other.column -> 1
-			else -> 0
+		companion object {
+			@JvmField
+			val NONE = Position(-1, -1)
+		}
+
+		override fun compareTo(other: Position): Int {
+			val byLine =
+				when {
+					line < other.line -> -1
+					line > other.line -> 1
+					else -> 0
+				}
+
+			if (byLine != 0) {
+				return byLine
+			}
+
+			return when {
+				column < other.column -> -1
+				column > other.column -> 1
+				else -> 0
+			}
+		}
+
+		override fun equals(other: Any?): Boolean {
+			if (this === other) return true
+			if (other !is Position) return false
+
+			if (line != other.line) return false
+			if (column != other.column) return false
+
+			return true
+		}
+
+		override fun hashCode(): Int {
+			var result = line
+			result = 31 * result + column
+			return result
 		}
 	}
-
-	override fun equals(other: Any?): Boolean {
-		if (this === other) return true
-		if (other !is Position) return false
-
-		if (line != other.line) return false
-		if (column != other.column) return false
-
-		return true
-	}
-
-	override fun hashCode(): Int {
-		var result = line
-		result = 31 * result + column
-		return result
-	}
-}
 
 open class Range
-@JvmOverloads
-constructor(
-	@SerializedName("start") var start: Position = Position(0, 0),
-	@SerializedName("end") var end: Position = Position(0, 0)
-) : Comparable<Range> {
+	@JvmOverloads
+	constructor(
+		@SerializedName("start") var start: Position = Position(0, 0),
+		@SerializedName("end") var end: Position = Position(0, 0),
+	) : Comparable<Range> {
+		operator fun component1() = start
 
-	operator fun component1() = start
-	operator fun component2() = end
+		operator fun component2() = end
 
-	constructor(src: Range) : this(
-		Position(src.start.line, src.start.column),
-		Position(src.end.line, src.end.column)
-	)
+		constructor(src: Range) : this(
+			Position(src.start.line, src.start.column),
+			Position(src.end.line, src.end.column),
+		)
 
-	companion object {
+		companion object {
+			@JvmField
+			val NONE = Range(Position.NONE, Position.NONE)
 
-		@JvmField
-		val NONE = Range(Position.NONE, Position.NONE)
+			@JvmStatic
+			fun pointRange(
+				line: Int,
+				column: Int,
+			): Range = pointRange(Position(line, column))
 
-		@JvmStatic
-		fun pointRange(line: Int, column: Int): Range {
-			return pointRange(Position(line, column))
+			@JvmStatic
+			fun pointRange(position: Position): Range {
+				// Two copies, not the same instance twice. Position's fields are `var` and
+				// EditorFeatures.validateRange clamps start and end in place, so aliasing one object as
+				// both ends makes each clamp move the other end too. For a POINT range that is currently
+				// harmless -- the two ends hold equal values and the column clamp depends only on the
+				// already-clamped line, so both writes compute the same result. This copies anyway
+				// because that is a property of today's clamp, not of the type: any future validate that
+				// treats start and end asymmetrically (ordering them, or clamping end against start)
+				// would silently corrupt every point range. It also keeps the caller's Position out of
+				// the returned Range, which callers do mutate.
+				return Range(position.copy(), position.copy())
+			}
 		}
 
-		@JvmStatic
-		fun pointRange(position: Position): Range {
-			return Range(position, position)
+		/**
+		 * Validate the start and end positions.
+		 * @see Position.zeroIfNegative()
+		 */
+		fun validate() {
+			// NONE's two ends ARE the single Position.NONE instance, so validating the sentinel would
+			// redefine it process-wide. zeroIfNegative guards itself for the same reason; this guard is
+			// stated separately because this is the call the editor pipeline actually makes.
+			if (this === NONE) {
+				return
+			}
+			start.zeroIfNegative()
+			end.zeroIfNegative()
 		}
-	}
 
-	/**
-	 * Validate the start and end positions.
-	 * @see Position.zeroIfNegative()
-	 */
-	fun validate() {
-		start.zeroIfNegative()
-		end.zeroIfNegative()
-	}
+		override fun equals(other: Any?): Boolean {
+			if (this === other) return true
+			if (other !is Range) return false
 
-	override fun equals(other: Any?): Boolean {
-		if (this === other) return true
-		if (other !is Range) return false
+			if (start != other.start) return false
+			if (end != other.end) return false
 
-		if (start != other.start) return false
-		if (end != other.end) return false
+			return true
+		}
 
-		return true
-	}
+		override fun hashCode(): Int {
+			var result = start.hashCode()
+			result = 31 * result + end.hashCode()
+			return result
+		}
 
-	override fun hashCode(): Int {
-		var result = start.hashCode()
-		result = 31 * result + end.hashCode()
-		return result
-	}
+		override fun compareTo(other: Range): Int = start.compareTo(other.start)
 
-	override fun compareTo(other: Range): Int = start.compareTo(other.start)
+		fun compareByEnd(other: Range): Int = end.compareTo(other.end)
 
-	fun compareByEnd(other: Range): Int = end.compareTo(other.end)
+		fun contains(position: Position): Boolean = contains(position.line, position.column)
 
-	fun contains(position: Position): Boolean = contains(position.line, position.column)
-	fun contains(line: Int, column: Int): Boolean {
-		if (line < start.line || line > end.line) {
+		fun contains(
+			line: Int,
+			column: Int,
+		): Boolean {
+			if (line < start.line || line > end.line) {
+				return false
+			}
+
+			if (start.line == end.line) {
+				return column >= start.column && column <= end.column
+			}
+
+			if (line == start.line) return column >= start.column
+			if (line == end.line) return column <= end.column
+
 			return false
 		}
 
-		if (start.line == end.line) {
-			return column >= start.column && column <= end.column
+		/**
+		 * Check if this range is before the given position or not.
+		 */
+		fun precedesPosition(
+			line: Int,
+			column: Int,
+		): Boolean {
+			if (end.line < line) {
+				return true
+			}
+
+			return end.line == line && end.column < column
 		}
 
-		if (line == start.line) return column >= start.column
-		if (line == end.line) return column <= end.column
+		/**
+		 * Check if this range is after the given position or not.
+		 */
+		fun succeedsPosition(
+			line: Int,
+			column: Int,
+		): Boolean {
+			if (start.line > line) {
+				return true
+			}
 
-		return false
-	}
-
-	/**
-	 * Check if this range is before the given position or not.
-	 */
-	fun precedesPosition(line: Int, column: Int): Boolean {
-		if (end.line < line) {
-			return true
+			return start.line == line && start.column > column
 		}
 
-		return end.line == line && end.column < column
-	}
-
-	/**
-	 * Check if this range is after the given position or not.
-	 */
-	fun succeedsPosition(line: Int, column: Int): Boolean {
-		if (start.line > line) {
-			return true
-		}
-
-		return start.line == line && start.column > column
-	}
-
-	/**
-	 * Check if this range contains the given position or not. Return an integer result indicating
-	 * where the index of the range containing this position might be.
-	 *
-	 * The return value will be used in a binary search.
-	 */
-	fun containsForBinarySearch(position: Position): Int {
-
-		// The position might appear before this range
-		if (position.line < start.line) {
-			return -1
-		}
-
-		// The position might appear after this range
-		if (position.line > end.line) {
-			return 1
-		}
-
-		// If start and end lines are same, compare by column indexes
-		if (start.line == end.line) {
-
-			if (position.column < start.column) {
+		/**
+		 * Check if this range contains the given position or not. Return an integer result indicating
+		 * where the index of the range containing this position might be.
+		 *
+		 * The return value will be used in a binary search.
+		 */
+		fun containsForBinarySearch(position: Position): Int {
+			// The position might appear before this range
+			if (position.line < start.line) {
 				return -1
 			}
 
-			if (position.column > end.column) {
+			// The position might appear after this range
+			if (position.line > end.line) {
 				return 1
 			}
+
+			// If start and end lines are same, compare by column indexes
+			if (start.line == end.line) {
+				if (position.column < start.column) {
+					return -1
+				}
+
+				if (position.column > end.column) {
+					return 1
+				}
+			}
+
+			// This range definitely contains the position.
+			return 0
 		}
 
-		// This range definitely contains the position.
-		return 0
-	}
+		fun containsLine(line: Int): Boolean = start.line <= line && end.line >= line
 
-	fun containsLine(line: Int): Boolean {
-		return start.line <= line && end.line >= line
-	}
+		fun containsColumn(column: Int): Boolean = start.column <= column && end.column >= column
 
-	fun containsColumn(column: Int): Boolean {
-		return start.column <= column && end.column >= column
-	}
+		fun containsRange(other: Range): Boolean {
+			if (!containsLine(other.start.line) || !containsLine(other.end.line)) {
+				return false
+			}
 
-	fun containsRange(other: Range): Boolean {
-		if (!containsLine(other.start.line) || !containsLine(other.end.line)) {
-			return false
+			return containsColumn(other.start.column) && containsColumn(other.end.column)
 		}
 
-		return containsColumn(other.start.column) && containsColumn(other.end.column)
-	}
+		fun isSmallerThan(other: Range): Boolean = other.isBiggerThan(this)
 
-	fun isSmallerThan(other: Range): Boolean {
-		return other.isBiggerThan(this)
-	}
+		fun isBiggerThan(other: Range): Boolean {
+			if (equals(other)) {
+				return false
+			}
 
-	fun isBiggerThan(other: Range): Boolean {
-
-		if (equals(other)) {
-			return false
-		}
-
-		if (start.line < other.start.line && end.line > other.end.line) {
-			return true
-		}
-
-		if (start.line == other.start.line && end.line == other.end.line) {
-			if (start.column <= other.start.column && end.column >= other.end.column) {
+			if (start.line < other.start.line && end.line > other.end.line) {
 				return true
 			}
+
+			if (start.line == other.start.line && end.line == other.end.line) {
+				if (start.column <= other.start.column && end.column >= other.end.column) {
+					return true
+				}
+			}
+
+			return false
 		}
 
-		return false
+		override fun toString(): String = "Range(start=$start, end=$end)"
 	}
-
-	override fun toString(): String {
-		return "Range(start=$start, end=$end)"
-	}
-}
