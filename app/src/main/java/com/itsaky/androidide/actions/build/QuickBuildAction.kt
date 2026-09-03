@@ -64,11 +64,11 @@ class QuickBuildAction(
 			return true
 		}
 
-		val activity = data.getActivity()
-		if (activity == null) {
-			sessionManager.onQuickBuildTapped()
-			return true
-		}
+		// No activity, no tap: the rest of this needs one to flush the editor buffers and to
+		// ask about a clobber, and a tap that skipped both would build stale content into a slot
+		// the user never agreed to give up. No caller reaches this today - getActivity() is
+		// non-null on every toolbar path - so refusing is cheaper than defending the branch.
+		val activity = data.getActivity() ?: return false
 
 		// The rest of the tap runs on the ACTIVITY's scope, not this action's: execAction
 		// runs on the actions registry's process-lifetime dispatcher, so an awaited save that

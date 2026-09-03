@@ -147,6 +147,14 @@ private fun upToDateUpdate(
 	current: QuickBuildStatus.UpToDate,
 ): QuickBuildStatusBarUpdate? =
 	when {
+		// First emission: this collector has not seen the build land, only the state it left
+		// behind. The StateFlow replays its value to every re-collect, so announcing from here
+		// re-announces a build that landed minutes ago - on every return to the editor, over
+		// whatever the bar is showing now, not only on a recreation.
+		previous == null -> {
+			null
+		}
+
 		// A duration means a build landed - the moment BUILD FAILED must be overwritten.
 		current.buildDurationMillis != null -> {
 			val text =
@@ -162,11 +170,6 @@ private fun upToDateUpdate(
 				text,
 				listOf(seconds(current.buildDurationMillis!!)),
 			)
-		}
-
-		// First emission of the resting state: nothing landed, say nothing.
-		previous == null -> {
-			null
 		}
 
 		// Settling after a landed build: keep the reloaded line visible.
