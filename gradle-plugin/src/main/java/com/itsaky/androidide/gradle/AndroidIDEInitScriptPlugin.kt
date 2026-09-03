@@ -78,7 +78,7 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 					File(COGO_GRADLE_PLUGIN_PATH, COGO_GRADLE_PLUGIN_JAR_NAME),
 					initScriptClasspath(),
 				)
-			logger.info("Injecting plugin classpath into the root buildscript: $classpath")
+			logger.info("Injecting plugin classpath into the root buildscript: {}", classpath)
 			rootProject.buildscript.dependencies.add("classpath", rootProject.files(classpath))
 		}
 
