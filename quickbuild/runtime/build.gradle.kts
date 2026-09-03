@@ -37,10 +37,6 @@ android {
 // map parsing, asset extraction). Mirrors :quick-build's jupiter setup.
 tasks.withType<Test> {
 	useJUnitPlatform()
-	// StreamsTest exercises the payload cap through the default readFully overload; a
-	// capped reader legitimately buffers up to the cap and then copies it, so the peak is
-	// about twice the cap - more headroom than Gradle's default 512 MB test-worker heap.
-	maxHeapSize = "1g"
 }
 
 // DoD coverage gate: >=90% line+branch on non-UI (domain/data) code.
