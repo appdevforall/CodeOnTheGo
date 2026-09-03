@@ -129,9 +129,9 @@ final class QuickBuildClient implements ServiceConnection {
 	/**
 	 * Registers this app with CoGo, naming the generation it currently runs so CoGo can send the catch-up payload.
 	 *
-	 * connect() is the one synchronous call on the host interface, so host-thrown exceptions cross the binder into this method, on the main thread. CoGo deliberately rejects connect with a SecurityException when no session is live, and the app must keep running standalone, so a rejection drops the channel and falls back to the backoff loop.
+	 * connect() is the one synchronous call on the host interface, so host-thrown exceptions cross the binder into the handshake. CoGo deliberately rejects connect with a SecurityException when no session is live, and the app must keep running standalone, so a rejection drops the channel and falls back to the backoff loop.
 	 *
-	 * The backoff reset happens only after a successful connect: resetting on mere service connection would make a rejecting host retry at the minimum delay forever.
+	 * The handshake itself runs off this callback's thread, because the framework delivers the callback on the app's main thread and a synchronous binder call there blocks the user's UI for as long as CoGo takes to answer - a cold CoGo answers slowly, and the app it is blocking is not CoGo.
 	 *
 	 * @param name
 	 *            CoGo's service component; unused, there is only one binding
@@ -153,6 +153,27 @@ final class QuickBuildClient implements ServiceConnection {
 			return;
 		}
 		host = connected;
+		Thread handshake = new Thread(new Runnable() {
+
+			@Override
+			public void run() {
+				connectToHost(connected);
+			}
+		}, "qb-connect");
+		handshake.start();
+	}
+
+	/**
+	 * Runs the connect handshake and settles the backoff, off the main thread.
+	 *
+	 * The backoff reset happens only after a successful connect: resetting on mere service connection would make a rejecting host retry at the minimum delay forever.
+	 *
+	 * Safe off-thread: {@code host} and {@code appContext} are volatile, the backoff fields are taken under this object's monitor, and both unbind and rebind are callable from anywhere - the rebind itself posts to the main thread before touching bindService.
+	 *
+	 * @param connected
+	 *            the host proxy this handshake registers against
+	 */
+	private void connectToHost(IQuickBuildHost connected) {
 		try {
 			Context context = appContext;
 			String packageName = context == null ? "" : context.getPackageName();
