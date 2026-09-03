@@ -25,6 +25,8 @@ internal class QuickBuildDaemonController(
 	private val scratch: QuickBuildScratch,
 	/** Locations of the bundled aapt2, d8, android.jar, and Compose compiler plugin. */
 	private val paths: QuickBuildPaths,
+	/** Wall clock for the pending-teardown deadline; injected so a test need not sleep. */
+	private val now: () -> Long = System::currentTimeMillis,
 ) {
 	/**
 	 * Count of intentional daemon transitions, used to detect that a respawn was
@@ -43,6 +45,15 @@ internal class QuickBuildDaemonController(
 
 	/** Set only on the session dispatcher; a build in flight defers the teardown here. */
 	private var pendingLowMemoryTeardown = false
+
+	/**
+	 * When the pending teardown was asked for, so it can expire.
+	 *
+	 * Not consuming the request while the daemon is briefly down is what stops a respawn from
+	 * swallowing it - but with nothing to expire it, a request made against a daemon that never
+	 * comes back is held for the rest of the session and torn down on some unrelated later build.
+	 */
+	private var pendingLowMemoryTeardownAt = 0L
 
 	/**
 	 * Records an intentional daemon lifecycle transition.
@@ -176,6 +187,7 @@ internal class QuickBuildDaemonController(
 			return
 		}
 		pendingLowMemoryTeardown = true
+		pendingLowMemoryTeardownAt = now()
 		shrinkIfPending(buildInFlight)
 	}
 
@@ -183,8 +195,8 @@ internal class QuickBuildDaemonController(
 	 * Carries out a deferred low-memory teardown once no build is in flight.
 	 *
 	 * A build in flight leaves the pending flag set for the manager's state collector to
-	 * retry. Idempotent: with no pending request, or a daemon already down, this is a
-	 * silent no-op.
+	 * retry. Idempotent: with no pending request this is a silent no-op, and a daemon that is
+	 * down keeps the request only until [PENDING_TEARDOWN_DEADLINE_MILLIS] has passed.
 	 *
 	 * @param buildInFlight true to leave the request pending for a later call
 	 */
@@ -192,8 +204,16 @@ internal class QuickBuildDaemonController(
 		if (buildInFlight) return
 		if (!pendingLowMemoryTeardown) return
 		// Consumed only past the isRunning guard: clearing first would discard the request
-		// while the daemon is briefly down, not the silent no-op the KDoc promises.
-		if (!daemon.isRunning) return
+		// while the daemon is briefly down, not the silent no-op the KDoc promises. Held
+		// requests do expire, though - past the deadline the memory pressure that asked for
+		// this is old news, and acting on it would tear down a daemon the user is using.
+		if (!daemon.isRunning) {
+			if (now() - pendingLowMemoryTeardownAt >= PENDING_TEARDOWN_DEADLINE_MILLIS) {
+				log.debug("Quick Build: dropping a low-memory teardown the daemon never came back for")
+				pendingLowMemoryTeardown = false
+			}
+			return
+		}
 		pendingLowMemoryTeardown = false
 		log.info("Quick Build: tearing down the compile daemon for low memory; the next build re-warms it")
 		markIntentionalTransition()
@@ -231,6 +251,14 @@ internal class QuickBuildDaemonController(
 		)
 
 	private companion object {
+		/**
+		 * How long a deferred low-memory teardown survives a daemon that is not running.
+		 *
+		 * Long enough to outlast a respawn, short enough that the request cannot resurface on
+		 * a build minutes later, when the pressure that asked for it is gone.
+		 */
+		const val PENDING_TEARDOWN_DEADLINE_MILLIS = 60_000L
+
 		private val log = LoggerFactory.getLogger("QB-DaemonController")
 	}
 }
