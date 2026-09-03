@@ -7,6 +7,9 @@ import android.os.Looper;
 import android.os.MessageQueue;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
+import android.view.View;
+import android.view.ViewTreeObserver;
+import android.view.Window;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -153,8 +156,8 @@ final class QuickBuildRuntime {
 	/** What the overlay should show; written from any thread, rendered on the main one. */
 	private volatile OverlayState overlayState = OverlayState.hidden();
 
-	/** Generation whose reload is awaiting its first resumed frame, or -1. */
-	private volatile long pendingReloadGeneration = -1;
+	/** Holds a generation's ack and its probation until the frame that rendered it has drawn. */
+	private final FirstFrameGate firstFrame = new FirstFrameGate();
 
 	/**
 	 * Newest generation whose resource swap failed, or -1 before the first.
@@ -313,7 +316,7 @@ final class QuickBuildRuntime {
 			// Assigned on BOTH branches: the backgrounded ack must also clear any older
 			// generation still pending, or the crash guard keeps blaming it for this
 			// generation's crashes - and this generation escapes quarantine.
-			pendingReloadGeneration = Generations.pendingAfterApply(resumed, generation);
+			firstFrame.arm(Generations.pendingAfterApply(resumed, generation));
 			if (!resumed) {
 				// Backgrounded: no resumed activity to hang a frame callback on, so
 				// waiting for render-proof would time out a deploy that worked. Ack at
@@ -373,19 +376,84 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Completes a pending reload on its first rendered frame, and renders the overlay and return button.
+	 * Schedules the reload's completion for the resumed activity's first DRAWN frame.
 	 *
-	 * This is where reportReloaded fires for a foreground deploy: the first callback after the swap at which the new generation is committed to being drawn. Note that onResume is NOT itself a rendered frame - it precedes the first draw, so the reported time understates true time-to-pixels by that margin (measured at ~4 ms on an A56, foreground path). A backgrounded deploy was already acked at apply time and left no pending generation, so it cannot double-report here.
+	 * onResume is not a rendered frame - it precedes the first traversal - so nothing that vouches for a generation may happen here. A payload whose activity resumes and then throws in measure, layout or draw would otherwise have already been acked, cleared from the pending slot and written to good.json, leaving {@link BootProbation} nothing to blame and {@link PayloadPersistence#quarantine} refusing to name it: every relaunch adopted the same generation and died the same way, with no in-app escape.
+	 *
+	 * So the ack, the pending-clear and the good-marking all move together to {@link #onFirstFrameDrawn}, released only once a frame carrying the generation has been drawn.
 	 *
 	 * @param activity
 	 *            the activity now in the foreground, which hosts the overlay
 	 */
-	void onActivityResumed(Activity activity) {
-		long pending = pendingReloadGeneration;
-		if (pending >= 0 && PayloadStore.INSTANCE.generation() == pending) {
-			pendingReloadGeneration = -1;
+	void onActivityResumed(final Activity activity) {
+		if (!completeOnFirstFrame(activity)) {
+			// No live view tree to hang a draw callback on, so this activity may never
+			// draw at all. Completing inline is the pre-existing looser bar, and the
+			// right one here: waiting for a frame that will never arrive would strand
+			// the deploy unacked and leave the generation on probation forever.
+			onFirstFrameDrawn(activity);
+		}
+	}
+
+	/**
+	 * Runs the completion once the resumed activity's first frame has finished drawing.
+	 *
+	 * The listener fires at the START of each draw pass, so the completion is posted rather than run inline: the posted message runs after the traversal that drew the frame returns, which is what makes measure, layout and draw failures land BEFORE the generation is vouched for rather than after. Posting is also what makes removing the listener legal, since a {@link ViewTreeObserver} rejects a removal made from inside its own dispatch.
+	 *
+	 * @param activity
+	 *            the resumed activity whose first frame gates the completion
+	 * @return true when a draw callback was installed, false when the activity has no live view tree and the caller must complete without one
+	 */
+	private boolean completeOnFirstFrame(final Activity activity) {
+		Window window = activity.getWindow();
+		final View decor = window == null ? null : window.peekDecorView();
+		if (decor == null) {
+			return false;
+		}
+		final ViewTreeObserver observer = decor.getViewTreeObserver();
+		if (observer == null || !observer.isAlive()) {
+			return false;
+		}
+		final ViewTreeObserver.OnDrawListener[] listener = new ViewTreeObserver.OnDrawListener[1];
+		final boolean[] scheduled = new boolean[1];
+		listener[0] = new ViewTreeObserver.OnDrawListener() {
+
+			@Override
+			public void onDraw() {
+				if (scheduled[0]) {
+					return;
+				}
+				scheduled[0] = true;
+				mainHandler.post(new Runnable() {
+
+					@Override
+					public void run() {
+						ViewTreeObserver live = decor.getViewTreeObserver();
+						if (live != null && live.isAlive()) {
+							live.removeOnDrawListener(listener[0]);
+						}
+						onFirstFrameDrawn(activity);
+					}
+				});
+			}
+		};
+		observer.addOnDrawListener(listener[0]);
+		return true;
+	}
+
+	/**
+	 * Completes a pending reload now that its generation has been drawn, and renders the overlay and return button.
+	 *
+	 * This is where reportReloaded fires for a foreground deploy, and the reported time is now true time-to-pixels rather than time-to-resume. A backgrounded deploy was already acked at apply time and left no pending generation, so it cannot double-report here.
+	 *
+	 * @param activity
+	 *            the activity that drew the frame, which hosts the overlay
+	 */
+	private void onFirstFrameDrawn(Activity activity) {
+		long acked = firstFrame.drawn(PayloadStore.INSTANCE.generation());
+		if (acked >= 0) {
 			long reloadMillis = SystemClock.uptimeMillis() - pendingReloadStartUptime;
-			client.reportReloaded(pending, reloadMillis);
+			client.reportReloaded(acked, reloadMillis);
 			// Success renders nothing; it only clears a shown error or in-flight
 			// banner, since a landed reload means the build finished even if the
 			// build_ok message is still in flight behind it.
@@ -397,9 +465,10 @@ final class QuickBuildRuntime {
 		} else {
 			overlay.render(activity, overlayState);
 		}
-		// Unconditional, because the point is that an activity of this generation is on
-		// screen - which is true whether it arrived by hot swap or by a fresh process
-		// booting it, and only the first of those leaves a pending generation behind.
+		// Unconditional, because the point is that a drawn frame of this generation
+		// reached the screen - which is true whether it arrived by hot swap or by a
+		// fresh process booting it, and only the first of those leaves a pending
+		// generation behind.
 		markLiveGenerationGood();
 	}
 
@@ -577,7 +646,7 @@ final class QuickBuildRuntime {
 		}
 		if (action == Generations.FailureAction.ROLLBACK_AND_REPORT) {
 			quarantine(generation);
-			pendingReloadGeneration = -1;
+			firstFrame.disarm();
 		}
 		// The banner gets no summary at all: it is a few unscrollable lines over the user's
 		// own app, so a stack put there is clipped mid-frame and the frames naming the fault
@@ -607,7 +676,7 @@ final class QuickBuildRuntime {
 			@Override
 			public void uncaughtException(Thread thread, Throwable error) {
 				try {
-					long doomed = bootProbation.generationToBlame(pendingReloadGeneration,
+					long doomed = bootProbation.generationToBlame(firstFrame.pending(),
 							PayloadStore.INSTANCE.generation());
 					if (doomed >= 0) {
 						// The store already claims this generation, so a relaunch would
@@ -629,9 +698,9 @@ final class QuickBuildRuntime {
 	/**
 	 * Records the running generation as the one a later quarantine should fall back to, and ends its probation.
 	 *
-	 * Called from a resumed activity, which is the bar that matters: the failure a fallback has to survive is a payload that throws on the way to the screen, so a generation that got there is one a fresh process can boot. Without this a quarantine drops the app to install-time code and discards every save since.
+	 * Called from a DRAWN frame, which is the bar that matters: the failure a fallback has to survive is a payload that throws on the way to the screen, so a generation whose frame reached it is one a fresh process can boot. A resume is not that bar - it precedes the first traversal, so a payload that resumes and then throws in measure, layout or draw has proved nothing. Without this a quarantine drops the app to install-time code and discards every save since.
 	 *
-	 * The probation ends on the recorded write rather than on the resume that prompted it, so the two facts stay simultaneous: the moment this generation stops being blamed for a crash is the moment there is something to fall back to instead. A write that fails leaves it on probation, which is the expensive direction, not a safe one: nothing recorded it, so a later crash anywhere in the app blames a generation that demonstrably reached the screen and quarantines it. That is why a failed write releases the latch and the next resume tries again.
+	 * The probation ends on the recorded write rather than on the frame that prompted it, so the two facts stay simultaneous: the moment this generation stops being blamed for a crash is the moment there is something to fall back to instead. A write that fails leaves it on probation, which is the expensive direction, not a safe one: nothing recorded it, so a later crash anywhere in the app blames a generation that demonstrably reached the screen and quarantines it. That is why a failed write releases the latch and the next resume tries again.
 	 *
 	 * Written off the main thread, because the write is fsynced and this runs on the frame path; latched per generation, so it costs one short-lived thread per generation rather than one per resume. Losing the write to a process death only makes the fallback one generation older.
 	 */
@@ -726,13 +795,13 @@ final class QuickBuildRuntime {
 				top.recreate();
 			} else {
 				RuntimeLog.i("no live activity; gen " + generation + " applies on next launch");
-				if (pendingReloadGeneration == generation) {
+				if (firstFrame.pending() == generation) {
 					// The activity that was resumed when this deploy was accepted is gone,
 					// so there is no frame left to ack on - the same situation the
 					// backgrounded branch already acks at apply time. Without this the
 					// host learns only from its deploy timeout, and the crash guard goes
 					// on blaming this generation for anything the app throws later.
-					pendingReloadGeneration = -1;
+					firstFrame.disarm();
 					client.reportReloaded(generation,
 							SystemClock.uptimeMillis() - pendingReloadStartUptime);
 				}
