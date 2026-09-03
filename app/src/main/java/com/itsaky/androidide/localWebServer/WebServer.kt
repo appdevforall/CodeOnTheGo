@@ -534,7 +534,8 @@ class WebServer(
 			return sendError(writer, output, 501, "Not Implemented")
 		}
 
-		// serveRequest applies any pending sdcard debug-database swap via the content source.
+		// The content source applies a pending sdcard debug-database swap inside lookup()/withDatabase(),
+		// so a request reaching neither -- an unknown /pr/ target -- does not poll for one.
 		serveRequest(writer, output, path)
 	}
 
