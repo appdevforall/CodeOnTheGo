@@ -81,6 +81,7 @@ import com.itsaky.androidide.quickbuild.QuickBuildFlashes
 import com.itsaky.androidide.quickbuild.QuickBuildOutputNarrator
 import com.itsaky.androidide.quickbuild.QuickBuildPrebuildStagger
 import com.itsaky.androidide.quickbuild.QuickBuildStatusBarUpdate
+import com.itsaky.androidide.quickbuild.QuickBuildStatusTracker
 import com.itsaky.androidide.quickbuild.quickBuildStatusBarUpdate
 import com.itsaky.androidide.quickbuild.resolve
 import com.itsaky.androidide.repositories.PluginRepository
@@ -313,11 +314,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					// narration is session-scoped (see [bindQuickBuildOutput]), since a
 					// build the user backgrounded CoGo to watch still has to be logged.
 					launch {
-						var previousStatus: QuickBuildStatus? = null
+						// The tracker is an activity field, not a local: this collector is
+						// restarted on every onStart and the status replays, so a local would
+						// make each return to the editor a first emission and re-stomp
+						// whatever wrote the bar meanwhile.
 						quickBuild.status.collect { status ->
 							invalidateOptionsMenu()
-							showQuickBuildStatus(previousStatus, status)
-							previousStatus = status
+							showQuickBuildStatus(quickBuildStatusTracker.previous, status)
+							quickBuildStatusTracker.record(status)
 						}
 					}
 					launch {
@@ -659,8 +663,17 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * The Quick Build session manager (ADFA-4128), or null when the feature is off.
 	 * Gated exactly like the action's registration in EditorActivityActions - the
 	 * experiments flag only, no SDK check: Quick Build works from API 28, where a degraded
-	 * resource shim covers 28/29. Resolving the Koin singleton is cheap -
-	 * nothing spawns until the first quick build runs.
+	 * resource shim covers 28/29.
+	 *
+	 * Resolving the Koin singleton is NOT cheap and it is not inert. [observeStates] calls
+	 * this from onCreate, so with experiments on the whole graph is built at project open,
+	 * on the main thread - as do onTrimMemory, onBuildServiceConnected and
+	 * QuickBuildAction.prepare(). Construction reads shared preferences (the history store)
+	 * and the scratch root (noBackupFilesDir), so it does main-thread disk I/O, and
+	 * QuickBuildSessionManager's init block installs the daemon death listener and five
+	 * coroutines on the session executor. What still waits for the first tap is the daemon
+	 * process and the host service binding, not the graph. Moving this resolve off the main
+	 * thread is tracked separately.
 	 *
 	 * Protected (not private): [EditorHandlerActivity]'s split-button dropdown
 	 * calls this too, to trigger a quick build / restart from the long-press menu.
@@ -695,6 +708,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * wipe another writer's line - a build's result stays up until the next build starts.
 	 */
 	private var ownsQuickBuildStatus = false
+
+	/**
+	 * The status the bar was last told about. Lives here rather than in the collector so a
+	 * re-subscription is not read as a first emission; see [QuickBuildStatusTracker].
+	 */
+	private val quickBuildStatusTracker = QuickBuildStatusTracker()
 
 	/**
 	 * Decides which Quick Build outcomes get a flashbar over the editor. Holds the one bit of
