@@ -38,7 +38,7 @@ class QuickBuildPayloadTransformTaskTest {
 		// pipeline produced nothing (or a cleaned intermediate) must not fail the divert when
 		// the sibling walkTopDown path already tolerates exactly that absence.
 		val project = ProjectBuilder.builder().withProjectDir(tempDir).build()
-		val task = project.tasks.create("qbDivert", QuickBuildPayloadTransformTask::class.java)
+		val task = project.tasks.register("qbDivert", QuickBuildPayloadTransformTask::class.java).get()
 
 		writeJar(File(tempDir, "present.jar"), "com/example/Foo.class", "com/example/R\$string.class")
 		val presentDir = File(tempDir, "classes").apply { mkdirs() }

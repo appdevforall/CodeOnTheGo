@@ -126,7 +126,13 @@ abstract class QuickBuildGenerateSourcesTask : DefaultTask() {
 			.writeText(QuickBuildJson.manifestInfoJson(info))
 
 		if (result.entryActivity == null) {
-			logger.warn("Quick Build: no LAUNCHER activity found in the merged manifest")
+			// Not necessarily missing: a MAIN/LAUNCHER filter on an <activity-alias> whose
+			// target activity carries none is a supported pattern, and leaves no proxied
+			// entry activity to name. The relaunch then uses the package's default intent.
+			logger.warn(
+				"Quick Build: no LAUNCHER activity to relaunch into; the app either declares " +
+					"none, or declares it on an <activity-alias>",
+			)
 		}
 		result.unproxied.forEach { skipped ->
 			// Lifecycle, not info: someone debugging a stale-code report needs to see a
@@ -480,6 +486,12 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 				listOf(
 					"-proc:none",
 					"-nowarn",
+					// The same release the daemon pins its own javac to
+					// (IncrementalCompiler.JVM_TARGET, a separate artifact). These proxies are
+					// bundled into every payload dex beside daemon-compiled classes, and a
+					// Gradle JVM above 17 would put two bytecode levels in one payload.
+					"--release",
+					"17",
 					"-classpath",
 					classpath.joinToString(File.pathSeparator) { it.absolutePath },
 					"-d",
@@ -549,9 +561,15 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 	@get:Input
 	abstract val transformedManifestPath: Property<String>
 
-	/** The divert task's payload-classes dir; its jars/ carry R.jar and kin. */
-	@get:Input
-	abstract val payloadClassesPath: Property<String>
+	/**
+	 * The divert task's payload-classes dir; its jars/ carry R.jar and kin.
+	 *
+	 * A directory input, not the path as a string: the report reads the tree itself (the jar
+	 * list, and the class headers the supertype index is built from), so tracking only the
+	 * path leaves the report up to date after the classes underneath it change.
+	 */
+	@get:InputDirectory
+	abstract val payloadClasses: DirectoryProperty
 
 	/** True when the project uses Compose; the daemon then adds its compiler plugin. */
 	@get:Input
@@ -658,18 +676,10 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 				?.elements
 				?.takeIf { it.isNotEmpty() }
 				?.let { selectUniversalApk(it, apkDirectory.get().asFile) }
-				?: apkDirectory
-					.get()
-					.asFile
-					.walkTopDown()
-					.firstOrNull { it.extension == "apk" }
-					?.absolutePath
-				?: throw GradleException(
-					"Quick Build: no APK found under '${apkDirectory.get().asFile}'",
-				)
+				?: soleApkUnder(apkDirectory.get().asFile)
 
 		val outFile = reportFile.get().asFile.apply { parentFile.mkdirs() }
-		val payloadClassesRoot = File(payloadClassesPath.get())
+		val payloadClassesRoot = payloadClasses.get().asFile
 		val payloadJars =
 			File(payloadClassesRoot, "jars")
 				.listFiles { file -> file.extension == "jar" }
@@ -738,15 +748,39 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 			?.firstOrNull { it.isFile && it.name == "stableIds.txt" }
 
 	/**
-	 * Collects every pre-compiled `.flat` unit a relink needs to resolve a dependency's
-	 * resources: [mergedResSearchDir]'s closure plus [dependencyResourceDirs]' FILE-based units.
+	 * The one APK under [apkDirectory], for a build whose artifact metadata could not be read.
 	 *
-	 * Sorted for determinism only. The two sets never declare the same resource, and layering the
-	 * relink's own fresh compile on top of both is `Aapt2Link`'s job, not this task's.
+	 * Without the metadata nothing here can tell a split from the universal APK, so the only
+	 * safe answer is that there must be exactly one candidate. Picking one of several was the
+	 * same arbitrary choice [selectUniversalApk] exists to prevent, one level down.
 	 *
-	 * @return absolute paths of every `.flat` unit found, sorted; empty when neither source
-	 *   exists, which the caller logs rather than treating as an error.
+	 * @param apkDirectory the variant's APK output directory.
+	 * @return the single APK's absolute path.
+	 * @throws GradleException when the directory holds no APK, or more than one.
 	 */
+	private fun soleApkUnder(apkDirectory: File): String {
+		val apks = apkDirectory.walkTopDown().filter { it.extension == "apk" }.toList()
+		return when (apks.size) {
+			1 -> {
+				apks.single().absolutePath
+			}
+
+			0 -> {
+				throw GradleException("Quick Build: no APK found under '$apkDirectory'")
+			}
+
+			else -> {
+				throw GradleException(
+					"Quick Build: '$apkDirectory' holds ${apks.size} APKs (" +
+						apks.map { it.name }.sorted().joinToString(", ") +
+						") and their build metadata could not be read, so the universal one " +
+						"cannot be identified; disable APK splits for this variant or use a " +
+						"Standard Run",
+				)
+			}
+		}
+	}
+
 	companion object {
 		/**
 		 * Picks the one APK every device can install out of AGP's built-artifact metadata.
@@ -780,6 +814,16 @@ abstract class QuickBuildProxyAppReportTask : DefaultTask() {
 				)
 	}
 
+	/**
+	 * Collects every pre-compiled `.flat` unit a relink needs to resolve a dependency's
+	 * resources: [mergedResSearchDir]'s closure plus [dependencyResourceDirs]' FILE-based units.
+	 *
+	 * Sorted for determinism only. The two sets never declare the same resource, and layering the
+	 * relink's own fresh compile on top of both is `Aapt2Link`'s job, not this task's.
+	 *
+	 * @return absolute paths of every `.flat` unit found, sorted; empty when neither source
+	 *   exists, which the caller logs rather than treating as an error.
+	 */
 	private fun collectLibraryResourcePaths(): List<String> {
 		val mergedRes =
 			mergedResSearchDir.orNull
