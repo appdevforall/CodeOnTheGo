@@ -49,6 +49,31 @@ class AssetExtractorFailurePathTest {
 	@TempDir
 	Path tempDir;
 
+	/**
+	 * A copy that dies mid-entry leaves no readable partial behind, not just a failed rename.
+	 *
+	 * Goes red without the fix: the temp was deleted only from the rename fallback, so a throw out of the copy left {@code a.txt.qb-tmp} sitting under the very directory {@link DirectoryAssetsProvider} resolves asset names against, where the app could open it.
+	 */
+	@Test
+	void aCopyThatFailsMidEntryLeavesNoTempFile() throws IOException {
+		File dest = tempDir.resolve("dest").toFile();
+		byte[] content = new byte[256 * 1024];
+		for (int i = 0; i < content.length; i++) {
+			// Poorly compressible, so the truncation below really does cut the entry
+			// short rather than land past its whole deflated form.
+			content[i] = (byte) (i * 31 + (i >> 3));
+		}
+		byte[] whole = zipBytes("a.txt", content);
+		byte[] truncated = new byte[whole.length / 2];
+		System.arraycopy(whole, 0, truncated, 0, truncated.length);
+
+		assertThrows(IOException.class,
+				() -> AssetExtractor.extract(new ByteArrayInputStream(truncated), dest));
+
+		assertThat(new File(dest, "a.txt.qb-tmp").exists()).isFalse();
+		assertThat(new File(dest, "a.txt").exists()).isFalse();
+	}
+
 	@Test
 	void aDestDirBlockedByAFileThrows() throws IOException {
 		File blocked = tempDir.resolve("dest").toFile();
@@ -90,31 +115,6 @@ class AssetExtractorFailurePathTest {
 		assertThat(new File(dest, "a.txt.qb-tmp").exists()).isFalse();
 		// The pre-existing content is untouched.
 		assertThat(new File(inTheWay, "child").isDirectory()).isTrue();
-	}
-
-	/**
-	 * A copy that dies mid-entry leaves no readable partial behind, not just a failed rename.
-	 *
-	 * Goes red without the fix: the temp was deleted only from the rename fallback, so a throw out of the copy left {@code a.txt.qb-tmp} sitting under the very directory {@link DirectoryAssetsProvider} resolves asset names against, where the app could open it.
-	 */
-	@Test
-	void aCopyThatFailsMidEntryLeavesNoTempFile() throws IOException {
-		File dest = tempDir.resolve("dest").toFile();
-		byte[] content = new byte[256 * 1024];
-		for (int i = 0; i < content.length; i++) {
-			// Poorly compressible, so the truncation below really does cut the entry
-			// short rather than land past its whole deflated form.
-			content[i] = (byte) (i * 31 + (i >> 3));
-		}
-		byte[] whole = zipBytes("a.txt", content);
-		byte[] truncated = new byte[whole.length / 2];
-		System.arraycopy(whole, 0, truncated, 0, truncated.length);
-
-		assertThrows(IOException.class,
-				() -> AssetExtractor.extract(new ByteArrayInputStream(truncated), dest));
-
-		assertThat(new File(dest, "a.txt.qb-tmp").exists()).isFalse();
-		assertThat(new File(dest, "a.txt").exists()).isFalse();
 	}
 
 	@Test
