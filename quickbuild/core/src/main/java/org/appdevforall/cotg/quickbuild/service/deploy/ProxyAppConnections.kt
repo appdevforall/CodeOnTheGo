@@ -61,6 +61,9 @@ class ProxyAppConnections {
 	 * @param hold the hold to take on connect and drop on disconnect or session end
 	 */
 	fun installPriorityHold(hold: ProxyAppPriorityHold) {
+		// The KDoc promises replacement, so the one being replaced has to be dropped: keeping it
+		// would hold a gone proxy app out of the freezer for the rest of the process's life.
+		if (priorityHold !== hold) priorityHold?.release()
 		priorityHold = hold
 	}
 
