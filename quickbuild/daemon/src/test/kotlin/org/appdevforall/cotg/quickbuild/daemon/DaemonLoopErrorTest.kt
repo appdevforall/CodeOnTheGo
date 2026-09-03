@@ -114,4 +114,58 @@ class DaemonLoopErrorTest {
 			serve({ throw NoClassDefFoundError("com/example/Gone") }, compile, ping)
 		}
 	}
+
+	/** A reader that throws once on the first read, then serves [lines]. */
+	private class ThrowingOnceReader(
+		private val boom: () -> Nothing,
+		lines: List<String>,
+	) : BufferedReader(StringReader("")) {
+		private val remaining = ArrayDeque(lines)
+		private var thrown = false
+
+		override fun readLine(): String? {
+			if (!thrown) {
+				thrown = true
+				boom()
+			}
+			return remaining.removeFirstOrNull()
+		}
+	}
+
+	@Test
+	fun `an out-of-memory while READING the line replies ok-false and keeps serving`() {
+		// The read is the call that allocates the line, so it is where a pathological request
+		// first runs out of memory - the very input the loop's backstop comment names. Outside
+		// the try it escapes serve and exits the JVM, which CoGo reads as daemon death.
+		val output = StringWriter()
+		DaemonMain.serve(
+			input = ThrowingOnceReader({ throw OutOfMemoryError("Java heap space") }, listOf(ping)),
+			output = output,
+			router = RequestRouter(RespondingHandlers { id -> DaemonResponse.ok(id, emptyMap()) }),
+		)
+
+		val responses = output.toString().lines().filter { it.isNotBlank() }
+		assertThat(responses).hasSize(2)
+		assertThat(
+			JsonParser
+				.parseString(responses[0])
+				.asJsonObject
+				.get("ok")
+				.asBoolean,
+		).isFalse()
+		assertThat(
+			JsonParser
+				.parseString(responses[1])
+				.asJsonObject
+				.get("ok")
+				.asBoolean,
+		).isTrue()
+		assertThat(
+			JsonParser
+				.parseString(responses[1])
+				.asJsonObject
+				.get("id")
+				.asLong,
+		).isEqualTo(42)
+	}
 }
