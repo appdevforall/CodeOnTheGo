@@ -53,6 +53,33 @@ class FileGenerationStoreEdgeTest {
 		assertThat(store.load()).isEqualTo(42)
 	}
 
+	/**
+	 * The arm that keeps the counter when neither rename can land: the old value is already
+	 * deleted by then, so a throw would restart the sequence and let a later session reuse a
+	 * generation the installed proxy app has already seen.
+	 *
+	 * The fixture defeats the retry rather than the write. An empty directory at the target
+	 * refuses the direct rename; the override then removes the staged temp along with that
+	 * directory, so the retry has nothing left to move and the direct write is the only way
+	 * the value can survive.
+	 */
+	@Test
+	fun `save writes the counter directly when the retry rename cannot run`() {
+		val path = File(tmp, "generation").apply { mkdirs() }
+		val target =
+			object : File(path.absolutePath) {
+				override fun delete(): Boolean {
+					File(parentFile, "$name.tmp").delete()
+					return super.delete()
+				}
+			}
+		val store = FileGenerationStore(target)
+
+		store.save(42)
+
+		assertThat(FileGenerationStore(path).load()).isEqualTo(42)
+	}
+
 	@Test
 	fun `save throws when the target cannot be replaced at all`() {
 		// A NON-empty directory defeats both the rename and the delete; the store must

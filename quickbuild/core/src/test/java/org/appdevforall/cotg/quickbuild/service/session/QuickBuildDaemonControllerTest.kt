@@ -28,11 +28,12 @@ class QuickBuildDaemonControllerTest {
 
 	private val daemon = FakeDaemon()
 
-	private fun controller() =
+	private fun controller(now: () -> Long = System::currentTimeMillis) =
 		QuickBuildDaemonController(
 			daemon = daemon,
 			scratch = QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot),
 			paths = FakePaths(projectRoot),
+			now = now,
 		)
 
 	private fun proxyApp(minApi: Int = ConfigureRequest.DEFAULT_MIN_API) =
@@ -208,6 +209,34 @@ class QuickBuildDaemonControllerTest {
 			controller.shrinkIfPending(buildInFlight = false)
 			assertThat(daemon.shutdownCount).isEqualTo(1)
 			assertThat(controller.epochSnapshot()).isEqualTo(1L)
+		}
+
+	/**
+	 * The common shape: a Gradle build peaks memory, so the trim it raises defers, and the
+	 * retry only lands when that build finishes minutes later - with the daemon healthy, which
+	 * is the branch the deadline used not to be consulted in.
+	 */
+	@Test
+	fun `a shrink deferred behind a build is dropped once the deadline has passed`() =
+		runTest {
+			var clock = 0L
+			val controller = controller(now = { clock })
+			daemon.isRunning = true
+			controller.onTrimMemory(
+				ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
+				buildInFlight = true,
+			)
+
+			// Ten minutes: a multi-minute Gradle build is what the trim was raised by, and
+			// the deadline is private to the controller.
+			clock = 600_000L
+			controller.shrinkIfPending(buildInFlight = false)
+			assertThat(daemon.shutdownCount).isEqualTo(0)
+			assertThat(controller.epochSnapshot()).isEqualTo(0L)
+
+			// Dropped, not merely skipped: a later retry must not resurrect it either.
+			controller.shrinkIfPending(buildInFlight = false)
+			assertThat(daemon.shutdownCount).isEqualTo(0)
 		}
 
 	@Test
