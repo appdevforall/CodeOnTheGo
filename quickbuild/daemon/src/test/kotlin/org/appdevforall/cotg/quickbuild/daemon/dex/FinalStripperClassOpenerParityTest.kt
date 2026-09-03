@@ -13,9 +13,9 @@ import javax.tools.ToolProvider
  * ClassOpener, which are deliberate duplicates - a shared module would drag a second jar into
  * the gradle-plugin's flatDir init-script bundle.
  *
- * It does NOT pin the bytes the two produce in production. ASM is `compileOnly` on both sides
- * and not exported, so this test runs both transforms against the daemon's ASM; in a real build
- * each side gets its own. What it does pin is that the two sources still agree when handed the
+ * It does NOT pin the bytes the two produce in production. The daemon's own ASM is the only one
+ * on this test's classpath, because `:gradle-plugin` exports none, so this test runs both
+ * transforms against that ASM; in a real build each side gets its own. What it does pin is that the two sources still agree when handed the
  * same ASM, which is where a one-sided edit shows up. The dex verifier depends on their outputs
  * agreeing - the gen-0 baseline carries ClassOpener's bytes and every hot recompile carries
  * FinalStripper's - and an edit to one alone otherwise surfaces on device as a verifier
