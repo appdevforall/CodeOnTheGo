@@ -327,6 +327,37 @@ class DaemonProcessClientEdgeTest {
 	}
 
 	@Test
+	fun `a reply written in the same breath as the exit is delivered, not discarded`() {
+		// The child answers and exits at once, so the reply bytes are still in the pipe
+		// when waitFor returns. The watcher must let the pump drain before it fails the
+		// pending request; without that join the written reply lands as a response for an
+		// unknown id and the caller sees a dead daemon instead of its Ok. The burst of
+		// id-less lines ahead of the reply is what makes the race lose deterministically:
+		// the child exits with the pipe buffer full, so the pump is still parsing when
+		// waitFor returns and the reply is the last thing it reads.
+		val paths =
+			scriptedPaths(
+				"""
+				read line
+				printf '%s\n' '${okConfigure()}'
+				read line
+				i=0
+				while [ ${'$'}i -lt 4000 ]; do printf '%s\n' '{"noise":"the pump must parse this line before the reply"}'; i=${'$'}((i+1)); done
+				printf '%s\n' '{"id":2,"ok":true,"classesDir":"/out/classes"}'
+				exit 0
+				""".trimIndent(),
+			)
+
+		val reply =
+			withClient(paths) { client ->
+				check(client.start(config()) is DaemonReply.Ok)
+				client.compile(emptyList(), emptyList())
+			}
+
+		assertThat(reply).isInstanceOf(DaemonReply.Ok::class.java)
+	}
+
+	@Test
 	fun `a replaced child's watcher frees its own in-flight request instead of orphaning it`() {
 		// A request holds requestMutex for its whole round trip. When the child dies while
 		// one is in flight and the watcher wakes only after the NEXT child is spawned, it
