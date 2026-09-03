@@ -238,6 +238,26 @@ final class QuickBuildClient implements ServiceConnection {
 	}
 
 	/**
+	 * Drops the binding after a failed handshake, but only while the proxy that failed is still the live one.
+	 *
+	 * The handshake runs on its own thread, so a slow one outlives its binding: CoGo's service dies, {@link #onServiceDisconnected} nulls the host, the framework reconnects, and a second handshake succeeds against a new proxy. Unguarded, the first thread's failure then nulls that live host, unbinds a healthy channel and schedules a rebind - and until the rebind lands every {@code reportReloaded} and {@code reportCrash} only logs "not connected", so each deploy in the window can end only in the host's own timeout.
+	 *
+	 * Under the monitor, because the test and the teardown have to be one step: {@code host} is written from the framework's callback thread as well as from here.
+	 *
+	 * @param connected
+	 *            the proxy whose handshake failed
+	 */
+	private synchronized void abandonHandshake(IQuickBuildHost connected) {
+		if (host != connected) {
+			RuntimeLog.w("stale handshake failure; a newer binding is live, leaving it alone");
+			return;
+		}
+		host = null;
+		unbindQuietly();
+		scheduleRebind();
+	}
+
+	/**
 	 * Issues one bindService against CoGo's explicit service intent.
 	 *
 	 * @return true when the framework accepted the bind request - only {@link #onServiceConnected} confirms the channel - and false when there is no context yet, CoGo is not installed, or bindService threw
@@ -290,26 +310,6 @@ final class QuickBuildClient implements ServiceConnection {
 			RuntimeLog.w("CoGo rejected connect(); continuing standalone", error);
 			abandonHandshake(connected);
 		}
-	}
-
-	/**
-	 * Drops the binding after a failed handshake, but only while the proxy that failed is still the live one.
-	 *
-	 * The handshake runs on its own thread, so a slow one outlives its binding: CoGo's service dies, {@link #onServiceDisconnected} nulls the host, the framework reconnects, and a second handshake succeeds against a new proxy. Unguarded, the first thread's failure then nulls that live host, unbinds a healthy channel and schedules a rebind - and until the rebind lands every {@code reportReloaded} and {@code reportCrash} only logs "not connected", so each deploy in the window can end only in the host's own timeout.
-	 *
-	 * Under the monitor, because the test and the teardown have to be one step: {@code host} is written from the framework's callback thread as well as from here.
-	 *
-	 * @param connected
-	 *            the proxy whose handshake failed
-	 */
-	private synchronized void abandonHandshake(IQuickBuildHost connected) {
-		if (host != connected) {
-			RuntimeLog.w("stale handshake failure; a newer binding is live, leaving it alone");
-			return;
-		}
-		host = null;
-		unbindQuietly();
-		scheduleRebind();
 	}
 
 	/** Queues one rebind attempt, doubling the delay up to {@link #REBIND_MAX_DELAY_MS}. */
