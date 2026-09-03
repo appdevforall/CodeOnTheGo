@@ -31,9 +31,6 @@ import org.jetbrains.kotlin.psi.KtSuperExpression
 import org.jetbrains.kotlin.psi.KtSuperTypeListEntry
 import org.jetbrains.kotlin.psi.KtThrowExpression
 
-/** How many candidate expressions are ever offered. Keeps the chooser scannable on a phone. */
-const val MAX_CANDIDATES = 3
-
 /**
  * The purely syntactic result of resolving a cursor or selection to extraction targets.
  *

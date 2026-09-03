@@ -27,8 +27,9 @@ plugins {
 android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.kotlin"
 
-	// The refactoring bottom sheets are Compose (ADR 0009); they live here rather than in a UI
-	// module because `editor` depends on this module, not the reverse (ADR 0012).
+	// Compose (ADR 0009) is still needed here for the extract-method sheet and MethodSignature.
+	// New refactoring sheets belong in `:lsp:ui`, where the extract-variable sheet now lives; the
+	// old reason for keeping them here no longer holds.
 	buildFeatures {
 		compose = true
 	}
