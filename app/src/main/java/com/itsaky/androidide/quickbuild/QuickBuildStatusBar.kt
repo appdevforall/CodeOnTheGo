@@ -33,6 +33,30 @@ sealed interface QuickBuildStatusBarUpdate {
 }
 
 /**
+ * The status the bar was last told about, held for the activity's lifetime rather than the
+ * collector's.
+ *
+ * [quickBuildStatusBarUpdate] reads a null previous as "this bar is new" and writes the sticky
+ * states - a failed start, an invalidation, a stopped compiler - without checking who owns the
+ * line. That is what an activity recreation needs. But the status collector re-runs on every
+ * onStart and the status is a replaying StateFlow, so a tracker scoped to the collector makes
+ * every return to the editor look like a new bar: Quick Build fails to start, a standard run
+ * then writes its own result line, and backgrounding CoGo and returning re-stomps that line with
+ * "could not start". Holding the tracker on the activity keeps a first emission meaning a new
+ * bar, which is the distinction the sticky states are gated on.
+ */
+class QuickBuildStatusTracker {
+	/** The last recorded status, or null while the bar is new and nothing has been shown. */
+	var previous: QuickBuildStatus? = null
+		private set
+
+	/** Records [status] as what the bar has now been told. */
+	fun record(status: QuickBuildStatus) {
+		previous = status
+	}
+}
+
+/**
  * Maps a status change to a status-bar update, or null to leave the bar untouched.
  *
  * Unlike [quickBuildOutputLines] this does not suppress the first emission wholesale: the bar shows
