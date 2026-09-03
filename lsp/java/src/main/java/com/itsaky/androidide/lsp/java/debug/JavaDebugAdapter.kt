@@ -238,7 +238,15 @@ internal class JavaDebugAdapter :
 		threadState.initThreads()
 
 		this.vms.add(vmConnection)
-		this._listenerState!!.client.onAttach(client)
+
+		val state = this._listenerState
+		if (state == null) {
+			// close() ran while this connection was being established.
+			logger.warn("Connected to a VM after the debug adapter was closed; not attaching")
+			return
+		}
+
+		state.client.onAttach(client)
 	}
 
 	override suspend fun connectedRemoteClients(): Set<RemoteClient> = vms.map(VmConnection::client).toSet()
@@ -598,6 +606,13 @@ internal class JavaDebugAdapter :
 			listenerThread?.interrupt()
 		} catch (err: Throwable) {
 			logger.error("Unable to stop VM connection listener", err)
+		} finally {
+			// ListenerState holds the IDebugClient, which holds the DebuggerViewModel and its whole
+			// thread/frame/variable state. This adapter lives on JavaLanguageServer in the global
+			// registry, so without dropping the reference here that graph stays reachable from a
+			// native GC root until the next connectDebugClient (ADFA-5398).
+			_listenerState = null
+			listenerThread = null
 		}
 
 		adapterScope.launch(Dispatchers.IO) {
