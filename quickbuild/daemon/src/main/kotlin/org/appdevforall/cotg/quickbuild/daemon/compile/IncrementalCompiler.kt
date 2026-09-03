@@ -282,6 +282,9 @@ class IncrementalCompiler(
 		compileCount++
 		javaAbiSnapMillis = 0
 		kotlinToCompileCount = 0
+		// Reset here, not in kotlinFilesToCompile: a module with no Kotlin sources returns before
+		// that runs, and the ok line would then report the previous compile's set as this one's.
+		lastJavaAbiChange = emptySet()
 		// A compile declaring EVERY source changed is a rebaseline: the session's first compile,
 		// or a client that stopped trusting what the device runs because a dex or deploy failed
 		// (no deploy ack reaches the daemon - see lastGoodOutputs). Diffing it against the last
@@ -296,7 +299,7 @@ class IncrementalCompiler(
 		val kotlinResult = compileKotlin(allSources, changedFiles, removedFiles, logger)
 		val kotlinMillis = System.currentTimeMillis() - kotlinStartedAt
 		if (kotlinResult != CompilationResult.COMPILATION_SUCCESS) {
-			val diagnostics = logger.errors.map { KotlincDiagnosticsParser.parse(it, Diagnostic.Severity.ERROR) }
+			val diagnostics = logger.errors.map { KotlincDiagnosticsParser.parse(it, Diagnostic.Severity.ERROR) }.capped()
 			return Result.Failed(
 				diagnostics.ifEmpty {
 					listOf(Diagnostic(Diagnostic.Severity.ERROR, "Kotlin compilation failed: $kotlinResult"))
@@ -514,6 +517,13 @@ class IncrementalCompiler(
 		return parts.subList(rootIdx + 1, parts.size).joinToString("/").removeSuffix(".java")
 	}
 
+	/** First [MAX_DIAGNOSTICS] entries, plus one marker naming how many were elided. */
+	private fun List<Diagnostic>.capped(): List<Diagnostic> {
+		if (size <= MAX_DIAGNOSTICS) return this
+		return take(MAX_DIAGNOSTICS) +
+			Diagnostic(Diagnostic.Severity.ERROR, "+${size - MAX_DIAGNOSTICS} more Kotlin diagnostics elided")
+	}
+
 	/**
 	 * Runs the incremental Kotlin pass; a module with no Kotlin sources succeeds immediately.
 	 *
@@ -628,7 +638,6 @@ class IncrementalCompiler(
 		javaSources: List<File>,
 		changedFiles: List<File>,
 	): List<File> {
-		lastJavaAbiChange = emptySet()
 		val kotlinChanged = changedFiles.filter { it.extension != "java" }
 		val previous = javaAbi
 		val snapshotStartedAt = System.currentTimeMillis()
@@ -715,6 +724,14 @@ class IncrementalCompiler(
 		// ART (via d8 desugaring) handles Java-17 bytecode; matches the bundled JDK.
 		// Shared with JavaCompileStep's --release so both compilers pin the same level.
 		internal const val JVM_TARGET = "17"
+
+		/**
+		 * Bound on the diagnostics one failed compile reports; same reason as Aapt2Link's
+		 * MAX_DIAGNOSTICS. Deleting a dependency makes kotlinc emit one unresolved-reference
+		 * error per use site - hundreds to thousands in a real app - and the whole list rides a
+		 * protocol line into a phone-screen panel. `internal` so the boundary is testable.
+		 */
+		internal const val MAX_DIAGNOSTICS = 50
 
 		/** Read-chunk size for [contentCrc]'s streamed jar checksum. */
 		private const val FINGERPRINT_READ_BUFFER_BYTES = 64 * 1024

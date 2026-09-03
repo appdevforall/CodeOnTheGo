@@ -455,4 +455,67 @@ class IncrementalCompilerEdgeTest {
 
 		assertThat(result).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
 	}
+
+	@Test
+	fun `a failed kotlin compile caps its diagnostics instead of one per use site`() {
+		// Deleting a dependency makes kotlinc emit one unresolved-reference error per use site -
+		// hundreds to thousands in a real app - and the whole list rides a protocol line into a
+		// phone-screen panel. Bounded here the way the aapt2 and d8 paths already are.
+		val useSites = IncrementalCompiler.MAX_DIAGNOSTICS * 3
+		val broken =
+			File(srcDir, "Broken.kt").apply {
+				writeText(
+					buildString {
+						appendLine("package demo")
+						appendLine()
+						(1..useSites).forEach { appendLine("val v$it = absentSymbol$it()") }
+					},
+				)
+			}
+
+		val result = compiler().compile(listOf(broken), changedFiles = listOf(broken))
+
+		val failed = result as IncrementalCompiler.Result.Failed
+		assertThat(failed.diagnostics).hasSize(IncrementalCompiler.MAX_DIAGNOSTICS + 1)
+		assertThat(failed.diagnostics.last().message).contains("more Kotlin diagnostics elided")
+	}
+
+	@Test
+	fun `a source set with no kotlin clears the previous compile's java abi change`() {
+		// DaemonService.compile reads lastJavaAbiChange to build the ok line's javaAbiChange tail,
+		// so a stale set makes this compile report the previous one's Java types as its own.
+		val kotlin = kotlinSource()
+		val widget = widgetJava()
+		val compiler = compiler()
+		val sources = listOf(kotlin, widget)
+		check(compiler.compile(sources, changedFiles = sources) is IncrementalCompiler.Result.Success)
+
+		widget.writeText("package demo;\n\npublic class Widget { public int v() { return 1; } public int w() { return 2; } }")
+		check(compiler.compile(sources, changedFiles = listOf(widget)) is IncrementalCompiler.Result.Success)
+		assertThat(compiler.lastJavaAbiChange).contains("Widget")
+
+		check(compiler.compile(listOf(widget), changedFiles = listOf(widget)) is IncrementalCompiler.Result.Success)
+
+		assertThat(compiler.lastJavaAbiChange).isEmpty()
+	}
+
+	@Test
+	fun `a java source outside a source root is named on the warn channel`() {
+		// The stale-output sweep cannot derive a class stem for it, so its outputs go unswept -
+		// the silent stale-class bug the sweep exists to prevent. Routing alone is not enough:
+		// nothing pinned that the message is emitted at all, which is how an earlier version of
+		// this fix reached head with the warning going to a no-op log.
+		val warnings = mutableListOf<String>()
+		val rootless = writeJava("Loose.java", "package demo;\n\npublic class Loose { public int v() { return 1; } }")
+
+		IncrementalCompiler(
+			listOf(TestSdk.kotlinStdlib()),
+			workDir.toPath(),
+			warn = { warnings += it },
+		).use { compiler ->
+			check(compiler.compile(listOf(rootless), changedFiles = listOf(rootless)) is IncrementalCompiler.Result.Success)
+		}
+
+		assertThat(warnings.any { it.contains("cannot derive a class output stem") && it.contains(rootless.path) }).isTrue()
+	}
 }
