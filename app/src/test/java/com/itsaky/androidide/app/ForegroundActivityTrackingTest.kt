@@ -22,6 +22,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,11 +44,24 @@ import org.robolectric.annotation.Config
 @Config(sdk = [29])
 class ForegroundActivityTrackingTest {
 	private lateinit var application: IDEApplication
+	private var previousTestMode: String? = null
 
 	@Before
 	fun setUp() {
-		System.setProperty("androidide.test.mode", "true")
+		previousTestMode = System.setProperty("androidide.test.mode", "true")
 		application = ApplicationProvider.getApplicationContext()
+	}
+
+	@After
+	fun tearDown() {
+		// The property is JVM-global, so leaving it set would leak into any test that runs after
+		// this class in the same worker.
+		val previous = previousTestMode
+		if (previous == null) {
+			System.clearProperty("androidide.test.mode")
+		} else {
+			System.setProperty("androidide.test.mode", previous)
+		}
 	}
 
 	@Test
