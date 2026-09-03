@@ -42,9 +42,13 @@ import org.koin.dsl.module
 import java.util.concurrent.Executors
 
 /**
- * Koin wiring for Quick Build (ADFA-4128). Everything is a lazy singleton: nothing
- * spawns a process or binds a service until the first lightning-bolt tap resolves the
- * session manager.
+ * Koin wiring for Quick Build (ADFA-4128). Everything is a lazy singleton, but "lazy" here
+ * means only that nothing spawns a daemon process or binds the host service until the first
+ * lightning-bolt tap. Resolving the session manager is itself substantial: its constructor
+ * reads shared preferences and noBackupFilesDir, and its init block installs the daemon death
+ * listener and five coroutines on the session executor. ProjectHandlerActivity resolves it from
+ * onCreate, on the main thread, so the graph is built at project open whenever experiments are
+ * on.
  */
 val quickBuildModule =
 	module {
