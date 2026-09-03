@@ -13,6 +13,8 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /** The `final` bit in a dex `class_def_item`'s access flags. */
 private const val ACC_FINAL = 0x10
@@ -276,5 +278,51 @@ class DexToolEdgeTest {
 		// the stats group and the row would be dropped rather than read as a measured zero.
 		assertThat(DexStats.fromValues(readLong)).isEqualTo(DexStats(classFiles = 0, classBytes = 0))
 		assertThat(json.get("dexFile").asString).endsWith("classes.dex")
+	}
+
+	/**
+	 * A jar exposing the r8 classes [DexTool] reflects on, with an `OutputMode` that carries no
+	 * `DexIndexed` constant - the layout mismatch Result.Failed's KDoc promises to report as a
+	 * dex failure.
+	 */
+	private fun d8JarWithoutDexIndexed(): File {
+		val sources =
+			listOf(
+				"D8Command" to "public class D8Command { }",
+				"OutputMode" to "public enum OutputMode { DexFilePerClassFile }",
+				"DiagnosticsHandler" to "public interface DiagnosticsHandler { }",
+			).map { (name, declaration) ->
+				File(tempDir, "$name.java").apply {
+					writeText("package com.android.tools.r8;\n\n$declaration\n")
+				}
+			}
+		val stubClasses = File(tempDir, "r8-stub").apply { mkdirs() }
+		val compiled = JavaCompileStep.compile(sources, emptyList(), stubClasses)
+		check(compiled.success) { "stub r8 compile failed: ${compiled.diagnostics}" }
+
+		val jar = File(tempDir, "stub-d8.jar")
+		ZipOutputStream(jar.outputStream()).use { zip ->
+			stubClasses.walkTopDown().filter { it.isFile }.forEach { classFile ->
+				zip.putNextEntry(ZipEntry(classFile.relativeTo(stubClasses).invariantSeparatorsPath))
+				zip.write(classFile.readBytes())
+				zip.closeEntry()
+			}
+		}
+		return jar
+	}
+
+	@Test
+	fun `an r8 whose OutputMode lost DexIndexed reports a dex failure, not an internal error`() {
+		// Resolved with first {}, the missing constant throws NoSuchElementException - neither of
+		// dex()'s catch arms - so it propagates and the router answers "internal: ...", leaving
+		// the user nothing pointing at the toolchain.
+		val classesDir = compileTinyClass()
+
+		DexTool(d8JarWithoutDexIndexed(), File(tempDir, "android.jar"), minApi = 30).use { tool ->
+			val result = tool.dex(listOf(classesDir), File(tempDir, "dex"))
+
+			assertThat(result).isInstanceOf(DexTool.Result.Failed::class.java)
+			assertThat((result as DexTool.Result.Failed).message).contains("d8 jar is not usable")
+		}
 	}
 }

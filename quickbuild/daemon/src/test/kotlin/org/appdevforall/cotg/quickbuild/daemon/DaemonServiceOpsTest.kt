@@ -293,4 +293,23 @@ class DaemonServiceOpsTest {
 		// it, deleting the logging entirely would still pass "nothing on stdout".
 		assertThat(capturedErr.toString("UTF-8")).contains("configure")
 	}
+
+	@Test
+	fun `a blank stableIds is unsupplied, not a file named by the daemon's working directory`() {
+		// configure blank-normalises its tool paths; without the same treatment here a
+		// `"stableIds": ""` becomes File(""), whose isFile is false, and the relink hard-fails
+		// naming a directory the caller never configured.
+		configure()
+		val resDir = File(tempDir, "res/values").apply { mkdirs() }.parentFile
+		File(resDir, "values/strings.xml").writeText("<resources />")
+		val manifest = File(tempDir, "AndroidManifest.xml").apply { writeText("<manifest />") }
+
+		val response =
+			service.relink(RelinkRequest(4, listOf(resDir.absolutePath), manifest.absolutePath, stableIds = ""))
+
+		// The stdlib stand-in for aapt2 cannot execute, so the relink still fails - but on the
+		// tool, not on a stable-ids path the caller never named.
+		assertThat(response.ok).isFalse()
+		assertThat(response.diagnostics.none { it.message.contains("stable-ids") }).isTrue()
+	}
 }
