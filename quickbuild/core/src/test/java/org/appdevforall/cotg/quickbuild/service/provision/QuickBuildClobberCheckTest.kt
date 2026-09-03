@@ -1,6 +1,8 @@
 package org.appdevforall.cotg.quickbuild.service.provision
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.runTest
 import org.appdevforall.cotg.quickbuild.domain.reload.RealIdInstall
 import org.junit.jupiter.api.Test
 import java.io.File
@@ -28,31 +30,41 @@ class QuickBuildClobberCheckTest {
 	private fun check(
 		installed: Boolean,
 		factory: String?,
-	) = QuickBuildClobberCheck(FakePackages(if (installed) 10_123 else null, factory))
+	) = QuickBuildClobberCheck(
+		FakePackages(if (installed) 10_123 else null, factory),
+		Dispatchers.Unconfined,
+	)
 
 	@Test
-	fun `Quick Build tap needs no confirm when the slot is empty`() {
-		assertThat(check(installed = false, factory = null).quickBuildNeedsConfirm(realAppId)).isFalse()
-	}
+	fun `Quick Build tap needs no confirm when the slot is empty`() =
+		runTest {
+			assertThat(check(installed = false, factory = null).quickBuildNeedsConfirm(realAppId)).isFalse()
+		}
 
 	@Test
-	fun `Quick Build tap needs no confirm over its own proxy app`() {
-		assertThat(check(installed = true, factory = quickBuildFactory).quickBuildNeedsConfirm(realAppId)).isFalse()
-	}
+	fun `Quick Build tap needs no confirm over its own proxy app`() =
+		runTest {
+			assertThat(check(installed = true, factory = quickBuildFactory).quickBuildNeedsConfirm(realAppId))
+				.isFalse()
+		}
 
 	@Test
-	fun `Quick Build tap confirms over the Standard Run build`() {
-		assertThat(check(installed = true, factory = null).quickBuildNeedsConfirm(realAppId)).isTrue()
-	}
+	fun `Quick Build tap confirms over the Standard Run build`() =
+		runTest {
+			assertThat(check(installed = true, factory = null).quickBuildNeedsConfirm(realAppId)).isTrue()
+		}
 
 	@Test
-	fun `Standard Run confirms over a Quick Build proxy app`() {
-		assertThat(check(installed = true, factory = quickBuildFactory).standardRunNeedsConfirm(realAppId)).isTrue()
-	}
+	fun `Standard Run confirms over a Quick Build proxy app`() =
+		runTest {
+			assertThat(check(installed = true, factory = quickBuildFactory).standardRunNeedsConfirm(realAppId))
+				.isTrue()
+		}
 
 	@Test
-	fun `Standard Run needs no confirm over a normal app or an empty slot`() {
-		assertThat(check(installed = true, factory = null).standardRunNeedsConfirm(realAppId)).isFalse()
-		assertThat(check(installed = false, factory = null).standardRunNeedsConfirm(realAppId)).isFalse()
-	}
+	fun `Standard Run needs no confirm over a normal app or an empty slot`() =
+		runTest {
+			assertThat(check(installed = true, factory = null).standardRunNeedsConfirm(realAppId)).isFalse()
+			assertThat(check(installed = false, factory = null).standardRunNeedsConfirm(realAppId)).isFalse()
+		}
 }
