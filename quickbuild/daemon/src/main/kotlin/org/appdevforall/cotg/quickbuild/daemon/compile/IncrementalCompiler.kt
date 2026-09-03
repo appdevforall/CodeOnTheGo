@@ -54,6 +54,8 @@ private typealias OutputSnapshot = Map<String, Pair<Long, Long>>
  * @param compileLog takes each level-tagged compiler log line as it is produced and retains
  *   nothing, since a session-lifetime copy of the engine's verbose debug channel is real memory
  *   on a 2-4 GB phone.
+ * @param warn takes this class's own warnings about the build - not the engine's - so they can
+ *   reach the daemon log without the verbose channel coming with them.
  */
 @OptIn(ExperimentalBuildToolsApi::class)
 class IncrementalCompiler(
@@ -61,6 +63,7 @@ class IncrementalCompiler(
 	private val workDir: Path,
 	compilerPluginJars: List<File> = emptyList(),
 	private val compileLog: (String) -> Unit = {},
+	private val warn: (String) -> Unit = {},
 ) : AutoCloseable {
 	/** Outcome of one compile. */
 	sealed interface Result {
@@ -466,7 +469,7 @@ class IncrementalCompiler(
 					// outside a java/ or kotlin/ root, as with extraSourceRoots, has no
 					// derivable stem. Logged anyway, because a silently unswept output is the
 					// stale-class bug this sweep exists to prevent.
-					compileLog(
+					warn(
 						"w: cannot derive a class output stem for ${javaFile.path}; its stale outputs are not swept",
 					)
 					return@forEach
@@ -665,8 +668,9 @@ class IncrementalCompiler(
 	 * `internal` rather than private so severity routing is unit-testable - the daemon passes
 	 * `-nowarn`, so no real compile can drive the warn channel from a test.
 	 *
-	 * Errors and warnings are kept because the compile's result is built from them, and they
-	 * die with the compile. Every line is only forwarded, never accumulated.
+	 * Errors are kept because the compile's result is built from them, and they die with the
+	 * compile. Warnings are collected the same way but cannot reach the result: the daemon
+	 * passes `-nowarn`. Every line is only forwarded, never accumulated.
 	 *
 	 * @property emit takes each line already tagged with its level.
 	 */
