@@ -11,13 +11,17 @@ jobs:
     name: Move linked Jira ticket to QA
     runs-on: ubuntu-latest
     # Public repo: anyone can approve, and a fork branch can be named after
-    # anyone's ticket. Only our own branches, approved by someone with write access.
+    # anyone's ticket. Only our own branches, and only an approval from an org
+    # member or a repo collaborator. That is a proxy for write access, not proof
+    # of it -- proving it needs a token this workflow deliberately does not hold.
     if: >-
       github.event.review.state == 'approved' &&
+      github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
     steps:
       - name: Move the ticket to QA
+        timeout-minutes: 5
         env:
           BRANCH: ${{ github.event.pull_request.head.ref }}
           AUTH: ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}
@@ -25,6 +29,7 @@ jobs:
           [[ "$BRANCH" =~ ADFA-[0-9]+ ]] || { echo "No ADFA key in $BRANCH"; exit 0; }
           KEY="${BASH_REMATCH[0]}"
           API="https://appdevforall.atlassian.net/rest/api/3/issue/$KEY/transitions"
+          jira() { curl -sS -f --max-time 30 -u "$AUTH" "$@"; }
 
           # QA is reachable only via these two named transitions, and Jira offers
           # each from exactly one status (In Progress, then Code review). Asking
@@ -33,8 +38,13 @@ jobs:
           # Never name the backward transitions (Done/To Do/In Progress); those
           # are global, so a blind name match could drag a finished ticket back.
           for STEP in "To code review" "Passed code review"; do
-            ID=$(curl -sf -u "$AUTH" "$API" | jq -r --arg S "$STEP" '.transitions[] | select(.name == $S) | .id')
+            # A Jira outage must not redden an unrelated PR, but it must not pass
+            # for "no transition on offer" either -- that is the silent no-op.
+            LIST=$(jira "$API") || { echo "::warning::$KEY: cannot read transitions, ticket untouched"; exit 0; }
+            ID=$(jq -r --arg S "$STEP" 'first(.transitions[] | select(.name == $S) | .id) // empty' <<<"$LIST")
             [ -n "$ID" ] || continue
-            curl -sf -u "$AUTH" -X POST -H 'Content-Type: application/json' \
-              -d "{\"transition\":{\"id\":\"$ID\"}}" "$API" && echo "$KEY: $STEP"
+            jira -X POST -H 'Content-Type: application/json' \
+              -d "{\"transition\":{\"id\":\"$ID\"}}" "$API" \
+              || { echo "::warning::$KEY: transition \"$STEP\" failed"; exit 0; }
+            echo "$KEY: $STEP"
           done
