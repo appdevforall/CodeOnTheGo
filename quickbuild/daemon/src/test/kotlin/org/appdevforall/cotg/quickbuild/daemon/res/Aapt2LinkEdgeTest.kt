@@ -225,4 +225,23 @@ class Aapt2LinkEdgeTest {
 		assertThat(readLong("aapt2LinkMillis")).isEqualTo(0L)
 		assertThat(json.get("resourcesArsc").asString).endsWith("linked-res.apk")
 	}
+
+	@Test
+	fun `the watchdog reports a timeout only when it actually killed a live process`() {
+		// Process.waitFor(timeout) also returns false for a child that exited just after the wait
+		// expired, and destroyForcibly then no-ops - so reading the wait alone fails a link that
+		// succeeded. A rare spurious relink failure is the hardest kind to diagnose from a report.
+		val finished = ProcessBuilder("/bin/sh", "-c", "exit 0").start()
+		finished.waitFor()
+
+		assertThat(Aapt2Link.killIfAlive(finished)).isFalse()
+
+		val running = ProcessBuilder("/bin/sh", "-c", "exec sleep 30").start()
+		try {
+			assertThat(Aapt2Link.killIfAlive(running)).isTrue()
+			assertThat(running.waitFor()).isNotEqualTo(0)
+		} finally {
+			running.destroyForcibly()
+		}
+	}
 }

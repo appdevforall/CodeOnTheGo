@@ -74,6 +74,23 @@ class Aapt2Link(
 
 		/** Name of the `@argfile` written beside the link output. */
 		internal const val ARGFILE_NAME = "link-inputs.txt"
+
+		/**
+		 * Force-kills [process] when the watchdog's wait expired while it was still running.
+		 *
+		 * `Process.waitFor(timeout)` also returns false for a child that exited just after the
+		 * wait expired, and `destroyForcibly` then no-ops - so the kill, not the wait, is what
+		 * says a link was actually cut short. Without this check a link that finished is reported
+		 * as timed out, which is a rare spurious relink failure and the hardest kind to diagnose.
+		 *
+		 * @param process the aapt2 child this run's watchdog guards.
+		 * @return true when a live process was killed here.
+		 */
+		internal fun killIfAlive(process: Process): Boolean {
+			if (!process.isAlive) return false
+			process.destroyForcibly()
+			return true
+		}
 	}
 
 	/** Outcome of one relink. */
@@ -250,6 +267,16 @@ class Aapt2Link(
 	 *   count: the project directory reaches these paths unsanitised, and the default new
 	 *   project is called "My Application". Both halves of the expansion are pinned by the
 	 *   argfile relink test.
+	 *
+	 *   That fallback is safe because the argv budget is not reachable at real project sizes
+	 *   [measured 2026-09-03 on a macOS host]: a Material/AndroidX corpus app links 292
+	 *   resource inputs, ~46 KB of argv once re-rooted on a device project path, and CoGo's own
+	 *   app module - far larger than anything Quick Build targets - links 1475, ~229 KB. The
+	 *   host's measured exec ceiling for the same paths is 5990 `-R` pairs (~946 KB, its 1 MiB
+	 *   ARG_MAX); Android's is bionic's `RLIMIT_STACK/4`, ~2 MiB on the 8 MiB default. So the
+	 *   worst real app has ~4x headroom against the tighter of the two and a normal one ~20x,
+	 *   and the argfile is a size optimisation rather than a guard whose loss endangers a
+	 *   default-named project. Staging whitespace-free symlinks would buy nothing measurable.
 	 * @throws IOException when the argfile cannot be written; [relink] turns that into a
 	 *   [Result.Failed].
 	 */
@@ -346,9 +373,8 @@ class Aapt2Link(
 		// Daemon thread, so a watchdog still waiting cannot hold up JVM exit. It ends on its
 		// own as soon as the child does, so nothing interrupts it.
 		Thread {
-			if (!process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS)) {
+			if (!process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS) && killIfAlive(process)) {
 				timedOut.set(true)
-				process.destroyForcibly()
 			}
 		}.apply {
 			isDaemon = true
