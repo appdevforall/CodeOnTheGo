@@ -14,7 +14,9 @@
 	android:layout_height="wrap_content">
 
 	<!-- Three lines, not one: the Quick Build status strings name a remedy, and a remedy the user cannot read is not one.
-		The collapsed sheet header is a fixed 100dp, so three is the room there is - the sheet swipes up for the full text. -->
+		The collapsed sheet header is a fixed 100dp, so three lines is the room there is, and there is no second surface: expanding
+		the sheet scales this container's height by 1 - sheetOffset (EditorBottomSheet.onSlide), so swiping up hides the line rather
+		than revealing more of it. Anything that overflows 100dp - which three lines at a 2x font scale will - is lost. -->
 	<TextView
 		android:id="@+id/statusText"
 		android:layout_width="0dp"
