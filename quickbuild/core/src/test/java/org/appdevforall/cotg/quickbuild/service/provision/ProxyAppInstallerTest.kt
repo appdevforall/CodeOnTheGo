@@ -35,11 +35,26 @@ class ProxyAppInstallerTest {
 		var stamp: Long? = null
 		var installedApk: File? = null
 
-		override fun uid(packageName: String): Int? = uid
+		/** Makes the uid and stamp lookups throw, standing in for a PackageManager fault. */
+		var lookupsThrow = false
 
-		override fun lastUpdateTime(packageName: String): Long? = stamp
+		/** Makes the installed-APK lookup throw. */
+		var apkFileThrows = false
 
-		override fun apkFile(packageName: String): File? = installedApk
+		override fun uid(packageName: String): Int? {
+			check(!lookupsThrow) { "uid lookup failed" }
+			return uid
+		}
+
+		override fun lastUpdateTime(packageName: String): Long? {
+			check(!lookupsThrow) { "lastUpdateTime lookup failed" }
+			return stamp
+		}
+
+		override fun apkFile(packageName: String): File? {
+			check(!apkFileThrows) { "apkFile lookup failed" }
+			return installedApk
+		}
 
 		override fun signingCertSha256(packageName: String): String? = null
 
@@ -593,6 +608,47 @@ class ProxyAppInstallerTest {
 				runCatching { installer().ensureInstalled(apk, PKG) }.exceptionOrNull()
 
 			assertThat(thrown).isInstanceOf(CancellationException::class.java)
+		}
+
+	/**
+	 * The never-throws contract covers every InstalledPackages read, not just the one inside
+	 * the verdict async: the reads run in a plain coroutineScope, so an unguarded throw in any
+	 * of them cancels the scope and raises out of ensureInstalled instead of returning.
+	 */
+	@Test
+	fun `uid and stamp lookups that throw still come back as an outcome`() =
+		runTest {
+			packages.lookupsThrow = true
+
+			val result = async { installer().ensureInstalled(apk, PKG) }
+			runCurrent()
+			assertThat(installLaunches).containsExactly(apk)
+
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS))
+			advanceUntilIdle()
+
+			// The uid never resolves, so the install is reported unresolvable - the point is
+			// that a value comes back at all.
+			assertThat(result.await())
+				.isEqualTo(InstallOutcome.Failed(QuickBuildMessage.InstalledButUnresolvable(PKG)))
+		}
+
+	@Test
+	fun `an installed-APK lookup that throws reinstalls instead of raising`() =
+		runTest {
+			packages.uid = 10123
+			packages.stamp = 111L
+			packages.apkFileThrows = true
+
+			val result = async { installer().ensureInstalled(apk, PKG) }
+			runCurrent()
+			// Unreadable reads as "not the same bytes", which is the safe direction.
+			assertThat(installLaunches).containsExactly(apk)
+
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
 		}
 
 	@Test
