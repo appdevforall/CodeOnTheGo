@@ -80,12 +80,14 @@ fun ComponentInfo.isRestartSensitive(): Boolean = kind in RESTART_SENSITIVE_KIND
  *
  * @property kind which manifest tag declared it, which is what decides restart vs recreate.
  * @property className the USER class FQN declared in the source manifest.
- * @property proxyClass the generated proxy FQN carried in the transformed manifest;
- *   null for the Application, service and receiver entries, which keep the user's real
- *   name (services/receivers are addressed by it via explicit intents, and the
- *   appComponentFactory instantiates the manifest name through the payload loader).
- * @property launcher true for the launcher activity - its [proxyClass] is the explicit
- *   relaunch target after a restart-deploy.
+ * @property proxyClass the generated proxy FQN carried in the transformed manifest; null for
+ *   the Application, service and receiver entries, which keep the user's real name
+ *   (services/receivers are addressed by it via explicit intents, and the appComponentFactory
+ *   instantiates the manifest name through the payload loader), and null for an activity the
+ *   build could not proxy, which also keeps its real name.
+ * @property launcher true for the launcher activity when it was proxied - its [proxyClass] is
+ *   then the explicit relaunch target after a restart-deploy. False for a launcher activity the
+ *   build skipped, which has no proxy to relaunch into.
  * @property supertypes the user-side (project-compiled) superclass chain recorded from
  *   class headers at proxy app build time. Carried but currently unread: [DeployPolicy]
  *   keeps no supertype index. Kept for a planned deploy mode that redefines classes in

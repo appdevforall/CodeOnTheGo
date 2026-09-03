@@ -9,16 +9,25 @@ import java.nio.file.Files
 import javax.tools.ToolProvider
 
 /**
- * Pins the daemon's [FinalStripper] to the proxy build's ClassOpener byte for byte.
+ * Catches a one-sided source edit between the daemon's [FinalStripper] and the proxy build's
+ * ClassOpener, which are deliberate duplicates - a shared module would drag a second jar into
+ * the gradle-plugin's flatDir init-script bundle.
  *
- * The two are deliberate duplicates - a shared module would drag a second jar into the
- * gradle-plugin's flatDir init-script bundle - and the dex verifier depends on their outputs
- * agreeing: the gen-0 baseline carries ClassOpener's bytes and every hot recompile carries
- * FinalStripper's. A one-sided edit otherwise surfaces on device as a verifier rejection;
- * this test makes it fail at build time instead.
+ * It does NOT pin the bytes the two produce in production. ASM is `compileOnly` on both sides
+ * and not exported, so this test runs both transforms against the daemon's ASM; in a real build
+ * each side gets its own. What it does pin is that the two sources still agree when handed the
+ * same ASM, which is where a one-sided edit shows up. The dex verifier depends on their outputs
+ * agreeing - the gen-0 baseline carries ClassOpener's bytes and every hot recompile carries
+ * FinalStripper's - and an edit to one alone otherwise surfaces on device as a verifier
+ * rejection.
  */
 class FinalStripperClassOpenerParityTest {
-	/** Compiles one fixture per shape the transform distinguishes; returns all four .class files. */
+	/**
+	 * Compiles one fixture per shape the transform distinguishes.
+	 *
+	 * @return every `.class` produced, sorted by name: three top-level classes, plus the nested
+	 *   fixture's inner class, which javac emits as its own file.
+	 */
 	private fun compileFixtures(): List<File> {
 		val dir = Files.createTempDirectory("stripper-parity").toFile()
 		File(dir, "FinalFixture.java")
@@ -36,7 +45,7 @@ class FinalStripperClassOpenerParityTest {
 	@Test
 	fun `both transforms produce identical bytes over the same classes`() {
 		val classFiles = compileFixtures()
-		// Final, open, final-with-final-method, and the nested pair's two files.
+		// FinalFixture, OpenFixture, and the nested pair's two files (Nested, Nested$Inner).
 		assertThat(classFiles).hasSize(4)
 		for (classFile in classFiles) {
 			val bytes = classFile.readBytes()

@@ -32,9 +32,18 @@ class COTGSettingsPlugin : Plugin<Settings> {
 		val (isTestEnv, mavenLocalRepos) = getTestEnvProps(target.startParameter)
 
 		// The bundled repo lives at a device-only path, so a host test env supplies its own
-		// repos instead - requiring the device path there would fail every host build.
+		// repos instead - requiring the device path there would fail every host build. A test
+		// env that supplies none is a misconfiguration, and adding zero repositories silently
+		// turns it into an unresolved-dependency failure somewhere far from the cause.
 		val allLocalRepos =
-			if (isTestEnv) mavenLocalRepos else listOf(MAVEN_LOCAL_REPOSITORY)
+			if (isTestEnv) {
+				require(mavenLocalRepos.isNotEmpty()) {
+					"$_PROPERTY_IS_TEST_ENV is set but $_PROPERTY_MAVEN_LOCAL_REPOSITORY names no repository"
+				}
+				mavenLocalRepos
+			} else {
+				listOf(MAVEN_LOCAL_REPOSITORY)
+			}
 
 		target.addLocalRepos(allLocalRepos)
 	}

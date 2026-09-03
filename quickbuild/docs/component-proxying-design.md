@@ -67,10 +67,12 @@ For each proxied activity the transform also synthesizes an `<activity-alias>` u
 activity's REAL class name, pointing at the proxy - so an explicit in-app
 `Intent(ctx, SomeActivity::class.java)` still resolves instead of throwing
 `ActivityNotFoundException` (`QuickBuildManifestTransformer.transformActivities`). The alias
-copies its target's `android:exported` verbatim (absent reads as `false`): the alias is the
-only manifest entry left under the real name, so pinning it to `false` would reject a launch
-that works under a standard run - a pinned shortcut or a share target the app published records
-that real name, and the launcher is a different uid.
+copies its target's `android:exported`, `android:permission` and `android:enabled` verbatim,
+each absent-when-absent: the alias is the only manifest entry left under the real name, so
+pinning `exported` to `false` would reject a launch that works under a standard run - a pinned
+shortcut or a share target the app published records that real name, and the launcher is a
+different uid - while dropping `permission` would publish under the real name an entry the app
+had guarded, and dropping `enabled` would re-enable a component the app disabled.
 Everything else - permissions, icon, label, intent filters, `exported`, meta-data - is preserved
 verbatim. A manifest *change* (adding a component, editing an intent filter) still needs a proxy
 app rebuild; see
@@ -169,11 +171,13 @@ order - 1 and 2 are not negotiable against the rest.
   Both the manifest transform and the payload dex task ask it. It reads each component's class
   from the variant's dependency artifacts and skips any `final` one - from any library, named
   nowhere - leaving it under its real manifest name. Only what a class file cannot reveal is
-  listed by name: androidx `InitializationProvider` (resolves itself by hardcoded name),
-  `ProfileInstallReceiver` (absent from some proxy compile classpaths, and absence is
-  indistinguishable from project-owned before compilation), and Firebase's
+  listed by name, in `ComponentProxiabilityResolver.UNPROXIABLE_BY_NAME` - which is the one
+  place that list is enumerated, reasons included, so nothing here or in the README has to
+  carry a count that can drift. Examples: androidx `InitializationProvider` (resolves itself by
+  hardcoded name), `ProfileInstallReceiver` (absent from some proxy compile classpaths, and
+  absence is indistinguishable from project-owned before compilation), and Firebase's
   `ComponentDiscoveryService` (an ordinary non-final class the SDK never instantiates - it reads
-  its own `<meta-data>` by that exact name, so renaming it silently disables SDK discovery). Reasons live in that class's KDoc.
+  its own `<meta-data>` by that exact name, so renaming it silently disables SDK discovery).
 - **Provider authorities pass through verbatim.** The proxy app installs under the project's real
   `applicationId`, so `${applicationId}` resolves exactly as the real app's would.
 - **Unsupported attributes fail the build with the component and attribute named** - no stripping,
