@@ -75,4 +75,17 @@ class JavaCompileStepTest {
 		assertThat(result.diagnostics.map { it.severity }).doesNotContain(Diagnostic.Severity.ERROR)
 		assertThat(result.diagnostics.any { it.line == null && it.column == null }).isTrue()
 	}
+
+	@Test
+	fun `javac is pinned to the same release kotlinc targets`() {
+		// The host JDK produces the same class file version either way, so a compile-and-read
+		// test cannot fail if the flag is dropped; the argv is where it is observable.
+		val options = JavaCompileStep.javacOptions(listOf(File(tempDir, "dep.jar")), outputDir())
+
+		val release = options.indexOf("--release")
+		assertThat(release).isAtLeast(0)
+		assertThat(options[release + 1]).isEqualTo(IncrementalCompiler.JVM_TARGET)
+		// Annotation processors belong to the full Gradle build, not this one.
+		assertThat(options).contains("-proc:none")
+	}
 }
