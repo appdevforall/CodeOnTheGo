@@ -45,9 +45,6 @@ object ApkInstaller {
 	 *
 	 * @param context The context.
 	 * @param apk The APK file to install.
-	 * @param requestDowngrade request a version downgrade (API 29+, honored for
-	 *   debuggable packages). Used by the same-app-id Quick Build restore, where the
-	 *   real app's versionCode is below the pinned test versionCode (ADFA-4128).
 	 * @param suppressPostInstallLaunch tag the install so its success result skips the
 	 *   launch-after-install behavior; see [EXTRA_SUPPRESS_POST_INSTALL_LAUNCH].
 	 */
@@ -57,7 +54,6 @@ object ApkInstaller {
 		apk: File,
 		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
-		requestDowngrade: Boolean = false,
 		suppressPostInstallLaunch: Boolean = false,
 	): Boolean {
 		val isValidApk =
@@ -87,16 +83,11 @@ object ApkInstaller {
 					" Falling back to intent-based installer.",
 			)
 
-			if (requestDowngrade) {
-				// The intent installer has no downgrade request; the OS will reject a
-				// lower-versionCode install and the user must uninstall manually.
-				log.warn("Intent-based installer cannot request a downgrade")
-			}
 			installUsingIntent(context, apk, baseIntent)
 			return true
 		}
 
-		return installUsingSession(context, apk, baseIntent, requestDowngrade)
+		return installUsingSession(context, apk, baseIntent)
 	}
 
 	@Suppress("DEPRECATION", "RequestInstallPackagesPolicy")
@@ -122,10 +113,9 @@ object ApkInstaller {
 		context: Context,
 		apk: File,
 		intent: Intent,
-		requestDowngrade: Boolean = false,
 	): Boolean {
 		val installer = context.packageManager.packageInstaller
-		val params = createSessionParams(requestDowngrade = requestDowngrade)
+		val params = createSessionParams()
 
 		return runCatching {
 			withContext(Dispatchers.IO) {
@@ -152,28 +142,10 @@ object ApkInstaller {
 		}.isSuccess
 	}
 
-	private fun createSessionParams(
-		appPackageName: String? = null,
-		requestDowngrade: Boolean = false,
-	): PackageInstaller.SessionParams =
+	private fun createSessionParams(appPackageName: String? = null): PackageInstaller.SessionParams =
 		PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
 			if (appPackageName != null) {
 				setAppPackageName(appPackageName)
-			}
-
-			if (requestDowngrade && isAtLeastQ()) {
-				// SessionParams.setRequestDowngrade exists since API 29 but is
-				// @SystemApi, so it is invoked reflectively. The system honors the
-				// request for debuggable packages - which is all CoGo ever installs.
-				// If the call is unavailable (hidden-API policy), the OS rejects the
-				// downgrade install with a visible failure; nothing is uninstalled.
-				runCatching {
-					PackageInstaller.SessionParams::class.java
-						.getMethod("setRequestDowngrade", Boolean::class.javaPrimitiveType)
-						.invoke(this, true)
-				}.onFailure {
-					log.warn("setRequestDowngrade unavailable; a downgrade install may be rejected", it)
-				}
 			}
 
 			setInstallLocation(PackageInfo.INSTALL_LOCATION_AUTO)
