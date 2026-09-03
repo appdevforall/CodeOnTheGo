@@ -31,10 +31,12 @@ class FeatureFlagsTest {
 	 */
 	private val downloadsDir: File
 		get() =
+			// Through the getter, not the field: the property is `by lazy`, so the field is
+			// named `downloadsDir${'$'}delegate` and holds the Lazy, not the File.
 			FeatureFlags::class.java
-				.getDeclaredField("downloadsDir")
+				.getDeclaredMethod("getDownloadsDir")
 				.apply { isAccessible = true }
-				.get(FeatureFlags) as File
+				.invoke(FeatureFlags) as File
 
 	private val experimentsFile: File
 		get() = File(downloadsDir, EXPERIMENTS_FILE_NAME)
