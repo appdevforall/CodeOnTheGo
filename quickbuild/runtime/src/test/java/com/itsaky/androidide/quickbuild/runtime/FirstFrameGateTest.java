@@ -13,23 +13,6 @@ import org.junit.jupiter.api.Test;
  */
 class FirstFrameGateTest {
 
-	/**
-	 * The regression: a crash after the resume but before the first drawn frame still names a generation to quarantine.
-	 *
-	 * Goes red if the gate stops holding the generation across the undrawn window - which is the pre-fix behaviour, expressed in the class that now owns it.
-	 */
-	@Test
-	void crashBetweenResumeAndFirstFrameStillQuarantines() {
-		FirstFrameGate gate = new FirstFrameGate();
-		BootProbation probation = new BootProbation();
-		gate.arm(7);
-
-		// The activity has resumed. Nothing releases the gate here, which is the fix:
-		// the crash guard runs with the generation still pending.
-		assertThat(gate.pending()).isEqualTo(7);
-		assertThat(probation.generationToBlame(gate.pending(), 7)).isEqualTo(7);
-	}
-
 	/** Once the frame is drawn the generation is vouched for, so a later crash is no longer blamed on it. */
 	@Test
 	void aDrawnFrameReleasesTheGenerationAndStopsTheBlame() {
@@ -40,17 +23,6 @@ class FirstFrameGateTest {
 		assertThat(gate.drawn(7)).isEqualTo(7);
 		assertThat(gate.pending()).isEqualTo(-1);
 		assertThat(probation.generationToBlame(gate.pending(), 7)).isEqualTo(-1);
-	}
-
-	/** The ack fires once: every frame after the first finds the slot already released. */
-	@Test
-	void onlyTheFirstDrawnFrameAcks() {
-		FirstFrameGate gate = new FirstFrameGate();
-		gate.arm(7);
-
-		assertThat(gate.drawn(7)).isEqualTo(7);
-		assertThat(gate.drawn(7)).isEqualTo(-1);
-		assertThat(gate.drawn(7)).isEqualTo(-1);
 	}
 
 	/** A pending generation the store has already moved past is stale, so its frame acks nothing. */
@@ -75,6 +47,23 @@ class FirstFrameGateTest {
 		assertThat(gate.pending()).isEqualTo(-1);
 	}
 
+	/**
+	 * The regression: a crash after the resume but before the first drawn frame still names a generation to quarantine.
+	 *
+	 * Goes red if the gate stops holding the generation across the undrawn window - which is the pre-fix behaviour, expressed in the class that now owns it.
+	 */
+	@Test
+	void crashBetweenResumeAndFirstFrameStillQuarantines() {
+		FirstFrameGate gate = new FirstFrameGate();
+		BootProbation probation = new BootProbation();
+		gate.arm(7);
+
+		// The activity has resumed. Nothing releases the gate here, which is the fix:
+		// the crash guard runs with the generation still pending.
+		assertThat(gate.pending()).isEqualTo(7);
+		assertThat(probation.generationToBlame(gate.pending(), 7)).isEqualTo(7);
+	}
+
 	/** A rolled-back reload releases the slot without acking, since there is no frame to report. */
 	@Test
 	void disarmReleasesWithoutAcking() {
@@ -84,6 +73,17 @@ class FirstFrameGateTest {
 		gate.disarm();
 
 		assertThat(gate.pending()).isEqualTo(-1);
+		assertThat(gate.drawn(7)).isEqualTo(-1);
+	}
+
+	/** The ack fires once: every frame after the first finds the slot already released. */
+	@Test
+	void onlyTheFirstDrawnFrameAcks() {
+		FirstFrameGate gate = new FirstFrameGate();
+		gate.arm(7);
+
+		assertThat(gate.drawn(7)).isEqualTo(7);
+		assertThat(gate.drawn(7)).isEqualTo(-1);
 		assertThat(gate.drawn(7)).isEqualTo(-1);
 	}
 }

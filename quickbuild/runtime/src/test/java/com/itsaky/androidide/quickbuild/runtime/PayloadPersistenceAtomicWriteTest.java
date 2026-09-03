@@ -54,6 +54,18 @@ class PayloadPersistenceAtomicWriteTest {
 		assertThat(error).hasMessageThat().contains("cannot rename");
 	}
 
+	@Test
+	void aStorePathBlockedByAFileFailsThePersistLoudly() throws IOException {
+		File blocked = tempDir.resolve("store").toFile();
+		Files.write(blocked.toPath(), "not a dir".getBytes("UTF-8"));
+		PayloadPersistence store = new PayloadPersistence(blocked);
+
+		IOException error = assertThrows(IOException.class,
+				() -> store.persist(1, FP, new byte[]{1}, null, null));
+
+		assertThat(error).hasMessageThat().contains("cannot create");
+	}
+
 	/**
 	 * A stream payload that dies mid-copy leaves no {@code .tmp} behind in the store dir.
 	 *
@@ -70,18 +82,6 @@ class PayloadPersistenceAtomicWriteTest {
 		String[] leftovers = dir.list((unusedDir, name) -> name.endsWith(".tmp"));
 		assertThat(leftovers).isNotNull();
 		assertThat(leftovers).isEmpty();
-	}
-
-	@Test
-	void aStorePathBlockedByAFileFailsThePersistLoudly() throws IOException {
-		File blocked = tempDir.resolve("store").toFile();
-		Files.write(blocked.toPath(), "not a dir".getBytes("UTF-8"));
-		PayloadPersistence store = new PayloadPersistence(blocked);
-
-		IOException error = assertThrows(IOException.class,
-				() -> store.persist(1, FP, new byte[]{1}, null, null));
-
-		assertThat(error).hasMessageThat().contains("cannot create");
 	}
 
 	@Test
