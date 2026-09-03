@@ -510,7 +510,7 @@ class QuickBuildOutputLinesTest {
 	private fun restarting(): QuickBuildStatus {
 		val live = QuickBuildSessionState.Ready(4L)
 		val restarted =
-			SessionReducer().reduce(live, SessionEvent.SessionRestartAndReprovisionRequested).state
+			SessionReducer().reduce(live, SessionEvent.SessionRestartAndReprovisionRequested()).state
 		return QuickBuildStatus.from(restarted)
 	}
 

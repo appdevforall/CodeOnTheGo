@@ -13,13 +13,15 @@
 	android:layout_width="match_parent"
 	android:layout_height="wrap_content">
 
+	<!-- Three lines, not one: the Quick Build status strings name a remedy, and a remedy the user cannot read is not one.
+		The collapsed sheet header is a fixed 100dp, so three is the room there is - the sheet swipes up for the full text. -->
 	<TextView
 		android:id="@+id/statusText"
 		android:layout_width="0dp"
 		android:layout_height="wrap_content"
 		android:ellipsize="end"
 		android:gravity="center"
-		android:maxLines="1"
+		android:maxLines="3"
 		android:paddingStart="16dp"
 		android:paddingEnd="16dp"
 		android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
