@@ -283,17 +283,33 @@ final class QuickBuildClient implements ServiceConnection {
 			RuntimeLog.i("connected to CoGo (running gen " + runtime.runningGeneration() + ")");
 		} catch (RemoteException error) {
 			RuntimeLog.e("connect() to CoGo failed", error);
-			host = null;
-			unbindQuietly();
-			scheduleRebind();
+			abandonHandshake(connected);
 		} catch (RuntimeException error) {
 			// SecurityException (and any other binder-propagatable runtime exception) from
 			// the host: expected when CoGo has no live session. Continue standalone.
 			RuntimeLog.w("CoGo rejected connect(); continuing standalone", error);
-			host = null;
-			unbindQuietly();
-			scheduleRebind();
+			abandonHandshake(connected);
 		}
+	}
+
+	/**
+	 * Drops the binding after a failed handshake, but only while the proxy that failed is still the live one.
+	 *
+	 * The handshake runs on its own thread, so a slow one outlives its binding: CoGo's service dies, {@link #onServiceDisconnected} nulls the host, the framework reconnects, and a second handshake succeeds against a new proxy. Unguarded, the first thread's failure then nulls that live host, unbinds a healthy channel and schedules a rebind - and until the rebind lands every {@code reportReloaded} and {@code reportCrash} only logs "not connected", so each deploy in the window can end only in the host's own timeout.
+	 *
+	 * Under the monitor, because the test and the teardown have to be one step: {@code host} is written from the framework's callback thread as well as from here.
+	 *
+	 * @param connected
+	 *            the proxy whose handshake failed
+	 */
+	private synchronized void abandonHandshake(IQuickBuildHost connected) {
+		if (host != connected) {
+			RuntimeLog.w("stale handshake failure; a newer binding is live, leaving it alone");
+			return;
+		}
+		host = null;
+		unbindQuietly();
+		scheduleRebind();
 	}
 
 	/** Queues one rebind attempt, doubling the delay up to {@link #REBIND_MAX_DELAY_MS}. */
