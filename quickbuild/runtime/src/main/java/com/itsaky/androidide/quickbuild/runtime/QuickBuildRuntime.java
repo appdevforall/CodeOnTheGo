@@ -222,7 +222,7 @@ final class QuickBuildRuntime {
 	/**
 	 * Applies one deploy: reads the payload fds, persists them, then swaps in the new generation.
 	 *
-	 * Runs on a binder thread; only the reload is posted to the main thread. Persisting before applying is what lets a relaunched process boot the newest generation. A restart deploy persists, acks and exits instead, since services, providers and the Application only swap across a process restart; a recreate deploy acks on its next resumed frame, or at apply time when backgrounded, because a deferred recreate renders no frame to prove.
+	 * Runs on a binder thread; only the reload is posted to the main thread. Persisting before applying is what lets a relaunched process boot the newest generation. A restart deploy persists, acks and exits instead, since services, providers and the Application only swap across a process restart; a recreate deploy acks on the first frame it draws, or, when backgrounded, once its resource swaps have committed, because a deferred recreate renders no frame to prove.
 	 *
 	 * @param generation
 	 *            the incoming generation; a stale one is dropped without a report, since acking a refused payload would mislead the host
@@ -283,7 +283,30 @@ final class QuickBuildRuntime {
 				return;
 			}
 			final PayloadStore.Payload rollback = previous;
-			ResourceStore.SwapFailure onSwapFailure = new ResourceStore.SwapFailure() {
+			// Read BEFORE the swaps, not after: the backgrounded ack now rides on the
+			// swap's commit callback, which is free to fire before this method returns,
+			// and the callback has to know which branch it is completing.
+			final boolean resumed = tracker.hasResumedActivity();
+			pendingReloadStartUptime = startUptime;
+			// Armed on BOTH branches: the backgrounded ack must also clear any older
+			// generation still pending, or the crash guard keeps blaming it for this
+			// generation's crashes - and this generation escapes quarantine.
+			firstFrame.arm(Generations.pendingAfterApply(resumed, generation));
+			// One outcome per apply call, so a backgrounded ack waits for the last of them.
+			final SwapAckGate ackGate = new SwapAckGate(
+					(resourcesPayload == null ? 0 : 1) + (assetsPayload == null ? 0 : 1));
+			final long arrivedUptime = startUptime;
+			ResourceStore.SwapOutcome onSwapOutcome = new ResourceStore.SwapOutcome() {
+
+				@Override
+				public void onSwapCommitted() {
+					if (resumed || !ackGate.committed()) {
+						// A foreground deploy acks from its drawn frame instead, and a
+						// backgrounded one whose other swap is still in flight is not done.
+						return;
+					}
+					ackBackgroundedReload(generation, arrivedUptime);
+				}
 
 				@Override
 				public void onSwapFailed(Throwable error) {
@@ -297,40 +320,26 @@ final class QuickBuildRuntime {
 					// undoes it is still on another thread. Marking rather than removing
 					// the callback also covers the inline swap, which fails before the
 					// recreate has been posted at all.
+					ackGate.failed();
 					abandonedReloadGeneration = generation;
 					failReload(generation, rollback, error);
 				}
 			};
 			if (resourcesPayload != null) {
 				ResourceStore.INSTANCE.applyTable(
-						openReadOnly(persisted.arscFile), generation, application, onSwapFailure);
+						openReadOnly(persisted.arscFile), generation, application, onSwapOutcome);
 			}
 			if (assetsPayload != null) {
 				ResourceStore.INSTANCE.applyAssets(
 						openReadOnly(persisted.assetsFile), generation,
 						PayloadStore.INSTANCE.baselineFingerprint(),
-						application, onSwapFailure);
+						application, onSwapOutcome);
 			}
-			boolean resumed = tracker.hasResumedActivity();
-			pendingReloadStartUptime = startUptime;
-			// Assigned on BOTH branches: the backgrounded ack must also clear any older
-			// generation still pending, or the crash guard keeps blaming it for this
-			// generation's crashes - and this generation escapes quarantine.
-			firstFrame.arm(Generations.pendingAfterApply(resumed, generation));
-			if (!resumed) {
-				// Backgrounded: no resumed activity to hang a frame callback on, so
-				// waiting for render-proof would time out a deploy that worked. Ack at
-				// apply+persist, like the restart path.
-				// Do NOT read this as "the recreate is deferred until the user returns."
-				// Measured on an A56 (Android 16), a stopped-but-not-destroyed activity
-				// relaunches immediately - the tracker still holds it, so the relaunch is
-				// scheduled before this ack is even written. That timing is not
-				// guaranteed across versions or states, which is exactly why the ack does
-				// not depend on it.
-				// Tradeoffs: the metric is apply-time, not render-time, and a crash in
-				// the relaunch goes unreported (gap #91's shape). A background race after
-				// this check falls back to the deploy timeout.
-				client.reportReloaded(generation, SystemClock.uptimeMillis() - startUptime);
+			if (!resumed && ackGate.noSwapPosted()) {
+				// A dex-only deploy queues no swap, so there is nothing to wait for and
+				// nothing that could still fail the reload. Every deploy that does carry a
+				// resource or asset payload leaves this false and acks from the callback.
+				ackBackgroundedReload(generation, startUptime);
 			}
 			final long reloadGeneration = generation;
 			mainHandler.post(new Runnable() {
@@ -347,6 +356,13 @@ final class QuickBuildRuntime {
 			RuntimeLog.w("dropping payload gen " + generation + ": " + overtaken.getMessage());
 		} catch (Throwable error) {
 			RuntimeLog.e("payload gen " + generation + " failed to apply", error);
+			// A step that already ran may have queued a swap that will still commit on main:
+			// applyTable posts before applyAssets can throw. Nothing cancels that swap, so
+			// the recreate must not run - it would render this generation's table over the
+			// dex failReload is rolling back, while the banner says the app is on the last
+			// working version. Only onSwapFailed used to set this, which is the branch where
+			// the swap is the thing that failed.
+			abandonedReloadGeneration = generation;
 			Streams.closeQuietly(dexPayload);
 			Streams.closeQuietly(resourcesPayload);
 			Streams.closeQuietly(assetsPayload);
@@ -412,6 +428,32 @@ final class QuickBuildRuntime {
 	 */
 	long runningGeneration() {
 		return PayloadStore.INSTANCE.generation();
+	}
+
+	/**
+	 * Acks a backgrounded deploy, once everything that could still fail its reload has landed.
+	 *
+	 * Deliberately not at apply time. A resource swap is queued to the main looper and commits after the deploy method has returned, so an ack written there claimed a reload that could still fail - and when it did, the rollback, the quarantine and the crash report all ran after CoGo had been told the generation reloaded. CoGo's deploy resolves on the first report naming the generation, so the ack won: the build was recorded as a successful reload with a timing number, while the session manager's separate collector still raised a reload crash, and one save produced both signals. The comment on the branch that calls this says the backgrounded case is the normal edit loop, so that was the branch a failing resource swap usually took.
+	 *
+	 * The foreground branch never had this problem: it acks from a drawn frame, which cannot precede the swap that frame renders.
+	 *
+	 * @param generation
+	 *            the generation that applied, which becomes CoGo's new baseline
+	 * @param arrivedUptime
+	 *            uptime at which the payload arrived, so the reported duration still spans the whole deploy rather than just the swap
+	 */
+	private void ackBackgroundedReload(long generation, long arrivedUptime) {
+		// Do NOT read the backgrounded branch as "the recreate is deferred until the user
+		// returns." Measured on an A56 (Android 16), a stopped-but-not-destroyed activity
+		// relaunches immediately - the tracker still holds it, so the relaunch is scheduled
+		// before this ack is written. That timing is not guaranteed across versions or
+		// states, which is exactly why the ack does not depend on it.
+		//
+		// Remaining tradeoffs: the metric is swap-time, not render-time, since no frame is
+		// coming to measure; a crash in the relaunch still goes unreported (gap #91's
+		// shape); and a background race after the resumed check falls back to the deploy
+		// timeout.
+		client.reportReloaded(generation, SystemClock.uptimeMillis() - arrivedUptime);
 	}
 
 	/**
