@@ -328,8 +328,11 @@ class TsAnalyzeWorker(
 	}
 
 	private fun updateCodeBlocks() {
-		if (languageSpec.blocksQuery.patternCount == 0 ||
-			!languageSpec.blocksQuery.canAccess() ||
+		// canAccess() first: getPatternCount() calls checkAccess() internally, so on a closed query
+		// reading patternCount throws before the guard beside it can return (ADFA-5416). The sibling
+		// site in TsBracketPairs already has the operands this way round.
+		if (!languageSpec.blocksQuery.canAccess() ||
+			languageSpec.blocksQuery.patternCount == 0 ||
 			tree?.canAccess() != true
 		) {
 			return
