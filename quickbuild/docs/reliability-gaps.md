@@ -13,7 +13,7 @@ relink-crash recovery gap.
 | Gap | What the user sees | Frequency | Blocks v1? |
 | --- | --- | --- | --- |
 | #89 | Red-alert icon; tapping Quick Build does nothing until "Restart session" | No device repro `[inferred]` | TBD |
-| #91 | Their own app crash is never surfaced; CoGo blames deploy infra | `[unmeasured]` | TBD |
+| #91 | Their own app crash is never surfaced; CoGo blames deploy infra | `[unmeasured]` | ADFA-5466 |
 | #87 | A one-line edit in a Room/KSP project runs a full ~200s rebuild + reinstall | 3/3 when attempted | TBD |
 | Relink crash | A reload that crashes the app repeats the crash at every process boot | Trigger fixed; net still absent | TBD |
 | Relink stuck | A failed relink re-fails on every later save until a gradle-file touch | `[unmeasured]` | No - fixed below |
