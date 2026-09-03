@@ -8,7 +8,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
-import org.appdevforall.cotg.quickbuild.service.telemetry.report
 import org.slf4j.LoggerFactory
 import java.io.File
 
