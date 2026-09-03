@@ -251,6 +251,26 @@ class QuickBuildStatusBarTest {
 	}
 
 	@Test
+	fun `a re-subscribe does not re-announce a failed start`() {
+		// The bug this pins: previousStatus used to live inside the collector that
+		// repeatOnLifecycle(STARTED) restarts, so every onStart read as a first emission.
+		// Quick Build fails to start, a standard run writes its own result line, the user
+		// backgrounds CoGo and returns - and the replayed Hidden(lastStartFailed) re-stomped
+		// that line with "could not start". Holding the tracker on the activity makes the
+		// replay not news. Ownership gating is the wrong lever here: the flag lives on the
+		// activity too, so gating this Show would also suppress the recreation case the test
+		// below pins.
+		val tracker = QuickBuildStatusTracker()
+		val failed = QuickBuildStatus.Hidden(lastStartFailed = true)
+
+		assertThat(update(tracker.previous, failed))
+			.isEqualTo(QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_start_failed))
+		tracker.record(failed)
+
+		assertThat(update(tracker.previous, failed)).isNull()
+	}
+
+	@Test
 	fun `a failed start still shows after an activity recreation`() {
 		// The bar shows state, not history: a recreation resubscribes with previous == null
 		// and the failed start must still read correctly.
