@@ -338,8 +338,10 @@ class QuickBuildManifestTransformer(
 	 * @param type the kind to rewrite; its [ComponentType.jsonName] is also the manifest tag.
 	 * @param manifestPackage the manifest's package, for expanding android:name shorthand.
 	 * @param unproxied accumulator for components [skipProxy] rejects; a rejected component is
-	 *   also left out of the returned list, keeping library-owned components (whose classes
-	 *   never travel in the payload) invisible to the deploy policy's restart rule.
+	 *   also left out of the returned list. So is an unproxied component a dependency owns:
+	 *   neither's class travels in the payload, and the deploy policy's restart rule must not
+	 *   see either. A proxied kind is recorded whoever owns the user class, because the
+	 *   generated proxy that extends it does travel.
 	 * @param unsupportedAttribute an android attribute the proxy app cannot host when it is
 	 *   `"true"` (a service's isolatedProcess, a provider's multiprocess), or null for a kind
 	 *   with none.
@@ -377,6 +379,15 @@ class QuickBuildManifestTransformer(
 				// applicationComponent: the runtime resolves this name against the payload
 				// dex, so shorthand left verbatim is fragile.
 				element.setAttributeNS(ANDROID_NS, "android:name", userClass)
+				if (proxiability.isLibraryOwned(userClass)) {
+					// A dependency's own <service> is not recorded, for the same reason as the
+					// components CoGo injects: its class ships in the base APK dex and no
+					// payload ever redefines it, so a live instance of it cannot go stale.
+					// Recorded, it would make the deploy policy restart the process on every
+					// code-bearing deploy - androidx.work alone declares three non-final
+					// services, which is hot reload never happening again, silently.
+					return@mapIndexedNotNull null
+				}
 				return@mapIndexedNotNull ProxiedComponent(
 					type = type,
 					userClass = userClass,
