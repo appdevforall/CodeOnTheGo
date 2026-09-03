@@ -386,6 +386,20 @@ class DocumentationContentSourceTest {
 		assertThat(lookup.cause).hasMessageThat().isEqualTo("Template 'nav.peb' not found in the database")
 	}
 
+	// The other half of the padding fix: getPebbleMessage() drops the "(<file>:<line>)" suffix, which
+	// is what a parse error uses to say which template and line to go and fix. Only the loader's own
+	// throws, which carry neither, should lose it.
+	@Test
+	fun `a broken template keeps the file and line the engine reports`() {
+		val database = templatedDatabase("page.peb" to "Hello\n{% if %}")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().lookup("k/html/basic-syntax.html") as DocumentationLookup.Failed
+
+		assertThat(lookup.cause).hasMessageThat().contains("page.peb")
+		assertThat(lookup.cause).hasMessageThat().contains("2")
+	}
+
 	@Test
 	fun `a template is compiled once and reused for the next page that needs it`() {
 		val database = templatedDatabase("page.peb" to "Hello {{ who }}!")

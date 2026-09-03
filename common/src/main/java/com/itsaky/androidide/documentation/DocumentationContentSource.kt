@@ -18,6 +18,7 @@
 package com.itsaky.androidide.documentation
 
 import android.database.sqlite.SQLiteDatabase
+import androidx.annotation.VisibleForTesting
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.google.gson.Gson
@@ -178,6 +179,7 @@ class DocumentationContentSource(
 	 * and the caches for them live here, so this has no production reader: it stays as the
 	 * observable a test asserts a swap happened on.
 	 */
+	@VisibleForTesting
 	@Volatile
 	var generation: Long = 0
 		private set
@@ -206,7 +208,12 @@ class DocumentationContentSource(
 	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
 	// makes the engine's own cache the compiled-template cache, keyed by name: a partial pulled in
 	// by several pages is compiled once, and dropping a database means invalidating that cache too.
-	private val pebbleEngine = PebbleEngine.Builder().loader(DatabaseTemplateLoader { database }).build()
+	private val pebbleEngine =
+		PebbleEngine
+			.Builder()
+			.loader(DatabaseTemplateLoader { database })
+			.maxRenderedSize(MAX_RENDERED_CHARS)
+			.build()
 
 	// Template names by id, for the active database. Content rows reference a template by id; every
 	// reference between templates is by name, which is what the loader and the engine cache use.
@@ -302,6 +309,7 @@ class DocumentationContentSource(
 	 * [lookup] and [withDatabase] apply a pending swap themselves, so this is the seam a test uses to
 	 * drive one directly.
 	 */
+	@VisibleForTesting
 	fun refreshDatabase() {
 		if (!openIfNeeded()) return
 		swapDatabaseIfChanged()
@@ -346,14 +354,18 @@ class DocumentationContentSource(
 	/**
 	 * Clears all cached templates, compiled and by name.
 	 */
-	fun clearTemplateCache() {
-		templateNames.clear()
-		// Both engine caches are keyed by name, so a template edited under the same name would
-		// otherwise survive here even though its row has changed -- the tag cache included, which
-		// holds whatever a template's {% cache %} blocks rendered from the previous database.
-		pebbleEngine.templateCache.invalidateAll()
-		pebbleEngine.tagCache.invalidateAll()
-	}
+	fun clearTemplateCache() =
+		// The write lock, which a render's read lock excludes: clearing the three caches piecemeal
+		// under a concurrent render can hand it a template from before the clear and a tag-cache miss
+		// from after it. Reentrant, so switchToDatabase can keep calling this while holding it.
+		databaseLock.write {
+			templateNames.clear()
+			// Both engine caches are keyed by name, so a template edited under the same name would
+			// otherwise survive here even though its row has changed -- the tag cache included, which
+			// holds whatever a template's {% cache %} blocks rendered from the previous database.
+			pebbleEngine.templateCache.invalidateAll()
+			pebbleEngine.tagCache.invalidateAll()
+		}
 
 	/** The last-modified time of [file], or -1 when it does not exist. */
 	private fun timestampOf(
@@ -492,10 +504,12 @@ class DocumentationContentSource(
 		return try {
 			StringWriter().also { pebbleEngine.getTemplate(name).evaluate(it, context) }.toString().toByteArray()
 		} catch (e: PebbleException) {
-			// getPebbleMessage(), not message: PebbleException formats the latter as
-			// "<text> (<file>:<line>)" and the loader throws with both null, so a caller that puts
-			// message in a response body gets a trailing "(?:?)".
-			throw IllegalStateException(e.pebbleMessage ?: e.message, e)
+			// PebbleException formats getMessage() as "<text> (<file>:<line>)". When it carries
+			// neither -- the loader's throws, and the rendered-size limit -- that suffix is a bare
+			// "(?:?)" in the response body; when it carries both, as a parse error in a template
+			// does, it is the diagnostic that says which template and line to go fix.
+			val message = if (e.fileName == null && e.lineNumber == null) e.pebbleMessage else e.message
+			throw IllegalStateException(message, e)
 		} catch (e: StackOverflowError) {
 			// Templates can reference each other now (ADFA-5405), so they can also reference each
 			// other in a cycle, which Pebble resolves by recursing until the stack runs out. Raised
@@ -795,6 +809,16 @@ class DocumentationContentSource(
 
 	companion object {
 		const val CONTENT_CHUNK_SIZE = 1024 * 1024
+
+		// Bounds a render whose output grows without end -- a runaway loop, say. The reference-cycle
+		// guard below does not cover that case: a cycle recurses, so it reaches the stack's end first,
+		// while a loop stays at one frame and grows the writer until the heap gives out, and
+		// OutOfMemoryError is an Error every catch on this path misses. Pebble raises a PebbleException
+		// at this limit instead, which the caller turns into a 500.
+		//
+		// Headroom over the largest context this database holds (171 KB of compressed JSON), not a
+		// measured ceiling on rendered output; tighten it if the real maximum is known.
+		private const val MAX_RENDERED_CHARS = 16 * 1024 * 1024
 
 		private const val CONTENT_QUERY = """
 			SELECT C.content, CT.value, CT.compression, C.templateId

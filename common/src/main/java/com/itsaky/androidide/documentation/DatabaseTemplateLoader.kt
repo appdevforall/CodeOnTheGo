@@ -58,7 +58,10 @@ internal class DatabaseTemplateLoader(
 	override fun resourceExists(name: String): Boolean {
 		val database = database() ?: return false
 
-		return database.rawQuery(TEMPLATE_QUERY, arrayOf(name)).use { it.moveToFirst() }
+		// Not TEMPLATE_QUERY: that copies the whole template blob into a CursorWindow to answer a
+		// boolean. Pebble reaches this only through the delegating and servlet loaders, neither of
+		// which is wired here, so the cost would be invisible -- which is the reason to get it right.
+		return database.rawQuery(EXISTS_QUERY, arrayOf(name)).use { it.moveToFirst() }
 	}
 
 	override fun createCacheKey(name: String): String = name
@@ -79,5 +82,6 @@ internal class DatabaseTemplateLoader(
 
 	private companion object {
 		private const val TEMPLATE_QUERY = "SELECT content FROM Templates WHERE name = ?"
+		private const val EXISTS_QUERY = "SELECT 1 FROM Templates WHERE name = ? LIMIT 1"
 	}
 }
