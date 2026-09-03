@@ -34,6 +34,8 @@ class DaemonProcessClientEdgeTest {
 	private class ScriptedPaths(
 		base: File,
 		override val javaBinary: File,
+		/** Runs inside the spawn, so a test can hold [DaemonProcessClient.start] mid-spawn. */
+		private val onEnvironment: () -> Unit = {},
 	) : QuickBuildPaths {
 		override val daemonJar = File(base, "daemon/quickbuild-daemon.jar")
 		override val runtimeAar = File(base, "quickbuild-runtime.aar")
@@ -43,16 +45,22 @@ class DaemonProcessClientEdgeTest {
 		override val androidJar = File(base, "android.jar")
 		override val projectScratchRoot = File(base, "app-private/quickbuild-scratch")
 
-		override fun daemonEnvironment(): Map<String, String> = mapOf("PATH" to "/usr/bin:/bin")
+		override fun daemonEnvironment(): Map<String, String> {
+			onEnvironment()
+			return mapOf("PATH" to "/usr/bin:/bin")
+		}
 	}
 
 	/** Writes a fake-java script with [body] as its full shell text and returns paths using it. */
-	private fun scriptedPaths(body: String): ScriptedPaths {
+	private fun scriptedPaths(
+		body: String,
+		onEnvironment: () -> Unit = {},
+	): ScriptedPaths {
 		val script = File(tmp, "fake-java.sh")
 		script.writeText("#!/bin/sh\n$body\n")
 		script.setExecutable(true)
 		File(tmp, "daemon").mkdirs()
-		return ScriptedPaths(tmp, script)
+		return ScriptedPaths(tmp, script, onEnvironment)
 	}
 
 	/**
@@ -1413,5 +1421,90 @@ class DaemonProcessClientEdgeTest {
 
 		assertThat(File(tmp, "configure-request.txt").readText())
 			.contains("\"minApi\":${ConfigureRequest.DEFAULT_MIN_API}")
+	}
+
+	/**
+	 * The orphan window: startLocked's own shutdown nulls the handle, and nothing re-installs
+	 * it until the child is spawned. An unlocked shutdown landing in there reads null, returns
+	 * a no-op, and the child start then installs has no death watcher and nothing holding it.
+	 */
+	@Test
+	fun `a shutdown landing mid-spawn still stops the child that spawn installs`() {
+		val inSpawn = CountDownLatch(1)
+		val releaseSpawn = CountDownLatch(1)
+		val paths =
+			scriptedPaths(
+				replyOk +
+					"\n" +
+					"""
+					printf '%s' "${'$'}${'$'}" > '$tmp/daemon.pid'
+					while read line; do reply "${'$'}line"; done
+					""".trimIndent(),
+				onEnvironment = {
+					inSpawn.countDown()
+					check(releaseSpawn.await(30, TimeUnit.SECONDS))
+				},
+			)
+		val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+		val client = DaemonProcessClient(paths, scope)
+
+		try {
+			runBlocking {
+				val startJob = scope.async { client.start(config()) }
+				check(inSpawn.await(30, TimeUnit.SECONDS))
+				val shutdownJob = scope.async { client.shutdown() }
+				// Unfixed, shutdown finishes here on a null handle, before the child exists;
+				// fixed, it is parked on the start mutex for the whole spawn.
+				delay(500)
+				releaseSpawn.countDown()
+				assertThat(startJob.await()).isInstanceOf(DaemonReply.Ok::class.java)
+				withTimeout(30_000) { shutdownJob.await() }
+			}
+
+			val pid = File(tmp, "daemon.pid").readText().trim()
+			assertThat(isProcessAlive(pid)).isFalse()
+		} finally {
+			releaseSpawn.countDown()
+			runBlocking { client.shutdown() }
+			scope.cancel()
+		}
+	}
+
+	/**
+	 * The polite request runs inside the uncancellable block, so a teardown cancelled while it
+	 * is in flight still reaches the kill. Outside it, request() rethrows the cancellation and
+	 * the kill, the pipe close and the handle clear are all skipped.
+	 */
+	@Test
+	fun `a shutdown cancelled during the polite request still kills the child`() {
+		val paths =
+			scriptedPaths(
+				"""
+				printf '%s' "${'$'}${'$'}" > '$tmp/daemon.pid'
+				read line
+				printf '%s\n' '${okConfigure()}'
+				exec sleep 120
+				""".trimIndent(),
+			)
+		val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+		val client = DaemonProcessClient(paths, scope)
+
+		try {
+			runBlocking {
+				check(client.start(config()) is DaemonReply.Ok)
+				val shutdownJob = scope.async { client.shutdown() }
+				// Parked in the polite request, which this daemon never answers.
+				delay(500)
+				shutdownJob.cancel()
+				// join, not await: the body still has its own shutdown timeout to spend.
+				withTimeout(30_000) { shutdownJob.join() }
+			}
+
+			val pid = File(tmp, "daemon.pid").readText().trim()
+			assertThat(isProcessAlive(pid)).isFalse()
+		} finally {
+			runBlocking { client.shutdown() }
+			scope.cancel()
+		}
 	}
 }
