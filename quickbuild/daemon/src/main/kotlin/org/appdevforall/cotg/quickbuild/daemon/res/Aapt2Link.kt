@@ -71,6 +71,9 @@ class Aapt2Link(
 		 * boundary is testable.
 		 */
 		internal const val ARGFILE_THRESHOLD = 100
+
+		/** Name of the `@argfile` written beside the link output. */
+		internal const val ARGFILE_NAME = "link-inputs.txt"
 	}
 
 	/** Outcome of one relink. */
@@ -241,9 +244,12 @@ class Aapt2Link(
 	 * @return the full argv, aapt2's own path included as element 0. Past [ARGFILE_THRESHOLD]
 	 *   resource inputs, the whole input list moves into an `@argfile` next to [linkedApk],
 	 *   passed as a single `-R @file`. aapt2 expands the file into its whitespace-split paths
-	 *   (flags cannot ride along - it rejects them as "missing required flag -o"), every entry
-	 *   keeps `-R` overlay semantics in file order, and the space-free scratch paths never trip
-	 *   the splitting. Both halves of that expansion are pinned by the argfile relink test.
+	 *   (flags cannot ride along - it rejects them as "missing required flag -o") and every
+	 *   entry keeps `-R` overlay semantics in file order. Whitespace has no escape in that
+	 *   format, so an input path containing any keeps the inline `-R` pairs whatever the
+	 *   count: the project directory reaches these paths unsanitised, and the default new
+	 *   project is called "My Application". Both halves of the expansion are pinned by the
+	 *   argfile relink test.
 	 * @throws IOException when the argfile cannot be written; [relink] turns that into a
 	 *   [Result.Failed].
 	 */
@@ -270,15 +276,26 @@ class Aapt2Link(
 			arguments += listOf("--stable-ids", stableIds.absolutePath)
 		}
 		val resourceInputs = libraryResources + flatFiles
-		if (resourceInputs.size <= ARGFILE_THRESHOLD) {
+		val argfile = File(linkedApk.absoluteFile.parentFile, ARGFILE_NAME)
+		if (resourceInputs.size <= ARGFILE_THRESHOLD || resourceInputs.any(::hasWhitespace)) {
+			// A previous link may have left one behind; it is stale the moment the inputs
+			// change, and nothing else deletes it.
+			argfile.delete()
 			resourceInputs.forEach { arguments += listOf("-R", it.absolutePath) }
 			return arguments
 		}
-		val argfile = File(linkedApk.absoluteFile.parentFile, "link-inputs.txt")
 		argfile.writeText(resourceInputs.joinToString("\n") { it.absolutePath })
 		arguments += listOf("-R", "@${argfile.absolutePath}")
 		return arguments
 	}
+
+	/**
+	 * Whether [file]'s absolute path holds whitespace, which the argfile format cannot carry.
+	 *
+	 * @param file one resource input, named by its absolute path in the argv either way.
+	 * @return true when the path must be passed inline as its own `-R` argument.
+	 */
+	private fun hasWhitespace(file: File): Boolean = file.absolutePath.any { it.isWhitespace() }
 
 	/**
 	 * Checks that [linkedApk] actually contains a resource table before it ships as the

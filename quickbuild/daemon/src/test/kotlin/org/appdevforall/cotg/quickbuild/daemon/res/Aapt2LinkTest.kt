@@ -392,6 +392,46 @@ class Aapt2LinkTest {
 	}
 
 	@Test
+	fun `a resource path containing a space keeps every input inline`() {
+		// The argfile format splits on whitespace and has no escape for it, so one space in
+		// one path silently truncates that input and every later one. The project directory
+		// reaches these paths unsanitised and the default new project is "My Application",
+		// which makes this the common case rather than an odd one.
+		val link = Aapt2Link(File(tempDir, "aapt2"), File(tempDir, "android.jar"))
+		val spaced = File(tempDir, "My Application/merged_res")
+		val libraryResources = (1..Aapt2Link.ARGFILE_THRESHOLD + 5).map { File(spaced, "r$it.arsc.flat") }
+
+		val arguments =
+			link.buildLinkArguments(
+				linkedApk = File(workDir, "linked-res.apk"),
+				manifest = manifest,
+				flatFiles = emptyList(),
+				stableIds = null,
+				libraryResources = libraryResources,
+			)
+
+		assertThat(arguments.count { it == "-R" }).isEqualTo(libraryResources.size)
+		assertThat(arguments.filter { it.startsWith("@") }).isEmpty()
+		assertThat(arguments).containsAtLeastElementsIn(libraryResources.map { it.absolutePath })
+	}
+
+	@Test
+	fun `the inline path clears an argfile a previous link left behind`() {
+		val link = Aapt2Link(File(tempDir, "aapt2"), File(tempDir, "android.jar"))
+		val stale = File(workDir, Aapt2Link.ARGFILE_NAME).apply { writeText("/stale/r1.arsc.flat") }
+
+		link.buildLinkArguments(
+			linkedApk = File(workDir, "linked-res.apk"),
+			manifest = manifest,
+			flatFiles = listOf(File(tempDir, "compiled/values_strings.arsc.flat")),
+			stableIds = null,
+			libraryResources = emptyList(),
+		)
+
+		assertThat(stale.exists()).isFalse()
+	}
+
+	@Test
 	@EnabledIf("org.appdevforall.cotg.quickbuild.daemon.TestSdk#aapt2ToolchainAvailable")
 	fun `relink links through an @argfile when the flat count crosses the threshold`() {
 		writeStrings(

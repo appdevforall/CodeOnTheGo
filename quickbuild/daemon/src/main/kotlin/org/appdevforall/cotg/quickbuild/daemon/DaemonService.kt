@@ -105,6 +105,11 @@ class DaemonService(
 						(request.classpath + androidJarPath).map(::File),
 						outDir.toPath(),
 						compilerPluginJars = request.compilerPlugins.map(::File),
+						// Only the compiler's own warnings about the build (an output stem it
+						// cannot derive, so a stale class goes unswept). compileLog is left
+						// alone: it carries kotlinc's verbose channel, which would bury the
+						// daemon log.
+						warn = log,
 					),
 				dexTool = DexTool(File(d8JarPath), File(androidJarPath), request.minApi),
 				aapt2Link = Aapt2Link(File(aapt2Path), File(androidJarPath)),
