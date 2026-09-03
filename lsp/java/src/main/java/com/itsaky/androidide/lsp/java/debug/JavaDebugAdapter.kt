@@ -147,12 +147,15 @@ internal class JavaDebugAdapter :
 		_listenerState?.invalidate()
 		listenerThread?.interrupt()
 
-		_listenerState =
+		// Held locally as well as in the field: close() may null the field from another thread, and
+		// re-reading it with !! below would then throw (ADFA-5398).
+		val state =
 			ListenerState(
 				client = client,
 				connector = connector,
 				args = args,
 			)
+		_listenerState = state
 
 		val failure =
 			withContext(Dispatchers.IO) {
@@ -175,7 +178,7 @@ internal class JavaDebugAdapter :
 
 		listenerThread =
 			JDWPListenerThread(
-				_listenerState!!,
+				state,
 				this::onConnectedToVm,
 			).also { thread -> thread.start() }
 		return DebugClientConnectionResult.Success
@@ -239,14 +242,19 @@ internal class JavaDebugAdapter :
 
 		this.vms.add(vmConnection)
 
-		val state = this._listenerState
-		if (state == null) {
-			// close() ran while this connection was being established.
-			logger.warn("Connected to a VM after the debug adapter was closed; not attaching")
+		val listener = this._listenerState
+		if (listener == null) {
+			// close() ran while this connection was being established. Returning here without
+			// undoing the two lines above would leave a live VM connection, and its event handler,
+			// attached to an adapter that is gone.
+			logger.warn("Connected to a VM after the debug adapter was closed; dropping it")
+			vms.remove(vmConnection)
+			runCatching { vmConnection.close() }
+				.onFailure { err -> logger.error("Failed to close a VM connected after close()", err) }
 			return
 		}
 
-		state.client.onAttach(client)
+		listener.client.onAttach(client)
 	}
 
 	override suspend fun connectedRemoteClients(): Set<RemoteClient> = vms.map(VmConnection::client).toSet()
@@ -601,8 +609,12 @@ internal class JavaDebugAdapter :
 
 	override fun close() {
 		logger.debug("close")
+		// Separate catches: the listener thread holds its own ListenerState reference, so if
+		// invalidate() throws and skips the interrupt, clearing the fields below releases nothing.
+		runCatching { _listenerState?.invalidate() }
+			.onFailure { err -> logger.error("Unable to invalidate the VM connection listener", err) }
+
 		try {
-			_listenerState?.invalidate()
 			listenerThread?.interrupt()
 		} catch (err: Throwable) {
 			logger.error("Unable to stop VM connection listener", err)
