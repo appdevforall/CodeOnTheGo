@@ -134,8 +134,9 @@ class DaemonProcessClient(
 	 */
 	private suspend fun startLocked(config: DaemonConfig): DaemonReply<Unit> {
 		// Also clears scratchFsType and marks the old child's stop on its own Spawn - the
-		// fresh Spawn below starts with a clean marker of its own.
-		shutdown()
+		// fresh Spawn below starts with a clean marker of its own. The unlocked body, because
+		// [startMutex] is already held here and is not reentrant.
+		shutdownLocked()
 
 		val proc =
 			try {
@@ -227,7 +228,8 @@ class DaemonProcessClient(
 		// else shuts it down, so it would hold its heap for the rest of the app's life and fire
 		// deathListener for a session that never had a daemon.
 		if (outcome !is DaemonReply.Ok) {
-			shutdown()
+			// The unlocked body: [startMutex] is held for the whole of this method.
+			shutdownLocked()
 		}
 		return outcome
 	}
@@ -331,8 +333,16 @@ class DaemonProcessClient(
 	/**
 	 * Stops the child politely, then forcibly, and clears the process handles. A no-op when
 	 * nothing is running; the exit it causes is marked deliberate so no death listener fires.
+	 *
+	 * Takes [startMutex] so a teardown landing mid-spawn waits for the child to be installed
+	 * instead of reading a null handle and orphaning it for the life of the process.
 	 */
-	override suspend fun shutdown() {
+	override suspend fun shutdown() = startMutex.withLock { shutdownLocked() }
+
+	/**
+	 * The [shutdown] body, run under [startMutex].
+	 */
+	private suspend fun shutdownLocked() {
 		val spawn = this.spawn ?: return
 		// Marked before anything can kill it, so every exit from here on is deliberate to the
 		// watcher no matter how late it observes it.
@@ -341,13 +351,15 @@ class DaemonProcessClient(
 		// Belongs to the child being stopped: left in place it would stamp the previous
 		// daemon's filesystem on the next session's timings.
 		scratchFsType = null
-		// Best effort polite stop; the protocol also treats stdin EOF as shutdown.
-		withTimeoutOrNull(SHUTDOWN_TIMEOUT_MILLIS) { request(DaemonOps.SHUTDOWN) {} }
 		val proc = spawn.process
 		val out = spawn.writer
 		// NonCancellable because this is the only thing that kills the child: a teardown
-		// cancelled at the waitFor would leave a live JVM nothing else ever stops.
+		// cancelled anywhere from the polite request to the waitFor would leave a live JVM
+		// nothing else ever stops. request() rethrows CancellationException, so the polite
+		// stop has to be inside the block rather than one line above it.
 		withContext(Dispatchers.IO + NonCancellable) {
+			// Best effort polite stop; the protocol also treats stdin EOF as shutdown.
+			withTimeoutOrNull(SHUTDOWN_TIMEOUT_MILLIS) { request(DaemonOps.SHUTDOWN) {} }
 			// EOF is the second polite signal, but close() blocks on the BufferedWriter
 			// monitor while a wedged write holds it - so it runs on [scope] rather than
 			// inline, and the kill path below (which closes the pipe and thereby frees any
