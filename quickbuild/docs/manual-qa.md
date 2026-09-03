@@ -446,3 +446,38 @@ Steps:
 Expected:
 
 1. The warm edit deploys correctly. This is the one app where Quick Build currently loses to a standard incremental build, so the reload may be slower than a full build.
+
+## Block D - accessibility
+
+### T22 - Font scale 1.0 and 2.0
+
+Automated coverage: none - no instrumented test asserts layout at a font scale.
+
+Every Quick Build surface has to survive a 2x system font (CLAUDE.md). Read the current value
+first so you can put it back:
+
+```bash
+orig=$(adb shell settings get system font_scale | tr -d '\r')   # "null" if never set
+trap 'if [ "$orig" = null ]; then
+        adb shell settings delete system font_scale
+      else
+        adb shell settings put system font_scale "$orig"
+      fi' EXIT
+
+adb shell settings put system font_scale 2.0
+```
+
+Steps, at 1.0 and again at 2.0:
+
+1. Open a project and look at the toolbar: the bolt, and its long-press dropdown.
+2. Run T1 and watch the status bar through provisioning, compiling and the landed build.
+3. Force each actionable status line: cancel a build (T6), stop the app and save (T9), and
+   invalidate the session (T7).
+4. Tap Standard Run on a project a Quick Build session owns, to raise the clobber dialog.
+
+Expected:
+
+1. No status line is cut mid-word. The collapsed sheet header is a fixed 100dp and the text
+   is capped at three lines, so a line that does not fit is read by swiping the sheet up.
+2. The dropdown's rows and the dialog's buttons stay on screen and reachable.
+3. Nothing overlaps the status bar at the top or the navigation bar at the bottom.
