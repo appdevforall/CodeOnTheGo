@@ -227,7 +227,7 @@ class LiveReloadExecutorImpl(
 			// timeline to report.
 			val dex = compileAndDex(ChangedFiles.Unknown, timeline)
 			if (dex is Step.Fail) return dex.outcome
-			return BuildOutcome.Success(generations.current, clock() - loopStartedAt)
+			return BuildOutcome.Success(liveGeneration(), clock() - loopStartedAt)
 		}
 
 		val known = request.changes as? ChangedFiles.Known
