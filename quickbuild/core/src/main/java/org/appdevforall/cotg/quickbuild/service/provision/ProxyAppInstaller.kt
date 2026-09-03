@@ -87,7 +87,17 @@ data class InstallBroadcast(
 	/** ABORTED is STATUS_FAILURE_ABORTED: the user cancelled the confirm dialog. */
 	enum class Status { SUCCESS, FAILURE, ABORTED, PENDING_USER_ACTION, OTHER }
 
-	/** True when no further broadcast will follow for this install. */
+	/**
+	 * True when no further broadcast will follow for this install.
+	 *
+	 * [Status.OTHER] is deliberately not terminal. It is the mapper's catch-all for a
+	 * broadcast whose status extra it does not recognize, and the receiver's action is
+	 * exported, so treating it as terminal would let a stray external intent abort a
+	 * legitimate install. Every documented PackageInstaller failure code maps to
+	 * [Status.FAILURE] instead. ProxyAppInstallerTest's "changed bytes reinstall and resolve
+	 * via the success broadcast" pins the omission by emitting OTHER mid-wait and requiring
+	 * the later SUCCESS to be what settles the install.
+	 */
 	val isTerminal: Boolean
 		get() = status == Status.SUCCESS || status == Status.FAILURE || status == Status.ABORTED
 }
@@ -190,8 +200,8 @@ class ProxyAppInstaller(
 		apk: File,
 		packageName: String,
 	): InstallOutcome {
-		val initialStamp = withContext(ioDispatcher) { packages.lastUpdateTime(packageName) }
-		val existingUid = withContext(ioDispatcher) { packages.uid(packageName) }
+		val initialStamp = readPackages { packages.lastUpdateTime(packageName) }
+		val existingUid = readPackages { packages.uid(packageName) }
 		if (existingUid != null && isSameContent(apk, packageName)) {
 			log.info("{} already runs these bytes; skipping reinstall", packageName)
 			return InstallOutcome.Installed(existingUid)
@@ -404,7 +414,7 @@ class ProxyAppInstaller(
 		initialStamp: Long?,
 	) {
 		while (true) {
-			val stamp = withContext(ioDispatcher) { packages.lastUpdateTime(packageName) }
+			val stamp = readPackages { packages.lastUpdateTime(packageName) }
 			if (stamp != null && stamp != initialStamp) return
 			delay(DEFAULT_POLL_MILLIS)
 		}
@@ -420,7 +430,7 @@ class ProxyAppInstaller(
 		// The uid should exist the moment the install lands; retry briefly for the
 		// window between the success broadcast and PackageManager visibility.
 		repeat(UID_RETRIES) {
-			withContext(ioDispatcher) { packages.uid(packageName) }
+			readPackages { packages.uid(packageName) }
 				?.let { return InstallOutcome.Installed(it) }
 			delay(DEFAULT_POLL_MILLIS)
 		}
@@ -438,13 +448,36 @@ class ProxyAppInstaller(
 	private suspend fun isSameContent(
 		apk: File,
 		packageName: String,
-	): Boolean =
-		withContext(ioDispatcher) {
+	): Boolean {
+		val installed = readPackages { packages.apkFile(packageName) } ?: return false
+		return withContext(ioDispatcher) {
 			// Two full-APK hashes; off the caller's dispatcher (concurrency.md forbids
 			// blocking the session thread).
-			val installed = packages.apkFile(packageName) ?: return@withContext false
 			val candidate = sha256OrNull(apk) ?: return@withContext false
 			candidate == sha256OrNull(installed)
+		}
+	}
+
+	/**
+	 * Runs one [InstalledPackages] read on [ioDispatcher], mapping a throw to null.
+	 *
+	 * The interface returns null for "not installed" but does not forbid an implementation
+	 * throwing, and [ensureInstalled] runs its reads inside a plain `coroutineScope`, so an
+	 * unguarded throw in any of them cancels the scope and breaks the never-throws contract.
+	 *
+	 * @param read the lookup to run
+	 * @return what the lookup returned, or null when it was absent or the read failed
+	 */
+	private suspend fun <T> readPackages(read: () -> T?): T? =
+		withContext(ioDispatcher) {
+			try {
+				read()
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.warn("installed-package lookup failed", e)
+				null
+			}
 		}
 
 	companion object {
