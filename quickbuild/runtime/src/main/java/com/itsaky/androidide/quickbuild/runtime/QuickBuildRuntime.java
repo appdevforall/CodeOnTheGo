@@ -156,6 +156,13 @@ final class QuickBuildRuntime {
 	/** Generation whose reload is awaiting its first resumed frame, or -1. */
 	private volatile long pendingReloadGeneration = -1;
 
+	/**
+	 * Newest generation whose resource swap failed, or -1 before the first.
+	 *
+	 * The swap failure arrives on the main thread after the deploy thread has queued - or is about to queue - the recreate for the same generation, and the rollback now runs off-thread, so the recreate can beat it and render the generation the rollback is undoing. Written on main inside the swap guard, read by the posted recreate.
+	 */
+	private volatile long abandonedReloadGeneration = -1;
+
 	/** Uptime at which the pending reload's payload arrived, the start of the reported duration. */
 	private volatile long pendingReloadStartUptime;
 
@@ -280,6 +287,14 @@ final class QuickBuildRuntime {
 					// The swap lands after this method returns, so without this the deploy
 					// acks a reload the app is not showing: CoGo reports success while the
 					// screen still renders the previous table, and no banner fires.
+					//
+					// The recreate is abandoned BEFORE the failure is dispatched, because
+					// the dispatch is off-thread now: a recreate still queued here would
+					// otherwise run against the failed generation while the rollback that
+					// undoes it is still on another thread. Marking rather than removing
+					// the callback also covers the inline swap, which fails before the
+					// recreate has been posted at all.
+					abandonedReloadGeneration = generation;
 					failReload(generation, rollback, error);
 				}
 			};
@@ -289,7 +304,7 @@ final class QuickBuildRuntime {
 			}
 			if (assetsPayload != null) {
 				ResourceStore.INSTANCE.applyAssets(
-						openReadOnly(persisted.assetsFile),
+						openReadOnly(persisted.assetsFile), generation,
 						PayloadStore.INSTANCE.baselineFingerprint(),
 						application, onSwapFailure);
 			}
@@ -430,7 +445,7 @@ final class QuickBuildRuntime {
 			}
 			if (pending.assetsFile != null) {
 				ResourceStore.INSTANCE.applyAssets(
-						openReadOnly(pending.assetsFile),
+						openReadOnly(pending.assetsFile), pending.generation,
 						PayloadStore.INSTANCE.baselineFingerprint(),
 						context, null);
 			}
@@ -544,13 +559,15 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * The {@link #failReload} body: decides the failure action against the store's live generation, then reports and renders.
+	 * The {@link #failReload} body: decides the failure action against the store's live generation and rolls back in the same lock, then reports and renders.
 	 *
 	 * A failure before the apply took - an oversize payload, a persist failure, a restart deploy missing its dex - leaves the store on the previous generation, so there is nothing to restore or quarantine; the report and banner still fire, or the host's only signal would be its deploy timeout. Only a failure superseded by a newer live generation stays silent, since that generation owns the store, the pending ack and the screen.
 	 */
 	private void failReloadNow(long generation, PayloadStore.Payload rollback, Throwable error) {
-		Generations.FailureAction action = Generations.onReloadFailure(
-				PayloadStore.INSTANCE.generation(), generation);
+		// Decided and restored under one lock: reading the live generation and then
+		// restoring took the monitor twice, and a deploy applying in the gap was rolled
+		// back by a decision taken before it existed.
+		Generations.FailureAction action = PayloadStore.INSTANCE.restoreIfCurrent(generation, rollback);
 		if (action == Generations.FailureAction.LEAVE_ALONE) {
 			// A newer payload landed while this one was failing, so it owns the store, the
 			// pending ack and the screen. Rolling back here would undo a deploy that worked.
@@ -559,7 +576,6 @@ final class QuickBuildRuntime {
 			return;
 		}
 		if (action == Generations.FailureAction.ROLLBACK_AND_REPORT) {
-			PayloadStore.INSTANCE.restore(rollback);
 			quarantine(generation);
 			pendingReloadGeneration = -1;
 		}
@@ -698,6 +714,12 @@ final class QuickBuildRuntime {
 	 *            the pre-apply snapshot to restore if the recreate throws
 	 */
 	private void reloadOnMain(long generation, PayloadStore.Payload rollback) {
+		if (generation <= abandonedReloadGeneration) {
+			// This generation's resource swap failed, so failReload owns it: recreating
+			// here would render a generation whose rollback is already in flight.
+			RuntimeLog.w("skipping recreate for gen " + generation + ": its resource swap failed");
+			return;
+		}
 		try {
 			Activity top = tracker.topActivity();
 			if (top != null) {
