@@ -86,10 +86,18 @@ object JavaCompileStep {
 			"-proc:none",
 			"-encoding",
 			"UTF-8",
-			// Pin bytecode AND platform APIs to the same level kotlinc targets
-			// (-jvm-target). Without this a daemon running on JDK 21 emits major-65
-			// classes next to Kotlin's major-61 in one tree, and java.* resolves
-			// against the running JDK's own modules instead of release-17 signatures.
+			// Pins the BYTECODE level to what kotlinc targets (-jvm-target): without it a
+			// daemon running on JDK 21 emits major-65 classes next to Kotlin's major-61 in
+			// one tree. It does NOT pin the platform API surface to the project's: under
+			// --release, java.* resolves against the JDK's own release-17 ct.sym signatures,
+			// and android.jar reaches this compile only through -classpath, which the
+			// platform shadows. So a .java calling a JVM-only API (ProcessHandle,
+			// Collectors.teeing) compiles green here and is rejected by AGP's JavaCompile,
+			// which puts android.jar on the bootstrap classpath. Closing that gap needs a
+			// design call, not a flag swap: javac 17 answers -bootclasspath at this target
+			// with "option --boot-class-path not allowed with target 17" [measured on this
+			// Mac, 2026-09-03], and dropping --release widens the surface to the host JDK's
+			// whole module set rather than narrowing it.
 			"--release",
 			IncrementalCompiler.JVM_TARGET,
 		)
