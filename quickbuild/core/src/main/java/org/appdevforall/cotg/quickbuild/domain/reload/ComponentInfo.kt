@@ -27,12 +27,12 @@ enum class ComponentKind {
 }
 
 /**
- * The kinds whose live instance a loader swap cannot update, so a recompile inside their
- * restart closure forces a process restart ([DeployPolicy]).
+ * The kinds whose live instance a loader swap cannot update, so an app that DECLARES one
+ * restarts the process on every code-bearing deploy ([DeployPolicy]).
  *
  * One home for the set, because two rules key off it: the restart decision, and the
- * [org.appdevforall.cotg.quickbuild.domain.session.QuickBuildNotice.STALE_COMPONENT_HELPERS] warning that fires when one of these merely
- * EXISTS and the deploy hot-swapped instead. Both read it through [isRestartSensitive], which
+ * [org.appdevforall.cotg.quickbuild.domain.session.QuickBuildNotice.STALE_COMPONENT_HELPERS] warning that fires when one of these
+ * exists and the deploy hot-swapped anyway. Both read it through [isRestartSensitive], which
  * also applies the [COGO_INJECTED_COMPONENTS] exemption.
  */
 val RESTART_SENSITIVE_KINDS: Set<ComponentKind> =
