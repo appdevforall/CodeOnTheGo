@@ -219,8 +219,8 @@ class LiveReloadOrchestrator(
 					// names why, so only a forced blind rebuild repairs it.
 					markBatchArrivalLocked()
 					pendingForced = true
-					outcome = LiveReloadRequestOutcome.AWAITS_DEPLOY
 					maybeStartBuildLocked(events)
+					outcome = deployAnsweringOutcomeLocked()
 				}
 
 				!pending.isEmpty -> {
@@ -228,8 +228,8 @@ class LiveReloadOrchestrator(
 					// would be; the deploy answers the tap.
 					markBatchArrivalLocked()
 					pendingUserInitiated = true
-					outcome = LiveReloadRequestOutcome.AWAITS_DEPLOY
 					maybeStartBuildLocked(events)
+					outcome = deployAnsweringOutcomeLocked()
 				}
 
 				expectChanges -> {
@@ -253,6 +253,23 @@ class LiveReloadOrchestrator(
 		}
 		return outcome
 	}
+
+	/**
+	 * Whether a deploy is still coming for the ask just recorded, read after the build attempt.
+	 *
+	 * [maybeStartBuildLocked] can decline to start one - a build already in flight, a proxy app
+	 * rebuild absorbing the set, a route the live reload path hands off as an invalidation - and
+	 * the outcome was AWAITS_DEPLOY regardless, which promises the caller a deploy that may never
+	 * come. Every one of those declines leaves the work queued for a later build, so the promise
+	 * holds today; asserting it here is what keeps a future early return from silently dropping
+	 * the tap instead.
+	 */
+	private fun deployAnsweringOutcomeLocked(): LiveReloadRequestOutcome =
+		if (inFlight != null || !pending.isEmpty || pendingForced) {
+			LiveReloadRequestOutcome.AWAITS_DEPLOY
+		} else {
+			LiveReloadRequestOutcome.SWITCH_NOW
+		}
 
 	/**
 	 * Disarms a tap still waiting for its save-all's watcher batch and says whether it was
