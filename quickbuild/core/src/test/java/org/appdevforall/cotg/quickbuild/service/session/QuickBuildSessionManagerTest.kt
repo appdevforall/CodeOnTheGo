@@ -1534,6 +1534,41 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `a tap landing mid-rebaseline is answered by the rebuild's own relaunch, not twice`() =
+		runTest {
+			// A tap that arrives while the rebaseline is already running records
+			// userInitiated on Provisioning, which makes the landing switch to the proxy
+			// app - on top of the relaunch the rebuild does itself for the same outstanding
+			// ask. Two presses, one relaunch: both want the same thing.
+			proxyAppRebuildOutcome = {
+				ProxyAppRebuildOutcome.Failure(QuickBuildMessage.Literal("manifest does not build"))
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			val launchesBefore = launches.size
+
+			proxyAppRebuildOutcome = { defaultProxyAppRebuildSuccess() }
+			val rebGate = CompletableDeferred<Unit>()
+			proxyAppRebuildGate = rebGate
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			// The rebaseline is in flight; the second press lands on Provisioning.
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(launches).hasSize(launchesBefore)
+
+			rebGate.complete(Unit)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(launches).hasSize(launchesBefore + 1)
+			assertThat(rebuildRelaunches.last()).isTrue()
+		}
+
+	@Test
 	fun `a failed proxy app rebuild surfaces the error and parks recoverable`() =
 		runTest {
 			proxyAppRebuildOutcome = { ProxyAppRebuildOutcome.Failure(QuickBuildMessage.Literal("manifest does not build")) }
@@ -2618,6 +2653,21 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `a tap on a project that already used Quick Build skips the history write`() =
+		runTest {
+			// The write is a blocking preference commit on the single-threaded session
+			// dispatcher; after the first tap it writes a value already there.
+			val manager = createManager()
+			var writes = 0
+			historyStore.onWrite = { writes++ }
+
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			assertThat(writes).isEqualTo(0)
+		}
+
+	@Test
 	fun `the tap reaches the reducer before the history write, not after it`() =
 		runTest {
 			// The reducer must see the tap without waiting on the history write, which is a
@@ -2627,6 +2677,8 @@ class QuickBuildSessionManagerTest {
 			// primary control looks like.
 			var stateAtWrite: QuickBuildSessionState? = null
 			val manager = createManager()
+			// Only the first tap on a project writes, so the store must not already say used.
+			historyStore.setHasUsedQuickBuild(false)
 			historyStore.onWrite = { stateAtWrite = manager.state.value }
 
 			manager.onQuickBuildTapped()
@@ -2642,6 +2694,7 @@ class QuickBuildSessionManagerTest {
 			// A throwing store must not kill the coroutine before the dispatch: that loses
 			// the tap outright - the one press the parked-session banner tells the user to
 			// make.
+			historyStore.setHasUsedQuickBuild(false)
 			historyStore.writeError = IllegalStateException("no project open")
 			val manager = createManager()
 
