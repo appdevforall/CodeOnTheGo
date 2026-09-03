@@ -26,8 +26,6 @@ import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import io.pebbletemplates.pebble.PebbleEngine
-import io.pebbletemplates.pebble.loader.StringLoader
-import io.pebbletemplates.pebble.template.PebbleTemplate
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.Closeable
@@ -203,10 +201,14 @@ class DocumentationContentSource(
 	private var compressionDictionary: ByteBuffer? = null
 	private var compressionDictionaryStale = true
 
-	private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
+	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
+	// makes the engine's own cache the compiled-template cache, keyed by name: a partial pulled in
+	// by several pages is compiled once, and dropping a database means invalidating that cache too.
+	private val pebbleEngine = PebbleEngine.Builder().loader(DatabaseTemplateLoader { database }).build()
 
-	// Compiled templates for the active database, cleared when it is swapped.
-	private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
+	// Template names by id, for the active database. Content rows reference a template by id; every
+	// reference between templates is by name, which is what the loader and the engine cache use.
+	private val templateNames = ConcurrentHashMap<Int, String>()
 
 	private val gson: Gson =
 		GsonBuilder()
@@ -335,10 +337,13 @@ class DocumentationContentSource(
 	): ByteArray = withDatabase { database -> render(database, templateId, contextJson, path) }
 
 	/**
-	 * Clears all cached compiled templates.
+	 * Clears all cached templates, compiled and by name.
 	 */
 	fun clearTemplateCache() {
-		templateCache.clear()
+		templateNames.clear()
+		// The engine caches by name, so a template edited under the same name would otherwise
+		// survive here even though its row has changed.
+		pebbleEngine.templateCache.invalidateAll()
 	}
 
 	/** The last-modified time of [file], or -1 when it does not exist. */
@@ -444,11 +449,12 @@ class DocumentationContentSource(
 		contextJson: ByteArray,
 		path: String,
 	): ByteArray {
-		val template =
-			templateCache.getOrPut(templateId) {
-				if (log.isDebugEnabled) log.debug("Template cache miss for id {}, path '{}'.", templateId, path)
-				compileTemplate(database, templateId, path)
+		val name =
+			templateNames.getOrPut(templateId) {
+				if (log.isDebugEnabled) log.debug("Template name cache miss for id {}, path '{}'.", templateId, path)
+				templateName(database, templateId, path)
 			}
+		val template = pebbleEngine.getTemplate(name)
 
 		val contextString = contextJson.toString(Charsets.UTF_8)
 		if (contextString.isBlank() || contextString.trim() == "null") {
@@ -460,19 +466,19 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Compiles the template identified by the given ID.
+	 * Resolves a template id to the name the engine loads it by.
 	 *
 	 * @param templateId The database identifier of the template.
 	 * @param path The content path associated with the template.
-	 * @return The compiled template.
+	 * @return The template's name.
 	 * @throws IllegalStateException If the template is missing or has multiple database rows.
 	 */
-	private fun compileTemplate(
+	private fun templateName(
 		database: SQLiteDatabase,
 		templateId: Int,
 		path: String,
-	): PebbleTemplate =
-		database.rawQuery("SELECT content FROM Templates WHERE id = ?", arrayOf(templateId.toString())).use { cursor ->
+	): String =
+		database.rawQuery("SELECT name FROM Templates WHERE id = ?", arrayOf(templateId.toString())).use { cursor ->
 			when {
 				cursor.count > 1 -> {
 					throw IllegalStateException("Template ID $templateId is shared by more than one template")
@@ -483,9 +489,7 @@ class DocumentationContentSource(
 				}
 
 				else -> {
-					val body = cursor.getBlob(0)
-					if (log.isDebugEnabled) log.debug("Compiling template {}, {} bytes.", templateId, body.size)
-					pebbleEngine.getTemplate(body.toString(Charsets.UTF_8))
+					cursor.getString(0)
 				}
 			}
 		}
@@ -739,7 +743,7 @@ class DocumentationContentSource(
 		activeDatabasePath = path
 		databaseTimestamp = timestamp
 		compressionDictionaryStale = true
-		templateCache.clear()
+		clearTemplateCache()
 		generation++
 
 		try {
