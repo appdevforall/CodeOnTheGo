@@ -257,8 +257,10 @@ private fun constrainingScopeFor(declaration: TreePath): Tree? =
 		is BlockTree -> owner
 
 		// A `for`, enhanced-`for`, try-with-resources or `instanceof` pattern variable is scoped to the
-		// construct that declares it. Returning the construct itself is both correct and the safe default
-		// for anything unrecognised: a narrower ceiling only removes rungs, it never adds a bad one.
+		// construct that declares it. Returning the construct itself is correct, and the safe default for
+		// anything unrecognised. A construct that holds no anchorable rung -- `o instanceof String s` --
+		// leaves the chain empty, and [truncateAtCeiling] falls back to the innermost rung rather than
+		// refusing the candidate.
 		else -> owner
 	}
 

@@ -3,9 +3,14 @@ package com.itsaky.androidide.lsp.java.refactor
 import jdkx.lang.model.type.DeclaredType
 import jdkx.lang.model.type.TypeKind
 import jdkx.lang.model.type.TypeMirror
+import openjdk.source.tree.AssignmentTree
 import openjdk.source.tree.CompilationUnitTree
 import openjdk.source.tree.ImportTree
+import openjdk.source.tree.LambdaExpressionTree
+import openjdk.source.tree.MethodTree
 import openjdk.source.tree.NewClassTree
+import openjdk.source.tree.ReturnTree
+import openjdk.source.tree.VariableTree
 import openjdk.source.util.TreePath
 import openjdk.source.util.Trees
 
@@ -67,9 +72,106 @@ fun declaredTypeTextFor(
 
 	val rendered = type.toString()
 	if (isUnrenderableTypeText(rendered)) return null
+	if (reliesOnConstantNarrowing(path, trees, type)) return null
 
 	return shortenTypeText(rendered, importedNamesOf(root), starImportedPackagesOf(root))
 }
+
+/**
+ * Whether the expression only fits where it stands because javac narrowed a compile-time constant to it.
+ *
+ * `byte flags = FLAG_A | FLAG_B;` compiles because the initializer is a constant that fits in a byte,
+ * but javac types the expression itself as `int`. Writing that `int` into a declaration and leaving
+ * `byte flags = v;` behind drops the constant, and with it the narrowing, so the file stops compiling
+ * with `possible lossy conversion`. The same holds for `short` and `char`, for a plain assignment, and
+ * for a `return` in a method declaring a narrower primitive.
+ *
+ * Declining is the honest answer. Emitting the target type instead would have to agree with every other
+ * occurrence the user may choose to replace, and a single context cannot promise that.
+ */
+private fun reliesOnConstantNarrowing(
+	path: TreePath,
+	trees: Trees,
+	type: TypeMirror,
+): Boolean {
+	if (!type.kind.isPrimitive) return false
+	val target = assignmentTargetKind(path, trees) ?: return false
+	if (!target.isPrimitive) return false
+	return target != type.kind && !widensTo(type.kind, target)
+}
+
+/**
+ * The primitive kind the expression is being assigned to, or null where the position applies no
+ * assignment conversion. Only assignment contexts narrow a constant: a method argument does not, so an
+ * argument that needed narrowing would not have compiled in the first place.
+ */
+private fun assignmentTargetKind(
+	path: TreePath,
+	trees: Trees,
+): TypeKind? {
+	val parentPath = path.parentPath ?: return null
+	return when (val parent = parentPath.leaf) {
+		is VariableTree -> {
+			if (parent.initializer === path.leaf) kindOf(parentPath, trees) else null
+		}
+
+		is AssignmentTree -> {
+			if (parent.expression === path.leaf) {
+				kindOf(TreePath(parentPath, parent.variable), trees)
+			} else {
+				null
+			}
+		}
+
+		is ReturnTree -> {
+			if (parent.expression === path.leaf) enclosingReturnKind(parentPath, trees) else null
+		}
+
+		else -> {
+			null
+		}
+	}
+}
+
+private fun kindOf(
+	path: TreePath,
+	trees: Trees,
+): TypeKind? = runCatching { trees.getTypeMirror(path) }.getOrNull()?.kind
+
+/**
+ * The declared return kind of the method the `return` belongs to. A lambda ends the walk: its result
+ * type comes from the target functional interface, not from a `returnType` tree to read.
+ */
+private fun enclosingReturnKind(
+	path: TreePath,
+	trees: Trees,
+): TypeKind? {
+	var current: TreePath? = path
+	while (current != null) {
+		when (val leaf = current.leaf) {
+			is LambdaExpressionTree -> return null
+			is MethodTree -> return kindOf(TreePath(current, leaf.returnType ?: return null), trees)
+			else -> current = current.parentPath
+		}
+	}
+	return null
+}
+
+/** Widening primitive conversion (JLS 5.1.2), which needs no constant to be legal. */
+private val WIDENS_TO: Map<TypeKind, Set<TypeKind>> =
+	mapOf(
+		TypeKind.BYTE to setOf(TypeKind.SHORT, TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE),
+		TypeKind.SHORT to setOf(TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE),
+		TypeKind.CHAR to setOf(TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE),
+		TypeKind.INT to setOf(TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE),
+		TypeKind.LONG to setOf(TypeKind.FLOAT, TypeKind.DOUBLE),
+		TypeKind.FLOAT to setOf(TypeKind.DOUBLE),
+	)
+
+private fun widensTo(
+	from: TypeKind,
+	to: TypeKind,
+): Boolean = WIDENS_TO[from]?.contains(to) == true
 
 /** A `DeclaredType` whose element has no simple name is an anonymous class. */
 private fun isAnonymousDeclared(type: TypeMirror): Boolean =

@@ -484,6 +484,85 @@ class ExtractVariableSoundnessTest {
 
 	private val fixtures = mutableListOf<JavacFixture>()
 
+	@Test
+	fun `an expression reading an instanceof pattern variable is still offered`() {
+		// itsaky, ScopeChain.kt:96 -- `s` is scoped to the `instanceof` expression itself, which holds no
+		// anchorable rung, so truncating the chain to nothing refused every candidate reading a binding
+		// variable. The `if block` rung is in scope for `s` and is what should be offered.
+		val f =
+			fixture(
+				"""	void m(Object o) {${'\n'}		if (o instanceof String s) {${'\n'}			use(s.length() + 1);${'\n'}		}${'\n'}	}""",
+			)
+		assertThat(f.planAfter("s.length() +").candidates).isNotEmpty()
+		val out = f.applyAfter("s.length() +", "v")
+		assertWithMessage(out).that(compiles(out)).isTrue()
+	}
+
+	@Test
+	fun `an expression reading a negated instanceof pattern variable is still offered`() {
+		// itsaky, ScopeChain.kt:96 -- the early-return form regressed the same way, and its binding
+		// variable is scoped to the rest of the enclosing block.
+		val f =
+			fixture(
+				"""	void m(Object o) {${'\n'}		if (!(o instanceof String s)) return;${'\n'}		use(s.length() + 1);${'\n'}	}""",
+			)
+		assertThat(f.planAfter("s.length() +").candidates).isNotEmpty()
+		val out = f.applyAfter("s.length() +", "v")
+		assertWithMessage(out).that(compiles(out)).isTrue()
+	}
+
+	@Test
+	fun `a field initializer of an anonymous class is not offered`() {
+		// itsaky, CandidateExpressions.kt:270 -- the walk climbed past the anonymous class and answered
+		// method m's body, so the only rung on offer hoisted the declaration clean out of the class that
+		// declares `a` and `b`, and the file stopped compiling.
+		val f =
+			fixture(
+				"""	void m() {${'\n'}		Runnable r = new Runnable() {${'\n'}			int a = 1, b = 2;${'\n'}			int x = a + b;${'\n'}			public void run() {}${'\n'}		};${'\n'}	}""",
+			)
+		assertThat(f.planAfter("int x = a +").candidates).isEmpty()
+	}
+
+	@Test
+	fun `a field initializer of a local class is not offered`() {
+		// itsaky, CandidateExpressions.kt:270 -- a local class climbs out the same way.
+		val f =
+			fixture(
+				"""	void m() {${'\n'}		class Local {${'\n'}			int a = 1, b = 2;${'\n'}			int x = a + b;${'\n'}		}${'\n'}	}""",
+			)
+		assertThat(f.planAfter("int x = a +").candidates).isEmpty()
+	}
+
+	@Test
+	fun `a constant expression that relies on narrowing is not offered`() {
+		// itsaky, TypeText.kt:64 -- javac types each of these as `int`. Writing that `int` into the
+		// declaration drops the constant that made the narrowing legal, and every emitted file failed
+		// with `possible lossy conversion`. The assignment shape is the same hazard as the initializer.
+		val shapes =
+			listOf(
+				"byte flags = FLAG_A |" to
+					"""	void m() {${'\n'}		byte flags = FLAG_A | FLAG_B;${'\n'}	}${'\n'}	static final byte FLAG_A = 1, FLAG_B = 2;""",
+				"short s = 1 +" to """	void m() {${'\n'}		short s = 1 + 2;${'\n'}	}""",
+				"char c = BASE +" to
+					"""	void m() {${'\n'}		char c = BASE + 1;${'\n'}	}${'\n'}	static final char BASE = 'a';""",
+				"return 1 +" to """	byte r() {${'\n'}		return 1 + 2;${'\n'}	}""",
+				"b = 1 +" to """	void m() {${'\n'}		byte b;${'\n'}		b = 1 + 2;${'\n'}	}""",
+			)
+		for ((cursor, body) in shapes) {
+			assertWithMessage(body).that(fixture(body).planAfter(cursor).candidates).isEmpty()
+		}
+	}
+
+	@Test
+	fun `a widening context still offers the expression`() {
+		// The narrowing guard must not decline `long x = 1 + 2;`: int widens to long with no constant
+		// involved, so the extraction is sound and should still be offered.
+		val f = fixture("""	void m() {${'\n'}		long x = 1 + 2;${'\n'}	}""")
+		assertThat(f.planAfter("long x = 1 +").candidates).isNotEmpty()
+		val out = f.applyAfter("long x = 1 +", "v")
+		assertWithMessage(out).that(compiles(out)).isTrue()
+	}
+
 	// Registered rather than `use`d so each case still reads as a straight line; the fixture holds a
 	// JavaFileManager, so it has to be closed either way.
 	private fun fixture(body: String) =

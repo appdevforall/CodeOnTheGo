@@ -266,6 +266,10 @@ private fun isConstructorDelegation(invocation: MethodInvocationTree): Boolean {
 /**
  * The nearest lambda, method/constructor, or initializer body. An initializer block is a `BlockTree`
  * under a `ClassTree`, a method body one under a `MethodTree`; both stop the walk at the right ceiling.
+ *
+ * A `ClassTree` reached by anything else is a member declaration -- a field initializer -- and ends the
+ * walk with no body. Climbing past it would answer the body enclosing the *class*, so a field of an
+ * anonymous or local class would be hoisted clean out of the class that declares what it reads.
  */
 internal fun enclosingExecutableBody(path: TreePath): TreePath? {
 	var current: TreePath? = path.parentPath
@@ -274,7 +278,7 @@ internal fun enclosingExecutableBody(path: TreePath): TreePath? {
 		val leaf = current.leaf
 		if (leaf is LambdaExpressionTree && leaf.body === child) return current
 		if (leaf is MethodTree && leaf.body === child) return current
-		if (leaf is ClassTree && child is BlockTree) return TreePath(current, child)
+		if (leaf is ClassTree) return if (child is BlockTree) TreePath(current, child) else null
 		child = leaf
 		current = current.parentPath
 	}

@@ -71,6 +71,10 @@ internal fun enclosingScopeFrames(
 			if (isCeilingBlock(frame.scopeTree, parentPath)) break
 		}
 		if (parentPath.leaf is CaseTree) break
+		// A class body is never an anchor, and climbing through one leaves the class that declares what
+		// the candidate reads -- a field initializer of an anonymous or local class would otherwise be
+		// offered the enclosing method.
+		if (parentPath.leaf is ClassTree) break
 		// Most nodes are not themselves anchorable -- an argument, an argument list, a member select.
 		// Keep climbing rather than stopping, otherwise the chain would end at the first such node and a
 		// candidate inside a lambda could never be hoisted out of it.
@@ -83,17 +87,21 @@ internal fun enclosingScopeFrames(
  * Enforces "crossing a lambda boundary only when nothing lambda-scoped is referenced": if the candidate
  * uses a lambda parameter, that lambda's body is the ceiling and every outer rung disappears.
  *
- * Truncating to nothing empties the chain, which declines the candidate. Keeping the innermost rung
- * instead would hand back a rung the ceiling just ruled out -- for a candidate reading a local declared
- * in a case group, that is a declaration hoisted clean out of the local's scope, and the file stops
- * compiling.
+ * Truncating to nothing keeps the innermost rung instead of declining the candidate. Some ceilings
+ * contain no rung at all: an `instanceof` pattern variable is scoped to the `instanceof` expression,
+ * and nothing is anchorable inside `o instanceof String s`, so an empty chain would refuse every
+ * expression that reads a binding variable. The case-group hoist this fallback once had to avoid is
+ * now held by [caseGroupFrame], which offers a rung inside the switch that the local is still scoped
+ * to.
  */
 internal fun truncateAtCeiling(
 	frames: List<ScopeFrame>,
 	ceiling: TextSpan?,
 ): List<ScopeFrame> {
 	if (ceiling == null) return frames
-	return frames.takeWhile { ceiling.start <= it.scopeSpan.start && it.scopeSpan.end <= ceiling.end }
+	return frames
+		.takeWhile { ceiling.start <= it.scopeSpan.start && it.scopeSpan.end <= ceiling.end }
+		.ifEmpty { frames.take(1) }
 }
 
 /** Null when [parentPath]'s leaf is not a position this refactoring anchors in. */
