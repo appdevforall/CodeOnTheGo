@@ -178,6 +178,8 @@ final class AssetExtractor {
 	 *            the current zip entry's bytes; read to the end of the entry, never closed
 	 * @param target
 	 *            the final path, already checked to sit inside the destination directory
+	 * The temp is deleted on every failure, not only a failed rename: it sits in the tree {@link DirectoryAssetsProvider} serves, so a partial file left there is one the app can open by name.
+	 *
 	 * @throws IOException
 	 *             when a parent directory cannot be created, the copy fails, or the rename into place fails twice
 	 */
@@ -187,29 +189,36 @@ final class AssetExtractor {
 			throw new IOException("cannot create dir " + parent);
 		}
 		File temp = new File(parent, target.getName() + ".qb-tmp");
-		FileOutputStream out = new FileOutputStream(temp);
 		long written = 0;
+		boolean placed = false;
 		try {
-			byte[] buffer = new byte[BUFFER_SIZE];
-			int read;
-			while ((read = in.read(buffer)) != -1) {
-				written += read;
-				if (written > remaining) {
-					throw new IOException("asset payload exceeds " + Streams.MAX_PAYLOAD_BYTES
-							+ " bytes at " + target.getName());
+			FileOutputStream out = new FileOutputStream(temp);
+			try {
+				byte[] buffer = new byte[BUFFER_SIZE];
+				int read;
+				while ((read = in.read(buffer)) != -1) {
+					written += read;
+					if (written > remaining) {
+						throw new IOException("asset payload exceeds " + Streams.MAX_PAYLOAD_BYTES
+								+ " bytes at " + target.getName());
+					}
+					out.write(buffer, 0, read);
 				}
-				out.write(buffer, 0, read);
+			} finally {
+				out.close();
 			}
-		} finally {
-			out.close();
-		}
-		if (!temp.renameTo(target)) {
-			// Rename over an existing file can fail on some filesystems; retry once
-			// after an explicit delete, then give up loudly.
-			target.delete();
 			if (!temp.renameTo(target)) {
+				// Rename over an existing file can fail on some filesystems; retry once
+				// after an explicit delete, then give up loudly.
+				target.delete();
+				if (!temp.renameTo(target)) {
+					throw new IOException("cannot move extracted asset into place: " + target);
+				}
+			}
+			placed = true;
+		} finally {
+			if (!placed) {
 				temp.delete();
-				throw new IOException("cannot move extracted asset into place: " + target);
 			}
 		}
 		return written;
