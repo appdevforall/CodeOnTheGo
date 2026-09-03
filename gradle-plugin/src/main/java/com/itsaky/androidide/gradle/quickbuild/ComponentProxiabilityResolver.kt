@@ -68,6 +68,18 @@ class ComponentProxiabilityResolver(
 	}
 
 	/**
+	 * Whether a dependency owns [userClass], as far as the configured classpath can tell.
+	 *
+	 * Absence is not proof of project ownership - [byNameOnly] finds nothing at all, and the
+	 * dependency-artifact view is narrower than the compile classpath - so a caller must treat
+	 * false as "assume the project owns it" and only act on true.
+	 *
+	 * @param userClass the component's implementation class, as a dotted binary name.
+	 * @return true when the class was found on the dependency classpath.
+	 */
+	fun isLibraryOwned(userClass: String): Boolean = libraryClassBytes(userClass) != null
+
+	/**
 	 * [resolve], except that a class the project itself compiled is always proxiable.
 	 *
 	 * A mixed Kotlin/Java module's compile classpath can carry a raw, pre-[ClassOpener] copy of
