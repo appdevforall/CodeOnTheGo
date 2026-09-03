@@ -116,6 +116,9 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 			try {
 				return super.instantiateActivity(cl, className, intent);
 			} catch (Throwable fallbackError) {
+				// Without this an OOM or a linkage error from the fallback is reported under
+				// the payload's throwable, which groups the crash as the wrong fault.
+				rethrowIfFatal(fallbackError);
 				throw rethrowPayloadFailure(payloadError, fallbackError);
 			}
 		}
@@ -149,6 +152,9 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 			try {
 				application = super.instantiateApplication(cl, className);
 			} catch (Throwable fallbackError) {
+				// Without this an OOM or a linkage error from the fallback is reported under
+				// the payload's throwable, which groups the crash as the wrong fault.
+				rethrowIfFatal(fallbackError);
 				throw rethrowPayloadFailure(payloadError, fallbackError);
 			}
 		}
@@ -192,6 +198,9 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 			try {
 				return super.instantiateProvider(cl, className);
 			} catch (Throwable fallbackError) {
+				// Without this an OOM or a linkage error from the fallback is reported under
+				// the payload's throwable, which groups the crash as the wrong fault.
+				rethrowIfFatal(fallbackError);
 				throw rethrowPayloadFailure(payloadError, fallbackError);
 			}
 		}
@@ -229,6 +238,9 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 			try {
 				return super.instantiateReceiver(cl, className, intent);
 			} catch (Throwable fallbackError) {
+				// Without this an OOM or a linkage error from the fallback is reported under
+				// the payload's throwable, which groups the crash as the wrong fault.
+				rethrowIfFatal(fallbackError);
 				throw rethrowPayloadFailure(payloadError, fallbackError);
 			}
 		}
@@ -266,6 +278,9 @@ public class QuickBuildAppComponentFactory extends AppComponentFactory {
 			try {
 				return super.instantiateService(cl, className, intent);
 			} catch (Throwable fallbackError) {
+				// Without this an OOM or a linkage error from the fallback is reported under
+				// the payload's throwable, which groups the crash as the wrong fault.
+				rethrowIfFatal(fallbackError);
 				throw rethrowPayloadFailure(payloadError, fallbackError);
 			}
 		}
