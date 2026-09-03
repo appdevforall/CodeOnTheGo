@@ -178,8 +178,13 @@ final class PayloadPersistence {
 		}
 		if (!temp.renameTo(target)) {
 			// rename over an existing file is atomic on POSIX; a failure here is a
-			// filesystem oddity - fall back to delete+rename before giving up.
-			if (!target.delete() || !temp.renameTo(target)) {
+			// filesystem oddity - fall back to delete+rename before giving up. The
+			// delete's own result is not the test: it returns false on a first write,
+			// where there was nothing to delete, which short-circuited the retry that
+			// would have worked and left the temp file behind for good.
+			target.delete();
+			if (!temp.renameTo(target)) {
+				temp.delete();
 				throw new IOException("cannot rename " + temp + " to " + target);
 			}
 		}

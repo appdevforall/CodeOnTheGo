@@ -58,7 +58,7 @@ final class PayloadStore {
 			}
 			return new File(dataDir, "files/" + PERSIST_DIR);
 		} catch (Throwable error) {
-			RuntimeLog.w("cmdline data-dir derivation failed: " + error);
+			RuntimeLog.w("cmdline data-dir derivation failed", error);
 			return null;
 		} finally {
 			Streams.closeQuietly(in);
@@ -240,6 +240,25 @@ final class PayloadStore {
 	 */
 	synchronized void restore(Payload payload) {
 		current = payload;
+	}
+
+	/**
+	 * Decides what a failed reload owes and rolls back in the same lock.
+	 *
+	 * Reading {@link #generation()} and then calling {@link #restore} took the monitor twice, so a deploy that applied in the gap was rolled back by a decision taken before it existed - the app then ran two generations behind the host's view of it, silently.
+	 *
+	 * @param failedGeneration
+	 *            the generation whose reload failed
+	 * @param rollback
+	 *            the {@link #snapshot} taken before the failed apply; restored verbatim, null included
+	 * @return the action decided against the generation live at the moment of the restore; the rollback has already happened when it is ROLLBACK_AND_REPORT
+	 */
+	synchronized Generations.FailureAction restoreIfCurrent(long failedGeneration, Payload rollback) {
+		Generations.FailureAction action = Generations.onReloadFailure(generation(), failedGeneration);
+		if (action == Generations.FailureAction.ROLLBACK_AND_REPORT) {
+			current = rollback;
+		}
+		return action;
 	}
 
 	/**

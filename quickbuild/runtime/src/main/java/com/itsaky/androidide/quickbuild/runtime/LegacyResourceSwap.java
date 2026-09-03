@@ -20,7 +20,7 @@ final class LegacyResourceSwap {
 	/**
 	 * Cache subdirectory the relinked apks live in.
 	 *
-	 * Must match {@code ResourceStore.LEGACY_TABLE_DIR}, which is what actually writes them; {@code LegacyResourceSwapCacheDirTest} pins the two together.
+	 * Must match {@code ResourceStore.LEGACY_TABLE_DIR}, which is what actually writes them; {@code LegacyResourceSwapSweepTest} pins the two together.
 	 */
 	static final String TABLE_DIR = "quickbuild-res";
 

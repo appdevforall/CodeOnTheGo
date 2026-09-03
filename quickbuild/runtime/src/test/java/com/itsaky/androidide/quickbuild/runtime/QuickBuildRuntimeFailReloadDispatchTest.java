@@ -8,9 +8,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins the reload-failure dispatch off the caller's thread.
+ * Pins {@code QuickBuildRuntime.startFailReloadThread} to running its body on a new thread named qb-fail-reload.
  *
- * The failure body fsyncs the quarantine marker to disk ({@code PayloadPersistence.writeAtomic}), and two of its three entry points - a rejected resource swap and a recreate that throws - run on the main thread. Collapsing the dispatch back to the caller's thread would put a blocking disk sync on the frame path; this test goes red if that happens.
+ * The failure body fsyncs the quarantine marker to disk ({@code PayloadPersistence.writeAtomic}), and two of its three entry points - a rejected resource swap and a recreate that throws - run on the main thread, so a body that ran inline would put a blocking disk sync on the frame path. This goes red if the helper is collapsed to an inline call.
+ *
+ * What it deliberately does NOT pin is the call site: {@code failReload} needs an Application, a main Looper and a bound client, so whether it still routes through this helper is checked on device, not here.
  */
 class QuickBuildRuntimeFailReloadDispatchTest {
 

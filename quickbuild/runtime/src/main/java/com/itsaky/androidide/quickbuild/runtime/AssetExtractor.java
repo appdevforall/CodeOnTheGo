@@ -58,7 +58,7 @@ final class AssetExtractor {
 	 *            the app-private override directory, created when missing
 	 * @return the number of files extracted, directory entries excluded
 	 * @throws IOException
-	 *             on I/O failure or when an entry would escape {@code destDir}, at which point extraction stops and the directory can hold a partial set
+	 *             on I/O failure, when an entry would escape {@code destDir}, or when the entries together exceed {@link Streams#MAX_PAYLOAD_BYTES}; extraction stops and the directory can hold a partial set
 	 */
 	static int extract(InputStream zipStream, File destDir) throws IOException {
 		if (!destDir.isDirectory() && !destDir.mkdirs()) {
@@ -67,6 +67,10 @@ final class AssetExtractor {
 		String destPrefix = destDir.getCanonicalPath() + File.separator;
 		ZipInputStream zip = new ZipInputStream(zipStream);
 		int count = 0;
+		// Every other payload path is capped at MAX_PAYLOAD_BYTES; the per-entry writes
+		// here were not, so a zip's entries could together exceed it. The cap is
+		// cumulative because no single entry has to be large to get there.
+		long written = 0;
 		ZipEntry entry;
 		while ((entry = zip.getNextEntry()) != null) {
 			try {
@@ -77,7 +81,7 @@ final class AssetExtractor {
 				if (!target.getCanonicalPath().startsWith(destPrefix)) {
 					throw new IOException("zip entry escapes destination: " + entry.getName());
 				}
-				writeFile(zip, target);
+				written += writeFile(zip, target, Streams.MAX_PAYLOAD_BYTES - written);
 				count++;
 			} finally {
 				zip.closeEntry();
@@ -177,17 +181,23 @@ final class AssetExtractor {
 	 * @throws IOException
 	 *             when a parent directory cannot be created, the copy fails, or the rename into place fails twice
 	 */
-	private static void writeFile(InputStream in, File target) throws IOException {
+	private static long writeFile(InputStream in, File target, long remaining) throws IOException {
 		File parent = target.getParentFile();
 		if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
 			throw new IOException("cannot create dir " + parent);
 		}
 		File temp = new File(parent, target.getName() + ".qb-tmp");
 		FileOutputStream out = new FileOutputStream(temp);
+		long written = 0;
 		try {
 			byte[] buffer = new byte[BUFFER_SIZE];
 			int read;
 			while ((read = in.read(buffer)) != -1) {
+				written += read;
+				if (written > remaining) {
+					throw new IOException("asset payload exceeds " + Streams.MAX_PAYLOAD_BYTES
+							+ " bytes at " + target.getName());
+				}
 				out.write(buffer, 0, read);
 			}
 		} finally {
@@ -202,6 +212,7 @@ final class AssetExtractor {
 				throw new IOException("cannot move extracted asset into place: " + target);
 			}
 		}
+		return written;
 	}
 
 	/**
