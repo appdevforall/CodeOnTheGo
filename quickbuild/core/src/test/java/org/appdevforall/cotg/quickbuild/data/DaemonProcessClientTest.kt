@@ -206,6 +206,10 @@ class DaemonProcessClientTest {
 		try {
 			runBlocking { client.start(config()) }
 			assertThat(client.scratchFsType).isEqualTo("fuse")
+			// Belongs to the child being stopped: left in place it would stamp this daemon's
+			// filesystem on the next session's timings.
+			runBlocking { client.shutdown() }
+			assertThat(client.scratchFsType).isNull()
 		} finally {
 			runBlocking { client.shutdown() }
 			scope.cancel()

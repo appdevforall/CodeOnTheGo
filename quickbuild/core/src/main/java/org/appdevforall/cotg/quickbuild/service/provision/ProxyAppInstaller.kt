@@ -249,15 +249,15 @@ class ProxyAppInstaller(
 				return@coroutineScope InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart)
 			}
 
-			val awaitVerdict: suspend () -> InstallOutcome = {
-				select<InstallOutcome> {
+			val awaitVerdict: suspend () -> Verdict = {
+				select<Verdict> {
 					verdict.onAwait { result ->
 						result.fold(
-							onSuccess = { broadcast -> classify(broadcast, packageName) },
-							onFailure = { InstallOutcome.Failed(QuickBuildMessage.InstallFailed) },
+							onSuccess = { broadcast -> classify(broadcast) },
+							onFailure = { Verdict.Settled(InstallOutcome.Failed(QuickBuildMessage.InstallFailed)) },
 						)
 					}
-					stampChanged.onAwait { resolveUid(packageName) }
+					stampChanged.onAwait { Verdict.InstalledPendingUid }
 				}
 			}
 			val outcome =
@@ -293,47 +293,78 @@ class ProxyAppInstaller(
 				}
 			verdict.cancel()
 			stampChanged.cancel()
-			outcome ?: confirmationNotGivenAtTimeout()
+			// The uid is resolved here, OUTSIDE both timeout windows. It retries over
+			// PackageManager's post-install lag, and inside the prompt budget a plain SUCCESS
+			// arriving late had that retry cut short - which read as "no verdict yet" and
+			// re-prompted the user for an install that had already succeeded.
+			when (outcome) {
+				null -> confirmationNotGivenAtTimeout()
+				Verdict.InstalledPendingUid -> resolveUid(packageName)
+				is Verdict.Settled -> outcome.outcome
+			}
 		}
+	}
+
+	/**
+	 * What one wait for an install verdict produced, before the uid read.
+	 *
+	 * Separate from [InstallOutcome] so the uid read can happen after the timeouts: the read
+	 * retries over PackageManager lag and must not be charged to the prompt budget.
+	 */
+	private sealed interface Verdict {
+		/** The install landed; only the uid is still to be read. */
+		data object InstalledPendingUid : Verdict
+
+		/**
+		 * A verdict that needs nothing further.
+		 *
+		 * @property outcome what [ensureInstalled] returns.
+		 */
+		data class Settled(
+			val outcome: InstallOutcome,
+		) : Verdict
 	}
 
 	/**
 	 * Turns the broadcast that settled an install into its outcome.
 	 *
 	 * @param broadcast the terminal broadcast, or a PENDING_USER_ACTION no dialog can answer
-	 * @param packageName the applicationId being installed, needed to read back the uid
-	 * @return the outcome this broadcast means
+	 * @return what this broadcast means; SUCCESS still owes a uid read, which the caller does
+	 *   outside the timeout windows
 	 */
-	private suspend fun classify(
-		broadcast: InstallBroadcast,
-		packageName: String,
-	): InstallOutcome =
+	private fun classify(broadcast: InstallBroadcast): Verdict =
 		when (broadcast.status) {
 			InstallBroadcast.Status.SUCCESS -> {
-				resolveUid(packageName)
+				Verdict.InstalledPendingUid
 			}
 
 			InstallBroadcast.Status.PENDING_USER_ACTION -> {
 				// The OS asked for a confirmation no dialog can deliver right now, so park
 				// immediately instead of waiting out the timeout.
-				InstallOutcome.ConfirmationNotGiven(
-					QuickBuildMessage.ReinstallReturnToCoGo,
-					InstallOutcome.ConfirmationNotGiven.Reason.DIALOG_NOT_SHOWN,
+				Verdict.Settled(
+					InstallOutcome.ConfirmationNotGiven(
+						QuickBuildMessage.ReinstallReturnToCoGo,
+						InstallOutcome.ConfirmationNotGiven.Reason.DIALOG_NOT_SHOWN,
+					),
 				)
 			}
 
 			InstallBroadcast.Status.ABORTED -> {
-				InstallOutcome.ConfirmationNotGiven(
-					QuickBuildMessage.ReinstallDeclined,
-					InstallOutcome.ConfirmationNotGiven.Reason.DECLINED,
+				Verdict.Settled(
+					InstallOutcome.ConfirmationNotGiven(
+						QuickBuildMessage.ReinstallDeclined,
+						InstallOutcome.ConfirmationNotGiven.Reason.DECLINED,
+					),
 				)
 			}
 
 			else -> {
-				InstallOutcome.Failed(
-					broadcast.message
-						?.let(QuickBuildMessage::Literal)
-						?: QuickBuildMessage.InstallFailed,
+				Verdict.Settled(
+					InstallOutcome.Failed(
+						broadcast.message
+							?.let(QuickBuildMessage::Literal)
+							?: QuickBuildMessage.InstallFailed,
+					),
 				)
 			}
 		}

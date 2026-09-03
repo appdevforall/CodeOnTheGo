@@ -1,5 +1,6 @@
 package org.appdevforall.cotg.quickbuild.service
 
+import kotlinx.coroutines.CompletableDeferred
 import org.appdevforall.cotg.quickbuild.data.CompileOutput
 import org.appdevforall.cotg.quickbuild.data.DaemonConfig
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
@@ -43,7 +44,7 @@ class FakeDaemon : QuickBuildDaemon {
 	 * gate - later starts pass through. Lets a race test hold a respawn mid-start while
 	 * something else (a rebaseline, a teardown) takes the daemon down.
 	 */
-	var startGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+	var startGate: CompletableDeferred<Unit>? = null
 
 	/**
 	 * Makes a gated [start] finish its wait even after the calling coroutine is cancelled.
@@ -56,7 +57,7 @@ class FakeDaemon : QuickBuildDaemon {
 	 * When set, the NEXT [shutdown] parks here, consuming the gate - later shutdowns pass
 	 * through. Lets a test hold a teardown's daemon stop open while a new session goes live.
 	 */
-	var shutdownGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+	var shutdownGate: CompletableDeferred<Unit>? = null
 
 	/**
 	 * Runs inside [start], after the reply is decided but before it is returned. The hook for a
@@ -192,6 +193,7 @@ class MemoryGenerationStore : GenerationStore {
 	}
 }
 
+/** In-memory [QuickBuildPaths] over one temp dir, so a test needs no staged toolchain. */
 class FakePaths(
 	baseDir: File,
 ) : QuickBuildPaths {
