@@ -163,8 +163,8 @@ internal class ProxyAppBuildRunner(
 				}
 
 				// Error boundary over the whole session assembly: a throw past this point
-				// would escape to a session scope with no CoroutineExceptionHandler and
-				// crash CoGo with a uid session already registered.
+				// would reach the session scope's handler, which only logs - leaving CoGo
+				// running with a uid session already registered and nothing to undo it.
 				var sessionBegun = false
 				var daemonStarted = false
 				try {

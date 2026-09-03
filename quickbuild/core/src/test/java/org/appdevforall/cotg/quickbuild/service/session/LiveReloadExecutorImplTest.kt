@@ -170,6 +170,23 @@ class LiveReloadExecutorImplTest {
 			assertThat(tracker.current).isEqualTo(0)
 		}
 
+	@Test
+	fun `a warm compile after a failed deploy reports the generation the app still runs`() =
+		runTest {
+			// The warm compile deploys nothing, so its Success must name the generation the app
+			// is on. The allocator has already moved past it whenever a build allocated a
+			// generation the app never loaded, and reporting that one tells the session a payload
+			// the proxy app never received is live.
+			executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+			deploy.result = DeployResult.Crashed("NPE in onCreate")
+			executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+			assertThat(tracker.current).isEqualTo(2)
+
+			val outcome = executor.execute(request(BuildRoute.WarmCompile, ChangedFiles.Unknown))
+
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 0))
+		}
+
 	// Review gap (2026-07-26 #69): the warm compile is invisible by contract - the proxy app
 	// already runs exactly the sources it compiles - so its overlay must not flash
 	// "build ok" for a build the user never triggered.

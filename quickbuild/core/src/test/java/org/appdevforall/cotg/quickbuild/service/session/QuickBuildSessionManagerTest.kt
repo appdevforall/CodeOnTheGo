@@ -165,6 +165,9 @@ class QuickBuildSessionManagerTest {
 	 */
 	private var executorFactoryError: (() -> Throwable)? = null
 
+	/** Set by the scripted executor when its mid-build wait was cancelled. */
+	private var executionCancelled = false
+
 	/** Set to make the scripted executor await mid-build, so a test can observe Building. */
 	private var executionGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 	private var warmCompileGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
@@ -356,7 +359,14 @@ class QuickBuildSessionManagerTest {
 								?: BuildOutcome.Success(tracker.current, 5)
 						}
 						executed += request
-						executionGate?.await()
+						executionGate?.let { gate ->
+							try {
+								gate.await()
+							} catch (e: kotlinx.coroutines.CancellationException) {
+								executionCancelled = true
+								throw e
+							}
+						}
 						return scriptedOutcomes.removeFirstOrNull()
 							?: BuildOutcome.Success(tracker.next(), 5)
 					}
@@ -4970,5 +4980,130 @@ class QuickBuildSessionManagerTest {
 			manager.save(sourceFile)
 			advanceUntilIdle()
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Deployed(1, 5))
+		}
+
+	@Test
+	fun `tearing the session down cancels the build it abandons`() =
+		runTest {
+			// The orchestrator's build runs on the manager's process-lifetime scope, which the
+			// session job does not cover. Left running, it compiles against a daemon the teardown
+			// is stopping and writes into the scratch tree the teardown is about to remove.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val gate = CompletableDeferred<Unit>()
+			executionGate = gate
+
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Building(0))
+
+			manager.restartSession()
+			advanceUntilIdle()
+
+			assertThat(executionCancelled).isTrue()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Idle())
+		}
+
+	@Test
+	fun `an effect launch whose callee throws leaves a session the user can recover`() =
+		runTest {
+			// The respawn effect calls straight into the daemon with no boundary of its own, and
+			// a spawn that throws rather than replying Failed breaks that no-throw contract. With
+			// nothing on the scope to catch it the throw leaves the session's own scope and takes
+			// CoGo down instead of leaving a compiler the user can restart.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			daemon.onStart = {
+				daemon.onStart = {}
+				throw IllegalStateException("spawn boom")
+			}
+			daemon.die(exitCode = 137)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Degraded(0))
+
+			// The scope survived the throw: a fresh session still comes up on it.
+			manager.restartSession()
+			advanceUntilIdle()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
+	fun `a build variant selected during provisioning reprovisions once the session goes live`() =
+		runTest {
+			// The selection lands in the provisioning window - the Gradle build, the install
+			// prompt and the daemon spawn - where there is no live session to compare it against.
+			// The sync that applied it is the one that just ran, so nothing corrects it later and
+			// the session hot-reloads into the variant the user navigated away from.
+			val gate = CompletableDeferred<Unit>()
+			provisionGate = gate
+			var call = 0
+			provisionOutcome = {
+				call++
+				defaultProvisionOutcome(if (call == 1) "demoDebug" else "fullDebug")
+			}
+
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(provisionCount).isEqualTo(1)
+
+			manager.onProjectSynced("fullDebug")
+			advanceUntilIdle()
+
+			provisionGate = null
+			gate.complete(Unit)
+			advanceUntilIdle()
+
+			assertThat(provisionCount).isEqualTo(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	@Test
+	fun `one daemon death reported by both its reporters still recovers to Ready`() =
+		runTest {
+			// A death has two reporters that cannot see each other: the death watcher, and the
+			// build in flight, which fails with daemonDied. The second lands from Degraded, where
+			// DaemonDied sets restartFailed, and the respawn that then succeeds is refused - so a
+			// live compiler stays hidden behind "restart failed" until some later save recovers it.
+			scriptedOutcomes += BuildOutcome.InfrastructureFailure("pipe broke", daemonDied = true)
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			val buildGate = CompletableDeferred<Unit>()
+			executionGate = buildGate
+			manager.save(sourceFile)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Building(0))
+
+			// The watcher reports first, and its respawn is held open so the second report lands
+			// from Degraded - the ordering the bug needs.
+			val respawnGate = CompletableDeferred<Unit>()
+			daemon.startGate = respawnGate
+			daemon.die(exitCode = 137)
+			advanceUntilIdle()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Degraded(0))
+
+			// Now the same death arrives a second time, as the in-flight build's own failure.
+			executionGate = null
+			buildGate.complete(Unit)
+			advanceUntilIdle()
+			// Still the honest "restarting" window, not "restart failed": nothing new died.
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Degraded(0))
+
+			respawnGate.complete(Unit)
+			advanceUntilIdle()
+
+			// The stale report did not set restartFailed, so the respawn was accepted: the
+			// daemon is back and the save that was in flight when it died has been re-seeded.
+			assertThat(daemon.isRunning).isTrue()
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Deployed(1, buildDurationMillis = 5))
 		}
 }
