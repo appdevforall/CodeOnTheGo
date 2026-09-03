@@ -69,17 +69,18 @@ object DaemonMain {
 		router: RequestRouter,
 	) {
 		while (true) {
-			val line = input.readLine() ?: return
-			if (line.isBlank()) continue
-
-			// The router guards the handlers, but parse and encode run outside it, and both
-			// work on request-sized data: a pathological line, or a response carrying a
-			// compile's whole changed-class list. An uncaught throw from either would leave the
-			// loop and exit the JVM, which CoGo reads as daemon death - a restart cycle on every
-			// save of the same file, with no diagnostic ever rendered.
+			// The router guards the handlers, but the read, the parse and the encode all run
+			// outside it, and all three work on request-sized data: a pathological line, or a
+			// response carrying a compile's whole changed-class list. The read is inside the try
+			// because it is the call that ALLOCATES the line, so it is where a pathological
+			// request first runs out of memory. An uncaught throw from any of them would leave
+			// the loop and exit the JVM, which CoGo reads as daemon death - a restart cycle on
+			// every save of the same file, with no diagnostic ever rendered.
 			var routed: RequestRouter.Routed? = null
 			val encoded =
 				try {
+					val line = input.readLine() ?: return
+					if (line.isBlank()) continue
 					routed = route(line, router)
 					ProtocolCodec.encode(routed.response)
 				} catch (t: Throwable) {
