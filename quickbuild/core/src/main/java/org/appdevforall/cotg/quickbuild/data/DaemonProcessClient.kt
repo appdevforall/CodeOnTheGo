@@ -7,6 +7,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -43,8 +45,9 @@ import kotlin.coroutines.coroutineContext
  *   parent becomes the child's cwd), and the child's environment.
  * @property scope coroutine scope the stdout pump, stderr drain, and death watcher run in;
  *   cancelling it abandons those readers but does not kill the child, which [shutdown] does.
- * @property requestTimeoutMillis per-request ceiling in milliseconds, past which the call yields
- *   a [DaemonReply.Failed] rather than an exception and releases the request slot.
+ * @property requestTimeoutMillis ceiling in milliseconds applied PER PHASE - once to the write
+ *   and again to the response wait - so one call can hold [requestMutex] for up to twice it
+ *   before yielding a [DaemonReply.Failed] rather than an exception and releasing the slot.
  */
 class DaemonProcessClient(
 	private val paths: QuickBuildPaths,
@@ -52,6 +55,14 @@ class DaemonProcessClient(
 	private val requestTimeoutMillis: Long = DEFAULT_REQUEST_TIMEOUT_MILLIS,
 ) : QuickBuildDaemon {
 	private val requestMutex = Mutex()
+
+	/**
+	 * Serializes [start], because it shuts down whatever is running and installs a new [spawn].
+	 *
+	 * Two overlapping starts otherwise both spawn a child and the loser's is never assigned to
+	 * [spawn], so nothing ever shuts it down and it holds a JVM heap for the app's life.
+	 */
+	private val startMutex = Mutex()
 	private val nextId = AtomicLong(1)
 
 	/**
@@ -73,6 +84,12 @@ class DaemonProcessClient(
 		 * would report a death for a daemon that was deliberately replaced.
 		 */
 		val deliberateStop = AtomicBoolean(false)
+
+		/**
+		 * This child's stdout pump, so the death watcher can drain it before failing pending
+		 * requests. Assigned by [startReaders] before the watcher can observe an exit.
+		 */
+		@Volatile var pump: Job? = null
 	}
 
 	@Volatile private var spawn: Spawn? = null
@@ -107,7 +124,16 @@ class DaemonProcessClient(
 	 *   [DaemonReply.Failed] (spawn failure, protocol mismatch, or a rejected configuration) with
 	 *   the child shut down first, so a failed start never leaves a daemon behind.
 	 */
-	override suspend fun start(config: DaemonConfig): DaemonReply<Unit> {
+	override suspend fun start(config: DaemonConfig): DaemonReply<Unit> =
+		startMutex.withLock { startLocked(config) }
+
+	/**
+	 * The [start] body, run under [startMutex].
+	 *
+	 * @param config the session-fixed settings sent in the `configure` request.
+	 * @return what [start] returns.
+	 */
+	private suspend fun startLocked(config: DaemonConfig): DaemonReply<Unit> {
 		// Also clears scratchFsType and marks the old child's stop on its own Spawn - the
 		// fresh Spawn below starts with a clean marker of its own.
 		shutdown()
@@ -185,7 +211,13 @@ class DaemonProcessClient(
 				}
 
 				is DaemonReply.BuildFailed -> {
-					DaemonReply.Failed("Daemon rejected configuration", daemonDied = false)
+					// The diagnostics say WHY it was rejected and nothing else reads them on this
+					// path, so the first one travels in the message rather than being dropped.
+					val why = configureReply.diagnostics.firstOrNull()?.message
+					DaemonReply.Failed(
+						"Daemon rejected configuration" + (why?.let { ": $it" } ?: ""),
+						daemonDied = false,
+					)
 				}
 
 				is DaemonReply.Failed -> {
@@ -314,7 +346,9 @@ class DaemonProcessClient(
 		withTimeoutOrNull(SHUTDOWN_TIMEOUT_MILLIS) { request(DaemonOps.SHUTDOWN) {} }
 		val proc = spawn.process
 		val out = spawn.writer
-		withContext(Dispatchers.IO) {
+		// NonCancellable because this is the only thing that kills the child: a teardown
+		// cancelled at the waitFor would leave a live JVM nothing else ever stops.
+		withContext(Dispatchers.IO + NonCancellable) {
 			// EOF is the second polite signal, but close() blocks on the BufferedWriter
 			// monitor while a wedged write holds it - so it runs on [scope] rather than
 			// inline, and the kill path below (which closes the pipe and thereby frees any
@@ -437,27 +471,29 @@ class DaemonProcessClient(
 	 */
 	private fun startReaders(spawn: Spawn) {
 		val proc = spawn.process
-		scope.launch(Dispatchers.IO) {
-			try {
-				proc.inputStream.bufferedReader().forEachLine { line ->
-					val json =
-						runCatching { JsonParser.parseString(line).asJsonObject }.getOrNull()
-					// The id read needs the same guard as the parse: a non-numeric or nested
-					// id would throw out of forEachLine, killing this pump for the rest of
-					// the session. Every later request would then burn its full timeout and
-					// still see the process alive, so nothing would ever respawn the daemon.
-					val id = json?.get(ResponseKeys.ID)?.runCatching { asLong }?.getOrNull()
-					if (id == null) {
-						log.debug("daemon: {}", line)
-						return@forEachLine
+		val pump =
+			scope.launch(Dispatchers.IO) {
+				try {
+					proc.inputStream.bufferedReader().forEachLine { line ->
+						val json =
+							runCatching { JsonParser.parseString(line).asJsonObject }.getOrNull()
+						// The id read needs the same guard as the parse: a non-numeric or nested
+						// id would throw out of forEachLine, killing this pump for the rest of
+						// the session. Every later request would then burn its full timeout and
+						// still see the process alive, so nothing would ever respawn the daemon.
+						val id = json?.get(ResponseKeys.ID)?.runCatching { asLong }?.getOrNull()
+						if (id == null) {
+							log.debug("daemon: {}", line)
+							return@forEachLine
+						}
+						spawn.pending.remove(id)?.complete(json)
+							?: log.warn("Daemon response for unknown request id {}", id)
 					}
-					spawn.pending.remove(id)?.complete(json)
-						?: log.warn("Daemon response for unknown request id {}", id)
+				} catch (e: IOException) {
+					log.debug("Daemon stdout closed: {}", e.message)
 				}
-			} catch (e: IOException) {
-				log.debug("Daemon stdout closed: {}", e.message)
 			}
-		}
+		spawn.pump = pump
 		scope.launch(Dispatchers.IO) {
 			try {
 				proc.errorStream.bufferedReader().forEachLine { line ->
@@ -469,6 +505,12 @@ class DaemonProcessClient(
 		}
 		scope.launch(Dispatchers.IO) {
 			val exitCode = runCatching { proc.waitFor() }.getOrDefault(-1)
+			// Drain first. The child can write its reply and exit in the same breath, and the
+			// bytes are still in the pipe when waitFor returns - failing pending here discarded
+			// a reply that was already written, which the pump then reported as a response for
+			// an unknown id. The pump ends at stdout EOF, which the exit guarantees; the bound
+			// is only there so a pump wedged on an inherited fd cannot strand the death report.
+			withTimeoutOrNull(PUMP_DRAIN_TIMEOUT_MILLIS) { spawn.pump?.join() }
 			// This child's own requests are failed FIRST, replaced or not: a request holds
 			// [requestMutex] for its whole round trip, so an orphan left pending would burn
 			// its full timeout and hold the replacement's configure behind the mutex. The
@@ -625,5 +667,12 @@ class DaemonProcessClient(
 		const val DEFAULT_REQUEST_TIMEOUT_MILLIS = 300_000L
 
 		private const val SHUTDOWN_TIMEOUT_MILLIS = 3_000L
+
+		/**
+		 * How long the death watcher waits for the stdout pump to reach EOF before it gives up
+		 * and fails the pending requests anyway. The child's exit closes stdout, so the pump ends
+		 * on its own; this only bounds the pathological case where something else holds the fd.
+		 */
+		private const val PUMP_DRAIN_TIMEOUT_MILLIS = 2_000L
 	}
 }
