@@ -301,9 +301,7 @@ class QuickBuildPlugin : Plugin<Project> {
 				task.transformedManifestPath.set(
 					generate.flatMap { it.updatedManifest }.map { it.asFile.absolutePath },
 				)
-				task.payloadClassesPath.set(
-					divert.flatMap { it.payloadClasses }.map { it.asFile.absolutePath },
-				)
+				task.payloadClasses.set(divert.flatMap { it.payloadClasses })
 				// Provider, not a plain value: finalizeDsl (which computes the flag) runs
 				// during configuration, but reading here at task-config time could race it.
 				task.composeEnabled.set(project.provider { composeEnabled() })

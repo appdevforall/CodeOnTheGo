@@ -240,7 +240,7 @@ class QuickBuildManifestTransformerTest {
 	}
 
 	@Test
-	fun `the synthetic alias mirrors its target's exported value, never widening it`() {
+	fun `the synthetic alias mirrors its target's exported, permission and enabled, never widening them`() {
 		// The alias is the only manifest entry left under the real class name, so forcing it
 		// false rejects a launch the standard run allows: a pinned shortcut or share target the
 		// app published records the real name, and the launcher is a different uid. Mirroring is
@@ -490,6 +490,56 @@ class QuickBuildManifestTransformerTest {
 		// The injected (library) service is recorded like any other - uniform rule.
 		assertThat(result.components.single { it.type == ComponentType.SERVICE }.userClass)
 			.isEqualTo("com.itsaky.androidide.logsender.LogSenderService")
+	}
+
+	/**
+	 * A transformer whose dependency classpath holds [libraryClasses] as ordinary, non-final
+	 * library classes - the androidx.work shape, where the class is real, extendable, and not
+	 * the project's.
+	 */
+	private fun transformerSeeingLibrary(vararg libraryClasses: String): QuickBuildManifestTransformer {
+		val byName =
+			libraryClasses.associateWith { name ->
+				ClassWriter(0)
+					.apply {
+						visit(Opcodes.V11, Opcodes.ACC_PUBLIC, name.replace('.', '/'), null, "java/lang/Object", null)
+						visitEnd()
+					}.toByteArray()
+			}
+		return QuickBuildManifestTransformer(
+			proxyPackage,
+			factory,
+			proxiability = ComponentProxiabilityResolver { byName[it] },
+		)
+	}
+
+	@Test
+	fun `a dependency's own service is not recorded, so it cannot force a restart`() {
+		// androidx.work declares three non-final services. Their classes ship in the base APK
+		// dex and no payload redefines them, so a live instance cannot go stale - but recorded,
+		// each is a restart-sensitive component and the deploy policy restarts the process on
+		// every code-bearing deploy. Hot reload then never happens again, silently.
+		val transformer = transformerSeeingLibrary("androidx.work.impl.foreground.SystemForegroundService")
+
+		val result =
+			transformer.transform(
+				manifest(
+					launcherActivity +
+						"""
+						<service android:name="androidx.work.impl.foreground.SystemForegroundService" />
+						<service android:name="com.example.app.SyncService" />
+						""".trimIndent(),
+				).byteInputStream(),
+			)
+
+		assertThat(result.components.filter { it.type == ComponentType.SERVICE }.map { it.userClass })
+			.containsExactly("com.example.app.SyncService")
+		// The manifest entry itself stays: the app still declares the library's service.
+		assertThat(componentNames(result, "service"))
+			.containsExactly(
+				"androidx.work.impl.foreground.SystemForegroundService",
+				"com.example.app.SyncService",
+			)
 	}
 
 	@Test
