@@ -30,17 +30,6 @@ final class FirstFrameGate {
 	}
 
 	/**
-	 * The generation a crash right now should be blamed on.
-	 *
-	 * Deliberately unchanged by a resume: between the resume and the drawn frame this still names the generation that just took the screen, which is the whole point of the gate.
-	 *
-	 * @return the pending generation, or -1 when none is
-	 */
-	synchronized long pending() {
-		return pendingGeneration;
-	}
-
-	/**
 	 * Records that a frame carrying the live generation finished drawing, releasing its ack.
 	 *
 	 * @param liveGeneration
@@ -54,5 +43,16 @@ final class FirstFrameGate {
 		long acked = pendingGeneration;
 		pendingGeneration = -1;
 		return acked;
+	}
+
+	/**
+	 * The generation a crash right now should be blamed on.
+	 *
+	 * Deliberately unchanged by a resume: between the resume and the drawn frame this still names the generation that just took the screen, which is the whole point of the gate.
+	 *
+	 * @return the pending generation, or -1 when none is
+	 */
+	synchronized long pending() {
+		return pendingGeneration;
 	}
 }
