@@ -395,83 +395,6 @@ final class QuickBuildRuntime {
 		}
 	}
 
-	/**
-	 * Runs the completion once the resumed activity's first frame has finished drawing.
-	 *
-	 * The listener fires at the START of each draw pass, so the completion is posted rather than run inline: the posted message runs after the traversal that drew the frame returns, which is what makes measure, layout and draw failures land BEFORE the generation is vouched for rather than after. Posting is also what makes removing the listener legal, since a {@link ViewTreeObserver} rejects a removal made from inside its own dispatch.
-	 *
-	 * @param activity
-	 *            the resumed activity whose first frame gates the completion
-	 * @return true when a draw callback was installed, false when the activity has no live view tree and the caller must complete without one
-	 */
-	private boolean completeOnFirstFrame(final Activity activity) {
-		Window window = activity.getWindow();
-		final View decor = window == null ? null : window.peekDecorView();
-		if (decor == null) {
-			return false;
-		}
-		final ViewTreeObserver observer = decor.getViewTreeObserver();
-		if (observer == null || !observer.isAlive()) {
-			return false;
-		}
-		final ViewTreeObserver.OnDrawListener[] listener = new ViewTreeObserver.OnDrawListener[1];
-		final boolean[] scheduled = new boolean[1];
-		listener[0] = new ViewTreeObserver.OnDrawListener() {
-
-			@Override
-			public void onDraw() {
-				if (scheduled[0]) {
-					return;
-				}
-				scheduled[0] = true;
-				mainHandler.post(new Runnable() {
-
-					@Override
-					public void run() {
-						ViewTreeObserver live = decor.getViewTreeObserver();
-						if (live != null && live.isAlive()) {
-							live.removeOnDrawListener(listener[0]);
-						}
-						onFirstFrameDrawn(activity);
-					}
-				});
-			}
-		};
-		observer.addOnDrawListener(listener[0]);
-		return true;
-	}
-
-	/**
-	 * Completes a pending reload now that its generation has been drawn, and renders the overlay and return button.
-	 *
-	 * This is where reportReloaded fires for a foreground deploy, and the reported time is now true time-to-pixels rather than time-to-resume. A backgrounded deploy was already acked at apply time and left no pending generation, so it cannot double-report here.
-	 *
-	 * @param activity
-	 *            the activity that drew the frame, which hosts the overlay
-	 */
-	private void onFirstFrameDrawn(Activity activity) {
-		long acked = firstFrame.drawn(PayloadStore.INSTANCE.generation());
-		if (acked >= 0) {
-			long reloadMillis = SystemClock.uptimeMillis() - pendingReloadStartUptime;
-			client.reportReloaded(acked, reloadMillis);
-			// Success renders nothing; it only clears a shown error or in-flight
-			// banner, since a landed reload means the build finished even if the
-			// build_ok message is still in flight behind it.
-			if (overlayState.isError() || overlayState.isBuilding()) {
-				setOverlayState(OverlayState.hidden());
-			} else {
-				overlay.render(activity, overlayState);
-			}
-		} else {
-			overlay.render(activity, overlayState);
-		}
-		// Unconditional, because the point is that a drawn frame of this generation
-		// reached the screen - which is true whether it arrived by hot swap or by a
-		// fresh process booting it, and only the first of those leaves a pending
-		// generation behind.
-		markLiveGenerationGood();
-	}
-
 	/** Counts an activity into the set a restart deploy waits to empty before killing the process. */
 	void onActivityStarted() {
 		restartHandoff.onActivityStarted();
@@ -565,6 +488,52 @@ final class QuickBuildRuntime {
 					+ RESTART_HANDOFF_TIMEOUT_MILLIS
 					+ " ms; restarting anyway, so the screen and back stack may not come back");
 		}
+	}
+
+	/**
+	 * Runs the completion once the resumed activity's first frame has finished drawing.
+	 *
+	 * The listener fires at the START of each draw pass, so the completion is posted rather than run inline: the posted message runs after the traversal that drew the frame returns, which is what makes measure, layout and draw failures land BEFORE the generation is vouched for rather than after. Posting is also what makes removing the listener legal, since a {@link ViewTreeObserver} rejects a removal made from inside its own dispatch.
+	 *
+	 * @param activity
+	 *            the resumed activity whose first frame gates the completion
+	 * @return true when a draw callback was installed, false when the activity has no live view tree and the caller must complete without one
+	 */
+	private boolean completeOnFirstFrame(final Activity activity) {
+		Window window = activity.getWindow();
+		final View decor = window == null ? null : window.peekDecorView();
+		if (decor == null) {
+			return false;
+		}
+		final ViewTreeObserver observer = decor.getViewTreeObserver();
+		if (observer == null || !observer.isAlive()) {
+			return false;
+		}
+		final ViewTreeObserver.OnDrawListener[] listener = new ViewTreeObserver.OnDrawListener[1];
+		final boolean[] scheduled = new boolean[1];
+		listener[0] = new ViewTreeObserver.OnDrawListener() {
+
+			@Override
+			public void onDraw() {
+				if (scheduled[0]) {
+					return;
+				}
+				scheduled[0] = true;
+				mainHandler.post(new Runnable() {
+
+					@Override
+					public void run() {
+						ViewTreeObserver live = decor.getViewTreeObserver();
+						if (live != null && live.isAlive()) {
+							live.removeOnDrawListener(listener[0]);
+						}
+						onFirstFrameDrawn(activity);
+					}
+				});
+			}
+		};
+		observer.addOnDrawListener(listener[0]);
+		return true;
 	}
 
 	/**
@@ -730,6 +699,37 @@ final class QuickBuildRuntime {
 				}
 			}
 		}, "qb-mark-good").start();
+	}
+
+	/**
+	 * Completes a pending reload now that its generation has been drawn, and renders the overlay and return button.
+	 *
+	 * This is where reportReloaded fires for a foreground deploy, and the reported time is now true time-to-pixels rather than time-to-resume. A backgrounded deploy was already acked at apply time and left no pending generation, so it cannot double-report here.
+	 *
+	 * @param activity
+	 *            the activity that drew the frame, which hosts the overlay
+	 */
+	private void onFirstFrameDrawn(Activity activity) {
+		long acked = firstFrame.drawn(PayloadStore.INSTANCE.generation());
+		if (acked >= 0) {
+			long reloadMillis = SystemClock.uptimeMillis() - pendingReloadStartUptime;
+			client.reportReloaded(acked, reloadMillis);
+			// Success renders nothing; it only clears a shown error or in-flight
+			// banner, since a landed reload means the build finished even if the
+			// build_ok message is still in flight behind it.
+			if (overlayState.isError() || overlayState.isBuilding()) {
+				setOverlayState(OverlayState.hidden());
+			} else {
+				overlay.render(activity, overlayState);
+			}
+		} else {
+			overlay.render(activity, overlayState);
+		}
+		// Unconditional, because the point is that a drawn frame of this generation
+		// reached the screen - which is true whether it arrived by hot swap or by a
+		// fresh process booting it, and only the first of those leaves a pending
+		// generation behind.
+		markLiveGenerationGood();
 	}
 
 	/**
