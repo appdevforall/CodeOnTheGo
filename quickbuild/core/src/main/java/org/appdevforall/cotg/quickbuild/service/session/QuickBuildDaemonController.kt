@@ -40,7 +40,11 @@ internal class QuickBuildDaemonController(
 	 * once for its start - while a lone shutdown bumps once. Nothing here enforces it: the
 	 * session manager's transition paths carry the obligation, and a flow that bumps a
 	 * different number of times silently breaks the zombie-versus-successor distinction.
+	 *
+	 * Volatile because the daemon's death listener reads it from the process reaper thread
+	 * to tell a death this session caused from one it did not.
 	 */
+	@Volatile
 	private var daemonEpoch = 0L
 
 	/** Set only on the session dispatcher; a build in flight defers the teardown here. */
@@ -68,6 +72,9 @@ internal class QuickBuildDaemonController(
 
 	/**
 	 * The current epoch, captured at effect time and passed back into [respawn].
+	 *
+	 * Safe to call off the session dispatcher: the read is volatile, and the value is only
+	 * ever compared with a later read.
 	 *
 	 * @return an opaque counter, meaningful only when compared with a later read
 	 */
