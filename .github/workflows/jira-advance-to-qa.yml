@@ -22,10 +22,19 @@ jobs:
           BRANCH: ${{ github.event.pull_request.head.ref }}
           AUTH: ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}
         run: |
-          KEY=$(echo "$BRANCH" | grep -oE 'ADFA-[0-9]+' | head -1)
-          [ -n "$KEY" ] || { echo "No ADFA key in $BRANCH"; exit 0; }
+          [[ "$BRANCH" =~ ADFA-[0-9]+ ]] || { echo "No ADFA key in $BRANCH"; exit 0; }
+          KEY="${BASH_REMATCH[0]}"
           API="https://appdevforall.atlassian.net/rest/api/3/issue/$KEY/transitions"
-          ID=$(curl -sf -u "$AUTH" "$API" | jq -r '.transitions[] | select(.to.name == "QA") | .id')
-          [ -n "$ID" ] || { echo "$KEY offers no transition to QA"; exit 0; }
-          curl -sf -u "$AUTH" -X POST -H 'Content-Type: application/json' \
-            -d "{\"transition\":{\"id\":\"$ID\"}}" "$API" && echo "$KEY -> QA"
+
+          # QA is reachable only via these two named transitions, and Jira offers
+          # each from exactly one status (In Progress, then Code review). Asking
+          # for one from anywhere else simply finds nothing, so a ticket already
+          # in QA or beyond is left alone without having to read its status.
+          # Never name the backward transitions (Done/To Do/In Progress); those
+          # are global, so a blind name match could drag a finished ticket back.
+          for STEP in "To code review" "Passed code review"; do
+            ID=$(curl -sf -u "$AUTH" "$API" | jq -r --arg S "$STEP" '.transitions[] | select(.name == $S) | .id')
+            [ -n "$ID" ] || continue
+            curl -sf -u "$AUTH" -X POST -H 'Content-Type: application/json' \
+              -d "{\"transition\":{\"id\":\"$ID\"}}" "$API" && echo "$KEY: $STEP"
+          done
