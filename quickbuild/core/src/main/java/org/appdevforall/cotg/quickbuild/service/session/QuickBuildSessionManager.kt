@@ -2,6 +2,7 @@ package org.appdevforall.cotg.quickbuild.service.session
 
 import android.content.ComponentCallbacks2
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -182,8 +183,49 @@ class QuickBuildSessionManager(
 		): LiveReloadExecutor
 	}
 
-	private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+	/**
+	 * Last line for an effect launch whose callee broke a no-throw contract. Five of them -
+	 * the reload trigger, the user-initiated mark, the cancel, the baseline refresh and the
+	 * daemon respawn - call straight into the orchestrator or the daemon with no boundary of
+	 * their own, and without this the throw reaches the global handler and takes CoGo down
+	 * instead of leaving a session the user can restart.
+	 */
+	private val effectExceptionHandler =
+		CoroutineExceptionHandler { _, e ->
+			log.error("Quick Build session work failed unexpectedly", e)
+		}
+
+	private val scope = CoroutineScope(SupervisorJob() + dispatcher + effectExceptionHandler)
 	private val reducer = SessionReducer()
+
+	/** Who told the session a daemon had died. See [reportDaemonDeath]. */
+	private enum class DeathReporter {
+		/** The daemon's own process-exit watcher; fires exactly once per physical death. */
+		WATCHER,
+
+		/** The build in flight, which fails with `daemonDied`; at most one build runs at a time. */
+		BUILD,
+	}
+
+	/**
+	 * Who reported this daemon's death, or null once a daemon is back up.
+	 *
+	 * One physical death has two independent reporters that cannot see each other, and each
+	 * reports any given death at most once - so a second report from the OTHER reporter is
+	 * that same death, while a second report from the SAME one is a new death. Only touched on
+	 * the session dispatcher.
+	 */
+	private var lastDeathReporter: DeathReporter? = null
+
+	/**
+	 * The most recent Build Variants selection a sync reported, or null when none has.
+	 *
+	 * Kept because a selection applied during provisioning has no live session to compare
+	 * against, and the sync that applied it is the one that just ran - so without re-checking
+	 * when the session goes live, nothing would ever notice. Only touched on the session
+	 * dispatcher.
+	 */
+	private var lastSyncedVariant: String? = null
 
 	private val _state =
 		MutableStateFlow<QuickBuildSessionState>(QuickBuildSessionState.Idle())
@@ -373,7 +415,7 @@ class QuickBuildSessionManager(
 					log.info("Ignoring a daemon death this session's own transition caused")
 					return@launch
 				}
-				dispatch(SessionEvent.DaemonDied)
+				reportDaemonDeath(DeathReporter.WATCHER)
 			}
 		}
 		scope.launch {
@@ -524,6 +566,10 @@ class QuickBuildSessionManager(
 	 */
 	fun onProjectSynced(selectedVariant: String? = null) {
 		scope.launch {
+			// Kept whether or not there is a session to compare against: with none there is
+			// no provisioned variant yet, and [checkProvisionedVariant] does the comparison
+			// when the session goes live.
+			if (selectedVariant != null) lastSyncedVariant = selectedVariant
 			val provisioned = live?.provisionedVariant
 			if (provisioned != null && selectedVariant != null && provisioned != selectedVariant) {
 				log.info(
@@ -1029,16 +1075,19 @@ class QuickBuildSessionManager(
 					// The reload path is change-driven, not save-driven: any source of a
 					// file change triggers it, including Termux, plugins and git.
 					result.session.watcher.start(::onWatcherBatch)
+					// A daemon is up for this session, so the next death is a new one.
+					lastDeathReporter = null
 					dispatch(SessionEvent.ProvisioningSucceeded(result.baselineGeneration))
+					checkProvisionedVariant()
 				} catch (e: kotlinx.coroutines.CancellationException) {
 					throw e
 				} catch (e: Throwable) {
 					// The runner's error boundary ends at its outcome; this tail (retention
 					// IO, the persisted generation store, the FileObserver registration) is
-					// the manager's half of the same assembly, and a throw here would escape
-					// to a scope with no CoroutineExceptionHandler and crash CoGo with the
-					// daemon up and the uid session registered. [live] is already set, so the
-					// failure effect's teardown unwinds both.
+					// the manager's half of the same assembly. The scope's handler would only
+					// log it, leaving the daemon up and the uid session registered; caught here
+					// instead, and since [live] is already set the failure effect's teardown
+					// unwinds both.
 					log.error("Installing the provisioned quick-build session threw", e)
 					// Messageless throw: the class name lives in the log line above, not on
 					// the banner.
@@ -1074,7 +1123,11 @@ class QuickBuildSessionManager(
 			routing.newLastDeployedGeneration?.let { generation ->
 				session?.lastDeployedGeneration = generation
 			}
-			routing.sessionEvents.forEach { dispatch(it) }
+			routing.sessionEvents.forEach {
+				// The in-flight build is the second reporter of one physical death, so its
+				// DaemonDied goes through the same de-duplication as the death watcher's.
+				if (it is SessionEvent.DaemonDied) reportDaemonDeath(DeathReporter.BUILD) else dispatch(it)
+			}
 			routing.notifyBuildingAt?.let { generation ->
 				// With no live session there is nothing truthful to say, so skip
 				// silently like every other best-effort status push.
@@ -1415,6 +1468,8 @@ class QuickBuildSessionManager(
 		val session = live ?: return
 		when (val outcome = daemonController.respawn(session.layout, session.proxyApp, startEpoch)) {
 			is QuickBuildDaemonController.RespawnOutcome.Respawned -> {
+				// A daemon is back, so the next death is a new one to report.
+				lastDeathReporter = null
 				dispatch(SessionEvent.DaemonRespawned)
 				// A fresh daemon has no trustworthy incremental state. With nothing
 				// pending this re-warms via a deploy-nothing warm compile, leaving the
@@ -1466,10 +1521,18 @@ class QuickBuildSessionManager(
 		sessionWork = null
 		live?.watcher?.stop()
 		val scratchOwner = live?.layout?.projectRoot
+		// The orchestrator's build runs on this manager's process-lifetime scope, which
+		// [sessionWork] does not cover and nothing else cancels. Captured before [live] is
+		// cleared, so teardownWork can stop it.
+		val abandonedOrchestrator = live?.orchestrator
 		live = null
 		connections.endSession()
+		lastDeathReporter = null
 		teardownWork =
 			scope.launch {
+				// Before the shutdown, so no compile is left running against a daemon this
+				// teardown is stopping, writing into the scratch tree it is about to remove.
+				abandonedOrchestrator?.onCancelRequested()
 				daemonController.shutdown()
 				// Only after the daemon is down, since it writes into this tree until
 				// then. A teardown with no live session has nothing to remove, and the
@@ -1480,6 +1543,53 @@ class QuickBuildSessionManager(
 					?.takeIf { live?.layout?.projectRoot != it }
 					?.let(scratch::remove)
 			}
+	}
+
+	/**
+	 * Reprovisions when the session that just went live is for the wrong build variant.
+	 *
+	 * [onProjectSynced] can only compare against a live session, so a Build Variants selection
+	 * applied during the provisioning window - the Gradle build, the install prompt and the
+	 * daemon spawn - is dropped, and the sync that applied it is the one that just ran, so
+	 * nothing corrects it later. The session then hot-reloads into the old variant, which is
+	 * the "user edits one app and watches another" [onProjectSynced] exists to prevent.
+	 *
+	 * The selection is consumed here, so a provisioner that keeps producing the old variant
+	 * costs one extra reprovision per sync rather than looping.
+	 */
+	private suspend fun checkProvisionedVariant() {
+		val selected = lastSyncedVariant ?: return
+		val provisioned = live?.provisionedVariant ?: return
+		if (provisioned == selected) return
+		lastSyncedVariant = null
+		log.info(
+			"Session went live on variant {} but {} is selected; reprovisioning",
+			provisioned,
+			selected,
+		)
+		dispatch(SessionEvent.SessionRestartAndReprovisionRequested(userInitiated = false))
+	}
+
+	/**
+	 * Dispatches [SessionEvent.DaemonDied], unless the other reporter already reported it.
+	 *
+	 * A second report from the OTHER reporter is the same death seen twice, and dispatching it
+	 * lands a DaemonDied in Degraded, which sets `restartFailed` - so the respawn that then
+	 * succeeds is refused and the session sits behind "restart failed" with a live compiler
+	 * until some later save recovers it. A second report from the SAME reporter is a new death
+	 * (each reports a given death once), which is the respawned child dying during its own
+	 * start, and that one must go through.
+	 *
+	 * @param reporter which of the two saw it
+	 */
+	private suspend fun reportDaemonDeath(reporter: DeathReporter) {
+		val previous = lastDeathReporter
+		if (previous != null && previous != reporter) {
+			log.debug("Quick Build: {} re-reported a death {} already reported; ignored", reporter, previous)
+			return
+		}
+		lastDeathReporter = reporter
+		dispatch(SessionEvent.DaemonDied)
 	}
 
 	/**
