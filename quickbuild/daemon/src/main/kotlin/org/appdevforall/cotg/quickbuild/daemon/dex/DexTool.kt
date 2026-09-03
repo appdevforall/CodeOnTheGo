@@ -150,7 +150,12 @@ class DexTool(
 		val commandClass = loader.loadClass("com.android.tools.r8.D8Command")
 		val outputModeClass = loader.loadClass("com.android.tools.r8.OutputMode")
 		val handlerClass = loader.loadClass("com.android.tools.r8.DiagnosticsHandler")
-		val dexIndexed = outputModeClass.enumConstants.first { (it as Enum<*>).name == "DexIndexed" }
+		// firstOrNull, not first: a NoSuchElementException here is neither of dex()'s catch arms,
+		// so an r8 whose OutputMode lost the constant would surface as an internal error rather
+		// than the dex failure Result.Failed's KDoc promises for a layout mismatch.
+		val dexIndexed =
+			outputModeClass.enumConstants?.firstOrNull { (it as? Enum<*>)?.name == "DexIndexed" }
+				?: throw ReflectiveOperationException("OutputMode has no DexIndexed constant")
 
 		val handler = Proxy.newProxyInstance(loader, arrayOf(handlerClass), diagnostics)
 		val builder = commandClass.getMethod("builder", handlerClass).invoke(null, handler)

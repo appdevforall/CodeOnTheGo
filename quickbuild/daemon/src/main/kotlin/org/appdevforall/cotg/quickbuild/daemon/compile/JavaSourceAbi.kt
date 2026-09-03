@@ -71,7 +71,9 @@ object JavaSourceAbi {
 					result[file] = unit.toAbi()
 				}
 				// A file javac declined to hand back was not parsed; do not claim to know its ABI.
-				if (result.size != javaSources.size) null else result
+				// Compared against byPath, not the input list: both are keyed by absolute path, so a
+				// repeated path is one entry here and would otherwise read as a parse failure forever.
+				if (result.size != byPath.size) null else result
 			}
 		} catch (e: Exception) {
 			null

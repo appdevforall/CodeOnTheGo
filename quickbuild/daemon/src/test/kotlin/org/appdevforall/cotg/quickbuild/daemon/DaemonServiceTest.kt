@@ -306,4 +306,30 @@ class DaemonServiceTest {
 		assertThat(messages.single()).contains("aapt2")
 		assertThat(messages.single()).contains("not supplied")
 	}
+
+	@Test
+	fun `a directory classpath entry fails configure instead of going unfingerprinted`() {
+		// A directory contributes only path + File.length() to the classpath fingerprint, and
+		// length() on a directory is a filesystem constant - so an in-place class rewrite inside
+		// one leaves the staleness guard silent and ships stale dependents. Fail loudly instead.
+		val stdlib = TestSdk.kotlinStdlib()
+		val classesDir = File(tempDir, "library-classes").apply { mkdirs() }
+
+		val response =
+			service.configure(
+				ConfigureRequest(
+					id = 1,
+					projectRoot = tempDir.absolutePath,
+					classpath = listOf(classesDir.absolutePath),
+					outDir = File(tempDir, "out").absolutePath,
+					aapt2 = stdlib.absolutePath,
+					d8Jar = stdlib.absolutePath,
+					androidJar = stdlib.absolutePath,
+				),
+			)
+
+		assertThat(response.ok).isFalse()
+		assertThat(response.diagnostics.single().message).contains(classesDir.absolutePath)
+		assertThat(response.diagnostics.single().message).contains("not directories")
+	}
 }

@@ -87,6 +87,17 @@ class DaemonService(
 		if (missing.isNotEmpty()) {
 			return DaemonResponse.failure(request.id, "configure: missing files: ${missing.joinToString()}")
 		}
+		// A directory classpath entry is fingerprinted by path and length alone - length() on a
+		// directory is a filesystem constant - so an in-place class rewrite inside one would leave
+		// IncrementalCompiler's staleness guard silent and ship stale dependents. Rejecting it here
+		// makes that answer visible instead.
+		val nonJarEntries = request.classpath.filterNot { File(it).isFile }
+		if (nonJarEntries.isNotEmpty()) {
+			return DaemonResponse.failure(
+				request.id,
+				"configure: classpath entries must be files, not directories: ${nonJarEntries.joinToString()}",
+			)
+		}
 		val outDir = File(request.outDir)
 		Files.createDirectories(outDir.toPath())
 
@@ -306,7 +317,8 @@ class DaemonService(
 				request.resDirs.map(::File),
 				File(request.manifest),
 				workDir,
-				stableIds = request.stableIds?.let(::File),
+				// Blank-normalised like configure's tool paths: a blank is unsupplied, not File("").
+				stableIds = request.stableIds?.takeUnless { it.isBlank() }?.let(::File),
 				libraryResources = request.libraryResources.map(::File),
 			)
 		val durationMillis = System.currentTimeMillis() - startedAt
