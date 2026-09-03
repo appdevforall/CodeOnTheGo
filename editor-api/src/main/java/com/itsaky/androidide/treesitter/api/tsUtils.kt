@@ -152,22 +152,33 @@ if (!node.canAccess() || node.hasChanges()) {
 }
 
 exec(query, node)
+
+// Both ways out of this loop have to clean up the same way. The condition is re-checked at the
+// top as well as after the action, because the query, cursor and node are shared and can be
+// closed or edited by another thread at any point; whichever check trips, the caller's
+// onClosedOrEdited must run so it can discard whatever it had half-built, and the match it was
+// holding has to go back to the pool (ADFA-5414).
 var match = nextMatch()
-while (matchCondition(match) && whileTrue(match)) {
+while (match != null) {
+	if (!matchCondition(match)) {
+	logCannotProceed(query, node, debugName, debugLogging)
+	onClosedOrEdited()
+	(match as? TreeSitterQueryMatch?)?.recycle()
+	break
+	}
+
+	if (!whileTrue(match)) {
+	// The caller asked to stop; nothing is wrong, so no onClosedOrEdited.
+	(match as? TreeSitterQueryMatch?)?.recycle()
+	break
+	}
 
 	val result = action(match)
 
 	if (!matchCondition(match)) {
-	if (debugLogging) {
-		log.debug(
-		"$debugName: Cannot proceed with query operation.",
-		"cursor.canAccess=${canAccess()}",
-		"query.canAccess=${query.canAccess()}",
-		"node.canAccess=${node.canAccess()}",
-		"node.hasChanges=${node.canAccess() && node.hasErrors()}"
-		)
-	}
+	logCannotProceed(query, node, debugName, debugLogging)
 	onClosedOrEdited()
+	(match as? TreeSitterQueryMatch?)?.recycle()
 	break
 	}
 
@@ -187,4 +198,27 @@ if (recycleNodeAfterUse && node is TreeSitterNode && !node.isRecycled) {
 }
 
 return null
+}
+
+/**
+ * Diagnostic for the two places [doSafeExecQueryCursor] gives up on a traversal.
+ */
+@PublishedApi
+internal fun TSQueryCursor.logCannotProceed(
+	query: TSQuery,
+	node: TSNode,
+	debugName: String,
+	debugLogging: Boolean,
+) {
+	if (!debugLogging) {
+		return
+	}
+
+	log.debug(
+		"$debugName: Cannot proceed with query operation.",
+		"cursor.canAccess=${canAccess()}",
+		"query.canAccess=${query.canAccess()}",
+		"node.canAccess=${node.canAccess()}",
+		"node.hasChanges=${node.canAccess() && node.hasChanges()}",
+	)
 }
