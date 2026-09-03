@@ -10,9 +10,11 @@ import java.io.File
  * below the deployed generation can be answered by re-sending them at their original
  * generation (concurrency.md rules 3-4) instead of by a forced blind rebuild.
  *
- * Payloads are cumulative over their baseline, so the last-deployed set alone brings a
- * same-baseline app fully current. The bytes are copied because the executor's own artifacts
- * (the daemon's dex, the staged assets zip) are overwritten by the next build.
+ * What is kept is the LAST deploy's own parts, not a cumulative union: a re-send therefore
+ * brings a same-baseline app current only where that deploy's parts already covered it, and
+ * whether every consumer needs more than that is the reconnect re-send's question, not this
+ * store's. The bytes are copied because the executor's own artifacts (the daemon's dex, the
+ * staged assets zip) are overwritten by the next build.
  *
  * Everything here is best-effort by contract: a failed [retain] or an unreadable [load] only
  * costs the caller its fallback - the forced catch-up build - never a build result. Call only
