@@ -450,9 +450,9 @@ final class QuickBuildRuntime {
 		// states, which is exactly why the ack does not depend on it.
 		//
 		// Remaining tradeoffs: the metric is swap-time, not render-time, since no frame is
-		// coming to measure; a crash in the relaunch still goes unreported (gap #91's
-		// shape); and a background race after the resumed check falls back to the deploy
-		// timeout.
+		// coming to measure; a crash in the relaunch still goes unreported, because the
+		// crash guard only watches while a reload is pending (ADFA-5466); and a background
+		// race after the resumed check falls back to the deploy timeout.
 		client.reportReloaded(generation, SystemClock.uptimeMillis() - arrivedUptime);
 	}
 
