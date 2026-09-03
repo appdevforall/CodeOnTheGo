@@ -140,12 +140,19 @@ class JavaSourceAbiEdgeTest {
 	}
 
 	@Test
-	fun `a duplicated source entry yields null - the per-file map cannot attribute it`() {
-		// Conservative contract: when the snapshot cannot represent the input faithfully
-		// it must say "unknown" (forcing a full Kotlin recompile), never half an answer.
+	fun `a duplicated source entry still snapshots - a repeat is not an unparsed file`() {
+		// The completeness check exists for a file javac declined to hand back, which is a
+		// genuine unknown. A repeated path is not that one: the map is keyed by absolute path,
+		// so a repeat is one faithful entry. Compared against the raw input list instead, a
+		// single repeat leaves the snapshot permanently one short, so every later compile takes
+		// the unknown-ABI arm and recompiles the whole module with nothing saying why - the
+		// feature's headline claim quietly inverted.
 		val file = write("Dup.java", "package demo;\n\npublic class Dup {}")
 
-		assertThat(JavaSourceAbi.snapshot(listOf(file, file))).isNull()
+		val snapshot = JavaSourceAbi.snapshot(listOf(file, file))
+
+		assertThat(snapshot).isNotNull()
+		assertThat(snapshot!!.keys).containsExactly(file)
 	}
 
 	@Test
