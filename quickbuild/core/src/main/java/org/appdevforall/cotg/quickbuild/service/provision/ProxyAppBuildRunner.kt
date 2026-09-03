@@ -195,7 +195,7 @@ internal class ProxyAppBuildRunner(
 						}
 
 						is DaemonReply.Failed -> {
-							ProvisionResult.Failed(QuickBuildMessage.Literal(started.message))
+							ProvisionResult.Failed(QuickBuildMessage.DaemonStartFailed(started.message))
 						}
 					}
 				} catch (e: kotlinx.coroutines.CancellationException) {

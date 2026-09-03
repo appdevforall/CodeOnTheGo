@@ -109,6 +109,16 @@ sealed interface QuickBuildMessage {
 	data object DaemonRejectedConfiguration : QuickBuildMessage
 
 	/**
+	 * The compile daemon could not be started, so provisioning failed before any build ran.
+	 *
+	 * @property detail the daemon client's own reason (a spawn error, a protocol version
+	 *   mismatch, a missing reply), diagnostic rather than translatable
+	 */
+	data class DaemonStartFailed(
+		val detail: String,
+	) : QuickBuildMessage
+
+	/**
 	 * The compile daemon died and could not be restarted, so the session stays degraded until
 	 * the next tap or a session restart retries.
 	 *

@@ -157,7 +157,7 @@ class ProxyAppBuildRunnerEdgeTest {
 
 			val result = runner().provision(superseded = { false })
 
-			assertThat(result).isEqualTo(ProxyAppBuildRunner.ProvisionResult.Failed(QuickBuildMessage.Literal("jdk missing")))
+			assertThat(result).isEqualTo(ProxyAppBuildRunner.ProvisionResult.Failed(QuickBuildMessage.DaemonStartFailed("jdk missing")))
 		}
 
 	@Test
