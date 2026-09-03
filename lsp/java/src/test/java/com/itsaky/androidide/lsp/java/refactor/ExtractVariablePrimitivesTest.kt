@@ -74,14 +74,15 @@ class ExtractVariablePrimitivesTest {
 	@Test
 	fun `a braceless body is wrapped in braces around the declaration`() {
 		val text = "if (c)\n\tfoo(a + b);"
-		// The body span starts at the statement, not at its indentation -- javac's own span does the same,
-		// and starting a character earlier would carry the source indent into the emitted line.
+		// javac's body span starts at the statement, not at its indentation. The rewrite widens it back to
+		// the line start when the body owns its line, so the brace opens at the owner's indent and lines up
+		// with the `}` that closes it rather than sitting a level deeper (itsaky, BlockRewrite.kt:249).
 		val form =
 			AnchorForm.WrapInBraces(
 				BracelessBody(bodyStart = 8, bodyEnd = 19, indent = "", innerIndent = "\t"),
 			)
 		val rewrite = rewriteOf(text, candidate = TextSpan(12, 17), form = form)
-		assertThat(applied(text, rewrite)).isEqualTo("if (c)\n\t{\n\tint v = a + b;\n\tfoo(v);\n}")
+		assertThat(applied(text, rewrite)).isEqualTo("if (c)\n{\n\tint v = a + b;\n\tfoo(v);\n}")
 	}
 
 	@Test

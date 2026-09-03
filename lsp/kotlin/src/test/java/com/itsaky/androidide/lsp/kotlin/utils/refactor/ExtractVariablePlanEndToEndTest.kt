@@ -230,6 +230,34 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a rung outside a loop that writes what the expression reads is declined`() {
+		// itsaky, ExtractVariablePlanner.kt:143 -- this half had no loop check at all, so the hoist
+		// guards the Java planner gained this round never reached it. Hoisting `limit + 1` out of the
+		// `while` evaluates it once and feeds every iteration the same value.
+		val content =
+			"""
+			package p
+			fun wrap(n: Int): Int = n
+			fun demo() {
+				var limit = 0
+				while (limit < 10) {
+					wrap(limit + 1)
+					limit++
+				}
+			}
+			""".trimIndent()
+
+		val result = plan(content, content.indexOf("limit + 1") + 1)
+		val candidate = result.candidates.first { it.label == "limit + 1" }
+
+		// The loop's own block survives: a declaration placed there re-runs with every iteration.
+		assertFalse(
+			"the function rung hoists the declaration out of the loop",
+			candidate.scopes.any { it.label == "fun demo" },
+		)
+	}
+
+	@Test
 	fun `a candidate using the implicit lambda parameter cannot be hoisted out of the lambda`() {
 		val content =
 			"""

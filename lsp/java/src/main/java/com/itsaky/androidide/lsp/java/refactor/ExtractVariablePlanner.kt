@@ -8,6 +8,8 @@ import com.itsaky.androidide.lsp.refactor.anchorOf
 import com.itsaky.androidide.lsp.refactor.blockPlacementFor
 import com.itsaky.androidide.lsp.refactor.detectIndentUnit
 import com.itsaky.androidide.lsp.refactor.excludeUnsoundOccurrences
+import com.itsaky.androidide.lsp.refactor.hoistSkipsWrite
+import com.itsaky.androidide.lsp.refactor.hoistsOverLoopWrite
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.ExecutableElement
@@ -201,12 +203,12 @@ private fun scopeOptionFor(
 	// A loop outside this rung's subtree necessarily contains the rung, which is the case
 	// hoistsOverLoopWrite reads as sound anyway, so the scan is bounded to the rung.
 	val loops = if (writes.isEmpty()) emptyList() else loopSpansWithin(scopePath, root, positions) ?: return null
-	if (hoistSkipsWrite(span, frame, anchorForm, loops, writes)) return null
-
 	val block = (anchorForm as? AnchorForm.ExistingBlock)?.block
+	if (hoistSkipsWrite(span, frame.scopeSpan, block, loops, writes)) return null
+
 	val occurrences =
 		excludeUnsoundOccurrences(matches, span, writes)
-			.filterNot { it != span && hoistsOverLoopWrite(it, frame, loops, writes) }
+			.filterNot { it != span && hoistsOverLoopWrite(it, frame.scopeSpan, loops, writes) }
 			.dropWhile { it != span && leadingOccurrenceIsUnservable(fileText, block, it, writes) }
 
 	return ScopeOption(label = frame.label, anchorForm = anchorForm, occurrences = occurrences)
@@ -236,57 +238,6 @@ private fun leadingOccurrenceIsUnservable(
 	val anchor = anchorOf(block, occurrence) ?: return true
 	if (blockPlacementFor(fileText, block, occurrence) is BlockPlacement.Refused) return true
 	return writes.any { it in anchor.start until occurrence.start }
-}
-
-/**
- * Whether hoisting to this rung would carry the declaration over a write to something the expression
- * reads -- which compiles, and silently freezes the value, so declining the rung is the only signal
- * available. The inner rungs survive, so the user is never left with nothing.
- *
- * A write between the anchor statement and the candidate is simply skipped: extracting `limit + 1` from
- * `if (c) { limit = 5; foo(limit + 1); }` at the method rung anchors on the `if` and reads the
- * pre-assignment value.
- */
-private fun hoistSkipsWrite(
-	span: TextSpan,
-	frame: ScopeFrame,
-	anchorForm: AnchorForm,
-	loops: List<TextSpan>,
-	writes: List<Int>,
-): Boolean {
-	if (writes.isEmpty()) return false
-
-	if (anchorForm is AnchorForm.ExistingBlock) {
-		val anchor = anchorOf(anchorForm.block, span)
-		if (anchor != null && writes.any { it in anchor.start until span.start }) return true
-	}
-
-	return hoistsOverLoopWrite(span, frame, loops, writes)
-}
-
-/**
- * Whether [target] sits in a loop the rung does not, which a write inside that loop makes unsound:
- * `while (limit < 10) { foo(limit + 1); limit++; }` hoisted out of the loop evaluates once and feeds
- * every iteration the same value.
- *
- * Asked per served occurrence, not just about the candidate. An occurrence can sit in a loop the
- * candidate is not in at all -- `use(limit + 1); while (limit < 10) { use(limit + 1); limit++; }` -- and
- * folding that one freezes the loop.
- *
- * Loops are visited innermost-first, and the first one containing the rung ends the walk: from there
- * outwards the declaration re-runs with every iteration, so nothing is skipped.
- */
-private fun hoistsOverLoopWrite(
-	target: TextSpan,
-	frame: ScopeFrame,
-	loops: List<TextSpan>,
-	writes: List<Int>,
-): Boolean {
-	for (loop in loops.filter { it.start <= target.start && target.end <= it.end }.sortedBy { it.length }) {
-		if (loop.start <= frame.scopeSpan.start && frame.scopeSpan.end <= loop.end) return false
-		if (writes.any { it in loop.start until loop.end }) return true
-	}
-	return false
 }
 
 /** Null when javac has no positions for some loop here, leaving containment unanswerable either way. */

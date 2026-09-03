@@ -103,6 +103,60 @@ fun servableOccurrences(
 }
 
 /**
+ * Whether hoisting [span] to a rung would read a value the original never saw, because the hoist skips
+ * a write.
+ *
+ * A write between the anchor statement and the candidate is simply skipped: extracting `limit + 1` from
+ * `if (c) { limit = 5; foo(limit + 1); }` at the method rung anchors on the `if` and reads the
+ * pre-assignment value.
+ *
+ * [scopeSpan] is the rung's own extent and [loops] the loop spans inside it. Shared by both language
+ * planners: the test is pure span arithmetic, and keeping a copy per language is how the loop fixes
+ * reached one half and not the other.
+ */
+fun hoistSkipsWrite(
+	span: TextSpan,
+	scopeSpan: TextSpan,
+	block: BlockAnchor?,
+	loops: List<TextSpan>,
+	writes: List<Int>,
+): Boolean {
+	if (writes.isEmpty()) return false
+
+	if (block != null) {
+		val anchor = anchorOf(block, span)
+		if (anchor != null && writes.any { it in anchor.start until span.start }) return true
+	}
+
+	return hoistsOverLoopWrite(span, scopeSpan, loops, writes)
+}
+
+/**
+ * Whether [target] sits in a loop the rung does not, which a write inside that loop makes unsound:
+ * `while (limit < 10) { foo(limit + 1); limit++; }` hoisted out of the loop evaluates once and feeds
+ * every iteration the same value.
+ *
+ * Asked per served occurrence, not just about the candidate. An occurrence can sit in a loop the
+ * candidate is not in at all -- `use(limit + 1); while (limit < 10) { use(limit + 1); limit++; }` -- and
+ * folding that one freezes the loop.
+ *
+ * Loops are visited innermost-first, and the first one containing the rung ends the walk: from there
+ * outwards the declaration re-runs with every iteration, so nothing is skipped.
+ */
+fun hoistsOverLoopWrite(
+	target: TextSpan,
+	scopeSpan: TextSpan,
+	loops: List<TextSpan>,
+	writes: List<Int>,
+): Boolean {
+	for (loop in loops.filter { it.start <= target.start && target.end <= it.end }.sortedBy { it.length }) {
+		if (loop.start <= scopeSpan.start && scopeSpan.end <= loop.end) return false
+		if (writes.any { it in loop.start until loop.end }) return true
+	}
+	return false
+}
+
+/**
  * Restricts [occurrences] to a contiguous run no write to a referenced mutable interrupts, since
  * `foo(limit + 1); limit = 5; foo(limit + 1);` is the same expression holding two different values.
  *
@@ -211,7 +265,17 @@ private fun oneLineBlockRewrite(
 
 	// Widen over the whitespace on each side of the content so it does not survive the rewrite as a
 	// stray "{ " or " }". A block that does not own its braces (a lambda body) stops short of them.
-	val span = TextSpan(startOfWhitespaceBefore(fileText, content.start), endOfWhitespaceAfter(fileText, content.end))
+	val spanEnd = endOfWhitespaceAfter(fileText, content.end)
+	val span = TextSpan(startOfWhitespaceBefore(fileText, content.start), spanEnd)
+
+	// What follows the content is not always the owner's `}` at [indent]. A colon-form case group ends at
+	// its last statement, and the next token is the enclosing switch's brace, one level further out; using
+	// the case's own indent re-indents that brace so it no longer lines up with its `switch (`. The
+	// whitespace being consumed already carries the following token's indent, so reuse it, and fall back
+	// to [indent] when the content and the brace share a line and there is none to read.
+	val consumed = fileText.substring(content.end, spanEnd)
+	val lastNewline = consumed.lastIndexOf(newline)
+	val trailingIndent = if (lastNewline >= 0) consumed.substring(lastNewline + newline.length) else indent
 
 	// Anything already in front of the anchor stays in front of it: prepending the declaration to the
 	// whole block would hoist it above statements the expression depends on.
@@ -225,7 +289,7 @@ private fun oneLineBlockRewrite(
 			if (before.isNotEmpty()) append(innerIndent).append(before).append(newline)
 			append(innerIndent).append(declaration).append(newline)
 			append(innerIndent).append(body).append(newline)
-			append(indent)
+			append(trailingIndent)
 		}
 	return RewriteSpan(span = span, newText = newText)
 }
@@ -240,12 +304,21 @@ fun wrapInBracesRewrite(
 ): RewriteSpan {
 	// Occurrences in a braceless scope are confined to the statement itself (the frame's search range
 	// *is* this span), so no cross-span targets are possible; replaceOccurrences filters anyway.
-	val span = TextSpan(body.bodyStart, body.bodyEnd)
+	val bodySpan = TextSpan(body.bodyStart, body.bodyEnd)
 	val newline = detectNewline(fileText)
-	val statement = replaceOccurrences(fileText, span, targets, name)
+	val statement = replaceOccurrences(fileText, bodySpan, targets, name)
+
+	// The brace takes the owner's indent, not the body's. A body on its own line sits one level in, so
+	// emitting the brace where the body started leaves it deeper than the `}` that closes it; the span
+	// absorbs that leading whitespace instead. A body sharing the owner's line (`if (c) foo();`) has
+	// none to absorb and already opens in the right place.
+	val lineStart = fileText.lastIndexOf(newline.last(), body.bodyStart - 1) + 1
+	val ownsItsLine = lineStart < body.bodyStart && fileText.substring(lineStart, body.bodyStart).isBlank()
+	val span = TextSpan(if (ownsItsLine) lineStart else body.bodyStart, body.bodyEnd)
 
 	val newText =
 		buildString {
+			if (ownsItsLine) append(body.indent)
 			append('{').append(newline)
 			append(body.innerIndent).append(declaration).append(newline)
 			append(body.innerIndent).append(statement).append(newline)

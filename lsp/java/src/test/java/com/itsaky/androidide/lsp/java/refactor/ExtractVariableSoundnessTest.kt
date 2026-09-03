@@ -563,6 +563,20 @@ class ExtractVariableSoundnessTest {
 		assertWithMessage(out).that(compiles(out)).isTrue()
 	}
 
+	@Test
+	fun `expanding a one-line case keeps the enclosing switch brace aligned`() {
+		// itsaky, ScopeChain.kt:189 -- a case group's content span ends at its last statement, so the
+		// expansion emitted the trailing newline at the case's own indent and pushed the enclosing
+		// switch's `}` one level too deep, out of line with its `switch (`.
+		val f =
+			fixture(
+				"""	void m(int x, int a, int b) {${'\n'}		switch (x) {${'\n'}			case 1:${'\n'}				switch (a) {${'\n'}					case 2: use(a + b); break;${'\n'}				}${'\n'}				break;${'\n'}		}${'\n'}	}""",
+			)
+		val out = f.applyAfter("case 2: use(a +", "v", scope = SWITCH_CASE)
+		assertWithMessage(out).that(out).contains("use(v); break;" + "\n" + "\t\t\t\t}")
+		assertWithMessage(out).that(compiles(out)).isTrue()
+	}
+
 	// Registered rather than `use`d so each case still reads as a straight line; the fixture holds a
 	// JavaFileManager, so it has to be closed either way.
 	private fun fixture(body: String) =

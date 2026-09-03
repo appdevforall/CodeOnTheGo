@@ -233,7 +233,9 @@ class RefactorCoreTest {
 		val text = "if (c)\n\tfoo(a + b);"
 		val body = BracelessBody(bodyStart = 8, bodyEnd = 19, indent = "", innerIndent = "\t")
 		val rewrite = wrapInBracesRewrite(text, body, listOf(TextSpan(12, 17)), "int v = a + b;", "v")
-		assertThat(applied(text, rewrite)).isEqualTo("if (c)\n\t{\n\tint v = a + b;\n\tfoo(v);\n}")
+		// The brace opens at the owner's indent, lining up with the `}` that closes it, rather than at the
+		// body's own column a level deeper (itsaky, BlockRewrite.kt:249).
+		assertThat(applied(text, rewrite)).isEqualTo("if (c)\n{\n\tint v = a + b;\n\tfoo(v);\n}")
 	}
 
 	@Test
