@@ -1,6 +1,5 @@
 package com.itsaky.androidide.localWebServer
 
-import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import android.os.Environment.getExternalStorageDirectory
@@ -147,18 +146,6 @@ class WebServer(
 			// was written against that; gson would drop the key entirely by default.
 			.serializeNulls()
 			.create()
-
-	// -1 means "not fetched yet". Volatile because the WebView transport shares this server's
-	// process, and the interceptor's reads can run on WebView threads while the accept loop writes.
-	@Volatile
-	private var bookshelfTemplateId: Int = -1
-
-	private val cacheLock = Any()
-
-	// Which of the source's databases bookshelfTemplateId was filled from. The compiled templates
-	// themselves live in the source and are dropped by its own swap.
-	@Volatile
-	private var cachedDatabaseGeneration = 0L
 
 	// Long enough to stop a descriptor-exhaustion spin starving the connections whose closing would
 	// fix it; short enough to be invisible to a user, and never paid on a successful accept.
@@ -552,27 +539,6 @@ class WebServer(
 	}
 
 	/**
-	 * Invalidates the cached bookshelf template identifier when the documentation database changes.
-	 */
-	private fun discardCachesIfDatabaseChanged() {
-		// Apply any pending swap first. The source swaps inside lookup()/withDatabase(), so checking
-		// the generation before those runs reads the generation from before the swap: on the very
-		// request that swaps, this would leave bookshelfTemplateId pointing at the previous
-		// database's template row -- rendering the old bookshelf, or 500ing if that id is absent.
-		contentSource.refreshDatabase()
-
-		if (contentSource.generation == cachedDatabaseGeneration) return
-
-		synchronized(cacheLock) {
-			val generation = contentSource.generation
-			if (generation == cachedDatabaseGeneration) return
-
-			bookshelfTemplateId = -1
-			cachedDatabaseGeneration = generation
-		}
-	}
-
-	/**
 	 * Serves a parsed request using the appropriate diagnostic endpoint or documentation content.
 	 *
 	 * @param writer The writer for the HTTP response.
@@ -584,8 +550,6 @@ class WebServer(
 		output: java.io.OutputStream,
 		path: String,
 	) {
-		discardCachesIfDatabaseChanged()
-
 		// Handle the special "pr" endpoint with highest priority
 		if (path.startsWith("pr/", false)) {
 			if (debugEnabled) log.debug("Found a pr/ path, '{}'.", path)
@@ -877,24 +841,9 @@ class WebServer(
 		val jsonText =
 			contentSource.withDatabase { database ->
 				try {
-					val json = bookshelfJson(database)
-					if (debugEnabled) log.debug("json content = '{}'.", String(json, Charsets.UTF_8))
-					if (debugEnabled) log.debug("before fetch bookshelf template ID = '{}'", bookshelfTemplateId)
-
-					// Have we already fetched the template
-					if (bookshelfTemplateId == -1) {
-						database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf()).use { cursor ->
-							if (!isCursorOneRow(cursor, writer, output)) {
-								return@withDatabase null
-							}
-
-							cursor.moveToFirst()
-							bookshelfTemplateId = cursor.getInt(0)
-							if (debugEnabled) log.debug("after the fetch bookshelf template ID = '{}'", bookshelfTemplateId)
-						}
+					bookshelfJson(database).also {
+						if (debugEnabled) log.debug("json content = '{}'.", String(it, Charsets.UTF_8))
 					}
-
-					json
 				} catch (e: Exception) {
 					log.error("Error processing request: {}", e.message)
 					sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
@@ -902,7 +851,7 @@ class WebServer(
 				}
 			} ?: return false
 
-		val result = contentSource.renderTemplate(bookshelfTemplateId, jsonText, "/bookshelf")
+		val result = contentSource.renderNamedTemplate("bookshelf", jsonText, "/bookshelf")
 
 		if (debugEnabled) log.debug("Bookshelf result is '{}'.", String(result))
 
@@ -1068,22 +1017,6 @@ ORDER BY BC.category,
 				)
 			},
 		)
-	}
-
-	private fun isCursorOneRow(
-		cursor: Cursor,
-		writer: PrintWriter,
-		output: java.io.OutputStream,
-	): Boolean {
-		if (cursor.count == 1) {
-			return true
-		}
-		if (cursor.count == 0) {
-			sendError(writer, output, httpNotFound, "Corrupt database, no rows found, expected one.")
-		} else {
-			sendError(writer, output, httpInternalServerError, "Corrupt database - found ${cursor.count} rows when 1 was expected.")
-		}
-		return false
 	}
 
 	/**

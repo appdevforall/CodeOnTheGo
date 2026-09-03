@@ -173,8 +173,9 @@ class DocumentationContentSource(
 	private var activeDatabasePath: String? = null
 
 	/**
-	 * Bumped on every swap, so a caller can tell that anything it cached from this source --
-	 * a compiled template, a looked-up template id -- belongs to a database that is gone.
+	 * Bumped on every swap, so a caller can tell that anything it derived from this source belongs
+	 * to a database that is gone. Nothing outside caches per database now that templates resolve by
+	 * name and the caches for them live here; this stays as the observable that a swap happened.
 	 */
 	@Volatile
 	var generation: Long = 0
@@ -337,6 +338,23 @@ class DocumentationContentSource(
 	): ByteArray = withDatabase { database -> render(database, templateId, contextJson, path) }
 
 	/**
+	 * Renders the named template using the supplied JSON context.
+	 *
+	 * For a caller that knows a well-known template by name -- the bookshelf, say -- rather than
+	 * through a `Content` row's `templateId`.
+	 *
+	 * @param name The template's `Templates.name`.
+	 * @param contextJson The JSON object used as the template context.
+	 * @param path The path associated with the rendering request for diagnostics.
+	 * @return The rendered content encoded as UTF-8 bytes.
+	 */
+	fun renderNamedTemplate(
+		name: String,
+		contextJson: ByteArray,
+		path: String,
+	): ByteArray = withDatabase { renderNamed(name, contextJson, path) }
+
+	/**
 	 * Clears all cached templates, compiled and by name.
 	 */
 	fun clearTemplateCache() {
@@ -454,15 +472,33 @@ class DocumentationContentSource(
 				if (log.isDebugEnabled) log.debug("Template name cache miss for id {}, path '{}'.", templateId, path)
 				templateName(database, templateId, path)
 			}
-		val template = pebbleEngine.getTemplate(name)
 
+		return renderNamed(name, contextJson, path)
+	}
+
+	/**
+	 * Renders the named template using the provided JSON context.
+	 *
+	 * Callers hold the read lock, since the loader the engine resolves through reads the active
+	 * database -- for this template and for every one it references.
+	 *
+	 * @param name The template's `Templates.name`.
+	 * @param contextJson The JSON-encoded context supplied to the template.
+	 * @param path The content path associated with the rendering request.
+	 * @return The rendered template content encoded as UTF-8 bytes.
+	 */
+	private fun renderNamed(
+		name: String,
+		contextJson: ByteArray,
+		path: String,
+	): ByteArray {
 		val contextString = contextJson.toString(Charsets.UTF_8)
 		if (contextString.isBlank() || contextString.trim() == "null") {
-			throw IllegalStateException("Template ID $templateId has empty or null JSON context")
+			throw IllegalStateException("Template '$name' has empty or null JSON context, for path '$path'")
 		}
 		val context: Map<String, Any> = gson.fromJson(contextString, templateContextType)
 
-		return StringWriter().also { template.evaluate(it, context) }.toString().toByteArray()
+		return StringWriter().also { pebbleEngine.getTemplate(name).evaluate(it, context) }.toString().toByteArray()
 	}
 
 	/**

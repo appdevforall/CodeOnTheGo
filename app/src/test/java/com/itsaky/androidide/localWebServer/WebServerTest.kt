@@ -363,15 +363,9 @@ class WebServerTest {
 		// The bookshelf join matches nothing: a cursor whose moveToNext() is immediately false.
 		every { db.rawQuery(match { it.contains("FROM Content AS C") }, any()) } returns
 			mockk<Cursor>(relaxed = true) { every { moveToNext() } returns false }
-		// The bookshelf template: its id lookup, then its body -- a Pebble expression over the JSON
-		// context, so the assertion proves the empty-shelf payload actually reached the render.
+		// The bookshelf template's body, fetched by name (ADFA-5405) -- a Pebble expression over the
+		// JSON context, so the assertion proves the empty-shelf payload actually reached the render.
 		every { db.rawQuery(match { it.contains("FROM Templates WHERE name") }, any()) } returns
-			mockk<Cursor>(relaxed = true) {
-				every { count } returns 1
-				every { moveToFirst() } returns true
-				every { getInt(0) } returns 7
-			}
-		every { db.rawQuery(match { it.contains("FROM Templates WHERE id") }, any()) } returns
 			mockk<Cursor>(relaxed = true) {
 				every { count } returns 1
 				every { moveToFirst() } returns true

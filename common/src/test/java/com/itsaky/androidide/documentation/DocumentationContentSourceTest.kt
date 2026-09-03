@@ -335,6 +335,27 @@ class DocumentationContentSourceTest {
 	}
 
 	@Test
+	fun `a well-known template renders by name, with no Content row of its own`() {
+		val database = templatedDatabase("bookshelf" to "Books for {{ who }}")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val rendered = source().renderNamedTemplate("bookshelf", """{"who": "Kotlin"}""".toByteArray(), "/bookshelf")
+
+		assertThat(rendered.toString(Charsets.UTF_8)).isEqualTo("Books for Kotlin")
+	}
+
+	@Test
+	fun `a template context that carries nothing is rejected rather than rendered`() {
+		val database = templatedDatabase("bookshelf" to "Books for {{ who }}")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+		val source = source()
+
+		assertThrows(IllegalStateException::class.java) {
+			source.renderNamedTemplate("bookshelf", "null".toByteArray(), "/bookshelf")
+		}
+	}
+
+	@Test
 	fun `a template is compiled once and reused for the next page that needs it`() {
 		val database = templatedDatabase("page.peb" to "Hello {{ who }}!")
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
