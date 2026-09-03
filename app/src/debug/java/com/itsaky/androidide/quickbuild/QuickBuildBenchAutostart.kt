@@ -15,7 +15,18 @@ package com.itsaky.androidide.quickbuild
  * Debug-source-set only: a release APK ships no benchmark code at all.
  */
 object QuickBuildBenchAutostart {
+	/** Autostart the Quick Build lightning-bolt: the whole edit-to-running-app loop is in-app. */
 	const val MODE_QUICK_BUILD = "quickbuild"
+
+	/**
+	 * Autostart the standard Run button, and stop at the build result: the install dialog is
+	 * suppressed (see `ProjectHandlerActivity.onBuildStateChanged`) because an unattended run
+	 * cannot answer it.
+	 *
+	 * So this arm measures the BUILD only. Quick Build's arm measures build, deploy and reload,
+	 * so the two are not like for like from in-app numbers alone: whatever compares them has to
+	 * add the standard arm's install and launch from outside this process.
+	 */
 	const val MODE_STANDARD = "standard"
 
 	@Volatile

@@ -1144,7 +1144,7 @@
 	<string name="quick_build_status_ready">Quick Build: ready</string>
 	<string name="quick_build_status_failed">Quick Build: BUILD FAILED - see Build Output</string>
 	<string name="quick_build_status_deploy_failed">Quick Build: built, but could not be delivered - see Build Output</string>
-	<string name="quick_build_status_app_not_running">Quick Build: built. Your app is not running - tap Quick Build to start it with your changes.</string>
+	<string name="quick_build_status_app_not_running">Quick Build: built - tap again to start your app</string>
 	<string name="quick_build_status_needs_full_build">Quick Build: full build needed - tap Quick Build to rebuild</string>
 	<string name="quick_build_status_rebuild_failed">Quick Build: rebuild failed - save a fix to retry</string>
 	<string name="quick_build_status_start_failed">Quick Build: could not start - tap Quick Build to retry</string>

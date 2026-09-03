@@ -836,13 +836,25 @@ open class EditorHandlerActivity :
 		val registry = getInstance() as DefaultActionsRegistry
 		val popup = PopupMenu(this, anchor)
 		popup.menuInflater.inflate(R.menu.menu_quick_build, popup.menu)
+		val quickBuild = registry.findAction(EDITOR_TOOLBAR, QuickBuildAction.ID)
+		// The entry presents the SAME state as the button it hangs off: the toolbar's own
+		// prepare() already decided whether a Quick Build can start and what the button does,
+		// and a menu row that ignored it would offer "Quick Build" while the button is a stop
+		// button - a tap there cancels the build the user is waiting on. A missing action means
+		// the toolbar has none either, so the row goes with it.
+		popup.menu.findItem(R.id.action_quick_build)?.apply {
+			isVisible = quickBuild != null
+			if (quickBuild != null) {
+				title = quickBuild.label
+				isEnabled = quickBuild.enabled
+			}
+		}
 		popup.setOnMenuItemClickListener { item ->
 			when (item.itemId) {
 				R.id.action_quick_build -> {
 					// Through the registry, same as Standard Run below, so the menu entry
 					// and the toolbar tap share one code path (incl. the analytics event).
-					val quickBuild = registry.findAction(EDITOR_TOOLBAR, QuickBuildAction.ID)
-					if (quickBuild != null) registry.executeAction(quickBuild, data)
+					if (quickBuild != null && quickBuild.enabled) registry.executeAction(quickBuild, data)
 					true
 				}
 
@@ -1427,8 +1439,11 @@ open class EditorHandlerActivity :
 				if (result.gradleSaved) {
 					withContext(Dispatchers.Main.immediate) { editorViewModel.isSyncNeeded = true }
 				}
-				if (result.xmlSaved) {
-					ProjectManagerImpl.getInstance().generateSources()
+				// Same gate as the UI save paths: only a resource save can change R, and it goes
+				// through the deferral so a live Quick Build session coalesces it instead of
+				// racing the build (see GenerateSourcesDeferral).
+				if (result.resourceXmlSaved) {
+					GenerateSourcesDeferral.notifyResourceSaved()
 				}
 			}
 			return outcome.get().reachedDisk

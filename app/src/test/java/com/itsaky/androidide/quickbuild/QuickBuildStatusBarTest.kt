@@ -195,6 +195,15 @@ class QuickBuildStatusBarTest {
 	}
 
 	@Test
+	fun `a landed build is not re-announced when the bar re-subscribes`() {
+		// The status is a StateFlow: every re-collect replays the landed build, and the editor
+		// re-collects on every return to it (switch to the proxy app, switch back). Announcing
+		// from a first emission puts "reloaded in 2.0s" back over whatever the bar shows now,
+		// minutes after the build.
+		assertThat(update(null, QuickBuildStatus.UpToDate(5L, buildDurationMillis = 1970L))).isNull()
+	}
+
+	@Test
 	fun `a cancelled build does not leave compiling stuck`() {
 		val shown = update(QuickBuildStatus.Building(4L), QuickBuildStatus.UpToDate(4L, null))
 		assertThat(shown)

@@ -129,6 +129,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.CONTENT_KEY
@@ -137,8 +138,6 @@ import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildSessionState
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.service.provision.QuickBuildClobberCheck
 import org.appdevforall.cotg.quickbuild.service.session.QuickBuildSessionManager
-import org.greenrobot.eventbus.Subscribe
-import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.koin.android.ext.android.inject
 import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
@@ -150,6 +149,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 import java.util.stream.Collectors
+import kotlin.coroutines.resume
 
 /** @author Akash Yadav */
 @Suppress("MemberVisibilityCanBePrivate")
@@ -556,8 +556,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			// installationAttempted() has already reset the build state, so an activity destroyed
 			// (rotation) during the IO parse below cancels this coroutine and would silently drop
 			// the whole install - a successful build with no install and no message. Until the
-			// install (or its confirm dialog) is actually dispatched, the drop path re-arms
-			// AwaitingInstall in the surviving ViewModel so the recreated activity retries.
+			// user has actually decided, the drop path re-arms AwaitingInstall in the surviving
+			// ViewModel so the recreated activity retries.
 			var dispatched = false
 			try {
 				// Reading the APK's manifest is disk work, and on emulated storage that is not free.
@@ -565,38 +565,55 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				if (isDestroyed || isFinishing) {
 					return@launch
 				}
-				dispatched = true
-				// Consumed only once this dispatch is certain: the read nulls the answer out, so
-				// consuming before the drop paths above would leave the retry with nothing and
-				// re-ask a question the tap already answered. Nothing suspends past here.
+				// Consumed only once a dispatch is certain enough: the read nulls the answer out,
+				// so consuming before the drop paths above would leave the retry with nothing and
+				// re-ask a question the tap already answered.
 				val answerAtTap = buildViewModel.consumeClobberAnswerAtTap()
 				val now =
 					quickBuildClobberConfirmation(apkApplicationId, clobberCheck::standardRunNeedsConfirm)
-				val onProceed = {
+				// The dialog is AWAITED, so this coroutine is still alive while it is up and an
+				// activity destroyed under it cancels us into the re-arm below. Setting
+				// `dispatched` before showing it instead - or moving it into the dialog callbacks,
+				// which run long after this body returns - loses the install on process death and
+				// re-arms mid-dialog respectively, and a re-arm mid-dialog loops: the re-armed
+				// AwaitingInstall shows a second dialog behind the first.
+				val confirmed =
+					when (val decision = installTimeClobberConfirmation(answerAtTap, now)) {
+						QuickBuildClobberConfirmation.NotNeeded -> {
+							true
+						}
+
+						QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
+							awaitBuildTypeSwitchConfirmation(
+								getString(string.quick_build_switch_unknown_app_title),
+								getString(string.quick_build_switch_unknown_app_message),
+							)
+						}
+
+						is QuickBuildClobberConfirmation.Needed -> {
+							awaitBuildTypeSwitchConfirmation(
+								getString(string.quick_build_switch_to_standard_title),
+								getString(string.quick_build_switch_to_standard_message, decision.applicationId),
+							)
+						}
+					}
+				if (isDestroyed || isFinishing) {
+					return@launch
+				}
+				// A decision was reached, so nothing re-arms: a decline is the user's answer, not a
+				// dropped install.
+				dispatched = true
+				if (confirmed) {
 					// The Quick Build session's installed baseline is about to be replaced; stop it.
 					// Keyed off the re-check rather than off whether a dialog was shown: a tap that
-					// already confirmed this exact clobber skips the dialog but still clobbers.
-					if (now != QuickBuildClobberConfirmation.NotNeeded) {
+					// already confirmed this exact clobber skips the dialog but still clobbers. Only
+					// `Needed` evidences an occupant - `NeededForUnknownAppId` means the APK's own
+					// package did not parse, and tearing a healthy session down on that is a
+					// transient read costing the user their warm session.
+					if (now is QuickBuildClobberConfirmation.Needed) {
 						quickBuildSessionManager()?.restartSession()
 					}
 					doInstallApk(state)
-				}
-				when (val decision = installTimeClobberConfirmation(answerAtTap, now)) {
-					QuickBuildClobberConfirmation.NotNeeded -> {
-						onProceed()
-					}
-
-					QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
-						confirmUnknownOccupantSwitch(onProceed)
-					}
-
-					is QuickBuildClobberConfirmation.Needed -> {
-						confirmBuildTypeSwitch(
-							getString(string.quick_build_switch_to_standard_title),
-							getString(string.quick_build_switch_to_standard_message, decision.applicationId),
-							onProceed,
-						)
-					}
 				}
 			} finally {
 				if (!dispatched) {
@@ -770,6 +787,18 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			onConfirmed()
 			return
 		}
+		// The check reads the PackageManager, which is IO and suspends. Callers of this gate
+		// are ordinary click handlers, so the coroutine is owned here rather than pushed onto
+		// them; Main.immediate keeps the common case (nothing to confirm) in the same frame.
+		lifecycleScope.launch(Dispatchers.Main.immediate) {
+			ensureQuickBuildClobberConfirmedNow(clobberCheck, onConfirmed)
+		}
+	}
+
+	private suspend fun ensureQuickBuildClobberConfirmedNow(
+		clobberCheck: QuickBuildClobberCheck,
+		onConfirmed: () -> Unit,
+	) {
 		when (
 			val decision =
 				quickBuildClobberConfirmation(
@@ -820,6 +849,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			onConfirmed(QuickBuildClobberConfirmation.NotNeeded)
 			return
 		}
+		lifecycleScope.launch(Dispatchers.Main.immediate) {
+			ensureStandardRunClobberConfirmedNow(clobberCheck, applicationId, onConfirmed)
+		}
+	}
+
+	private suspend fun ensureStandardRunClobberConfirmedNow(
+		clobberCheck: QuickBuildClobberCheck,
+		applicationId: String?,
+		onConfirmed: (QuickBuildClobberConfirmation) -> Unit,
+	) {
 		when (
 			val decision =
 				quickBuildClobberConfirmation(applicationId, clobberCheck::standardRunNeedsConfirm)
@@ -879,20 +918,65 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		message: String,
 		onConfirm: () -> Unit,
 	) {
+		showBuildTypeSwitchDialog(title, message) { confirmed -> if (confirmed) onConfirm() }
+	}
+
+	/**
+	 * [confirmBuildTypeSwitch] as a suspending call, for a caller that must stay alive while the
+	 * dialog is up.
+	 *
+	 * The callback form returns immediately, so a caller's own cleanup runs before the user has
+	 * answered; awaiting instead means a destroyed activity cancels the caller at the dialog
+	 * rather than after it.
+	 *
+	 * @return whether the user confirmed. A dismissal - back, outside touch, or the activity
+	 *   taking the window down - reads as a decline, and a cancelled await leaves it to the
+	 *   caller's cancellation path.
+	 */
+	private suspend fun awaitBuildTypeSwitchConfirmation(
+		title: String,
+		message: String,
+	): Boolean =
+		suspendCancellableCoroutine { continuation ->
+			val dialog =
+				showBuildTypeSwitchDialog(title, message) { confirmed ->
+					if (continuation.isActive) continuation.resume(confirmed)
+				}
+			continuation.invokeOnCancellation {
+				// The window may already be gone with the activity; dismissing a dialog whose
+				// window is not attached throws rather than no-ops.
+				runCatching { dialog.dismiss() }
+			}
+		}
+
+	/**
+	 * Shows the dialog and reports the answer exactly once - true on confirm, false on any
+	 * dismissal.
+	 */
+	private fun showBuildTypeSwitchDialog(
+		title: String,
+		message: String,
+		onAnswer: (Boolean) -> Unit,
+	): AlertDialog {
+		var confirmed = false
 		val dialog =
 			newMaterialDialogBuilder(this)
 				.setTitle(title)
 				.setMessage(message)
 				.setPositiveButton(string.quick_build_switch_confirm) { d, _ ->
+					confirmed = true
 					d.dismiss()
-					onConfirm()
 				}.setNegativeButton(android.R.string.cancel) { d, _ -> d.dismiss() }
+				// One place the answer is reported from, so the confirm and the three decline
+				// routes (button, back, outside touch) cannot drift apart.
+				.setOnDismissListener { onAnswer(confirmed) }
 				.show()
 		// Destructive styling: the confirm action replaces an installed app, so it must
 		// not read as the default affirmative.
 		dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(
 			resolveAttr(com.itsaky.androidide.resources.R.attr.colorError),
 		)
+		return dialog
 	}
 
 	/**

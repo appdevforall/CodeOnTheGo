@@ -31,9 +31,9 @@ sealed interface QuickBuildClobberConfirmation {
  * @param realApplicationId the project's own applicationId, or null when it did not resolve
  * @param needsConfirm asks whether the installed app is the other build type
  */
-internal fun quickBuildClobberConfirmation(
+internal suspend fun quickBuildClobberConfirmation(
 	realApplicationId: String?,
-	needsConfirm: (String) -> Boolean,
+	needsConfirm: suspend (String) -> Boolean,
 ): QuickBuildClobberConfirmation =
 	when {
 		realApplicationId == null -> QuickBuildClobberConfirmation.NeededForUnknownAppId

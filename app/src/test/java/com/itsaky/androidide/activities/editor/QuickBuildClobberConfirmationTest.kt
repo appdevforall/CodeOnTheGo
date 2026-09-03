@@ -1,6 +1,7 @@
 package com.itsaky.androidide.activities.editor
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 
 /**
@@ -14,8 +15,10 @@ class QuickBuildClobberConfirmationTest {
 	@Test
 	fun `an unresolvable application id confirms rather than replacing the installed app silently`() {
 		val decision =
-			quickBuildClobberConfirmation(realApplicationId = null) {
-				error("the check cannot run without an application id")
+			runBlocking {
+				quickBuildClobberConfirmation(realApplicationId = null) {
+					error("the check cannot run without an application id")
+				}
 			}
 
 		assertThat(decision).isEqualTo(QuickBuildClobberConfirmation.NeededForUnknownAppId)
@@ -23,7 +26,7 @@ class QuickBuildClobberConfirmationTest {
 
 	@Test
 	fun `an occupied slot confirms and carries the id the dialog names`() {
-		val decision = quickBuildClobberConfirmation("com.example.app") { true }
+		val decision = runBlocking { quickBuildClobberConfirmation("com.example.app") { true } }
 
 		assertThat(decision).isEqualTo(QuickBuildClobberConfirmation.Needed("com.example.app"))
 	}
@@ -33,9 +36,11 @@ class QuickBuildClobberConfirmationTest {
 		var asked: String? = null
 
 		val decision =
-			quickBuildClobberConfirmation("com.example.app") {
-				asked = it
-				false
+			runBlocking {
+				quickBuildClobberConfirmation("com.example.app") {
+					asked = it
+					false
+				}
 			}
 
 		assertThat(decision).isEqualTo(QuickBuildClobberConfirmation.NotNeeded)
