@@ -386,6 +386,33 @@ class WebServerTest {
 		}
 	}
 
+	// ADFA-5405: a template the endpoint cannot resolve -- the bookshelf row, or anything it
+	// references -- is named by the loader's throw, and handleBsEndpoint has to pass that name on
+	// rather than replace it with its generic text. The name is the whole diagnostic.
+	@Test
+	fun `a bookshelf template that is not in the database answers 500 naming it`() {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		every { db.rawQuery(match { it.contains("FROM Content AS C") }, any()) } returns
+			mockk<Cursor>(relaxed = true) { every { moveToNext() } returns false }
+		// No bookshelf row: a relaxed cursor's moveToFirst() is already false.
+		every { db.rawQuery(match { it.contains("FROM Templates WHERE name") }, any()) } returns mockk<Cursor>(relaxed = true)
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			val response = sendRawGetRequest(port, "/pr/bs")
+			assertTrue("Expected a 500 status line, got:\n$response", response.startsWith("HTTP/1.1 500"))
+			assertTrue("Expected the missing template to be named, got:\n$response", response.contains("bookshelf"))
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
 	// ADFA-5241: the two transports have to answer the same way about what a response says, and
 	// only a real response proves what this one sends. The decision itself lives in
 	// ContentTypeHeaders, shared with DocumentationRequestInterceptor.

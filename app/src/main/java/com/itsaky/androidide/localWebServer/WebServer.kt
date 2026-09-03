@@ -768,7 +768,17 @@ class WebServer(
 			outputStarted = realHandleBsEndpoint(writer, output) { outputStarted = true }
 		} catch (e: Exception) {
 			log.error("Error handling /pr/bs endpoint: {}", e.message)
-			sendError(writer, output, httpInternalServerError, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
+			// The message, not just the generic text: a template this endpoint cannot resolve -- the
+			// bookshelf row itself, or anything it references -- is named by the loader's throw, and
+			// that name is the whole diagnostic (ADFA-5405).
+			sendError(
+				writer,
+				output,
+				httpInternalServerError,
+				"Internal Server Error 6",
+				e.message ?: "Error generating bookshelf HTML.",
+				outputStarted,
+			)
 		}
 
 		if (debugEnabled) log.debug("Leaving handleBsEndpoint().")
