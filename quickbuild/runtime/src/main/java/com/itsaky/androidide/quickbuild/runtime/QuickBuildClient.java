@@ -164,40 +164,6 @@ final class QuickBuildClient implements ServiceConnection {
 	}
 
 	/**
-	 * Runs the connect handshake and settles the backoff, off the main thread.
-	 *
-	 * The backoff reset happens only after a successful connect: resetting on mere service connection would make a rejecting host retry at the minimum delay forever.
-	 *
-	 * Safe off-thread: {@code host} and {@code appContext} are volatile, the backoff fields are taken under this object's monitor, and both unbind and rebind are callable from anywhere - the rebind itself posts to the main thread before touching bindService.
-	 *
-	 * @param connected
-	 *            the host proxy this handshake registers against
-	 */
-	private void connectToHost(IQuickBuildHost connected) {
-		try {
-			Context context = appContext;
-			String packageName = context == null ? "" : context.getPackageName();
-			connected.connect(target, packageName, runtime.runningGeneration());
-			synchronized (this) {
-				rebindDelayMs = REBIND_MIN_DELAY_MS;
-			}
-			RuntimeLog.i("connected to CoGo (running gen " + runtime.runningGeneration() + ")");
-		} catch (RemoteException error) {
-			RuntimeLog.e("connect() to CoGo failed", error);
-			host = null;
-			unbindQuietly();
-			scheduleRebind();
-		} catch (RuntimeException error) {
-			// SecurityException (and any other binder-propagatable runtime exception) from
-			// the host: expected when CoGo has no live session. Continue standalone.
-			RuntimeLog.w("CoGo rejected connect(); continuing standalone", error);
-			host = null;
-			unbindQuietly();
-			scheduleRebind();
-		}
-	}
-
-	/**
 	 * Forgets the host and waits, because the framework reconnects this binding itself.
 	 *
 	 * @param name
@@ -293,6 +259,40 @@ final class QuickBuildClient implements ServiceConnection {
 		} catch (Throwable error) {
 			RuntimeLog.e("bindService failed", error);
 			return false;
+		}
+	}
+
+	/**
+	 * Runs the connect handshake and settles the backoff, off the main thread.
+	 *
+	 * The backoff reset happens only after a successful connect: resetting on mere service connection would make a rejecting host retry at the minimum delay forever.
+	 *
+	 * Safe off-thread: {@code host} and {@code appContext} are volatile, the backoff fields are taken under this object's monitor, and both unbind and rebind are callable from anywhere - the rebind itself posts to the main thread before touching bindService.
+	 *
+	 * @param connected
+	 *            the host proxy this handshake registers against
+	 */
+	private void connectToHost(IQuickBuildHost connected) {
+		try {
+			Context context = appContext;
+			String packageName = context == null ? "" : context.getPackageName();
+			connected.connect(target, packageName, runtime.runningGeneration());
+			synchronized (this) {
+				rebindDelayMs = REBIND_MIN_DELAY_MS;
+			}
+			RuntimeLog.i("connected to CoGo (running gen " + runtime.runningGeneration() + ")");
+		} catch (RemoteException error) {
+			RuntimeLog.e("connect() to CoGo failed", error);
+			host = null;
+			unbindQuietly();
+			scheduleRebind();
+		} catch (RuntimeException error) {
+			// SecurityException (and any other binder-propagatable runtime exception) from
+			// the host: expected when CoGo has no live session. Continue standalone.
+			RuntimeLog.w("CoGo rejected connect(); continuing standalone", error);
+			host = null;
+			unbindQuietly();
+			scheduleRebind();
 		}
 	}
 
