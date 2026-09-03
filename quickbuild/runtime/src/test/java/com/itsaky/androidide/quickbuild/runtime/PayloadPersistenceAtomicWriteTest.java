@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,22 @@ import org.junit.jupiter.api.io.TempDir;
 class PayloadPersistenceAtomicWriteTest {
 
 	private static final String FP = "fp";
+
+	/** A payload stream that yields a few bytes and then fails, like a read off a dying fd. */
+	private static InputStream failingStream() {
+		return new InputStream() {
+
+			private int served;
+
+			@Override
+			public int read() throws IOException {
+				if (served++ < 8) {
+					return 0x41;
+				}
+				throw new IOException("payload stream died mid-copy");
+			}
+		};
+	}
 
 	@TempDir
 	Path tempDir;
@@ -35,6 +52,24 @@ class PayloadPersistenceAtomicWriteTest {
 				() -> store.persist(1, FP, new byte[]{1}, null, null));
 
 		assertThat(error).hasMessageThat().contains("cannot rename");
+	}
+
+	/**
+	 * A stream payload that dies mid-copy leaves no {@code .tmp} behind in the store dir.
+	 *
+	 * Goes red without the fix: writeAtomic deleted its temp only from the rename fallback, so a throw out of the copy - an oversize payload, a full disk - left the partial temp in the store directory, which nothing sweeps.
+	 */
+	@Test
+	void aStreamThatFailsMidCopyLeavesNoTempFile() throws IOException {
+		File dir = tempDir.resolve("store").toFile();
+		PayloadPersistence store = new PayloadPersistence(dir);
+
+		assertThrows(IOException.class,
+				() -> store.persist(1, FP, new byte[]{1}, failingStream(), null));
+
+		String[] leftovers = dir.list((unusedDir, name) -> name.endsWith(".tmp"));
+		assertThat(leftovers).isNotNull();
+		assertThat(leftovers).isEmpty();
 	}
 
 	@Test
