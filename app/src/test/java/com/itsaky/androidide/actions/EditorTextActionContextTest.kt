@@ -11,6 +11,7 @@ import com.itsaky.androidide.actions.editor.SelectAllAction
 import com.itsaky.androidide.actions.file.FormatCodeAction
 import com.itsaky.androidide.actions.file.ShowTooltipAction
 import org.junit.Test
+import java.lang.reflect.Field
 
 /**
  * `ActionsRegistry` is a process-lifetime singleton and EDITOR_TEXT_ACTIONS is deliberately never
@@ -40,11 +41,41 @@ class EditorTextActionContextTest {
 		val offenders =
 			editorTextActions
 				.flatMap { action ->
-					action.declaredFields
+					action
+						.fieldsIncludingInherited()
 						.filter { Context::class.java.isAssignableFrom(it.type) }
-						.map { "${action.simpleName}.${it.name}" }
+						.map { "${action.simpleName} (from ${it.declaringClass.simpleName}).${it.name}" }
 				}
 
 		assertThat(offenders).isEmpty()
 	}
+
+	@Test
+	fun givenAContextFieldOnASuperclass_whenInspected_thenItIsStillFound() {
+		// Pins the reason this walks the hierarchy: with declaredFields alone this finds nothing, so
+		// an action inheriting a Context would have passed the test above.
+		val found =
+			ActionInheritingAContext::class.java
+				.fieldsIncludingInherited()
+				.filter { Context::class.java.isAssignableFrom(it.type) }
+
+		assertThat(found).isNotEmpty()
+	}
+
+	private open class BaseHoldingAContext {
+		@Suppress("unused")
+		private val context: Context? = null
+	}
+
+	private class ActionInheritingAContext : BaseHoldingAContext()
+
+	/**
+	 * Declared fields of this class and of every superclass. [Class.getDeclaredFields] stops at the
+	 * class itself, so a Context held by a shared base class - the more likely place for one to hide
+	 * than in each action - would pass unnoticed.
+	 */
+	private fun Class<*>.fieldsIncludingInherited(): List<Field> =
+		generateSequence(this) { it.superclass }
+			.flatMap { it.declaredFields.asSequence() }
+			.toList()
 }
