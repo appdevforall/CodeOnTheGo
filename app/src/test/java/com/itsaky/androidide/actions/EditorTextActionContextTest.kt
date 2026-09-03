@@ -10,6 +10,7 @@ import com.itsaky.androidide.actions.editor.PasteAction
 import com.itsaky.androidide.actions.editor.SelectAllAction
 import com.itsaky.androidide.actions.file.FormatCodeAction
 import com.itsaky.androidide.actions.file.ShowTooltipAction
+import com.itsaky.androidide.actions.locations.CodeActionsMenu
 import org.junit.Test
 import java.lang.reflect.Field
 
@@ -19,9 +20,13 @@ import java.lang.reflect.Field
  * bucket that stores its `Context` therefore keeps one editor activity alive for the whole process,
  * which is what `ShowTooltipAction` did.
  *
- * Reflection rather than a heap assertion: it names the mistake directly, costs nothing, and covers
- * every action in the bucket instead of the one that happened to leak. Add new EDITOR_TEXT_ACTIONS
- * entries here.
+ * Reflection rather than a heap assertion: it names the mistake directly and costs nothing.
+ *
+ * What it does not cover, so nobody reads more into a green run than is there:
+ * - the list is hand-maintained, so a newly registered action is uncovered until it is added here;
+ * - the LSP actions that `LSPEditorActions` nests under [CodeActionsMenu.children] at runtime;
+ * - a `Context` reached indirectly - held by a companion object, or captured by a lambda stored in
+ *   a field - since those live on synthetic classes, not on a field of the action typed `Context`.
  */
 class EditorTextActionContextTest {
 	private val editorTextActions =
@@ -34,6 +39,9 @@ class EditorTextActionContextTest {
 			PasteAction::class.java,
 			FormatCodeAction::class.java,
 			ShowTooltipAction::class.java,
+			// A process-lifetime `object`, so the most dangerous entry in the bucket rather than one
+			// to leave out.
+			CodeActionsMenu::class.java,
 		)
 
 	@Test
