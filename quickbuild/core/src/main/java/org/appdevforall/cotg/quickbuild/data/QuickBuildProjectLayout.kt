@@ -6,9 +6,12 @@ import java.io.File
  * What the quick path needs to know about the user project's shape.
  *
  * Convention-based, for the standard single-app-module project the templates emit: sources in
- * `src/main/{java,kotlin}`, resources in `src/main/res`, assets in `src/main/assets`. Pure
- * `File` arithmetic over those conventions, so tests build one over a temp dir rather than
- * faking it.
+ * `src/main/{java,kotlin}`, resources in `src/main/res`, assets in `src/main/assets`. Built out
+ * of those conventions rather than out of a model, so tests build one over a temp dir rather
+ * than faking it.
+ *
+ * Not all of it is arithmetic: [allSources] and [moduleDirs] walk the tree, so they are disk
+ * reads and belong off the main thread. The path accessors are arithmetic and cost nothing.
  *
  * @property projectRoot the user project's root directory, which the watched gradle config
  *   files and the module scan hang off.
