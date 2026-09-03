@@ -52,7 +52,7 @@ flowchart LR
 ## #91 - an organic proxy-app crash never reaches the crash surface
 
 - **Root cause:** the runtime only reports a crash while a reload is in flight
-  (`QuickBuildRuntime.java:306` gates on `pendingReloadGeneration >= 0`, which is -1 between
+  (the crash guard gates on `FirstFrameGate.pending() >= 0`, which is -1 between
   builds). The disconnect *is* detected - `ProxyAppConnections.onDisconnected()` emits
   `TargetReport.Disconnected` - but the session manager's collector only tests for `Crashed`
   (`QuickBuildSessionManager.kt:281`). Today's entire user-visible consequence of a crash is an

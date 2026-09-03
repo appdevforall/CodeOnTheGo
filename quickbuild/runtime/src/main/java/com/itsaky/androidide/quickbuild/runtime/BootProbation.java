@@ -5,7 +5,7 @@ package com.itsaky.androidide.quickbuild.runtime;
  *
  * A hot swap answers that on its own: the generation whose reload is still awaiting its first frame is the one that just took the screen. A restart deploy answers nothing - it persists the generation and kills the process, so the fresh process boots that generation from the store with no reload pending, and every crash on its way to the screen is invisible to the guard. Measured on an A56: the app crash-looped on the bad generation on every launch with no way out, where the same crash before the always-restart rule at least quarantined and came back on older code.
  *
- * So a generation this process took from the store is on probation until it proves itself, and the proof is the one a fallback already needs: {@link PayloadPersistence#markGood} recorded it, which only happens once an activity of it was resumed.
+ * So a generation this process took from the store is on probation until it proves itself, and the proof is the one a fallback already needs: {@link PayloadPersistence#markGood} recorded it, which only happens once an activity of it drew a frame.
  *
  * Blaming too widely is the safe direction. {@link PayloadPersistence#quarantine} refuses to name a generation already recorded good, so an over-eager blame costs a log line rather than the user's last working code - which is also what keeps a fallback boot from quarantining the very generation it fell back to.
  */
