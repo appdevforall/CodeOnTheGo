@@ -55,29 +55,44 @@ object JavaCompileStep {
 		val fileManager = compiler.getStandardFileManager(collector, Locale.ROOT, StandardCharsets.UTF_8)
 		fileManager.use { manager ->
 			val units = manager.getJavaFileObjectsFromFiles(javaSources)
-			val options =
-				listOf(
-					"-classpath",
-					classpath.joinToString(File.pathSeparator) { it.absolutePath },
-					"-d",
-					outputDir.absolutePath,
-					// Annotation processing is a full-Gradle-build concern;
-					// running processors here would silently diverge from the real build.
-					"-proc:none",
-					"-encoding",
-					"UTF-8",
-					// Pin bytecode AND platform APIs to the same level kotlinc targets
-					// (-jvm-target). Without this a daemon running on JDK 21 emits major-65
-					// classes next to Kotlin's major-61 in one tree, and java.* resolves
-					// against the running JDK's own modules instead of release-17 signatures.
-					"--release",
-					IncrementalCompiler.JVM_TARGET,
-				)
+			val options = javacOptions(classpath, outputDir)
 			val task = compiler.getTask(StringWriter(), manager, collector, options, null, units)
 			val success = task.call()
 			return Result(success, collector.diagnostics.map { it.toProtocol() })
 		}
 	}
+
+	/**
+	 * The javac options for one compile.
+	 *
+	 * `internal` so the flags are testable: the host JDK compiles this code to the same class
+	 * file version with or without `--release`, so nothing else can tell whether it was passed.
+	 *
+	 * @param classpath the compile classpath, joined with the platform separator.
+	 * @param outputDir the shared Kotlin/Java output tree.
+	 * @return the option list handed to [javax.tools.JavaCompiler.getTask].
+	 */
+	internal fun javacOptions(
+		classpath: List<File>,
+		outputDir: File,
+	): List<String> =
+		listOf(
+			"-classpath",
+			classpath.joinToString(File.pathSeparator) { it.absolutePath },
+			"-d",
+			outputDir.absolutePath,
+			// Annotation processing is a full-Gradle-build concern;
+			// running processors here would silently diverge from the real build.
+			"-proc:none",
+			"-encoding",
+			"UTF-8",
+			// Pin bytecode AND platform APIs to the same level kotlinc targets
+			// (-jvm-target). Without this a daemon running on JDK 21 emits major-65
+			// classes next to Kotlin's major-61 in one tree, and java.* resolves
+			// against the running JDK's own modules instead of release-17 signatures.
+			"--release",
+			IncrementalCompiler.JVM_TARGET,
+		)
 
 	private fun javax.tools.Diagnostic<out JavaFileObject>.toProtocol(): Diagnostic =
 		Diagnostic(
