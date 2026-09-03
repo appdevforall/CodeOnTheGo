@@ -53,6 +53,12 @@ tasks.named<Test>("test") {
 			.get()
 			.asFile
 
+	// Without these the staged repos are invisible to the input snapshot, so `test` reports
+	// UP-TO-DATE after a republish and the TestKit builds that resolve through repos.txt
+	// never run.
+	inputs.files(stagedRepos).withPropertyName("stagedMavenLocalRepos")
+	outputs.file(reposFile).withPropertyName("stagedMavenLocalReposFile")
+
 	doFirst {
 		reposFile.parentFile.mkdirs()
 		reposFile.writeText(stagedRepos.joinToString(separator = File.pathSeparator))
