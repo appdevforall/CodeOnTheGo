@@ -169,23 +169,33 @@ final class PayloadPersistence {
 	 */
 	private static void writeAtomic(File target, InputStream in) throws IOException {
 		File temp = new File(target.getParentFile(), target.getName() + TEMP_SUFFIX);
-		FileOutputStream out = new FileOutputStream(temp);
+		boolean placed = false;
 		try {
-			Streams.copy(in, out, Streams.MAX_PAYLOAD_BYTES);
-			out.getFD().sync();
-		} finally {
-			Streams.closeQuietly(out);
-		}
-		if (!temp.renameTo(target)) {
-			// rename over an existing file is atomic on POSIX; a failure here is a
-			// filesystem oddity - fall back to delete+rename before giving up. The
-			// delete's own result is not the test: it returns false on a first write,
-			// where there was nothing to delete, which short-circuited the retry that
-			// would have worked and left the temp file behind for good.
-			target.delete();
+			FileOutputStream out = new FileOutputStream(temp);
+			try {
+				Streams.copy(in, out, Streams.MAX_PAYLOAD_BYTES);
+				out.getFD().sync();
+			} finally {
+				Streams.closeQuietly(out);
+			}
 			if (!temp.renameTo(target)) {
+				// rename over an existing file is atomic on POSIX; a failure here is a
+				// filesystem oddity - fall back to delete+rename before giving up. The
+				// delete's own result is not the test: it returns false on a first write,
+				// where there was nothing to delete, which short-circuited the retry that
+				// would have worked and left the temp file behind for good.
+				target.delete();
+				if (!temp.renameTo(target)) {
+					throw new IOException("cannot rename " + temp + " to " + target);
+				}
+			}
+			placed = true;
+		} finally {
+			// Every failure, not just a failed rename: an oversize payload or a full disk
+			// threw out of the copy above and left the partial temp in the store dir, where
+			// nothing sweeps it and the next write of the same generation finds it there.
+			if (!placed) {
 				temp.delete();
-				throw new IOException("cannot rename " + temp + " to " + target);
 			}
 		}
 	}
