@@ -1213,6 +1213,49 @@ public final class com/itsaky/androidide/plugins/extensions/UIExtension$DefaultI
 	public static fun getToolbarActions (Lcom/itsaky/androidide/plugins/extensions/UIExtension;)Ljava/util/List;
 }
 
+public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun decrypt (Ljava/lang/String;)Ljava/lang/String;
+	public final fun encrypt (Ljava/lang/String;)Ljava/lang/String;
+	public final fun readAndMigrate (Landroid/content/SharedPreferences;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored;
+	public final fun write (Landroid/content/SharedPreferences;Ljava/lang/String;Ljava/lang/String;)Z
+}
+
+public abstract interface class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
+}
+
+public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Absent : com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Absent;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Unavailable : com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Unavailable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Unreadable : com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Unreadable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Value : com/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Value;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Value;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/security/KeystoreSecretStore$Stored$Value;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPlain ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/itsaky/androidide/plugins/services/ArchiveFormat : java/lang/Enum {
 	public static final field GZIP Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
 	public static final field TAR Lcom/itsaky/androidide/plugins/services/ArchiveFormat;
@@ -1368,6 +1411,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeEditor
 	public abstract fun replaceRange (Ljava/io/File;Lcom/itsaky/androidide/plugins/services/SelectionRange;Ljava/lang/String;)Z
 	public abstract fun replaceSelection (Ljava/lang/String;)Z
 	public abstract fun saveCurrentFile ()Z
+	public abstract fun saveFile (Ljava/io/File;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun showInlineSuggestion (Ljava/lang/String;)V
 	public abstract fun showPeerCursor (Ljava/io/File;IILjava/lang/String;Ljava/lang/String;I)Z
 }
@@ -1378,6 +1422,7 @@ public final class com/itsaky/androidide/plugins/services/IdeEditorService$Defau
 	public static fun dismissInlineSuggestion (Lcom/itsaky/androidide/plugins/services/IdeEditorService;)V
 	public static fun hidePeerCursor (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;Ljava/lang/String;)Z
 	public static fun removeContentChangeListener (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
+	public static fun saveFile (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static fun showInlineSuggestion (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/lang/String;)V
 	public static fun showPeerCursor (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;IILjava/lang/String;Ljava/lang/String;I)Z
 }

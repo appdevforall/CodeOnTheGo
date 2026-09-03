@@ -35,6 +35,75 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.36 — unreleased
+- **added — File-targeted editor save** _(ADFA-5259)_
+  Save a named file's open buffer and find out whether the bytes actually landed.
+  `saveCurrentFile` follows whichever tab the user has focused and returns as soon
+  as a save is dispatched, so a plugin that edits one file and then persists it can
+  save a different file, or read the file back before the write finishes.
+  `IdeEditorService.saveFile(File): Boolean` (`suspend`, `default` returning
+  `false`) resolves the editor by file, suspends until the write completes, and
+  reports the on-disk outcome — `true` also when the buffer was already clean,
+  `false` when the file has no open editor or the write failed. Throws
+  `SecurityException` on an authorization failure (no `FILESYSTEM_WRITE`, or a path
+  outside the plugin's allowed roots), as the other write methods do. Await it from
+  a coroutine; a `runBlocking` bridge on the main thread deadlocks.
+
+  Because an older IDE's `IdeEditorService` has no `saveFile` at all, calling it
+  there fails with `NoSuchMethodError` at the call site — floor
+  `plugin.min_ide_version` at `26.36` if you call it. The Kotlin `default` body is
+  not a Java default method: `plugin-api` sets no `-Xjvm-default`, so the compiler
+  emits an abstract interface method plus a `DefaultImpls` static (both visible in
+  the ABI dump). It therefore rescues neither a caller nor an implementer compiled
+  against an older `plugin-api` — the latter gets `AbstractMethodError`. Only the
+  host's own implementers benefit, and they are recompiled with it.
+
+- **added — Keystore-backed secret storage for plugins** _(ADFA-5269)_ **[verified]**
+  A plugin that stores a credential can encrypt it with AES/GCM under a hardware-backed
+  Android Keystore key instead of carrying its own copy of the cipher. Three AI plugins
+  had already grown near-identical copies that were starting to diverge (only one zeroed
+  its plaintext buffers, only one told "no secret stored" apart from "stored but no longer
+  decryptable"), and the host's own `git-core/CryptoManager` is a fourth. Duplicating the
+  source into each `.cgp` would not fix that: `compileOnly` against the host means one
+  implementation in the process, loaded by the host's class loader.
+  `KeystoreSecretStore(alias)` (`encrypt`, `decrypt`, `write`, `readAndMigrate`) and
+  `KeystoreSecretStore.Stored` / `.Absent` / `.Value` / `.Unreadable` / `.Unavailable`. The
+  `enc:v1:` marker it writes is deliberately **not** part of the surface: the on-disk format
+  is the store's business, both formats are handled for the caller, and keeping it private is
+  what leaves room for an `enc:v2:` later.
+  Additions to the **class** are additive, because a plugin instantiates it rather than
+  implementing it. `Stored` is the exception, and the one part of this entry that cannot grow
+  quietly: it is a public **sealed** interface, so a fifth case makes every plugin's exhaustive
+  `when` fail to compile, and a `.cgp` already built against four throws
+  `NoWhenBranchMatchedException` at runtime. Any new `Stored` case needs a `breaking` row —
+  including the `enc:v2:` state the paragraph above leaves room for, if it ever surfaces.
+  `encrypt` throws `GeneralSecurityException` and nothing else: whatever the Keystore actually
+  raises (`IOException` from `KeyStore.load`, the unchecked `ProviderException` from keygen) is
+  wrapped in one, so catching the documented type is enough — an unwrapped throwable here
+  reaches the host's crash handler as an IDE crash, not your plugin's error path.
+  `readAndMigrate` keeps a lost key (`Unreadable` — ask the user for the secret again) apart
+  from a Keystore that would not answer (`Unavailable` — retry), so a transient failure does
+  not cost the user a credential that is still perfectly readable. That split covers the cipher
+  step as well as key acquisition, and it enumerates the *permanent* failures rather than the
+  transient ones: a wrong key, an altered payload, a malformed one, an invalidated or
+  unrecoverable key are `Unreadable`, and anything else the Keystore surfaces — a dead binder, a
+  busy backend — is `Unavailable`. (Asking the platform is not an option here: `BackendBusyException`
+  is API 31+ and `KeyStoreException.isTransientFailure()` API 33+, against `minSdk 28`.)
+  A blank stored value is no credential, and all three entry points agree about the same bytes on
+  disk: `write` forgets one rather than storing it, `readAndMigrate` purges it and reports
+  `Absent`, `decrypt` returns null. (`encrypt`/`decrypt` used as a bare codec still round-trip
+  `""`; the rule is about what is *stored*.)
+  Every one of the four methods does Keystore binder IPC, so **call them off the main thread** —
+  `decrypt` and `write` additionally share one alias-scoped lock, and `write` holds it across a
+  synchronous flush.
+  The `alias` is a constructor parameter and must stay **distinct per
+  plugin**: plugins share the host's process, UID and therefore its Keystore, so a shared
+  alias would let one plugin's invalidated-key recovery (`deleteEntry`) destroy another's
+  stored secret. It must also stay stable across releases, since a secret encrypted under
+  one alias cannot be read under another. `readAndMigrate` re-encrypts a legacy plaintext
+  value in place, so a plugin adopting this keeps working for users who configured a
+  credential before it existed.
+
 ### 26.33 — 2026-08-12
 - **added — Plugin-contributed agent tools** _(ADFA-2592)_ **[verified]**
   Any `.cgp` can add tools to the AI agent, whose tool set was previously fixed at

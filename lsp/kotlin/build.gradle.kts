@@ -28,8 +28,8 @@ android {
 	namespace = "${BuildConfig.PACKAGE_NAME}.lsp.kotlin"
 
 	// Compose (ADR 0009) is still needed here for the extract-method sheet and MethodSignature.
-	// New refactoring sheets belong in `:lsp:ui`, where the extract-variable sheet now lives; the
-	// old reason for keeping them here no longer holds.
+	// New refactoring sheets belong in `:lsp:ui`, where the extract-variable sheet now lives: the
+	// shared UI module ADR 0013 said to reconsider once the surface was known.
 	buildFeatures {
 		compose = true
 	}

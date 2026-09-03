@@ -97,6 +97,7 @@
 	<!-- Build Tools Installation -->
 	<string name="msg_no_references">No references found</string>
 	<string name="msg_no_imports_found">No imports found</string>
+	<string name="msg_import_file_changed">The file changed. Try importing again.</string>
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
 	<string name="error_installation_failed">Failed to install assets</string>
@@ -137,6 +138,15 @@
 	<string name="msg_confirm_open_project">Do you want to open the last opened project? The project was:\n%s</string>
 	<string name="title_close_project">Close this project</string>
 	<string name="msg_opened_project_does_not_exist">Last opened project doesn\'t exist.</string>
+	<string name="msg_deeplink_invalid_link">This link could not be opened.</string>
+	<string name="msg_deeplink_setup_incomplete">Finish setting up Code on the Go, then open this link again.</string>
+	<string name="msg_deeplink_project_not_found">No project named \"%s\" was found.</string>
+	<string name="msg_deeplink_file_not_found">File \"%s\" was not found in the project.</string>
+	<string name="msg_deeplink_invalid_line">\"%s\" is not a valid line number.</string>
+	<string name="msg_deeplink_invalid_column">\"%s\" is not a valid column number.</string>
+	<string name="msg_deeplink_no_value">(no value given)</string>
+	<string name="msg_deeplink_scan_failed">Could not scan projects for this link.</string>
+	<string name="msg_project_close_in_progress">A project close is already in progress. Try again in a moment.</string>
 	<string name="msg_create_new_project">Create new project</string>
 	<string name="msg_open_existing_project">Open a saved project</string>
 	<string name="msg_delete_existing_project">Delete a saved project</string>
@@ -588,6 +598,34 @@
 	<string name="msg_extract_method_uses_backing_field">The selection uses the property\'s backing field, which only exists inside this accessor</string>
 	<string name="msg_extract_method_smart_cast_parameter">The selection uses %1$s under a smart cast that does not hold outside the selection</string>
 	<string name="msg_extract_method_captured_local_declaration">The selection uses %1$s, which goes out of scope once the selection moves</string>
+
+	<!-- Inline variable refactoring (Kotlin) -->
+	<string name="action_inline_variable">Inline variable</string>
+	<string name="title_inline_variable">Inline variable</string>
+	<string name="label_inline_variable_value">Value</string>
+	<string name="label_inline_variable_this_reference">Inline this reference only</string>
+	<string name="label_inline_variable_all_and_delete">Inline all %1$d references and remove %2$s</string>
+	<string name="label_inline_variable_all_keeping">Inline all %1$d references, keeping %2$s</string>
+	<string name="label_inline_variable_partial">Inline %1$d of %2$d references, keeping %3$s</string>
+	<string name="msg_inline_variable_not_a_variable">Place the cursor on a local variable or one of its uses</string>
+	<string name="msg_inline_variable_not_local">Only a local variable can be inlined</string>
+	<string name="msg_inline_variable_no_initializer">%1$s has no value at its declaration</string>
+	<string name="msg_inline_variable_destructuring">A destructuring declaration cannot be inlined</string>
+	<string name="msg_inline_variable_declared_type">%1$s is declared %2$s, and its uses need that type</string>
+	<string name="msg_inline_variable_never_used">%1$s is never used</string>
+	<string name="msg_inline_variable_nothing_inlinable">No use of %1$s can be inlined safely</string>
+	<string name="msg_inline_variable_reference_not_inlinable">This use of %1$s cannot be inlined safely</string>
+	<string name="msg_inline_variable_could_not_analyse">Could not analyse the file. Try again.</string>
+	<string name="msg_inline_variable_file_changed">The file changed. Try inlining again.</string>
+	<plurals name="msg_inline_variable_inlined_all">
+		<item quantity="one">Inlined %1$d reference to %2$s and removed the declaration</item>
+		<item quantity="other">Inlined %1$d references to %2$s and removed the declaration</item>
+	</plurals>
+	<plurals name="msg_inline_variable_inlined_keeping">
+		<item quantity="one">Inlined %1$d reference to %2$s, keeping the declaration</item>
+		<item quantity="other">Inlined %1$d references to %2$s, keeping the declaration</item>
+	</plurals>
+	<string name="msg_inline_variable_inlined_partially">Inlined %1$d of %2$d references to %3$s, keeping the declaration</string>
 	<string name="msg_select_fields">Select fields</string>
 	<string name="msg_no_fields_selected">No fields selected</string>
 	<string name="msg_no_fields_found">No fields found</string>
@@ -807,6 +845,7 @@
 	<string name="msg_font_copy_failed">Could not save the font file. Please try again.</string>
 	<string name="msg_files_being_saved">A file save operation is already in progress!</string>
 	<string name="msg_undock_save_failed">Couldn\'t save “%1$s”. Undock cancelled.</string>
+	<string name="msg_floating_close_save_failed">Couldn\'t save “%1$s”. Its unsaved changes were discarded with the project.</string>
 	<string name="title_install_tools">Install Development Tools</string>
 	<string name="subtitle_install_tools">\nTo install the tools needed to build Android projects, tap the button at the bottom right of the screen\n</string>
 	<string name="msg_install_tools"> </string>
@@ -1492,6 +1531,22 @@
     <string name="author_not_set">Not set</string>
     <string name="not_a_git_repo">This project is not a Git repository</string>
     <string name="current_branch_name">Current branch: %1$s</string>
+    <string name="current_branch">Current branch</string>
+    <string name="changed_files_count">Changed files: %1$d</string>
+    <string name="git_branches">Branches</string>
+    <string name="git_local_branches">Local</string>
+    <string name="git_remote_branches">Remote</string>
+    <string name="git_create_branch">Create branch</string>
+    <string name="git_create_branch_title">Create new branch</string>
+    <string name="git_branch_name_hint">Branch name</string>
+    <string name="git_search_branches">Search branches…</string>
+    <string name="git_checkout_success">Switched to branch \'%1$s\'</string>
+    <string name="git_checkout_failed">Failed to switch branch</string>
+    <string name="git_checkout_conflict_title">Checkout conflict</string>
+    <string name="git_checkout_conflict_msg">Cannot switch branch because uncommitted changes would be overwritten. Please commit or stash your changes before switching branches.\n\nConflicting files:\n%1$s</string>
+    <string name="git_create_branch_invalid_name">Please enter a valid branch name</string>
+    <string name="git_branch_already_exists">A branch named %1$s already exists</string>
+    <string name="git_branches_load_failed">Could not load branches</string>
     <string name="push">Push</string>
     <string name="pushing">Pushing…</string>
     <string name="push_successful">Push successful!</string>
@@ -1509,12 +1564,26 @@
     <string name="merge_conflicts">Merge conflicts</string>
     <string name="abort_merge">Abort merge</string>
     <string name="confirm_abort_merge">Are you sure you want to abort the current merge? All conflict resolutions will be discarded.</string>
+    <string name="git_merge_branch">Merge %1$s into current branch</string>
+    <string name="git_no_branches_found">No branches found</string>
+    <string name="git_merge_success">Merged %1$s into %2$s successfully</string>
+    <string name="git_merge_failed_title">Merge failed</string>
+    <string name="git_merge_failed">Failed to merge %1$s</string>
+    <string name="git_merge_conflict_title">Merge conflict</string>
+    <string name="git_merge_conflict_msg">Conflicts occurred while merging %1$s into %2$s. Please resolve conflicts or abort merge.</string>
+    <string name="git_merge_local_changes">Cannot merge because you have uncommitted changes that would be overwritten. Commit or discard them first.\n\nAffected files:\n%1$s</string>
+    <string name="git_already_up_to_date">Already up to date</string>
     <string name="msg_save_before_git_action">You have unsaved changes. Would you like to save them before proceeding?</string>
     <string name="no_save_before_git_action">Proceed without saving</string>
     <string name="save_before_git_action">Save before proceeding</string>
     <string name="mark_as_resolved">Mark resolved</string>
     <string name="check_all">Check All</string>
     <string name="uncheck_all">Uncheck All</string>
+    <string name="merge_dialog_title">Merge branch?</string>
+    <string name="merge_dialog_message">You are about to merge \'%1$s\' into \'%2$s\'. Are you sure you want to proceed?</string>
+    <string name="proceed_with_git_action">Proceed</string>
+    <string name="checkout_dialog_title">Switch branch?</string>
+    <string name="checkout_dialog_message">You are about to check out branch \'%1$s\'. Are you sure you want to proceed?</string>
 
 	<!-- Templates -->
 	<string name="template_exec_info_basepath">Starting project creation for %1$s</string>

@@ -17,34 +17,42 @@
 
 package com.itsaky.androidide.viewmodel
 
-import android.database.SQLException
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.roomData.recentproject.RecentProject
-import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
-import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.Template
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * [ViewModel] for main activity.
+ * [ViewModel] for [com.itsaky.androidide.activities.MainActivity] -- holds the single-Activity,
+ * multi-"screen" navigation state (see the `SCREEN_*` constants) plus one-shot events unrelated to
+ * persisted UI state.
+ *
+ * **Threading:** all mutable state here ([currentScreen], [isTransitionInProgress]) is backed by
+ * [MutableLiveData] set via direct `.value =` assignment, never `postValue` -- every mutator
+ * ([setScreen], the [isTransitionInProgress] setter) must run on the main thread.
+ *
+ * **Screen state:** [currentScreen]/[previousScreen] are mutually exclusive, identified by one of
+ * the `SCREEN_*` constants; `-1` is the sentinel for "no screen yet" rather than `null`, since both
+ * are non-nullable `Int`. [setScreen] records the outgoing screen as [previousScreen] before
+ * advancing [currentScreen] -- there's no history beyond that one step back. [postTransition] runs
+ * its `action` immediately unless [isTransitionInProgress] is true, in which case it defers `action`
+ * until the next transition-complete signal, then detaches its observer (fires at most once).
+ *
+ * **Clone-request event:** [requestCloneRepository] is a one-shot, single-consumer event, not
+ * persisted state -- delivered through a buffered [Channel] exposed as [cloneRepositoryEvent] via
+ * [kotlinx.coroutines.flow.receiveAsFlow]. A URL sent before any collector attaches is buffered, not
+ * dropped, but if more than one collector attaches, only one of them receives a given element.
  *
  * @author Akash Yadav
  */
-class MainViewModel(
-	private val recentProjectDao: RecentProjectDao,
-) : ViewModel() {
+class MainViewModel : ViewModel() {
 	companion object {
 		// The values assigned to these variables reflect the order in which the screens are presented
 		// to the user. A screen with a lower value is displayed before a screen with a higher value.
@@ -60,8 +68,6 @@ class MainViewModel(
 		const val SCREEN_SAVED_PROJECTS = 4
 		const val SCREEN_DELETE_PROJECTS = 5
 		const val SCREEN_CLONE_REPO = 6
-
-		val logger: Logger = LoggerFactory.getLogger(MainViewModel::class.java)
 	}
 
 	private val _currentScreen = MutableLiveData(-1)
@@ -114,24 +120,6 @@ class MainViewModel(
 			)
 		} else {
 			action.run()
-		}
-	}
-
-	fun saveProjectToRecents(project: RecentProject) {
-		viewModelScope.launch(Dispatchers.IO) {
-			try {
-				// Insert is IGNOREd for projects already in recents, so refresh the
-				// detected language separately - but never clobber a stored value
-				// with a failed detection.
-				recentProjectDao.insert(project)
-				if (!project.language.equals(Language.Unknown.lang, ignoreCase = true)) {
-					recentProjectDao.updateLanguage(project.location, project.language)
-				}
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: SQLException) {
-				logger.warn("Failed to save project to recents", e)
-			}
 		}
 	}
 }
