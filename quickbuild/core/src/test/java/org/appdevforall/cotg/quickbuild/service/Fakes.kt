@@ -1,6 +1,8 @@
 package org.appdevforall.cotg.quickbuild.service
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.data.CompileOutput
 import org.appdevforall.cotg.quickbuild.data.DaemonConfig
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
@@ -72,7 +74,7 @@ class FakeDaemon : QuickBuildDaemon {
 		startGate?.let { gate ->
 			startGate = null
 			if (startSurvivesCancel) {
-				kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { gate.await() }
+				withContext(NonCancellable) { gate.await() }
 			} else {
 				gate.await()
 			}
