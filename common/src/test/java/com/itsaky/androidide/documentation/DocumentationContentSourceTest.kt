@@ -19,7 +19,7 @@ import java.io.File
 /**
  * Covers the pipeline both documentation transports read through (ADFA-5176): what a lookup reports,
  * how chunked rows are reassembled, and what a debug-database swap does to the handle and to the
- * generation counter callers use to drop their per-database caches.
+ * generation counter these tests read a swap off.
  *
  * The database itself is a mock. These tests are about this class's decisions, and a real
  * SQLiteDatabase needs a device; the on-device behavior is covered by WebServerTest and by the
@@ -353,6 +353,37 @@ class DocumentationContentSourceTest {
 		assertThrows(IllegalStateException::class.java) {
 			source.renderNamedTemplate("bookshelf", "null".toByteArray(), "/bookshelf")
 		}
+	}
+
+	// ADFA-5405 made cycles reachable: before it, a reference resolved to itself and never recursed.
+	// Pebble has no cycle detection and resolves one by recursing until the stack ends, and a
+	// StackOverflowError is an Error -- it passes through every catch on the serving path, so the
+	// client would get a closed socket with no status line.
+	@Test
+	fun `a reference cycle between templates fails the lookup instead of unwinding the stack`() {
+		val database =
+			templatedDatabase(
+				"page.peb" to """{% include "other.peb" %}""",
+				"other.peb" to """{% include "page.peb" %}""",
+			)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().lookup("k/html/basic-syntax.html")
+
+		assertThat(lookup).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((lookup as DocumentationLookup.Failed).cause).hasMessageThat().contains("reference cycle")
+	}
+
+	// PebbleException formats its message as "<text> (<file>:<line>)" and the loader throws with both
+	// null, so passing message straight to a response body appends "(?:?)".
+	@Test
+	fun `a failed render reports the engine's text without its placeholder padding`() {
+		val database = templatedDatabase("page.peb" to """Hello! {% include "nav.peb" %}""")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().lookup("k/html/basic-syntax.html") as DocumentationLookup.Failed
+
+		assertThat(lookup.cause).hasMessageThat().isEqualTo("Template 'nav.peb' not found in the database")
 	}
 
 	@Test

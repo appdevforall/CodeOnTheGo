@@ -406,7 +406,14 @@ class WebServerTest {
 			awaitPortBound(port)
 			val response = sendRawGetRequest(port, "/pr/bs")
 			assertTrue("Expected a 500 status line, got:\n$response", response.startsWith("HTTP/1.1 500"))
-			assertTrue("Expected the missing template to be named, got:\n$response", response.contains("bookshelf"))
+			// The loader's own text, not just the template name: the generic fallback on the same
+			// sendError call is "Error generating bookshelf HTML.", which contains "bookshelf" too,
+			// so asserting on the name alone passes with or without the fix.
+			assertTrue(
+				"Expected the loader's diagnostic, got:\n$response",
+				response.contains("Template 'bookshelf' not found in the database"),
+			)
+			assertFalse("Expected no Pebble placeholder padding, got:\n$response", response.contains("(?:?)"))
 		} finally {
 			server.stop()
 			serverThread.join(2_000)

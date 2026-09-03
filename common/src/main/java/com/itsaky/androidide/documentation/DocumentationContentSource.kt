@@ -26,6 +26,7 @@ import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import io.pebbletemplates.pebble.PebbleEngine
+import io.pebbletemplates.pebble.error.PebbleException
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.Closeable
@@ -173,9 +174,9 @@ class DocumentationContentSource(
 	private var activeDatabasePath: String? = null
 
 	/**
-	 * Bumped on every swap, so a caller can tell that anything it derived from this source belongs
-	 * to a database that is gone. Nothing outside caches per database now that templates resolve by
-	 * name and the caches for them live here; this stays as the observable that a swap happened.
+	 * Bumped on every swap. Nothing outside caches per database now that templates resolve by name
+	 * and the caches for them live here, so this has no production reader: it stays as the
+	 * observable a test asserts a swap happened on.
 	 */
 	@Volatile
 	var generation: Long = 0
@@ -297,7 +298,9 @@ class DocumentationContentSource(
 	/**
 	 * Ensures the documentation database is open and applies any pending database changes.
 	 *
-	 * Does nothing when the source is closed or the database cannot be opened.
+	 * Does nothing when the source is closed or the database cannot be opened. No production caller:
+	 * [lookup] and [withDatabase] apply a pending swap themselves, so this is the seam a test uses to
+	 * drive one directly.
 	 */
 	fun refreshDatabase() {
 		if (!openIfNeeded()) return
@@ -324,20 +327,6 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Renders a template using the supplied JSON context.
-	 *
-	 * @param templateId The identifier of the template to render.
-	 * @param contextJson The JSON object used as the template context.
-	 * @param path The path associated with the rendering request for diagnostics.
-	 * @return The rendered content encoded as UTF-8 bytes.
-	 */
-	fun renderTemplate(
-		templateId: Int,
-		contextJson: ByteArray,
-		path: String,
-	): ByteArray = withDatabase { database -> render(database, templateId, contextJson, path) }
-
-	/**
 	 * Renders the named template using the supplied JSON context.
 	 *
 	 * For a caller that knows a well-known template by name -- the bookshelf, say -- rather than
@@ -359,9 +348,11 @@ class DocumentationContentSource(
 	 */
 	fun clearTemplateCache() {
 		templateNames.clear()
-		// The engine caches by name, so a template edited under the same name would otherwise
-		// survive here even though its row has changed.
+		// Both engine caches are keyed by name, so a template edited under the same name would
+		// otherwise survive here even though its row has changed -- the tag cache included, which
+		// holds whatever a template's {% cache %} blocks rendered from the previous database.
 		pebbleEngine.templateCache.invalidateAll()
+		pebbleEngine.tagCache.invalidateAll()
 	}
 
 	/** The last-modified time of [file], or -1 when it does not exist. */
@@ -498,7 +489,20 @@ class DocumentationContentSource(
 		}
 		val context: Map<String, Any> = gson.fromJson(contextString, templateContextType)
 
-		return StringWriter().also { pebbleEngine.getTemplate(name).evaluate(it, context) }.toString().toByteArray()
+		return try {
+			StringWriter().also { pebbleEngine.getTemplate(name).evaluate(it, context) }.toString().toByteArray()
+		} catch (e: PebbleException) {
+			// getPebbleMessage(), not message: PebbleException formats the latter as
+			// "<text> (<file>:<line>)" and the loader throws with both null, so a caller that puts
+			// message in a response body gets a trailing "(?:?)".
+			throw IllegalStateException(e.pebbleMessage ?: e.message, e)
+		} catch (e: StackOverflowError) {
+			// Templates can reference each other now (ADFA-5405), so they can also reference each
+			// other in a cycle, which Pebble resolves by recursing until the stack runs out. Raised
+			// here as an exception because an Error passes through every catch on this path: the
+			// client would get a closed socket with no status line and nothing naming the template.
+			throw IllegalStateException("Rendering template '$name' overflowed the stack; check for a reference cycle between templates", e)
+		}
 	}
 
 	/**
