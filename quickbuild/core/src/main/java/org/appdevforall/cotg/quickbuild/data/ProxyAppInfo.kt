@@ -139,20 +139,12 @@ data class ProxyAppInfo(
 			val entry = obj.firstString("entryActivity", "mainActivity")
 			val apkPath = obj.firstString("apk", "apkPath", "apkFile") ?: return missing("apk")
 
-			val classpath =
-				obj
-					.jsonArray("classpath")
-					?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
-					?.map { resolve(it, baseDir) }
-					?: emptyList()
+			// Through stringArray, which drops blanks: resolve turns an empty entry into
+			// baseDir, putting the whole project tree on the daemon's compile classpath.
+			val classpath = obj.stringArray("classpath").map { resolve(it, baseDir) }
 			// Generated project-scope jars (R.jar and kin) ride the compile classpath:
 			// hot compiles reference R, which the variant compile classpath lacks.
-			val payloadJars =
-				obj
-					.jsonArray("payloadJars")
-					?.mapNotNull { it.takeIf(com.google.gson.JsonElement::isJsonPrimitive)?.asString }
-					?.map { resolve(it, baseDir) }
-					?: emptyList()
+			val payloadJars = obj.stringArray("payloadJars").map { resolve(it, baseDir) }
 
 			return ProxyAppInfo(
 				proxyAppPackage = pkg,

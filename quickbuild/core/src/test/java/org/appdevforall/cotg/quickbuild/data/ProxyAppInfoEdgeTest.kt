@@ -149,6 +149,24 @@ class ProxyAppInfoEdgeTest {
 		assertThat(info!!.classpath).containsExactly(File("/project/libs/a.jar"))
 	}
 
+	/**
+	 * A blank entry resolves to the base directory, which would put the whole project tree on
+	 * the daemon's compile classpath - so both lists drop blanks the way the shared helper
+	 * their siblings go through does.
+	 */
+	@Test
+	fun `blank classpath and payloadJars entries are dropped`() {
+		val info =
+			ProxyAppInfo.parse(
+				json(""","classpath": ["", "libs/a.jar"], "payloadJars": ["   ", "build/R.jar"]"""),
+				baseDir,
+			)
+
+		assertThat(info!!.classpath)
+			.containsExactly(File("/project/libs/a.jar"), File("/project/build/R.jar"))
+			.inOrder()
+	}
+
 	@Test
 	fun `optional file fields default to null when absent`() {
 		val info = ProxyAppInfo.parse(json(), baseDir)

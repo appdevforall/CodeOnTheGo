@@ -195,25 +195,27 @@ internal class QuickBuildDaemonController(
 	 * Carries out a deferred low-memory teardown once no build is in flight.
 	 *
 	 * A build in flight leaves the pending flag set for the manager's state collector to
-	 * retry. Idempotent: with no pending request this is a silent no-op, and a daemon that is
-	 * down keeps the request only until [PENDING_TEARDOWN_DEADLINE_MILLIS] has passed.
+	 * retry. Idempotent: with no pending request this is a silent no-op, and any request is
+	 * dropped once [PENDING_TEARDOWN_DEADLINE_MILLIS] has passed, whether or not the daemon
+	 * came back in the meantime.
 	 *
 	 * @param buildInFlight true to leave the request pending for a later call
 	 */
 	suspend fun shrinkIfPending(buildInFlight: Boolean) {
 		if (buildInFlight) return
 		if (!pendingLowMemoryTeardown) return
-		// Consumed only past the isRunning guard: clearing first would discard the request
-		// while the daemon is briefly down, not the silent no-op the KDoc promises. Held
-		// requests do expire, though - past the deadline the memory pressure that asked for
-		// this is old news, and acting on it would tear down a daemon the user is using.
-		if (!daemon.isRunning) {
-			if (now() - pendingLowMemoryTeardownAt >= PENDING_TEARDOWN_DEADLINE_MILLIS) {
-				log.debug("Quick Build: dropping a low-memory teardown the daemon never came back for")
-				pendingLowMemoryTeardown = false
-			}
+		// Ahead of the isRunning branch, because the common shape is a trim raised BY a
+		// build: it defers, then lands here minutes later with the daemon healthy. Checked
+		// inside that branch the deadline never runs for it, and the request tears down a
+		// daemon the user is using over memory pressure that is long gone.
+		if (now() - pendingLowMemoryTeardownAt >= PENDING_TEARDOWN_DEADLINE_MILLIS) {
+			log.debug("Quick Build: dropping a low-memory teardown that outlived its deadline")
+			pendingLowMemoryTeardown = false
 			return
 		}
+		// Consumed only past the isRunning guard: clearing first would discard the request
+		// while the daemon is briefly down, not the silent no-op the KDoc promises.
+		if (!daemon.isRunning) return
 		pendingLowMemoryTeardown = false
 		log.info("Quick Build: tearing down the compile daemon for low memory; the next build re-warms it")
 		markIntentionalTransition()
