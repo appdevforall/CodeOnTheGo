@@ -27,9 +27,11 @@ enum class QuickBuildNotice {
 	 * `Application`, so an instance of one keeps calling the PREVIOUS copies of the helper
 	 * classes this build recompiled until it restarts.
 	 *
-	 * Not a failure: the deploy worked and the recreated activity runs the new code. The restart
-	 * closure covers a component's own code and its supertypes, and a hit there restarts the
-	 * process; what it cannot see is a helper class the component merely calls.
+	 * Not a failure: the deploy worked and the recreated activity runs the new code. A declared
+	 * restart-sensitive component normally makes every code-bearing deploy a restart, so this
+	 * only fires where one did not - a baseline whose runtime cannot honour the restart request.
+	 * The stale copies are then the helper classes the live component calls, which no restart
+	 * decision inspects.
 	 */
 	STALE_COMPONENT_HELPERS,
 
