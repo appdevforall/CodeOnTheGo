@@ -71,8 +71,8 @@ class QuickBuildStatusTracker {
 fun quickBuildStatusBarUpdate(
 	previous: QuickBuildStatus?,
 	current: QuickBuildStatus,
-): QuickBuildStatusBarUpdate? {
-	return when (val transition = quickBuildTransition(previous, current)) {
+): QuickBuildStatusBarUpdate? =
+	when (val transition = quickBuildTransition(previous, current)) {
 		QuickBuildTransition.None -> {
 			null
 		}
@@ -156,7 +156,6 @@ fun quickBuildStatusBarUpdate(
 			}
 		}
 	}
-}
 
 /**
  * The update for reaching [QuickBuildStatus.UpToDate], which is both "a build just landed" and
