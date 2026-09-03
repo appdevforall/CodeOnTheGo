@@ -93,6 +93,15 @@ class LiveReloadExecutorImpl(
 	 */
 	@Volatile private var currentBuildUserInitiated = false
 
+	/**
+	 * The newest generation a deploy confirmed live in the proxy app, or -1 before the first
+	 * one. A build that deploys nothing must report this, not [GenerationTracker.current]:
+	 * the tracker holds the newest generation ALLOCATED, which a failed deploy leaves ahead of
+	 * the app, and reporting it advances the session's deploy tally to a generation the app
+	 * never ran - which then forces a catch-up build on every reconnect.
+	 */
+	@Volatile private var lastConfirmedGeneration = -1L
+
 	private val payloadDeployer =
 		PayloadDeployer(
 			deploy = deploy,
@@ -117,6 +126,7 @@ class LiveReloadExecutorImpl(
 		try {
 			currentBuildUserInitiated = request.userInitiated
 			val outcome = executeInner(request)
+			if (outcome is BuildOutcome.Success) lastConfirmedGeneration = outcome.generation
 			// A warm compile recompiles what the proxy app already runs and deploys
 			// nothing, so flashing build-ok or build-failed on its overlay would announce
 			// a build the user never triggered. The outcome still flows to the
@@ -127,8 +137,16 @@ class LiveReloadExecutorImpl(
 			throw e
 		} catch (e: Throwable) {
 			log.error("Quick build #{} pipeline failure", request.buildId, e)
-			BuildOutcome.InfrastructureFailure(e.message ?: e.javaClass.name)
+			BuildOutcome.InfrastructureFailure(e.message ?: BuildOutcome.UNEXPECTED_FAILURE)
 		}
+
+	/**
+	 * The generation the proxy app is running, for a build that deployed nothing.
+	 *
+	 * Falls back to the allocator before the session's first deploy, where the two agree by
+	 * construction: provisioning adopts the installed baseline's stamp into the tracker.
+	 */
+	private fun liveGeneration(): Long = lastConfirmedGeneration.takeIf { it >= 0 } ?: generations.current
 
 	/**
 	 * Tells the proxy app about a build that shipped no payload, so it never runs old
@@ -228,7 +246,7 @@ class LiveReloadExecutorImpl(
 				if (!request.forced) {
 					// The orchestrator does not start empty unforced builds; answering
 					// benignly keeps the executor total anyway.
-					BuildOutcome.Success(generations.current, 0)
+					BuildOutcome.Success(liveGeneration(), 0)
 				} else {
 					// Explicit tap with nothing changed: rebuild the current sources and ship
 					// them at a fresh generation, which is how a relaunched proxy app on the
@@ -309,7 +327,7 @@ class LiveReloadExecutorImpl(
 				if (assets == null) {
 					// The classifier said assets-only but nothing packaged, for instance
 					// a deletion of a file that was already gone.
-					BuildOutcome.Success(generations.current, clock() - loopStartedAt)
+					BuildOutcome.Success(liveGeneration(), clock() - loopStartedAt)
 				} else {
 					payloadDeployer.deploy(DeployDecision.Recreate, null, null, assets, loopStartedAt, timeline)
 				}

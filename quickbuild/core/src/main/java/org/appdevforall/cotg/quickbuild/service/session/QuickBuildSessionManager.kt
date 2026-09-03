@@ -91,7 +91,7 @@ class QuickBuildSessionManager(
 	private val connections: ProxyAppConnections,
 	/** Bundled toolchain locations, passed straight through to the daemon controller. */
 	private val paths: QuickBuildPaths,
-	/** Gates eager prebuild on project history and records first use. */
+	/** Records this project's first Quick Build tap; the eager prebuild does not gate on it. */
 	private val historyStore: QuickBuildHistoryStore,
 	/**
 	 * Confines everything stateful. Must be single-threaded: the orchestrator's
@@ -363,7 +363,18 @@ class QuickBuildSessionManager(
 	init {
 		daemon.setDeathListener { exitCode ->
 			log.warn("Quick-build daemon death observed (exit {})", exitCode)
-			scope.launch { dispatch(SessionEvent.DaemonDied) }
+			// The epoch is read here, on the reaper thread, not inside the coroutine: an
+			// intentional teardown and restart can both land while the dispatch is still
+			// queued, and comparing epochs then would compare the successor with itself
+			// and kill a healthy session over its predecessor's death.
+			val observedEpoch = daemonController.epochSnapshot()
+			scope.launch {
+				if (daemonController.epochSnapshot() != observedEpoch) {
+					log.info("Ignoring a daemon death this session's own transition caused")
+					return@launch
+				}
+				dispatch(SessionEvent.DaemonDied)
+			}
 		}
 		scope.launch {
 			connections.reports.collect { report ->
@@ -441,7 +452,12 @@ class QuickBuildSessionManager(
 		scope.launch {
 			dispatch(SessionEvent.QuickBuildTapped(wroteSomething))
 			try {
-				historyStore.setHasUsedQuickBuild(true)
+				// The write is a blocking commit on the single-threaded session dispatcher,
+				// and after the first tap it writes a value already there. The read is the
+				// cheap side, so let it carry every later tap.
+				if (!historyStore.hasUsedQuickBuild()) {
+					historyStore.setHasUsedQuickBuild(true)
+				}
 			} catch (e: Throwable) {
 				log.warn("Could not record Quick Build history for this project", e)
 			}
@@ -1248,7 +1264,12 @@ class QuickBuildSessionManager(
 					} catch (e: Exception) {
 						log.warn("Post-rebuild status clear failed", e)
 					}
-					dispatch(SessionEvent.ProvisioningSucceeded(result.baselineGeneration))
+					dispatch(
+						SessionEvent.ProvisioningSucceeded(
+							result.baselineGeneration,
+							askAlreadyAnswered = result.answeredUserAsk,
+						),
+					)
 				} catch (e: kotlinx.coroutines.CancellationException) {
 					throw e
 				} catch (e: Throwable) {

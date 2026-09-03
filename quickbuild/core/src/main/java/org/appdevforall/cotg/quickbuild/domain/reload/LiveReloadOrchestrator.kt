@@ -713,7 +713,7 @@ class LiveReloadOrchestrator(
 					throw e
 				} catch (e: Throwable) {
 					log.error("Quick build #{} threw instead of reporting an outcome", buildId, e)
-					BuildOutcome.InfrastructureFailure(e.message ?: e.javaClass.name)
+					BuildOutcome.InfrastructureFailure(e.message ?: BuildOutcome.UNEXPECTED_FAILURE)
 				}
 			onBuildFinished(buildId, outcome)
 		}
