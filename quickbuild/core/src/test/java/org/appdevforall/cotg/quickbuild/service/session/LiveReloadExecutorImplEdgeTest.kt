@@ -91,14 +91,16 @@ class LiveReloadExecutorImplEdgeTest {
 		}
 
 	@Test
-	fun `a message-less pipeline throw falls back to the exception class name`() =
+	fun `a message-less pipeline throw falls back to named copy, not the class name`() =
 		runTest {
 			val outcome =
 				executor(clock = { throw IllegalStateException() })
 					.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
 
+			// The message reaches the status surface verbatim, where a class name reads as
+			// gibberish; it stays in the ERROR log line the catch writes.
 			assertThat(outcome)
-				.isEqualTo(BuildOutcome.InfrastructureFailure(IllegalStateException::class.java.name))
+				.isEqualTo(BuildOutcome.InfrastructureFailure(BuildOutcome.UNEXPECTED_FAILURE))
 		}
 
 	@Test
