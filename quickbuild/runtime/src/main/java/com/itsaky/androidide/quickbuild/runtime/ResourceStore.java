@@ -162,7 +162,7 @@ final class ResourceStore {
 			applyTableWithLoader(tableFd, generation, appContext, onFailure);
 			return;
 		case LEGACY_ASSET_PATH:
-			applyTableLegacy(tableFd, generation, appContext);
+			applyTableLegacy(tableFd, generation, appContext, onFailure);
 			return;
 		default:
 			Streams.closeQuietly(tableFd);
@@ -204,29 +204,32 @@ final class ResourceStore {
 	}
 
 	/**
-	 * API 28/29 swap: write the apk to disk, addAssetPath it into the application AssetManager, flush caches.
+	 * API 28/29 swap: write the apk to disk, then addAssetPath it into the application AssetManager and flush caches on the main thread.
 	 *
-	 * The deploy's activity recreate then re-resolves from the new table. A throw rolls back the dex payload only, not this path's own on-disk apk or an addAssetPath that already succeeded.
+	 * The mount is posted through {@link #swapProvidersOnMain} for the reason its own KDoc gives for the loader path: addAssetPath re-tables the live AssetManager and flushCaches drops the drawable and typed-value caches, and either can race an inflation already in progress - a lookup straddling the swap mixes old and new values. Running it on the arriving binder thread left that race open on exactly the devices this path exists for, since CoGo's classifier routes resource edits with no SDK gate.
+	 *
+	 * The mount is also ordered against the other swaps by {@code swappedGeneration}, like both siblings: two deploys arrive on two binder threads, so an overtaken one could otherwise addAssetPath last and leave the screen resolving an older table than {@code PayloadStore.generation()} reports.
+	 *
+	 * The write stays off the main thread; only the mount is posted. A throw rolls back the dex payload only, not this path's own on-disk apk or a mount that already committed.
 	 *
 	 * @param tableFd
 	 *            the relinked resource apk; always closed, success or failure
 	 * @param generation
-	 *            the payload generation, which names the file on disk
+	 *            the payload generation, which names the file on disk and orders this swap against the others; an overtaken one is dropped rather than mounted
 	 * @param appContext
 	 *            application context, for the cache dir and the Resources to mount onto
+	 * @param onFailure
+	 *            told when the posted mount fails or is refused, since that lands after this method returns; null when the caller has nothing to do about it
 	 * @throws IOException
-	 *             when the write or the mount fails; the previous table stays live
+	 *             when the write fails; the previous table stays live. A mount failure arrives through {@code onFailure} instead.
 	 */
-	private void applyTableLegacy(ParcelFileDescriptor tableFd, long generation,
-			Context appContext) throws IOException {
+	private void applyTableLegacy(ParcelFileDescriptor tableFd, final long generation,
+			final Context appContext, SwapFailure onFailure) throws IOException {
 		InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(tableFd);
+		final File zip;
 		try {
 			File dir = new File(appContext.getCacheDir(), LEGACY_TABLE_DIR);
-			File zip = LegacyResourceSwap.writeResourceApk(in, dir, generation);
-			Resources appResources = appContext.getResources();
-			LegacyResourceSwap.addAssetPath(appResources.getAssets(), zip.getAbsolutePath());
-			legacyTableZip = zip;
-			LegacyResourceSwap.flushCaches(appResources);
+			zip = LegacyResourceSwap.writeResourceApk(in, dir, generation);
 		} finally {
 			try {
 				in.close();
@@ -234,6 +237,40 @@ final class ResourceStore {
 				// Nothing useful to do with a failed close.
 			}
 		}
+		// The return is not tested: a refused post is already reported through onFailure,
+		// and unlike the loader paths there is no provider left in this method's hands to
+		// close - the apk on disk is swept by deleteStaleApks on the next process start.
+		swapProvidersOnMain(new Runnable() {
+
+			@Override
+			public void run() {
+				synchronized (ResourceStore.this) {
+					if (generation < swappedGeneration) {
+						// Overtaken, same as both loader swaps. Mounting now would make the last
+						// addAssetPath win the lookup with the older table, under the newer
+						// generation's label, and hand that apk to every later activity.
+						RuntimeLog.w("dropping overtaken legacy table swap for gen " + generation
+								+ "; gen " + swappedGeneration + " already committed");
+						return;
+					}
+					Resources appResources = appContext.getResources();
+					try {
+						LegacyResourceSwap.addAssetPath(appResources.getAssets(),
+								zip.getAbsolutePath());
+					} catch (IOException error) {
+						// A Runnable cannot carry a checked exception out, and swallowing it would
+						// ack a table that never mounted. swapProvidersOnMain catches Throwable and
+						// routes it to onFailure, so wrap rather than drop.
+						throw new IllegalStateException(
+								"legacy table swap failed for gen " + generation, error);
+					}
+					// Recorded only after the mount took, as in both loader swaps.
+					legacyTableZip = zip;
+					swappedGeneration = generation;
+					LegacyResourceSwap.flushCaches(appResources);
+				}
+			}
+		}, onFailure);
 	}
 
 	/**
