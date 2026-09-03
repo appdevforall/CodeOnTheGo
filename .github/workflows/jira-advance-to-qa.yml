@@ -10,10 +10,12 @@ jobs:
   advance:
     name: Move linked Jira ticket to QA
     runs-on: ubuntu-latest
-    # A fork branch can be named after anyone's ticket, so only our own branches count.
+    # Public repo: anyone can approve, and a fork branch can be named after
+    # anyone's ticket. Only our own branches, approved by someone with write access.
     if: >-
       github.event.review.state == 'approved' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
     steps:
       - name: Move the ticket to QA
         env:
