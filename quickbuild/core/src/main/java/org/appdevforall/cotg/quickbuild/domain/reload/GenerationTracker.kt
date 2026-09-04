@@ -3,6 +3,9 @@ package org.appdevforall.cotg.quickbuild.domain.reload
 /**
  * Persistence for the session's generation counter. Implementations live in the data
  * layer (a file under the project's `.androidide` state dir); tests use an in-memory fake.
+ *
+ * Both members suspend because the callers sit on the session thread, which must not block
+ * (concurrency.md), and the real store is a file on FUSE-backed storage.
  */
 interface GenerationStore {
 	/**
@@ -11,7 +14,7 @@ interface GenerationStore {
 	 * @return the stored number, or null when no session has ever run for this project - an
 	 *   unreadable store must also answer null, since a throw would fail session startup.
 	 */
-	fun load(): Long?
+	suspend fun load(): Long?
 
 	/**
 	 * Persists [generation] so it survives a CoGo restart.
@@ -19,7 +22,7 @@ interface GenerationStore {
 	 * @param generation the number just allocated, written before it is handed out so that a
 	 *   crash burns it rather than letting a later session reuse it.
 	 */
-	fun save(generation: Long)
+	suspend fun save(generation: Long)
 }
 
 /**
@@ -31,14 +34,19 @@ interface GenerationStore {
  *
  * Not thread-safe - call from the orchestrator's single-threaded context.
  *
- * @param store where the counter survives a restart; read once at construction, so a store
- *   changed underneath a live tracker is not noticed.
+ * Built through [open], which does the one read of the store; the constructor takes the
+ * value so that no blocking read hides in construction.
+ *
+ * @param store where the counter survives a restart; read once by [open], so a store changed
+ *   underneath a live tracker is not noticed.
+ * @param initial the generation [open] read, or 0 when the store had none.
  */
 class GenerationTracker(
 	private val store: GenerationStore,
+	initial: Long,
 ) {
 	/** The most recently allocated generation; 0 before any session has run. */
-	var current: Long = store.load() ?: 0L
+	var current: Long = initial
 		private set
 
 	/**
@@ -47,7 +55,7 @@ class GenerationTracker(
 	 * @return the new [current], always strictly greater than the previous one; a failed save
 	 *   propagates, so no number is handed out that the store did not accept.
 	 */
-	fun next(): Long {
+	suspend fun next(): Long {
 		val next = current + 1
 		store.save(next)
 		current = next
@@ -67,10 +75,20 @@ class GenerationTracker(
 	 * @param generation the stamped baseline generation; values at or below [current] are
 	 *   no-ops, so an unstamped (0) baseline never moves the counter.
 	 */
-	fun adoptAtLeast(generation: Long) {
+	suspend fun adoptAtLeast(generation: Long) {
 		if (generation > current) {
 			store.save(generation)
 			current = generation
 		}
+	}
+
+	companion object {
+		/**
+		 * Reads the store once and builds a tracker resuming from it.
+		 *
+		 * @param store where the counter survives a restart.
+		 * @return a tracker whose [current] is the stored generation, or 0 for a fresh project.
+		 */
+		suspend fun open(store: GenerationStore): GenerationTracker = GenerationTracker(store, store.load() ?: 0L)
 	}
 }
