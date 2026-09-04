@@ -120,6 +120,21 @@ class DeepLinkBuildUrlTest {
 	}
 
 	@Test
+	fun `the shared project-name rule is exactly what buildUrl enforces`() {
+		// One rule, two callers: buildUrl and the UI deciding whether to offer a link. Pinned together
+		// because a private copy in the UI is what previously offered a link for a ".foo" project and
+		// then failed on the tap.
+		for (name in listOf("MyApp", "My App", "Cafe\u0301", "we ird-name_1")) {
+			assertThat(DeepLinkRequest.isLinkableProjectName(name)).isTrue()
+			assertThat(DeepLinkRequest.buildUrl(name)).isNotNull()
+		}
+		for (name in listOf("", ".", "..", ".hidden", "nested/MyApp", "nested\\MyApp")) {
+			assertThat(DeepLinkRequest.isLinkableProjectName(name)).isFalse()
+			assertThat(DeepLinkRequest.buildUrl(name)).isNull()
+		}
+	}
+
+	@Test
 	fun `rejects dot segments the reader would refuse or an intermediary would rewrite`() {
 		// isProjectCandidateDir() refuses any name starting with '.', so none of these can name a
 		// project; "." and ".." are worse than unopenable, since a URL-normalizing browser or

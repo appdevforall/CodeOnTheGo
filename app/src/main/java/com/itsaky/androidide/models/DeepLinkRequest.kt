@@ -244,6 +244,28 @@ data class DeepLinkRequest(
 		}
 
 		/**
+		 * Whether a link can name [projectName] at all.
+		 *
+		 * A project name is a single path segment naming a direct child of the projects root, so a
+		 * name carrying a separator can never resolve -- lookupValidProjectByName rejects it before it
+		 * ever touches the disk. A leading dot is rejected for the same reason one level down:
+		 * isProjectCandidateDir() refuses any name starting with '.', so a hidden directory is never a
+		 * project. That one check also covers "." and "..", which matter more than merely being
+		 * unopenable -- a browser or messenger that normalizes dot segments rewrites
+		 * "/device/open/project/../file/x" into an entirely different path before the app ever sees it.
+		 *
+		 * Public because [buildUrl] is not the only caller that needs it: a UI deciding whether to
+		 * *offer* to make a link has to reach the same verdict, and cheaply. Its own copy of these
+		 * four conditions is exactly the drift that put an offer in front of the user for a project
+		 * this function refuses.
+		 */
+		fun isLinkableProjectName(projectName: String): Boolean =
+			projectName.isNotEmpty() &&
+				!projectName.startsWith('.') &&
+				!projectName.contains('/') &&
+				!projectName.contains('\\')
+
+		/**
 		 * The inverse of [parse]: the canonical URL naming [projectName], optionally the
 		 * project-relative [filePath] inside it, and optionally a [line] and [column] inside that file.
 		 *
@@ -280,19 +302,7 @@ data class DeepLinkRequest(
 			line: Int? = null,
 			column: Int? = null,
 		): String? {
-			// A project name is a single path segment naming a direct child of the projects root, so a
-			// name carrying a separator can never resolve -- lookupValidProjectByName rejects it before
-			// it ever touches the disk. A leading dot is rejected for the same reason one level down:
-			// isProjectCandidateDir() refuses any name starting with '.', so a hidden directory is
-			// never a project. That one check also covers "." and "..", which matter more than merely
-			// being unopenable -- a browser or messenger that normalizes dot segments rewrites
-			// "/device/open/project/../file/x" into an entirely different path before the app ever
-			// sees it.
-			if (projectName.isEmpty() ||
-				projectName.startsWith('.') ||
-				projectName.contains('/') ||
-				projectName.contains('\\')
-			) {
+			if (!isLinkableProjectName(projectName)) {
 				return null
 			}
 

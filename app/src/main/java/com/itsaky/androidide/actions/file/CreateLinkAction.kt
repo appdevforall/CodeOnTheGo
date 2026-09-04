@@ -109,7 +109,7 @@ class CreateLinkAction(
 						// so it is logged and left uncached, and the next menu open retries.
 						runCatching { isDeepLinkTargetOfOpenProject(projectPath, projectName, root) }
 							.onSuccess { linkableProjects[projectPath] = it }
-							.onFailure { log.warn("Could not determine whether {} can be linked", projectPath, it) }
+							.onFailure { log.warn("Could not determine whether the open project can be linked", it) }
 					} finally {
 						canonicalisationsInFlight.remove(projectPath)
 					}
@@ -220,6 +220,13 @@ class CreateLinkAction(
 		// that resolves on this device, let alone on the recipient's, so there is nothing honest to
 		// put on the clipboard.
 		if (linkableProject(activity, projectPath) != true) {
+			return null
+		}
+
+		// buildUrl's own rule, called rather than restated. A direct child named ".foo" satisfies the
+		// containment check above -- that one compares parents, not names -- but is not a project a
+		// link can name, so without this the item was offered and the tap then failed.
+		if (!DeepLinkRequest.isLinkableProjectName(projectDir.name)) {
 			return null
 		}
 
