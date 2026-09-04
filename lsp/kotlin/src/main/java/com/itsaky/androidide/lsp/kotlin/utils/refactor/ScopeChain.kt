@@ -1,5 +1,10 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.BlockAnchor
+import com.itsaky.androidide.lsp.refactor.BracelessBody
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.detectIndentUnit
+import com.itsaky.androidide.lsp.refactor.leadingIndentAt
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.psi.KtAnonymousInitializer
@@ -110,9 +115,11 @@ private fun frameFor(
 			searchRange = parent.textRange.let { TextSpan(it.startOffset, it.endOffset) },
 			anchorForm =
 				AnchorForm.ExistingBlock(
-					contentSpan = contentSpanOf(parent),
-					statementSpans =
-						parent.statements.map { TextSpan(it.textRange.startOffset, it.textRange.endOffset) },
+					BlockAnchor(
+						contentSpan = contentSpanOf(parent),
+						statementSpans =
+							parent.statements.map { TextSpan(it.textRange.startOffset, it.textRange.endOffset) },
+					),
 				),
 		)
 	}
@@ -128,10 +135,12 @@ private fun frameFor(
 			searchRange = span,
 			anchorForm =
 				AnchorForm.WrapInBraces(
-					bodyStart = span.start,
-					bodyEnd = span.end,
-					indent = indent,
-					innerIndent = indent + detectIndentUnit(text),
+					BracelessBody(
+						bodyStart = span.start,
+						bodyEnd = span.end,
+						indent = indent,
+						innerIndent = indent + detectIndentUnit(text),
+					),
 				),
 		)
 	}
@@ -257,37 +266,4 @@ internal fun contentSpanOf(block: KtBlockExpression): TextSpan {
 	} else {
 		TextSpan(range.startOffset + 1, range.endOffset - 1)
 	}
-}
-
-/** Offset of the start of the line containing [offset]. */
-internal fun lineStartOffset(
-	text: String,
-	offset: Int,
-): Int = text.lastIndexOf('\n', (offset - 1).coerceAtLeast(0)).let { if (it < 0) 0 else it + 1 }
-
-/** The run of spaces/tabs at the start of [offset]'s line. */
-internal fun leadingIndentAt(
-	text: String,
-	offset: Int,
-): String {
-	val lineStart = lineStartOffset(text, offset)
-	return text.substring(lineStart, offset.coerceAtLeast(lineStart)).takeWhile { it == ' ' || it == '\t' }
-}
-
-/**
- * One indentation level for [text], inferred from its own lines: a tab if any line is tab-indented,
- * otherwise the smallest positive run of leading spaces, defaulting to a tab (the project
- * convention). Code-action edits bypass the editor's auto-indent, so emitted text must already match
- * the file's style. Mirrors the detection in `ImplementMembersAction`.
- */
-internal fun detectIndentUnit(text: String): String {
-	var minSpaces = Int.MAX_VALUE
-	for (line in text.splitToSequence('\n')) {
-		if (line.isEmpty()) continue
-		if (line[0] == '\t') return "\t"
-		if (line[0] != ' ') continue
-		val spaces = line.takeWhile { it == ' ' }.length
-		if (spaces in 1 until minSpaces) minSpaces = spaces
-	}
-	return if (minSpaces == Int.MAX_VALUE) "\t" else " ".repeat(minSpaces)
 }
