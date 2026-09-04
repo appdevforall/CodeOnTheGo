@@ -9,8 +9,9 @@ import org.junit.Test
  *
  * The property worth pinning: `resourceXmlSaved` - the flag the post-save `generateSources()`
  * gates read - is set only for a modified XML file the project manager recognizes as an Android
- * resource. Any other save (manifest-style non-resource XML, sources, unmodified files) must
- * leave it false so no Gradle run fires for a save that cannot change `R`.
+ * resource, plus `AndroidManifest.xml`, which sits outside every resource directory but feeds the
+ * same generated sources. Any other save (other non-resource XML, sources, unmodified files) must
+ * leave it false so no Gradle run fires for a save that cannot change what that run generates.
  */
 class SaveResultFlagsTest {
 	@Test
@@ -25,8 +26,28 @@ class SaveResultFlagsTest {
 	@Test
 	fun `a non-resource xml save sets xmlSaved only`() {
 		val result = SaveResult()
-		accumulateSaveFlags(result, "AndroidManifest.xml", modified = true) { false }
+		accumulateSaveFlags(result, "lint.xml", modified = true) { false }
 		assertThat(result.xmlSaved).isTrue()
+		assertThat(result.resourceXmlSaved).isFalse()
+	}
+
+	@Test
+	fun `a manifest save sets resourceXmlSaved without consulting the resource lookup`() {
+		val result = SaveResult()
+		var consulted = false
+		accumulateSaveFlags(result, "AndroidManifest.xml", modified = true) {
+			consulted = true
+			false
+		}
+		assertThat(result.resourceXmlSaved).isTrue()
+		assertThat(consulted).isFalse()
+	}
+
+	@Test
+	fun `an unmodified manifest sets nothing`() {
+		val result = SaveResult()
+		accumulateSaveFlags(result, "AndroidManifest.xml", modified = false) { false }
+		assertThat(result.xmlSaved).isFalse()
 		assertThat(result.resourceXmlSaved).isFalse()
 	}
 
@@ -92,7 +113,7 @@ class SaveResultFlagsTest {
 	@Test
 	fun `a later resource save upgrades a latched non-resource result`() {
 		val result = SaveResult()
-		accumulateSaveFlags(result, "AndroidManifest.xml", modified = true) { false }
+		accumulateSaveFlags(result, "lint.xml", modified = true) { false }
 		assertThat(result.resourceXmlSaved).isFalse()
 
 		accumulateSaveFlags(result, "strings.xml", modified = true) { true }
