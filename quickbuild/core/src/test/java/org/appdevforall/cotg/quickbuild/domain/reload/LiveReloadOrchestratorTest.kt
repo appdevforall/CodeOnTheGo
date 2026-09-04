@@ -756,6 +756,62 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
+	fun `a truncated mtime a full margin before the start is absorbed - the margin is two seconds, not more`() =
+		runTest {
+			// The test above pins the margin at more than 1 s (a 9_000 stamp stays pending).
+			// This one pins the other side: a whole-second stamp exactly 2 s before the start
+			// is inside the cutoff and absorbs, so the constant cannot silently grow past 2 s
+			// and strand a genuinely older save. Together they fix MTIME_GRANULARITY_MARGIN_MILLIS
+			// at 2_000 to within the whole-second grain the filesystems involved use.
+			val executor = GatedExecutor()
+			val orchestrator =
+				LiveReloadOrchestrator(
+					executor,
+					ChangeClassifier(),
+					backgroundScope,
+					wallClock = { 10_000L },
+					fileLastModified = { file -> if (file.path == srcA) 8_000L else 0L },
+				) {}
+
+			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
+			runCurrent()
+			orchestrator.onProxyAppRebuildStarted()
+			orchestrator.onFilesChanged(known(srcA))
+			orchestrator.onBaselineReset()
+			runCurrent()
+
+			assertThat(executor.requests).isEmpty()
+		}
+
+	@Test
+	fun `a mid-rebuild edit gets the margin when the rebuild holds Unknown - nothing there proves it is an echo`() =
+		runTest {
+			// An external Gradle build untrusts the baseline (pending becomes Unknown), a rebuild
+			// then starts and takes that Unknown as its held set. A .kt saved 0.5 s into the
+			// rebuild on a 1 s-mtime filesystem reports a whole-second stamp before the start.
+			// Treating "held is Unknown" as "every file is held" skipped the margin, absorbed
+			// the save, and onBaselineReset dropped it - the edit was never built.
+			val executor = GatedExecutor()
+			val orchestrator =
+				LiveReloadOrchestrator(
+					executor,
+					ChangeClassifier(),
+					backgroundScope,
+					wallClock = { 10_000L },
+					fileLastModified = { file -> if (file.path == srcA) 9_000L else 0L },
+				) {}
+
+			orchestrator.onBaselineUntrusted()
+			orchestrator.onProxyAppRebuildStarted()
+			orchestrator.onFilesChanged(known(srcA))
+			orchestrator.onBaselineReset()
+			runCurrent()
+
+			assertThat(executor.requests).hasSize(1)
+			assertThat(executor.requests[0].changes).isEqualTo(known(srcA))
+		}
+
+	@Test
 	fun `a mid-rebuild file with no readable mtime stays pending - nothing proves it predates the read`() =
 		runTest {
 			// 0 means missing or unreadable, not ancient: absorbing it would drop a real
