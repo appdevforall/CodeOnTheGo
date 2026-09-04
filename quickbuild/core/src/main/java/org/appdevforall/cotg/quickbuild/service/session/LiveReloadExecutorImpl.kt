@@ -79,9 +79,10 @@ class LiveReloadExecutorImpl(
 	 */
 	private val metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop,
 	/**
-	 * Where the source scan runs. [QuickBuildProjectLayout.allSources] walks the source
-	 * roots on every build, and this executor runs on the single session dispatcher, whose
-	 * rule is that nothing on it may block. Injected so a test can record the thread.
+	 * Where the source scan and the asset packaging run. [QuickBuildProjectLayout.allSources]
+	 * walks the source roots on every build and [AssetPackager] reads and zips every asset it
+	 * ships, while this executor runs on the single session dispatcher, whose rule is that
+	 * nothing on it may block. Injected so a test can record the thread.
 	 */
 	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 	/**
@@ -255,12 +256,15 @@ class LiveReloadExecutorImpl(
 		// Removed assets must reach the packager too, or a save that only deletes one
 		// packages nothing and the build never deploys.
 		val assetCandidates = known?.files.orEmpty() + known?.removed.orEmpty()
+		// Reads and zips whatever resolves under an asset root, so off the session dispatcher.
 		val assets =
-			assetPackager.packageAssets(
-				changedFiles = assetCandidates,
-				assetRoots = layout.assetRoots(),
-				outFile = File(workDir, "assets-payload.zip"),
-			)
+			withContext(ioDispatcher) {
+				assetPackager.packageAssets(
+					changedFiles = assetCandidates,
+					assetRoots = layout.assetRoots(),
+					outFile = File(workDir, "assets-payload.zip"),
+				)
+			}
 
 		return when (request.route) {
 			BuildRoute.NoOp -> {
@@ -524,12 +528,16 @@ class LiveReloadExecutorImpl(
 	 * @return the full asset set as [AssetPackager] would ship it, or null when the module has
 	 *   no assets at all.
 	 */
-	private fun packageAllAssets(): AssetPackager.PackagedAssets? =
-		assetPackager.packageAssets(
-			changedFiles = layout.assetRoots().flatMap { it.walkTopDown().filter(File::isFile).toList() },
-			assetRoots = layout.assetRoots(),
-			outFile = File(workDir, "assets-payload.zip"),
-		)
+	private suspend fun packageAllAssets(): AssetPackager.PackagedAssets? =
+		// Walks every asset root and then reads every file under them, so off the session
+		// dispatcher like the scan.
+		withContext(ioDispatcher) {
+			assetPackager.packageAssets(
+				changedFiles = layout.assetRoots().flatMap { it.walkTopDown().filter(File::isFile).toList() },
+				assetRoots = layout.assetRoots(),
+				outFile = File(workDir, "assets-payload.zip"),
+			)
+		}
 
 	/** Result of one pipeline step: the artifact it produced, or the outcome that ends the build. */
 	private sealed interface Step {

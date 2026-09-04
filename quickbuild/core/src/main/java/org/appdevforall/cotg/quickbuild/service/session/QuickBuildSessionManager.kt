@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.data.AndroidProjectWatcher
 import org.appdevforall.cotg.quickbuild.data.FileGenerationStore
 import org.appdevforall.cotg.quickbuild.data.ProjectWatcher
@@ -1410,7 +1411,9 @@ class QuickBuildSessionManager(
 	 */
 	private suspend fun refreshBaseline() {
 		val session = live ?: return
-		if (buildRunner.proxyAppArtifactsIntact(session.proxyApp)) {
+		// Stats every classpath entry, so off the session dispatcher.
+		val intact = withContext(ioDispatcher) { buildRunner.proxyAppArtifactsIntact(session.proxyApp) }
+		if (intact) {
 			session.orchestrator.onBaselineUntrusted()
 		} else {
 			log.warn("Proxy app build artifacts missing after an external build; forcing a proxy app rebuild")

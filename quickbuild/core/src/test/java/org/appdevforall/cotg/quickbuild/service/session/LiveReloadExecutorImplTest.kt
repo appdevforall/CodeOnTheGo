@@ -1715,7 +1715,7 @@ class LiveReloadExecutorImplTest {
 	 * The source scan walks the module's source roots on every build, and the executor runs
 	 * on the single session dispatcher, whose rule is that nothing on it may block
 	 * (concurrency.md). Goes red if the withContext around allSources is removed: the scan
-	 * then runs inline and nothing is ever handed to the dispatcher.
+	 * then runs inline and only the asset packaging is handed to the dispatcher.
 	 */
 	@Test
 	fun `the source scan runs off the caller's thread`() =
@@ -1744,7 +1744,46 @@ class LiveReloadExecutorImplTest {
 
 			scanning.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
 
+			// The scan, then the asset packaging.
+			assertThat(io.dispatches).isEqualTo(2)
+			assertThat(io.threads).containsExactly(RecordingIoDispatcher.THREAD_NAME)
+		}
+
+	private fun executorRecording(io: RecordingIoDispatcher) =
+		LiveReloadExecutorImpl(
+			daemon = daemon,
+			deploy = deploy,
+			layout = QuickBuildProjectLayout(projectRoot),
+			entryActivity = "com.example.MainActivity",
+			generations = tracker,
+			workDir = File(projectRoot, ".androidide/quickbuild"),
+			clock = { 1000L },
+			ioDispatcher = io,
+		)
+
+	@Test
+	fun `asset packaging runs off the caller's thread`() =
+		runTest {
+			// An assets-only build never scans sources, so the one hop is the packaging: it reads
+			// and zips every changed asset, on the session dispatcher without it.
+			val io = RecordingIoDispatcher()
+
+			executorRecording(io).execute(request(BuildRoute.AssetsOnly, ChangedFiles.Known(setOf(assetFile))))
+
 			assertThat(io.dispatches).isEqualTo(1)
+			assertThat(io.threads).containsExactly(RecordingIoDispatcher.THREAD_NAME)
+		}
+
+	@Test
+	fun `a forced rebuild's full asset walk runs off the caller's thread`() =
+		runTest {
+			// The forced route walks every asset root and zips everything under them, on top of
+			// the scan and the (empty) changed-asset packaging every build does.
+			val io = RecordingIoDispatcher()
+
+			executorRecording(io).execute(request(BuildRoute.NoOp, forced = true))
+
+			assertThat(io.dispatches).isEqualTo(3)
 			assertThat(io.threads).containsExactly(RecordingIoDispatcher.THREAD_NAME)
 		}
 }
