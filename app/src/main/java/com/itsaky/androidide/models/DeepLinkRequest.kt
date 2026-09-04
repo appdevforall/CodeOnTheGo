@@ -56,9 +56,17 @@ data class DeepLinkRequest(
 
 		private const val SCHEME = "https"
 
+		/**
+		 * The host [buildUrl] writes.
+		 *
+		 * Both entries in [HOSTS] resolve identically, so this is only a choice about which one a
+		 * generated link shows the person who receives it; the bare domain is the shorter.
+		 */
+		private const val CANONICAL_HOST = "appdevforall.org"
+
 		// Both hosts serve an identical, verified assetlinks.json (see AndroidManifest.xml's matching
 		// pair of <data> elements on DeepLinkActivity's intent-filter) -- kept in sync with that list.
-		private val HOSTS = setOf("www.appdevforall.org", "appdevforall.org")
+		private val HOSTS = setOf("www.$CANONICAL_HOST", CANONICAL_HOST)
 		private const val PATH_PREFIX = "/device/open/project/"
 
 		/**
@@ -224,6 +232,93 @@ data class DeepLinkRequest(
 				}
 
 			return DeepLinkRequest(projectName = projectName, fileRequest = fileRequest)
+		}
+
+		/**
+		 * The inverse of [parse]: the canonical URL naming [projectName], optionally the
+		 * project-relative [filePath] inside it, and optionally a [line] and [column] inside that file.
+		 *
+		 * [line] and [column] are ONE-BASED, matching the URL scheme rather than the editor. The
+		 * editor's own cursor is zero-based and
+		 * [EditorHandlerActivity][com.itsaky.androidide.activities.editor.EditorHandlerActivity]
+		 * subtracts one again when it reads a link back, so a caller holding a cursor passes
+		 * `cursor.leftLine + 1`.
+		 *
+		 * Returns `null` rather than a URL that [parse] would reject or read back as something other
+		 * than what was asked for. Each rejection below mirrors a specific check in [parse] or in
+		 * [lookupValidProjectByName][com.itsaky.androidide.utils.lookupValidProjectByName]: there is
+		 * nothing to be gained by handing someone a link this same app refuses to open.
+		 */
+		fun buildUrl(
+			projectName: String,
+			filePath: String? = null,
+			line: Int? = null,
+			column: Int? = null,
+		): String? {
+			// A project name is a single path segment naming a direct child of the projects root, so a
+			// name carrying a separator can never resolve -- lookupValidProjectByName rejects it before
+			// it ever touches the disk.
+			if (projectName.isEmpty() || projectName.contains('/') || projectName.contains('\\')) {
+				return null
+			}
+
+			// parse() keeps line/column only when there is a file for them to apply to, and silently
+			// drops them otherwise. Refusing beats emitting a link that quietly loses them.
+			if (filePath == null && (line != null || column != null)) {
+				return null
+			}
+
+			// Zero and negative are exactly what zeroBasedOrInvalid() reports back to the user as an
+			// invalid line/column, so they must not be written down in the first place.
+			if ((line != null && line <= 0) || (column != null && column <= 0)) {
+				return null
+			}
+
+			val builder = Uri.Builder().scheme(SCHEME).authority(CANONICAL_HOST)
+
+			// Derived from PATH_PREFIX rather than spelled out a second time, so a change to the prefix
+			// parse() requires cannot leave the writer emitting the old one.
+			PATH_PREFIX.trim('/').split('/').forEach { builder.appendPath(it) }
+			builder.appendPath(projectName)
+
+			if (filePath != null) {
+				val segments = filePath.split('/')
+				// An empty component would put "//" in the path, which parse() rejects outright.
+				if (segments.any(String::isEmpty)) {
+					return null
+				}
+
+				builder.appendPath(SEGMENT_FILE)
+
+				// One appendPath call PER COMPONENT. Uri.Builder.appendPath encodes its argument as a
+				// single segment, which means it percent-encodes '/' along with everything outside
+				// [A-Za-z0-9_-!.~'()*] -- so handing it the whole relative path in one call emits
+				// ".../file/src%2Fmain%2FMain.kt". parse() does read that back correctly (getPathSegments
+				// splits the ENCODED path, so an encoded slash never becomes a separator), but it is
+				// neither the shape this class documents nor a URL a human can read. Encoding is not
+				// optional either way: '#' and '?' are legal in a Linux filename and would otherwise
+				// truncate the path into a fragment or a query.
+				segments.forEach { builder.appendPath(it) }
+
+				// Always written as a full keyword/value pair, even though parse() tolerates a bare
+				// trailing keyword. A real pair is also what keeps a file path whose own trailing
+				// segments look like "line"/"column" out of peelTrailingKeyword's reach -- see parse()'s
+				// notes on the shapes it cannot resolve. Hand-authored links stay exposed to that;
+				// links from here do not.
+				line?.let { builder.appendPath(SEGMENT_LINE).appendPath(it.toString()) }
+				column?.let { builder.appendPath(SEGMENT_COLUMN).appendPath(it.toString()) }
+			}
+
+			val uri = builder.build()
+
+			// parse() measures the DECODED path against this ceiling and Uri.getPath() is decoded, so
+			// this is the same number it will see -- percent-expansion in the emitted string does not
+			// count against it.
+			if ((uri.path?.length ?: 0) > MAX_LINK_PATH_LENGTH) {
+				return null
+			}
+
+			return uri.toString()
 		}
 	}
 }

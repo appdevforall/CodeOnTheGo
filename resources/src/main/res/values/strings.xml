@@ -146,6 +146,8 @@
 	<string name="msg_deeplink_invalid_column">\"%s\" is not a valid column number.</string>
 	<string name="msg_deeplink_no_value">(no value given)</string>
 	<string name="msg_deeplink_scan_failed">Could not scan projects for this link.</string>
+	<string name="msg_deeplink_copied">Link copied to the clipboard</string>
+	<string name="msg_deeplink_cannot_create">Could not create a link for this file.</string>
 	<string name="msg_project_close_in_progress">A project close is already in progress. Try again in a moment.</string>
 	<string name="msg_create_new_project">Create new project</string>
 	<string name="msg_open_existing_project">Open a saved project</string>
@@ -281,6 +283,7 @@
 	<string name="action_install">Install</string>
 	<string name="action_closeOthers">Close others</string>
 	<string name="action_closeThis">Close this</string>
+	<string name="action_create_link">Create link</string>
 	<string name="all_saved">All files saved</string>
 	<string name="save_failed">Failed to save files</string>
 	<string name="msg_newfile_dest">Destination: %s/</string>
