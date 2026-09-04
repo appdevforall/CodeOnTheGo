@@ -188,6 +188,31 @@ class LiveReloadExecutorImplTest {
 			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 0))
 		}
 
+	@Test
+	fun `a deploy-nothing build before the first deploy reports the baseline stamp, not the allocator`() =
+		runTest {
+			// The allocator is the project's persisted counter, which earlier sessions leave wherever
+			// they got to, and an unstamped (0) baseline never moves it. Until the first confirmed
+			// deploy the app runs the stamp; reporting the allocator instead tells the session a
+			// generation the app never received is live.
+			store.save(7)
+			val seeded =
+				LiveReloadExecutorImpl(
+					daemon = daemon,
+					deploy = deploy,
+					layout = QuickBuildProjectLayout(projectRoot),
+					entryActivity = "com.example.MainActivity",
+					generations = GenerationTracker(store),
+					workDir = File(projectRoot, ".androidide/quickbuild"),
+					clock = { 1000L },
+					baselineGeneration = 0L,
+				)
+
+			val outcome = seeded.execute(request(BuildRoute.WarmCompile, ChangedFiles.Unknown))
+
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(0, 0))
+		}
+
 	// Review gap (2026-07-26 #69): the warm compile is invisible by contract - the proxy app
 	// already runs exactly the sources it compiles - so its overlay must not flash
 	// "build ok" for a build the user never triggered.
