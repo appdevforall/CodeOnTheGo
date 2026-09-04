@@ -2,6 +2,8 @@ package org.appdevforall.cotg.quickbuild.daemon.dex
 
 import org.appdevforall.cotg.quickbuild.protocol.DexStats
 import java.io.File
+import java.io.IOException
+import java.io.UncheckedIOException
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
@@ -48,9 +50,10 @@ class DexTool(
 		/**
 		 * The run produced no usable dex.
 		 *
-		 * @property message caller-facing reason - no input classes, a d8 error, a payload d8
-		 *   had to split across several dex files, or an r8 jar whose layout does not match
-		 *   what the reflective calls expect.
+		 * @property message caller-facing reason - no input classes, a class file the strip
+		 *   pass could not read or rewrite (named), a d8 error, a payload d8 had to split across
+		 *   several dex files, or an r8 jar whose layout does not match what the reflective
+		 *   calls expect.
 		 */
 		data class Failed(
 			val message: String,
@@ -68,8 +71,9 @@ class DexTool(
 	 *   root overwrites an earlier one on the same relative path.
 	 * @param outDir created if absent; receives `classes.dex` and the `opened-classes` mirror,
 	 *   both wiped at the start of every run.
-	 * @return [Result.Failed] when no `.class` was found, when d8 threw, when d8 exited clean
-	 *   without writing a dex, or when d8 split the payload across more than one dex.
+	 * @return [Result.Failed] when no `.class` was found, when the strip pass could not read or
+	 *   rewrite a class file, when d8 threw, when d8 exited clean without writing a dex, or
+	 *   when d8 split the payload across more than one dex.
 	 */
 	fun dex(
 		classesDirs: List<File>,
@@ -81,15 +85,18 @@ class DexTool(
 		// the device provisioned, and while the ones measured here do clear stale dex files
 		// themselves, that is not a documented guarantee to inherit a correctness check from.
 		dexFilesIn(outDir).forEach { it.delete() }
-		val stripStartedAt = System.currentTimeMillis()
-		val opened = openClasses(classesDirs, File(outDir, "opened-classes"))
-		val stripMillis = System.currentTimeMillis() - stripStartedAt
-		val classFiles = opened.paths
-		if (classFiles.isEmpty()) {
-			return Result.Failed("no .class files found under: ${classesDirs.joinToString()}")
-		}
 		val diagnostics = D8DiagnosticsCollector()
+		// The strip pass is inside the try too: it reads and rewrites every class file, every
+		// dex, so a phone that fills up mid-pass or a class file from a newer compiler is a
+		// dex failure that names its file, not an internal error naming nothing.
 		return try {
+			val stripStartedAt = System.currentTimeMillis()
+			val opened = openClasses(classesDirs, File(outDir, "opened-classes"))
+			val stripMillis = System.currentTimeMillis() - stripStartedAt
+			val classFiles = opened.paths
+			if (classFiles.isEmpty()) {
+				return Result.Failed("no .class files found under: ${classesDirs.joinToString()}")
+			}
 			val d8StartedAt = System.currentTimeMillis()
 			runD8(classFiles, outDir.toPath(), diagnostics)
 			val d8Millis = System.currentTimeMillis() - d8StartedAt
@@ -105,6 +112,13 @@ class DexTool(
 					stats = DexStats(classFiles = classFiles.size, classBytes = opened.bytes),
 				)
 			}
+		} catch (e: ClassOpenException) {
+			Result.Failed("cannot open class file ${e.classFile}: ${e.cause}")
+		} catch (e: IOException) {
+			Result.Failed("cannot mirror the class tree under ${classesDirs.joinToString()}: $e")
+		} catch (e: UncheckedIOException) {
+			// Files.walk reports a directory it cannot enter this way, mid-iteration.
+			Result.Failed("cannot mirror the class tree under ${classesDirs.joinToString()}: ${e.cause}")
 		} catch (e: InvocationTargetException) {
 			Result.Failed(d8FailureMessage(e, diagnostics.errors))
 		} catch (e: ReflectiveOperationException) {
@@ -188,6 +202,8 @@ class DexTool(
 	 * @param classesDirs roots to mirror, in precedence order; non-directories are skipped.
 	 * @param openedRoot deleted recursively first, so it must not be a caller-owned dir.
 	 * @return the stripped copies in first-seen path order, and the total bytes read.
+	 * @throws ClassOpenException when one class file could not be read, parsed or written,
+	 *   naming it; [IOException] when the tree walk itself failed.
 	 */
 	private fun openClasses(
 		classesDirs: List<File>,
@@ -201,16 +217,35 @@ class DexTool(
 			Files.walk(base).use { stream ->
 				stream.filter { it.extension == "class" }.forEach { classFile ->
 					val target = openedRoot.toPath().resolve(base.relativize(classFile))
-					Files.createDirectories(target.parent)
-					val original = Files.readAllBytes(classFile)
-					bytes += original.size
-					Files.write(target, FinalStripper.strip(original))
+					try {
+						Files.createDirectories(target.parent)
+						val original = Files.readAllBytes(classFile)
+						bytes += original.size
+						// ASM refuses a class-file major version newer than it knows with an
+						// IllegalArgumentException; an unreadable file or a full disk is an IOException.
+						Files.write(target, FinalStripper.strip(original))
+					} catch (e: IOException) {
+						throw ClassOpenException(classFile, e)
+					} catch (e: IllegalArgumentException) {
+						throw ClassOpenException(classFile, e)
+					}
 					opened[base.relativize(classFile)] = target
 				}
 			}
 		}
 		return Opened(opened.values.toList(), bytes)
 	}
+
+	/**
+	 * One class file the strip pass could not process, so [dex] can report the file rather
+	 * than an internal error.
+	 *
+	 * @property classFile the original under the caller's classes dir, not the mirror copy.
+	 */
+	private class ClassOpenException(
+		val classFile: Path,
+		cause: Exception,
+	) : RuntimeException(cause)
 
 	/**
 	 * What one [openClasses] pass produced: the stripped copies, and the bytes it read.
