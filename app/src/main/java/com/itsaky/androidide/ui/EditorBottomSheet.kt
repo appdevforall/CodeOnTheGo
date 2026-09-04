@@ -452,17 +452,8 @@ class EditorBottomSheet
 			applyPeekHeight()
 		}
 
-		/**
-		 * What the sheet puts above the header: the status-bar padding it carries for its
-		 * expanded state, and the divider row. The peek has to include it, or the bottom of the
-		 * header falls below the window and takes the swipe hint with it.
-		 */
-		private val chromeAboveHeader: Int
-			get() = binding.root.top + binding.headerContainer.top
-
 		private fun applyPeekHeight() {
-			behavior.peekHeight =
-				collapsedPeekHeightPx(collapsedHeight, chromeAboveHeader, isSearchModeActive)
+			behavior.peekHeight = if (isSearchModeActive) 0 else collapsedHeight.roundToInt()
 		}
 
 		/**
@@ -847,13 +838,3 @@ class EditorBottomSheet
 			binding.copyDiagnosticsFab.translationY = translationY
 		}
 	}
-
-/**
- * The peek height that keeps the whole collapsed header on screen: the header itself, plus the
- * sheet chrome that sits above it. Search mode hides the sheet instead.
- */
-internal fun collapsedPeekHeightPx(
-	collapsedHeight: Float,
-	chromeAboveHeader: Int,
-	isSearchModeActive: Boolean,
-): Int = if (isSearchModeActive) 0 else (collapsedHeight + chromeAboveHeader).roundToInt()
