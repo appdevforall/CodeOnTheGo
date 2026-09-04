@@ -29,6 +29,14 @@ final class CrashSummary {
 	 */
 	static final int BUILD_FAILED_DETAIL_CHARS = 25;
 
+	/**
+	 * First line of the report for a reload that failed after its resource swap committed.
+	 *
+	 * Build Output is where the banner sends the reader, so the instruction the banner gives has to be there in full: the rollback restored the code only, and a restart is what puts the app back on one generation.
+	 */
+	static final String MIXED_STATE_PREFIX = "Rolled back the code, but the resources had already swapped in: "
+			+ "the app is running mixed versions until it is restarted.";
+
 	/** Frames a report to CoGo names; enough to place the fault, short enough to read. */
 	private static final int MAX_REPORT_FRAMES = 5;
 
@@ -50,7 +58,32 @@ final class CrashSummary {
 	 * @return the exception and up to {@link #MAX_REPORT_CAUSES} causes, each with up to {@link #MAX_REPORT_FRAMES} frames, truncated to {@link #MAX_REPORT_LENGTH} chars
 	 */
 	static String forReport(Throwable error) {
+		return report(null, error);
+	}
+
+	/**
+	 * The full form reported to CoGo when the failure left the app on mixed versions: {@link #MIXED_STATE_PREFIX}, then the same frames as {@link #forReport}, under the same length cap.
+	 *
+	 * @param error
+	 *            the failure to summarize; must be non-null
+	 * @return the prefixed report, truncated to {@link #MAX_REPORT_LENGTH} chars as a whole
+	 */
+	static String forMixedReport(Throwable error) {
+		return report(MIXED_STATE_PREFIX, error);
+	}
+
+	/**
+	 * @param prefix
+	 *            a line to put before the exception, or null for none
+	 * @param error
+	 *            the failure to summarize; must be non-null
+	 * @return the report, truncated as a whole so the prefix cannot push it past the binder cap
+	 */
+	private static String report(String prefix, Throwable error) {
 		StringBuilder sb = new StringBuilder();
+		if (prefix != null) {
+			sb.append(prefix).append('\n');
+		}
 		sb.append(error.toString());
 		appendFrames(sb, error, MAX_REPORT_FRAMES);
 		// Each cause gets its frames too, not just its toString. The frame a developer needs is

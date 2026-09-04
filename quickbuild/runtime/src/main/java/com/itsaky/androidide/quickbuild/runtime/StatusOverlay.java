@@ -46,7 +46,7 @@ final class StatusOverlay {
 	 * Banner background color for a state kind.
 	 *
 	 * @param kind
-	 *            the state being rendered; anything but BUILD_FAILED and CRASHED, HIDDEN included, takes the neutral color
+	 *            the state being rendered; anything but the four failure kinds, HIDDEN included, takes the neutral color
 	 * @return an ARGB color, deliberately translucent so the app stays readable behind it
 	 */
 	private static int colorFor(OverlayState.Kind kind) {
@@ -55,6 +55,7 @@ final class StatusOverlay {
 		case REINSTALL_PENDING:
 			return COLOR_BUILD_FAILED;
 		case CRASHED:
+		case MIXED:
 			return COLOR_CRASHED;
 		default:
 			return COLOR_NEUTRAL;
