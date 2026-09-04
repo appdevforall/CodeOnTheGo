@@ -157,6 +157,30 @@ internal fun isDeepLinkTargetOfOpenProject(
 }
 
 /**
+ * [isDeepLinkTargetOfOpenProject] with "could not tell" kept apart from "no", for a caller that
+ * remembers the answer.
+ *
+ * The Boolean version cannot express the difference: [canonicalOrAbsolute] turns a failed
+ * `canonicalPath` into the plain `absolutePath` and the comparison then yields `false`, which is
+ * indistinguishable from a genuine mismatch. A caller that caches that `false` latches "not
+ * linkable" for the rest of the process over what may have been a momentary EACCES after a
+ * permission change, or an EIO on a flaky external volume. Same reasoning, and same shape, as
+ * [ProjectNameLookup.Unverifiable].
+ */
+internal fun deepLinkTargetOfOpenProjectOrNull(
+	openProjectPath: String,
+	projectName: String,
+	projectsRoot: File,
+): Boolean? {
+	deepLinkTargetOfOpenProjectWithoutIo(openProjectPath, projectName, projectsRoot)?.let { return it }
+
+	val parent = File(openProjectPath).parentFile ?: return false
+	val parentPath = runCatching { parent.canonicalPath }.getOrNull() ?: return null
+	val rootPath = runCatching { projectsRoot.canonicalPath }.getOrNull() ?: return null
+	return parentPath == rootPath
+}
+
+/**
  * The part of [isDeepLinkTargetOfOpenProject] decidable without any filesystem call, for callers
  * that must answer on a thread where I/O is not allowed -- `null` means "only canonicalisation can
  * tell", so the caller has to go off-thread for the rest.

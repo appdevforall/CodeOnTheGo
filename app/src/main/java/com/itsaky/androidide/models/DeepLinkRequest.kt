@@ -90,8 +90,14 @@ data class DeepLinkRequest(
 
 		/**
 		 * The fixed segments every link starts with, and the prefix [parse] matches, derived from them
-		 * so the literal "project" is spelled once. The old pairing had it in both [PATH_PREFIX] and
-		 * [SEGMENT_PROJECT], which is the drift this is meant to prevent -- [parse] reads both.
+		 * so the literal "project" is spelled once *here*. The old pairing had it in both [PATH_PREFIX]
+		 * and [SEGMENT_PROJECT], which is the drift this is meant to prevent -- [parse] reads both.
+		 *
+		 * It is spelled once more outside Kotlin, and that copy is the one that decides whether a link
+		 * ever reaches the app at all: `AndroidManifest.xml`'s two `android:pathPrefix` attributes on
+		 * DeepLinkActivity's intent-filter. Changing this list without changing those leaves every
+		 * generated link opening in a browser, with the whole unit suite still green -- so
+		 * `DeepLinkManifestPrefixTest` fails on exactly that.
 		 */
 		private val PATH_SEGMENTS = listOf("device", "open", SEGMENT_PROJECT)
 		private val PATH_PREFIX = PATH_SEGMENTS.joinToString(separator = "/", prefix = "/", postfix = "/")
@@ -353,8 +359,10 @@ data class DeepLinkRequest(
 				}
 
 				// A character the reader's base.resolve() cannot accept -- a NUL, say -- percent-encodes
-				// and round-trips through parse() cleanly, then dies there with InvalidPathException.
-				// Refuse it on the same terms, with no filesystem call.
+				// and round-trips through parse() cleanly, and is then REJECTED there: lexicalResolve
+				// catches the InvalidPathException and returns null, so the link opens nothing and the
+				// user is told the file was not found. Refuse it here instead, with no filesystem call,
+				// rather than copying a link that cannot work.
 				if (runCatching { Paths.get(filePath) }.isFailure) {
 					return null
 				}

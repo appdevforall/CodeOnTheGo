@@ -251,9 +251,10 @@ class ContainedPathResolver(
 		 * symlink) can apply the same reject first: an entry that fails here is a bad archive
 		 * however the filesystem looks, never fallback material.
 		 *
-		 * Public so a *writer* of these paths can refuse what this reader would -- see
-		 * [DeepLinkRequest.buildUrl][com.itsaky.androidide.models.DeepLinkRequest.Companion.buildUrl],
-		 * which would otherwise re-spell a subset of this rule and drift from it.
+		 * Public so a *writer* of these paths can refuse what this reader would -- the deep-link URL
+		 * builder in the app module is one, and would otherwise re-spell a subset of this rule and
+		 * drift from it. Named in prose rather than linked: `common` does not depend on `app`, and
+		 * must not, so a KDoc link that way would never resolve.
 		 */
 		fun isLexicallyRejected(relativePath: String): Boolean =
 			// Split on both separators: '\' is not a path separator on Android, but a caller handing

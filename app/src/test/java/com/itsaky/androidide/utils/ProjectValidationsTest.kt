@@ -178,12 +178,28 @@ class ProjectValidationsTest {
 		): Boolean {
 			if (path.isBlank()) return false
 			val open = File(path)
-			if (open.name != name) return false
+			// Normalised on both sides, matching projectNamesMatch. Comparing with plain == would
+			// leave the rule's NFD tolerance unpinned: dropping it from the shortcut would still pass.
+			if (Normalizer.normalize(open.name, Normalizer.Form.NFC) != Normalizer.normalize(name, Normalizer.Form.NFC)) {
+				return false
+			}
 			val parent = open.parentFile ?: return false
 			return parent.canonicalPath == root.canonicalPath
 		}
 
-		for ((path, name) in listOf(File(root, "MyApp").path to "MyApp", File(root, "MyApp").path to "Other", "" to "MyApp")) {
+		val nfd = "Cafe\u0301"
+		val nfc = Normalizer.normalize(nfd, Normalizer.Form.NFC)
+		val cases =
+			listOf(
+				File(root, "MyApp").path to "MyApp",
+				File(root, "MyApp").path to "Other",
+				"" to "MyApp",
+				// A project on disk in decomposed form, named in the link in composed form -- the
+				// macOS-clone case lookupValidProjectByName tries both forms for.
+				File(root, nfd).path to nfc,
+				File(root, nfc).path to nfd,
+			)
+		for ((path, name) in cases) {
 			val shortcut = deepLinkTargetOfOpenProjectWithoutIo(path, name, root)
 			assertThat(shortcut).isNotNull()
 			assertThat(shortcut).isEqualTo(independentlyLinkable(path, name))

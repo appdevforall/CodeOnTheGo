@@ -32,7 +32,7 @@ import com.itsaky.androidide.utils.copyToClipboard
 import com.itsaky.androidide.utils.deepLinkTargetOfOpenProjectWithoutIo
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.utils.isDeepLinkTargetOfOpenProject
+import com.itsaky.androidide.utils.deepLinkTargetOfOpenProjectOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -103,23 +103,28 @@ class CreateLinkAction(
 
 			val job =
 				activity.lifecycleScope.launch(Dispatchers.IO) {
-					try {
-						// Handled here rather than left to the crash wrapper (REVIEW.md section 1): a
-						// failure to canonicalise says nothing about whether the project is linkable,
-						// so it is logged and left uncached, and the next menu open retries.
-						runCatching { isDeepLinkTargetOfOpenProject(projectPath, projectName, root) }
-							.onSuccess { linkableProjects[projectPath] = it }
+					// Cached only when the filesystem actually answered. deepLinkTargetOfOpenProjectOrNull
+					// returns null for "could not tell", which a momentary EACCES or EIO produces -- and
+					// caching that as "not linkable" would hide the item for the rest of the process over
+					// a condition that has since cleared.
+					val verdict =
+						runCatching { deepLinkTargetOfOpenProjectOrNull(projectPath, projectName, root) }
+							// A backstop, not the retry path: that function reports failure by returning
+							// null rather than throwing. Present so an unforeseen throw cannot reach the
+							// crash wrapper from a launch with no handler (REVIEW.md section 1).
 							.onFailure { log.warn("Could not determine whether the open project can be linked", it) }
-					} finally {
-						canonicalisationsInFlight.remove(projectPath)
+							.getOrNull()
+
+					if (verdict != null) {
+						linkableProjects[projectPath] = verdict
 					}
 				}
 
-			// Released on completion, not only in the body's finally: lifecycleScope is cancelled at
-			// ON_DESTROY, so a rotation before the IO dispatcher picks the block up means the body --
-			// and its finally -- never runs at all. A claim released only in there would latch for the
-			// rest of the process and hide the item permanently, the opposite of "reappears on the
-			// next menu open".
+			// Released here and nowhere else. invokeOnCompletion fires for both outcomes that matter --
+			// the block ran, and the block never ran because lifecycleScope was cancelled at ON_DESTROY
+			// before the dispatcher picked it up. A release inside the body as well would let job A's
+			// completion clear a claim job B had already re-taken, which is the duplicate work the
+			// claim exists to prevent.
 			job.invokeOnCompletion { canonicalisationsInFlight.remove(projectPath) }
 			return null
 		}
@@ -154,7 +159,7 @@ class CreateLinkAction(
 		// handler, for every action in this menu on every open, and building the URL just to compare
 		// it against null cost ~17 percent-encoding passes plus a full parse of the result -- all
 		// discarded, then paid again on the tap.
-		if (linkTarget(activity) == null) {
+		if (urlFor(activity) == null) {
 			markInvisible()
 		}
 	}
@@ -166,7 +171,7 @@ class CreateLinkAction(
 		// nothing to copy means something moved underneath the open menu -- rare, but a tap that does
 		// nothing at all reads as a broken button, so say so.
 		val url =
-			linkTarget(this)?.toUrl() ?: run {
+			urlFor(this) ?: run {
 				flashError(R.string.msg_deeplink_cannot_create)
 				return false
 			}
@@ -177,11 +182,34 @@ class CreateLinkAction(
 	}
 
 	/**
-	 * Everything a link needs, gathered without building one. Splitting the gathering from the
-	 * formatting is what lets `prepare()` answer "would there be a link?" cheaply while `doAction()`
-	 * pays for the URL exactly once.
+	 * The most recently built URL, with the target it was built from.
+	 *
+	 * `prepare()` has to know whether a URL can be built at all, not merely whether the pieces exist:
+	 * [DeepLinkRequest.buildUrl] refuses paths the reader would reject, and those are permanent
+	 * properties of the file, so an item shown without asking it fails on every tap forever. But
+	 * building the URL and discarding it made `prepare()` -- which runs for every action on every
+	 * menu open, in the touch handler -- pay for a full encode-and-reparse it threw away, then pay
+	 * again on the tap.
+	 *
+	 * Keeping the last result settles both: `prepare()` builds, and the tap that follows reuses it,
+	 * because the cursor cannot have moved in between. Read and written only from the main thread
+	 * (`requiresUIThread`), so it needs no synchronisation.
 	 */
-	private class LinkTarget(
+	private var lastBuilt: Pair<LinkTarget, String>? = null
+
+	/** The URL for the current tab, built at most once per menu open, or `null` if there is none. */
+	private fun urlFor(activity: EditorHandlerActivity): String? {
+		val target = linkTarget(activity) ?: return null
+		lastBuilt?.let { (built, url) -> if (built == target) return url }
+		val url = target.toUrl() ?: return null
+		lastBuilt = target to url
+		return url
+	}
+
+	/**
+	 * Everything a link needs, gathered without building one.
+	 */
+	private data class LinkTarget(
 		val projectName: String,
 		val relativePath: String,
 		val line: Int,
@@ -215,6 +243,19 @@ class CreateLinkAction(
 		}
 		val projectDir = File(projectPath)
 
+		// The two free rejections first. Both are pure and settle the answer outright, so asking them
+		// before linkableProject -- which dispatches a canonicalisation as a side effect -- avoids
+		// launching filesystem work whose result could not change the verdict.
+		//
+		// buildUrl's own rule, called rather than restated: a direct child named ".foo" satisfies the
+		// containment check below (that one compares parents, not names) but is not a project a link
+		// can name.
+		if (!DeepLinkRequest.isLinkableProjectName(projectDir.name)) {
+			return null
+		}
+
+		val relativePath = projectRelativePathOrNull(projectDir, file) ?: return null
+
 		// A deep link can only ever name <projectsRoot>/<name>, but a project can be opened from
 		// anywhere -- the file picker, Recents, a clone destination. For one of those there is no URL
 		// that resolves on this device, let alone on the recipient's, so there is nothing honest to
@@ -222,15 +263,6 @@ class CreateLinkAction(
 		if (linkableProject(activity, projectPath) != true) {
 			return null
 		}
-
-		// buildUrl's own rule, called rather than restated. A direct child named ".foo" satisfies the
-		// containment check above -- that one compares parents, not names -- but is not a project a
-		// link can name, so without this the item was offered and the tap then failed.
-		if (!DeepLinkRequest.isLinkableProjectName(projectDir.name)) {
-			return null
-		}
-
-		val relativePath = projectRelativePathOrNull(projectDir, file) ?: return null
 
 		// The editor is zero-based at both ends; the URL scheme is one-based. Both coordinates are
 		// always written, never omitted at 1:1 -- see buildUrl, which refuses the coordinate-free and

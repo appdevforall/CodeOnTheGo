@@ -199,8 +199,9 @@ class DeepLinkBuildUrlTest {
 		assertThat(DeepLinkRequest.buildUrl("MyApp", "\\Main.kt", line = 1, column = 1)).isNull()
 		assertThat(DeepLinkRequest.buildUrl("MyApp", "/Main.kt", line = 1, column = 1)).isNull()
 
-		// A character the reader's base.resolve() cannot accept: encodes and round-trips fine, dies
-		// there with InvalidPathException.
+		// A character the reader's base.resolve() cannot accept: encodes and round-trips fine here,
+		// and is rejected there (lexicalResolve catches InvalidPathException), so the link opens
+		// nothing.
 		assertThat(DeepLinkRequest.buildUrl("MyApp", "a\u0000b.kt", line = 1, column = 1)).isNull()
 
 		// A backslash that is NOT traversal stays linkable -- the guard mirrors the reader, it does
