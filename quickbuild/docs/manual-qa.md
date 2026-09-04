@@ -498,3 +498,31 @@ Expected:
    width.
 2. The dropdown's rows and the dialog's buttons stay on screen and reachable.
 3. Nothing overlaps the status bar at the top or the navigation bar at the bottom.
+
+## Block E - save follow-ups that run with the flag off
+
+### T23 - A manifest-only save refreshes the generated sources
+
+Automated coverage: `SaveResultFlagsTest` (the flag fold); nothing asserts the editor-side
+symptom below.
+
+Since this PR, a save runs Gradle's generate-sources step only for resource XML and
+`AndroidManifest.xml`; Kotlin, Java and other XML saves skip it. The manifest case is the one a
+resource-directory check alone would miss, so it gets its own walk. Flag state does not matter:
+run it with the experiments flag off, as every user has it.
+
+Steps:
+
+1. Open a Java or Kotlin app project and finish the sync.
+2. Open `app/src/main/AndroidManifest.xml` and add, inside `<manifest>`,
+   `<permission android:name="com.example.MY_PERM" />`.
+3. Save (Ctrl+S or the Save action). Change nothing else.
+4. In a source file, type `Manifest.permission.MY_PERM` (import `com.example.Manifest`, or the
+   project's applicationId) and wait for diagnostics to settle.
+5. Repeat step 3 on a Kotlin file with a whitespace-only edit.
+
+Expected:
+
+1. After step 3 Build Output shows a Gradle generate-sources run, without a resource being saved.
+2. After step 4 the reference resolves with no "cannot find symbol" diagnostic.
+3. After step 5 no Gradle run appears: a source-only save still skips it.
