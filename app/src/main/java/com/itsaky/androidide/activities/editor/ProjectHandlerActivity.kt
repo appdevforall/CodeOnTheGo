@@ -78,6 +78,7 @@ import com.itsaky.androidide.quickbuild.GradleQuickBuildProvisioner
 import com.itsaky.androidide.quickbuild.QuickBuildBenchHooks
 import com.itsaky.androidide.quickbuild.QuickBuildFlash
 import com.itsaky.androidide.quickbuild.QuickBuildFlashes
+import com.itsaky.androidide.quickbuild.QuickBuildGraphWarmUp
 import com.itsaky.androidide.quickbuild.QuickBuildOutputNarrator
 import com.itsaky.androidide.quickbuild.QuickBuildPrebuildStagger
 import com.itsaky.androidide.quickbuild.QuickBuildStatusBarUpdate
@@ -307,10 +308,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				}
 				// The first resolve builds the whole Quick Build graph, and that reads shared
 				// preferences and noBackupFilesDir, so it is disk I/O. Do it off the main
-				// thread; every later call site finds a singleton already built and pays only
-				// a map lookup. Still inside repeatOnLifecycle, so a resolve that failed once
-				// is retried on the next return to the editor rather than being cached as null.
-				withContext(Dispatchers.IO) { quickBuildSessionManager() }?.let { quickBuild ->
+				// thread; every main-thread call site reads the built instance or null (see
+				// quickBuildSessionManager). Still inside repeatOnLifecycle, so a resolve that
+				// failed once is retried on the next return to the editor rather than being
+				// cached as null.
+				withContext(Dispatchers.IO) { QuickBuildGraphWarmUp.INSTANCE.warmUp() }?.let { quickBuild ->
 					// ADFA-4128: the toolbar icon reads the session status
 					// pull-style in prepare(); nothing else rebuilds the toolbar when
 					// e.g. a watcher-triggered build fails, so push every status
@@ -676,23 +678,21 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * listener and five coroutines on the session executor. What still waits for the first
 	 * tap is the daemon process and the host service binding, not the graph.
 	 *
-	 * [observeStates] therefore does the FIRST resolve off the main thread, which is why the
-	 * graph is built at project open without blocking it. The other callers - onTrimMemory,
-	 * onBuildServiceConnected, QuickBuildAction.prepare() - call this on the main thread and
-	 * find the singleton already built, so they pay a map lookup. Call it from a background
-	 * context if you ever add a call site that could be the first one.
+	 * [observeStates] therefore does the one resolve that may build the graph, off the main
+	 * thread, through [QuickBuildGraphWarmUp]. This accessor never resolves: it returns the
+	 * built manager or null, so none of its main-thread callers - onTrimMemory,
+	 * onBuildServiceConnected, preDestroy (restartSession and the narrator reset),
+	 * onExternalGradleBuildFinished, onHostForegrounded, the clobber and won't-stay-up dialogs,
+	 * the prebuild stagger's sessionIsLive, EditorHandlerActivity's dropdown and onFileSaved,
+	 * QuickBuildAction.prepare() - can be the one that builds it, however early they run. A null
+	 * before the warm-up finishes means "no session yet", which is true for every one of them.
+	 * The two callers that must reach the manager rather than skip - the bench autostart and the
+	 * stagger's fire - await the warm-up instead.
 	 *
 	 * Protected (not private): [EditorHandlerActivity]'s split-button dropdown
 	 * calls this too, to trigger a quick build / restart from the long-press menu.
 	 */
-	protected fun quickBuildSessionManager(): QuickBuildSessionManager? {
-		if (!FeatureFlags.isExperimentsEnabled) {
-			return null
-		}
-		return runCatching { GlobalContext.get().get<QuickBuildSessionManager>() }
-			.onFailure { logger.error("Quick Build session manager unavailable", it) }
-			.getOrNull()
-	}
+	protected fun quickBuildSessionManager(): QuickBuildSessionManager? = QuickBuildGraphWarmUp.INSTANCE.sessionManagerOrNull
 
 	/**
 	 * ADFA-4128 benchmark: a bench re-open of the ALREADY-OPEN project arrives here
@@ -724,7 +724,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * before the first sync and when either path cannot be canonicalised.
 	 */
 	private fun isInitializedProject(path: String): Boolean {
-		val root = IProjectManager.getInstance().workspace?.rootProject?.delegate?.projectDir ?: return false
+		val root =
+			IProjectManager
+				.getInstance()
+				.workspace
+				?.rootProject
+				?.delegate
+				?.projectDir ?: return false
 		return runCatching { root.canonicalPath == File(path).canonicalPath }.getOrDefault(false)
 	}
 
@@ -774,12 +780,24 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		return QuickBuildBenchHooks.claimAutostart(canonical)
 	}
 
-	/** Fires the build a claimed autostart asked for, in place of the human's first tap. */
+	/**
+	 * Fires the build a claimed autostart asked for, in place of the human's first tap. The
+	 * Quick Build arm awaits the graph warm-up rather than reading the built-or-null accessor:
+	 * a tap that quietly skipped because the warm-up was still running would lose the run.
+	 */
 	private fun fireAutostart(autostart: AutostartBuild) {
 		when (autostart) {
-			AutostartBuild.QUICK_BUILD -> quickBuildSessionManager()?.onQuickBuildTapped()
-			AutostartBuild.STANDARD -> fireAutostartStandardBuild()
-			AutostartBuild.NONE -> Unit
+			AutostartBuild.QUICK_BUILD -> {
+				lifecycleScope.launch { QuickBuildGraphWarmUp.INSTANCE.await()?.onQuickBuildTapped() }
+			}
+
+			AutostartBuild.STANDARD -> {
+				fireAutostartStandardBuild()
+			}
+
+			AutostartBuild.NONE -> {
+				Unit
+			}
 		}
 	}
 
@@ -1634,7 +1652,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					state != null && state !is QuickBuildSessionState.Idle
 				},
 				fire = {
-					quickBuildSessionManager()?.onProjectSynced(GradleQuickBuildProvisioner.selectedVariantName())
+					// Awaited, not read: a fire that skipped because the warm-up was still running
+					// would drop the prebuild for this sync. Same scope as the stagger, so closing
+					// the project drops a fire still waiting on the warm-up.
+					editorActivityScope.launch {
+						QuickBuildGraphWarmUp.INSTANCE.await()?.onProjectSynced(GradleQuickBuildProvisioner.selectedVariantName())
+					}
 				},
 			)
 		}
