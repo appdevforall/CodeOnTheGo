@@ -1,6 +1,9 @@
 package org.appdevforall.cotg.quickbuild.service.session
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.data.AssetPackager
 import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
@@ -75,6 +78,12 @@ class LiveReloadExecutorImpl(
 	 * sink; the default no-op keeps existing callers and tests unchanged.
 	 */
 	private val metrics: QuickBuildMetricsSink = QuickBuildMetricsSink.Noop,
+	/**
+	 * Where the source scan runs. [QuickBuildProjectLayout.allSources] walks the source
+	 * roots on every build, and this executor runs on the single session dispatcher, whose
+	 * rule is that nothing on it may block. Injected so a test can record the thread.
+	 */
+	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : LiveReloadExecutor {
 	/** Builds the changed-assets zip. */
 	private val assetPackager = AssetPackager()
@@ -365,7 +374,9 @@ class LiveReloadExecutorImpl(
 		// One clock read per step boundary rather than per step, so the spans abut
 		// exactly and any residual is real un-timed work.
 		val scanStartedAt = clock()
-		val allSources = layout.allSources()
+		// Walks the source roots, so it is hopped off the session dispatcher; the span
+		// still measures the whole scan, since withContext suspends until it returns.
+		val allSources = withContext(ioDispatcher) { layout.allSources() }
 		val scanDoneAt = clock()
 		timeline.recordScan(scanDoneAt - scanStartedAt)
 		val changedSources =
