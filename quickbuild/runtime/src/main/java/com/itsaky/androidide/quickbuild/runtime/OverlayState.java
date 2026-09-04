@@ -50,6 +50,15 @@ final class OverlayState {
 	}
 
 	/**
+	 * State that renders nothing, the resting state.
+	 *
+	 * @return the state that makes {@link StatusOverlay#render} remove the banner
+	 */
+	static OverlayState hidden() {
+		return new OverlayState(Kind.HIDDEN, null, 0, -1);
+	}
+
+	/**
 	 * State for a reload that failed after its resource swap had already committed, so the rollback restored the code half only.
 	 *
 	 * Says restart rather than "last working version": the screen resolves the failed generation's table over the previous generation's classes, and only a resources-carrying deploy or a process restart clears that. Restart is the remedy the user has: after a deploy-time failure the generation is quarantined, so the next boot adopts the last good one whole, and after a boot-time restore failure the restart re-runs the restore.
@@ -58,15 +67,6 @@ final class OverlayState {
 	 */
 	static OverlayState mixed() {
 		return new OverlayState(Kind.MIXED, null, 0, -1);
-	}
-
-	/**
-	 * State that renders nothing, the resting state.
-	 *
-	 * @return the state that makes {@link StatusOverlay#render} remove the banner
-	 */
-	static OverlayState hidden() {
-		return new OverlayState(Kind.HIDDEN, null, 0, -1);
 	}
 
 	/**
