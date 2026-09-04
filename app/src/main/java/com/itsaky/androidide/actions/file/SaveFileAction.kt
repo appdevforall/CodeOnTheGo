@@ -97,12 +97,11 @@ class SaveFileAction(
 			context.flashSuccess(R.string.all_saved)
 
 			val saveResult = result.result
-			// Only a resource save can change R, so only it warrants the Gradle generateSources run
-			// (Java R.jar freshness + ViewBinding accessors - see SaveResult.resourceXmlSaved).
-			// Deliberately un-gated (experiments flag off included): previously ANY XML save
-			// triggered this, so skipping it on non-resource XML is a save-latency win for every
-			// user. Known trade: a manifest-only edit no longer refreshes the generated Manifest/R
-			// intermediates until the next resource save or build.
+			// Only a resource or manifest save can change what generateSources produces (R.jar,
+			// ViewBinding accessors, the Manifest class - see SaveResult.resourceXmlSaved), so only
+			// those warrant the Gradle run. Deliberately un-gated (experiments flag off included):
+			// previously ANY XML save triggered this, so skipping it on other non-resource XML is
+			// a save-latency win for every user.
 			// Routed through the deferral: immediate with no Quick Build session, parked and
 			// coalesced until the session pipeline settles with one (see GenerateSourcesDeferral).
 			if (saveResult.resourceXmlSaved) {
