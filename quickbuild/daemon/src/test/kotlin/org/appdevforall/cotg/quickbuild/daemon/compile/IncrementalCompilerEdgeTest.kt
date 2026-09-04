@@ -86,6 +86,66 @@ class IncrementalCompilerEdgeTest {
 		assertThat(fingerprintFile.readText()).isEqualTo(seeded)
 	}
 
+	/**
+	 * Compiles a one-method class into its own classes directory, so a test can use REAL class
+	 * bytes as a directory classpath entry - the Kotlin snapshotter reads every class it finds
+	 * with ASM, so a hand-written stub file is not a usable fixture.
+	 */
+	private fun compiledClasses(
+		name: String,
+		returnValue: Int,
+	): File {
+		val src = File(tempDir, "$name-src").apply { mkdirs() }
+		val java =
+			File(src, "demo/Lib.java").apply {
+				parentFile!!.mkdirs()
+				writeText("package demo;\n\npublic class Lib { public int v() { return $returnValue; } }")
+			}
+		val work = File(tempDir, "$name-work").apply { mkdirs() }
+		val result =
+			IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), work.toPath())
+				.compile(listOf(java), changedFiles = listOf(java))
+		check(result is IncrementalCompiler.Result.Success) { "fixture compile failed" }
+		return result.classesDir
+	}
+
+	@Test
+	fun `a class rewritten inside a directory classpath entry changes the fingerprint`() {
+		// A Kotlin module's own build/tmp/kotlin-classes/<variant> reaches the daemon as a
+		// DIRECTORY, and javac needs it. Fingerprinting such an entry by its own length is
+		// useless - length() on a directory is a filesystem constant - so an in-place class
+		// rewrite would leave the staleness guard silent and ship stale dependents.
+		val classesDir = File(tempDir, "library-classes").apply { mkdirs() }
+		val target = File(classesDir, "demo/Lib.class").apply { parentFile!!.mkdirs() }
+		File(compiledClasses("one", 1), "demo/Lib.class").copyTo(target, overwrite = true)
+		val fingerprintFile = File(workDir, "classpath-fingerprint.txt")
+
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath())
+		val before = fingerprintFile.readText()
+
+		// Same path, same class, new bytes: the in-place rewrite AGP does to a sibling library
+		// module between builds.
+		File(compiledClasses("two", 2), "demo/Lib.class").copyTo(target, overwrite = true)
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath())
+
+		assertThat(fingerprintFile.readText()).isNotEqualTo(before)
+	}
+
+	@Test
+	fun `a directory classpath entry fingerprints the same when nothing inside it moved`() {
+		// The other half: a re-configure over an unchanged classpath must keep the warm caches,
+		// so the walk has to be deterministic rather than merely sensitive.
+		val classesDir = compiledClasses("stable", 7)
+		val fingerprintFile = File(workDir, "classpath-fingerprint.txt")
+
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath())
+		val before = fingerprintFile.readText()
+
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath())
+
+		assertThat(fingerprintFile.readText()).isEqualTo(before)
+	}
+
 	@Test
 	fun `a java source that disappears from disk fails the compile, not the daemon`() {
 		val widget = widgetJava()
