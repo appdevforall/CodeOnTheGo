@@ -86,6 +86,30 @@ class IncrementalCompilerEdgeTest {
 		assertThat(fingerprintFile.readText()).isEqualTo(seeded)
 	}
 
+	@Test
+	fun `a changed compiler plugin set wipes the IC caches like a changed classpath does`() {
+		// Seed a session and plant a marker in its IC cache dir: surviving the next construction
+		// means the caches were kept.
+		compiler()
+		val icMarker = File(workDir, "ic/marker").apply { writeText("seeded") }
+		val fingerprintFile = File(workDir, "classpath-fingerprint.txt")
+		val withoutPlugin = fingerprintFile.readText()
+		// Any jar serves as a plugin here: nothing loads it until a compile runs.
+		val plugin = TestSdk.kotlinStdlib().copyTo(File(tempDir, "some-compiler-plugin.jar"))
+
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), workDir.toPath(), compilerPluginJars = listOf(plugin))
+
+		// A plugin changes the bytecode kotlinc emits for sources the engine sees as unchanged,
+		// so caches seeded without it are as stale as under a rewritten jar.
+		assertThat(fingerprintFile.readText()).isNotEqualTo(withoutPlugin)
+		assertThat(icMarker.exists()).isFalse()
+
+		// And the same plugin set again keeps the warm caches, as an unchanged classpath does.
+		val kept = File(workDir, "ic/marker").apply { writeText("kept") }
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), workDir.toPath(), compilerPluginJars = listOf(plugin))
+		assertThat(kept.exists()).isTrue()
+	}
+
 	/**
 	 * Compiles a one-method class into its own classes directory, so a test can use REAL class
 	 * bytes as a directory classpath entry - the Kotlin snapshotter reads every class it finds
