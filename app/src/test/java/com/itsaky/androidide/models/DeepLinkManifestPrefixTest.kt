@@ -19,10 +19,10 @@ package com.itsaky.androidide.models
 
 import android.net.Uri
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.utils.FileProvider
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import java.io.File
 
 /**
  * The deep-link path prefix is spelled in two places that cannot see each other: `DeepLinkRequest`,
@@ -36,49 +36,37 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 class DeepLinkManifestPrefixTest {
 	@Test
-	fun `every deep-link pathPrefix in the manifest matches the prefix buildUrl emits`() {
-		// Located by trying both roots rather than assuming one: the Gradle test task runs with the
-		// module directory as the working directory, an IDE run configuration often uses the repo
-		// root, and a wrong guess would fail as "manifest missing" rather than as real drift.
-		val manifest =
-			listOf("src/main/AndroidManifest.xml", "app/src/main/AndroidManifest.xml")
-				.map(::File)
-				.firstOrNull { it.isFile }
-		assertThat(manifest).isNotNull()
+	fun `the manifest's deep-link filter matches the scheme, host and path buildUrl emits`() {
+		// Located from the repo's own root sentinel rather than by guessing relative paths: the
+		// previous two-guess list failed as "manifest missing" under any working directory that was
+		// neither the module nor the repo root, which is the misdiagnosis it was meant to avoid.
+		val manifest = FileProvider.projectRoot().resolve("app/src/main/AndroidManifest.xml").toFile()
+		assertThat(manifest.isFile).isTrue()
 
-		// Scoped to <data> elements that name a deep-link host, NOT every pathPrefix in the file. An
-		// unrelated App Link added elsewhere in the manifest is not drift in this scheme, and failing
-		// on it would point the reader at DeepLinkRequest for someone else's change.
+		// Taken from a URL the builder actually produces, so every assertion below is against the
+		// emitted shape rather than a second copy of a constant.
+		val emitted = Uri.parse(DeepLinkRequest.buildUrl("MyApp", "Main.kt", line = 1, column = 1)!!)
+
+		// The elements are selected by the host the builder emits, not by a hard-coded domain. A
+		// literal here would be a third copy of CANONICAL_HOST -- and renaming the domain correctly
+		// in both Kotlin and the manifest would then fail this test for a change with no drift at all.
 		val elements =
 			Regex("""<data\b[^>]*>""", RegexOption.DOT_MATCHES_ALL)
-				.findAll(manifest!!.readText())
+				.findAll(manifest.readText())
 				.map { it.value }
-				.filter { it.contains("appdevforall.org") }
+				.filter { attribute(it, "android:host") == emitted.host }
 				.toList()
-		val declared = elements.mapNotNull { attribute(it, "android:pathPrefix") }
 
-		// If the intent-filter stops declaring a prefix, this test must fail rather than vacuously
-		// pass over an empty list -- there are two <data> elements today, one per verified host.
-		assertThat(declared).isNotEmpty()
+		// Not a vacuous pass: if no <data> element names the emitted host, delivery is broken and that
+		// is the drift this test exists to catch.
+		assertThat(elements).isNotEmpty()
 
-		// Taken from a URL the builder actually produces, so this asserts against the emitted shape
-		// rather than against a second copy of the constant.
-		val built = DeepLinkRequest.buildUrl("MyApp", "Main.kt", line = 1, column = 1)
-		val emitted = Uri.parse(built!!)
-
-		for (prefix in declared) {
-			assertThat(emitted.path).startsWith(prefix)
+		// All three, because an intent-filter matches on all three. A path-only assertion stayed green
+		// through a changed CANONICAL_HOST or SCHEME, which breaks delivery just as surely.
+		for (element in elements) {
+			assertThat(emitted.path).startsWith(attribute(element, "android:pathPrefix"))
+			assertThat(attribute(element, "android:scheme")).isEqualTo(emitted.scheme)
 		}
-
-		// Host and scheme too, not only the path. An intent-filter matches on all three, so changing
-		// CANONICAL_HOST or SCHEME without the manifest breaks delivery exactly as changing the prefix
-		// does -- and a path-only assertion stays green through both.
-		val hosts = elements.mapNotNull { attribute(it, "android:host") }.toSet()
-		val schemes = elements.mapNotNull { attribute(it, "android:scheme") }.toSet()
-		assertThat(hosts).isNotEmpty()
-		assertThat(schemes).isNotEmpty()
-		assertThat(hosts).contains(emitted.host)
-		assertThat(schemes).contains(emitted.scheme)
 	}
 
 	private fun attribute(

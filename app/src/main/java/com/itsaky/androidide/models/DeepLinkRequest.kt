@@ -354,7 +354,12 @@ data class DeepLinkRequest(
 				// directory, which resolveWithinDirectory refuses as "not a path inside". Other
 				// dot-prefixed names are fine -- unlike a project directory, a hidden FILE
 				// (.gitignore) is perfectly linkable.
-				if (segments.any { it.isEmpty() || it == "." }) {
+				// The decoded form is checked too: a directory literally named "%2e%2e" survives
+				// encoding as "%252e%252e" and round-trips cleanly here, but an intermediary that
+				// decodes once and then collapses dot segments rewrites the path in transit -- the same
+				// hazard the literal "."/".." rejection exists for. It fails closed either way, but a
+				// dead link is still the defect that check was written to prevent.
+				if (segments.any { it.isEmpty() || it == "." || Uri.decode(it) == "." || Uri.decode(it) == ".." }) {
 					return null
 				}
 

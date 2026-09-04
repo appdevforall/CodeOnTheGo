@@ -284,6 +284,7 @@
 	<string name="action_install">Install</string>
 	<string name="action_closeOthers">Close others</string>
 	<string name="action_closeThis">Close this</string>
+	<string name="action_close_tab">Close tab</string>
 	<string name="action_create_link">Create link</string>
 	<string name="all_saved">All files saved</string>
 	<string name="save_failed">Failed to save files</string>

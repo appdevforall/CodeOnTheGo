@@ -70,10 +70,10 @@ class CreateLinkAction(
 		 * away on each background/foreground cycle, and clearing the in-flight set alongside it let a
 		 * still-running job's completion release a claim the next cycle's job had already taken.
 		 *
-		 * The cost of keeping them is a verdict that outlives the fact it describes: rename the
-		 * project directory mid-process and a cached answer is stale. That surfaces as one link that
-		 * fails to open, or one item hidden that need not be -- both recoverable, and both cheaper
-		 * than losing the answer every time the user switches apps.
+		 * Bounded instead by pruning to the open project on every lookup -- see [linkableProject].
+		 * Exactly one project is open at a time, so this holds one entry rather than one per project
+		 * the session ever touched, and a path that stops being the open one is dropped rather than
+		 * left answering a question about a directory that may since have been renamed.
 		 */
 		private val linkableProjects = ConcurrentHashMap<String, Boolean>()
 
@@ -96,6 +96,15 @@ class CreateLinkAction(
 	 * it optimistically would mean a tap that fails, which reads worse.
 	 */
 	private fun linkableProject(projectPath: String): Boolean? {
+		// Only the open project's verdict is worth keeping, and exactly one project is open at a time.
+		// Pruning here bounds the map to a single entry rather than one per project the session ever
+		// touched, and it is also what retires a stale answer: renaming the project directory changes
+		// this key, so the old verdict is dropped instead of left answering a question about a
+		// directory that no longer exists.
+		if (linkableProjects.keys.any { it != projectPath }) {
+			linkableProjects.keys.retainAll(setOf(projectPath))
+		}
+
 		linkableProjects[projectPath]?.let { return it }
 
 		// false, not null: null means "ask again shortly", and there is nothing to wait for if the
@@ -239,13 +248,18 @@ class CreateLinkAction(
 	 * these actions synchronously from the touch handler that opens the menu -- not because of
 	 * `requiresUIThread`, which governs `execAction` alone.
 	 */
-	private var lastBuilt: Pair<LinkTarget, String>? = null
+	private var lastBuilt: Pair<LinkTarget, String?>? = null
 
 	/** The URL for the current tab, built at most once per menu open, or `null` if there is none. */
 	private fun urlFor(activity: EditorHandlerActivity): String? {
 		val target = linkTarget(activity) ?: return null
 		lastBuilt?.let { (built, url) -> if (built == target) return url }
-		val url = target.toUrl() ?: return null
+
+		// The refusal is remembered too, not just the URL. A file buildUrl will never express -- a
+		// path over the 512-character ceiling, say -- is a permanent state, so leaving it uncached
+		// meant repeating the whole encode-and-reparse on every menu open and throwing it away, which
+		// is the cost this cache exists to remove.
+		val url = target.toUrl()
 		lastBuilt = target to url
 		return url
 	}

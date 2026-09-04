@@ -111,7 +111,6 @@ import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.ui.ARCHIVE_EXTENSIONS
 import com.itsaky.androidide.ui.CodeEditorView
-import com.itsaky.androidide.utils.ActionMenuUtils
 import com.itsaky.androidide.utils.DeepLinkProjectLookup
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
@@ -2200,7 +2199,9 @@ open class EditorHandlerActivity :
 				).root
 
 		closeItem.apply {
-			text = "Close Tab"
+			// A string resource, like the "Undock" item eleven lines below: this label sat
+			// untranslated next to a translated one in the same two-item popup.
+			text = getString(string.action_close_tab)
 			setOnClickListener {
 				val position = tab.position
 				if (isPluginTab(position)) {
@@ -2241,8 +2242,6 @@ open class EditorHandlerActivity :
 		}
 		binding.actionItems.addView(undockItem)
 
-		// Same cap as the file-tab popup: this popup shares that layout, so it shares the problem.
-		with(ActionMenuUtils) { popupWindow.capHeightToSpaceBelow(anchorView, binding.root) }
 		popupWindow.showAsDropDown(anchorView, 0, 0)
 	}
 
