@@ -251,9 +251,11 @@ class ProxyAppInstaller(
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {
+					log.error("could not start the install of {}", packageName, e)
 					false
 				}
 			if (!started) {
+				log.warn("install of {} from {} did not start; reporting InstallCouldNotStart", packageName, apk)
 				verdict.cancel()
 				stampChanged.cancel()
 				return@coroutineScope InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart)
@@ -296,6 +298,7 @@ class ProxyAppInstaller(
 									throw e
 								} catch (e: Exception) {
 									// The first commit is still pending; keep waiting on it.
+									log.error("could not re-issue the install of {}", packageName, e)
 								}
 							}
 							awaitVerdict()
