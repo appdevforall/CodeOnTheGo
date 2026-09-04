@@ -20,7 +20,6 @@ package com.itsaky.androidide.actions.file
 import android.content.Context
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.markInvisible
@@ -33,6 +32,7 @@ import com.itsaky.androidide.utils.deepLinkTargetOfOpenProjectOrNull
 import com.itsaky.androidide.utils.deepLinkTargetOfOpenProjectWithoutIo
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -69,73 +69,98 @@ class CreateLinkAction(
 		/** Paths whose canonicalisation is already running, so N menu opens launch one job, not N. */
 		private val canonicalisationsInFlight: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
-		/**
-		 * Whether a link can name the open project, or `null` while that is still being decided off
-		 * this thread.
-		 *
-		 * `prepare()` has to answer synchronously, and the full rule canonicalises both sides --
-		 * filesystem work that REVIEW.md section 3 and ADR 0007 require be moved rather than
-		 * suppressed, since the StrictMode whitelist is for vendored code we cannot change and never
-		 * for our own. So [deepLinkTargetOfOpenProjectWithoutIo] settles the common case with no disk
-		 * call, and only the residue -- paths differing as text, where a symlink might still make them
-		 * one directory -- goes to [Dispatchers.IO].
-		 *
-		 * While that rare case is pending the item is absent and reappears on the next menu open.
-		 * Showing it optimistically would mean a tap that fails, which reads worse.
-		 */
-		private fun linkableProject(
-			activity: EditorHandlerActivity,
-			projectPath: String,
-		): Boolean? {
-			linkableProjects[projectPath]?.let { return it }
-
-			val root = runCatching { projectsRoot() }.getOrNull() ?: return null
-			val projectName = File(projectPath).name
-
-			deepLinkTargetOfOpenProjectWithoutIo(projectPath, projectName, root)?.let {
-				linkableProjects[projectPath] = it
-				return it
-			}
-
-			// add() is the atomic claim: @Volatile would give visibility without atomicity, so a
-			// check-then-set here could still let two menu opens launch the same canonicalisation.
-			if (!canonicalisationsInFlight.add(projectPath)) return null
-
-			val job =
-				activity.lifecycleScope.launch(Dispatchers.IO) {
-					// Cached only when the filesystem actually answered. deepLinkTargetOfOpenProjectOrNull
-					// returns null for "could not tell", which a momentary EACCES or EIO produces -- and
-					// caching that as "not linkable" would hide the item for the rest of the process over
-					// a condition that has since cleared.
-					val verdict =
-						runCatching { deepLinkTargetOfOpenProjectOrNull(projectPath, projectName, root) }
-							// A backstop, not the retry path: that function reports failure by returning
-							// null rather than throwing. Present so an unforeseen throw cannot reach the
-							// crash wrapper from a launch with no handler (REVIEW.md section 1).
-							.onFailure { log.warn("Could not determine whether the open project can be linked", it) }
-							.getOrNull()
-
-					if (verdict != null) {
-						linkableProjects[projectPath] = verdict
-					}
-				}
-
-			// Released here and nowhere else. invokeOnCompletion fires for both outcomes that matter --
-			// the block ran, and the block never ran because lifecycleScope was cancelled at ON_DESTROY
-			// before the dispatcher picked it up. A release inside the body as well would let job A's
-			// completion clear a claim job B had already re-taken, which is the duplicate work the
-			// claim exists to prevent.
-			job.invokeOnCompletion { canonicalisationsInFlight.remove(projectPath) }
-			return null
-		}
 	}
 
-	/** Shown in the clipboard preview on Android 13+, so it is user-facing and lives in resources. */
-	private val clipLabel: String = context.getString(R.string.clip_label_deeplink)
+	/**
+	 * Whether a link can name the open project, or `null` while that is still being decided off this
+	 * thread.
+	 *
+	 * `prepare()` has to answer synchronously, and the full rule canonicalises both sides --
+	 * filesystem work that REVIEW.md section 3 and ADR 0007 require be moved rather than suppressed,
+	 * since the StrictMode whitelist is for vendored code we cannot change and never for our own. So
+	 * [deepLinkTargetOfOpenProjectWithoutIo] settles the common case with no disk call, and only the
+	 * residue -- paths differing as text, where a symlink might still make them one directory -- goes
+	 * off-thread.
+	 *
+	 * While that rare case is pending the item is absent and reappears on the next menu open. Showing
+	 * it optimistically would mean a tap that fails, which reads worse.
+	 */
+	private fun linkableProject(projectPath: String): Boolean? {
+		linkableProjects[projectPath]?.let { return it }
+
+		val root = runCatching { projectsRoot() }.getOrNull() ?: return null
+		val projectName = File(projectPath).name
+
+		deepLinkTargetOfOpenProjectWithoutIo(projectPath, projectName, root)?.let {
+			linkableProjects[projectPath] = it
+			return it
+		}
+
+		// add() is the atomic claim: @Volatile would give visibility without atomicity, so a
+		// check-then-set here could still let two menu opens launch the same canonicalisation.
+		if (!canonicalisationsInFlight.add(projectPath)) return null
+
+		// actionScope, not the activity's lifecycleScope: the base class builds this scope for exactly
+		// this kind of background work and cancels it in destroy(), so the action no longer has to be
+		// handed an Activity just to reach a scope.
+		val job =
+			actionScope.launch(Dispatchers.IO) {
+				// Cached only when the filesystem actually answered. deepLinkTargetOfOpenProjectOrNull
+				// returns null for "could not tell", which a momentary EACCES or EIO produces -- and
+				// caching that as "not linkable" would hide the item for the rest of the process over a
+				// condition that has since cleared.
+				val verdict =
+					try {
+						deepLinkTargetOfOpenProjectOrNull(projectPath, projectName, root)
+					} catch (e: CancellationException) {
+						// Rethrown, never logged as a failure: swallowing it would complete this job
+						// normally and break structured cancellation (REVIEW.md section 1). runCatching
+						// here would catch it, and every Error too.
+						throw e
+					} catch (e: Exception) {
+						// A backstop, not the retry path: that function reports failure by returning null
+						// rather than throwing. Present so an unforeseen throw cannot reach the crash
+						// wrapper from a launch with no handler.
+						log.warn("Could not determine whether the open project can be linked", e)
+						null
+					}
+
+				if (verdict != null) {
+					linkableProjects[projectPath] = verdict
+				}
+			}
+
+		// Released here and nowhere else. invokeOnCompletion fires for both outcomes that matter --
+		// the block ran, and the block never ran because the scope was cancelled before the dispatcher
+		// picked it up. A release inside the body as well would let job A's completion clear a claim
+		// job B had already re-taken, which is the duplicate work the claim exists to prevent.
+		job.invokeOnCompletion { canonicalisationsInFlight.remove(projectPath) }
+		return null
+	}
+
+	/**
+	 * Shown in the clipboard preview on Android 13+, so it is user-facing and lives in resources.
+	 *
+	 * Composed from the app name rather than spelled out, because only half of it is translatable:
+	 * "Code on the Go" is a product name and must not be localised, while the noun after it should
+	 * be. Marking the whole string untranslatable, as an earlier round did, kept the noun out of
+	 * translation too.
+	 */
+	private val clipLabel: String = context.getString(R.string.clip_label_deeplink, context.getString(R.string.app_name))
 
 	init {
 		label = context.getString(R.string.action_create_link)
 		icon = ContextCompat.getDrawable(context, R.drawable.ic_copy)
+	}
+
+	override fun destroy() {
+		super.destroy()
+		// A verdict describes the filesystem as it was. Renaming the project directory, or swapping
+		// <projectsRoot> for a symlink, while the process lives would leave a cached answer to the old
+		// question -- so the answers do not outlive the activity that asked. REVIEW.md section 2 flags
+		// companion-held state for exactly this.
+		linkableProjects.clear()
+		canonicalisationsInFlight.clear()
 	}
 
 	override fun prepare(data: ActionData) {
@@ -145,12 +170,9 @@ class CreateLinkAction(
 			return
 		}
 
-		val activity =
-			data.getActivity()
-				?: run {
-					markInvisible()
-					return
-				}
+		// No null branch: FileTabAction.prepare() (via super, above) already calls markInvisible() when
+		// there is no activity, and the !visible check just above returns in exactly that case.
+		val activity = data.getActivity() ?: return
 
 		// Hidden rather than shown-and-failing: the states that produce no link are properties of how
 		// the project was opened, not transient ones the user could correct by tapping again.
@@ -192,8 +214,13 @@ class CreateLinkAction(
 	 * again on the tap.
 	 *
 	 * Keeping the last result settles both: `prepare()` builds, and the tap that follows reuses it,
-	 * because the cursor cannot have moved in between. Read and written only from the main thread
-	 * (`requiresUIThread`), so it needs no synchronisation.
+	 * because the cursor cannot have moved in between. That pairing is the whole job -- one build per
+	 * menu open instead of two. It deliberately does NOT survive the cursor moving between two menu
+	 * opens, because the URL genuinely differs then and one build is the minimum either way.
+	 *
+	 * Read and written only from the main thread, because `ActionMenuUtils.showPopupWindow` prepares
+	 * these actions synchronously from the touch handler that opens the menu -- not because of
+	 * `requiresUIThread`, which governs `execAction` alone.
 	 */
 	private var lastBuilt: Pair<LinkTarget, String>? = null
 
@@ -260,7 +287,7 @@ class CreateLinkAction(
 		// anywhere -- the file picker, Recents, a clone destination. For one of those there is no URL
 		// that resolves on this device, let alone on the recipient's, so there is nothing honest to
 		// put on the clipboard.
-		if (linkableProject(activity, projectPath) != true) {
+		if (linkableProject(projectPath) != true) {
 			return null
 		}
 

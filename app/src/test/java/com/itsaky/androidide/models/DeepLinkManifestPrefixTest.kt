@@ -36,14 +36,25 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 class DeepLinkManifestPrefixTest {
 	@Test
-	fun `every manifest pathPrefix matches the prefix buildUrl emits`() {
-		val manifest = File("src/main/AndroidManifest.xml")
-		assertThat(manifest.exists()).isTrue()
+	fun `every deep-link pathPrefix in the manifest matches the prefix buildUrl emits`() {
+		// Located by trying both roots rather than assuming one: the Gradle test task runs with the
+		// module directory as the working directory, an IDE run configuration often uses the repo
+		// root, and a wrong guess would fail as "manifest missing" rather than as real drift.
+		val manifest =
+			listOf("src/main/AndroidManifest.xml", "app/src/main/AndroidManifest.xml")
+				.map(::File)
+				.firstOrNull { it.isFile }
+		assertThat(manifest).isNotNull()
 
+		// Scoped to <data> elements that name a deep-link host, NOT every pathPrefix in the file. An
+		// unrelated App Link added elsewhere in the manifest is not drift in this scheme, and failing
+		// on it would point the reader at DeepLinkRequest for someone else's change.
 		val declared =
-			Regex("""android:pathPrefix\s*=\s*"([^"]*)"""")
-				.findAll(manifest.readText())
-				.map { it.groupValues[1] }
+			Regex("""<data\b[^>]*>""", RegexOption.DOT_MATCHES_ALL)
+				.findAll(manifest!!.readText())
+				.map { it.value }
+				.filter { it.contains("appdevforall.org") }
+				.mapNotNull { Regex("""android:pathPrefix\s*=\s*"([^"]*)"""").find(it)?.groupValues?.get(1) }
 				.toList()
 
 		// If the intent-filter stops declaring a prefix, this test must fail rather than vacuously

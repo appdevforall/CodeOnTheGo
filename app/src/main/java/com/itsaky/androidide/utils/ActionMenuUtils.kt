@@ -113,8 +113,9 @@ object ActionMenuUtils {
 								LinearLayout.LayoutParams.MATCH_PARENT,
 								1,
 							).apply {
-								topMargin = 8
-								bottomMargin = 8
+								// dp, not raw pixels: a literal 8 is 8dp on a 1x device and 2.7dp on a 3x one.
+								topMargin = context.dpToPx(8f)
+								bottomMargin = context.dpToPx(8f)
 							}
 					val typedValue = android.util.TypedValue()
 					context.theme.resolveAttribute(

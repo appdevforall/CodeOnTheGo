@@ -146,15 +146,13 @@ internal fun isDeepLinkTargetOfOpenProject(
 	openProjectPath: String,
 	projectName: String,
 	projectsRoot: File,
-): Boolean {
-	// Whatever can be settled without touching the disk, settle here.
-	deepLinkTargetOfOpenProjectWithoutIo(openProjectPath, projectName, projectsRoot)?.let { return it }
-
-	// Reached only when the shortcut deferred, which it does only after establishing a non-null
-	// parent and a matching name -- so this re-derives the parent rather than re-checking the rest.
-	val parent = File(openProjectPath).parentFile ?: return false
-	return canonicalOrAbsolute(parent) == canonicalOrAbsolute(projectsRoot)
-}
+): Boolean =
+	// "Could not tell" collapses to "no" for callers that only want a Boolean. That is not a
+	// behaviour change from the older canonicalOrAbsolute fallback: that fallback compared the plain
+	// absolutePath when canonicalisation failed, and equal absolute paths are already settled true by
+	// the no-IO shortcut -- so reaching it at all meant they differed, and the answer was false
+	// either way. Expressing it this way keeps the canonicalisation spelled once.
+	deepLinkTargetOfOpenProjectOrNull(openProjectPath, projectName, projectsRoot) ?: false
 
 /**
  * [isDeepLinkTargetOfOpenProject] with "could not tell" kept apart from "no", for a caller that
@@ -174,6 +172,8 @@ internal fun deepLinkTargetOfOpenProjectOrNull(
 ): Boolean? {
 	deepLinkTargetOfOpenProjectWithoutIo(openProjectPath, projectName, projectsRoot)?.let { return it }
 
+	// Non-null by construction: the shortcut returns false, not null, when there is no parent, so
+	// deferring to here already established one.
 	val parent = File(openProjectPath).parentFile ?: return false
 	val parentPath = runCatching { parent.canonicalPath }.getOrNull() ?: return null
 	val rootPath = runCatching { projectsRoot.canonicalPath }.getOrNull() ?: return null
@@ -208,8 +208,6 @@ internal fun deepLinkTargetOfOpenProjectWithoutIo(
 	// canonicalPath can say, which is exactly the call this function exists to avoid.
 	return null
 }
-
-private fun canonicalOrAbsolute(file: File): String = runCatching { file.canonicalPath }.getOrElse { file.absolutePath }
 
 /** Determines if the directory contains a valid Android project structure. */
 fun isValidProjectDirectory(selectedDir: File): Boolean {

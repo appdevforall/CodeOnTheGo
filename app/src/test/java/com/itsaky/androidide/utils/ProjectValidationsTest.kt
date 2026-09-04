@@ -205,4 +205,35 @@ class ProjectValidationsTest {
 			assertThat(shortcut).isEqualTo(independentlyLinkable(path, name))
 		}
 	}
+
+	@Test
+	fun `the nullable variant resolves a symlinked parent that differs as text`() {
+		val root = tempFolder.newFolder("real-projects")
+		val project = File(root, "MyApp")
+		assertThat(project.mkdirs()).isTrue()
+
+		// An alias to the same directory, the shape /sdcard -> /storage/self/primary has on a device.
+		val alias = File(tempFolder.root, "alias")
+		java.nio.file.Files.createSymbolicLink(alias.toPath(), root.toPath())
+
+		val viaAlias = File(alias, "MyApp").path
+		// The no-IO shortcut cannot settle this -- the parents differ as text.
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo(viaAlias, "MyApp", root)).isNull()
+		// Canonicalising does, and that is the branch the nullable variant exists for.
+		assertThat(deepLinkTargetOfOpenProjectOrNull(viaAlias, "MyApp", root)).isTrue()
+	}
+
+	@Test
+	fun `the nullable variant reports null, not false, when a path cannot be canonicalised`() {
+		val root = tempFolder.newFolder("projects3")
+
+		// A NUL makes getCanonicalPath throw IOException. "Could not tell" must stay distinct from
+		// "no": a caller that caches false here latches "not linkable" for the whole process over a
+		// condition that may be momentary.
+		val unresolvable = File("/nonexistent\u0000dir/MyApp").path
+		assertThat(deepLinkTargetOfOpenProjectOrNull(unresolvable, "MyApp", root)).isNull()
+
+		// And the Boolean form collapses that to false for callers that only want a Boolean.
+		assertThat(isDeepLinkTargetOfOpenProject(unresolvable, "MyApp", root)).isFalse()
+	}
 }
