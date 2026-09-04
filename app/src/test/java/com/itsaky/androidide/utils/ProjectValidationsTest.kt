@@ -147,4 +147,94 @@ class ProjectValidationsTest {
 			assertThat(findValidProjectByName(root, name)).isEqualTo(expected)
 		}
 	}
+
+	@Test
+	fun `the no-IO shortcut answers the same-parent case and defers the rest`() {
+		val root = tempFolder.newFolder("projects")
+
+		// Same parent by path: decidable with no filesystem call at all.
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo(File(root, "MyApp").path, "MyApp", root)).isTrue()
+
+		// Definitively not this project, also decidable without I/O.
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo(File(root, "MyApp").path, "Other", root)).isFalse()
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo("", "MyApp", root)).isFalse()
+
+		// Parent differs as text, so only canonicalisation can settle it -- the caller must go
+		// off-thread rather than treat this as a "no".
+		val elsewhere = tempFolder.newFolder("elsewhere")
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo(File(elsewhere, "MyApp").path, "MyApp", root)).isNull()
+	}
+
+	@Test
+	fun `the shortcut agrees with an independent canonical comparison wherever it commits`() {
+		val root = tempFolder.newFolder("projects2")
+
+		// Compared against a separately computed answer, not against isDeepLinkTargetOfOpenProject:
+		// that function now returns the shortcut's value verbatim in this range, so asserting the two
+		// agree would hold even if the shortcut were inverted to always return false.
+		fun independentlyLinkable(
+			path: String,
+			name: String,
+		): Boolean {
+			if (path.isBlank()) return false
+			val open = File(path)
+			// Normalised on both sides, matching projectNamesMatch. Comparing with plain == would
+			// leave the rule's NFD tolerance unpinned: dropping it from the shortcut would still pass.
+			if (Normalizer.normalize(open.name, Normalizer.Form.NFC) != Normalizer.normalize(name, Normalizer.Form.NFC)) {
+				return false
+			}
+			val parent = open.parentFile ?: return false
+			return parent.canonicalPath == root.canonicalPath
+		}
+
+		val nfd = "Cafe\u0301"
+		val nfc = Normalizer.normalize(nfd, Normalizer.Form.NFC)
+		val cases =
+			listOf(
+				File(root, "MyApp").path to "MyApp",
+				File(root, "MyApp").path to "Other",
+				"" to "MyApp",
+				// A project on disk in decomposed form, named in the link in composed form -- the
+				// macOS-clone case lookupValidProjectByName tries both forms for.
+				File(root, nfd).path to nfc,
+				File(root, nfc).path to nfd,
+			)
+		for ((path, name) in cases) {
+			val shortcut = deepLinkTargetOfOpenProjectWithoutIo(path, name, root)
+			assertThat(shortcut).isNotNull()
+			assertThat(shortcut).isEqualTo(independentlyLinkable(path, name))
+		}
+	}
+
+	@Test
+	fun `the nullable variant resolves a symlinked parent that differs as text`() {
+		val root = tempFolder.newFolder("real-projects")
+		val project = File(root, "MyApp")
+		assertThat(project.mkdirs()).isTrue()
+
+		// An alias to the same directory, the shape /sdcard -> /storage/self/primary has on a device.
+		val alias = File(tempFolder.root, "alias")
+		java.nio.file.Files
+			.createSymbolicLink(alias.toPath(), root.toPath())
+
+		val viaAlias = File(alias, "MyApp").path
+		// The no-IO shortcut cannot settle this -- the parents differ as text.
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo(viaAlias, "MyApp", root)).isNull()
+		// Canonicalising does, and that is the branch the nullable variant exists for.
+		assertThat(deepLinkTargetOfOpenProjectOrNull(viaAlias, "MyApp", root)).isTrue()
+	}
+
+	@Test
+	fun `the nullable variant reports null, not false, when a path cannot be canonicalised`() {
+		val root = tempFolder.newFolder("projects3")
+
+		// A NUL makes getCanonicalPath throw IOException. "Could not tell" must stay distinct from
+		// "no": a caller that caches false here latches "not linkable" for the whole process over a
+		// condition that may be momentary.
+		val unresolvable = File("/nonexistent\u0000dir/MyApp").path
+		assertThat(deepLinkTargetOfOpenProjectOrNull(unresolvable, "MyApp", root)).isNull()
+
+		// And the Boolean form collapses that to false for callers that only want a Boolean.
+		assertThat(isDeepLinkTargetOfOpenProject(unresolvable, "MyApp", root)).isFalse()
+	}
 }
