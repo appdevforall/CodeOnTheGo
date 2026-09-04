@@ -308,10 +308,12 @@ class DaemonServiceTest {
 	}
 
 	@Test
-	fun `a directory classpath entry fails configure instead of going unfingerprinted`() {
-		// A directory contributes only path + File.length() to the classpath fingerprint, and
-		// length() on a directory is a filesystem constant - so an in-place class rewrite inside
-		// one leaves the staleness guard silent and ships stale dependents. Fail loudly instead.
+	fun `a directory classpath entry is accepted, because a Kotlin module's classes are one`() {
+		// The Gradle plugin writes the variant compile classpath verbatim, and for a Kotlin module
+		// that includes the module's own build/tmp/kotlin-classes/<variant> - a DIRECTORY that
+		// javac needs. Refusing it here broke Quick Build for every Kotlin project. The staleness
+		// guard that refusal protected now fingerprints such an entry by its contents instead; see
+		// IncrementalCompilerEdgeTest.
 		val stdlib = TestSdk.kotlinStdlib()
 		val classesDir = File(tempDir, "library-classes").apply { mkdirs() }
 
@@ -320,7 +322,7 @@ class DaemonServiceTest {
 				ConfigureRequest(
 					id = 1,
 					projectRoot = tempDir.absolutePath,
-					classpath = listOf(classesDir.absolutePath),
+					classpath = listOf(stdlib.absolutePath, classesDir.absolutePath),
 					outDir = File(tempDir, "out").absolutePath,
 					aapt2 = stdlib.absolutePath,
 					d8Jar = stdlib.absolutePath,
@@ -328,8 +330,7 @@ class DaemonServiceTest {
 				),
 			)
 
-		assertThat(response.ok).isFalse()
-		assertThat(response.diagnostics.single().message).contains(classesDir.absolutePath)
-		assertThat(response.diagnostics.single().message).contains("not directories")
+		assertThat(response.ok).isTrue()
+		assertThat(response.diagnostics).isEmpty()
 	}
 }
