@@ -58,6 +58,10 @@ fun QuickBuildMessage.resolve(context: Context): String =
 			context.getString(R.string.quick_build_provisioning_failed_unexpectedly)
 		}
 
+		is QuickBuildMessage.DaemonStartFailed -> {
+			context.getString(R.string.quick_build_daemon_start_failed, detail)
+		}
+
 		is QuickBuildMessage.DaemonRestartFailed -> {
 			context.getString(R.string.quick_build_daemon_restart_failed, detail)
 		}
