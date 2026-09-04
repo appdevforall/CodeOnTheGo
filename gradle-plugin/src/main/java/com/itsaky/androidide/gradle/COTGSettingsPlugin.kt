@@ -5,6 +5,7 @@ import com.itsaky.androidide.tooling.api.GradlePluginConfig._PROPERTY_MAVEN_LOCA
 import org.adfa.constants.MAVEN_LOCAL_REPOSITORY
 import org.gradle.StartParameter
 import org.gradle.api.Plugin
+import org.gradle.api.Project
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.initialization.Settings
@@ -62,6 +63,41 @@ class COTGSettingsPlugin : Plugin<Settings> {
 					.toList()
 					.filter { it.isNotBlank() }
 		}
+}
+
+/**
+ * Add the on-device Maven repo to a settings-level `buildscript` classpath.
+ *
+ * [COTGSettingsPlugin] only reaches `pluginManagement` and
+ * `dependencyResolutionManagement`, and it is applied from `settingsEvaluated` -- by
+ * which point a `buildscript { }` block in `settings.gradle.kts` has already resolved
+ * against its own repositories. A project that declares its build classpath that way
+ * (the plugin template does) therefore had no offline repository to resolve from and
+ * could only be built online. This must run from `beforeSettings`.
+ *
+ * Missing repo is not fatal here: the directory does not exist until onboarding has
+ * installed the assets, and failing would break every build before that point.
+ */
+fun Settings.addLocalMavenRepoToBuildscript(logger: Logger) {
+	localMavenRepoDir(logger)?.let { buildscript.repositories.addMavenRepoIfMissing(logger, it.toURI()) }
+}
+
+/**
+ * Same problem, project scope: a `buildscript { }` block in build.gradle.kts resolves against
+ * its own repositories, which [COTGSettingsPlugin] never reaches. Templates pin the Kotlin
+ * version there for AGP 9's built-in Kotlin, so that classpath must resolve offline.
+ */
+fun Project.addLocalMavenRepoToBuildscript(logger: Logger) {
+	localMavenRepoDir(logger)?.let { buildscript.repositories.addMavenRepoIfMissing(logger, it.toURI()) }
+}
+
+private fun localMavenRepoDir(logger: Logger): File? {
+	val dir = File(MAVEN_LOCAL_REPOSITORY)
+	if (!dir.isDirectory) {
+		logger.info("Local maven repo not installed yet, skipping buildscript injection: $MAVEN_LOCAL_REPOSITORY")
+		return null
+	}
+	return dir
 }
 
 private fun RepositoryHandler.addLocalMavenRepoIfMissing(
