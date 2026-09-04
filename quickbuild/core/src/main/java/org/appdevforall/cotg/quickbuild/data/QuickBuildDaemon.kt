@@ -108,6 +108,8 @@ interface QuickBuildDaemon {
  * @property kotlinMillis wall time of the daemon's Kotlin pass; null when unreported, as for
  *   every step-timing field below.
  * @property javaMillis wall time of the daemon's javac pass.
+ * @property daemonMillis the whole op as the daemon timed it, request read to reply written;
+ *   against the client's own round trip it isolates the pipe and parse cost.
  * @property stats the phases [kotlinMillis]/[javaMillis] do not cover (output-tree
  *   snapshots, the Java-ABI re-parse) plus this build's counts.
  * @property diagnostics the warnings a successful build still produced, in the daemon's order;
@@ -119,6 +121,7 @@ data class CompileOutput(
 	val changedClassFiles: List<String>?,
 	val kotlinMillis: Long? = null,
 	val javaMillis: Long? = null,
+	val daemonMillis: Long? = null,
 	val stats: CompileStats? = null,
 	val diagnostics: List<BuildDiagnostic> = emptyList(),
 )
@@ -130,12 +133,14 @@ data class CompileOutput(
  * @property dexFile the single `classes.dex` this op produced, ready to stage into a payload.
  * @property stripMillis wall time of the daemon's class-stripping pass; null when unreported.
  * @property d8Millis wall time of the d8 invocation itself; null when unreported.
+ * @property daemonMillis the whole op as the daemon timed it; see [CompileOutput.daemonMillis].
  * @property stats how many classes / bytes the pass moved; null when unreported.
  */
 data class DexOutput(
 	val dexFile: File,
 	val stripMillis: Long? = null,
 	val d8Millis: Long? = null,
+	val daemonMillis: Long? = null,
 	val stats: DexStats? = null,
 )
 
@@ -171,11 +176,13 @@ data class RelinkInputs(
  *   not a bare table, since a bare table cannot back a file-typed resource.
  * @property aapt2CompileMillis wall time of the aapt2 compile pass; null when unreported.
  * @property aapt2LinkMillis wall time of the aapt2 link pass; null when unreported.
+ * @property daemonMillis the whole op as the daemon timed it; see [CompileOutput.daemonMillis].
  */
 data class RelinkOutput(
 	val resourceApk: File,
 	val aapt2CompileMillis: Long? = null,
 	val aapt2LinkMillis: Long? = null,
+	val daemonMillis: Long? = null,
 )
 
 /**
