@@ -29,10 +29,10 @@ import com.itsaky.androidide.activities.projectsRoot
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.copyToClipboard
+import com.itsaky.androidide.utils.deepLinkTargetOfOpenProjectOrNull
 import com.itsaky.androidide.utils.deepLinkTargetOfOpenProjectWithoutIo
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.utils.deepLinkTargetOfOpenProjectOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
