@@ -430,7 +430,10 @@ class BuildOutputFragment :
 	/**
 	 * Performs the safe UI update on the Main Thread.
 	 *
-	 * Appends to the session file on a background dispatcher before switching to Main.
+	 * Display only: the session file is written independently by
+	 * [com.itsaky.androidide.ui.EditorBottomSheet.appendBuildOut], which sees every line whether or
+	 * not this fragment exists.
+	 *
 	 * Uses [IDEEditor.awaitLayout] to guarantee the editor has physical dimensions (width > 0)
 	 * before attempting to insert text, preventing the Sora library's `ArrayIndexOutOfBoundsException`.
 	 */
@@ -440,12 +443,10 @@ class BuildOutputFragment :
 		editorGen: Int,
 	) {
 		editorContentMutex.withLock {
-			// A clear (new build) after this batch was drained invalidates session append.
+			// A clear (new build) after this batch was drained invalidates it.
 			if (sessionGen != sessionGeneration) return
 
-			buildOutputViewModel.append(text)
-
-			// The session file always gets the full text; the editor only shows matching lines
+			// The editor shows only the lines matching the current filter; the file keeps them all.
 			val visibleText =
 				BuildOutputViewModel.filterLines(
 					text,
