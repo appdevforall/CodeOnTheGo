@@ -420,6 +420,46 @@ class WebServerTest {
 		}
 	}
 
+	// The other half of the ADFA-5405 diagnostic: handleBsEndpoint's catch spans the whole handler,
+	// so echoing e.message put anything thrown in there into the response body -- a SQLiteException's
+	// SQL, or withDatabase's check() failure naming the database file. Any app on the device can GET
+	// this port. Only a template failure is echoed now; this pins that the rest is not.
+	@Test
+	fun `a failure that is not a template failure answers 500 without leaking internals`() {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		// Thrown from inside the handler rather than from openDatabase, which would fail start()
+		// before the port is bound. The type matters more than the origin: this is the same
+		// IllegalStateException that withDatabase's check() raises, which used to be
+		// indistinguishable from a template diagnostic and so was echoed verbatim -- and its message
+		// carries both a filesystem path and SQL, the two things worth not sending.
+		every { db.rawQuery(match { it.contains("FROM Content AS C") }, any()) } throws
+			IllegalStateException(
+				"unable to open database file /data/user/0/com.itsaky.androidide/databases/documentation.db " +
+					"(while compiling: SELECT C.content FROM Content AS C JOIN ContentTypes)",
+			)
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			val response = sendRawGetRequest(port, "/pr/bs")
+			assertTrue("Expected a 500 status line, got:\n$response", response.startsWith("HTTP/1.1 500"))
+			assertTrue(
+				"Expected the generic text, got:\n$response",
+				response.contains("Error generating bookshelf HTML."),
+			)
+			assertFalse("Leaked a filesystem path:\n$response", response.contains("/data/user/0/"))
+			assertFalse("Leaked a database filename:\n$response", response.contains("documentation.db"))
+			assertFalse("Leaked SQL text:\n$response", response.contains("SELECT C.content"))
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
 	// ADFA-5241: the two transports have to answer the same way about what a response says, and
 	// only a real response proves what this one sends. The decision itself lives in
 	// ContentTypeHeaders, shared with DocumentationRequestInterceptor.

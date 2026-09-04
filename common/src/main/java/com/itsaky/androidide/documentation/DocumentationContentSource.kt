@@ -126,6 +126,24 @@ sealed interface DocumentationLookup {
 }
 
 /**
+ * A template could not be loaded, parsed or rendered.
+ *
+ * Exists so a caller can tell a template diagnostic apart from every other failure on the serving
+ * path. That matters because one caller puts the message in an HTTP response body: a template
+ * failure names a template, which is the whole point of the ADFA-5405 diagnostic and safe to send,
+ * while the [IllegalStateException] a closed or unopenable database raises carries the database's
+ * filesystem path, and a `SQLiteException` carries SQL text. Both of those were reaching the
+ * response because they share [IllegalStateException] with the diagnostics.
+ *
+ * Extends [IllegalStateException] rather than replacing it, so callers that only care that the
+ * render failed are unaffected.
+ */
+class TemplateRenderException(
+	message: String?,
+	cause: Throwable? = null,
+) : IllegalStateException(message, cause)
+
+/**
  * What [DocumentationContentSource.lookupRequestPath] found, plus the path form that produced it --
  * so a transport reporting a miss or a corrupt row can quote the string that was actually queried.
  */
@@ -353,6 +371,12 @@ class DocumentationContentSource(
 
 	/**
 	 * Clears all cached templates, compiled and by name.
+	 *
+	 * Takes the write lock, so like [swapDatabaseIfChanged] this must not be called while holding the
+	 * read lock -- which is what [withDatabase] runs its block under. `ReentrantReadWriteLock` does
+	 * not upgrade a read hold to a write hold, so `withDatabase { clearTemplateCache() }` (or the same
+	 * shape through `DocumentationRequestInterceptor.clearTemplateCache()`) deadlocks that thread
+	 * permanently. No caller does this today; the note is here to keep the next one out of it.
 	 */
 	fun clearTemplateCache() =
 		// The write lock, which a render's read lock excludes: clearing the three caches piecemeal
@@ -497,7 +521,7 @@ class DocumentationContentSource(
 	): ByteArray {
 		val contextString = contextJson.toString(Charsets.UTF_8)
 		if (contextString.isBlank() || contextString.trim() == "null") {
-			throw IllegalStateException("Template '$name' has empty or null JSON context, for path '$path'")
+			throw TemplateRenderException("Template '$name' has empty or null JSON context, for path '$path'")
 		}
 		val context: Map<String, Any> = gson.fromJson(contextString, templateContextType)
 
@@ -509,13 +533,16 @@ class DocumentationContentSource(
 			// "(?:?)" in the response body; when it carries both, as a parse error in a template
 			// does, it is the diagnostic that says which template and line to go fix.
 			val message = if (e.fileName == null && e.lineNumber == null) e.pebbleMessage else e.message
-			throw IllegalStateException(message, e)
+			throw TemplateRenderException(message, e)
 		} catch (e: StackOverflowError) {
 			// Templates can reference each other now (ADFA-5405), so they can also reference each
 			// other in a cycle, which Pebble resolves by recursing until the stack runs out. Raised
 			// here as an exception because an Error passes through every catch on this path: the
 			// client would get a closed socket with no status line and nothing naming the template.
-			throw IllegalStateException("Rendering template '$name' overflowed the stack; check for a reference cycle between templates", e)
+			throw TemplateRenderException(
+				"Rendering template '$name' overflowed the stack; check for a reference cycle between templates",
+				e,
+			)
 		}
 	}
 
@@ -816,9 +843,17 @@ class DocumentationContentSource(
 		// OutOfMemoryError is an Error every catch on this path misses. Pebble raises a PebbleException
 		// at this limit instead, which the caller turns into a 500.
 		//
-		// Headroom over the largest context this database holds (171 KB of compressed JSON), not a
-		// measured ceiling on rendered output; tighten it if the real maximum is known.
-		private const val MAX_RENDERED_CHARS = 16 * 1024 * 1024
+		// Sized so it actually fires first, which 16 MiB did not. Pebble counts CHARACTERS, in a
+		// LimitedSizeWriter wrapping a StringWriter, so 16 Mi chars means a 33.5 MB char[] -- and the
+		// doubling step that reaches it holds the old 33.5 MB array and the new 67 MB one at once,
+		// then toString() copies another 33.5 MB. Against a 192-256 MB Android heap the runaway loop
+		// OOMs long before the guard trips, which is the one scenario it exists for. The old number
+		// was headroom over the largest CONTEXT in the database (171 KB of compressed JSON) -- an
+		// unrelated quantity, as its own comment admitted.
+		//
+		// 1 MiB of characters is ~2 MB of char[] and still roughly 6x the largest legitimate rendered
+		// page here, so it bounds the runaway without being reachable by real content.
+		private const val MAX_RENDERED_CHARS = 1024 * 1024
 
 		private const val CONTENT_QUERY = """
 			SELECT C.content, CT.value, CT.compression, C.templateId

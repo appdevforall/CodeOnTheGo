@@ -10,6 +10,7 @@ import com.itsaky.androidide.documentation.DocumentationContent
 import com.itsaky.androidide.documentation.DocumentationContentSource
 import com.itsaky.androidide.documentation.DocumentationLookup
 import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
+import com.itsaky.androidide.documentation.TemplateRenderException
 import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import org.slf4j.LoggerFactory
@@ -769,15 +770,24 @@ class WebServer(
 			outputStarted = realHandleBsEndpoint(writer, output) { outputStarted = true }
 		} catch (e: Exception) {
 			log.error("Error handling /pr/bs endpoint: {}", e.message)
-			// The message, not just the generic text: a template this endpoint cannot resolve -- the
-			// bookshelf row itself, or anything it references -- is named by the loader's throw, and
-			// that name is the whole diagnostic (ADFA-5405).
+			// The message is echoed ONLY for a template failure. That one names a template -- the
+			// bookshelf row itself, or anything it references -- and the name is the whole diagnostic
+			// (ADFA-5405). Everything else keeps the generic text, because this catch spans the whole
+			// of realHandleBsEndpoint: a SQLiteException carries SQL, and withDatabase's
+			// check(openIfNeeded()) carries the database's filesystem path. Any app on the device can
+			// GET this port, so echoing those was handing out internals for the sake of one
+			// diagnostic.
+			val detail =
+				when (e) {
+					is TemplateRenderException -> e.message ?: "Error generating bookshelf HTML."
+					else -> "Error generating bookshelf HTML."
+				}
 			sendError(
 				writer,
 				output,
 				httpInternalServerError,
 				"Internal Server Error 6",
-				e.message ?: "Error generating bookshelf HTML.",
+				detail,
 				outputStarted,
 			)
 		}
@@ -856,8 +866,14 @@ class WebServer(
 						if (debugEnabled) log.debug("json content = '{}'.", String(it, Charsets.UTF_8))
 					}
 				} catch (e: Exception) {
-					log.error("Error processing request: {}", e.message)
-					sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
+					log.error("Error building the bookshelf JSON: {}", e.message, e)
+					// The message stays in the log and out of the response. Everything reachable here is
+					// a database failure -- bookshelfJson is the SQL join -- so the message carries SQL
+					// text, or the database's filesystem path when withDatabase's check() is what threw.
+					// Any app on the device can GET this port. Narrowing handleBsEndpoint's own catch is
+					// not enough on its own: this one answers and returns null, so the outer catch never
+					// sees the exception at all.
+					sendError(writer, output, httpInternalServerError, "Internal Server Error", "Error generating bookshelf HTML.")
 					null
 				}
 			} ?: return false
