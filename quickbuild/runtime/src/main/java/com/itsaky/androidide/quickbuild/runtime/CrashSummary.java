@@ -17,6 +17,8 @@ final class CrashSummary {
 	 * An earlier version also put a stack summary on the banner and needed 14 lines to fit it. Dropping the summary is what buys this back, so putting any detail on the banner again means recomputing here rather than raising the cap. {@code StatusOverlay} reads this instead of carrying a number of its own that could drift from it.
 	 *
 	 * {@code BUILD_FAILED} is the tallest state, at exactly this cap: a 54-character headline (3 lines at the narrowest measure), one detail line clamped to {@link #BUILD_FAILED_DETAIL_CHARS}, and the pointer's 2.
+	 *
+	 * The arithmetic assumes the English literals in {@link OverlayState}, which cannot be string resources (its class KDoc says why); a translation changes every count above.
 	 */
 	static final int MAX_BANNER_LINES = 6;
 

@@ -4,6 +4,8 @@ package com.itsaky.androidide.quickbuild.runtime;
  * Immutable description of what the status overlay currently shows.
  *
  * The overlay is error-only: it tells the user when a build fails or a payload crashes. {@link #building} is the one narrow exception, a neutral in-flight line so a slow compile does not read as silence. Success renders nothing. Every terminal event installs a new state and the overlay always renders the latest, so a transient state cannot get stuck on screen.
+ *
+ * The banner copy is inline English rather than a string resource, against the repo rule, because it cannot be one: this AAR is injected into the user's own app and carries no {@code res/}, so any id it referenced would resolve against that app's table - or against the very payload table a crash banner is reporting on. {@link CrashSummary#MAX_BANNER_LINES} is computed from these literals' character counts, so translating or lengthening them means recomputing there.
  */
 final class OverlayState {
 
