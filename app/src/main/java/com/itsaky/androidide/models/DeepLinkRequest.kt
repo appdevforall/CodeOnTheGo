@@ -18,8 +18,8 @@
 package com.itsaky.androidide.models
 
 import android.net.Uri
-import com.itsaky.androidide.utils.ContainedPathResolver
 import android.os.Parcelable
+import com.itsaky.androidide.utils.ContainedPathResolver
 import kotlinx.parcelize.Parcelize
 import java.nio.file.Paths
 

@@ -236,7 +236,6 @@ class CreateLinkAction(
 			column = cursor.leftColumn + 1,
 		)
 	}
-
 }
 
 /**
