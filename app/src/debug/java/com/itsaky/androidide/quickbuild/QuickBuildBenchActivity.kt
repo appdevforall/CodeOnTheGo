@@ -99,6 +99,17 @@ class QuickBuildBenchActivity : Activity() {
 			}
 		}
 
+		// A different project while one is initialized is refused, not switched: the single-top
+		// editor's onNewIntent would receive it with projectPath already moved (below) and no
+		// way to run the close-and-reopen path unattended (it confirms with a dialog), so the
+		// autostart would fire against the open project's module model and the measurement
+		// would be silently wrong. The harness force-stops CoGo between projects; a run that
+		// did not shows up here as a project-init gap instead of a bad number.
+		if (current != null && current != project.path && ProjectManagerImpl.getInstance().workspace != null) {
+			log.warn("Rejected quick-build bench open of {}: {} is open and initialized", project.path, current)
+			return
+		}
+
 		// Arm the editor's one-shot autostart BEFORE opening, so the tap fires as soon as
 		// this project initializes (see ProjectHandlerActivity).
 		QuickBuildBenchAutostart.pendingMode = mode

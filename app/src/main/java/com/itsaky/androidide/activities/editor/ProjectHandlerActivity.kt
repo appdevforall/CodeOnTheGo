@@ -701,11 +701,31 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * latch is left armed - the init-path claim will consume it. The standard-mode path
 	 * exists so the harness can measure a post-edit INCREMENTAL standard build on the
 	 * warm Gradle daemon (a force-stop + fresh open would cold-start the daemon).
+	 *
+	 * Only for the project this activity has initialized. The bench trampoline moves
+	 * `IProjectManager.projectPath` to the intent's project before starting the editor, so that
+	 * global cannot tell a re-open from a switch; the synced workspace can. An intent for a
+	 * different project leaves the latch armed for the init-path claim that follows a real
+	 * switch, instead of firing a tap against this project's module model.
 	 */
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
 		if (!QuickBuildBenchHooks.isEnabled || editorViewModel.isInitializing) return
+		val target = intent.getStringExtra(EditorIntentExtras.EXTRA_PROJECT_PATH)
+		if (target != null && !isInitializedProject(target)) {
+			logger.warn("Bench re-open of {} while another project is initialized; leaving the autostart armed", target)
+			return
+		}
 		fireAutostart(claimAutostart())
+	}
+
+	/**
+	 * Whether [path] is the root of the project the current workspace was synced for. False
+	 * before the first sync and when either path cannot be canonicalised.
+	 */
+	private fun isInitializedProject(path: String): Boolean {
+		val root = IProjectManager.getInstance().workspace?.rootProject?.delegate?.projectDir ?: return false
+		return runCatching { root.canonicalPath == File(path).canonicalPath }.getOrDefault(false)
 	}
 
 	/**
