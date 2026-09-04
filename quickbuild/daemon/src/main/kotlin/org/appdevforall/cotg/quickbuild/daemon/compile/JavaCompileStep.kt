@@ -92,12 +92,23 @@ object JavaCompileStep {
 			// --release, java.* resolves against the JDK's own release-17 ct.sym signatures,
 			// and android.jar reaches this compile only through -classpath, which the
 			// platform shadows. So a .java calling a JVM-only API (ProcessHandle,
-			// Collectors.teeing) compiles green here and is rejected by AGP's JavaCompile,
-			// which puts android.jar on the bootstrap classpath. Closing that gap needs a
-			// design call, not a flag swap: javac 17 answers -bootclasspath at this target
-			// with "option --boot-class-path not allowed with target 17" [measured on this
-			// Mac, 2026-09-03], and dropping --release widens the surface to the host JDK's
-			// whole module set rather than narrowing it.
+			// Collectors.teeing) compiles green here.
+			//
+			// Every documented way to narrow it back was tried on javac 17 against
+			// android-36's android.jar [measured on this Mac, 2026-09-03]. -bootclasspath is
+			// refused above target 8 ("option --boot-class-path not allowed with target 11"
+			// and the same at 17); --system none cannot find java.lang, because android.jar
+			// is a jar and not a system image; --release with --patch-module java.base still
+			// compiles ProcessHandle green, so ct.sym wins. Only -source 8 -target 8 with
+			// -bootclasspath narrows the surface, and that is the bytecode level this flag
+			// exists to prevent.
+			//
+			// The standard build appears to be in the same position rather than a stricter
+			// one. AGP does call setBootstrapClasspath, but javac refuses that flag above
+			// target 8, and this IDE's templates generate projects at Java 17
+			// (JAVA_SOURCE_VERSION). So for the projects Quick Build actually serves, the
+			// two compiles look equally permissive. Not confirmed by an AGP run on such a
+			// project, which is what would settle it.
 			"--release",
 			IncrementalCompiler.JVM_TARGET,
 		)
