@@ -194,7 +194,8 @@ class IncrementalCompiler(
 	 * `assureNoClasspathSnapshotsChanges(true)` over a classpath a standard Gradle build may have
 	 * rewritten in place (same jar paths, new ABI). Any compile trusting that assertion keeps
 	 * dependents of the changed library ABI stale, the worst silent failure this feature has.
-	 * Fingerprinting path+size+CRC of every jar catches the in-place rewrite; a mismatch (or a
+	 * Fingerprinting path+size+CRC of every entry - a directory entry by its contents, see
+	 * [entryFingerprint] - catches the in-place rewrite; a mismatch (or a
 	 * missing fingerprint next to surviving state) wipes both, and the next compile re-seeds from
 	 * the fresh per-jar snapshots. Matching bytes keep the warm caches, which re-configures with
 	 * an unchanged classpath must not lose.
@@ -208,8 +209,8 @@ class IncrementalCompiler(
 	 */
 	private fun discardStaleIncrementalState(classpathJars: List<File>): String {
 		val fingerprint =
-			classpathJars.joinToString("\n") { jar ->
-				"${jar.absolutePath}|${jar.length()}|${if (jar.isFile) contentCrc(jar) else -1L}"
+			classpathJars.joinToString("\n") { entry ->
+				"${entry.absolutePath}|${entryFingerprint(entry)}"
 			}
 		val file = fingerprintFile()
 		val previous = if (file.isFile) file.readText() else null
@@ -220,6 +221,42 @@ class IncrementalCompiler(
 		}
 		return fingerprint
 	}
+
+	/**
+	 * The content half of one classpath entry's fingerprint, after its path.
+	 *
+	 * A directory entry is real and expected: the Gradle plugin writes the variant's compile
+	 * classpath verbatim, and for a Kotlin module that includes the module's own
+	 * `build/tmp/kotlin-classes/<variant>`, which javac needs on the classpath. Such an entry has
+	 * no useful length of its own - `length()` on a directory is a filesystem constant - so every
+	 * file under it is folded in instead, sorted so the walk order cannot change the answer. The
+	 * directories that appear here hold one module's classes, not a whole dependency tree, so the
+	 * walk is cheap next to the per-jar snapshots that follow it.
+	 *
+	 * @param entry one classpath entry.
+	 * @return its size and CRC for a file, its contents' digest for a directory, and a
+	 *   content-free marker for an entry that is neither (a path that vanished between the
+	 *   existence check and here).
+	 */
+	private fun entryFingerprint(entry: File): String =
+		when {
+			entry.isFile -> {
+				"${entry.length()}|${contentCrc(entry)}"
+			}
+
+			entry.isDirectory -> {
+				entry
+					.walkTopDown()
+					.filter { it.isFile }
+					.map { "${it.toRelativeString(entry)}|${it.length()}|${contentCrc(it)}" }
+					.sorted()
+					.joinToString(",")
+			}
+
+			else -> {
+				"${entry.length()}|-1"
+			}
+		}
 
 	/** One home for the fingerprint path; written only by `init`'s last statement. */
 	private fun fingerprintFile(): File = workDir.resolve("classpath-fingerprint.txt").toFile()
