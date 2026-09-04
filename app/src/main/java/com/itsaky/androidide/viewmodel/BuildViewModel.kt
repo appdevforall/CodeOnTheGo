@@ -30,24 +30,53 @@ class BuildViewModel : ViewModel() {
 	private val _buildState = MutableStateFlow<BuildState>(BuildState.Idle)
 	val buildState: StateFlow<BuildState> = _buildState
 
+	/**
+	 * Builds the selected variant and hands the result to the installer.
+	 *
+	 * @param onTerminalState invoked exactly once with the state the run ends on. [buildState] is
+	 *   a conflated flow whose terminal values are transient — the editor resets `AwaitingInstall`
+	 *   to `Idle` the moment it takes the APK — so a caller that must not miss the outcome (a
+	 *   plugin waiting on a callback) has to be told directly rather than observe the flow.
+	 */
 	fun runQuickBuild(
 		module: AndroidModule,
 		variant: AndroidModels.AndroidVariant,
 		launchInDebugMode: Boolean,
 		launchProfilerAfterInstall: Boolean = false,
 		gradleArgs: List<String> = emptyList(),
+		onTerminalState: ((BuildState) -> Unit)? = null,
 	) {
-		if (_buildState.value is BuildState.InProgress) {
-			log.warn("Build is already in progress. Ignoring new request.")
-			return
+		// Claim the slot before the coroutine is scheduled, and in one step: a check here and a set
+		// inside the launched block let two callers both read a free state and both reach
+		// executeTasks, running duplicate build-and-install flows.
+		while (true) {
+			val current = _buildState.value
+			if (current is BuildState.InProgress) {
+				log.warn("Build is already in progress. Ignoring new request.")
+				onTerminalState?.invoke(BuildState.Error("A build is already in progress."))
+				return
+			}
+			if (_buildState.compareAndSet(current, BuildState.InProgress)) {
+				break
+			}
 		}
 
 		viewModelScope.launch {
-			_buildState.value = BuildState.InProgress
+			var reported = false
+
+			// Publishes a terminal state and notifies the caller once, from the one place that
+			// knows the run is over. Called only on the main dispatcher, so the flag needs no lock.
+			fun finish(state: BuildState) {
+				_buildState.value = state
+				if (!reported) {
+					reported = true
+					onTerminalState?.invoke(state)
+				}
+			}
 
 			val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 			if (buildService == null) {
-				_buildState.value = BuildState.Error("Build service not found.")
+				finish(BuildState.Error("Build service not found."))
 				return@launch
 			}
 
@@ -89,11 +118,12 @@ class BuildViewModel : ViewModel() {
 					val cgpFile =
 						withContext(Dispatchers.IO) { findPluginCgpFile(projectRoot, variant) }
 					if (cgpFile != null) {
-						_buildState.value = BuildState.AwaitingPluginInstall(cgpFile)
+						finish(BuildState.AwaitingPluginInstall(cgpFile))
 					} else {
 						log.warn("Plugin built successfully but .cgp file not found")
-						_buildState.value =
-							BuildState.Error("Plugin built but output file (.cgp) not found in build/plugin")
+						finish(
+							BuildState.Error("Plugin built but output file (.cgp) not found in build/plugin"),
+						)
 					}
 					return@launch
 				}
@@ -110,19 +140,20 @@ class BuildViewModel : ViewModel() {
 					throw RuntimeException("APK file specified does not exist: $apkFile")
 				}
 
-				_buildState.value =
+				finish(
 					BuildState.AwaitingInstall(
 						apkFile,
 						launchInDebugMode,
 						launchProfilerAfterInstall = launchProfilerAfterInstall,
-					)
+					),
+				)
 			} catch (e: Exception) {
 				if (e is CancellationException) {
 					log.info("Build was cancelled by the user.")
-					_buildState.value = BuildState.Idle
+					finish(BuildState.Idle)
 				} else {
 					log.error("Quick Run failed.", e)
-					_buildState.value = BuildState.Error(e.message ?: "An unknown error occurred.")
+					finish(BuildState.Error(e.message ?: "An unknown error occurred."))
 				}
 			}
 		}

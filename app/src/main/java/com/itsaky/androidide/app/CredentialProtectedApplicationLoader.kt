@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
+import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
@@ -394,49 +395,8 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 		// Provide runApp functionality
 		buildServiceImpl.setRunAppProvider { callback ->
-			logger.info("runApp provider called - attempting to get BuildService from Lookup")
-			GlobalScope.launch(Dispatchers.IO) {
-				try {
-					val buildService = Lookup.getDefault().lookup(com.itsaky.androidide.projects.builder.BuildService.KEY_BUILD_SERVICE)
-					logger.info("BuildService lookup result: {}", if (buildService == null) "NULL" else "FOUND")
-					if (buildService == null) {
-						callback.onComplete(false, "Build service not available - may need to open a project first")
-						return@launch
-					}
-
-					val projectManager =
-						com.itsaky.androidide.projects.IProjectManager
-							.getInstance()
-					val appModules = projectManager.getAndroidAppModules()
-
-					if (appModules.isEmpty()) {
-						callback.onComplete(false, "No Android app modules found in project")
-						return@launch
-					}
-
-					val module = appModules.firstOrNull()
-					val variant = module?.getSelectedVariant()
-
-					if (module == null || variant == null) {
-						callback.onComplete(false, "No app module or variant selected")
-						return@launch
-					}
-
-					val taskName = "${module.path}:${variant.mainArtifact.assembleTaskName}"
-					val result = buildService.executeTasks(tasks = listOf(taskName)).get()
-
-					if (result == null || !result.isSuccessful) {
-						callback.onComplete(false, "Build failed: ${result?.failure}")
-						return@launch
-					}
-
-					// TODO: Install and launch APK
-					callback.onComplete(true, "Build successful (installation not yet implemented)")
-				} catch (e: Exception) {
-					logger.error("Failed to run app", e)
-					callback.onComplete(false, "Error: ${e.message}")
-				}
-			}
+			logger.info("runApp provider called")
+			PluginRunAppCoordinator.runApp(application.foregroundActivity, callback)
 		}
 
 		// Provide gradle sync functionality
@@ -467,19 +427,16 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			}
 		}
 
-		// Provide build output
+		// Provide build output: the real log, or null when there is none. No status text -- the
+		// consumer cannot tell a message from a log, so anything non-empty reads as build output.
+		// No BuildService lookup either: the session file outlives the tooling server, and reading it
+		// after a crashed build is precisely when the log is needed.
 		buildServiceImpl.setBuildOutputProvider {
 			try {
-				val buildService = Lookup.getDefault().lookup(com.itsaky.androidide.projects.builder.BuildService.KEY_BUILD_SERVICE)
-				if (buildService != null) {
-					// Try to get build output from the service
-					// Note: BuildService doesn't directly expose output, so we return last build status
-					"Build service is available. Run build_app or gradle_sync to see output."
-				} else {
-					"Build service not available"
-				}
+				BuildOutputProvider.getBuildOutputContent()
 			} catch (e: Exception) {
-				"Error getting build output: ${e.message}"
+				logger.error("Failed to read build output", e)
+				null
 			}
 		}
 	}
