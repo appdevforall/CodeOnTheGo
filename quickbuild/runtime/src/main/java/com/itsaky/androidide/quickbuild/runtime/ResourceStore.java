@@ -106,6 +106,17 @@ final class ResourceStore {
 	private long swappedGeneration = -1;
 
 	/**
+	 * Newest generation whose deploy was abandoned, or -1 when none has been.
+	 *
+	 * A swap is queued on the main thread and commits after the deploy method that queued it has returned, so a deploy that fails a later step - applyTable posts before applyAssets can throw - has its rollback run while its own table swap is still queued. Without this the abandoned generation's table commits over the dex the rollback just restored, and the screen renders a generation nothing else in the process believes is live.
+	 *
+	 * Refusing the commit is the whole remedy. Undoing one is not available: the store keeps single provider slots and closes the previous provider after each swap, and the API 28/29 path cannot unmount an added asset path at all.
+	 *
+	 * Written and read under the monitor, like {@link #swappedGeneration}.
+	 */
+	private long abandonedGeneration = -1;
+
+	/**
 	 * @param strategy
 	 *            the swap mechanism to use; injected so tests can drive each branch without an SDK level
 	 */
@@ -116,6 +127,20 @@ final class ResourceStore {
 	/** Builds {@link #INSTANCE}, picking the strategy from this device's SDK level. */
 	private ResourceStore() {
 		this(ResourceSwapStrategy.forSdk(Build.VERSION.SDK_INT));
+	}
+
+	/**
+	 * Records that a generation's deploy was abandoned, so any swap it has already queued is refused rather than committed.
+	 *
+	 * Called by the runtime from both places that give up on a generation: a swap that failed, and a deploy step that threw after an earlier swap was already posted.
+	 *
+	 * @param generation
+	 *            the abandoned generation; an older one than the newest already abandoned is ignored
+	 */
+	synchronized void abandon(long generation) {
+		if (generation > abandonedGeneration) {
+			abandonedGeneration = generation;
+		}
 	}
 
 	/**
@@ -231,6 +256,19 @@ final class ResourceStore {
 	}
 
 	/**
+	 * Whether a queued swap must be dropped instead of committed.
+	 *
+	 * Two reasons, and they are different failures. Overtaken: a newer generation's swap already committed, so installing this one would put the older table back under the newer generation's label. Abandoned: this generation's own deploy gave up, so committing would render a generation whose rollback has already run.
+	 *
+	 * @param generation
+	 *            the generation of the queued swap
+	 * @return true when the swap must be dropped
+	 */
+	synchronized boolean refusesSwap(long generation) {
+		return generation < swappedGeneration || generation <= abandonedGeneration;
+	}
+
+	/**
 	 * API 28/29 swap: write the apk to disk, then addAssetPath it into the application AssetManager and flush caches on the main thread.
 	 *
 	 * The mount is posted through {@link #swapProvidersOnMain} for the reason its own KDoc gives for the loader path: addAssetPath re-tables the live AssetManager and flushCaches drops the drawable and typed-value caches, and either can race an inflation already in progress - a lookup straddling the swap mixes old and new values. Running it on the arriving binder thread left that race open on exactly the devices this path exists for, since CoGo's classifier routes resource edits with no SDK gate.
@@ -272,12 +310,15 @@ final class ResourceStore {
 			@Override
 			public void run() {
 				synchronized (ResourceStore.this) {
-					if (generation < swappedGeneration) {
-						// Overtaken, same as both loader swaps. Mounting now would make the last
+					if (refusesSwap(generation)) {
+						// Overtaken or abandoned. Mounting an overtaken one would make the last
 						// addAssetPath win the lookup with the older table, under the newer
-						// generation's label, and hand that apk to every later activity.
-						RuntimeLog.w("dropping overtaken legacy table swap for gen " + generation
-								+ "; gen " + swappedGeneration + " already committed");
+						// generation's label, and hand that apk to every later activity; mounting
+						// an abandoned one would mount the table of a generation whose rollback
+						// has already run.
+						RuntimeLog.w("dropping legacy table swap for gen " + generation
+								+ "; gen " + swappedGeneration + " committed, gen "
+								+ abandonedGeneration + " abandoned");
 						return;
 					}
 					Resources appResources = appContext.getResources();
@@ -326,12 +367,15 @@ final class ResourceStore {
 				@Override
 				public void run() {
 					synchronized (ResourceStore.this) {
-						if (generation < swappedGeneration) {
-							// Overtaken. Two deploys arrive on two binder threads, so the posts are not
-							// ordered by generation, and installing this one would put the older table
-							// back under the newer generation's label.
-							RuntimeLog.w("dropping overtaken table swap for gen " + generation + "; gen "
-									+ swappedGeneration + " already committed");
+						if (refusesSwap(generation)) {
+							// Overtaken, or abandoned by its own deploy. Two deploys arrive on two binder
+							// threads, so the posts are not ordered by generation, and installing an
+							// overtaken one would put the older table back under the newer generation's
+							// label; installing an abandoned one would serve a table whose dex has
+							// already been rolled back.
+							RuntimeLog.w("dropping table swap for gen " + generation + "; gen "
+									+ swappedGeneration + " committed, gen " + abandonedGeneration
+									+ " abandoned");
 							Streams.closeQuietly(next);
 							return;
 						}
@@ -457,11 +501,13 @@ final class ResourceStore {
 			@Override
 			public void run() {
 				synchronized (ResourceStore.this) {
-					if (generation < swappedGeneration) {
-						// Overtaken, same as the table swap: a newer generation's providers are already
-						// installed and this pair would replace them with the older override dir.
-						RuntimeLog.w("dropping overtaken assets swap for gen " + generation + "; gen "
-								+ swappedGeneration + " already committed");
+					if (refusesSwap(generation)) {
+						// Overtaken or abandoned, same as the table swap: a newer generation's providers
+						// are already installed and this pair would replace them with the older override
+						// dir, or this generation's own deploy has already been rolled back.
+						RuntimeLog.w("dropping assets swap for gen " + generation + "; gen "
+								+ swappedGeneration + " committed, gen " + abandonedGeneration
+								+ " abandoned");
 						Streams.closeQuietly(next);
 						Streams.closeQuietly(nextDir);
 						return;
