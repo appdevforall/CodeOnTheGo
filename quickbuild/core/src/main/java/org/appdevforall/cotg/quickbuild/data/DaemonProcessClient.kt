@@ -300,6 +300,9 @@ class DaemonProcessClient(
 				kotlinMillis = response.longOrNull(ResponseKeys.KOTLIN_MILLIS),
 				javaMillis = response.longOrNull(ResponseKeys.JAVA_MILLIS),
 				stats = CompileStats.fromValues { key -> response.longOrNull(key) },
+				// A build can succeed with warnings, and the daemon sends them on the Ok reply
+				// too; dropped here they would reach no one.
+				diagnostics = response?.let(::parseDiagnostics).orEmpty(),
 			)
 		}
 	}
@@ -578,9 +581,9 @@ class DaemonProcessClient(
 	}
 
 	/**
-	 * Reads the `diagnostics` array off a failed response.
+	 * Reads the `diagnostics` array off a response - failed, or a success carrying warnings.
 	 *
-	 * @param response the `ok=false` response object.
+	 * @param response the response object.
 	 * @return one [BuildDiagnostic] per well-formed entry, empty when the key is absent or not an
 	 *   array; anything but an explicit `WARNING` reads as an error, a missing or non-primitive
 	 *   message becomes "unknown error", and a non-numeric line or column reads as absent, so a
