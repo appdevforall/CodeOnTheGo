@@ -77,7 +77,7 @@ class LiveSessionAdoptBaselineTest {
 		return LiveSession(
 			proxyApp = proxyApp("com.example.old"),
 			layout = QuickBuildProjectLayout(projectRoot),
-			tracker = GenerationTracker(MemoryGenerationStore()),
+			tracker = GenerationTracker(MemoryGenerationStore(), initial = 0L),
 			filter = WatchFilter(listOf(projectRoot)),
 			orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), scope) {},
 			watcher = NoopWatcher(),

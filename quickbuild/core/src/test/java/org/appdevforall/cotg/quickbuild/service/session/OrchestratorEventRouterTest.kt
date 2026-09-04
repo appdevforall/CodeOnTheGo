@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
+import org.appdevforall.cotg.quickbuild.domain.reload.BuildDiagnostic
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.reload.OrchestratorEvent
 import org.appdevforall.cotg.quickbuild.domain.session.SessionEvent
@@ -180,5 +181,21 @@ class OrchestratorEventRouterTest {
 			)
 		assertThat(routing.sessionEvents).hasSize(1)
 		assertThat(routing.newLastDeployedGeneration).isEqualTo(7L)
+	}
+
+	@Test
+	fun `a success carries the compile's warnings onto the session event`() {
+		val warning = BuildDiagnostic(BuildDiagnostic.Severity.WARNING, "deprecated")
+		val routing =
+			route(
+				OrchestratorEvent.BuildSucceeded(
+					buildId = 1,
+					result = success(generation = 7L).copy(diagnostics = listOf(warning)),
+					route = BuildRoute.CodeOnly,
+				),
+				lastDeployedGeneration = 3L,
+			)
+		assertThat(routing.sessionEvents)
+			.containsExactly(SessionEvent.BuildSucceeded(7L, 120L, diagnostics = listOf(warning)))
 	}
 }
