@@ -493,6 +493,21 @@ class LiveReloadOrchestrator(
 	 * start, files with no readable mtime (nothing proves they predate the read), removals (no
 	 * mtime left to date them), and [ChangedFiles.Unknown].
 	 *
+	 * A filesystem may truncate mtimes to whole seconds (ext4 without extended timestamps,
+	 * two seconds on FAT), so a save landing just after the start can report an mtime just
+	 * before it. An mtime on a whole-second boundary is taken as truncated, and a file with
+	 * one is absorbed only when it predates the start by [MTIME_GRANULARITY_MARGIN_MILLIS]:
+	 * on a coarse filesystem that errs toward one extra build rather than a silently dropped
+	 * edit, and on a precise one it misfires on the one save in a thousand that lands on an
+	 * exact second, at the same cost. Applying the margin to every mtime instead would strand
+	 * a genuinely pre-start save on every filesystem: the watcher's debounce (150 ms quiet,
+	 * 1 s cap) puts such a save's mtime within a second of the start.
+	 *
+	 * A file the rebuild already holds keeps the exact cutoff even when truncated: its
+	 * arrival is the echo of the save the rebuild is absorbing, and stranding that echo is
+	 * the spurious invalidation this split exists to prevent. The residual is a re-edit of a
+	 * held file within the margin after the start on a coarse filesystem, which absorbs.
+	 *
 	 * The absorbed part joins [awaitingAbsorption] via [ChangedFiles.plus], NOT
 	 * [unionPendingLocked]: this rebuild IS the Gradle build these files would demand, so
 	 * latching a sticky verdict from them would re-report the invalidation it is resolving.
@@ -506,7 +521,16 @@ class LiveReloadOrchestrator(
 		if (changes !is ChangedFiles.Known) return changes
 		val absorbed =
 			changes.files.filterTo(mutableSetOf()) { file ->
-				fileLastModified(file) in 1..absorptionStartedAtMillis
+				val mtime = fileLastModified(file)
+				val heldAlready = held !is ChangedFiles.Known || file in held.files
+				val truncated = mtime % 1_000L == 0L
+				val cutoff =
+					if (heldAlready || !truncated) {
+						absorptionStartedAtMillis
+					} else {
+						absorptionStartedAtMillis - MTIME_GRANULARITY_MARGIN_MILLIS
+					}
+				mtime in 1..cutoff
 			}
 		if (absorbed.isEmpty()) return changes
 		awaitingAbsorption = held + ChangedFiles.Known(absorbed)
@@ -863,6 +887,12 @@ class LiveReloadOrchestrator(
 		 * full Gradle build.
 		 */
 		const val ESCALATE_AFTER_IDENTICAL_FAILURES = 2
+
+		/**
+		 * Coarsest mtime granularity a project tree is expected to sit on: FAT stamps mtimes in
+		 * 2 s steps, ext4 without extended timestamps in 1 s. See [absorbEchoesLocked].
+		 */
+		const val MTIME_GRANULARITY_MARGIN_MILLIS = 2_000L
 	}
 }
 
