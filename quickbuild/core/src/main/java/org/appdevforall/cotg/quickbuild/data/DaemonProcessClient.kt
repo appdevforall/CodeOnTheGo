@@ -299,6 +299,7 @@ class DaemonProcessClient(
 				changed,
 				kotlinMillis = response.longOrNull(ResponseKeys.KOTLIN_MILLIS),
 				javaMillis = response.longOrNull(ResponseKeys.JAVA_MILLIS),
+				daemonMillis = response.longOrNull(ResponseKeys.DURATION_MILLIS),
 				stats = CompileStats.fromValues { key -> response.longOrNull(key) },
 				// A build can succeed with warnings, and the daemon sends them on the Ok reply
 				// too; dropped here they would reach no one.
@@ -326,6 +327,7 @@ class DaemonProcessClient(
 				it,
 				stripMillis = response.longOrNull(ResponseKeys.STRIP_MILLIS),
 				d8Millis = response.longOrNull(ResponseKeys.D8_MILLIS),
+				daemonMillis = response.longOrNull(ResponseKeys.DURATION_MILLIS),
 				stats = DexStats.fromValues { key -> response.longOrNull(key) },
 			)
 		}
@@ -355,6 +357,7 @@ class DaemonProcessClient(
 				it,
 				aapt2CompileMillis = response.longOrNull(ResponseKeys.AAPT2_COMPILE_MILLIS),
 				aapt2LinkMillis = response.longOrNull(ResponseKeys.AAPT2_LINK_MILLIS),
+				daemonMillis = response.longOrNull(ResponseKeys.DURATION_MILLIS),
 			)
 		}
 	}
