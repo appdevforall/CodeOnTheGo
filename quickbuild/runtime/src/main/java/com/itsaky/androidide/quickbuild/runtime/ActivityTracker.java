@@ -100,7 +100,7 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	 *
 	 * Only fires on API 29+; on older devices {@link #onActivityCreated} is the later backstop.
 	 *
-	 * The runtime's Context work runs here too, because this is the only hook that precedes the activity's own inflation: on a cold start that adopts a persisted generation the resources do not exist until it runs, so deferring it to {@link #onActivityCreated} would let the first activity inflate against the baseline table. Every step of it is idempotent.
+	 * The runtime's Context work runs here too, the first moment a usable Context exists: the bind to CoGo, persistence, and the start of the boot resource restore. The restore itself runs off this thread and lands after this activity has inflated, so on a cold start that adopts a persisted generation the first activity inflates against the baseline table and is recreated when the restored one is live. Every step of it is idempotent.
 	 *
 	 * @param activity
 	 *            the activity about to be created, used for its Resources and as the runtime's first Context
