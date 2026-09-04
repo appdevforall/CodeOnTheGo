@@ -546,7 +546,7 @@ class DaemonProcessClient(
 					log.warn("daemon(stderr): {}", line)
 				}
 			} catch (e: IOException) {
-				// stream closed with the process; nothing to do
+				log.debug("Daemon stderr closed: {}", e.message)
 			}
 		}
 		scope.launch(Dispatchers.IO) {
