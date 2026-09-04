@@ -35,6 +35,22 @@ final class QuickBuildRuntime {
 	private static volatile QuickBuildRuntime instance;
 
 	/**
+	 * Routes a resumed activity's completion, to its first drawn frame when one is coming and inline when none is.
+	 *
+	 * Package-private and free of Activity so a JVM test can pin the branch that matters: a resume with a frame still coming must complete NOTHING, which is what leaves the generation pending in {@link FirstFrameGate} and blamable by {@link BootProbation}. The Activity overload cannot be driven from a unit test - it needs a Window and a live ViewTreeObserver - so without this seam the rule lives only in the gate class and the call site is unpinned.
+	 *
+	 * @param installDrawCallback
+	 *            installs the first-frame callback; false when the activity has no live view tree to hang one on
+	 * @param completeNow
+	 *            the completion, run only when no frame is coming
+	 */
+	static void completeOnResume(FrameCallbackInstaller installDrawCallback, Runnable completeNow) {
+		if (!installDrawCallback.install()) {
+			completeNow.run();
+		}
+	}
+
+	/**
 	 * Creates and starts the one runtime for this process. Idempotent, and never throws.
 	 *
 	 * @param application
@@ -322,6 +338,10 @@ final class QuickBuildRuntime {
 					// recreate has been posted at all.
 					ackGate.failed();
 					abandonedReloadGeneration = generation;
+					// A deploy carrying both payloads has a second swap that may still be
+					// queued behind this one; committing it would serve this generation's
+					// resources over the dex the rollback is about to restore.
+					ResourceStore.INSTANCE.abandon(generation);
 					failReload(generation, rollback, error);
 				}
 			};
@@ -363,6 +383,9 @@ final class QuickBuildRuntime {
 			// working version. Only onSwapFailed used to set this, which is the branch where
 			// the swap is the thing that failed.
 			abandonedReloadGeneration = generation;
+			// The posted swap is refused rather than committed: the store cannot undo a
+			// swap that took, so the only place to stop it is before it commits.
+			ResourceStore.INSTANCE.abandon(generation);
 			Streams.closeQuietly(dexPayload);
 			Streams.closeQuietly(resourcesPayload);
 			Streams.closeQuietly(assetsPayload);
@@ -402,13 +425,24 @@ final class QuickBuildRuntime {
 	 *            the activity now in the foreground, which hosts the overlay
 	 */
 	void onActivityResumed(final Activity activity) {
-		if (!completeOnFirstFrame(activity)) {
-			// No live view tree to hang a draw callback on, so this activity may never
-			// draw at all. Completing inline is the pre-existing looser bar, and the
-			// right one here: waiting for a frame that will never arrive would strand
-			// the deploy unacked and leave the generation on probation forever.
-			onFirstFrameDrawn(activity);
-		}
+		// Routed through the seam so the rule - a resume with a frame coming completes
+		// nothing - is pinned by a test rather than only by this method's shape. The
+		// inline fallback is for an activity with no live view tree, which may never
+		// draw at all: waiting for a frame that will never arrive would strand the
+		// deploy unacked and leave the generation on probation forever.
+		completeOnResume(new FrameCallbackInstaller() {
+
+			@Override
+			public boolean install() {
+				return completeOnFirstFrame(activity);
+			}
+		}, new Runnable() {
+
+			@Override
+			public void run() {
+				onFirstFrameDrawn(activity);
+			}
+		});
 	}
 
 	/** Counts an activity into the set a restart deploy waits to empty before killing the process. */
@@ -906,5 +940,18 @@ final class QuickBuildRuntime {
 		} catch (Throwable error) {
 			RuntimeLog.w("could not sweep the legacy resource cache", error);
 		}
+	}
+
+	/**
+	 * Installs the callback that runs a reload's completion on the resumed activity's first drawn frame.
+	 *
+	 * Exists so {@link #completeOnResume} can be driven without an Activity; the production implementation is {@link #completeOnFirstFrame}.
+	 */
+	interface FrameCallbackInstaller {
+
+		/**
+		 * @return true when a first-frame callback was installed, false when the activity has no live view tree and the caller must complete without a frame
+		 */
+		boolean install();
 	}
 }
