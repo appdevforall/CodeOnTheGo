@@ -200,7 +200,7 @@ class ProxyAppInstaller(
 		apk: File,
 		packageName: String,
 	): InstallOutcome {
-		val initialStamp = readPackages { packages.lastUpdateTime(packageName) }
+		val initialStamp = readStamp(packageName)
 		val existingUid = readPackages { packages.uid(packageName) }
 		if (existingUid != null && isSameContent(apk, packageName)) {
 			log.info("{} already runs these bytes; skipping reinstall", packageName)
@@ -406,19 +406,69 @@ class ProxyAppInstaller(
 		}
 
 	/**
-	 * Polls until the package's lastUpdateTime moves off [initialStamp].
+	 * One read of a package's lastUpdateTime, keeping "absent" apart from "the read threw".
+	 *
+	 * The two must not collapse into one null: [awaitStampChange] reads an absent package as
+	 * "any stamp at all is the install landing", and a transient PackageManager throw over an
+	 * installed package would then match the old stamp and report an install that never ran.
+	 */
+	private sealed interface StampRead {
+		/**
+		 * The read succeeded.
+		 *
+		 * @property stamp the package's lastUpdateTime, or null when it is not installed
+		 */
+		data class Known(
+			val stamp: Long?,
+		) : StampRead
+
+		/** The read threw, so nothing is known about the package either way. */
+		data object Unknown : StampRead
+	}
+
+	/**
+	 * @param packageName the applicationId to look up
+	 * @return the stamp, absence, or [StampRead.Unknown] when the lookup threw
+	 */
+	private suspend fun readStamp(packageName: String): StampRead =
+		withContext(ioDispatcher) {
+			try {
+				StampRead.Known(packages.lastUpdateTime(packageName))
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.warn("lastUpdateTime lookup for {} failed", packageName, e)
+				StampRead.Unknown
+			}
+		}
+
+	/**
+	 * Polls until the package's lastUpdateTime moves off the stamp it had before the install.
 	 *
 	 * @param packageName the applicationId to watch
-	 * @param initialStamp the stamp read before the install started; null means the package
-	 *   was absent, so any stamp at all counts as the change
+	 * @param initialStamp what the pre-install read found. Absent means any stamp at all is
+	 *   the change. [StampRead.Unknown] means the baseline is still to be established: the
+	 *   first successful read becomes it and only a later change counts, so a failed read can
+	 *   never match against null. An install that lands before that baseline read is then
+	 *   settled by the broadcast alone; on an installer stack that never broadcasts it times
+	 *   out as retryable, which beats reporting a success the device did not perform.
 	 */
 	private suspend fun awaitStampChange(
 		packageName: String,
-		initialStamp: Long?,
+		initialStamp: StampRead,
 	) {
+		var baseline = initialStamp
 		while (true) {
-			val stamp = readPackages { packages.lastUpdateTime(packageName) }
-			if (stamp != null && stamp != initialStamp) return
+			val read = readStamp(packageName)
+			when (baseline) {
+				StampRead.Unknown -> {
+					baseline = read
+				}
+
+				is StampRead.Known -> {
+					if (read is StampRead.Known && read.stamp != null && read.stamp != baseline.stamp) return
+				}
+			}
 			delay(DEFAULT_POLL_MILLIS)
 		}
 	}
