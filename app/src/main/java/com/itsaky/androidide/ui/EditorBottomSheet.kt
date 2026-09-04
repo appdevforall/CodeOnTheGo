@@ -528,7 +528,10 @@ class EditorBottomSheet
 
 		private val suppressedGradleWarnings =
 			listOf(
-				"The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/android-sdk/build-tools/35.0.0/aapt2' is experimental",
+				// Matched with contains(), so the build-tools version is deliberately left
+				// out: the path moves with Environment.BUILD_TOOLS_VERSION and a hardcoded
+				// version silently stops matching, resurfacing the warning to users.
+				"The option setting 'android.aapt2FromMavenOverride=",
 				"The org.gradle.api.plugins.BasePluginConvention type has been deprecated.",
 				"The org.gradle.api.plugins.Convention type has been deprecated.",
 				"The BasePluginExtension.archivesBaseName property has been deprecated.",

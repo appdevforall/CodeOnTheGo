@@ -46,7 +46,7 @@ public final class Environment {
 	private static final String ANDROIDIDE_PROJECT_CACHE_DIR = SharedEnvironment.PROJECT_CACHE_DIR_NAME;
 	private static final String DATABASE_NAME = "documentation.db";
 
-	public static final String BUILD_TOOLS_VERSION = "35.0.0";
+	public static final String BUILD_TOOLS_VERSION = "36.0.0";
 
 	public static final String PLUGIN_API_JAR_RELATIVE_PATH = "libs/plugin-api.jar";
 
