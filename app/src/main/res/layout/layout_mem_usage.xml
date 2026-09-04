@@ -13,27 +13,30 @@
 	android:layout_width="match_parent"
 	android:layout_height="@dimen/editor_mem_usage_view_height">
 
+	<!-- The pager takes whatever height the title leaves, so the title can grow with the font scale without being clipped
+		and without the panel changing height. -->
 	<androidx.viewpager2.widget.ViewPager2
 		android:id="@+id/metrics_pager"
 		android:layout_width="0dp"
 		android:layout_height="0dp"
-		app:layout_constraintBottom_toTopOf="@id/metrics_indicator"
+		app:layout_constraintBottom_toTopOf="@id/metrics_title"
 		app:layout_constraintEnd_toEndOf="parent"
 		app:layout_constraintStart_toStartOf="parent"
 		app:layout_constraintTop_toTopOf="parent" />
 
-	<com.google.android.material.tabs.TabLayout
-		android:id="@+id/metrics_indicator"
-		android:layout_width="wrap_content"
-		android:layout_height="@dimen/metrics_carousel_indicator_height"
-		android:background="@android:color/transparent"
+	<TextView
+		android:id="@+id/metrics_title"
+		android:layout_width="0dp"
+		android:layout_height="wrap_content"
+		android:gravity="center"
+		android:paddingHorizontal="@dimen/metrics_carousel_title_padding_horizontal"
+		android:paddingVertical="@dimen/metrics_carousel_title_padding_vertical"
+		android:textAppearance="?attr/textAppearanceLabelMedium"
+		android:textColor="?attr/colorOnSurface"
 		app:layout_constraintBottom_toBottomOf="parent"
 		app:layout_constraintEnd_toEndOf="parent"
 		app:layout_constraintStart_toStartOf="parent"
-		app:tabBackground="@drawable/metrics_carousel_dot"
-		app:tabGravity="center"
-		app:tabIndicatorHeight="0dp"
-		app:tabPaddingEnd="@dimen/metrics_carousel_dot_spacing"
-		app:tabPaddingStart="@dimen/metrics_carousel_dot_spacing" />
+		tools:text="Memory usage"
+		xmlns:tools="http://schemas.android.com/tools" />
 
 </com.itsaky.androidide.ui.MetricsCarouselLayout>

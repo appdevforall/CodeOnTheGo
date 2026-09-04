@@ -66,12 +66,12 @@ import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
-import com.google.android.material.tabs.TabLayoutMediator
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
@@ -188,6 +188,7 @@ abstract class BaseEditorActivity :
 	private var drawerToggle: ActionBarDrawerToggle? = null
 	private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
 	protected val memoryUsageWatcher = MemoryUsageWatcher()
+	private var metricsPageCallback: ViewPager2.OnPageChangeCallback? = null
 	private val memUsageChartRenderer =
 		MemoryUsageChartRenderer(
 			usagesProvider = memoryUsageWatcher::getMemoryUsages,
@@ -517,6 +518,10 @@ abstract class BaseEditorActivity :
 		fullscreenManager?.destroy()
 		fullscreenManager = null
 
+		metricsPageCallback?.let { callback ->
+			_binding?.memUsageView?.metricsPager?.unregisterOnPageChangeCallback(callback)
+		}
+		metricsPageCallback = null
 		_binding?.memUsageView?.metricsPager?.adapter = null
 		memUsageChartRenderer.detach()
 		_binding = null
@@ -971,29 +976,31 @@ abstract class BaseEditorActivity :
 			listOf(
 				// The memory chart is the default page (ADFA-5487). The logo is a placeholder second
 				// page until there is a real second metric; the network-traffic chart replaces it.
-				MetricsPage.MemoryChart,
+				MetricsPage.MemoryChart(title = string.metrics_title_memory),
 				MetricsPage.Image(
 					drawable = R.drawable.cogo_brand_mark,
 					description = string.metrics_carousel_brand_mark,
+					title = string.metrics_title_brand_mark,
 				),
 			)
 
 		binding.memUsageView.metricsPager.adapter = MetricsCarouselAdapter(pages, memUsageChartRenderer)
 
-		TabLayoutMediator(
-			binding.memUsageView.metricsIndicator,
-			binding.memUsageView.metricsPager,
-		) { _, _ -> }.attach()
-
-		binding.memUsageView.metricsIndicator.apply {
-			// A pure indicator, not a control: the carousel pages by swipe (MetricsCarouselLayout),
-			// so the dots need neither 48dp touch targets nor their own accessibility nodes --
-			// ViewPager2 already reports page position. Swallowing touches keeps the dots from
-			// acting as tabs while leaving TabLayoutMediator to track the selected page.
-			@Suppress("ClickableViewAccessibility")
-			setOnTouchListener { _, _ -> true }
-			importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+		val showTitleFor = { position: Int ->
+			pages.getOrNull(position)?.let { page ->
+				binding.memUsageView.metricsTitle.setText(page.title)
+			}
 		}
+
+		metricsPageCallback =
+			object : ViewPager2.OnPageChangeCallback() {
+				override fun onPageSelected(position: Int) {
+					showTitleFor(position)
+				}
+			}.also { binding.memUsageView.metricsPager.registerOnPageChangeCallback(it) }
+
+		// onPageSelected does not fire for the page the carousel opens on.
+		showTitleFor(binding.memUsageView.metricsPager.currentItem)
 	}
 
 	private fun watchMemory() {

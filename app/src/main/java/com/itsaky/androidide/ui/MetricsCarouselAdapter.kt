@@ -28,15 +28,23 @@ import com.itsaky.androidide.R
 
 /**
  * A page of the editor's metrics carousel.
+ *
+ * @property title Names the page. Shown below the carousel, and the only cue to which page is
+ * showing, so every page needs one.
  */
 sealed interface MetricsPage {
+	@get:StringRes val title: Int
+
 	/** The live memory-usage chart, rendered by [MemoryUsageChartRenderer]. */
-	data object MemoryChart : MetricsPage
+	data class MemoryChart(
+		@StringRes override val title: Int,
+	) : MetricsPage
 
 	/** A static image. Placeholder page until real metrics exist to show alongside memory. */
 	data class Image(
 		@DrawableRes val drawable: Int,
 		@StringRes val description: Int,
+		@StringRes override val title: Int,
 	) : MetricsPage
 }
 

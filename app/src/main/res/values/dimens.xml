@@ -7,10 +7,8 @@
 
 <resources>
 	<dimen name="editor_mem_usage_view_height">248dp</dimen>
-	<dimen name="metrics_carousel_indicator_height">20dp</dimen>
-	<dimen name="metrics_carousel_dot_size">9dp</dimen>
-	<dimen name="metrics_carousel_dot_size_inactive">6dp</dimen>
-	<dimen name="metrics_carousel_dot_spacing">7dp</dimen>
+	<dimen name="metrics_carousel_title_padding_horizontal">16dp</dimen>
+	<dimen name="metrics_carousel_title_padding_vertical">4dp</dimen>
 	<dimen name="metrics_carousel_image_padding">16dp</dimen>
 	<dimen name="editor_container_corners">28dp</dimen>
 
