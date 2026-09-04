@@ -1,6 +1,9 @@
 package org.appdevforall.cotg.quickbuild.service.session
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
@@ -60,6 +63,14 @@ internal class LiveSessionFactory(
 	private val onOrchestratorEvent: (OrchestratorEvent) -> Unit,
 	/** This device's asset-serving capability; see [ChangeClassifier]'s parameter of the same name. */
 	private val assetsLiveReloadable: Boolean,
+	/**
+	 * Where the layout's tree walks run. [QuickBuildProjectLayout.watchedRoots],
+	 * [QuickBuildProjectLayout.watchedFiles] and [QuickBuildProjectLayout.allSources] each
+	 * walk the project root, and this factory is called on the single session dispatcher,
+	 * whose rule is that nothing on it may block. Injected so a test can record which
+	 * thread the walk ran on.
+	 */
+	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
 	/**
 	 * Wires a session around the provisioned proxy app, ready to accept edits.
@@ -69,11 +80,16 @@ internal class LiveSessionFactory(
 	 *   outlives a baseline swap
 	 * @return the assembled session; its watcher is created but not yet started
 	 */
-	fun create(
+	suspend fun create(
 		outcome: ProvisionOutcome.Success,
 		tracker: GenerationTracker,
 	): LiveSession {
 		val layout = outcome.layout
+		// Both accessors walk the project root, and both used to walk it twice over - once
+		// for the filter and once for the watcher. Hopped off the session dispatcher and
+		// read once, so session start does two walks off-thread instead of four on it.
+		val (watchedRoots, watchedFiles) =
+			withContext(ioDispatcher) { layout.watchedRoots() to layout.watchedFiles() }
 		val proxyApp = outcome.proxyApp
 		val executor = SwitchableExecutor(executorFor(proxyApp, layout, tracker))
 		val annotationImpact = SwitchableAnnotationImpact(annotationImpactFor(proxyApp, layout))
@@ -90,14 +106,14 @@ internal class LiveSessionFactory(
 				now = nowMillis,
 				onEvent = onOrchestratorEvent,
 			)
-		val filter = WatchFilter(layout.watchedRoots(), layout.watchedFiles())
+		val filter = WatchFilter(watchedRoots, watchedFiles)
 		return LiveSession(
 			proxyApp = outcome.proxyApp,
 			layout = layout,
 			tracker = tracker,
 			filter = filter,
 			orchestrator = orchestrator,
-			watcher = watcherFactory.create(layout.watchedRoots(), layout.watchedFiles(), filter, scope),
+			watcher = watcherFactory.create(watchedRoots, watchedFiles, filter, scope),
 			executor = executor,
 			annotationImpact = annotationImpact,
 			// The same location executorFor's executor writes into, so the manager's
@@ -154,6 +170,7 @@ internal class LiveSessionFactory(
 				launcher = launcher,
 				clock = nowMillis,
 				metrics = metrics,
+				ioDispatcher = ioDispatcher,
 			)
 
 	/**
@@ -169,7 +186,7 @@ internal class LiveSessionFactory(
 	 * @return an analyzer over the captured baseline, or [AnnotationImpact.Inactive] when
 	 *   the project runs no processors
 	 */
-	fun annotationImpactFor(
+	suspend fun annotationImpactFor(
 		proxyApp: ProxyAppInfo,
 		layout: QuickBuildProjectLayout,
 	): AnnotationImpact {
@@ -179,7 +196,11 @@ internal class LiveSessionFactory(
 			"Quick build: annotation-aware classification on for processors {}",
 			profile.processorCoordinates,
 		)
-		return AnnotationImpactAnalyzer(profile, AnnotationBaseline.capture(layout.allSources(), profile))
+		// allSources walks the source roots; the capture that reads each file is disk work
+		// too, so the whole baseline is taken off the session dispatcher rather than just
+		// the listing.
+		val baseline = withContext(ioDispatcher) { AnnotationBaseline.capture(layout.allSources(), profile) }
+		return AnnotationImpactAnalyzer(profile, baseline)
 	}
 
 	private companion object {
