@@ -264,15 +264,6 @@ final class QuickBuildClient implements ServiceConnection {
 	}
 
 	/**
-	 * Forgets the host under the monitor, so the write cannot land between {@link #abandonHandshake}'s test and its teardown.
-	 *
-	 * Only the write is under the monitor, not the whole callback: the callbacks run on the main thread, and holding the monitor across unbindService and the rebind post would serialize the main thread against a handshake thread's binder round trip for no gain.
-	 */
-	private synchronized void dropHost() {
-		host = null;
-	}
-
-	/**
 	 * Issues one bindService against CoGo's explicit service intent.
 	 *
 	 * @return true when the framework accepted the bind request - only {@link #onServiceConnected} confirms the channel - and false when there is no context yet, CoGo is not installed, or bindService threw
@@ -325,6 +316,15 @@ final class QuickBuildClient implements ServiceConnection {
 			RuntimeLog.w("CoGo rejected connect(); continuing standalone", error);
 			abandonHandshake(connected);
 		}
+	}
+
+	/**
+	 * Forgets the host under the monitor, so the write cannot land between {@link #abandonHandshake}'s test and its teardown.
+	 *
+	 * Only the write is under the monitor, not the whole callback: the callbacks run on the main thread, and holding the monitor across unbindService and the rebind post would serialize the main thread against a handshake thread's binder round trip for no gain.
+	 */
+	private synchronized void dropHost() {
+		host = null;
 	}
 
 	/** Queues one rebind attempt, doubling the delay up to {@link #REBIND_MAX_DELAY_MS}. */

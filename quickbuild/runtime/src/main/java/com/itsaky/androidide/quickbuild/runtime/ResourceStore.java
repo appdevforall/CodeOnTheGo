@@ -144,17 +144,6 @@ final class ResourceStore {
 	}
 
 	/**
-	 * The newest generation whose swap has committed, or -1 before the first.
-	 *
-	 * For the failure path: a deploy that threw after its table swap had already committed has left that table live, and nothing can take it down again (see {@link #abandonedGeneration}). Read only after {@link #abandon} for the same generation, so a swap still queued at that point is refused rather than committing later and changing the answer.
-	 *
-	 * @return the committed generation, which the failure path compares with the one that failed
-	 */
-	synchronized long swappedGeneration() {
-		return swappedGeneration;
-	}
-
-	/**
 	 * Merges a changed-assets zip into the cumulative override dir under {@code cacheRoot} and serves it through the loader.
 	 *
 	 * The merge clears the dir first when it belongs to another baseline, so assets never outlive the baseline they were deployed onto.
@@ -283,6 +272,17 @@ final class ResourceStore {
 	 */
 	synchronized boolean refusesSwap(long generation) {
 		return generation < swappedGeneration || generation <= abandonedGeneration;
+	}
+
+	/**
+	 * The newest generation whose swap has committed, or -1 before the first.
+	 *
+	 * For the failure path: a deploy that threw after its table swap had already committed has left that table live, and nothing can take it down again (see {@link #abandonedGeneration}). Read only after {@link #abandon} for the same generation, so a swap still queued at that point is refused rather than committing later and changing the answer.
+	 *
+	 * @return the committed generation, which the failure path compares with the one that failed
+	 */
+	synchronized long swappedGeneration() {
+		return swappedGeneration;
 	}
 
 	/**
