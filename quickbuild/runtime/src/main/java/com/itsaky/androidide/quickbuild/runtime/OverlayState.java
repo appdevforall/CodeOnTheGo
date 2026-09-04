@@ -50,6 +50,17 @@ final class OverlayState {
 	}
 
 	/**
+	 * State for a reload that failed after its resource swap had already committed, so the rollback restored the code half only.
+	 *
+	 * Says restart rather than "last working version": the screen resolves the failed generation's table over the previous generation's classes, and only a resources-carrying deploy or a process restart clears that. Restart is the remedy the user has - the failed generation is quarantined, so the next boot adopts the last good one whole.
+	 *
+	 * @return the mixed-versions crash state
+	 */
+	static OverlayState mixed() {
+		return new OverlayState(Kind.MIXED, null, 0, -1);
+	}
+
+	/**
 	 * State that renders nothing, the resting state.
 	 *
 	 * @return the state that makes {@link StatusOverlay#render} remove the banner
@@ -110,14 +121,15 @@ final class OverlayState {
 	/**
 	 * True for the states a successful reload / build must clear.
 	 *
-	 * @return whether this state is BUILD_FAILED, CRASHED or REINSTALL_PENDING
+	 * @return whether this state is BUILD_FAILED, CRASHED, MIXED or REINSTALL_PENDING
 	 */
 	boolean isError() {
-		return kind == Kind.BUILD_FAILED || kind == Kind.CRASHED || kind == Kind.REINSTALL_PENDING;
+		return kind == Kind.BUILD_FAILED || kind == Kind.CRASHED || kind == Kind.MIXED
+				|| kind == Kind.REINSTALL_PENDING;
 	}
 
 	/**
-	 * Builds the banner text for this state; failure copy always says the app still runs the last working code.
+	 * Builds the banner text for this state; failure copy says the app still runs the last working code, except {@link Kind#MIXED}, where that would be false.
 	 *
 	 * @return the multi-line banner text, empty for {@link Kind#HIDDEN}
 	 */
@@ -149,6 +161,11 @@ final class OverlayState {
 			// code. The old wording named the one event this banner cannot observe.
 			return "Live reload crashed. App is on the last working version." + "\n"
 					+ FULL_OUTPUT_POINTER;
+		case MIXED:
+			// Same length band as CRASHED, so MAX_BANNER_LINES still holds; a longer line
+			// here means recomputing it.
+			return "Live reload crashed. Restart the app - it is running mixed versions." + "\n"
+					+ FULL_OUTPUT_POINTER;
 		case REINSTALL_PENDING:
 			return "Update needs your OK in Code on the Go - switch back to approve it\n"
 					+ "This app is running the last working version";
@@ -170,6 +187,8 @@ final class OverlayState {
 		BUILD_FAILED,
 		/** A delivered payload crashed in render/lifecycle; rolled back to last-good. */
 		CRASHED,
+		/** A payload failed after its resources swapped in; the code rolled back, the resources could not. */
+		MIXED,
 		/** A build is compiling; the app keeps running its last-deployed generation. */
 		BUILDING,
 		/** An update's reinstall awaits a confirm only CoGo can show; the user must switch back. */

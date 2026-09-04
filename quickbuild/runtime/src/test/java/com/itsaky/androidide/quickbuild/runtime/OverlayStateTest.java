@@ -106,4 +106,15 @@ class OverlayStateTest {
 		assertThat(state.text()).contains("Code on the Go");
 		assertThat(state.text()).contains("running the last working version");
 	}
+	@Test
+	void mixedSaysRestartAndNeverClaimsTheLastWorkingVersion() {
+		// Set when the failed generation's resource swap had already committed before the
+		// rollback: the code is on the previous generation, the table is not, and "last
+		// working version" would be the one claim the banner cannot make.
+		OverlayState state = OverlayState.mixed();
+		assertThat(state.text()).contains("Restart the app");
+		assertThat(state.text()).contains("Build Output");
+		assertThat(state.text()).doesNotContain("last working version");
+		assertThat(state.isError()).isTrue();
+	}
 }
