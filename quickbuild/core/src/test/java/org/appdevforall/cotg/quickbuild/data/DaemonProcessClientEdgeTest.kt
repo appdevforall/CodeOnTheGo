@@ -1576,4 +1576,34 @@ class DaemonProcessClientEdgeTest {
 		assertThat((reply as DaemonReply.Failed).daemonDied).isTrue()
 		assertThat(deaths).isEmpty()
 	}
+
+	@Test
+	fun `a successful compile carries the daemon's warnings`() {
+		// The daemon sends diagnostics on an ok reply too (a build can succeed with warnings);
+		// a client that reads them only off failures shows the user a clean build for an edit
+		// Gradle would have warned about.
+		val paths =
+			scriptedPaths(
+				"""
+				read line
+				printf '%s\n' '${okConfigure()}'
+				read line
+				printf '%s\n' '{"id":2,"ok":true,"classesDir":"/out/classes","diagnostics":[{"severity":"WARNING","message":"deprecated","file":"/src/A.kt","line":3,"column":9}]}'
+				read line
+				printf '%s\n' '{"id":3,"ok":true}'
+				""".trimIndent(),
+			)
+
+		val reply =
+			withClient(paths) { client ->
+				check(client.start(config()) is DaemonReply.Ok)
+				client.compile(emptyList(), emptyList())
+			}
+
+		val output = (reply as DaemonReply.Ok).value
+		assertThat(output.diagnostics)
+			.containsExactly(
+				BuildDiagnostic(BuildDiagnostic.Severity.WARNING, "deprecated", "/src/A.kt", 3, 9),
+			)
+	}
 }
