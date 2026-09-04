@@ -19,6 +19,7 @@ package com.itsaky.androidide.actions.file
 
 import android.content.Context
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.markInvisible
@@ -26,11 +27,12 @@ import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.activities.projectsRoot
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.projects.IProjectManager
-import com.itsaky.androidide.utils.allowThreadDiskReads
 import com.itsaky.androidide.utils.copyToClipboard
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.isDeepLinkTargetOfOpenProject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 
 /**
@@ -54,31 +56,49 @@ class CreateLinkAction(
 		private const val CLIP_LABEL = "Code on the Go link"
 
 		/**
-		 * Memoised answer to "is the open project one a link can name", keyed by its path.
-		 *
-		 * [isDeepLinkTargetOfOpenProject] canonicalises both sides, which is two filesystem calls, and
-		 * `prepare()` runs on the UI thread every single time a file-tab menu is opened -- enough for
-		 * StrictMode (which this app arms with `detectAll()` in debug builds) to report a
-		 * DiskReadViolation on each one, and enough to jank the popup on a slow external volume. The
-		 * answer only changes when a different project is opened, so it is computed once per project
-		 * instead of once per menu.
+		 * Memoised answer to "is the open project one a link can name", keyed by its path. Holds no
+		 * Context, so it is safe in a companion; the answer only changes when a project is opened.
 		 */
 		@Volatile
 		private var linkableProject: Pair<String, Boolean>? = null
 
-		private fun isLinkableProject(projectPath: String): Boolean {
-			linkableProject?.let { (cachedPath, cached) ->
-				if (cachedPath == projectPath) return cached
+		private fun cachedLinkable(projectPath: String): Boolean? = linkableProject?.takeIf { it.first == projectPath }?.second
+
+		/**
+		 * Whether a link can name the open project, or `null` while that is still being decided off
+		 * this thread.
+		 *
+		 * `prepare()` has to answer synchronously, and the full rule
+		 * ([isDeepLinkTargetOfOpenProject]) canonicalises both sides -- filesystem work that REVIEW.md
+		 * §3 and ADR 0007 require be moved rather than suppressed, since the StrictMode whitelist is
+		 * for vendored code we cannot change and never for our own. So the common case is decided
+		 * without touching the disk at all, and only the residue goes to [Dispatchers.IO].
+		 */
+		private fun linkableProject(
+			activity: EditorHandlerActivity,
+			projectPath: String,
+		): Boolean? {
+			cachedLinkable(projectPath)?.let { return it }
+
+			// Equal path strings name the same directory, so canonicalising both sides could only
+			// agree -- decidable here with no filesystem call, and this is the path every project
+			// opened from the projects list takes. (The name half of the rule is trivially satisfied:
+			// the caller derives the project name from this very path.)
+			val parent = File(projectPath).parentFile
+			if (parent != null && parent.absolutePath == projectsRoot().absolutePath) {
+				linkableProject = projectPath to true
+				return true
 			}
 
-			// The one unavoidable read, taken once per project. Exempted rather than moved off-thread
-			// because prepare() has to answer synchronously to decide whether to show the item at all.
-			val linkable =
-				allowThreadDiskReads("Canonicalising the open project once, to decide if it can be linked") {
-					isDeepLinkTargetOfOpenProject(projectPath, File(projectPath).name, projectsRoot())
-				}
-			linkableProject = projectPath to linkable
-			return linkable
+			// The two differ as text, so only canonicalisation can say whether a symlink still makes
+			// them one directory. That is the rare case -- a project opened from the file picker or a
+			// clone destination -- and it is answered off the main thread. The item stays hidden until
+			// the result lands, and the next menu open reads it from the cache.
+			activity.lifecycleScope.launch(Dispatchers.IO) {
+				val linkable = isDeepLinkTargetOfOpenProject(projectPath, File(projectPath).name, projectsRoot())
+				linkableProject = projectPath to linkable
+			}
+			return null
 		}
 	}
 
@@ -143,7 +163,7 @@ class CreateLinkAction(
 		// anywhere -- the file picker, Recents, a clone destination. For one of those there is no URL
 		// that resolves on this device, let alone on the recipient's, so there is nothing honest to
 		// put on the clipboard. Reusing the reader's own containment rule keeps the two from drifting.
-		if (!isLinkableProject(projectPath)) {
+		if (linkableProject(activity, projectPath) != true) {
 			return null
 		}
 
