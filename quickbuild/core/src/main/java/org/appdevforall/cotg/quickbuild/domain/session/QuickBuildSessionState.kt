@@ -98,11 +98,14 @@ sealed interface QuickBuildSessionState {
 	 *   [org.appdevforall.cotg.quickbuild.domain.reload.BuildOutcome.Success.durationMillis]).
 	 * @property restarted it landed via the process-restart path (service/provider/Application code
 	 *   changed), so the proxy app relaunched at its launcher and lost in-process state.
+	 * @property diagnostics the warnings the compile still produced, in the compiler's order; empty
+	 *   when it reported none. Never an ERROR - a failed compile parks in [Ready.lastFailure].
 	 */
 	data class Deployed(
 		val generation: Long,
 		val buildDurationMillis: Long,
 		val restarted: Boolean = false,
+		val diagnostics: List<BuildDiagnostic> = emptyList(),
 	) : QuickBuildSessionState
 
 	/**
@@ -264,12 +267,15 @@ sealed interface SessionEvent {
 	 * @property userInitiated true when this build answers a Quick Build tap, so the deploy landing
 	 *   is the moment to bring the proxy app forward; false for a build a file write
 	 *   triggered - a save is not the user asking to leave the editor - and for a cancelled tap.
+	 * @property diagnostics the warnings the compile still produced, surfaced as
+	 *   [QuickBuildSessionState.Deployed.diagnostics] beside the landed generation.
 	 */
 	data class BuildSucceeded(
 		val generation: Long,
 		val durationMillis: Long,
 		val restarted: Boolean = false,
 		val userInitiated: Boolean = false,
+		val diagnostics: List<BuildDiagnostic> = emptyList(),
 	) : SessionEvent
 
 	/**
