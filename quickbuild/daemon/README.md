@@ -49,7 +49,7 @@ at most one `Session` - an `IncrementalCompiler`, a `DexTool`, an `Aapt2Link` an
 
 | Stage | What happens | Why it is that way |
 | --- | --- | --- |
-| validate | every tool path required and non-blank, every classpath entry and plugin existence-checked, every classpath entry required to be a **file** | a guessed tool path would compile against another SDK's `android.jar` and fail only on device; a directory entry cannot be fingerprinted by content (below) |
+| validate | every tool path required and non-blank, every classpath entry and plugin existence-checked; a classpath entry may be a jar or a directory | a guessed tool path would compile against another SDK's `android.jar` and fail only on device; a directory entry is real (the Gradle plugin writes the module's own `build/tmp/kotlin-classes/<variant>` into the variant classpath) and is fingerprinted by its contents (below) |
 | build the replacement | the new `Session` is constructed **before** the old one is released | construction can throw, and releasing first would leave the still-installed session holding a **closed** r8 class loader - latent damage, since a closed `URLClassLoader` still serves classes it already loaded, so it surfaces later as a `NoClassDefFoundError` from inside d8 |
 | swap and release | `session = replacement`, then the previous session's compiler and dex tool are closed | on the in-process compile strategy the engine's project state lives for the **JVM's** lifetime, so a re-configure without this accumulates one project's worth per configure on a 2-4 GB phone |
 
@@ -95,12 +95,12 @@ Gradle build can rewrite a jar **in place**, same path, new ABI, and a compile t
 surviving snapshot keeps dependents of the changed library stale. That is the worst silent failure
 this feature has.
 
-So the classpath is fingerprinted by **path + size + CRC of every jar**, and a mismatch (or a
-missing fingerprint next to surviving state) wipes both caches. The fingerprint is written **last**,
-after the per-jar snapshots exist, so a throw mid-construction cannot leave a fingerprint describing
-snapshots that were never built. This is also why `configure` rejects a directory classpath entry:
-`File.length()` on a directory is a filesystem constant, so a directory could not be fingerprinted
-by content and the guard would go silent instead of failing.
+So every classpath entry and every compiler plugin jar is fingerprinted by **path + content**: a
+file by its size and CRC, a directory by the sorted relative paths, sizes and CRCs of every file
+under it (`File.length()` on a directory is a filesystem constant, so a directory can only be
+fingerprinted by walking it). A mismatch (or a missing fingerprint next to surviving state) wipes
+both caches. The fingerprint is written **last**, after the per-jar snapshots exist, so a throw
+mid-construction cannot leave a fingerprint describing snapshots that were never built.
 
 ## dex and relink
 
