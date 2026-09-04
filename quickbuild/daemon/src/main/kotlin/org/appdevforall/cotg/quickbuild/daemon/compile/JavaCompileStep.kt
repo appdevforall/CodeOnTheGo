@@ -103,12 +103,15 @@ object JavaCompileStep {
 			// -bootclasspath narrows the surface, and that is the bytecode level this flag
 			// exists to prevent.
 			//
-			// The standard build appears to be in the same position rather than a stricter
-			// one. AGP does call setBootstrapClasspath, but javac refuses that flag above
-			// target 8, and this IDE's templates generate projects at Java 17
-			// (JAVA_SOURCE_VERSION). So for the projects Quick Build actually serves, the
-			// two compiles look equally permissive. Not confirmed by an AGP run on such a
-			// project, which is what would settle it.
+			// The standard build IS stricter. AGP 8.11's JavaCompile on this IDE's Java-17
+			// template project rejects `ProcessHandle.current()` with "cannot find symbol"
+			// while `Collectors.teeing` passes, because android-36's android.jar has the latter
+			// and not the former [measured on this Mac, 2026-09-04, Gradle 8.14.3]. It gets
+			// there with `-source 17 -target 17 --system <image>`, where the image is a jlink'd
+			// module image AGP builds (JdkImageTransform) from the platform's
+			// core-for-system-modules.jar. So a .java calling a JVM-only java.* API compiles
+			// green here and fails in the standard build. Closing that gap means shipping or
+			// building such an image on the device; tracked as ADFA-XXXXX.
 			"--release",
 			IncrementalCompiler.JVM_TARGET,
 		)
