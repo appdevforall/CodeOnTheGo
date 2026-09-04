@@ -71,6 +71,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPS
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
+import com.google.android.material.tabs.TabLayoutMediator
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
@@ -119,6 +120,8 @@ import com.itsaky.androidide.tasks.mainThreadHandler
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
 import com.itsaky.androidide.ui.MemoryUsageChartRenderer
+import com.itsaky.androidide.ui.MetricsCarouselAdapter
+import com.itsaky.androidide.ui.MetricsPage
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
@@ -514,6 +517,7 @@ abstract class BaseEditorActivity :
 		fullscreenManager?.destroy()
 		fullscreenManager = null
 
+		_binding?.memUsageView?.metricsPager?.adapter = null
 		memUsageChartRenderer.detach()
 		_binding = null
 
@@ -855,7 +859,7 @@ abstract class BaseEditorActivity :
 			)
 		feedbackButtonManager?.setupDraggableFab()
 
-		setupMemUsageChart()
+		setupMetricsCarousel()
 		watchMemory()
 		observeFileOperations()
 
@@ -956,12 +960,33 @@ abstract class BaseEditorActivity :
 				content.editorAppBarLayout.updatePadding(top = topInset)
 			}
 
-			memUsageChartRenderer.setTopMargin((insetsTop * progress).roundToInt())
+			memUsageView.metricsPager.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+				topMargin = (insetsTop * progress).roundToInt()
+			}
 		}
 	}
 
-	private fun setupMemUsageChart() {
-		memUsageChartRenderer.attach(binding.memUsageView.chart)
+	private fun setupMetricsCarousel() {
+		val pages =
+			listOf(
+				// The memory chart is the default page (ADFA-5487). The logo is a placeholder second
+				// page until there is a real second metric; the network-traffic chart replaces it.
+				MetricsPage.MemoryChart,
+				MetricsPage.Image(
+					drawable = R.drawable.cogo_brand_mark,
+					description = string.metrics_carousel_brand_mark,
+				),
+			)
+
+		binding.memUsageView.metricsPager.adapter = MetricsCarouselAdapter(pages, memUsageChartRenderer)
+
+		TabLayoutMediator(
+			binding.memUsageView.metricsIndicator,
+			binding.memUsageView.metricsPager,
+		) { tab, position ->
+			// Dots carry no label, but they are still focusable, so give them a spoken position.
+			tab.contentDescription = getString(string.metrics_carousel_page, position + 1, pages.size)
+		}.attach()
 	}
 
 	private fun watchMemory() {

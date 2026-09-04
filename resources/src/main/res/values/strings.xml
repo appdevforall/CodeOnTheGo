@@ -1673,4 +1673,9 @@
 	<string name="floating_window_action_dock">Dock to editor</string>
 	<string name="floating_window_action_close">Close</string>
 
+	<string name="metrics_carousel_memory_chart">Memory usage chart</string>
+	<string name="metrics_carousel_page">Metric %1$d of %2$d</string>
+	<string name="metrics_carousel_brand_mark">Code On The Go logo</string>
+
 </resources>
+

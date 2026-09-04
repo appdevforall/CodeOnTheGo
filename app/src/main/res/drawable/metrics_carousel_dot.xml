@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?><!-- ~ This file is part of AndroidIDE. ~ ~ AndroidIDE is free software: you can redistribute
+	it and/or modify ~ it under the terms of the GNU General Public License as published by ~ the Free Software Foundation, either
+	version 3 of the License, or ~ (at your option) any later version. ~ ~ AndroidIDE is distributed in the hope that it will
+	be useful, ~ but WITHOUT ANY WARRANTY; without even the implied warranty of ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR
+	PURPOSE. See the ~ GNU General Public License for more details. ~ ~ You should have received a copy of the GNU General Public
+	License ~ along with AndroidIDE. If not, see <https://www.gnu.org/licenses/>. -->
+
+<!-- Page indicator dot. TabLayout has no dot mode, so each tab's background is this selector and the sliding indicator is
+	suppressed (tabIndicatorHeight=0). The oval is wrapped in a sized, centred layer-list item because a tab background is stretched
+	to fill the tab, which ignores a bare shape's own <size> and renders an oval as tall as the whole indicator row. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<item android:state_selected="true">
+		<layer-list>
+			<item
+				android:width="@dimen/metrics_carousel_dot_size"
+				android:height="@dimen/metrics_carousel_dot_size"
+				android:gravity="center">
+				<shape android:shape="oval">
+					<solid android:color="?attr/colorOnSurface" />
+				</shape>
+			</item>
+		</layer-list>
+	</item>
+
+	<item>
+		<layer-list>
+			<item
+				android:width="@dimen/metrics_carousel_dot_size_inactive"
+				android:height="@dimen/metrics_carousel_dot_size_inactive"
+				android:gravity="center">
+				<shape android:shape="oval">
+					<solid android:color="?attr/colorOutline" />
+				</shape>
+			</item>
+		</layer-list>
+	</item>
+
+</selector>

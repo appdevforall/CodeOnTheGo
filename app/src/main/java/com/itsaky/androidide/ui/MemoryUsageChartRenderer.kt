@@ -17,11 +17,9 @@
 
 package com.itsaky.androidide.ui
 
-import android.view.ViewGroup
 import androidx.annotation.UiThread
 import androidx.collection.IntObjectMap
 import androidx.collection.MutableIntIntMap
-import androidx.core.view.updateLayoutParams
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
@@ -82,12 +80,13 @@ class MemoryUsageChartRenderer(
 	}
 
 	/**
-	 * Applies a top margin to the attached chart. No-op when no chart is attached.
+	 * Detaches [chart] only if it is the currently attached one. Use from a recycling container,
+	 * where the replacement view can be bound before the view it replaces is recycled.
 	 */
 	@UiThread
-	fun setTopMargin(margin: Int) {
-		chart?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-			topMargin = margin
+	fun detachIfAttached(chart: SafeLineChart) {
+		if (this.chart === chart) {
+			detach()
 		}
 	}
 
