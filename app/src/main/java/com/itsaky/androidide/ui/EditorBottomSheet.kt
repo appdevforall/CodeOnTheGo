@@ -479,12 +479,15 @@ class EditorBottomSheet
 				MeasureSpec.makeMeasureSpec(resources.displayMetrics.heightPixels, MeasureSpec.AT_MOST),
 			)
 			val measured = status.measuredHeight.toFloat()
-			// The measure above ran outside a layout pass, so ask for a real one to replace it.
-			header.requestLayout()
+			// Only a changed height needs a layout pass. setStatus's own setText already scheduled
+			// one for the text, and this runs on every Gradle task line, so an unconditional
+			// request here would add a second measure/layout round-trip per progress event.
 			if (measured <= 0f || measured == measuredStatusHeight) {
 				return
 			}
 			measuredStatusHeight = measured
+			// The measure above ran outside a layout pass, so ask for a real one to replace it.
+			header.requestLayout()
 			if (behavior.state != BottomSheetBehavior.STATE_COLLAPSED) {
 				return
 			}
