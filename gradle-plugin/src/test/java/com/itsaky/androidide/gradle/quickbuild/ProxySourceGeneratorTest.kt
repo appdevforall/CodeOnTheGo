@@ -134,4 +134,35 @@ class ProxySourceGeneratorTest {
 			}
 		assertThat(error).hasMessageThat().contains("the Application gets no proxy")
 	}
+
+	/**
+	 * A package segment Java reserves makes the emitted source unparsable, so it has to be
+	 * caught by name before javac sees it.
+	 *
+	 * `package com.example.native` is legal Kotlin - `native` is only a soft keyword there - and
+	 * legal in a manifest `android:name`, but `extends com.example.native.MainActivity` is a
+	 * Java syntax error, and javac reports it as "<identifier> expected" while naming neither
+	 * the component nor the user's way out.
+	 */
+	@Test
+	fun `a package segment Java reserves is reported by name`() {
+		assertThat(ProxySourceGenerator.reservedJavaSegment("com.example.native.MainActivity"))
+			.isEqualTo("native")
+		// The literals are as illegal as the keywords, and an id can end in a keyword segment
+		// too, which breaks the package declaration rather than the extends clause.
+		assertThat(ProxySourceGenerator.reservedJavaSegment("com.example.null"))
+			.isEqualTo("null")
+		assertThat(ProxySourceGenerator.reservedJavaSegment("com.example.class.Widget"))
+			.isEqualTo("class")
+	}
+
+	@Test
+	fun `a name whose segments are all legal identifiers is accepted`() {
+		assertThat(ProxySourceGenerator.reservedJavaSegment("com.example.app.MainActivity")).isNull()
+		// Contextual keywords are legal identifiers where a proxy source writes them, so they
+		// must not be rejected: doing so would refuse a project that builds.
+		assertThat(ProxySourceGenerator.reservedJavaSegment("com.example.record.var.Widget")).isNull()
+		// A segment that merely starts with a keyword is a different word.
+		assertThat(ProxySourceGenerator.reservedJavaSegment("com.example.nativeui.Widget")).isNull()
+	}
 }
