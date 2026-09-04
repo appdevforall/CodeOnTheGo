@@ -4,6 +4,7 @@ import android.content.ComponentCallbacks2
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
@@ -99,6 +100,12 @@ class QuickBuildSessionManager(
 	 * event-ordering guarantee depends on it.
 	 */
 	dispatcher: CoroutineDispatcher,
+	/**
+	 * Where the layout's tree walks run, off [dispatcher]. Injected rather than hard-coded
+	 * so a test can put them on its own scheduler instead of a real thread pool, which
+	 * would otherwise escape virtual time.
+	 */
+	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 	/** Opens the project's persisted generation counter, keyed by its root directory. */
 	private val generationStoreFactory: (File) -> GenerationStore = {
 		FileGenerationStore.forProject(it)
@@ -380,6 +387,7 @@ class QuickBuildSessionManager(
 			scope = scope,
 			onOrchestratorEvent = ::onOrchestratorEvent,
 			assetsLiveReloadable = assetsLiveReloadable,
+			ioDispatcher = ioDispatcher,
 		)
 
 	/**

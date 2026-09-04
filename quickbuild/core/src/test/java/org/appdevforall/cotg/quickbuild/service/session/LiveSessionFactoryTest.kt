@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.service.session
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -24,6 +25,7 @@ import org.appdevforall.cotg.quickbuild.service.FakeDaemon
 import org.appdevforall.cotg.quickbuild.service.FakeDeploy
 import org.appdevforall.cotg.quickbuild.service.FakePaths
 import org.appdevforall.cotg.quickbuild.service.MemoryGenerationStore
+import org.appdevforall.cotg.quickbuild.service.RecordingIoDispatcher
 import org.appdevforall.cotg.quickbuild.service.deploy.DeployResult
 import org.appdevforall.cotg.quickbuild.service.provision.ProvisionOutcome
 import org.appdevforall.cotg.quickbuild.service.provision.ProxyAppLauncher
@@ -31,6 +33,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.Collections
 
 class LiveSessionFactoryTest {
 	@TempDir lateinit var projectRoot: File
@@ -59,6 +62,7 @@ class LiveSessionFactoryTest {
 					"not used by these seams",
 				)
 			},
+		ioDispatcher: CoroutineDispatcher = RecordingIoDispatcher(),
 	) = LiveSessionFactory(
 		daemon = daemon,
 		deploy = deploy,
@@ -75,6 +79,7 @@ class LiveSessionFactoryTest {
 		scope = CoroutineScope(StandardTestDispatcher()),
 		onOrchestratorEvent = {},
 		assetsLiveReloadable = true,
+		ioDispatcher = ioDispatcher,
 	)
 
 	/** A watcher that observes nothing; [create]'s retention seam never starts it. */
@@ -234,18 +239,87 @@ class LiveSessionFactoryTest {
 		}
 
 	@Test
-	fun `a project with no annotation processors gets Inactive annotation impact`() {
-		val impact = factory().annotationImpactFor(proxyApp(schema = 2), layout())
-		assertThat(impact).isEqualTo(AnnotationImpact.Inactive)
-	}
+	fun `a project with no annotation processors gets Inactive annotation impact`() =
+		runTest {
+			val impact = factory().annotationImpactFor(proxyApp(schema = 2), layout())
+			assertThat(impact).isEqualTo(AnnotationImpact.Inactive)
+		}
 
 	@Test
-	fun `a project with annotation processors gets an active analyzer`() {
-		val impact =
-			factory().annotationImpactFor(
-				proxyApp(schema = 2, annotationProcessors = listOf("androidx.room:room-compiler:2.6.1")),
-				layout(),
+	fun `a project with annotation processors gets an active analyzer`() =
+		runTest {
+			val impact =
+				factory().annotationImpactFor(
+					proxyApp(schema = 2, annotationProcessors = listOf("androidx.room:room-compiler:2.6.1")),
+					layout(),
+				)
+			assertThat(impact.active).isTrue()
+		}
+
+	/**
+	 * The session dispatcher is one thread and concurrency.md's rule for it is that nothing
+	 * on it may block, so the layout's tree walks must not run there. This pins the hop by
+	 * recording, from inside the walk itself, which thread listed the project root.
+	 *
+	 * Goes red if the withContext around the two accessors is removed: the walk then runs on
+	 * the caller's thread and the recorded names stop being the IO dispatcher's.
+	 */
+	@Test
+	fun `session start walks the project tree off the caller's thread`() =
+		runTest {
+			val walkThreads = Collections.synchronizedList(mutableListOf<String>())
+			val io = RecordingIoDispatcher()
+			val callerThread = Thread.currentThread().name
+
+			factory(watcherFactory = { _, _, _, _ -> NoopWatcher }, ioDispatcher = io).create(
+				ProvisionOutcome.Success(
+					proxyApp = proxyApp(schema = 2),
+					proxyAppUid = 10123,
+					layout = QuickBuildProjectLayout(RecordingRoot(projectRoot.path, walkThreads)),
+				),
+				GenerationTracker(MemoryGenerationStore()),
 			)
-		assertThat(impact.active).isTrue()
+
+			assertThat(walkThreads).isNotEmpty()
+			assertThat(walkThreads.toSet()).containsExactly(RecordingIoDispatcher.THREAD_NAME)
+			assertThat(walkThreads).doesNotContain(callerThread)
+			// One hop, not two: both accessors are read inside the same withContext, which
+			// also halves the walks session start used to do.
+			assertThat(io.dispatches).isEqualTo(1)
+		}
+
+	/**
+	 * The same rule for the annotation baseline, whose capture both lists and reads every
+	 * source file. Goes red if its withContext is removed.
+	 */
+	@Test
+	fun `the annotation baseline is captured off the caller's thread`() =
+		runTest {
+			val io = RecordingIoDispatcher()
+
+			val impact =
+				factory(ioDispatcher = io).annotationImpactFor(
+					proxyApp(schema = 2, annotationProcessors = listOf("androidx.room:room-compiler:2.6.1")),
+					layout(),
+				)
+
+			assertThat(impact.active).isTrue()
+			assertThat(io.dispatches).isEqualTo(1)
+			assertThat(io.threads).containsExactly(RecordingIoDispatcher.THREAD_NAME)
+		}
+
+	/**
+	 * A project root that records which thread listed it, so a test can tie a tree walk to a
+	 * dispatcher rather than only counting hops. [java.io.File.listFiles] is what
+	 * `walkTopDown` calls on each directory it enters.
+	 */
+	private class RecordingRoot(
+		path: String,
+		private val threads: MutableList<String>,
+	) : File(path) {
+		override fun listFiles(): Array<File>? {
+			threads += Thread.currentThread().name
+			return super.listFiles()
+		}
 	}
 }

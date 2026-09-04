@@ -25,6 +25,7 @@ import org.appdevforall.cotg.quickbuild.protocol.DexStats
 import org.appdevforall.cotg.quickbuild.service.FakeDaemon
 import org.appdevforall.cotg.quickbuild.service.FakeDeploy
 import org.appdevforall.cotg.quickbuild.service.MemoryGenerationStore
+import org.appdevforall.cotg.quickbuild.service.RecordingIoDispatcher
 import org.appdevforall.cotg.quickbuild.service.deploy.DeployResult
 import org.appdevforall.cotg.quickbuild.service.deploy.RetainedPayloadStore
 import org.appdevforall.cotg.quickbuild.service.provision.ProxyAppLauncher
@@ -1683,5 +1684,42 @@ class LiveReloadExecutorImplTest {
 
 			assertThat(launchCalls).hasSize(1)
 			assertThat((outcome as BuildOutcome.DeployFailure).proxyAppNotConnected).isFalse()
+		}
+
+	/**
+	 * The source scan walks the module's source roots on every build, and the executor runs
+	 * on the single session dispatcher, whose rule is that nothing on it may block
+	 * (concurrency.md). Goes red if the withContext around allSources is removed: the scan
+	 * then runs inline and nothing is ever handed to the dispatcher.
+	 */
+	@Test
+	fun `the source scan runs off the caller's thread`() =
+		runTest {
+			val io = RecordingIoDispatcher()
+			daemon.dexReply =
+				DaemonReply.Ok(
+					DexOutput(
+						File(projectRoot, "built/classes.dex").apply {
+							parentFile!!.mkdirs()
+							writeText("dex-bytes")
+						},
+					),
+				)
+			val scanning =
+				LiveReloadExecutorImpl(
+					daemon = daemon,
+					deploy = deploy,
+					layout = QuickBuildProjectLayout(projectRoot),
+					entryActivity = "com.example.MainActivity",
+					generations = tracker,
+					workDir = File(projectRoot, ".androidide/quickbuild"),
+					clock = { 1000L },
+					ioDispatcher = io,
+				)
+
+			scanning.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(io.dispatches).isEqualTo(1)
+			assertThat(io.threads).containsExactly(RecordingIoDispatcher.THREAD_NAME)
 		}
 }
