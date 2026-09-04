@@ -717,9 +717,20 @@ final class QuickBuildRuntime {
 
 					@Override
 					public void run() {
-						ViewTreeObserver live = decor.getViewTreeObserver();
-						if (live != null && live.isAlive()) {
-							live.removeOnDrawListener(listener[0]);
+						// Captured at add time, not re-fetched: once the decor is detached -
+						// the activity destroyed between the draw and this post - its
+						// getViewTreeObserver() is a fresh floating observer that never held
+						// this listener, so removing there is a silent no-op. When the
+						// framework has merged the captured observer away, the listener
+						// lives on the decor's observer, so remove there. Same rule as
+						// StatusOverlay.reapplyInsetAfterLayout.
+						if (observer.isAlive()) {
+							observer.removeOnDrawListener(listener[0]);
+						} else {
+							ViewTreeObserver merged = decor.getViewTreeObserver();
+							if (merged != null && merged.isAlive()) {
+								merged.removeOnDrawListener(listener[0]);
+							}
 						}
 						onFirstFrameDrawn(activity);
 					}
