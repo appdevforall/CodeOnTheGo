@@ -59,12 +59,17 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `+dirty` marker, and how to state a revision for a source-archive distribution.
 
 - **breaking — `PluginMetadata`'s constructor and `copy` gained two parameters** _(ADFA-5256)_ **[verified]**
-  The two new fields are trailing and defaulted, so this is source-compatible: reading
-  `metadata.version` or destructuring keeps working, and nothing needs editing. But the
-  ABI signatures changed rather than gained an overload -- `<init>` and `copy` went from
-  10 parameters to 12 -- so a plugin that *constructs or copies* a `PluginMetadata`, and
-  was compiled against an older `plugin-api`, throws `NoSuchMethodError` at that call
-  site until it is recompiled. No plugin in `plugin-examples` does; plugins receive
+  The two new fields are trailing and defaulted, so this is *Kotlin*-source-compatible:
+  reading `metadata.version` or destructuring keeps working, and nothing needs editing.
+  Two caveats. The ABI signatures changed rather than gained an overload -- `<init>` and
+  `copy` went from 10 parameters to 12 -- so a plugin that *constructs or copies* a
+  `PluginMetadata`, and was compiled against an older `plugin-api`, throws
+  `NoSuchMethodError` at that call site until it is recompiled. And Kotlin default
+  arguments are not Java overloads: the only `<init>` and `copy` on the public JVM ABI
+  take all 12 parameters, so a *Java* caller that constructs or copies a
+  `PluginMetadata` has to pass `vcsRevision` and `buildTimestamp` explicitly -- `null`
+  for both reproduces the previous behaviour -- and that is a source change, not just a
+  recompile. No plugin in `plugin-examples` is affected either way; plugins receive
   metadata rather than build it. Recompile against `plugin-api` 26.36 if yours is the
   exception.
 - **added — Dialogs and toasts from a floating window** _(ADFA-4500)_
