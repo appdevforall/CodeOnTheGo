@@ -19,6 +19,7 @@ package com.itsaky.androidide.ui
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.LineDataSet
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.utils.NetworkUsageWatcher
@@ -107,7 +108,7 @@ class NetworkUsageChartRendererTest {
 
 		// Rendered from the raw byte count, not from the logarithm, and in decimal units so that
 		// the log10 axis labels come out as clean decades.
-		assertThat(dataset(chart, 0).label).endsWith("2.0kB/s")
+		assertThat(dataset(chart, 0).label).endsWith("2.0 kB/s")
 	}
 
 	@Test
@@ -153,6 +154,66 @@ class NetworkUsageChartRendererTest {
 		renderer.attach(rebound)
 
 		assertThat(dataset(rebound, 0).entries.last().y).isEqualTo(2f)
+	}
+
+	@Test
+	fun `axis labels are whole units with no decimal place`() {
+		val (_, chart) = rendererFor(usage(longArrayOf(0L, 10_000_000L)))
+		val formatter = chart.axisRight.valueFormatter
+
+		// Gridlines sit on whole decades, so the mantissa is exact.
+		assertThat(formatter.getFormattedValue(0f, chart.axisRight)).isEqualTo("0 B")
+		assertThat(formatter.getFormattedValue(1f, chart.axisRight)).isEqualTo("10 B")
+		assertThat(formatter.getFormattedValue(3f, chart.axisRight)).isEqualTo("1 kB")
+		assertThat(formatter.getFormattedValue(4f, chart.axisRight)).isEqualTo("10 kB")
+		assertThat(formatter.getFormattedValue(6f, chart.axisRight)).isEqualTo("1 MB")
+	}
+
+	@Test
+	fun `the series are scaled against the labelled axis`() {
+		val (_, chart) = rendererFor(usage(longArrayOf(0L, 100L)))
+
+		// The right axis is the one carrying the labels and the pinned range. A dataset left on the
+		// default LEFT dependency is drawn against the auto-ranged left axis, so the line lands
+		// somewhere the labels do not describe -- which is invisible to an assertion on the axis
+		// alone, and was only caught on a device.
+		assertThat(dataset(chart, 0).axisDependency).isEqualTo(YAxis.AxisDependency.RIGHT)
+		assertThat(dataset(chart, 1).axisDependency).isEqualTo(YAxis.AxisDependency.RIGHT)
+	}
+
+	@Test
+	fun `an idle chart keeps zero on the baseline`() {
+		// Every sample zero. Left to itself the chart pads around a degenerate range and floats the
+		// flat line up the middle of the plot instead of resting it on the axis minimum.
+		val (_, chart) = rendererFor(usage(LongArray(30) { 0L }))
+
+		assertThat(chart.axisRight.axisMinimum).isEqualTo(0f)
+		assertThat(chart.axisRight.axisMaximum).isEqualTo(3f)
+	}
+
+	@Test
+	fun `the axis grows to whole decades around the peak`() {
+		// 2 MB peak -> log10 is ~6.3, so the axis tops out at the 10 MB decade.
+		val (_, chart) = rendererFor(usage(longArrayOf(0L, 2_000_000L)))
+
+		assertThat(chart.axisRight.axisMinimum).isEqualTo(0f)
+		assertThat(chart.axisRight.axisMaximum).isEqualTo(7f)
+	}
+
+	@Test
+	fun `the axis follows the peak across both series`() {
+		val chart = SafeLineChart(context)
+		var current = usage(longArrayOf(0L, 100L))
+		val renderer = NetworkUsageChartRenderer(usageProvider = { current })
+		renderer.attach(chart)
+
+		assertThat(chart.axisRight.axisMaximum).isEqualTo(3f)
+
+		// A burst on the transmitted series alone must still lift the axis.
+		current = usage(received = longArrayOf(0L, 100L), transmitted = longArrayOf(0L, 500_000L))
+		renderer.onUsageChanged(current)
+
+		assertThat(chart.axisRight.axisMaximum).isEqualTo(6f)
 	}
 
 	@Test

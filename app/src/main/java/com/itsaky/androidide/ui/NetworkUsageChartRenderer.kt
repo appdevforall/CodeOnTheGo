@@ -20,6 +20,7 @@ package com.itsaky.androidide.ui
 import android.graphics.Color
 import androidx.annotation.UiThread
 import com.github.mikephil.charting.components.AxisBase
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -28,7 +29,9 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.NetworkUsageWatcher.NetworkUsage
 import com.itsaky.androidide.utils.resolveAttr
+import kotlin.math.ceil
 import kotlin.math.log10
+import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToLong
 
@@ -98,6 +101,8 @@ class NetworkUsageChartRenderer(
 				dataset(usage.transmitted, chart.context.getString(R.string.metrics_network_transmitted), TRANSMITTED_COLOR),
 			)
 
+		applyAxisRange(chart, usage)
+
 		chart.apply {
 			data = LineData(*datasets)
 			axisRight.textColor = textColor
@@ -139,6 +144,8 @@ class NetworkUsageChartRenderer(
 		update(received, usage.received, chart.context.getString(R.string.metrics_network_received))
 		update(transmitted, usage.transmitted, chart.context.getString(R.string.metrics_network_transmitted))
 
+		applyAxisRange(chart, usage)
+
 		chart.apply {
 			data.notifyDataChanged()
 			notifyDataSetChanged()
@@ -155,6 +162,11 @@ class NetworkUsageChartRenderer(
 			List(samples.size) { index -> Entry(index.toFloat(), samples[index].toLogBytes()) },
 			label,
 		).apply {
+			// The labelled axis is the right one, and applyAxisRange pins its range. Without this the
+			// series is scaled against the (disabled, auto-ranged) left axis instead, so the line is
+			// drawn at a position the labels do not describe -- an idle chart plots its zero line
+			// halfway up a plot whose baseline is labelled 0 B.
+			axisDependency = YAxis.AxisDependency.RIGHT
 			color = lineColor
 			setDrawIcons(false)
 			setDrawCircles(false)
@@ -181,7 +193,24 @@ class NetworkUsageChartRenderer(
 	private fun labelFor(
 		label: String,
 		bytes: Long,
-	): String = "%s - %s/s".format(label, formatBytes(bytes.toDouble()))
+	): String = "%s - %s/s".format(label, formatBytes(bytes.toDouble(), decimals = 1))
+
+	/**
+	 * Pins the axis to whole decades, from zero up to at least [MIN_AXIS_DECADES].
+	 *
+	 * Two things depend on this. Zero has to sit on the baseline: when every sample is zero -- an
+	 * idle IDE -- the data range is degenerate, and left to itself the chart pads around it and
+	 * floats the flat line up the middle of the plot. And the maximum has to be a whole number, so
+	 * the gridlines (granularity 1) land on exact powers of ten and can be labelled as whole units.
+	 */
+	private fun applyAxisRange(
+		chart: SafeLineChart,
+		usage: NetworkUsage,
+	) {
+		val peak = max(usage.received.maxOrNull() ?: 0L, usage.transmitted.maxOrNull() ?: 0L)
+		chart.axisRight.axisMinimum = 0f
+		chart.axisRight.axisMaximum = ceil(peak.toLogBytes()).coerceAtLeast(MIN_AXIS_DECADES)
+	}
 
 	private fun configure(chart: SafeLineChart) {
 		chart.apply {
@@ -199,10 +228,8 @@ class NetworkUsageChartRenderer(
 
 			axisLeft.isEnabled = false
 			axisRight.valueFormatter = BytesAxisFormatter
-			// Without a floor the axis auto-scales to the noise around zero when nothing is happening.
-			axisRight.axisMinimum = 0f
-			// One label per decade, so the gridlines read as 1.0kB / 1.0MB rather than arbitrary
-			// fractions of a logarithm.
+			// One label per decade, so the gridlines read as 1 kB / 1 MB rather than arbitrary
+			// fractions of a logarithm. The range itself is set per sample by applyAxisRange.
 			axisRight.granularity = 1f
 			axisRight.isGranularityEnabled = true
 		}
@@ -225,13 +252,20 @@ class NetworkUsageChartRenderer(
 			axis: AxisBase?,
 		): String =
 			if (value < 0.5f) {
-				formatBytes(0.0)
+				formatBytes(0.0, decimals = 0)
 			} else {
-				formatBytes(10.0.pow(value.toDouble()))
+				// Gridlines are whole decades, so the mantissa is exact and needs no decimal place.
+				formatBytes(10.0.pow(value.toDouble()), decimals = 0)
 			}
 	}
 
 	private companion object {
+		/**
+		 * The axis always spans at least this many decades (0 B to 1 kB), so an idle chart keeps a
+		 * sensible scale instead of collapsing onto a single value.
+		 */
+		const val MIN_AXIS_DECADES = 3f
+
 		const val SERIES_COUNT = 2
 		const val RECEIVED_INDEX = 0
 		const val TRANSMITTED_INDEX = 1
@@ -256,12 +290,15 @@ private fun Long.toLogBytes(): Float = log10(this.coerceAtLeast(0L).toDouble() +
  * and dividing those by 1024 would label them 9.8KB, 977KB, 954MB -- the decades stop looking like
  * decades. Decimal units are also the convention for network throughput.
  */
-private fun formatBytes(bytes: Double): String {
+private fun formatBytes(
+	bytes: Double,
+	decimals: Int,
+): String {
 	val clamped = bytes.coerceAtLeast(0.0)
 	return when {
-		clamped < 1_000 -> "%dB".format(clamped.roundToLong())
-		clamped < 1_000_000 -> "%.1fkB".format(clamped / 1_000)
-		clamped < 1_000_000_000 -> "%.1fMB".format(clamped / 1_000_000)
-		else -> "%.1fGB".format(clamped / 1_000_000_000)
+		clamped < 1_000 -> "%d B".format(clamped.roundToLong())
+		clamped < 1_000_000 -> "%.${decimals}f kB".format(clamped / 1_000)
+		clamped < 1_000_000_000 -> "%.${decimals}f MB".format(clamped / 1_000_000)
+		else -> "%.${decimals}f GB".format(clamped / 1_000_000_000)
 	}
 }
