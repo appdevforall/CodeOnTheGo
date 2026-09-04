@@ -6,9 +6,11 @@ import com.itsaky.androidide.models.SaveResult
  * Folds one saved file into [result]'s flags.
  *
  * `resourceXmlSaved` is what the post-save `generateSources()` call sites gate on - see the
- * rationale on [SaveResult.resourceXmlSaved]. [isAndroidResource] is consulted only for a
- * modified XML file whose flag is still unset, so callers can pass the project-manager lookup
- * without paying for it on every save.
+ * rationale on [SaveResult.resourceXmlSaved]. `AndroidManifest.xml` sets it by name: it lives
+ * outside every resource directory, and the generated `Manifest` class and the merged manifest
+ * only refresh on that run. [isAndroidResource] is consulted only for a modified XML file whose
+ * flag is still unset, so callers can pass the project-manager lookup without paying for it on
+ * every save.
  */
 internal fun accumulateSaveFlags(
 	result: SaveResult,
@@ -27,6 +29,9 @@ internal fun accumulateSaveFlags(
 	}
 
 	if (!result.resourceXmlSaved) {
-		result.resourceXmlSaved = modified && isXml && isAndroidResource()
+		result.resourceXmlSaved =
+			modified && isXml && (fileName == MANIFEST_FILE_NAME || isAndroidResource())
 	}
 }
+
+private const val MANIFEST_FILE_NAME = "AndroidManifest.xml"
