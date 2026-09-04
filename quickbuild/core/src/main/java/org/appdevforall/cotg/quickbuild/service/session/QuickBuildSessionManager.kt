@@ -1316,6 +1316,10 @@ class QuickBuildSessionManager(
 						annotationImpactDelegate,
 						result.baselineGeneration,
 					)
+					// The rebuild restarted the daemon, so the next death is a new one; the same
+					// reset as the provision's, without which a death first seen by a build
+					// after a rebuild is dropped as a re-report of the one before it.
+					lastDeathReporter = null
 					// A rebuild that skipped the reinstall (bytes already matched, e.g. the
 					// deferred confirm completed while parked) leaves the old process - and
 					// any reinstall-pending banner - running; clear it explicitly. After a
@@ -1499,6 +1503,12 @@ class QuickBuildSessionManager(
 				// auto-retrying a hard-broken daemon would just spin. The event schedules
 				// nothing either - it stops the status claiming a restart is still under way,
 				// which is the half the snackbar cannot fix.
+				//
+				// No daemon is up and the death that got here is fully reported, so the next one is
+				// new whichever reporter sees it first. Left set, the save that recovers from here
+				// builds against the dead daemon, that death arrives from the build side only, and
+				// it is dropped as a re-report - leaving the session in Building for good.
+				lastDeathReporter = null
 				dispatch(SessionEvent.DaemonRestartFailed)
 				surfaceUserMessage(QuickBuildMessage.DaemonRestartFailed(outcome.message))
 			}
