@@ -1303,7 +1303,12 @@ class QuickBuildSessionManager(
 					// contract does not rule out, and a throw must leave the old
 					// baseline intact rather than escape with the session half-updated.
 					val executorDelegate =
-						sessionFactory.executorFor(result.proxyApp, result.layout, session.tracker)
+						sessionFactory.executorFor(
+							result.proxyApp,
+							result.layout,
+							session.tracker,
+							result.baselineGeneration,
+						)
 					val annotationImpactDelegate =
 						sessionFactory.annotationImpactFor(result.proxyApp, result.layout)
 					// The reinstalled APK boots at its stamp; the session's allocator must
