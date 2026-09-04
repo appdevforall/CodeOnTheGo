@@ -343,6 +343,9 @@ class QuickBuildSessionManagerTest {
 			paths = FakePaths(projectRoot),
 			historyStore = historyStore,
 			dispatcher = StandardTestDispatcher(testScheduler),
+			// The layout's tree walks hop off the session dispatcher; keep them on the test
+			// scheduler so they stay inside virtual time rather than on a real IO thread.
+			ioDispatcher = StandardTestDispatcher(testScheduler),
 			generationStoreFactory = { store },
 			executorFactory = { proxyApp, _, tracker ->
 				executorFactoryError?.let { throw it() }
