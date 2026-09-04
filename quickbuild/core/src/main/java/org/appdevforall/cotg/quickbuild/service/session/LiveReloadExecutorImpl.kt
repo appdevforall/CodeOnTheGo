@@ -84,6 +84,13 @@ class LiveReloadExecutorImpl(
 	 * rule is that nothing on it may block. Injected so a test can record the thread.
 	 */
 	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+	/**
+	 * The generation the installed baseline boots at - the provision's or rebuild's stamp, 0
+	 * for an unstamped build - which is what the proxy app runs until this executor's first
+	 * confirmed deploy. [LiveSessionFactory] always passes it; -1 makes a deploy-nothing build
+	 * before the first deploy fall back to the allocator instead.
+	 */
+	private val baselineGeneration: Long = -1L,
 ) : LiveReloadExecutor {
 	/** Builds the changed-assets zip. */
 	private val assetPackager = AssetPackager()
@@ -103,13 +110,14 @@ class LiveReloadExecutorImpl(
 	@Volatile private var currentBuildUserInitiated = false
 
 	/**
-	 * The newest generation a deploy confirmed live in the proxy app, or -1 before the first
-	 * one. A build that deploys nothing must report this, not [GenerationTracker.current]:
+	 * The newest generation a deploy confirmed live in the proxy app, seeded with the
+	 * [baselineGeneration] the app booted at. A build that deploys nothing must report this,
+	 * not [GenerationTracker.current]:
 	 * the tracker holds the newest generation ALLOCATED, which a failed deploy leaves ahead of
 	 * the app, and reporting it advances the session's deploy tally to a generation the app
 	 * never ran - which then forces a catch-up build on every reconnect.
 	 */
-	@Volatile private var lastConfirmedGeneration = -1L
+	@Volatile private var lastConfirmedGeneration = baselineGeneration
 
 	private val payloadDeployer =
 		PayloadDeployer(
@@ -152,8 +160,12 @@ class LiveReloadExecutorImpl(
 	/**
 	 * The generation the proxy app is running, for a build that deployed nothing.
 	 *
-	 * Falls back to the allocator before the session's first deploy, where the two agree by
-	 * construction: provisioning adopts the installed baseline's stamp into the tracker.
+	 * Exact for an executor built with its [baselineGeneration]: the app boots at the stamp,
+	 * and everything it runs after that is a deploy [execute] confirmed. Only an executor
+	 * built without one falls back to the allocator, and the allocator can sit above the app:
+	 * it is the project's persisted counter, and a baseline stamped below it - always the
+	 * case for an unstamped (0) build, which [GenerationTracker.adoptAtLeast] never moves it
+	 * for - leaves the two disagreeing until the first deploy.
 	 */
 	private fun liveGeneration(): Long = lastConfirmedGeneration.takeIf { it >= 0 } ?: generations.current
 

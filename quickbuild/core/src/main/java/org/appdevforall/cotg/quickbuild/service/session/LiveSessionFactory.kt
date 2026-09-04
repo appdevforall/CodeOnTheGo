@@ -91,7 +91,7 @@ internal class LiveSessionFactory(
 		val (watchedRoots, watchedFiles) =
 			withContext(ioDispatcher) { layout.watchedRoots() to layout.watchedFiles() }
 		val proxyApp = outcome.proxyApp
-		val executor = SwitchableExecutor(executorFor(proxyApp, layout, tracker))
+		val executor = SwitchableExecutor(executorFor(proxyApp, layout, tracker, outcome.baselineGeneration))
 		val annotationImpact = SwitchableAnnotationImpact(annotationImpactFor(proxyApp, layout))
 		val orchestrator =
 			LiveReloadOrchestrator(
@@ -131,6 +131,8 @@ internal class LiveSessionFactory(
 	 *   components, the relink manifest, and both relaunch targets
 	 * @param layout the layout derived from the same baseline
 	 * @param tracker the session's generation allocator, carried across rebuilds
+	 * @param baselineGeneration the stamp the installed baseline boots at (0 for an unstamped
+	 *   build), which the executor reports as live until its first confirmed deploy
 	 * @return the executor, or whatever the injected test factory returns
 	 * @throws IllegalStateException when [proxyApp] carries no entry activity, which the
 	 *   provisioner rules out for a first provision but a rebuild does not
@@ -139,6 +141,7 @@ internal class LiveSessionFactory(
 		proxyApp: ProxyAppInfo,
 		layout: QuickBuildProjectLayout,
 		tracker: GenerationTracker,
+		baselineGeneration: Long,
 	): LiveReloadExecutor =
 		executorFactory?.create(proxyApp, layout, tracker)
 			?: LiveReloadExecutorImpl(
@@ -171,6 +174,7 @@ internal class LiveSessionFactory(
 				clock = nowMillis,
 				metrics = metrics,
 				ioDispatcher = ioDispatcher,
+				baselineGeneration = baselineGeneration,
 			)
 
 	/**

@@ -113,7 +113,8 @@ class LiveSessionFactoryTest {
 			DaemonReply.Ok(
 				CompileOutput(File("/fake/classes"), changedClassFiles = listOf("com/example/Foo.class")),
 			)
-		val executor = factory().executorFor(proxyApp, layout(), GenerationTracker(MemoryGenerationStore()))
+		val executor =
+			factory().executorFor(proxyApp, layout(), GenerationTracker(MemoryGenerationStore()), baselineGeneration = 0L)
 		return executor.execute(
 			BuildRequest(
 				buildId = 1,
