@@ -507,6 +507,9 @@ class LiveReloadOrchestrator(
 	 * arrival is the echo of the save the rebuild is absorbing, and stranding that echo is
 	 * the spurious invalidation this split exists to prevent. The residual is a re-edit of a
 	 * held file within the margin after the start on a coarse filesystem, which absorbs.
+	 * Only an enumerated held set earns that: a held [ChangedFiles.Unknown] (an untrusted
+	 * baseline handed to the rebuild) names no file, so nothing proves an arrival is an echo,
+	 * and every truncated mtime gets the margin - one spare build rather than a dropped edit.
 	 *
 	 * The absorbed part joins [awaitingAbsorption] via [ChangedFiles.plus], NOT
 	 * [unionPendingLocked]: this rebuild IS the Gradle build these files would demand, so
@@ -522,7 +525,7 @@ class LiveReloadOrchestrator(
 		val absorbed =
 			changes.files.filterTo(mutableSetOf()) { file ->
 				val mtime = fileLastModified(file)
-				val heldAlready = held !is ChangedFiles.Known || file in held.files
+				val heldAlready = held is ChangedFiles.Known && file in held.files
 				val truncated = mtime % 1_000L == 0L
 				val cutoff =
 					if (heldAlready || !truncated) {
