@@ -1538,4 +1538,42 @@ class DaemonProcessClientEdgeTest {
 			scope.cancel()
 		}
 	}
+
+	@Test
+	fun `a child that dies during configure fails the start without firing the death listener`() {
+		// The child exits before answering configure - a corrupt staged jar, an OEM image that
+		// aborts the JVM. start() reports the failure itself, so a death report on top would
+		// name a session that never had a daemon. Without the marker set for the duration of
+		// start() this was a coin flip between the watcher's read and start()'s own cleanup.
+		val paths =
+			scriptedPaths(
+				"""
+				read line
+				exit 5
+				""".trimIndent(),
+			)
+		val deaths = CopyOnWriteArrayList<Int>()
+		val supervisor = SupervisorJob()
+		val scope = CoroutineScope(supervisor + Dispatchers.IO)
+		val client = DaemonProcessClient(paths, scope, requestTimeoutMillis = 10_000)
+
+		val reply =
+			try {
+				runBlocking {
+					client.setDeathListener { deaths.add(it) }
+					val reply = client.start(config())
+					// The watcher is the only thing that could call the listener; once it has
+					// completed, a late call is impossible rather than merely unobserved.
+					withTimeout(30_000) { supervisor.children.toList().forEach { it.join() } }
+					reply
+				}
+			} finally {
+				runBlocking { client.shutdown() }
+				scope.cancel()
+			}
+
+		assertThat(reply).isInstanceOf(DaemonReply.Failed::class.java)
+		assertThat((reply as DaemonReply.Failed).daemonDied).isTrue()
+		assertThat(deaths).isEmpty()
+	}
 }
