@@ -339,4 +339,77 @@ class AnalyticsQuickBuildMetricsSinkTest {
 		assertThat(proxyAppRebuild.relaunchOk).isTrue()
 		assertThat(proxyAppRebuild.toRunningMs).isEqualTo(9_200)
 	}
+
+	@Test
+	fun `a completion with no matching start reports no route and an unknown duration`() {
+		sink().onBuildFinished(42, BuildOutcome.DeployFailure("proxy app gone", proxyAppNotConnected = true))
+
+		val metric = tracked.single() as QuickBuildCompletedMetric
+		assertThat(metric.route).isNull()
+		assertThat(metric.outcome).isEqualTo("deploy_failure")
+		assertThat(metric.isSuccess).isFalse()
+		// -1, not 0: a zero would read as an instant build in the tuning data.
+		assertThat(metric.durationMs).isEqualTo(-1)
+		assertThat(metric.generation).isNull()
+		assertThat(metric.diagnosticsCount).isNull()
+	}
+
+	@Test
+	fun `a success with no matching start still carries the executor-measured duration`() {
+		sink().onBuildFinished(42, BuildOutcome.Success(generation = 5, durationMillis = 810))
+
+		val metric = tracked.single() as QuickBuildCompletedMetric
+		assertThat(metric.route).isNull()
+		assertThat(metric.durationMs).isEqualTo(810)
+		assertThat(metric.generation).isEqualTo(5)
+	}
+
+	@Test
+	fun `every outcome maps to its own low-cardinality name`() {
+		val sink = sink()
+		sink.onBuildFinished(1, BuildOutcome.Success(generation = 1, durationMillis = 1, restarted = true))
+		sink.onBuildFinished(2, BuildOutcome.InfrastructureFailure("daemon died", daemonDied = true))
+		sink.onBuildFinished(3, BuildOutcome.RequiresProxyAppRebuild(InvalidationReason.MANIFEST_CHANGED, "manifest"))
+
+		val names = tracked.map { (it as QuickBuildCompletedMetric).outcome }
+		assertThat(names).containsExactly("deployed_restart", "infrastructure", "requires_rebaseline").inOrder()
+		assertThat((tracked[0] as QuickBuildCompletedMetric).isSuccess).isTrue()
+		assertThat((tracked[1] as QuickBuildCompletedMetric).isSuccess).isFalse()
+	}
+
+	@Test
+	fun `every route maps to its own metric name`() {
+		val sink = sink()
+		val routes =
+			listOf(
+				BuildRoute.ResourcesOnly,
+				BuildRoute.AssetsOnly,
+				BuildRoute.CodeOnly,
+				BuildRoute.NoOp,
+				BuildRoute.WarmCompile,
+			)
+		routes.forEachIndexed { i, route -> sink.onBuildStarted(i.toLong(), route, ChangedFiles.Unknown) }
+
+		val names = tracked.map { (it as QuickBuildStartedMetric).route }
+		assertThat(names).containsExactly("resources_only", "assets_only", "code_only", "no_op", "seed").inOrder()
+	}
+
+	@Test
+	fun `a failed proxy app rebuild omits the time-to-running rather than sending zero`() {
+		sink().onProxyAppRebuild(isSuccess = false, durationMillis = 3_000, relaunchOk = false, toRunningMillis = null)
+
+		val metric = tracked.single() as QuickBuildProxyAppRebuildMetric
+		assertThat(metric.isSuccess).isFalse()
+		assertThat(metric.relaunchOk).isFalse()
+		assertThat(metric.toRunningMs).isNull()
+	}
+
+	@Test
+	fun `an invalidation carries the reason in lowercase and the project hash`() {
+		sink().onInvalidation(InvalidationReason.GRADLE_CONFIG_CHANGED)
+
+		val metric = tracked.single() as QuickBuildInvalidatedMetric
+		assertThat(metric.reason).isEqualTo("gradle_config_changed")
+		assertThat(metric.projectHash).isEqualTo("/projects/demo".hashCode().toLong())
+	}
 }
