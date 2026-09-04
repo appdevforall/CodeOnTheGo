@@ -41,7 +41,11 @@ final class QuickBuildClient implements ServiceConnection {
 	/** Application context, volatile because binder threads read it. */
 	private volatile Context appContext;
 
-	/** The live host proxy, or null while disconnected; volatile for the same reason. */
+	/**
+	 * The live host proxy, or null while disconnected.
+	 *
+	 * Volatile for the binder-thread reads in the report methods; every WRITE takes the monitor, so that {@link #abandonHandshake}'s test-and-teardown is one step against the four framework callbacks as well as against the other synchronized methods.
+	 */
 	private volatile IQuickBuildHost host;
 
 	/** True once {@link #bind} has run, which is what makes that call idempotent. */
@@ -107,7 +111,7 @@ final class QuickBuildClient implements ServiceConnection {
 	@Override
 	public void onBindingDied(ComponentName name) {
 		RuntimeLog.w("binding to CoGo died; rebinding");
-		host = null;
+		dropHost();
 		unbindQuietly();
 		scheduleRebind();
 	}
@@ -121,7 +125,7 @@ final class QuickBuildClient implements ServiceConnection {
 	@Override
 	public void onNullBinding(ComponentName name) {
 		RuntimeLog.w("CoGo returned a null binding; retrying later");
-		host = null;
+		dropHost();
 		unbindQuietly();
 		scheduleRebind();
 	}
@@ -152,7 +156,9 @@ final class QuickBuildClient implements ServiceConnection {
 			scheduleRebind();
 			return;
 		}
-		host = connected;
+		synchronized (this) {
+			host = connected;
+		}
 		Thread handshake = new Thread(new Runnable() {
 
 			@Override
@@ -175,7 +181,7 @@ final class QuickBuildClient implements ServiceConnection {
 		// and calls onServiceConnected again. Do NOT rebind manually here - a second
 		// bindService with the same connection would stack bindings.
 		RuntimeLog.w("CoGo deploy service disconnected; awaiting reconnect");
-		host = null;
+		dropHost();
 	}
 
 	/**
@@ -242,7 +248,7 @@ final class QuickBuildClient implements ServiceConnection {
 	 *
 	 * The handshake runs on its own thread, so a slow one outlives its binding: CoGo's service dies, {@link #onServiceDisconnected} nulls the host, the framework reconnects, and a second handshake succeeds against a new proxy. Unguarded, the first thread's failure then nulls that live host, unbinds a healthy channel and schedules a rebind - and until the rebind lands every {@code reportReloaded} and {@code reportCrash} only logs "not connected", so each deploy in the window can end only in the host's own timeout.
 	 *
-	 * Under the monitor, because the test and the teardown have to be one step: {@code host} is written from the framework's callback thread as well as from here.
+	 * Under the monitor, because the test and the teardown have to be one step: {@code host} is written from the framework's callback thread as well as from here, and those writes take the monitor too ({@link #dropHost}, {@link #onServiceConnected}). Without that the exclusion held only against other callers of the synchronized methods, and a disconnect-then-reconnect on the main thread could still slip between this method's read of {@code host} and its write.
 	 *
 	 * @param connected
 	 *            the proxy whose handshake failed
@@ -255,6 +261,15 @@ final class QuickBuildClient implements ServiceConnection {
 		host = null;
 		unbindQuietly();
 		scheduleRebind();
+	}
+
+	/**
+	 * Forgets the host under the monitor, so the write cannot land between {@link #abandonHandshake}'s test and its teardown.
+	 *
+	 * Only the write is under the monitor, not the whole callback: the callbacks run on the main thread, and holding the monitor across unbindService and the rebind post would serialize the main thread against a handshake thread's binder round trip for no gain.
+	 */
+	private synchronized void dropHost() {
+		host = null;
 	}
 
 	/**
