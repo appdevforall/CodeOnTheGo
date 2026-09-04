@@ -346,7 +346,7 @@ class IncrementalCompiler(
 		val kotlinResult = compileKotlin(allSources, changedFiles, removedFiles, logger)
 		val kotlinMillis = System.currentTimeMillis() - kotlinStartedAt
 		if (kotlinResult != CompilationResult.COMPILATION_SUCCESS) {
-			val diagnostics = logger.errors.map { KotlincDiagnosticsParser.parse(it, Diagnostic.Severity.ERROR) }.capped()
+			val diagnostics = logger.errors.map { KotlincDiagnosticsParser.parse(it, Diagnostic.Severity.ERROR) }.capped("Kotlin")
 			return Result.Failed(
 				diagnostics.ifEmpty {
 					listOf(Diagnostic(Diagnostic.Severity.ERROR, "Kotlin compilation failed: $kotlinResult"))
@@ -391,7 +391,7 @@ class IncrementalCompiler(
 		// diagnostics are the only warnings a result carries.
 		if (!javaDiagnostics.success) {
 			return Result.Failed(
-				javaDiagnostics.diagnostics,
+				javaDiagnostics.diagnostics.capped("javac"),
 				statsSoFar(preSnapMillis, allSources.size, javaSources.size),
 			)
 		}
@@ -410,7 +410,9 @@ class IncrementalCompiler(
 		lastGoodOutputs = after
 		return Result.Success(
 			classesDir = classesDir.toFile(),
-			warnings = javaDiagnostics.diagnostics,
+			// Capped like the failure path: javac's own -Xmaxwarns bounds this near 100, but
+			// that is twice the module's limit riding every successful compile's response.
+			warnings = javaDiagnostics.diagnostics.capped("javac"),
 			changedClassFiles = changedClassFiles,
 			kotlinMillis = kotlinMillis,
 			javaMillis = javaMillis,
@@ -564,11 +566,16 @@ class IncrementalCompiler(
 		return parts.subList(rootIdx + 1, parts.size).joinToString("/").removeSuffix(".java")
 	}
 
-	/** First [MAX_DIAGNOSTICS] entries, plus one marker naming how many were elided. */
-	private fun List<Diagnostic>.capped(): List<Diagnostic> {
+	/**
+	 * First [MAX_DIAGNOSTICS] entries, plus one marker naming how many were elided.
+	 *
+	 * @param tool names the producer in the marker, so a capped javac list does not read as
+	 *   kotlinc's.
+	 */
+	private fun List<Diagnostic>.capped(tool: String): List<Diagnostic> {
 		if (size <= MAX_DIAGNOSTICS) return this
 		return take(MAX_DIAGNOSTICS) +
-			Diagnostic(Diagnostic.Severity.ERROR, "+${size - MAX_DIAGNOSTICS} more Kotlin diagnostics elided")
+			Diagnostic(Diagnostic.Severity.ERROR, "+${size - MAX_DIAGNOSTICS} more $tool diagnostics elided")
 	}
 
 	/**
