@@ -192,4 +192,35 @@ class CrashSummaryTest {
 		assertThat(wrappedLineCount(rendered, NARROWEST_MEASURED_LINE_CHARS))
 				.isAtMost(CrashSummary.MAX_BANNER_LINES);
 	}
+	@Test
+	void theMixedBannerFitsTheOverlayLineBudgetAtTwoTimesFontScale() {
+		// MIXED has its own headline, so it has to be measured against the same budget the
+		// crash headline was, not assumed to fit because that one does.
+		String rendered = OverlayState.mixed().text();
+
+		assertThat(wrappedLineCount(rendered, NARROWEST_MEASURED_LINE_CHARS))
+				.isAtMost(CrashSummary.MAX_BANNER_LINES);
+		assertThat(rendered).doesNotContain("Exception");
+	}
+
+	@Test
+	void theMixedReportLeadsWithTheRestartInstructionAndKeepsTheFrames() {
+		// Build Output is where the banner sends the reader, so the instruction has to be
+		// the first thing there, ahead of the same frames a plain crash reports.
+		String report = CrashSummary.forMixedReport(lifecycleCrash());
+
+		assertThat(report).startsWith(CrashSummary.MIXED_STATE_PREFIX);
+		assertThat(report).contains("restarted");
+		assertThat(report).contains("MainActivity.kt:22");
+		assertThat(report).contains("Caused by");
+	}
+
+	@Test
+	void theMixedReportIsCappedAsAWholeNotAfterThePrefix() {
+		// The prefix must not push the report past the binder cap forReport holds to.
+		String plain = CrashSummary.forReport(new RuntimeException(veryLongMessage()));
+		String mixed = CrashSummary.forMixedReport(new RuntimeException(veryLongMessage()));
+
+		assertThat(mixed.length()).isEqualTo(plain.length());
+	}
 }
