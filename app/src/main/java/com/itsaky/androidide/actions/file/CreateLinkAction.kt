@@ -68,7 +68,6 @@ class CreateLinkAction(
 
 		/** Paths whose canonicalisation is already running, so N menu opens launch one job, not N. */
 		private val canonicalisationsInFlight: MutableSet<String> = ConcurrentHashMap.newKeySet()
-
 	}
 
 	/**

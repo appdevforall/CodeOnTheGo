@@ -214,7 +214,8 @@ class ProjectValidationsTest {
 
 		// An alias to the same directory, the shape /sdcard -> /storage/self/primary has on a device.
 		val alias = File(tempFolder.root, "alias")
-		java.nio.file.Files.createSymbolicLink(alias.toPath(), root.toPath())
+		java.nio.file.Files
+			.createSymbolicLink(alias.toPath(), root.toPath())
 
 		val viaAlias = File(alias, "MyApp").path
 		// The no-IO shortcut cannot settle this -- the parents differ as text.
