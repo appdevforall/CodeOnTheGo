@@ -108,13 +108,63 @@ class DeepLinkBuildUrlTest {
 	}
 
 	@Test
-	fun `the same path without a line is misread -- the limitation buildUrl's callers must avoid`() {
-		// Documents why CreateLinkAction always passes a line and a column rather than omitting them
-		// when the cursor sits at 1:1. Nothing here is a bug in buildUrl; it is parse()'s positional
-		// peeling, and this test exists so a future change to either side notices.
-		val url = DeepLinkRequest.buildUrl("MyApp", "src/line/5")
-		assertThat(roundTrip(url)?.fileRequest)
-			.isEqualTo(PendingFileRequest(filePath = "src", lineRaw = "5", columnRaw = null))
+	fun `refuses the same path with no line, because parse would read it as metadata`() {
+		// Without a trailing line/column pair to consume, parse() peels "line/5" off the path itself
+		// and reads this back as file "src" at line 5. buildUrl's round-trip check catches that and
+		// returns null rather than emitting a link that opens the wrong file.
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "src/line/5")).isNull()
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "src/column/5")).isNull()
+
+		// Not over-refusing: the same path IS expressible once a real pair follows it.
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "src/line/5", line = 7, column = 3)).isNotNull()
+	}
+
+	@Test
+	fun `rejects dot segments the reader would refuse or an intermediary would rewrite`() {
+		// isProjectCandidateDir() refuses any name starting with '.', so none of these can name a
+		// project; "." and ".." are worse than unopenable, since a URL-normalizing browser or
+		// messenger rewrites them into a different path in transit.
+		assertThat(DeepLinkRequest.buildUrl(".")).isNull()
+		assertThat(DeepLinkRequest.buildUrl("..")).isNull()
+		assertThat(DeepLinkRequest.buildUrl(".hidden")).isNull()
+
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "../../etc/passwd")).isNull()
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "src/./Main.kt")).isNull()
+
+		// A hidden FILE is legitimate, unlike a hidden project directory -- resolveWithinDirectory
+		// rejects traversal, not dot-prefixed names.
+		assertThat(DeepLinkRequest.buildUrl("MyApp", ".gitignore", line = 1, column = 1)).isNotNull()
+	}
+
+	@Test
+	fun `never returns a url that parses back as something else`() {
+		// The contract the round-trip check exists to hold. Anything buildUrl returns must read back
+		// as exactly the arguments it was given.
+		val cases =
+			listOf(
+				Triple("MyApp", "src/main/Main.kt", 7 to 3),
+				Triple("My App", "a b/c d.kt", 1 to 1),
+				Triple("Cafe\u0301", "notes/Draft#1.md", 12 to 40),
+				Triple("MyApp", "src/line/5", 7 to 3),
+				Triple("MyApp", "src/column/9/line/2", 4 to 6),
+			)
+		for ((project, path, coords) in cases) {
+			val (line, column) = coords
+			val url = DeepLinkRequest.buildUrl(project, path, line, column)
+			assertThat(url).isNotNull()
+			assertThat(roundTrip(url))
+				.isEqualTo(
+					DeepLinkRequest(
+						projectName = project,
+						fileRequest =
+							PendingFileRequest(
+								filePath = path,
+								lineRaw = line.toString(),
+								columnRaw = column.toString(),
+							),
+					),
+				)
+		}
 	}
 
 	@Test

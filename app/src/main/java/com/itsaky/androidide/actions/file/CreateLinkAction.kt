@@ -26,6 +26,7 @@ import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.activities.projectsRoot
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.utils.allowThreadDiskReads
 import com.itsaky.androidide.utils.copyToClipboard
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -51,6 +52,34 @@ class CreateLinkAction(
 
 		/** Shown in the clipboard preview on Android 13+, so it names the app rather than the action. */
 		private const val CLIP_LABEL = "Code on the Go link"
+
+		/**
+		 * Memoised answer to "is the open project one a link can name", keyed by its path.
+		 *
+		 * [isDeepLinkTargetOfOpenProject] canonicalises both sides, which is two filesystem calls, and
+		 * `prepare()` runs on the UI thread every single time a file-tab menu is opened -- enough for
+		 * StrictMode (which this app arms with `detectAll()` in debug builds) to report a
+		 * DiskReadViolation on each one, and enough to jank the popup on a slow external volume. The
+		 * answer only changes when a different project is opened, so it is computed once per project
+		 * instead of once per menu.
+		 */
+		@Volatile
+		private var linkableProject: Pair<String, Boolean>? = null
+
+		private fun isLinkableProject(projectPath: String): Boolean {
+			linkableProject?.let { (cachedPath, cached) ->
+				if (cachedPath == projectPath) return cached
+			}
+
+			// The one unavoidable read, taken once per project. Exempted rather than moved off-thread
+			// because prepare() has to answer synchronously to decide whether to show the item at all.
+			val linkable =
+				allowThreadDiskReads("Canonicalising the open project once, to decide if it can be linked") {
+					isDeepLinkTargetOfOpenProject(projectPath, File(projectPath).name, projectsRoot())
+				}
+			linkableProject = projectPath to linkable
+			return linkable
+		}
 	}
 
 	init {
@@ -114,7 +143,7 @@ class CreateLinkAction(
 		// anywhere -- the file picker, Recents, a clone destination. For one of those there is no URL
 		// that resolves on this device, let alone on the recipient's, so there is nothing honest to
 		// put on the clipboard. Reusing the reader's own containment rule keeps the two from drifting.
-		if (!isDeepLinkTargetOfOpenProject(projectPath, projectDir.name, projectsRoot())) {
+		if (!isLinkableProject(projectPath)) {
 			return null
 		}
 
@@ -125,13 +154,20 @@ class CreateLinkAction(
 			return null
 		}
 
+		// A cursor is required, not optional. Without one the link would carry no line or column, and
+		// a coordinate-free link is the one shape parse() can misread: a file path whose own trailing
+		// segments look like "line"/"column" gets peeled apart as metadata. buildUrl now rejects that
+		// case outright, so treating a missing cursor as "no link" is what keeps this action from
+		// silently producing nothing at the moment of the tap. The editor is null only before its view
+		// is inflated, and prepare() re-runs on every menu open.
+		val cursor = editorView.editor?.cursor ?: return null
+
 		// The editor is zero-based at both ends; the URL scheme is one-based. See buildUrl's docs.
-		val cursor = editorView.editor?.cursor
 		return DeepLinkRequest.buildUrl(
 			projectName = projectDir.name,
 			filePath = relativePath,
-			line = cursor?.let { it.leftLine + 1 },
-			column = cursor?.let { it.leftColumn + 1 },
+			line = cursor.leftLine + 1,
+			column = cursor.leftColumn + 1,
 		)
 	}
 }

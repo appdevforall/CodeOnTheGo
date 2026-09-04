@@ -257,8 +257,17 @@ data class DeepLinkRequest(
 		): String? {
 			// A project name is a single path segment naming a direct child of the projects root, so a
 			// name carrying a separator can never resolve -- lookupValidProjectByName rejects it before
-			// it ever touches the disk.
-			if (projectName.isEmpty() || projectName.contains('/') || projectName.contains('\\')) {
+			// it ever touches the disk. A leading dot is rejected for the same reason one level down:
+			// isProjectCandidateDir() refuses any name starting with '.', so a hidden directory is
+			// never a project. That one check also covers "." and "..", which matter more than merely
+			// being unopenable -- a browser or messenger that normalizes dot segments rewrites
+			// "/device/open/project/../file/x" into an entirely different path before the app ever
+			// sees it.
+			if (projectName.isEmpty() ||
+				projectName.startsWith('.') ||
+				projectName.contains('/') ||
+				projectName.contains('\\')
+			) {
 				return null
 			}
 
@@ -283,8 +292,12 @@ data class DeepLinkRequest(
 
 			if (filePath != null) {
 				val segments = filePath.split('/')
-				// An empty component would put "//" in the path, which parse() rejects outright.
-				if (segments.any(String::isEmpty)) {
+				// An empty component would put "//" in the path, which parse() rejects outright. A "."
+				// or ".." component is refused for the reason given above: resolveWithinDirectory treats
+				// it as traversal and rejects the link, and any URL-normalizing intermediary silently
+				// rewrites it into a different path on the way. Other dot-prefixed names are fine --
+				// unlike a project directory, a hidden FILE (.gitignore) is perfectly linkable.
+				if (segments.any { it.isEmpty() || it == "." || it == ".." }) {
 					return null
 				}
 
@@ -315,6 +328,24 @@ data class DeepLinkRequest(
 			// this is the same number it will see -- percent-expansion in the emitted string does not
 			// count against it.
 			if ((uri.path?.length ?: 0) > MAX_LINK_PATH_LENGTH) {
+				return null
+			}
+
+			// The contract, enforced rather than reasoned about: never hand back a URL that this same
+			// app reads as something other than what was asked for. The guards above each mirror one
+			// known rejection in parse(), but parse() also peels line/column POSITIONALLY, and no
+			// enumeration of guards catches every path whose own trailing segments happen to look like
+			// that metadata (".../file/src/line/5" with no line of its own reads back as file "src" at
+			// line 5). Comparing the parse of what was just built against the arguments that built it
+			// turns that whole class into a null return, and costs one parse of a string already in
+			// hand. Compared against the ARGUMENTS, not against a re-derivation, so this cannot pass
+			// by agreeing with itself.
+			val parsed = parse(uri) ?: return null
+			if (parsed.projectName != projectName ||
+				parsed.fileRequest?.filePath != filePath ||
+				parsed.fileRequest?.lineRaw != line?.toString() ||
+				parsed.fileRequest?.columnRaw != column?.toString()
+			) {
 				return null
 			}
 
