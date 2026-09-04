@@ -110,6 +110,9 @@ interface QuickBuildDaemon {
  * @property javaMillis wall time of the daemon's javac pass.
  * @property stats the phases [kotlinMillis]/[javaMillis] do not cover (output-tree
  *   snapshots, the Java-ABI re-parse) plus this build's counts.
+ * @property diagnostics the warnings a successful build still produced, in the daemon's order;
+ *   empty when it reported none. A success never carries an ERROR - that is a
+ *   [DaemonReply.BuildFailed].
  */
 data class CompileOutput(
 	val classesDir: File,
@@ -117,6 +120,7 @@ data class CompileOutput(
 	val kotlinMillis: Long? = null,
 	val javaMillis: Long? = null,
 	val stats: CompileStats? = null,
+	val diagnostics: List<BuildDiagnostic> = emptyList(),
 )
 
 /**
