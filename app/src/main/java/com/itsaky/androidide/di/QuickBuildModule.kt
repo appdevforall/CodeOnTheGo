@@ -47,8 +47,8 @@ import java.util.concurrent.Executors
  * lightning-bolt tap. Resolving the session manager is itself substantial: its constructor
  * reads shared preferences and noBackupFilesDir, and its init block installs the daemon death
  * listener and five coroutines on the session executor. ProjectHandlerActivity resolves it from
- * onCreate, on the main thread, so the graph is built at project open whenever experiments are
- * on.
+ * onCreate whenever experiments are on, so the graph is built at project open - off the main
+ * thread, since the construction does disk I/O.
  */
 val quickBuildModule =
 	module {
