@@ -439,12 +439,17 @@ open class SwipeRevealLayout
 		}
 
 		private inner class RightDragCallback : ViewDragHelper.Callback() {
+			// There is no right drawer in this layout: R.id.right_drawer_sidebar does not exist, so
+			// the intended check was commented out and this returned true for every child. That made
+			// the helper capture whichever child sat under a horizontal drag and offset it sideways,
+			// and its onViewPositionChanged reported that horizontal travel to dragListener as if it
+			// were vertical reveal progress. It also stole horizontal gestures from child views, so a
+			// horizontally scrolling child (ADFA-5487's metrics carousel) raced this helper for them.
+			// Capture nothing until a right drawer actually exists to name here.
 			override fun tryCaptureView(
 				child: View,
 				pointerId: Int,
-			): Boolean {
-				return true // child.id == R.id.right_drawer_sidebar
-			}
+			): Boolean = false
 
 			override fun onViewPositionChanged(
 				changedView: View,
