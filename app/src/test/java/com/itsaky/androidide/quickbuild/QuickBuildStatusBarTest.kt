@@ -279,6 +279,47 @@ class QuickBuildStatusBarTest {
 	}
 
 	@Test
+	fun `closing the project ends the failed-start story, so the next one keeps its own line`() {
+		// The bar cannot tell a recreation - where the failed-start line must come back, pinned
+		// by the test above - from a different project opening, where it must not: both
+		// re-subscribe with a null previous. The distinction is the flag's LIFETIME, not the
+		// bar's gating. Closing a project tears the session down (ProjectHandlerActivity's
+		// onPause sends SessionRestartRequested), and that ends the failed-start story. Without
+		// it the next project's "Project initialized" is stomped by the previous project's
+		// "could not start".
+		val failed = QuickBuildSessionState.Idle(lastStartFailed = true)
+		assertThat(update(null, QuickBuildStatus.from(failed)))
+			.isEqualTo(QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_start_failed))
+
+		val afterClose = SessionReducer().reduce(failed, SessionEvent.SessionRestartRequested).state
+
+		// Clear, not the failed-start Show: a clear is ownership-gated at the call site, so it
+		// leaves another writer's line alone.
+		assertThat(update(null, QuickBuildStatus.from(afterClose)))
+			.isEqualTo(QuickBuildStatusBarUpdate.Clear)
+	}
+
+	@Test
+	fun `closing the project mid warm build ends the failed-start story too`() {
+		// The tone rides through a prebuild, so the close can land on Prebuilding rather than
+		// Idle - a different arm of the reducer, and the one a gradle-file save reaches.
+		val reducer = SessionReducer()
+		val prebuilding =
+			reducer
+				.reduce(
+					QuickBuildSessionState.Idle(lastStartFailed = true),
+					SessionEvent.PrebuildRequested,
+				).state
+		assertThat(update(null, QuickBuildStatus.from(prebuilding)))
+			.isEqualTo(QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_start_failed))
+
+		val afterClose = reducer.reduce(prebuilding, SessionEvent.SessionRestartRequested).state
+
+		assertThat(update(null, QuickBuildStatus.from(afterClose)))
+			.isEqualTo(QuickBuildStatusBarUpdate.Clear)
+	}
+
+	@Test
 	fun `an invalidation names the full-build ask`() {
 		val shown =
 			update(
