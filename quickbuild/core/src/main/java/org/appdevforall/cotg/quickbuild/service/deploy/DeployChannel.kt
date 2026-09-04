@@ -58,7 +58,8 @@ interface DeploySender {
 	 *
 	 * @param timeoutMillis upper bound on the wait, sized for a runtime exit rather than a
 	 *   process launch
-	 * @return true when disconnected within [timeoutMillis]
+	 * @return true when the runtime is gone within [timeoutMillis]: it disconnected, or its
+	 *   process no longer answers although the death notification has not landed yet
 	 */
 	suspend fun awaitDisconnect(timeoutMillis: Long): Boolean
 
@@ -227,14 +228,27 @@ class DeployChannel(
 		}
 	}
 
-	override suspend fun awaitDisconnect(timeoutMillis: Long): Boolean =
+	override suspend fun awaitDisconnect(timeoutMillis: Long): Boolean {
 		// The awaited value is null by construction, so the block must yield its own
 		// non-null sentinel: returning `first { it == null }` would make a real
 		// disconnect indistinguishable from a timeout.
-		withTimeoutOrNull(timeoutMillis) {
-			connections.target.first { it == null }
-			true
-		} == true
+		val disconnected =
+			withTimeoutOrNull(timeoutMillis) {
+				connections.target.first { it == null }
+				true
+			} == true
+		if (disconnected) return true
+		// The registry clears on linkToDeath, which a loaded device can deliver well after
+		// the process died. A ping is a transaction, so it fails as soon as the process is
+		// gone; a runtime that is genuinely still running answers it. Without this, a late
+		// notification reads as a runtime that ignored the restart and costs a rebuild.
+		val connection = connections.target.value ?: return false
+		val binder = connection.target.asBinder() ?: return false
+		if (binder.pingBinder()) return false
+		log.info("Proxy app process is gone; its death notification has not landed yet")
+		connections.onDisconnected(binder)
+		return true
+	}
 
 	override suspend fun awaitReconnect(timeoutMillis: Long): Long? =
 		withTimeoutOrNull(timeoutMillis) {
