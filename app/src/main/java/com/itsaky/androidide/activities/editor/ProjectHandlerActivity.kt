@@ -710,9 +710,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	/**
 	 * Whether Quick Build's text is what the status line currently shows. Cleared by every
-	 * [setStatus] call (whoever writes the bar owns it), re-set by [showQuickBuildStatus]
-	 * after its own writes. Gates session-end clears and passive refreshes so they never
-	 * wipe another writer's line - a build's result stays up until the next build starts.
+	 * [doSetStatus] call (whoever writes the bar owns it - every write lands there, the
+	 * debugger's included), re-set by [showQuickBuildStatus] after its own writes. Gates
+	 * session-end clears and passive refreshes so they never wipe another writer's line - a
+	 * build's result stays up until the next build starts.
 	 */
 	private var ownsQuickBuildStatus = false
 
@@ -1176,11 +1177,23 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		status: CharSequence,
 		@GravityInt gravity: Int,
 	) {
-		// Whoever writes the bar owns it: a build's task/result line must persist until the
-		// next build takes the line over, so Quick Build's passive refreshes check this flag
-		// (showQuickBuildStatus re-sets it right after its own writes).
-		ownsQuickBuildStatus = false
 		doSetStatus(status, gravity)
+	}
+
+	/**
+	 * Whoever writes the bar owns it: a build's task/result line, or the debugger's, must persist
+	 * until the next writer takes the line over, so Quick Build's passive refreshes and its
+	 * session-end clear check [ownsQuickBuildStatus]. Cleared here rather than in [setStatus]
+	 * because the debugger paths in [BaseEditorActivity] write through this overload directly;
+	 * clearing only in [setStatus] let a passive refresh overwrite, or a session end blank, the
+	 * debugger's line. [showQuickBuildStatus] re-sets the flag right after its own writes.
+	 */
+	override fun doSetStatus(
+		text: CharSequence,
+		gravity: Int,
+	) {
+		ownsQuickBuildStatus = false
+		super.doSetStatus(text, gravity)
 	}
 
 	fun appendBuildOutput(str: String) {
