@@ -1606,4 +1606,38 @@ class DaemonProcessClientEdgeTest {
 				BuildDiagnostic(BuildDiagnostic.Severity.WARNING, "deprecated", "/src/A.kt", 3, 9),
 			)
 	}
+
+	@Test
+	fun `every op reports the daemon's own duration beside its phase timings`() {
+		val paths =
+			scriptedPaths(
+				"""
+				read line
+				printf '%s\n' '${okConfigure()}'
+				read line
+				printf '%s\n' '{"id":2,"ok":true,"classesDir":"/out/classes","durationMillis":1200,"kotlinMillis":900}'
+				read line
+				printf '%s\n' '{"id":3,"ok":true,"dexFile":"/out/dex/classes.dex","durationMillis":300}'
+				read line
+				printf '%s\n' '{"id":4,"ok":true,"resourcesArsc":"/out/res/linked-res.apk","durationMillis":450}'
+				read line
+				printf '%s\n' '{"id":5,"ok":true}'
+				""".trimIndent(),
+			)
+
+		val (compile, dex, relink) =
+			withClient(paths) { client ->
+				check(client.start(config()) is DaemonReply.Ok)
+				Triple(
+					client.compile(emptyList(), emptyList()),
+					client.dex(emptyList()),
+					client.relink(RelinkInputs(resDirs = emptyList(), manifest = File(tmp, "AndroidManifest.xml"))),
+				)
+			}
+
+		assertThat((compile as DaemonReply.Ok).value.daemonMillis).isEqualTo(1200)
+		assertThat(compile.value.kotlinMillis).isEqualTo(900)
+		assertThat((dex as DaemonReply.Ok).value.daemonMillis).isEqualTo(300)
+		assertThat((relink as DaemonReply.Ok).value.daemonMillis).isEqualTo(450)
+	}
 }
