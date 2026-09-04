@@ -4,6 +4,7 @@ import android.content.ComponentCallbacks2
 import com.google.common.truth.Truth.assertThat
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -291,6 +292,9 @@ class QuickBuildSessionManagerTest {
 		scratch: QuickBuildScratch = QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot),
 		nowMillis: () -> Long = System::currentTimeMillis,
 		collectUserMessages: Boolean = true,
+		// The layout's tree walks hop off the session dispatcher; keep them on the test
+		// scheduler so they stay inside virtual time rather than on a real IO thread.
+		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
 	): QuickBuildSessionManager {
 		val provisioner =
 			object : QuickBuildProvisioner {
@@ -343,9 +347,7 @@ class QuickBuildSessionManagerTest {
 			paths = FakePaths(projectRoot),
 			historyStore = historyStore,
 			dispatcher = StandardTestDispatcher(testScheduler),
-			// The layout's tree walks hop off the session dispatcher; keep them on the test
-			// scheduler so they stay inside virtual time rather than on a real IO thread.
-			ioDispatcher = StandardTestDispatcher(testScheduler),
+			ioDispatcher = ioDispatcher,
 			generationStoreFactory = { store },
 			executorFactory = { proxyApp, _, tracker ->
 				executorFactoryError?.let { throw it() }
@@ -5172,5 +5174,38 @@ class QuickBuildSessionManagerTest {
 			assertThat(daemon.startConfigs).hasSize(4)
 			assertThat(daemon.isRunning).isTrue()
 			assertThat(manager.state.value).isNotInstanceOf(QuickBuildSessionState.Building::class.java)
+		}
+
+	/**
+	 * Runs each block inline, counting the hops, so a withContext onto it is visible without
+	 * leaving the test scheduler's virtual time for a real thread.
+	 */
+	private class CountingDispatcher : CoroutineDispatcher() {
+		var dispatches = 0
+
+		override fun dispatch(
+			context: kotlin.coroutines.CoroutineContext,
+			block: Runnable,
+		) {
+			dispatches++
+			block.run()
+		}
+	}
+
+	@Test
+	fun `the artifact check after a Standard Run stats the classpath off the session dispatcher`() =
+		runTest {
+			val io = CountingDispatcher()
+			val manager = createManager(ioDispatcher = io)
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val hopsBefore = io.dispatches
+
+			manager.onStandardRunCompleted()
+			advanceUntilIdle()
+
+			// One hop for the check, and the check found the artifacts, so no rebuild.
+			assertThat(io.dispatches).isEqualTo(hopsBefore + 1)
+			assertThat(proxyAppRebuildCount).isEqualTo(0)
 		}
 }
