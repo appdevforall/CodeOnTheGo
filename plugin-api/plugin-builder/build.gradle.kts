@@ -8,11 +8,11 @@ version = "1.0.0"
 
 dependencies {
 	// AGP is provided at runtime by the plugin project's own `com.android.application`,
-	// and on-device plugin builds use the tooling AGP (`agp-tooling` = 8.11.0), which is
-	// what the harvested localMvnRepository ships. Keep it compileOnly so the published
+	// and on-device plugin builds use the tooling AGP (`agp-tooling`), which is what
+	// the harvested localMvnRepository ships. Keep it compileOnly so the published
 	// POM stays dependency-free: forcing it as a transitive would make the coordinate
 	// unresolvable offline whenever the harvested AGP differs from a pinned version.
-	compileOnly("com.android.tools.build:gradle:8.11.0")
+	compileOnly(libs.tooling.agp)
 }
 
 gradlePlugin {
