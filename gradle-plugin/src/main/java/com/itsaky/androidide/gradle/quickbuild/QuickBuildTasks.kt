@@ -448,6 +448,21 @@ abstract class QuickBuildPayloadDexTask : DefaultTask() {
 					.removeSuffix(".java")
 					.replace(File.separatorChar, '.')
 			val userClass = userClassByProxyClass[proxyClassName] ?: continue
+			// Before the proxiability question, because this one is about the source we are
+			// about to emit rather than about the class it extends. A keyword segment makes
+			// the generated .java unparsable, and javac then reports "<identifier> expected"
+			// while naming neither the component nor the user's way out.
+			val reserved =
+				ProxySourceGenerator.reservedJavaSegment(userClass)
+					?: ProxySourceGenerator.reservedJavaSegment(proxyClassName)
+			if (reserved != null) {
+				throw GradleException(
+					"Quick Build can't run on this project: the component '$userClass' " +
+						"can't be proxied (its name contains '$reserved', which Java reserves, " +
+						"so the generated proxy source would not compile). " +
+						"Use Run/Debug to build and run it instead.",
+				)
+			}
 			val resolution = resolver.resolveWithProjectOverride(userClass, projectClasses)
 			if (resolution is ComponentProxiabilityResolver.Resolution.Skip) {
 				// Addressed to a CoGo user building their own app, so it names the action they
