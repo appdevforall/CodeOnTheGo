@@ -11,7 +11,9 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.io.StringReader
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -277,15 +279,87 @@ class Aapt2LinkEdgeTest {
 	}
 
 	/**
+	 * The timeout flag must be stored BEFORE the kill, not after the verdict returns.
+	 *
+	 * The kill closes the child's pipe, which is what wakes the request thread's output drain;
+	 * that thread then passes `waitFor()` and reads the flag. A store that happens after the
+	 * kill can land after that read, and a link genuinely cut short at the deadline is then
+	 * reported as an ordinary `aapt2 link failed:` with nothing naming the timeout. The race
+	 * cannot be forced with a real process, so the stub records what the flag held at the
+	 * moment of the kill.
+	 *
+	 * Goes red if the flag is set after [Aapt2Link.watchdogTimedOut] returns, or if
+	 * [Aapt2Link.killIfAlive] runs the callback after `destroyForcibly`.
+	 */
+	@Test
+	fun `the timeout flag is already set when the kill that wakes the reader happens`() {
+		val timedOut = AtomicBoolean(false)
+		var flagAtKill: Boolean? = null
+		val stillRunning = StubProcess(waitExpired = true, alive = true, onKill = { flagAtKill = timedOut.get() })
+
+		val verdict = Aapt2Link.watchdogTimedOut(stillRunning, 1L) { timedOut.set(true) }
+
+		assertThat(verdict).isTrue()
+		assertThat(flagAtKill).isTrue()
+
+		// And a child that finished first gets no store at all: a spurious flag would turn a
+		// clean link into a reported timeout.
+		val exited = StubProcess(waitExpired = true, alive = false)
+		val spurious = AtomicBoolean(false)
+		assertThat(Aapt2Link.watchdogTimedOut(exited, 1L) { spurious.set(true) }).isFalse()
+		assertThat(spurious.get()).isFalse()
+	}
+
+	@Test
+	fun `output past the bound is dropped with a marker instead of being kept whole`() {
+		val cap = 100
+		val flood = "x".repeat(cap + 250)
+
+		val kept = Aapt2Link.readBounded(StringReader(flood), cap)
+
+		assertThat(kept).startsWith("x".repeat(cap))
+		assertThat(kept).contains("truncated: 250 more characters dropped")
+		// The retained text is exactly the cap: nothing past it leaks in ahead of the marker.
+		assertThat(kept.substringBefore("\n[aapt2 output truncated")).hasLength(cap)
+
+		// Under the bound nothing changes and no marker appears.
+		assertThat(Aapt2Link.readBounded(StringReader("short"), cap)).isEqualTo("short")
+	}
+
+	@Test
+	fun `an aapt2 that floods its output is still drained, so it exits and the relink returns`() {
+		// Well past MAX_OUTPUT_CHARS: a reader that stopped at the bound instead of draining
+		// would leave the child blocked on a full pipe until the watchdog killed it, and the
+		// failure would then say "timed out" for a link that only talked too much.
+		val lines = Aapt2Link.MAX_OUTPUT_CHARS / 10 + 5000
+		val link =
+			Aapt2Link(
+				fakeAapt2("awk 'BEGIN { for (i = 0; i < $lines; i++) print \"note: n\" i }'; exit 1"),
+				File(tempDir, "android.jar"),
+				timeoutMillis = 20_000,
+			)
+
+		val result = link.relink(listOf(resDir), manifest, workDir)
+
+		assertThat(result).isInstanceOf(Aapt2Link.Result.Failed::class.java)
+		val messages = (result as Aapt2Link.Result.Failed).diagnostics.map { it.message }
+		assertThat(messages.none { it.contains("timed out") }).isTrue()
+		// The fallback error carries the (already 2000-char-capped) raw output, so the marker
+		// is not expected there; what is pinned is that the child was drained, not killed.
+	}
+
+	/**
 	 * A process whose wait result and liveness are set independently, which no real process
 	 * lets a test do.
 	 *
 	 * @property waitExpired what the timed wait reports; false means the child finished first.
 	 * @property alive whether the child is still running when the kill is attempted.
+	 * @property onKill observes the moment of the kill, for the flag-ordering test.
 	 */
 	private class StubProcess(
 		private val waitExpired: Boolean,
 		private val alive: Boolean,
+		private val onKill: () -> Unit = {},
 	) : Process() {
 		/** Whether [destroyForcibly] was reached, which is what a real kill would be. */
 		var killed: Boolean = false
@@ -309,6 +383,7 @@ class Aapt2LinkEdgeTest {
 		override fun destroy() = Unit
 
 		override fun destroyForcibly(): Process {
+			onKill()
 			killed = true
 			return this
 		}
