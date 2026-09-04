@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
+import com.itsaky.androidide.lsp.refactor.TextSpan
 import org.jetbrains.kotlin.psi.KtFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

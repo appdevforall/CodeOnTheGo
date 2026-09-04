@@ -141,6 +141,15 @@ public final class com/itsaky/androidide/plugins/base/PluginFragmentHelper {
 	public static final fun setOnPluginInflationError (Lkotlin/jvm/functions/Function2;)V
 }
 
+public final class com/itsaky/androidide/plugins/base/PluginWindows {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/base/PluginWindows;
+	public static final fun prepareDialog (Landroid/app/Dialog;)Z
+	public static final fun showDialog (Landroid/app/Dialog;)Z
+	public static final fun showToast (Landroid/content/Context;Ljava/lang/CharSequence;)V
+	public static final fun showToast (Landroid/content/Context;Ljava/lang/CharSequence;I)V
+	public static synthetic fun showToast$default (Landroid/content/Context;Ljava/lang/CharSequence;IILjava/lang/Object;)V
+}
+
 public final class com/itsaky/androidide/plugins/base/SafePluginLayoutInflater : android/view/LayoutInflater {
 	public static final field Companion Lcom/itsaky/androidide/plugins/base/SafePluginLayoutInflater$Companion;
 	public synthetic fun <init> (Landroid/view/LayoutInflater;Landroid/content/Context;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V

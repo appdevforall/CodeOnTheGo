@@ -1,26 +1,26 @@
-package com.itsaky.androidide.lsp.kotlin.refactor.ui
+package com.itsaky.androidide.lsp.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionPlan
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.validateVariableName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Derives the sheet's state from an [ExtractionPlan] and nothing else.
+ * Derives the sheet's state from the [CandidateView]s it was given and nothing else.
  *
- * The plan already contains every candidate's scope chain and occurrence set, so switching expression
- * or scope is pure recomputation -- no analysis, no PSI, no I/O. That is what lets this class hold all
- * the sheet's logic while remaining a plain unit test.
+ * Each candidate already carries its scope chain and per-scope occurrence count, so switching
+ * expression or scope is pure recomputation -- no analysis, no syntax tree, no I/O. That is what lets
+ * this class hold all the sheet's logic while remaining a plain unit test, and what lets both language
+ * servers share it without either depending on the other.
  *
  * A plain [ViewModelProvider.Factory] rather than a Koin definition (ADR 0006/0009 resolve ViewModels
- * through Koin): this one is sheet-scoped, injects nothing, and takes the plan as a runtime argument,
+ * through Koin): this one is sheet-scoped, injects nothing, and takes its inputs as runtime arguments,
  * so a Koin definition would add indirection without providing anything.
  */
 class ExtractVariableViewModel(
-	private val plan: ExtractionPlan,
+	private val candidates: List<CandidateView>,
+	private val keywords: Set<String>,
 ) : ViewModel() {
 	private val _uiState = MutableStateFlow(initialState())
 	val uiState: StateFlow<ExtractVariableUiState> = _uiState.asStateFlow()
@@ -39,15 +39,19 @@ class ExtractVariableViewModel(
 
 			is ExtractVariableUiEvent.ScopeSelected -> {
 				if (event.index == current.selectedScope) return
-				_uiState.value =
-					stateFor(current.selectedCandidate, event.index, current.replaceAll, current.name)
+				_uiState.value = stateFor(current.selectedCandidate, event.index, current.replaceAll, current.name)
 			}
 
 			is ExtractVariableUiEvent.NameChanged -> {
 				_uiState.value =
 					current.copy(
 						name = event.name,
-						nameProblem = validateVariableName(event.name, candidate(current.selectedCandidate).takenNames),
+						nameProblem =
+							validateVariableName(
+								event.name,
+								candidate(current.selectedCandidate).takenNames,
+								keywords,
+							),
 					)
 			}
 
@@ -62,22 +66,20 @@ class ExtractVariableViewModel(
 	}
 
 	/** The user's decision, or null when the name is unusable. */
-	fun choice(): ExtractionChoice? {
+	fun selection(): ExtractVariableSelection? {
 		val state = _uiState.value
 		if (!state.canConfirm) return null
-		val candidate = candidate(state.selectedCandidate)
-		val scope = candidate.scopes.getOrNull(state.selectedScope) ?: return null
-		return ExtractionChoice(
-			candidate = candidate,
-			scope = scope,
+		return ExtractVariableSelection(
+			candidateIndex = state.selectedCandidate,
+			scopeIndex = state.selectedScope,
 			name = state.name,
 			// A single occurrence makes the toggle meaningless, and the sheet hides it; make sure a
-			// stale `true` from a previous candidate cannot leak into the choice.
+			// stale `true` from a previous candidate cannot leak into the selection.
 			replaceAll = state.replaceAll && state.occurrenceCount > 1,
 		)
 	}
 
-	private fun candidate(index: Int) = plan.candidates[index.coerceIn(plan.candidates.indices)]
+	private fun candidate(index: Int) = candidates[index.coerceIn(candidates.indices)]
 
 	/**
 	 * Recomputes the whole state for a (candidate, scope) pair. [name] carries the user's typed name
@@ -93,26 +95,28 @@ class ExtractVariableViewModel(
 		val boundedScope = scopeIndex.coerceIn(candidate.scopes.indices)
 		val scope = candidate.scopes[boundedScope]
 		val resolvedName = name ?: candidate.suggestedName
-		val occurrenceCount = scope.occurrences.size
 
 		return ExtractVariableUiState(
-			candidateLabels = plan.candidates.map { it.label },
-			selectedCandidate = candidateIndex.coerceIn(plan.candidates.indices),
-			showCandidatePicker = plan.candidates.size > 1,
+			candidateLabels = candidates.map { it.label },
+			selectedCandidate = candidateIndex.coerceIn(candidates.indices),
+			showCandidatePicker = candidates.size > 1,
 			name = resolvedName,
-			nameProblem = validateVariableName(resolvedName, candidate.takenNames),
+			nameProblem = validateVariableName(resolvedName, candidate.takenNames, keywords),
 			scopeLabels = candidate.scopes.map { it.label },
 			selectedScope = boundedScope,
-			occurrenceCount = occurrenceCount,
-			replaceAll = replaceAll && occurrenceCount > 1,
+			occurrenceCount = scope.occurrenceCount,
+			replaceAll = replaceAll && scope.occurrenceCount > 1,
 		)
 	}
 
 	companion object {
-		fun factory(plan: ExtractionPlan): ViewModelProvider.Factory =
+		fun factory(
+			candidates: List<CandidateView>,
+			keywords: Set<String>,
+		): ViewModelProvider.Factory =
 			object : ViewModelProvider.Factory {
 				@Suppress("UNCHECKED_CAST")
-				override fun <T : ViewModel> create(modelClass: Class<T>): T = ExtractVariableViewModel(plan) as T
+				override fun <T : ViewModel> create(modelClass: Class<T>): T = ExtractVariableViewModel(candidates, keywords) as T
 			}
 	}
 }

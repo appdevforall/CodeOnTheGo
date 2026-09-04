@@ -1,5 +1,10 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.FALLBACK_NAME
+import com.itsaky.androidide.lsp.refactor.nameFromType
+import com.itsaky.androidide.lsp.refactor.stripAccessorPrefix
+import com.itsaky.androidide.lsp.refactor.uniqueName
+import com.itsaky.androidide.lsp.ui.isIdentifier
 import org.jetbrains.kotlin.psi.KtArrayAccessExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtExpression
@@ -8,14 +13,11 @@ import org.jetbrains.kotlin.psi.KtParenthesizedExpression
 import org.jetbrains.kotlin.psi.KtQualifiedExpression
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 
-/** Used when neither the expression's shape nor its type suggests anything better. */
-const val FALLBACK_NAME = "value"
-
 /**
  * Kotlin's hard keywords -- the ones that are never valid identifiers. Soft and modifier keywords
  * (`by`, `data`, `it`, ...) are legal names and are deliberately absent.
  */
-private val HARD_KEYWORDS =
+internal val HARD_KEYWORDS =
 	setOf(
 		"as",
 		"break",
@@ -46,38 +48,6 @@ private val HARD_KEYWORDS =
 		"when",
 		"while",
 	)
-
-/** Why a proposed name cannot be used. Null-free alternative to throwing for user input. */
-enum class NameProblem {
-	Blank,
-	NotAnIdentifier,
-	Keyword,
-	AlreadyTaken,
-}
-
-/**
- * Validates a user-supplied name against Kotlin's identifier rules and the names already visible at
- * the anchor point. Returns null when the name is usable.
- *
- * Backtick-quoted names are rejected rather than supported: they are legal Kotlin but a poor
- * suggestion for a generated local, and accepting them would mean validating the quoted form too.
- */
-fun validateVariableName(
-	name: String,
-	takenNames: Set<String>,
-): NameProblem? {
-	if (name.isBlank()) return NameProblem.Blank
-	if (!isIdentifier(name)) return NameProblem.NotAnIdentifier
-	if (name in HARD_KEYWORDS) return NameProblem.Keyword
-	if (name in takenNames) return NameProblem.AlreadyTaken
-	return null
-}
-
-private fun isIdentifier(name: String): Boolean {
-	if (name.isEmpty()) return false
-	if (!(name[0].isLetter() || name[0] == '_')) return false
-	return name.all { it.isLetterOrDigit() || it == '_' }
-}
 
 /**
  * Suggests a name for the value [expression] produces.
@@ -116,40 +86,3 @@ private fun nameFromShape(expression: KtExpression): String? =
 		is KtArrayAccessExpression -> expression.arrayExpression?.let(::nameFromShape)
 		else -> null
 	}?.takeIf { it.isNotBlank() }
-
-/** `getFoo` -> `foo`, `isReady` -> `ready`. Leaves anything else alone. */
-private fun stripAccessorPrefix(name: String): String {
-	for (prefix in ACCESSOR_PREFIXES) {
-		if (name.length > prefix.length &&
-			name.startsWith(prefix) &&
-			name[prefix.length].isUpperCase()
-		) {
-			return name.substring(prefix.length).decapitaliseFirst()
-		}
-	}
-	return name
-}
-
-private val ACCESSOR_PREFIXES = listOf("get", "is", "has")
-
-/** `List<Foo>` -> `list`, `kotlin.time.Duration` -> `duration`, `Array<String>` -> `array`. */
-private fun nameFromType(typeName: String): String? =
-	typeName
-		.substringBefore('<')
-		.substringAfterLast('.')
-		.trimEnd('?', '!')
-		.takeIf { it.isNotBlank() }
-		?.decapitaliseFirst()
-
-private fun String.decapitaliseFirst(): String = if (isEmpty()) this else this[0].lowercaseChar() + substring(1)
-
-/** `size` -> `size1` -> `size2` until nothing in [takenNames] matches. */
-internal fun uniqueName(
-	base: String,
-	takenNames: Set<String>,
-): String {
-	if (base !in takenNames) return base
-	var suffix = 1
-	while ("$base$suffix" in takenNames) suffix++
-	return "$base$suffix"
-}
