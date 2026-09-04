@@ -727,6 +727,35 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
+	fun `a mid-rebuild edit the rebuild does not hold stays pending when its coarse mtime lands inside the granularity margin`() =
+		runTest {
+			// A filesystem with 1 s mtimes stamps a save made just after the rebuild started
+			// with an mtime a second before it, on a whole-second boundary. Absorbing on that
+			// mtime would lose the edit: onBaselineReset drops the absorbed set and nothing
+			// builds it. The precise 9_900 echoes in the tests above sit inside the same
+			// margin and must still absorb - the margin is for truncated mtimes only.
+			val executor = GatedExecutor()
+			val orchestrator =
+				LiveReloadOrchestrator(
+					executor,
+					ChangeClassifier(),
+					backgroundScope,
+					wallClock = { 10_000L },
+					fileLastModified = { file -> if (file.path == srcA) 9_000L else 0L },
+				) {}
+
+			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
+			runCurrent()
+			orchestrator.onProxyAppRebuildStarted()
+			orchestrator.onFilesChanged(known(srcA))
+			orchestrator.onBaselineReset()
+			runCurrent()
+
+			assertThat(executor.requests).hasSize(1)
+			assertThat(executor.requests[0].changes).isEqualTo(known(srcA))
+		}
+
+	@Test
 	fun `a mid-rebuild file with no readable mtime stays pending - nothing proves it predates the read`() =
 		runTest {
 			// 0 means missing or unreadable, not ancient: absorbing it would drop a real
