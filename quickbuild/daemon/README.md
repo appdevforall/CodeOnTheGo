@@ -130,7 +130,9 @@ mid-construction cannot leave a fingerprint describing snapshots that were never
   records which exclusion is safe and why.
 - **A `Result.Failed` diagnostic list is bounded.** kotlinc emits one unresolved-reference error per
   use site, so a deleted dependency yields hundreds; the whole list rides one protocol line into a
-  phone-screen panel. All three tool paths cap, each with a "+K more ... elided" marker.
+  phone-screen panel. kotlinc, javac and aapt2 diagnostics cap at 50 entries each with a "+K more
+  ... elided" marker (javac's on the success path too, where its warnings ride every save); d8's
+  collected errors truncate at 4000 characters with no marker.
 - **The test suite compiles for real** - real BTA service, real kotlinc, real IC caches - so an
   engine that silently falls back to a full compile goes red rather than green-and-slow. The aapt2
   and d8 cases are gated on the device toolchain being present; set `REQUIRE_BUILD_TOOLCHAIN=1` to

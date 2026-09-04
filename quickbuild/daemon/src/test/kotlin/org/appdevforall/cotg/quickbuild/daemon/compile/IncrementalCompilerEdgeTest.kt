@@ -110,6 +110,21 @@ class IncrementalCompilerEdgeTest {
 		assertThat(kept.exists()).isTrue()
 	}
 
+	@Test
+	fun `a javac error flood is capped with a marker, like kotlinc's`() {
+		// 60 unresolved types: under javac's own -Xmaxerrs (100), so every one reaches the
+		// daemon, and past the module's MAX_DIAGNOSTICS (50), so the cap has to act.
+		val fields = (1..60).joinToString("\n") { "\tMissing$it m$it;" }
+		val flood = writeJava("main/java/demo/Flood.java", "package demo;\n\npublic class Flood {\n$fields\n}\n")
+
+		val result = compiler().compile(listOf(flood), changedFiles = listOf(flood))
+
+		assertThat(result).isInstanceOf(IncrementalCompiler.Result.Failed::class.java)
+		val diagnostics = (result as IncrementalCompiler.Result.Failed).diagnostics
+		assertThat(diagnostics).hasSize(IncrementalCompiler.MAX_DIAGNOSTICS + 1)
+		assertThat(diagnostics.last().message).isEqualTo("+10 more javac diagnostics elided")
+	}
+
 	/**
 	 * Compiles a one-method class into its own classes directory, so a test can use REAL class
 	 * bytes as a directory classpath entry - the Kotlin snapshotter reads every class it finds
