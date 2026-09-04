@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
  *
  * Installed once per process by {@link QuickBuildAppComponentFactory} at application instantiation; Context work - binding to CoGo, cache dirs - waits for the first activity, since the Application has no base context yet.
  *
- * Failure policy throughout: a reload failure reports the crash, and rolls back when the store adopted the failed generation, so the app keeps running the last working code rather than crash-looping or silently claiming the new generation. Only a failure superseded by a newer live generation stays silent.
+ * Failure policy throughout: a reload failure reports the crash, and rolls back when the store adopted the failed generation, so the app keeps running the last working code rather than crash-looping or silently claiming the new generation. Only a failure superseded by a newer live generation stays silent. The rollback is of the code: a resource swap that had already committed stays live, and that case is reported as a mixed state that a restart clears rather than as the last working version.
  */
 final class QuickBuildRuntime {
 
@@ -379,9 +379,10 @@ final class QuickBuildRuntime {
 			// A step that already ran may have queued a swap that will still commit on main:
 			// applyTable posts before applyAssets can throw. Nothing cancels that swap, so
 			// the recreate must not run - it would render this generation's table over the
-			// dex failReload is rolling back, while the banner says the app is on the last
-			// working version. Only onSwapFailed used to set this, which is the branch where
-			// the swap is the thing that failed.
+			// dex failReload is rolling back. Only onSwapFailed used to set this, which is
+			// the branch where the swap is the thing that failed. A swap that has ALREADY
+			// committed is a different case: it cannot be refused, and failReload reports
+			// the mixed state it leaves instead of claiming the last working version.
 			abandonedReloadGeneration = generation;
 			// The posted swap is refused rather than committed: the store cannot undo a
 			// swap that took, so the only place to stop it is before it commits.
@@ -675,6 +676,8 @@ final class QuickBuildRuntime {
 	/**
 	 * The {@link #failReload} body: decides the failure action against the store's live generation and rolls back in the same lock, then reports and renders.
 	 *
+	 * The rollback covers the dex; a resource swap that already committed stays live. When that is the failed generation's own swap the app is on mixed versions, and the banner and the report say restart instead of claiming the last working version - which the process is no longer running.
+	 *
 	 * A failure before the apply took - an oversize payload, a persist failure, a restart deploy missing its dex - leaves the store on the previous generation, so there is nothing to restore or quarantine; the report and banner still fire, or the host's only signal would be its deploy timeout. Only a failure superseded by a newer live generation stays silent, since that generation owns the store, the pending ack and the screen.
 	 */
 	private void failReloadNow(long generation, PayloadStore.Payload rollback, Throwable error) {
@@ -693,12 +696,21 @@ final class QuickBuildRuntime {
 			quarantine(generation);
 			firstFrame.disarm();
 		}
+		// The rollback above restored the dex only. A table swap that committed before the
+		// failure - the usual order, since applyTable posts and returns while applyAssets
+		// merges on the binder thread - stays live, and the store cannot take it down. Both
+		// callers abandon the generation before dispatching here, so a swap still queued is
+		// refused and this read cannot be overtaken by it.
+		boolean mixed = Generations.leavesMixedState(
+				ResourceStore.INSTANCE.swappedGeneration(), generation);
 		// The banner gets no summary at all: it is a few unscrollable lines over the user's
 		// own app, so a stack put there is clipped mid-frame and the frames naming the fault
 		// are the half nobody sees. It names Build Output instead, and the report below is
-		// what actually puts the text there.
-		setOverlayState(OverlayState.crashed());
-		client.reportCrash(generation, CrashSummary.forReport(error));
+		// what actually puts the text there - including, for the mixed case, the restart
+		// instruction in full.
+		setOverlayState(mixed ? OverlayState.mixed() : OverlayState.crashed());
+		client.reportCrash(generation,
+				mixed ? CrashSummary.forMixedReport(error) : CrashSummary.forReport(error));
 	}
 
 	/**

@@ -41,6 +41,21 @@ final class Generations {
 	}
 
 	/**
+	 * Whether a failed reload has left the process serving two generations at once.
+	 *
+	 * The rollback restores the dex, but a resource swap that already committed cannot be undone: the store keeps single provider slots and closes the replaced one, and the API 28/29 path cannot unmount an asset path at all. A deploy posts its table swap and then does the asset merge on the binder thread, so when the merge throws the swap has usually landed. The app then runs the previous generation's classes over the failed generation's resources until a resources-carrying deploy or a process restart, and a banner claiming the last working version would be false.
+	 *
+	 * @param swappedGeneration
+	 *            the newest generation whose resource swap committed, or -1 before any
+	 * @param failedGeneration
+	 *            the generation whose reload failed
+	 * @return true when the failed generation's resources are what the screen resolves against
+	 */
+	static boolean leavesMixedState(long swappedGeneration, long failedGeneration) {
+		return swappedGeneration == failedGeneration;
+	}
+
+	/**
 	 * The pending-reload generation the runtime should hold after a payload applies.
 	 *
 	 * A foreground apply leaves the generation pending until its first resumed frame acks it. A backgrounded apply acks at apply time, and the pending slot must still be assigned - not skipped: leaving an older generation's pending value behind is what let the crash guard blame it for a later generation's crash, and let the crashing generation escape quarantine.
