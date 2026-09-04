@@ -43,6 +43,27 @@ class JavaSourceAbiEdgeTest {
 		}
 	}
 
+	/**
+	 * A throw inside the snapshot must reach the log. The null it produces makes every later
+	 * compile in the session a full Kotlin recompile, which from the daemon log alone is
+	 * indistinguishable from a slow device; the warning is the only thing that says why.
+	 *
+	 * A NUL in the path is the reproducible throw: javac's file manager converts each File
+	 * to a Path, and the filesystem refuses the character with an InvalidPathException.
+	 */
+	@Test
+	fun `a snapshot that throws says so on the warn channel before answering null`() {
+		val warnings = mutableListOf<String>()
+		val unpathable = File(tempDir, "Nul\u0000.java")
+
+		val snapshot = JavaSourceAbi.snapshot(listOf(unpathable)) { warnings += it }
+
+		assertThat(snapshot).isNull()
+		assertThat(warnings).hasSize(1)
+		assertThat(warnings.single()).contains("InvalidPathException")
+		assertThat(warnings.single()).contains("recompiled")
+	}
+
 	@Test
 	fun `the package declaration is part of the ABI`() {
 		val without = write("A.java", "public class Widget {}")

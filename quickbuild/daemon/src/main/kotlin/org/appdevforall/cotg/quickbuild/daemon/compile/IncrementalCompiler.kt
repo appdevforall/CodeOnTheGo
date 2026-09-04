@@ -678,7 +678,7 @@ class IncrementalCompiler(
 		val kotlinChanged = changedFiles.filter { it.extension != "java" }
 		val previous = javaAbi
 		val snapshotStartedAt = System.currentTimeMillis()
-		val current = JavaSourceAbi.snapshot(javaSources)
+		val current = JavaSourceAbi.snapshot(javaSources, warn)
 		javaAbiSnapMillis = System.currentTimeMillis() - snapshotStartedAt
 		pendingJavaAbi = current
 		val toCompile =
