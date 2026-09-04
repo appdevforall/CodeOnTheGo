@@ -12,7 +12,6 @@ import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import org.slf4j.LoggerFactory
 
 object SnippetHandler {
-
 	private val log = LoggerFactory.getLogger(SnippetHandler::class.java)
 
 	fun loadUserSnippets() {
@@ -37,7 +36,10 @@ object SnippetHandler {
 		registerContributions(pluginId, contributions)
 	}
 
-	private fun registerContributions(pluginId: String, contributions: List<SnippetContribution>) {
+	private fun registerContributions(
+		pluginId: String,
+		contributions: List<SnippetContribution>,
+	) {
 		contributions.groupBy { it.language to it.scope }.forEach { (key, group) ->
 			val (language, scope) = key
 			val snippets = group.map { DefaultSnippet(it.prefix, it.description, it.body.toTypedArray()) }

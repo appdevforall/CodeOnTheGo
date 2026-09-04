@@ -12,6 +12,8 @@ import com.itsaky.androidide.floating.fragment.OverlayFragmentHost
 import com.itsaky.androidide.floating.model.ChromeControl
 import com.itsaky.androidide.floating.model.DockableContent
 import com.itsaky.androidide.floating.window.FloatingWindowHost
+import com.itsaky.androidide.plugins.base.InternalPluginApi
+import com.itsaky.androidide.plugins.base.PluginWindows
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 
@@ -32,11 +34,15 @@ class PluginTabDockableContent(
 
 	private var fragmentHost: OverlayFragmentHost? = null
 
+	/** The window context the plugin's dialogs were built against; see [onDestroyView]. */
+	private var windowContext: Context? = null
+
 	override fun onCreateView(
 		context: Context,
 		host: FloatingWindowHost,
 	): View =
 		try {
+			windowContext = context
 			val overlayHost = OverlayFragmentHost(context, host, PluginFragmentFactory(FragmentFactory()))
 			fragmentHost = overlayHost
 			overlayHost.start()
@@ -56,7 +62,17 @@ class PluginTabDockableContent(
 			errorView(context)
 		}
 
+	/**
+	 * Tears the plugin's fragment down and closes any dialog it left open.
+	 *
+	 * A plugin dialog shown from a floating window is retyped as an overlay and so carries no app
+	 * token: destroying the window does not remove it, and it would go on drawing over whatever the
+	 * user does next. [PluginWindows] tracks the ones it raised so they can be dismissed here.
+	 */
+	@OptIn(InternalPluginApi::class)
 	override fun onDestroyView() {
+		windowContext?.let { runCatching { PluginWindows.dismissOverlayDialogsFor(it) } }
+		windowContext = null
 		runCatching { fragmentHost?.destroy() }
 		fragmentHost = null
 	}

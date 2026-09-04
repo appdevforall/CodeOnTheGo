@@ -557,6 +557,34 @@
 	<string name="msg_extract_variable_nothing_to_extract">No expression to extract here</string>
 	<string name="msg_extract_variable_file_changed">The file changed. Try extracting again.</string>
 
+	<!-- Extract variable refactoring (Java) -->
+	<string name="msg_extract_variable_name_invalid_java">Not a valid Java name</string>
+	<string name="msg_extract_variable_name_keyword_java">That is a Java keyword</string>
+
+	<!-- Where a Java extracted declaration can go, listed under "Declare in" -->
+	<string name="label_extract_scope_method">method %1$s</string>
+	<string name="label_extract_scope_constructor">constructor</string>
+	<string name="label_extract_scope_static_initializer">static initializer</string>
+	<string name="label_extract_scope_initializer">initializer</string>
+	<string name="label_extract_scope_lambda">lambda</string>
+	<string name="label_extract_scope_if_block">if block</string>
+	<string name="label_extract_scope_else_block">else block</string>
+	<string name="label_extract_scope_for_loop">for loop</string>
+	<string name="label_extract_scope_while_loop">while loop</string>
+	<string name="label_extract_scope_do_while_loop">do-while loop</string>
+	<string name="label_extract_scope_try_block">try block</string>
+	<string name="label_extract_scope_finally_block">finally block</string>
+	<string name="label_extract_scope_catch_block">catch block</string>
+	<string name="label_extract_scope_synchronized_block">synchronized block</string>
+	<string name="label_extract_scope_switch_rule">switch rule</string>
+	<string name="label_extract_scope_switch_case">switch case</string>
+	<string name="label_extract_scope_block">block</string>
+	<string name="label_extract_scope_if_branch">if branch</string>
+	<string name="label_extract_scope_else_branch">else branch</string>
+	<string name="label_extract_scope_for_body">for body</string>
+	<string name="label_extract_scope_while_body">while body</string>
+	<string name="label_extract_scope_do_while_body">do-while body</string>
+
 	<!-- Extract method refactoring (Kotlin) -->
 	<string name="action_extract_method">Extract method</string>
 	<string name="title_extract_method">Extract method</string>

@@ -93,5 +93,6 @@ object JavaCodeActionsMenu : IActionsMenuProvider {
 				CATCH_BODY,
 				TooltipTag.EDITOR_CODE_ACTIONS_TRY_CATCH,
 			),
+			ExtractVariableAction(),
 		)
 }

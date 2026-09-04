@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.MAX_CANDIDATES
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.com.intellij.psi.PsiWhiteSpace
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
@@ -29,9 +30,6 @@ import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 import org.jetbrains.kotlin.psi.KtSuperExpression
 import org.jetbrains.kotlin.psi.KtSuperTypeListEntry
 import org.jetbrains.kotlin.psi.KtThrowExpression
-
-/** How many candidate expressions are ever offered. Keeps the chooser scannable on a phone. */
-const val MAX_CANDIDATES = 3
 
 /**
  * The purely syntactic result of resolving a cursor or selection to extraction targets.

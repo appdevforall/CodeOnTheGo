@@ -25,7 +25,7 @@ internal fun buildExtractMethodPlan(
 	nioPath: Path,
 	selectionStart: Int,
 	selectionEnd: Int,
-	documentVersion: Int,
+	documentVersion: Int?,
 	cancelChecker: ScheduledCancelChecker,
 ): ExtractMethodPlan =
 	runCatching {
