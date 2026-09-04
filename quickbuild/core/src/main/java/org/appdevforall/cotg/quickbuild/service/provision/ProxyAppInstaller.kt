@@ -16,6 +16,7 @@ import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * What the installer needs to know about installed packages; implemented over
@@ -209,8 +210,10 @@ class ProxyAppInstaller(
 
 		return coroutineScope {
 			// Set when the OS reported PENDING_USER_ACTION, which means a confirm dialog
-			// exists; re-issuing the prompt then would stack a second dialog on it.
-			var pendingUserActionSeen = false
+			// exists; re-issuing the prompt then would stack a second dialog on it. Atomic
+			// because the write happens in the collector child and the read on this
+			// coroutine while that child is still running, so nothing else orders them.
+			val pendingUserActionSeen = AtomicBoolean(false)
 			// Subscribe before committing the install so a fast broadcast cannot slip
 			// past us. PENDING_USER_ACTION is decisive too when no confirm dialog can be
 			// launched, since nobody will ever tap.
@@ -222,7 +225,7 @@ class ProxyAppInstaller(
 								val ours =
 									broadcast.packageName == null || broadcast.packageName == packageName
 								if (ours && broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION) {
-									pendingUserActionSeen = true
+									pendingUserActionSeen.set(true)
 								}
 								ours &&
 									(
@@ -286,7 +289,7 @@ class ProxyAppInstaller(
 							// exists - the user is reading it, and a re-commit would put a
 							// second dialog over the first. Only the silent case (no status
 							// at all) is the lost-prompt one the re-issue repairs.
-							if (canShowConfirmDialog() && !pendingUserActionSeen) {
+							if (canShowConfirmDialog() && !pendingUserActionSeen.get()) {
 								log.info(
 									"no install verdict for {} in {}ms; re-issuing the prompt",
 									packageName,
