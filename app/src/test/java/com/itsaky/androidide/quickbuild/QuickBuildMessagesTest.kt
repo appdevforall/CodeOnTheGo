@@ -75,6 +75,11 @@ class QuickBuildMessagesTest {
 			"spawn refused",
 		)
 		assertResolvesTo(
+			QuickBuildMessage.DaemonStartFailed(detail = "jdk missing"),
+			R.string.quick_build_daemon_start_failed,
+			"jdk missing",
+		)
+		assertResolvesTo(
 			QuickBuildMessage.ScratchDirUnavailable(path = "/data/scratch"),
 			R.string.quick_build_scratch_dir_unavailable,
 			"/data/scratch",
@@ -113,6 +118,7 @@ class QuickBuildMessagesTest {
 				QuickBuildMessage.RebuildFailed,
 				QuickBuildMessage.ProvisioningFailedUnexpectedly,
 				QuickBuildMessage.DaemonRestartFailed("detail"),
+				QuickBuildMessage.DaemonStartFailed("start detail"),
 				QuickBuildMessage.NotEnoughStorage(512, 64),
 				QuickBuildMessage.ScratchDirUnavailable("/data/scratch"),
 				QuickBuildMessage.DaemonRejectedConfiguration,
