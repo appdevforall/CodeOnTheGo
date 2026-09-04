@@ -81,8 +81,8 @@ class GradleQuickBuildProvisioner(
 	 * handed out, so a failed build burns it (monotonic counters may skip). Injectable for
 	 * tests.
 	 */
-	private val nextBaselineGeneration: (File) -> Long = { projectRoot ->
-		GenerationTracker(FileGenerationStore.forProject(projectRoot)).next()
+	private val nextBaselineGeneration: suspend (File) -> Long = { projectRoot ->
+		GenerationTracker.open(FileGenerationStore.forProject(projectRoot)).next()
 	},
 	/** Unpacks the bundled proxy-app build inputs into the project. Injectable for tests. */
 	private val stage: (Context, EnvironmentQuickBuildPaths) -> Unit = { ctx, paths ->

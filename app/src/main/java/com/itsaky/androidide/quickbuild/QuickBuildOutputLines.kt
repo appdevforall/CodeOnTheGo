@@ -338,7 +338,10 @@ private fun upToDateLines(
 			val how = if (current.restarted) "restarted on" else "reloaded to"
 			// Same quantity and same formatting as the timing line's total, deliberately: two
 			// differently-scaled numbers for one loop leave the reader asking which is which.
-			listOf("$how generation ${current.generation} in ${seconds(landed)}.")
+			// The compiler's warnings follow, indented like a failed build's errors: a warning
+			// the Gradle build would list must not vanish because the quick one succeeded.
+			listOf("$how generation ${current.generation} in ${seconds(landed)}.") +
+				current.diagnostics.map { "  " + describe(it) }
 		}
 
 		else -> {
