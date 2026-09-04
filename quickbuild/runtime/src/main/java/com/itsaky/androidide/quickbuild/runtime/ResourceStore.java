@@ -159,7 +159,9 @@ final class ResourceStore {
 	 *
 	 * The merge clears the dir first when it belongs to another baseline, so assets never outlive the baseline they were deployed onto.
 	 *
-	 * A failed merge is not undone: there is no asset rollback, so whatever it already wrote stays live until the next successful deploy onto the same baseline overwrites it.
+	 * A failed merge is not undone here: there is no asset rollback, and the merge leaves {@link AssetExtractor#MERGE_PENDING_MARKER} behind. The NEXT merge finds it and clears the whole dir rather than overwriting into it - a half-merged dir would serve a file from the wrong generation - so the older generations' assets do not survive a failed merge; the provider falls through to the APK's baked-in copies until a forced rebuild.
+	 *
+	 * Below API 30 there is no asset swap at all: {@link DirectoryAssetsProvider} needs a {@code ResourcesLoader}, and {@link LegacyResourceSwap} mounts the relinked resource apk only. The host keeps such payloads away from this class - {@code QuickBuildModule} sets {@code assetsLiveReloadable} only from API 30 and the change classifier sends an asset-bearing edit to Gradle otherwise - but this class asserts that itself rather than acking a merge nothing would read.
 	 *
 	 * @param assetsFd
 	 *            the changed-assets zip; always closed, success or failure
@@ -170,25 +172,29 @@ final class ResourceStore {
 	 * @param appContext
 	 *            application context, for the cache dir the cumulative override lives under and the Resources the loader attaches to
 	 * @param onOutcome
-	 *            told when the posted provider swap fails, since that lands after this method returns; null when the caller has nothing to do about it
+	 *            told when the posted provider swap fails, since that lands after this method returns, and told failed inline below API 30; null when the caller has nothing to do about it
 	 * @throws IOException
 	 *             on a read, extraction, path-traversal or provider failure; the previous override stays live
 	 */
 	void applyAssets(ParcelFileDescriptor assetsFd, long generation, String baselineFingerprint,
 			Context appContext, SwapOutcome onOutcome) throws IOException {
+		if (strategy != ResourceSwapStrategy.RESOURCES_LOADER) {
+			// Nothing below API 30 reads the merged dir, so a merge here would be a swap
+			// that never happens - and reporting it committed used to ack a backgrounded
+			// reload the app could not show. Failed, with the reason, so the deploy is
+			// refused the way any other unservable payload is; the host's API gate is what
+			// keeps this from being reached.
+			Streams.closeQuietly(assetsFd);
+			reportSwapFailure(onOutcome, new IllegalStateException(
+					"asset payloads need API 30+ (ResourcesLoader); gen " + generation + " not applied"));
+			return;
+		}
 		File assetsRoot = new File(appContext.getCacheDir(), ASSETS_ROOT_DIR);
 		InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(assetsFd);
 		try {
 			int extracted = AssetExtractor.extractCumulative(in, assetsRoot, baselineFingerprint);
-			if (strategy == ResourceSwapStrategy.RESOURCES_LOADER) {
-				refreshAssetsProvider(
-						AssetExtractor.currentDir(assetsRoot), generation, appContext, onOutcome);
-			} else {
-				// The merge on disk is the whole swap below API 30; there is no provider to
-				// queue, so the outcome is settled here rather than by a callback that never
-				// comes.
-				reportSwapCommitted(onOutcome);
-			}
+			refreshAssetsProvider(
+					AssetExtractor.currentDir(assetsRoot), generation, appContext, onOutcome);
 			RuntimeLog.i("merged " + extracted + " changed asset(s) into the override");
 		} finally {
 			try {
