@@ -16,6 +16,7 @@ import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.quickbuild.QuickBuildGraphWarmUp
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.resolveAttr
@@ -202,10 +203,13 @@ class QuickBuildAction(
 		private fun standardBuildInProgress(): Boolean =
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)?.isUserVisibleBuildInProgress == true
 
-		private fun currentSessionManager(): QuickBuildSessionManager? =
-			runCatching { GlobalContext.get().get<QuickBuildSessionManager>() }
-				.onFailure { log.error("Quick Build session manager unavailable", it) }
-				.getOrNull()
+		/**
+		 * The built manager or null, never a resolve: prepare() and the toolbar's tone lookup run
+		 * on the main thread, about 150 ms after onStart, and must not be the call that builds
+		 * the graph if the editor's off-main warm-up has not finished yet. Null reads as READY,
+		 * and the status collector refreshes the menu as soon as the warm-up lands.
+		 */
+		private fun currentSessionManager(): QuickBuildSessionManager? = QuickBuildGraphWarmUp.INSTANCE.sessionManagerOrNull
 
 		/**
 		 * The one fact this button presents, read pull-style. Public so the toolbar's
