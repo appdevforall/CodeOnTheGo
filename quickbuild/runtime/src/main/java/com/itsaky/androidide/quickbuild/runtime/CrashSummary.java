@@ -37,6 +37,14 @@ final class CrashSummary {
 	static final String MIXED_STATE_PREFIX = "Rolled back the code, but the resources had already swapped in: "
 			+ "the app is running mixed versions until it is restarted.";
 
+	/**
+	 * First line of the report for a persisted generation whose resources could not be restored at startup.
+	 *
+	 * Distinct from {@link #MIXED_STATE_PREFIX} because nothing was rolled back: the code is this generation's and the resources are the installed APK's, and a restart re-runs the restore rather than clearing anything.
+	 */
+	static final String BOOT_RESTORE_PREFIX = "Could not restore this generation's resources at startup: "
+			+ "the app is running its code over the installed resources. Restart the app to retry.";
+
 	/** Frames a report to CoGo names; enough to place the fault, short enough to read. */
 	private static final int MAX_REPORT_FRAMES = 5;
 
@@ -70,6 +78,17 @@ final class CrashSummary {
 	 */
 	static String forMixedReport(Throwable error) {
 		return report(MIXED_STATE_PREFIX, error);
+	}
+
+	/**
+	 * The full form reported to CoGo when a boot-time resource restore failed: {@link #BOOT_RESTORE_PREFIX}, then the same frames as {@link #forReport}, under the same length cap.
+	 *
+	 * @param error
+	 *            the extraction or swap failure; must be non-null
+	 * @return the prefixed report, truncated to {@link #MAX_REPORT_LENGTH} chars as a whole
+	 */
+	static String forBootRestoreReport(Throwable error) {
+		return report(BOOT_RESTORE_PREFIX, error);
 	}
 
 	/**

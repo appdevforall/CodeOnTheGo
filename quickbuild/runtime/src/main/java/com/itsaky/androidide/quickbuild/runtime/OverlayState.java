@@ -52,7 +52,7 @@ final class OverlayState {
 	/**
 	 * State for a reload that failed after its resource swap had already committed, so the rollback restored the code half only.
 	 *
-	 * Says restart rather than "last working version": the screen resolves the failed generation's table over the previous generation's classes, and only a resources-carrying deploy or a process restart clears that. Restart is the remedy the user has - the failed generation is quarantined, so the next boot adopts the last good one whole.
+	 * Says restart rather than "last working version": the screen resolves the failed generation's table over the previous generation's classes, and only a resources-carrying deploy or a process restart clears that. Restart is the remedy the user has: after a deploy-time failure the generation is quarantined, so the next boot adopts the last good one whole, and after a boot-time restore failure the restart re-runs the restore.
 	 *
 	 * @return the mixed-versions crash state
 	 */
