@@ -151,10 +151,14 @@ class EditorBottomSheet
 		private var currentObservedFragment: Fragment? = null
 
 		// BottomSheetBehavior repositions the sheet after layout without triggering onSlide,
-		// so refresh the FABs afterward
+		// so refresh the FABs afterward. The peek goes with them: the chrome above the header is
+		// only known once the sheet has been laid out.
 		private val fabLayoutChangeListener =
 			OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-				post { updateFabVisibility(viewModel.sheetState.value) }
+				post {
+					updateFabVisibility(viewModel.sheetState.value)
+					applyPeekHeight()
+				}
 			}
 
 		companion object {
@@ -448,8 +452,17 @@ class EditorBottomSheet
 			applyPeekHeight()
 		}
 
+		/**
+		 * What the sheet puts above the header: the status-bar padding it carries for its
+		 * expanded state, and the divider row. The peek has to include it, or the bottom of the
+		 * header falls below the window and takes the swipe hint with it.
+		 */
+		private val chromeAboveHeader: Int
+			get() = binding.root.top + binding.headerContainer.top
+
 		private fun applyPeekHeight() {
-			behavior.peekHeight = if (isSearchModeActive) 0 else collapsedHeight.roundToInt()
+			behavior.peekHeight =
+				collapsedPeekHeightPx(collapsedHeight, chromeAboveHeader, isSearchModeActive)
 		}
 
 		/**
@@ -467,11 +480,16 @@ class EditorBottomSheet
 			if (header.width == 0) {
 				return
 			}
+			// AT_MOST, not UNSPECIFIED: ConstraintLayout does not support an UNSPECIFIED height
+			// spec. It reports a height that leaves the swipe hint out, and that stale figure is
+			// what the block is then laid out at, clipping the hint away.
 			status.measure(
 				MeasureSpec.makeMeasureSpec(header.width, MeasureSpec.EXACTLY),
-				MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+				MeasureSpec.makeMeasureSpec(resources.displayMetrics.heightPixels, MeasureSpec.AT_MOST),
 			)
 			val measured = status.measuredHeight.toFloat()
+			// The measure above ran outside a layout pass, so ask for a real one to replace it.
+			header.requestLayout()
 			if (measured <= 0f || measured == measuredStatusHeight) {
 				return
 			}
@@ -492,7 +510,7 @@ class EditorBottomSheet
 						view.viewTreeObserver.removeOnGlobalLayoutListener(this)
 						anchorOffset = view.height + view.context.dpToPx(1f)
 
-						behavior.peekHeight = collapsedHeight.roundToInt()
+						applyPeekHeight()
 						behavior.expandedOffset = anchorOffset
 						behavior.isGestureInsetBottomIgnored = true
 
@@ -511,7 +529,7 @@ class EditorBottomSheet
 
 		fun resetOffsetAnchor() {
 			anchorOffset = 0
-			behavior.peekHeight = collapsedHeight.roundToInt()
+			applyPeekHeight()
 			behavior.expandedOffset = 0
 			binding.root.updatePadding(bottom = insetBottom)
 			binding.headerContainer.apply {
@@ -829,3 +847,13 @@ class EditorBottomSheet
 			binding.copyDiagnosticsFab.translationY = translationY
 		}
 	}
+
+/**
+ * The peek height that keeps the whole collapsed header on screen: the header itself, plus the
+ * sheet chrome that sits above it. Search mode hides the sheet instead.
+ */
+internal fun collapsedPeekHeightPx(
+	collapsedHeight: Float,
+	chromeAboveHeader: Int,
+	isSearchModeActive: Boolean,
+): Int = if (isSearchModeActive) 0 else (collapsedHeight + chromeAboveHeader).roundToInt()
