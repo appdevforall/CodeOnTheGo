@@ -168,10 +168,29 @@ class DeepLinkBuildUrlTest {
 	}
 
 	@Test
-	fun `column without a line round-trips`() {
-		val url = DeepLinkRequest.buildUrl("MyApp", "Main.kt", line = null, column = 3)
-		assertThat(roundTrip(url)?.fileRequest)
-			.isEqualTo(PendingFileRequest(filePath = "Main.kt", lineRaw = null, columnRaw = "3"))
+	fun `refuses a column with no line, which the reader would silently apply to line 1`() {
+		// parse() can read this shape, so the previous version of this test asserted it round-trips --
+		// but zeroBasedOrInvalid(null) yields 0, so the reader puts the cursor at line 1 with the given
+		// column: a position the link never named, and no invalid-value message either. That is the
+		// same quiet wrongness a line with no file is refused for.
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "Main.kt", line = null, column = 3)).isNull()
+	}
+
+	@Test
+	fun `refuses paths the reader rejects lexically, not just the ones with slash components`() {
+		// The reader's isLexicallyRejected splits on '\\' too, so these are traversal to it while a
+		// guard looking only at '/' components sees one harmless filename.
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "a\\..\\b.kt", line = 1, column = 1)).isNull()
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "\\Main.kt", line = 1, column = 1)).isNull()
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "/Main.kt", line = 1, column = 1)).isNull()
+
+		// A character the reader's base.resolve() cannot accept: encodes and round-trips fine, dies
+		// there with InvalidPathException.
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "a\u0000b.kt", line = 1, column = 1)).isNull()
+
+		// A backslash that is NOT traversal stays linkable -- the guard mirrors the reader, it does
+		// not blanket-ban a legal filename character.
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "we\\ird.kt", line = 1, column = 1)).isNotNull()
 	}
 
 	@Test

@@ -64,7 +64,10 @@ class CreateLinkActionTest {
 	}
 
 	@Test
-	fun `a path on a different volume shares no root and is refused`() {
+	fun `an unrelated absolute path elsewhere on the filesystem is refused`() {
+		// Not "a different volume": on Android both of these share the root "/", so relativeToOrNull
+		// succeeds and returns a "../.."-prefixed path. It is the containment check that refuses it,
+		// which is the branch worth covering anyway.
 		assertThat(projectRelativePathOrNull(project, File("/data/local/tmp/Main.kt"))).isNull()
 	}
 }

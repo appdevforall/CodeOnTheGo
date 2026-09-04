@@ -166,13 +166,27 @@ class ProjectValidationsTest {
 	}
 
 	@Test
-	fun `the full rule agrees with the shortcut wherever the shortcut commits`() {
+	fun `the shortcut agrees with an independent canonical comparison wherever it commits`() {
 		val root = tempFolder.newFolder("projects2")
-		for (case in listOf(File(root, "MyApp").path to "MyApp", File(root, "MyApp").path to "Other", "" to "MyApp")) {
-			val (path, name) = case
+
+		// Compared against a separately computed answer, not against isDeepLinkTargetOfOpenProject:
+		// that function now returns the shortcut's value verbatim in this range, so asserting the two
+		// agree would hold even if the shortcut were inverted to always return false.
+		fun independentlyLinkable(
+			path: String,
+			name: String,
+		): Boolean {
+			if (path.isBlank()) return false
+			val open = File(path)
+			if (open.name != name) return false
+			val parent = open.parentFile ?: return false
+			return parent.canonicalPath == root.canonicalPath
+		}
+
+		for ((path, name) in listOf(File(root, "MyApp").path to "MyApp", File(root, "MyApp").path to "Other", "" to "MyApp")) {
 			val shortcut = deepLinkTargetOfOpenProjectWithoutIo(path, name, root)
 			assertThat(shortcut).isNotNull()
-			assertThat(isDeepLinkTargetOfOpenProject(path, name, root)).isEqualTo(shortcut)
+			assertThat(shortcut).isEqualTo(independentlyLinkable(path, name))
 		}
 	}
 }

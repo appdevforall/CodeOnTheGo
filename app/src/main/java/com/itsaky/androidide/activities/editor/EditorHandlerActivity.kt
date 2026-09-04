@@ -2209,7 +2209,7 @@ open class EditorHandlerActivity :
 			}
 		}
 
-		binding.root.addView(closeItem)
+		binding.actionItems.addView(closeItem)
 
 		val undockItem =
 			FileActionPopupWindowItemBinding
@@ -2238,7 +2238,7 @@ open class EditorHandlerActivity :
 				popupWindow.dismiss()
 			}
 		}
-		binding.root.addView(undockItem)
+		binding.actionItems.addView(undockItem)
 
 		popupWindow.showAsDropDown(anchorView, 0, 0)
 	}

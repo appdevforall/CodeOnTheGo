@@ -150,8 +150,10 @@ internal fun isDeepLinkTargetOfOpenProject(
 	// Whatever can be settled without touching the disk, settle here.
 	deepLinkTargetOfOpenProjectWithoutIo(openProjectPath, projectName, projectsRoot)?.let { return it }
 
-	val open = File(openProjectPath)
-	return canonicalOrAbsolute(open.parentFile ?: return false) == canonicalOrAbsolute(projectsRoot)
+	// Reached only when the shortcut deferred, which it does only after establishing a non-null
+	// parent and a matching name -- so this re-derives the parent rather than re-checking the rest.
+	val parent = File(openProjectPath).parentFile ?: return false
+	return canonicalOrAbsolute(parent) == canonicalOrAbsolute(projectsRoot)
 }
 
 /**

@@ -250,8 +250,12 @@ class ContainedPathResolver(
 		 * with a more lenient fallback for paths [resolve] refused ([ZipUtils]' skip of an existing
 		 * symlink) can apply the same reject first: an entry that fails here is a bad archive
 		 * however the filesystem looks, never fallback material.
+		 *
+		 * Public so a *writer* of these paths can refuse what this reader would -- see
+		 * [DeepLinkRequest.buildUrl][com.itsaky.androidide.models.DeepLinkRequest.Companion.buildUrl],
+		 * which would otherwise re-spell a subset of this rule and drift from it.
 		 */
-		internal fun isLexicallyRejected(relativePath: String): Boolean =
+		fun isLexicallyRejected(relativePath: String): Boolean =
 			// Split on both separators: '\' is not a path separator on Android, but a caller handing
 			// over a Windows-style path should not have it treated as one long filename.
 			relativePath.isEmpty() ||

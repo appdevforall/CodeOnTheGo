@@ -18,8 +18,10 @@
 package com.itsaky.androidide.models
 
 import android.net.Uri
+import com.itsaky.androidide.utils.ContainedPathResolver
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
+import java.nio.file.Paths
 
 /**
  * A request to open a file at an optional line/column, carried as part of a [DeepLinkRequest] or a
@@ -256,14 +258,21 @@ data class DeepLinkRequest(
 		 * or in [lookupValidProjectByName][com.itsaky.androidide.utils.lookupValidProjectByName]:
 		 * there is nothing to be gained by handing someone a link this same app refuses to open.
 		 *
-		 * Deliberately NOT mirrored is that reader's
-		 * [isValidProjectDirectory][com.itsaky.androidide.utils.isValidProjectDirectory] requirement.
-		 * Checking it would mean disk I/O on whatever thread builds a link, and it is a fact about the
-		 * project at *open* time rather than at link time -- a project that stops looking like an
-		 * Android project after the link is made (its `app/build.gradle` renamed, say) would invalidate
-		 * an already-sent link no matter what was verified here. So a link can still be emitted that
-		 * this app later declines with "no project named X"; that is a property of the scheme, not
-		 * something this function can close.
+		 * Three of the reader's checks are deliberately NOT mirrored, because none of them can be
+		 * answered without a filesystem call or a fact that outlives the link:
+		 * [ContainedPathResolver][com.itsaky.androidide.utils.ContainedPathResolver]'s real-path
+		 * containment (a file reached through a symlink inside the project relativises to a clean path
+		 * here and resolves outside the project there), the reader's NFC/NFD candidate matching --
+		 * which it applies to the project NAME only, so an intermediary that normalizes the URL breaks
+		 * the FILE half of a link even though the project half survives -- and that reader's
+		 * [isValidProjectDirectory][com.itsaky.androidide.utils.isValidProjectDirectory] requirement,
+		 * which is a fact about the project at *open* time -- one that stops looking like an Android
+		 * project after the link is sent (its `app/build.gradle` renamed, say) invalidates an
+		 * already-sent link no matter what was verified here.
+		 *
+		 * So a link can still be emitted that this app later declines. The guarantee this function
+		 * does make is narrower and worth stating exactly: nothing it returns will be *misread* --
+		 * read back as naming a different project, file, line or column than the caller asked for.
 		 */
 		fun buildUrl(
 			projectName: String,
@@ -293,6 +302,14 @@ data class DeepLinkRequest(
 				return null
 			}
 
+			// And a column with no line is refused for exactly the same reason: zeroBasedOrInvalid(null)
+			// yields 0, so the reader would silently apply the column to line 1 -- a position the link
+			// never named, with no invalid-value message. parse() can still READ that shape (a
+			// hand-authored link), it is just not one worth writing.
+			if (column != null && line == null) {
+				return null
+			}
+
 			// Zero and negative are exactly what zeroBasedOrInvalid() reports back to the user as an
 			// invalid line/column, so they must not be written down in the first place.
 			if ((line != null && line <= 0) || (column != null && column <= 0)) {
@@ -306,13 +323,29 @@ data class DeepLinkRequest(
 			builder.appendPath(projectName)
 
 			if (filePath != null) {
+				// The reader's own lexical rule, called rather than re-spelled: it splits on '\\' as
+				// well as '/' and refuses a leading one, which a guard looking only at '/' components
+				// misses -- a file legitimately named "a\\..\\b.kt" is one harmless-looking component
+				// here and a traversal there, so the link would copy with a success message and then be
+				// refused on open.
+				if (ContainedPathResolver.isLexicallyRejected(filePath)) {
+					return null
+				}
+
 				val segments = filePath.split('/')
-				// An empty component would put "//" in the path, which parse() rejects outright. A "."
-				// or ".." component is refused for the reason given above: resolveWithinDirectory treats
-				// it as traversal and rejects the link, and any URL-normalizing intermediary silently
-				// rewrites it into a different path on the way. Other dot-prefixed names are fine --
-				// unlike a project directory, a hidden FILE (.gitignore) is perfectly linkable.
-				if (segments.any { it.isEmpty() || it == "." || it == ".." }) {
+				// Refused locally on top of that rule: an empty component would put "//" in the path,
+				// which parse() rejects outright, and a "." component normalizes away to the base
+				// directory, which resolveWithinDirectory refuses as "not a path inside". Other
+				// dot-prefixed names are fine -- unlike a project directory, a hidden FILE
+				// (.gitignore) is perfectly linkable.
+				if (segments.any { it.isEmpty() || it == "." }) {
+					return null
+				}
+
+				// A character the reader's base.resolve() cannot accept -- a NUL, say -- percent-encodes
+				// and round-trips through parse() cleanly, then dies there with InvalidPathException.
+				// Refuse it on the same terms, with no filesystem call.
+				if (runCatching { Paths.get(filePath) }.isFailure) {
 					return null
 				}
 
@@ -337,25 +370,16 @@ data class DeepLinkRequest(
 				column?.let { builder.appendPath(SEGMENT_COLUMN).appendPath(it.toString()) }
 			}
 
-			val uri = builder.build()
+			val url = builder.build().toString()
 
-			// parse() measures the DECODED path against this ceiling and Uri.getPath() is decoded, so
-			// this is the same number it will see -- percent-expansion in the emitted string does not
-			// count against it.
-			if ((uri.path?.length ?: 0) > MAX_LINK_PATH_LENGTH) {
-				return null
-			}
-
-			// The contract, enforced rather than reasoned about: never hand back a URL that this same
-			// app reads as something other than what was asked for. The guards above each mirror one
-			// known rejection in parse(), but parse() also peels line/column POSITIONALLY, and no
-			// enumeration of guards catches every path whose own trailing segments happen to look like
-			// that metadata (".../file/src/line/5" with no line of its own reads back as file "src" at
-			// line 5). Comparing the parse of what was just built against the arguments that built it
-			// turns that whole class into a null return, and costs one parse of a string already in
-			// hand. Compared against the ARGUMENTS, not against a re-derivation, so this cannot pass
-			// by agreeing with itself.
-			val parsed = parse(uri) ?: return null
+			// Re-parsed from the STRING rather than checked against the builder's own Uri: that string
+			// is what goes on the clipboard and comes back through Uri.parse in DeepLinkActivity, and
+			// a builder-built Uri is a different implementation of the same interface. Verifying the
+			// object the reader never sees would leave the difference untested.
+			//
+			// There is deliberately no separate length check here: parse() applies
+			// MAX_LINK_PATH_LENGTH to this very path, so the round-trip below already enforces it.
+			val parsed = parse(Uri.parse(url)) ?: return null
 			if (parsed.projectName != projectName ||
 				parsed.fileRequest?.filePath != filePath ||
 				parsed.fileRequest?.lineRaw != line?.toString() ||
@@ -364,7 +388,7 @@ data class DeepLinkRequest(
 				return null
 			}
 
-			return uri.toString()
+			return url
 		}
 	}
 }

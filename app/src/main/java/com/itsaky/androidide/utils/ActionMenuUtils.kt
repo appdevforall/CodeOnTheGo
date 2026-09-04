@@ -67,7 +67,7 @@ object ActionMenuUtils {
 				true
 			}
 
-		binding.root.setOnLongClickListener(tooltipListener)
+		binding.actionItems.setOnLongClickListener(tooltipListener)
 
 		val actions = registry.getActions(ActionItem.Location.EDITOR_FILE_TABS)
 		actions.forEach { action ->
