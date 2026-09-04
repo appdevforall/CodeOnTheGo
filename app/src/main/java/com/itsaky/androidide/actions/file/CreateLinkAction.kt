@@ -61,8 +61,19 @@ class CreateLinkAction(
 		/**
 		 * Verdicts for "can a link name this project", keyed by project path. Keyed rather than a
 		 * single slot so a slow answer for a project the user has left cannot be mistaken for the
-		 * current one -- there is nothing to invalidate and no stale-write window to guard. Holds only
-		 * strings and booleans, so it is safe in a companion.
+		 * current one. Holds only strings and booleans, so it is safe in a companion.
+		 *
+		 * Deliberately NOT cleared in `destroy()`, which was tried and is wrong:
+		 * `EditorActivityLifecyclerObserver.onPause` calls `EditorActivityActions.clearActions()`,
+		 * which destroys every action in this location, and `onResume` registers fresh ones. So
+		 * `destroy()` runs on every backgrounding, not at teardown -- clearing here threw the cache
+		 * away on each background/foreground cycle, and clearing the in-flight set alongside it let a
+		 * still-running job's completion release a claim the next cycle's job had already taken.
+		 *
+		 * The cost of keeping them is a verdict that outlives the fact it describes: rename the
+		 * project directory mid-process and a cached answer is stale. That surfaces as one link that
+		 * fails to open, or one item hidden that need not be -- both recoverable, and both cheaper
+		 * than losing the answer every time the user switches apps.
 		 */
 		private val linkableProjects = ConcurrentHashMap<String, Boolean>()
 
@@ -87,7 +98,19 @@ class CreateLinkAction(
 	private fun linkableProject(projectPath: String): Boolean? {
 		linkableProjects[projectPath]?.let { return it }
 
-		val root = runCatching { projectsRoot() }.getOrNull() ?: return null
+		// false, not null: null means "ask again shortly", and there is nothing to wait for if the
+		// projects root cannot be derived at all. Narrow, because runCatching here would swallow Error
+		// too -- the same reason the IO block below does not use it.
+		val root =
+			try {
+				projectsRoot()
+			} catch (e: Exception) {
+				log.warn("Cannot locate the projects directory, so nothing can be linked", e)
+				return false
+			}
+
+		// The name half of the shared rule is trivially satisfied here -- the name is derived from the
+		// very path being compared -- so this call is really asking the parent question alone.
 		val projectName = File(projectPath).name
 
 		deepLinkTargetOfOpenProjectWithoutIo(projectPath, projectName, root)?.let {
@@ -152,16 +175,6 @@ class CreateLinkAction(
 		icon = ContextCompat.getDrawable(context, R.drawable.ic_copy)
 	}
 
-	override fun destroy() {
-		super.destroy()
-		// A verdict describes the filesystem as it was. Renaming the project directory, or swapping
-		// <projectsRoot> for a symlink, while the process lives would leave a cached answer to the old
-		// question -- so the answers do not outlive the activity that asked. REVIEW.md section 2 flags
-		// companion-held state for exactly this.
-		linkableProjects.clear()
-		canonicalisationsInFlight.clear()
-	}
-
 	override fun prepare(data: ActionData) {
 		super.prepare(data)
 
@@ -173,8 +186,13 @@ class CreateLinkAction(
 		// there is no activity, and the !visible check just above returns in exactly that case.
 		val activity = data.getActivity() ?: return
 
-		// Hidden rather than shown-and-failing: the states that produce no link are properties of how
-		// the project was opened, not transient ones the user could correct by tapping again.
+		// Hidden rather than shown-and-failing. Most states that produce no link are properties of how
+		// the project was opened, which a second tap could not correct. One is a property of the FILE:
+		// a path long enough to push the decoded URL past parse()'s 512-character ceiling. That one
+		// makes the item come and go as the user switches between a deep and a shallow tab, with no
+		// explanation offered, because the tap that would explain is never available. Surfacing a
+		// reason means buildUrl reporting WHY it refused rather than just null -- worth doing, and
+		// deliberately not bundled into this change.
 		//
 		// Only the cheap predicates run here. prepare() is called synchronously, from the touch
 		// handler, for every action in this menu on every open, and building the URL just to compare
@@ -290,15 +308,15 @@ class CreateLinkAction(
 			return null
 		}
 
-		// The editor is zero-based at both ends; the URL scheme is one-based. Both coordinates are
-		// always written, never omitted at 1:1 -- see buildUrl, which refuses the coordinate-free and
-		// column-only shapes precisely because the reader mis-handles them.
+		// Both coordinates are always written, never omitted at 1:1 -- see buildUrl, which refuses the
+		// coordinate-free and column-only shapes precisely because the reader mis-handles them.
 		val cursor = editor.cursor
+		val (line, column) = oneBasedCursorPosition(cursor.leftLine, cursor.leftColumn)
 		return LinkTarget(
 			projectName = projectDir.name,
 			relativePath = relativePath,
-			line = cursor.leftLine + 1,
-			column = cursor.leftColumn + 1,
+			line = line,
+			column = column,
 		)
 	}
 }
@@ -323,3 +341,17 @@ internal fun projectRelativePathOrNull(
 	}
 	return relative
 }
+
+/**
+ * The one-based line and column a link carries, from the editor's zero-based cursor.
+ *
+ * Two characters of arithmetic, named and tested because dropping either `+ 1` fails silently:
+ * buildUrl refuses a line or column below 1, so a cursor at the very start of a file simply makes
+ * the menu item vanish -- indistinguishable from the ordinary hidden-when-unlinkable state -- and a
+ * cursor anywhere else yields a link that quietly points one line too high.
+ */
+@VisibleForTesting
+internal fun oneBasedCursorPosition(
+	zeroBasedLine: Int,
+	zeroBasedColumn: Int,
+): Pair<Int, Int> = (zeroBasedLine + 1) to (zeroBasedColumn + 1)

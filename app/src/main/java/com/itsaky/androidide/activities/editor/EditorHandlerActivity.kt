@@ -111,6 +111,7 @@ import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.ui.ARCHIVE_EXTENSIONS
 import com.itsaky.androidide.ui.CodeEditorView
+import com.itsaky.androidide.utils.ActionMenuUtils
 import com.itsaky.androidide.utils.DeepLinkProjectLookup
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showConfirmationDialog
@@ -2240,6 +2241,8 @@ open class EditorHandlerActivity :
 		}
 		binding.actionItems.addView(undockItem)
 
+		// Same cap as the file-tab popup: this popup shares that layout, so it shares the problem.
+		with(ActionMenuUtils) { popupWindow.capHeightToSpaceBelow(anchorView, binding.root) }
 		popupWindow.showAsDropDown(anchorView, 0, 0)
 	}
 
@@ -2670,8 +2673,13 @@ open class EditorHandlerActivity :
 		// branch reads the carried-forward extra itself -- they only apply whatever fileRequest THIS
 		// intent carries, which is often none. Comparing the deep link's project name against the
 		// currently-loading project's directory name (mirroring BaseEditorActivity.onCreate's own
-		// deepLinkTargetsAnotherProject check) is a synchronous, disk-free way to tell same from
-		// different without waiting on the deep-link path's own async resolve.
+		// deepLinkTargetsAnotherProject check) is a synchronous way to tell same from
+		// different without waiting on the deep-link path's own async resolve. It is not free, though:
+		// this comment used to claim "disk-free", and isDeepLinkTargetOfOpenProject falls through to
+		// two File.canonicalPath calls whenever the paths differ as text. Deep-link arrival is a rare,
+		// user-initiated event so the stall is bounded, but it is a main-thread read on this path and
+		// on BaseEditorActivity.onCreate's -- see deepLinkTargetOfOpenProjectWithoutIo for the half
+		// that needs no disk, which CreateLinkAction uses because it is called on every menu open.
 		// EditorIntentExtras.EXTRA_PREVIOUS_PROJECT_PATH, when present, is what IProjectManager.projectDirPath held before
 		// MainActivity.openProject's bookkeeping call overwrote it to the NEW path -- by the time this
 		// intent arrives here, the global itself already reads as the new path regardless of whether

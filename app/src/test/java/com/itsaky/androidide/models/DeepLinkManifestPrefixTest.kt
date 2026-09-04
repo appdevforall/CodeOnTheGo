@@ -49,13 +49,13 @@ class DeepLinkManifestPrefixTest {
 		// Scoped to <data> elements that name a deep-link host, NOT every pathPrefix in the file. An
 		// unrelated App Link added elsewhere in the manifest is not drift in this scheme, and failing
 		// on it would point the reader at DeepLinkRequest for someone else's change.
-		val declared =
+		val elements =
 			Regex("""<data\b[^>]*>""", RegexOption.DOT_MATCHES_ALL)
 				.findAll(manifest!!.readText())
 				.map { it.value }
 				.filter { it.contains("appdevforall.org") }
-				.mapNotNull { Regex("""android:pathPrefix\s*=\s*"([^"]*)"""").find(it)?.groupValues?.get(1) }
 				.toList()
+		val declared = elements.mapNotNull { attribute(it, "android:pathPrefix") }
 
 		// If the intent-filter stops declaring a prefix, this test must fail rather than vacuously
 		// pass over an empty list -- there are two <data> elements today, one per verified host.
@@ -64,10 +64,25 @@ class DeepLinkManifestPrefixTest {
 		// Taken from a URL the builder actually produces, so this asserts against the emitted shape
 		// rather than against a second copy of the constant.
 		val built = DeepLinkRequest.buildUrl("MyApp", "Main.kt", line = 1, column = 1)
-		val path = Uri.parse(built!!).path!!
+		val emitted = Uri.parse(built!!)
 
 		for (prefix in declared) {
-			assertThat(path).startsWith(prefix)
+			assertThat(emitted.path).startsWith(prefix)
 		}
+
+		// Host and scheme too, not only the path. An intent-filter matches on all three, so changing
+		// CANONICAL_HOST or SCHEME without the manifest breaks delivery exactly as changing the prefix
+		// does -- and a path-only assertion stays green through both.
+		val hosts = elements.mapNotNull { attribute(it, "android:host") }.toSet()
+		val schemes = elements.mapNotNull { attribute(it, "android:scheme") }.toSet()
+		assertThat(hosts).isNotEmpty()
+		assertThat(schemes).isNotEmpty()
+		assertThat(hosts).contains(emitted.host)
+		assertThat(schemes).contains(emitted.scheme)
 	}
+
+	private fun attribute(
+		element: String,
+		name: String,
+	): String? = Regex("""$name\s*=\s*"([^"]*)"""").find(element)?.groupValues?.get(1)
 }

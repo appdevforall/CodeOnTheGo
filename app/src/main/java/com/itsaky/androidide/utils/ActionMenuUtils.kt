@@ -35,6 +35,33 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 
 object ActionMenuUtils {
+	/**
+	 * Caps [this] at the room actually available below [anchorView], measuring [content] first.
+	 *
+	 * A PopupWindow built WRAP_CONTENT reports height -2 to `showAsDropDown`, and its fit check
+	 * (`height <= spaceBelow`) is therefore trivially satisfied -- so no resize is ever negotiated and
+	 * the content gets measured against the whole display instead of the space under the tab strip.
+	 * The ScrollView then believes it fits and does not scroll, and the window is left to run off the
+	 * bottom or be shoved up over the tabs and toolbar. At 2x font scale with the undock item and
+	 * plugin contributions, this menu can reach that size.
+	 *
+	 * Left alone when the content already fits, so the failure mode of a bad measurement is the
+	 * previous behaviour rather than a zero-height popup.
+	 */
+	internal fun PopupWindow.capHeightToSpaceBelow(
+		anchorView: View,
+		content: View,
+	) {
+		val available = getMaxAvailableHeight(anchorView)
+		if (available <= 0) return
+
+		val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+		content.measure(unspecified, unspecified)
+		if (content.measuredHeight > available) {
+			height = available
+		}
+	}
+
 	fun showPopupWindow(
 		context: Context,
 		anchorView: View,
@@ -161,6 +188,7 @@ object ActionMenuUtils {
 			}
 		}
 
+		popupWindow.capHeightToSpaceBelow(anchorView, binding.root)
 		popupWindow.showAsDropDown(anchorView, 0, 0)
 	}
 }

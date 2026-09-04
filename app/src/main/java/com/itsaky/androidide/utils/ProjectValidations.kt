@@ -146,13 +146,24 @@ internal fun isDeepLinkTargetOfOpenProject(
 	openProjectPath: String,
 	projectName: String,
 	projectsRoot: File,
-): Boolean =
-	// "Could not tell" collapses to "no" for callers that only want a Boolean. That is not a
-	// behaviour change from the older canonicalOrAbsolute fallback: that fallback compared the plain
-	// absolutePath when canonicalisation failed, and equal absolute paths are already settled true by
-	// the no-IO shortcut -- so reaching it at all meant they differed, and the answer was false
-	// either way. Expressing it this way keeps the canonicalisation spelled once.
-	deepLinkTargetOfOpenProjectOrNull(openProjectPath, projectName, projectsRoot) ?: false
+): Boolean {
+	deepLinkTargetOfOpenProjectWithoutIo(openProjectPath, projectName, projectsRoot)?.let { return it }
+
+	// Deliberately NOT `deepLinkTargetOfOpenProjectOrNull(...) ?: false`, which was tried on the
+	// grounds that it could not change behaviour. It can: this compares per side, so when exactly one
+	// side's canonicalPath fails it still compares that side's absolutePath against the other's
+	// canonical path -- and those can match, e.g. a projectsRoot given as /sdcard/CodeOnTheGoProjects
+	// against an open project under /storage/emulated/0/CodeOnTheGoProjects whose parent has just
+	// become unreadable. The nullable variant returns null on the first failure, which collapses to
+	// false, and at this function's two callers a false means a same-project deep link is treated as
+	// a project switch: the project is closed and reopened instead of the file simply being shown.
+	//
+	// So the two functions differ on purpose. This one stays lenient for callers that must answer
+	// now; the nullable one is strict for a caller that will REMEMBER the answer, where a wrong false
+	// outlives the condition that caused it.
+	val parent = File(openProjectPath).parentFile ?: return false
+	return canonicalOrAbsolute(parent) == canonicalOrAbsolute(projectsRoot)
+}
 
 /**
  * [isDeepLinkTargetOfOpenProject] with "could not tell" kept apart from "no", for a caller that
@@ -208,6 +219,8 @@ internal fun deepLinkTargetOfOpenProjectWithoutIo(
 	// canonicalPath can say, which is exactly the call this function exists to avoid.
 	return null
 }
+
+private fun canonicalOrAbsolute(file: File): String = runCatching { file.canonicalPath }.getOrElse { file.absolutePath }
 
 /** Determines if the directory contains a valid Android project structure. */
 fun isValidProjectDirectory(selectedDir: File): Boolean {

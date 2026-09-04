@@ -18,13 +18,17 @@
 package com.itsaky.androidide.actions.file
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.models.DeepLinkRequest
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.io.File
 
 /**
  * The non-UI half of [CreateLinkAction]: deciding what path a link may name. A link gets handed to
  * another person, so "outside the project" has to be a hard no rather than a best effort.
  */
+@RunWith(RobolectricTestRunner::class)
 class CreateLinkActionTest {
 	private val project = File("/storage/emulated/0/CodeOnTheGoProjects/MyApp")
 
@@ -69,5 +73,22 @@ class CreateLinkActionTest {
 		// succeeds and returns a "../.."-prefixed path. It is the containment check that refuses it,
 		// which is the branch worth covering anyway.
 		assertThat(projectRelativePathOrNull(project, File("/data/local/tmp/Main.kt"))).isNull()
+	}
+
+	@Test
+	fun `the cursor is converted from zero-based to one-based`() {
+		assertThat(oneBasedCursorPosition(0, 0)).isEqualTo(1 to 1)
+		assertThat(oneBasedCursorPosition(9, 4)).isEqualTo(10 to 5)
+	}
+
+	@Test
+	fun `a cursor at the very start of a file still yields a link`() {
+		// Why the conversion is load-bearing rather than cosmetic: buildUrl refuses a line or column
+		// below 1, so passing the raw zero-based cursor produces no link at all -- and the action
+		// hides the menu item, which looks exactly like the ordinary hidden-when-unlinkable state.
+		val (line, column) = oneBasedCursorPosition(0, 0)
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "Main.kt", line, column))
+			.endsWith("/file/Main.kt/line/1/column/1")
+		assertThat(DeepLinkRequest.buildUrl("MyApp", "Main.kt", 0, 0)).isNull()
 	}
 }
