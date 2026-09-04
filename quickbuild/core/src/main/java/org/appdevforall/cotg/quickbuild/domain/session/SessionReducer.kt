@@ -332,7 +332,7 @@ class SessionReducer {
 		when (event) {
 			is SessionEvent.BuildSucceeded -> {
 				SessionTransition(
-					QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted),
+					QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted, event.diagnostics),
 					// Behaviour 2 vs 3: the deploy landing is where a TAP gets its answer, and
 					// where a save deliberately gets none - the user is still editing.
 					if (event.userInitiated) listOf(SessionEffect.SwitchToProxyApp) else emptyList(),
@@ -509,7 +509,7 @@ class SessionReducer {
 					// carrying on as Invalidated would keep reporting the old one. Reached
 					// without a BuildStarted of its own when the park and the build raced.
 					SessionTransition(
-						QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted),
+						QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted, event.diagnostics),
 						if (event.userInitiated) listOf(SessionEffect.SwitchToProxyApp) else emptyList(),
 					)
 				} else {
@@ -668,7 +668,7 @@ class SessionReducer {
 				// mid-build, parking the session here while that build runs on. A deploy that landed
 				// moved the proxy app, whatever the daemon did afterwards.
 				SessionTransition(
-					QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted),
+					QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted, event.diagnostics),
 					if (event.userInitiated) listOf(SessionEffect.SwitchToProxyApp) else emptyList(),
 				)
 			}

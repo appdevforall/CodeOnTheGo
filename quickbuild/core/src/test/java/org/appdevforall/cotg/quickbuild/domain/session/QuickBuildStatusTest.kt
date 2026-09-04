@@ -171,4 +171,12 @@ class QuickBuildStatusTest {
 				.isNotInstanceOf(QuickBuildStatus.Building::class.java)
 		}
 	}
+
+	@Test
+	fun `deployed maps its compile warnings onto up to date`() {
+		val warning = BuildDiagnostic(BuildDiagnostic.Severity.WARNING, "deprecated")
+		val state = QuickBuildSessionState.Deployed(4, 900, diagnostics = listOf(warning))
+
+		assertThat(QuickBuildStatus.from(state)).isEqualTo(QuickBuildStatus.UpToDate(4, 900, diagnostics = listOf(warning)))
+	}
 }

@@ -289,7 +289,9 @@ class QuickBuildSessionManagerTest {
 	 */
 	private fun TestScope.createManager(
 		warmCompileEnabled: () -> Boolean = { true },
-		scratch: QuickBuildScratch = QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot),
+		// Null builds a scratch tree whose disk hops run on the test scheduler, inside virtual
+		// time; a test that counts ioDispatcher hops must not see the tree's own.
+		scratch: QuickBuildScratch? = null,
 		nowMillis: () -> Long = System::currentTimeMillis,
 		collectUserMessages: Boolean = true,
 		// The layout's tree walks hop off the session dispatcher; keep them on the test
@@ -388,7 +390,12 @@ class QuickBuildSessionManagerTest {
 					launches += packageName to activityClass
 					launchResult
 				},
-			scratch = scratch,
+			scratch =
+				scratch
+					?: QuickBuildScratch(
+						FakePaths(projectRoot).projectScratchRoot,
+						ioDispatcher = StandardTestDispatcher(testScheduler),
+					),
 		).also { manager ->
 			// Same hazard [recordNotices] documents, and the same reason for Unconfined.
 			if (collectUserMessages) {
@@ -731,7 +738,14 @@ class QuickBuildSessionManagerTest {
 		runTest {
 			val scratchRoot = FakePaths(projectRoot).projectScratchRoot
 			val manager =
-				createManager(scratch = QuickBuildScratch(scratchRoot, minFreeBytes = Long.MAX_VALUE))
+				createManager(
+					scratch =
+						QuickBuildScratch(
+							scratchRoot,
+							minFreeBytes = Long.MAX_VALUE,
+							ioDispatcher = StandardTestDispatcher(testScheduler),
+						),
+				)
 
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()

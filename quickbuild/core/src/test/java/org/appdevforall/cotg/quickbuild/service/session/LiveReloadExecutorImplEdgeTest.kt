@@ -55,7 +55,7 @@ class LiveReloadExecutorImplEdgeTest {
 				writeText("<resources/>")
 			}
 		File(mainDir, "AndroidManifest.xml").writeText("<manifest/>")
-		tracker = GenerationTracker(store)
+		tracker = GenerationTracker(store, initial = 0L)
 	}
 
 	private fun executor(
