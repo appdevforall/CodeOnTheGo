@@ -204,6 +204,21 @@ class QuickBuildOutputLinesTest {
 	}
 
 	@Test
+	fun `a landed build lists the compile's warnings under the reload line`() {
+		val warning = BuildDiagnostic(BuildDiagnostic.Severity.WARNING, "'foo' is deprecated", "/src/Foo.kt", 3, 5)
+		val emitted =
+			lines(
+				QuickBuildStatus.Building(4L),
+				QuickBuildStatus.UpToDate(5L, buildDurationMillis = 1200L, diagnostics = listOf(warning)),
+			)
+
+		assertThat(emitted).hasSize(2)
+		assertThat(emitted[0]).contains("reloaded to generation 5")
+		// Indented under the reload line exactly as a failed build indents its errors.
+		assertThat(emitted[1]).endsWith(":   /src/Foo.kt:3:5: warning: 'foo' is deprecated\n")
+	}
+
+	@Test
 	fun `a restarting deploy says so rather than calling itself a reload`() {
 		val emitted =
 			lines(
