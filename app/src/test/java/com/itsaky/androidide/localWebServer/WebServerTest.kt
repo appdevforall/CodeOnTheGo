@@ -363,15 +363,9 @@ class WebServerTest {
 		// The bookshelf join matches nothing: a cursor whose moveToNext() is immediately false.
 		every { db.rawQuery(match { it.contains("FROM Content AS C") }, any()) } returns
 			mockk<Cursor>(relaxed = true) { every { moveToNext() } returns false }
-		// The bookshelf template: its id lookup, then its body -- a Pebble expression over the JSON
-		// context, so the assertion proves the empty-shelf payload actually reached the render.
+		// The bookshelf template's body, fetched by name (ADFA-5405) -- a Pebble expression over the
+		// JSON context, so the assertion proves the empty-shelf payload actually reached the render.
 		every { db.rawQuery(match { it.contains("FROM Templates WHERE name") }, any()) } returns
-			mockk<Cursor>(relaxed = true) {
-				every { count } returns 1
-				every { moveToFirst() } returns true
-				every { getInt(0) } returns 7
-			}
-		every { db.rawQuery(match { it.contains("FROM Templates WHERE id") }, any()) } returns
 			mockk<Cursor>(relaxed = true) {
 				every { count } returns 1
 				every { moveToFirst() } returns true
@@ -386,6 +380,80 @@ class WebServerTest {
 			val response = sendRawGetRequest(port, "/pr/bs")
 			assertTrue("Expected a 200 status line, got:\n$response", response.startsWith("HTTP/1.1 200"))
 			assertTrue("Expected the empty shelf to render, got:\n$response", response.endsWith("shelf:0"))
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
+	// ADFA-5405: a template the endpoint cannot resolve -- the bookshelf row, or anything it
+	// references -- is named by the loader's throw, and handleBsEndpoint has to pass that name on
+	// rather than replace it with its generic text. The name is the whole diagnostic.
+	@Test
+	fun `a bookshelf template that is not in the database answers 500 naming it`() {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		every { db.rawQuery(match { it.contains("FROM Content AS C") }, any()) } returns
+			mockk<Cursor>(relaxed = true) { every { moveToNext() } returns false }
+		// No bookshelf row: a relaxed cursor's moveToFirst() is already false.
+		every { db.rawQuery(match { it.contains("FROM Templates WHERE name") }, any()) } returns mockk<Cursor>(relaxed = true)
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			val response = sendRawGetRequest(port, "/pr/bs")
+			assertTrue("Expected a 500 status line, got:\n$response", response.startsWith("HTTP/1.1 500"))
+			// The loader's own text, not just the template name: the generic fallback on the same
+			// sendError call is "Error generating bookshelf HTML.", which contains "bookshelf" too,
+			// so asserting on the name alone passes with or without the fix.
+			assertTrue(
+				"Expected the loader's diagnostic, got:\n$response",
+				response.contains("Template 'bookshelf' not found in the database"),
+			)
+			assertFalse("Expected no Pebble placeholder padding, got:\n$response", response.contains("(?:?)"))
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
+	// The other half of the ADFA-5405 diagnostic: handleBsEndpoint's catch spans the whole handler,
+	// so echoing e.message put anything thrown in there into the response body -- a SQLiteException's
+	// SQL, or withDatabase's check() failure naming the database file. Any app on the device can GET
+	// this port. Only a template failure is echoed now; this pins that the rest is not.
+	@Test
+	fun `a failure that is not a template failure answers 500 without leaking internals`() {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		// Thrown from inside the handler rather than from openDatabase, which would fail start()
+		// before the port is bound. The type matters more than the origin: this is the same
+		// IllegalStateException that withDatabase's check() raises, which used to be
+		// indistinguishable from a template diagnostic and so was echoed verbatim -- and its message
+		// carries both a filesystem path and SQL, the two things worth not sending.
+		every { db.rawQuery(match { it.contains("FROM Content AS C") }, any()) } throws
+			IllegalStateException(
+				"unable to open database file /data/user/0/com.itsaky.androidide/databases/documentation.db " +
+					"(while compiling: SELECT C.content FROM Content AS C JOIN ContentTypes)",
+			)
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			val response = sendRawGetRequest(port, "/pr/bs")
+			assertTrue("Expected a 500 status line, got:\n$response", response.startsWith("HTTP/1.1 500"))
+			assertTrue(
+				"Expected the generic text, got:\n$response",
+				response.contains("Error generating bookshelf HTML."),
+			)
+			assertFalse("Leaked a filesystem path:\n$response", response.contains("/data/user/0/"))
+			assertFalse("Leaked a database filename:\n$response", response.contains("documentation.db"))
+			assertFalse("Leaked SQL text:\n$response", response.contains("SELECT C.content"))
 		} finally {
 			server.stop()
 			serverThread.join(2_000)

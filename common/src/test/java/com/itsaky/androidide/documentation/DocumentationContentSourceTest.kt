@@ -19,7 +19,7 @@ import java.io.File
 /**
  * Covers the pipeline both documentation transports read through (ADFA-5176): what a lookup reports,
  * how chunked rows are reassembled, and what a debug-database swap does to the handle and to the
- * generation counter callers use to drop their per-database caches.
+ * generation counter these tests read a swap off.
  *
  * The database itself is a mock. These tests are about this class's decisions, and a real
  * SQLiteDatabase needs a device; the on-device behavior is covered by WebServerTest and by the
@@ -285,17 +285,7 @@ class DocumentationContentSourceTest {
 
 	@Test
 	fun `a templated row comes back rendered, so no caller needs the template engine`() {
-		val database =
-			mockk<SQLiteDatabase>(relaxed = true) {
-				every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns
-					contentCursor(bytes = """{"who": "Kotlin"}""".toByteArray(), templateId = 7)
-				every { rawQuery(match { it.contains("FROM Templates") }, arrayOf("7")) } returns
-					mockk(relaxed = true) {
-						every { count } returns 1
-						every { moveToFirst() } returns true
-						every { getBlob(0) } returns "Hello {{ who }}!".toByteArray()
-					}
-			}
+		val database = templatedDatabase("page.peb" to "Hello {{ who }}!")
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
 
 		val lookup = source().lookup("k/html/basic-syntax.html")
@@ -305,24 +295,121 @@ class DocumentationContentSourceTest {
 	}
 
 	@Test
-	fun `a template is compiled once and reused for the next page that needs it`() {
+	fun `a template pulls in another one by name, so pages can share partials`() {
 		val database =
-			mockk<SQLiteDatabase>(relaxed = true) {
-				every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns
-					contentCursor(bytes = """{"who": "Kotlin"}""".toByteArray(), templateId = 7)
-				every { rawQuery(match { it.contains("FROM Templates") }, arrayOf("7")) } returns
-					mockk(relaxed = true) {
-						every { count } returns 1
-						every { moveToFirst() } returns true
-						every { getBlob(0) } returns "Hello {{ who }}!".toByteArray()
-					}
-			}
+			templatedDatabase(
+				"page.peb" to """Hello {{ who }}! {% include "nav.peb" %}""",
+				"nav.peb" to "[nav]",
+			)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().lookup("k/html/basic-syntax.html")
+
+		assertThat((lookup as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("Hello Kotlin! [nav]")
+	}
+
+	@Test
+	fun `a template inherits a layout, filling in its blocks`() {
+		val database =
+			templatedDatabase(
+				"page.peb" to """{% extends "layout.pebble" %}{% block body %}Hello {{ who }}!{% endblock %}""",
+				"layout.pebble" to "<main>{% block body %}{% endblock %}</main>",
+			)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().lookup("k/html/basic-syntax.html")
+
+		assertThat((lookup as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("<main>Hello Kotlin!</main>")
+	}
+
+	// The ADFA-5405 regression: with Pebble's StringLoader the reference resolved to itself, so the
+	// page rendered the literal text "nav.peb" and nothing said the partial was missing.
+	@Test
+	fun `a reference to a template that is not in the database fails the lookup`() {
+		val database = templatedDatabase("page.peb" to """Hello! {% include "nav.peb" %}""")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		assertThat(source().lookup("k/html/basic-syntax.html")).isInstanceOf(DocumentationLookup.Failed::class.java)
+	}
+
+	@Test
+	fun `a well-known template renders by name, with no Content row of its own`() {
+		val database = templatedDatabase("bookshelf" to "Books for {{ who }}")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val rendered = source().renderNamedTemplate("bookshelf", """{"who": "Kotlin"}""".toByteArray(), "/bookshelf")
+
+		assertThat(rendered.toString(Charsets.UTF_8)).isEqualTo("Books for Kotlin")
+	}
+
+	@Test
+	fun `a template context that carries nothing is rejected rather than rendered`() {
+		val database = templatedDatabase("bookshelf" to "Books for {{ who }}")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+		val source = source()
+
+		assertThrows(IllegalStateException::class.java) {
+			source.renderNamedTemplate("bookshelf", "null".toByteArray(), "/bookshelf")
+		}
+	}
+
+	// ADFA-5405 made cycles reachable: before it, a reference resolved to itself and never recursed.
+	// Pebble has no cycle detection and resolves one by recursing until the stack ends, and a
+	// StackOverflowError is an Error -- it passes through every catch on the serving path, so the
+	// client would get a closed socket with no status line.
+	@Test
+	fun `a reference cycle between templates fails the lookup instead of unwinding the stack`() {
+		val database =
+			templatedDatabase(
+				"page.peb" to """{% include "other.peb" %}""",
+				"other.peb" to """{% include "page.peb" %}""",
+			)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().lookup("k/html/basic-syntax.html")
+
+		assertThat(lookup).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((lookup as DocumentationLookup.Failed).cause).hasMessageThat().contains("reference cycle")
+	}
+
+	// PebbleException formats its message as "<text> (<file>:<line>)" and the loader throws with both
+	// null, so passing message straight to a response body appends "(?:?)".
+	@Test
+	fun `a failed render reports the engine's text without its placeholder padding`() {
+		val database = templatedDatabase("page.peb" to """Hello! {% include "nav.peb" %}""")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().lookup("k/html/basic-syntax.html") as DocumentationLookup.Failed
+
+		assertThat(lookup.cause).hasMessageThat().isEqualTo("Template 'nav.peb' not found in the database")
+	}
+
+	// The other half of the padding fix: getPebbleMessage() drops the "(<file>:<line>)" suffix, which
+	// is what a parse error uses to say which template and line to go and fix. Only the loader's own
+	// throws, which carry neither, should lose it.
+	@Test
+	fun `a broken template keeps the file and line the engine reports`() {
+		val database = templatedDatabase("page.peb" to "Hello\n{% if %}")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().lookup("k/html/basic-syntax.html") as DocumentationLookup.Failed
+
+		assertThat(lookup.cause).hasMessageThat().contains("page.peb")
+		assertThat(lookup.cause).hasMessageThat().contains("2")
+	}
+
+	@Test
+	fun `a template is compiled once and reused for the next page that needs it`() {
+		val database = templatedDatabase("page.peb" to "Hello {{ who }}!")
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
 
 		val source = source()
 		repeat(3) { source.lookup("k/html/basic-syntax.html") }
 
-		verify(exactly = 1) { database.rawQuery(match { it.contains("FROM Templates") }, arrayOf("7")) }
+		verify(exactly = 1) { database.rawQuery(match { it.contains("WHERE id = ?") }, arrayOf("7")) }
+		verify(exactly = 1) { database.rawQuery(match { it.contains("WHERE name = ?") }, arrayOf("page.peb")) }
 	}
 
 	@Test
@@ -331,11 +418,7 @@ class DocumentationContentSourceTest {
 			mockk<SQLiteDatabase>(relaxed = true) {
 				every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns
 					contentCursor(bytes = "{}".toByteArray(), templateId = 7)
-				every { rawQuery(match { it.contains("FROM Templates") }, arrayOf("7")) } returns
-					mockk(relaxed = true) {
-						every { count } returns 0
-						every { moveToFirst() } returns false
-					}
+				every { rawQuery(match { it.contains("WHERE id = ?") }, arrayOf("7")) } returns missingRowCursor()
 			}
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
 
@@ -367,8 +450,8 @@ class DocumentationContentSourceTest {
 
 	@Test
 	fun `a debug-database swap drops the compiled templates, so pages render from the new database`() {
-		val installed = templatedDatabase(template = "Hello {{ who }}!")
-		val debug = templatedDatabase(template = "Goodbye {{ who }}!")
+		val installed = templatedDatabase("page.peb" to "Hello {{ who }}!")
+		val debug = templatedDatabase("page.peb" to "Goodbye {{ who }}!")
 		every { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) } returns installed
 		every { SQLiteDatabase.openDatabase(debugFile.absolutePath, isNull(), any()) } returns debug
 
@@ -386,17 +469,38 @@ class DocumentationContentSourceTest {
 			.isEqualTo("Goodbye Kotlin!")
 	}
 
-	/** A database whose single Content row is templated with id 7, and whose template is [template]. */
-	private fun templatedDatabase(template: String): SQLiteDatabase =
+	/**
+	 * A database whose single Content row is templated with id 7, and whose `Templates` rows are
+	 * [templates] as name-to-body pairs. Template id 7 is the first pair; the rest are reachable
+	 * only by name, which is how one template references another.
+	 */
+	private fun templatedDatabase(vararg templates: Pair<String, String>): SQLiteDatabase =
 		mockk<SQLiteDatabase>(relaxed = true) {
 			every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns
 				contentCursor(bytes = """{"who": "Kotlin"}""".toByteArray(), templateId = 7)
-			every { rawQuery(match { it.contains("FROM Templates") }, arrayOf("7")) } returns
+			every { rawQuery(match { it.contains("WHERE id = ?") }, arrayOf("7")) } returns
 				mockk(relaxed = true) {
 					every { count } returns 1
 					every { moveToFirst() } returns true
-					every { getBlob(0) } returns template.toByteArray()
+					every { getString(0) } returns templates.first().first
 				}
+			every { rawQuery(match { it.contains("WHERE name = ?") }, any()) } answers
+				{
+					val name = (secondArg<Array<String>>())[0]
+					val body = templates.toMap()[name] ?: return@answers missingRowCursor()
+					mockk(relaxed = true) {
+						every { count } returns 1
+						every { moveToFirst() } returns true
+						every { getBlob(0) } returns body.toByteArray()
+					}
+				}
+		}
+
+	/** A cursor over no rows, for a `Templates` name or id that the database does not have. */
+	private fun missingRowCursor() =
+		mockk<Cursor>(relaxed = true) {
+			every { count } returns 0
+			every { moveToFirst() } returns false
 		}
 
 	@Test

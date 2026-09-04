@@ -18,6 +18,7 @@
 package com.itsaky.androidide.documentation
 
 import android.database.sqlite.SQLiteDatabase
+import androidx.annotation.VisibleForTesting
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.google.gson.Gson
@@ -26,8 +27,7 @@ import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import io.pebbletemplates.pebble.PebbleEngine
-import io.pebbletemplates.pebble.loader.StringLoader
-import io.pebbletemplates.pebble.template.PebbleTemplate
+import io.pebbletemplates.pebble.error.PebbleException
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.Closeable
@@ -126,6 +126,24 @@ sealed interface DocumentationLookup {
 }
 
 /**
+ * A template could not be loaded, parsed or rendered.
+ *
+ * Exists so a caller can tell a template diagnostic apart from every other failure on the serving
+ * path. That matters because one caller puts the message in an HTTP response body: a template
+ * failure names a template, which is the whole point of the ADFA-5405 diagnostic and safe to send,
+ * while the [IllegalStateException] a closed or unopenable database raises carries the database's
+ * filesystem path, and a `SQLiteException` carries SQL text. Both of those were reaching the
+ * response because they share [IllegalStateException] with the diagnostics.
+ *
+ * Extends [IllegalStateException] rather than replacing it, so callers that only care that the
+ * render failed are unaffected.
+ */
+class TemplateRenderException(
+	message: String?,
+	cause: Throwable? = null,
+) : IllegalStateException(message, cause)
+
+/**
  * What [DocumentationContentSource.lookupRequestPath] found, plus the path form that produced it --
  * so a transport reporting a miss or a corrupt row can quote the string that was actually queried.
  */
@@ -175,9 +193,11 @@ class DocumentationContentSource(
 	private var activeDatabasePath: String? = null
 
 	/**
-	 * Bumped on every swap, so a caller can tell that anything it cached from this source --
-	 * a compiled template, a looked-up template id -- belongs to a database that is gone.
+	 * Bumped on every swap. Nothing outside caches per database now that templates resolve by name
+	 * and the caches for them live here, so this has no production reader: it stays as the
+	 * observable a test asserts a swap happened on.
 	 */
+	@VisibleForTesting
 	@Volatile
 	var generation: Long = 0
 		private set
@@ -203,10 +223,19 @@ class DocumentationContentSource(
 	private var compressionDictionary: ByteBuffer? = null
 	private var compressionDictionaryStale = true
 
-	private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
+	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
+	// makes the engine's own cache the compiled-template cache, keyed by name: a partial pulled in
+	// by several pages is compiled once, and dropping a database means invalidating that cache too.
+	private val pebbleEngine =
+		PebbleEngine
+			.Builder()
+			.loader(DatabaseTemplateLoader { database })
+			.maxRenderedSize(MAX_RENDERED_CHARS)
+			.build()
 
-	// Compiled templates for the active database, cleared when it is swapped.
-	private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
+	// Template names by id, for the active database. Content rows reference a template by id; every
+	// reference between templates is by name, which is what the loader and the engine cache use.
+	private val templateNames = ConcurrentHashMap<Int, String>()
 
 	private val gson: Gson =
 		GsonBuilder()
@@ -294,8 +323,11 @@ class DocumentationContentSource(
 	/**
 	 * Ensures the documentation database is open and applies any pending database changes.
 	 *
-	 * Does nothing when the source is closed or the database cannot be opened.
+	 * Does nothing when the source is closed or the database cannot be opened. No production caller:
+	 * [lookup] and [withDatabase] apply a pending swap themselves, so this is the seam a test uses to
+	 * drive one directly.
 	 */
+	@VisibleForTesting
 	fun refreshDatabase() {
 		if (!openIfNeeded()) return
 		swapDatabaseIfChanged()
@@ -321,25 +353,43 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Renders a template using the supplied JSON context.
+	 * Renders the named template using the supplied JSON context.
 	 *
-	 * @param templateId The identifier of the template to render.
+	 * For a caller that knows a well-known template by name -- the bookshelf, say -- rather than
+	 * through a `Content` row's `templateId`.
+	 *
+	 * @param name The template's `Templates.name`.
 	 * @param contextJson The JSON object used as the template context.
 	 * @param path The path associated with the rendering request for diagnostics.
 	 * @return The rendered content encoded as UTF-8 bytes.
 	 */
-	fun renderTemplate(
-		templateId: Int,
+	fun renderNamedTemplate(
+		name: String,
 		contextJson: ByteArray,
 		path: String,
-	): ByteArray = withDatabase { database -> render(database, templateId, contextJson, path) }
+	): ByteArray = withDatabase { renderNamed(name, contextJson, path) }
 
 	/**
-	 * Clears all cached compiled templates.
+	 * Clears all cached templates, compiled and by name.
+	 *
+	 * Takes the write lock, so like [swapDatabaseIfChanged] this must not be called while holding the
+	 * read lock -- which is what [withDatabase] runs its block under. `ReentrantReadWriteLock` does
+	 * not upgrade a read hold to a write hold, so `withDatabase { clearTemplateCache() }` (or the same
+	 * shape through `DocumentationRequestInterceptor.clearTemplateCache()`) deadlocks that thread
+	 * permanently. No caller does this today; the note is here to keep the next one out of it.
 	 */
-	fun clearTemplateCache() {
-		templateCache.clear()
-	}
+	fun clearTemplateCache() =
+		// The write lock, which a render's read lock excludes: clearing the three caches piecemeal
+		// under a concurrent render can hand it a template from before the clear and a tag-cache miss
+		// from after it. Reentrant, so switchToDatabase can keep calling this while holding it.
+		databaseLock.write {
+			templateNames.clear()
+			// Both engine caches are keyed by name, so a template edited under the same name would
+			// otherwise survive here even though its row has changed -- the tag cache included, which
+			// holds whatever a template's {% cache %} blocks rendered from the previous database.
+			pebbleEngine.templateCache.invalidateAll()
+			pebbleEngine.tagCache.invalidateAll()
+		}
 
 	/** The last-modified time of [file], or -1 when it does not exist. */
 	private fun timestampOf(
@@ -444,35 +494,72 @@ class DocumentationContentSource(
 		contextJson: ByteArray,
 		path: String,
 	): ByteArray {
-		val template =
-			templateCache.getOrPut(templateId) {
-				if (log.isDebugEnabled) log.debug("Template cache miss for id {}, path '{}'.", templateId, path)
-				compileTemplate(database, templateId, path)
+		val name =
+			templateNames.getOrPut(templateId) {
+				if (log.isDebugEnabled) log.debug("Template name cache miss for id {}, path '{}'.", templateId, path)
+				templateName(database, templateId, path)
 			}
 
-		val contextString = contextJson.toString(Charsets.UTF_8)
-		if (contextString.isBlank() || contextString.trim() == "null") {
-			throw IllegalStateException("Template ID $templateId has empty or null JSON context")
-		}
-		val context: Map<String, Any> = gson.fromJson(contextString, templateContextType)
-
-		return StringWriter().also { template.evaluate(it, context) }.toString().toByteArray()
+		return renderNamed(name, contextJson, path)
 	}
 
 	/**
-	 * Compiles the template identified by the given ID.
+	 * Renders the named template using the provided JSON context.
+	 *
+	 * Callers hold the read lock, since the loader the engine resolves through reads the active
+	 * database -- for this template and for every one it references.
+	 *
+	 * @param name The template's `Templates.name`.
+	 * @param contextJson The JSON-encoded context supplied to the template.
+	 * @param path The content path associated with the rendering request.
+	 * @return The rendered template content encoded as UTF-8 bytes.
+	 */
+	private fun renderNamed(
+		name: String,
+		contextJson: ByteArray,
+		path: String,
+	): ByteArray {
+		val contextString = contextJson.toString(Charsets.UTF_8)
+		if (contextString.isBlank() || contextString.trim() == "null") {
+			throw TemplateRenderException("Template '$name' has empty or null JSON context, for path '$path'")
+		}
+		val context: Map<String, Any> = gson.fromJson(contextString, templateContextType)
+
+		return try {
+			StringWriter().also { pebbleEngine.getTemplate(name).evaluate(it, context) }.toString().toByteArray()
+		} catch (e: PebbleException) {
+			// PebbleException formats getMessage() as "<text> (<file>:<line>)". When it carries
+			// neither -- the loader's throws, and the rendered-size limit -- that suffix is a bare
+			// "(?:?)" in the response body; when it carries both, as a parse error in a template
+			// does, it is the diagnostic that says which template and line to go fix.
+			val message = if (e.fileName == null && e.lineNumber == null) e.pebbleMessage else e.message
+			throw TemplateRenderException(message, e)
+		} catch (e: StackOverflowError) {
+			// Templates can reference each other now (ADFA-5405), so they can also reference each
+			// other in a cycle, which Pebble resolves by recursing until the stack runs out. Raised
+			// here as an exception because an Error passes through every catch on this path: the
+			// client would get a closed socket with no status line and nothing naming the template.
+			throw TemplateRenderException(
+				"Rendering template '$name' overflowed the stack; check for a reference cycle between templates",
+				e,
+			)
+		}
+	}
+
+	/**
+	 * Resolves a template id to the name the engine loads it by.
 	 *
 	 * @param templateId The database identifier of the template.
 	 * @param path The content path associated with the template.
-	 * @return The compiled template.
+	 * @return The template's name.
 	 * @throws IllegalStateException If the template is missing or has multiple database rows.
 	 */
-	private fun compileTemplate(
+	private fun templateName(
 		database: SQLiteDatabase,
 		templateId: Int,
 		path: String,
-	): PebbleTemplate =
-		database.rawQuery("SELECT content FROM Templates WHERE id = ?", arrayOf(templateId.toString())).use { cursor ->
+	): String =
+		database.rawQuery("SELECT name FROM Templates WHERE id = ?", arrayOf(templateId.toString())).use { cursor ->
 			when {
 				cursor.count > 1 -> {
 					throw IllegalStateException("Template ID $templateId is shared by more than one template")
@@ -483,9 +570,7 @@ class DocumentationContentSource(
 				}
 
 				else -> {
-					val body = cursor.getBlob(0)
-					if (log.isDebugEnabled) log.debug("Compiling template {}, {} bytes.", templateId, body.size)
-					pebbleEngine.getTemplate(body.toString(Charsets.UTF_8))
+					cursor.getString(0)
 				}
 			}
 		}
@@ -739,7 +824,7 @@ class DocumentationContentSource(
 		activeDatabasePath = path
 		databaseTimestamp = timestamp
 		compressionDictionaryStale = true
-		templateCache.clear()
+		clearTemplateCache()
 		generation++
 
 		try {
@@ -751,6 +836,24 @@ class DocumentationContentSource(
 
 	companion object {
 		const val CONTENT_CHUNK_SIZE = 1024 * 1024
+
+		// Bounds a render whose output grows without end -- a runaway loop, say. The reference-cycle
+		// guard below does not cover that case: a cycle recurses, so it reaches the stack's end first,
+		// while a loop stays at one frame and grows the writer until the heap gives out, and
+		// OutOfMemoryError is an Error every catch on this path misses. Pebble raises a PebbleException
+		// at this limit instead, which the caller turns into a 500.
+		//
+		// Sized so it actually fires first, which 16 MiB did not. Pebble counts CHARACTERS, in a
+		// LimitedSizeWriter wrapping a StringWriter, so 16 Mi chars means a 33.5 MB char[] -- and the
+		// doubling step that reaches it holds the old 33.5 MB array and the new 67 MB one at once,
+		// then toString() copies another 33.5 MB. Against a 192-256 MB Android heap the runaway loop
+		// OOMs long before the guard trips, which is the one scenario it exists for. The old number
+		// was headroom over the largest CONTEXT in the database (171 KB of compressed JSON) -- an
+		// unrelated quantity, as its own comment admitted.
+		//
+		// 1 MiB of characters is ~2 MB of char[] and still roughly 6x the largest legitimate rendered
+		// page here, so it bounds the runaway without being reachable by real content.
+		private const val MAX_RENDERED_CHARS = 1024 * 1024
 
 		private const val CONTENT_QUERY = """
 			SELECT C.content, CT.value, CT.compression, C.templateId

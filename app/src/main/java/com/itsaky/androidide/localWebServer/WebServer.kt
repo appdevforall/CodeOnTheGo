@@ -1,6 +1,5 @@
 package com.itsaky.androidide.localWebServer
 
-import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import android.os.Environment.getExternalStorageDirectory
@@ -11,6 +10,7 @@ import com.itsaky.androidide.documentation.DocumentationContent
 import com.itsaky.androidide.documentation.DocumentationContentSource
 import com.itsaky.androidide.documentation.DocumentationLookup
 import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
+import com.itsaky.androidide.documentation.TemplateRenderException
 import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import org.slf4j.LoggerFactory
@@ -147,18 +147,6 @@ class WebServer(
 			// was written against that; gson would drop the key entirely by default.
 			.serializeNulls()
 			.create()
-
-	// -1 means "not fetched yet". Volatile because the WebView transport shares this server's
-	// process, and the interceptor's reads can run on WebView threads while the accept loop writes.
-	@Volatile
-	private var bookshelfTemplateId: Int = -1
-
-	private val cacheLock = Any()
-
-	// Which of the source's databases bookshelfTemplateId was filled from. The compiled templates
-	// themselves live in the source and are dropped by its own swap.
-	@Volatile
-	private var cachedDatabaseGeneration = 0L
 
 	// Long enough to stop a descriptor-exhaustion spin starving the connections whose closing would
 	// fix it; short enough to be invisible to a user, and never paid on a successful accept.
@@ -547,29 +535,9 @@ class WebServer(
 			return sendError(writer, output, 501, "Not Implemented")
 		}
 
-		// serveRequest applies any pending sdcard debug-database swap via the content source.
+		// The content source applies a pending sdcard debug-database swap inside lookup()/withDatabase(),
+		// so a request reaching neither -- an unknown /pr/ target -- does not poll for one.
 		serveRequest(writer, output, path)
-	}
-
-	/**
-	 * Invalidates the cached bookshelf template identifier when the documentation database changes.
-	 */
-	private fun discardCachesIfDatabaseChanged() {
-		// Apply any pending swap first. The source swaps inside lookup()/withDatabase(), so checking
-		// the generation before those runs reads the generation from before the swap: on the very
-		// request that swaps, this would leave bookshelfTemplateId pointing at the previous
-		// database's template row -- rendering the old bookshelf, or 500ing if that id is absent.
-		contentSource.refreshDatabase()
-
-		if (contentSource.generation == cachedDatabaseGeneration) return
-
-		synchronized(cacheLock) {
-			val generation = contentSource.generation
-			if (generation == cachedDatabaseGeneration) return
-
-			bookshelfTemplateId = -1
-			cachedDatabaseGeneration = generation
-		}
 	}
 
 	/**
@@ -584,8 +552,6 @@ class WebServer(
 		output: java.io.OutputStream,
 		path: String,
 	) {
-		discardCachesIfDatabaseChanged()
-
 		// Handle the special "pr" endpoint with highest priority
 		if (path.startsWith("pr/", false)) {
 			if (debugEnabled) log.debug("Found a pr/ path, '{}'.", path)
@@ -804,7 +770,26 @@ class WebServer(
 			outputStarted = realHandleBsEndpoint(writer, output) { outputStarted = true }
 		} catch (e: Exception) {
 			log.error("Error handling /pr/bs endpoint: {}", e.message)
-			sendError(writer, output, httpInternalServerError, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
+			// The message is echoed ONLY for a template failure. That one names a template -- the
+			// bookshelf row itself, or anything it references -- and the name is the whole diagnostic
+			// (ADFA-5405). Everything else keeps the generic text, because this catch spans the whole
+			// of realHandleBsEndpoint: a SQLiteException carries SQL, and withDatabase's
+			// check(openIfNeeded()) carries the database's filesystem path. Any app on the device can
+			// GET this port, so echoing those was handing out internals for the sake of one
+			// diagnostic.
+			val detail =
+				when (e) {
+					is TemplateRenderException -> e.message ?: "Error generating bookshelf HTML."
+					else -> "Error generating bookshelf HTML."
+				}
+			sendError(
+				writer,
+				output,
+				httpInternalServerError,
+				"Internal Server Error 6",
+				detail,
+				outputStarted,
+			)
 		}
 
 		if (debugEnabled) log.debug("Leaving handleBsEndpoint().")
@@ -877,32 +862,23 @@ class WebServer(
 		val jsonText =
 			contentSource.withDatabase { database ->
 				try {
-					val json = bookshelfJson(database)
-					if (debugEnabled) log.debug("json content = '{}'.", String(json, Charsets.UTF_8))
-					if (debugEnabled) log.debug("before fetch bookshelf template ID = '{}'", bookshelfTemplateId)
-
-					// Have we already fetched the template
-					if (bookshelfTemplateId == -1) {
-						database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf()).use { cursor ->
-							if (!isCursorOneRow(cursor, writer, output)) {
-								return@withDatabase null
-							}
-
-							cursor.moveToFirst()
-							bookshelfTemplateId = cursor.getInt(0)
-							if (debugEnabled) log.debug("after the fetch bookshelf template ID = '{}'", bookshelfTemplateId)
-						}
+					bookshelfJson(database).also {
+						if (debugEnabled) log.debug("json content = '{}'.", String(it, Charsets.UTF_8))
 					}
-
-					json
 				} catch (e: Exception) {
-					log.error("Error processing request: {}", e.message)
-					sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
+					log.error("Error building the bookshelf JSON: {}", e.message, e)
+					// The message stays in the log and out of the response. Everything reachable here is
+					// a database failure -- bookshelfJson is the SQL join -- so the message carries SQL
+					// text, or the database's filesystem path when withDatabase's check() is what threw.
+					// Any app on the device can GET this port. Narrowing handleBsEndpoint's own catch is
+					// not enough on its own: this one answers and returns null, so the outer catch never
+					// sees the exception at all.
+					sendError(writer, output, httpInternalServerError, "Internal Server Error", "Error generating bookshelf HTML.")
 					null
 				}
 			} ?: return false
 
-		val result = contentSource.renderTemplate(bookshelfTemplateId, jsonText, "/bookshelf")
+		val result = contentSource.renderNamedTemplate("bookshelf", jsonText, "/bookshelf")
 
 		if (debugEnabled) log.debug("Bookshelf result is '{}'.", String(result))
 
@@ -1068,22 +1044,6 @@ ORDER BY BC.category,
 				)
 			},
 		)
-	}
-
-	private fun isCursorOneRow(
-		cursor: Cursor,
-		writer: PrintWriter,
-		output: java.io.OutputStream,
-	): Boolean {
-		if (cursor.count == 1) {
-			return true
-		}
-		if (cursor.count == 0) {
-			sendError(writer, output, httpNotFound, "Corrupt database, no rows found, expected one.")
-		} else {
-			sendError(writer, output, httpInternalServerError, "Corrupt database - found ${cursor.count} rows when 1 was expected.")
-		}
-		return false
 	}
 
 	/**
