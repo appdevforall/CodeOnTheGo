@@ -569,13 +569,19 @@ class IncrementalCompiler(
 	/**
 	 * First [MAX_DIAGNOSTICS] entries, plus one marker naming how many were elided.
 	 *
+	 * The marker takes the list's worst severity: a successful compile's warnings must stay
+	 * warnings all the way to the panel, which prints an ERROR marker as "error:" under a
+	 * "reloaded" line, and the core's Success contract promises no ERROR rides it.
+	 *
 	 * @param tool names the producer in the marker, so a capped javac list does not read as
 	 *   kotlinc's.
 	 */
 	private fun List<Diagnostic>.capped(tool: String): List<Diagnostic> {
 		if (size <= MAX_DIAGNOSTICS) return this
+		val severity =
+			if (any { it.severity == Diagnostic.Severity.ERROR }) Diagnostic.Severity.ERROR else Diagnostic.Severity.WARNING
 		return take(MAX_DIAGNOSTICS) +
-			Diagnostic(Diagnostic.Severity.ERROR, "+${size - MAX_DIAGNOSTICS} more $tool diagnostics elided")
+			Diagnostic(severity, "+${size - MAX_DIAGNOSTICS} more $tool diagnostics elided")
 	}
 
 	/**
