@@ -6,6 +6,7 @@ import org.appdevforall.cotg.quickbuild.daemon.TestSdk
 import org.appdevforall.cotg.quickbuild.daemon.protocol.ProtocolCodec
 import org.appdevforall.cotg.quickbuild.protocol.CompileStats
 import org.appdevforall.cotg.quickbuild.protocol.DaemonResponse
+import org.appdevforall.cotg.quickbuild.protocol.Diagnostic
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -123,6 +124,25 @@ class IncrementalCompilerEdgeTest {
 		val diagnostics = (result as IncrementalCompiler.Result.Failed).diagnostics
 		assertThat(diagnostics).hasSize(IncrementalCompiler.MAX_DIAGNOSTICS + 1)
 		assertThat(diagnostics.last().message).isEqualTo("+10 more javac diagnostics elided")
+	}
+
+	@Test
+	fun `a javac warning flood on a successful compile is capped with a WARNING marker`() {
+		// 60 uses of a constructor deprecated for removal: javac's [removal] lint is on by
+		// default, so each use is one warning under --release 17, and the compile still
+		// succeeds. The marker rides Result.Success.warnings into the app's "reloaded" panel,
+		// where an ERROR marker printed "error:" under a landed build and broke the core's
+		// promise that a Success carries no ERROR.
+		val uses = (1..60).joinToString("\n") { "\tInteger i$it = new Integer($it);" }
+		val noisy = writeJava("main/java/demo/Noisy.java", "package demo;\n\npublic class Noisy {\n$uses\n}\n")
+
+		val result = compiler().compile(listOf(noisy), changedFiles = listOf(noisy))
+
+		assertThat(result).isInstanceOf(IncrementalCompiler.Result.Success::class.java)
+		val warnings = (result as IncrementalCompiler.Result.Success).warnings
+		assertThat(warnings).hasSize(IncrementalCompiler.MAX_DIAGNOSTICS + 1)
+		assertThat(warnings.last().message).isEqualTo("+10 more javac diagnostics elided")
+		assertThat(warnings.map { it.severity }.toSet()).containsExactly(Diagnostic.Severity.WARNING)
 	}
 
 	/**
