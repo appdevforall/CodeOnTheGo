@@ -777,12 +777,22 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			logger.warn("Autostart standard build: no application module/variant to build")
 			return
 		}
-		QuickBuildBenchHooks.standardBuildStarted(
-			projectPath = IProjectManager.getInstance().projectDirPath,
-			modulePath = module.path,
-			variantName = variant.name,
+		// Armed from inside the build, not before the call: runQuickBuild refuses a request
+		// while another build holds the slot and publishes no state for it, so a latch armed
+		// here would stay armed until the USER's next build ended - and consume that build's
+		// install as a bench suppression. beforeBuild runs only once the slot is claimed.
+		buildViewModel.runQuickBuild(
+			module,
+			variant,
+			launchInDebugMode = false,
+			beforeBuild = {
+				QuickBuildBenchHooks.standardBuildStarted(
+					projectPath = IProjectManager.getInstance().projectDirPath,
+					modulePath = module.path,
+					variantName = variant.name,
+				)
+			},
 		)
-		buildViewModel.runQuickBuild(module, variant, launchInDebugMode = false)
 	}
 
 	/**
