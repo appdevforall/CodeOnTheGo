@@ -16,6 +16,9 @@ import java.util.zip.ZipOutputStream
  * The zip-slip guard is a security control: the daemon zip is a bundled asset today, but the
  * extraction must never write outside the daemon dir no matter what the archive says. These
  * tests watch the guard go red - a `../` entry must throw BEFORE any byte lands outside.
+ *
+ * The staging tests pin the other invariant: an already-staged daemon directory is left alone
+ * for the same install, because a rebaseline stages while the compile daemon is running off it.
  */
 class QuickBuildArtifactStagerTest {
 	@get:Rule
@@ -100,5 +103,92 @@ class QuickBuildArtifactStagerTest {
 			}.exceptionOrNull()
 
 		assertThat(thrown).isInstanceOf(FileNotFoundException::class.java)
+	}
+
+	private fun daemonZip(): ByteArrayInputStream =
+		zipOf(
+			"quickbuild-daemon.jar" to byteArrayOf(1, 2, 3),
+			"lib/runtime.jar" to byteArrayOf(4, 5),
+		)
+
+	@Test
+	fun `the first stage extracts and stamps the install`() {
+		val daemonDir = File(tmp.newFolder("home"), "daemon")
+		val jar = File(daemonDir, "quickbuild-daemon.jar")
+		var opened = 0
+
+		val ran =
+			QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) {
+				opened++
+				daemonZip()
+			}
+
+		assertThat(ran).isTrue()
+		assertThat(opened).isEqualTo(1)
+		assertThat(jar.readBytes()).isEqualTo(byteArrayOf(1, 2, 3))
+		assertThat(File(daemonDir, QuickBuildArtifactStager.DAEMON_STAMP_FILE).readText()).isEqualTo("7:1000")
+	}
+
+	@Test
+	fun `a second stage for the same install leaves the directory untouched`() {
+		val daemonDir = File(tmp.newFolder("home"), "daemon")
+		val jar = File(daemonDir, "quickbuild-daemon.jar")
+		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { daemonZip() }
+		// A file the running daemon could depend on: gone means the directory was wiped.
+		val planted = File(daemonDir, "opened-by-a-live-daemon.jar").apply { writeBytes(byteArrayOf(9)) }
+		var opened = 0
+
+		val ran =
+			QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) {
+				opened++
+				daemonZip()
+			}
+
+		assertThat(ran).isFalse()
+		assertThat(opened).isEqualTo(0)
+		assertThat(planted.exists()).isTrue()
+	}
+
+	@Test
+	fun `a new install re-stages from scratch`() {
+		val daemonDir = File(tmp.newFolder("home"), "daemon")
+		val jar = File(daemonDir, "quickbuild-daemon.jar")
+		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { daemonZip() }
+		val stale = File(daemonDir, "from-the-old-install.jar").apply { writeBytes(byteArrayOf(9)) }
+
+		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:2000", daemonDir, jar) { daemonZip() }
+
+		assertThat(ran).isTrue()
+		assertThat(stale.exists()).isFalse()
+		assertThat(File(daemonDir, QuickBuildArtifactStager.DAEMON_STAMP_FILE).readText()).isEqualTo("7:2000")
+	}
+
+	@Test
+	fun `a matching stamp without the daemon jar re-stages`() {
+		val daemonDir = File(tmp.newFolder("home"), "daemon")
+		val jar = File(daemonDir, "quickbuild-daemon.jar")
+		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { daemonZip() }
+		assertThat(jar.delete()).isTrue()
+
+		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { daemonZip() }
+
+		assertThat(ran).isTrue()
+		assertThat(jar.exists()).isTrue()
+	}
+
+	@Test
+	fun `a failed extraction leaves no stamp so the next stage retries`() {
+		val daemonDir = File(tmp.newFolder("home"), "daemon")
+		val jar = File(daemonDir, "quickbuild-daemon.jar")
+
+		val thrown =
+			runCatching {
+				QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { zipOf("lib/" to null) }
+			}.exceptionOrNull()
+		assertThat(thrown).isInstanceOf(FileNotFoundException::class.java)
+		assertThat(File(daemonDir, QuickBuildArtifactStager.DAEMON_STAMP_FILE).exists()).isFalse()
+
+		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { daemonZip() }
+		assertThat(ran).isTrue()
 	}
 }
