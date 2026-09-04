@@ -120,6 +120,7 @@ import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ImageUtils
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
+import com.itsaky.androidide.utils.capHeightToSpaceBelow
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.forEachViewRecursively
@@ -2242,6 +2243,8 @@ open class EditorHandlerActivity :
 		}
 		binding.actionItems.addView(undockItem)
 
+		// Shares FileActionPopupWindowBinding with the file-tab popup, so it shares the sizing bug.
+		popupWindow.capHeightToSpaceBelow(anchorView, binding.root)
 		popupWindow.showAsDropDown(anchorView, 0, 0)
 	}
 
