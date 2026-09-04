@@ -11,6 +11,7 @@ import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.RelinkInputs
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute
+import org.appdevforall.cotg.quickbuild.domain.reload.BuildDiagnostic
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildOutcome
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildRequest
 import org.appdevforall.cotg.quickbuild.domain.reload.DeployDecision
@@ -249,7 +250,7 @@ class LiveReloadExecutorImpl(
 			// timeline to report.
 			val dex = compileAndDex(ChangedFiles.Unknown, timeline)
 			if (dex is Step.Fail) return dex.outcome
-			return BuildOutcome.Success(liveGeneration(), clock() - loopStartedAt)
+			return BuildOutcome.Success(liveGeneration(), clock() - loopStartedAt, diagnostics = (dex as Step.Ok).diagnostics)
 		}
 
 		val known = request.changes as? ChangedFiles.Known
@@ -288,14 +289,15 @@ class LiveReloadExecutorImpl(
 					if (dex is Step.Fail) return dex.outcome
 					val arsc = relink(timeline)
 					if (arsc is Step.Fail) return arsc.outcome
-					payloadDeployer.deploy(
-						(dex as Step.Ok).decision,
-						dex.file,
-						(arsc as Step.Ok).file,
-						packageAllAssets(),
-						loopStartedAt,
-						timeline,
-					)
+					payloadDeployer
+						.deploy(
+							(dex as Step.Ok).decision,
+							dex.file,
+							(arsc as Step.Ok).file,
+							packageAllAssets(),
+							loopStartedAt,
+							timeline,
+						).withCompileDiagnostics(dex.diagnostics)
 				}
 			}
 
@@ -307,7 +309,9 @@ class LiveReloadExecutorImpl(
 					}
 
 					is Step.Ok -> {
-						payloadDeployer.deploy(dex.decision, dex.file, null, assets, loopStartedAt, timeline)
+						payloadDeployer
+							.deploy(dex.decision, dex.file, null, assets, loopStartedAt, timeline)
+							.withCompileDiagnostics(dex.diagnostics)
 					}
 				}
 			}
@@ -338,14 +342,15 @@ class LiveReloadExecutorImpl(
 				if (dex is Step.Fail) return dex.outcome
 				val arsc = relink(timeline)
 				if (arsc is Step.Fail) return arsc.outcome
-				payloadDeployer.deploy(
-					(dex as Step.Ok).decision,
-					dex.file,
-					(arsc as Step.Ok).file,
-					assets,
-					loopStartedAt,
-					timeline,
-				)
+				payloadDeployer
+					.deploy(
+						(dex as Step.Ok).decision,
+						dex.file,
+						(arsc as Step.Ok).file,
+						assets,
+						loopStartedAt,
+						timeline,
+					).withCompileDiagnostics(dex.diagnostics)
 			}
 
 			BuildRoute.AssetsOnly -> {
@@ -461,7 +466,7 @@ class LiveReloadExecutorImpl(
 				// it belongs inside compileMillis rather than after it.
 				timeline.markCompileDone(dexDoneAt)
 				timeline.recordDexSteps(reply.value.stripMillis, reply.value.d8Millis, reply.value.stats)
-				Step.Ok(reply.value.dexFile, decision)
+				Step.Ok(reply.value.dexFile, decision, compiled.diagnostics)
 			}
 
 			is DaemonReply.BuildFailed -> {
@@ -539,6 +544,16 @@ class LiveReloadExecutorImpl(
 			)
 		}
 
+	/**
+	 * Attaches a compile's warnings to the deploy's verdict, so a build that landed still
+	 * shows what the compiler said; a failed deploy keeps its own outcome.
+	 *
+	 * @param diagnostics the compile step's warnings, from [Step.Ok.diagnostics]
+	 * @return this outcome, with the warnings on it when it is a [BuildOutcome.Success]
+	 */
+	private fun BuildOutcome.withCompileDiagnostics(diagnostics: List<BuildDiagnostic>): BuildOutcome =
+		if (this is BuildOutcome.Success && diagnostics.isNotEmpty()) copy(diagnostics = diagnostics) else this
+
 	/** Result of one pipeline step: the artifact it produced, or the outcome that ends the build. */
 	private sealed interface Step {
 		/**
@@ -547,10 +562,13 @@ class LiveReloadExecutorImpl(
 		 * @property file the artifact - a dex for compile-and-dex, a resource APK for relink.
 		 * @property decision how the artifact must be deployed; always recreate for a step
 		 *   that moved no code.
+		 * @property diagnostics the warnings the compile produced; empty for relink, which
+		 *   fails outright or says nothing.
 		 */
 		data class Ok(
 			val file: File,
 			val decision: DeployDecision,
+			val diagnostics: List<BuildDiagnostic> = emptyList(),
 		) : Step
 
 		/**

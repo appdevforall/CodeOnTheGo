@@ -1493,4 +1493,16 @@ class SessionReducerTest {
 			assertThat(transition.effects).isEmpty()
 		}
 	}
+
+	@Test
+	fun `building plus BuildSucceeded keeps the compile's warnings on Deployed`() {
+		val warning = BuildDiagnostic(BuildDiagnostic.Severity.WARNING, "deprecated")
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Building(1),
+				SessionEvent.BuildSucceeded(2, 800, diagnostics = listOf(warning)),
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Deployed(2, 800, diagnostics = listOf(warning)))
+	}
 }

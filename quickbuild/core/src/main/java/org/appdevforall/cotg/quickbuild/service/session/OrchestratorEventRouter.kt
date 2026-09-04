@@ -92,6 +92,7 @@ internal class OrchestratorEventRouter(
 									event.result.durationMillis,
 									event.result.restarted,
 									userInitiated = event.userInitiated,
+									diagnostics = event.result.diagnostics,
 								),
 							),
 						newLastDeployedGeneration =
