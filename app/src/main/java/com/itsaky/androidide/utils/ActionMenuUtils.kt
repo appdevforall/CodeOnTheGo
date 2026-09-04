@@ -98,7 +98,7 @@ object ActionMenuUtils {
                     true
                 }
             }
-            binding.root.addView(itemView)
+            binding.actionItems.addView(itemView)
         }
 
         val visiblePluginItems = pluginMenuItems.filter { it.isEnabled && it.isVisible }
@@ -116,7 +116,7 @@ object ActionMenuUtils {
                 )
                 setBackgroundColor(typedValue.data)
             }
-            binding.root.addView(divider)
+            binding.actionItems.addView(divider)
 
             visiblePluginItems.forEach { item ->
                 val itemView =
@@ -147,7 +147,7 @@ object ActionMenuUtils {
                         }
                     }
                 }
-                binding.root.addView(itemView)
+                binding.actionItems.addView(itemView)
             }
         }
 

@@ -147,10 +147,40 @@ internal fun isDeepLinkTargetOfOpenProject(
 	projectName: String,
 	projectsRoot: File,
 ): Boolean {
+	// Whatever can be settled without touching the disk, settle here.
+	deepLinkTargetOfOpenProjectWithoutIo(openProjectPath, projectName, projectsRoot)?.let { return it }
+
+	val open = File(openProjectPath)
+	return canonicalOrAbsolute(open.parentFile ?: return false) == canonicalOrAbsolute(projectsRoot)
+}
+
+/**
+ * The part of [isDeepLinkTargetOfOpenProject] decidable without any filesystem call, for callers
+ * that must answer on a thread where I/O is not allowed -- `null` means "only canonicalisation can
+ * tell", so the caller has to go off-thread for the rest.
+ *
+ * Lives here, beside the full rule, rather than being reimplemented at the call site: a writer with
+ * its own private copy of "is this project linkable" would keep answering the old question if this
+ * rule were ever tightened.
+ */
+internal fun deepLinkTargetOfOpenProjectWithoutIo(
+	openProjectPath: String,
+	projectName: String,
+	projectsRoot: File,
+): Boolean? {
 	if (openProjectPath.isBlank()) return false
 	val open = File(openProjectPath)
 	if (!projectNamesMatch(open.name, projectName)) return false
-	return canonicalOrAbsolute(open.parentFile ?: return false) == canonicalOrAbsolute(projectsRoot)
+	val parent = open.parentFile ?: return false
+
+	// Equal path strings name the same directory, so canonicalising both sides could only agree.
+	// This is the case for every project reached through the projects list or a deep link, since
+	// both are resolved against projectsRoot to begin with.
+	if (parent.absolutePath == projectsRoot.absolutePath) return true
+
+	// They differ as text, so a symlink on either side may still make them one directory -- and only
+	// canonicalPath can say, which is exactly the call this function exists to avoid.
+	return null
 }
 
 private fun canonicalOrAbsolute(file: File): String = runCatching { file.canonicalPath }.getOrElse { file.absolutePath }

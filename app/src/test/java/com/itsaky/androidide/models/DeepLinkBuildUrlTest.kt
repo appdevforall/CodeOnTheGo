@@ -201,12 +201,16 @@ class DeepLinkBuildUrlTest {
 	}
 
 	@Test
-	fun `rejects a path over the length parse enforces`() {
-		val tooLong = "a".repeat(600)
-		assertThat(DeepLinkRequest.buildUrl("MyApp", tooLong)).isNull()
+	fun `the length ceiling falls exactly on 512 decoded characters`() {
+		// Pinned either side of the boundary, not merely far from it: with only a 400 and a 600 case,
+		// flipping the guard to >= (or to > LIMIT + 1, which would emit a link parse then rejects)
+		// left the suite green. "/device/open/project/P/file/" is 28 characters, so a file path of
+		// (512 - 28) puts the decoded path at exactly the limit.
+		val prefixLength = "/device/open/project/P/file/".length
+		assertThat(prefixLength).isEqualTo(28)
 
-		// And is not simply refusing everything long: a path just inside the ceiling still builds.
-		val insideCeiling = "a".repeat(400)
-		assertThat(DeepLinkRequest.buildUrl("MyApp", insideCeiling)).isNotNull()
+		assertThat(DeepLinkRequest.buildUrl("P", "a".repeat(512 - prefixLength))).isNotNull()
+		assertThat(DeepLinkRequest.buildUrl("P", "a".repeat(513 - prefixLength))).isNull()
+		assertThat(DeepLinkRequest.buildUrl("P", "a".repeat(600))).isNull()
 	}
 }

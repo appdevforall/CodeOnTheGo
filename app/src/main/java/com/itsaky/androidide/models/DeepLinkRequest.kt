@@ -67,7 +67,6 @@ data class DeepLinkRequest(
 		// Both hosts serve an identical, verified assetlinks.json (see AndroidManifest.xml's matching
 		// pair of <data> elements on DeepLinkActivity's intent-filter) -- kept in sync with that list.
 		private val HOSTS = setOf("www.$CANONICAL_HOST", CANONICAL_HOST)
-		private const val PATH_PREFIX = "/device/open/project/"
 
 		/**
 		 * See [parse]: an upper bound on the whole path, since the parsed pieces get parcelled.
@@ -86,6 +85,14 @@ data class DeepLinkRequest(
 		private const val SEGMENT_FILE = "file"
 		private const val SEGMENT_LINE = "line"
 		private const val SEGMENT_COLUMN = "column"
+
+		/**
+		 * The fixed segments every link starts with, and the prefix [parse] matches, derived from them
+		 * so the literal "project" is spelled once. The old pairing had it in both [PATH_PREFIX] and
+		 * [SEGMENT_PROJECT], which is the drift this is meant to prevent -- [parse] reads both.
+		 */
+		private val PATH_SEGMENTS = listOf("device", "open", SEGMENT_PROJECT)
+		private val PATH_PREFIX = PATH_SEGMENTS.joinToString(separator = "/", prefix = "/", postfix = "/")
 
 		/** First index at or after [from] holding [segment], or -1. Unlike [List.indexOf], never
 		 * matches an already-consumed segment earlier in the path -- e.g. a project name that
@@ -245,9 +252,18 @@ data class DeepLinkRequest(
 		 * `cursor.leftLine + 1`.
 		 *
 		 * Returns `null` rather than a URL that [parse] would reject or read back as something other
-		 * than what was asked for. Each rejection below mirrors a specific check in [parse] or in
-		 * [lookupValidProjectByName][com.itsaky.androidide.utils.lookupValidProjectByName]: there is
-		 * nothing to be gained by handing someone a link this same app refuses to open.
+		 * than what was asked for. Each rejection below mirrors one of the *static* checks in [parse]
+		 * or in [lookupValidProjectByName][com.itsaky.androidide.utils.lookupValidProjectByName]:
+		 * there is nothing to be gained by handing someone a link this same app refuses to open.
+		 *
+		 * Deliberately NOT mirrored is that reader's
+		 * [isValidProjectDirectory][com.itsaky.androidide.utils.isValidProjectDirectory] requirement.
+		 * Checking it would mean disk I/O on whatever thread builds a link, and it is a fact about the
+		 * project at *open* time rather than at link time -- a project that stops looking like an
+		 * Android project after the link is made (its `app/build.gradle` renamed, say) would invalidate
+		 * an already-sent link no matter what was verified here. So a link can still be emitted that
+		 * this app later declines with "no project named X"; that is a property of the scheme, not
+		 * something this function can close.
 		 */
 		fun buildUrl(
 			projectName: String,
@@ -285,9 +301,8 @@ data class DeepLinkRequest(
 
 			val builder = Uri.Builder().scheme(SCHEME).authority(CANONICAL_HOST)
 
-			// Derived from PATH_PREFIX rather than spelled out a second time, so a change to the prefix
-			// parse() requires cannot leave the writer emitting the old one.
-			PATH_PREFIX.trim('/').split('/').forEach { builder.appendPath(it) }
+			// The same list parse()'s own prefix is built from, so the two cannot disagree.
+			PATH_SEGMENTS.forEach { builder.appendPath(it) }
 			builder.appendPath(projectName)
 
 			if (filePath != null) {

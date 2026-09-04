@@ -147,4 +147,32 @@ class ProjectValidationsTest {
 			assertThat(findValidProjectByName(root, name)).isEqualTo(expected)
 		}
 	}
+
+	@Test
+	fun `the no-IO shortcut answers the same-parent case and defers the rest`() {
+		val root = tempFolder.newFolder("projects")
+
+		// Same parent by path: decidable with no filesystem call at all.
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo(File(root, "MyApp").path, "MyApp", root)).isTrue()
+
+		// Definitively not this project, also decidable without I/O.
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo(File(root, "MyApp").path, "Other", root)).isFalse()
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo("", "MyApp", root)).isFalse()
+
+		// Parent differs as text, so only canonicalisation can settle it -- the caller must go
+		// off-thread rather than treat this as a "no".
+		val elsewhere = tempFolder.newFolder("elsewhere")
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo(File(elsewhere, "MyApp").path, "MyApp", root)).isNull()
+	}
+
+	@Test
+	fun `the full rule agrees with the shortcut wherever the shortcut commits`() {
+		val root = tempFolder.newFolder("projects2")
+		for (case in listOf(File(root, "MyApp").path to "MyApp", File(root, "MyApp").path to "Other", "" to "MyApp")) {
+			val (path, name) = case
+			val shortcut = deepLinkTargetOfOpenProjectWithoutIo(path, name, root)
+			assertThat(shortcut).isNotNull()
+			assertThat(isDeepLinkTargetOfOpenProject(path, name, root)).isEqualTo(shortcut)
+		}
+	}
 }
