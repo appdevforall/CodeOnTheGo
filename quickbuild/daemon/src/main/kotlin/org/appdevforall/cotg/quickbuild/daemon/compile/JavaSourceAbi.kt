@@ -51,10 +51,16 @@ object JavaSourceAbi {
 	 *
 	 * @param javaSources every `.java` in the module; an empty list is a known-empty ABI, not
 	 *   an unknown one.
+	 * @param warn receives the reason when a throw makes the snapshot null. A null costs every
+	 *   later compile in the session a full Kotlin recompile, which from the daemon log alone
+	 *   looks like a slow device - so the cause must reach the log.
 	 * @return one entry per input file, or null - which callers must read as "assume the ABI
 	 *   changed", never as "nothing changed".
 	 */
-	fun snapshot(javaSources: List<File>): Map<File, FileAbi>? {
+	fun snapshot(
+		javaSources: List<File>,
+		warn: (String) -> Unit = {},
+	): Map<File, FileAbi>? {
 		if (javaSources.isEmpty()) return emptyMap()
 		val compiler = ToolProvider.getSystemJavaCompiler() ?: return null
 		val collector = DiagnosticCollector<JavaFileObject>()
@@ -76,6 +82,7 @@ object JavaSourceAbi {
 				if (result.size != byPath.size) null else result
 			}
 		} catch (e: Exception) {
+			warn("w: Java ABI snapshot failed, every Kotlin source will be recompiled: ${e.javaClass.name}: ${e.message}")
 			null
 		}
 	}
