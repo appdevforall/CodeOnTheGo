@@ -69,7 +69,7 @@ class LiveReloadExecutorImplTest {
 			}
 		File(mainDir, "AndroidManifest.xml").writeText("<manifest/>")
 
-		tracker = GenerationTracker(store)
+		tracker = GenerationTracker(store, initial = 0L)
 		executor =
 			LiveReloadExecutorImpl(
 				daemon = daemon,
@@ -202,7 +202,7 @@ class LiveReloadExecutorImplTest {
 					deploy = deploy,
 					layout = QuickBuildProjectLayout(projectRoot),
 					entryActivity = "com.example.MainActivity",
-					generations = GenerationTracker(store),
+					generations = GenerationTracker.open(store),
 					workDir = File(projectRoot, ".androidide/quickbuild"),
 					clock = { 1000L },
 					baselineGeneration = 0L,
@@ -533,7 +533,7 @@ class LiveReloadExecutorImplTest {
 	fun `forced no-op rebuilds current sources and deploys a FRESH generation`() =
 		runTest {
 			store.value = 5
-			tracker = GenerationTracker(store)
+			tracker = GenerationTracker.open(store)
 			executor =
 				LiveReloadExecutorImpl(
 					daemon = daemon,
@@ -1785,5 +1785,21 @@ class LiveReloadExecutorImplTest {
 
 			assertThat(io.dispatches).isEqualTo(3)
 			assertThat(io.threads).containsExactly(RecordingIoDispatcher.THREAD_NAME)
+		}
+
+	@Test
+	fun `a successful compile's warnings ride the Success outcome`() =
+		runTest {
+			val warning = BuildDiagnostic(BuildDiagnostic.Severity.WARNING, "deprecated", "/src/Foo.kt", 3, 5)
+			daemon.compileReply =
+				DaemonReply.Ok(
+					CompileOutput(File("/fake/classes"), changedClassFiles = emptyList(), diagnostics = listOf(warning)),
+				)
+
+			val outcome = executor.execute(request(BuildRoute.CodeOnly, ChangedFiles.Known(setOf(sourceFile))))
+
+			assertThat(outcome).isEqualTo(BuildOutcome.Success(1, 0, diagnostics = listOf(warning)))
+			// The proxy app still gets the plain ok: warnings belong in the IDE's output, not on the overlay.
+			assertThat(deploy.calls).hasSize(1)
 		}
 }

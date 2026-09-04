@@ -1567,7 +1567,7 @@ class QuickBuildSessionManager(
 				// session's now.
 				scratchOwner
 					?.takeIf { live?.layout?.projectRoot != it }
-					?.let(scratch::remove)
+					?.let { scratch.remove(it) }
 			}
 	}
 

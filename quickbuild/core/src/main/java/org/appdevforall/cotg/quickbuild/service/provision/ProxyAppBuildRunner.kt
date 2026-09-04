@@ -182,7 +182,7 @@ internal class ProxyAppBuildRunner(
 								return ProvisionResult.SupersededDuringDaemonStart
 							}
 							val tracker =
-								GenerationTracker(generationStoreFactory(outcome.layout.projectRoot))
+								GenerationTracker.open(generationStoreFactory(outcome.layout.projectRoot))
 							ProvisionResult.Succeeded(
 								sessionFactory.create(outcome, tracker),
 								tracker,
