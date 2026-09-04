@@ -477,18 +477,21 @@ Steps, at 1.0 and again at 2.0:
 
 Expected:
 
-1. No status line is cut mid-word. The collapsed sheet header is a fixed 100dp
-   (`editor_sheet_collapsed_height`) and the text is capped at three lines.
+1. No status line is cut mid-word. The text is capped at three lines, and the collapsed sheet
+   header takes its height from what the status block measures, with
+   `editor_sheet_collapsed_height` as a floor rather than a ceiling - so three lines at 2.0 get
+   the room they need. The swipe hint below it is deliberately truncatable, with an ellipsis.
 
    Swiping the sheet up is NOT a way to read a line that does not fit: `EditorBottomSheet`'s
    `onSlide` scales the header container's height by `1 - sheetOffset`, so expanding the sheet
    drives the header to zero and the status line disappears. No other surface shows this text,
-   so anything that overflows 100dp is simply lost - record it as a failure rather than
-   swiping to check.
+   so anything that overflows is simply lost - record it as a failure rather than swiping to
+   check.
 
-   Whether the bar actually overflows at 2.0 has not been measured: nobody has run this step on
-   a device. Three lines of BodyMedium at 2.0 plus the swipe hint is arithmetically over 100dp,
-   so treat overflow as expected until a device run says otherwise, and record which strings
-   overflow on which screen width.
+   The overflow at 2.0 WAS measured on the A56 before this changed: the two longest lines
+   wrapped to two lines and clipped at both the top of the collapsed sheet and the hint below,
+   and the hint truncated with no ellipsis in every state. The measured-height fix has not
+   itself been re-checked on a device - do that here, at 1.0 and 2.0, and record which strings
+   still overflow on which screen width.
 2. The dropdown's rows and the dialog's buttons stay on screen and reachable.
 3. Nothing overlaps the status bar at the top or the navigation bar at the bottom.

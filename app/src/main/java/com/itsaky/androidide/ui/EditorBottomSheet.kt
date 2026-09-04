@@ -25,6 +25,7 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
+import android.view.View.MeasureSpec
 import android.view.ViewTreeObserver
 import android.widget.RelativeLayout
 import androidx.activity.viewModels
@@ -101,10 +102,27 @@ class EditorBottomSheet
 		defStyleAttr: Int = 0,
 		defStyleRes: Int = 0,
 	) : RelativeLayout(context, attrs, defStyleAttr, defStyleRes) {
-		private val collapsedHeight: Float by lazy {
+		/**
+		 * The floor for the collapsed header, and its height whenever the status block fits in it.
+		 */
+		private val minCollapsedHeight: Float by lazy {
 			val localContext = getContext() ?: return@lazy 0f
 			localContext.resources.getDimension(R.dimen.editor_sheet_collapsed_height)
 		}
+
+		/** What the build-status block last measured at, or 0 before it has been measured. */
+		private var measuredStatusHeight = 0f
+
+		/**
+		 * The collapsed header's height.
+		 *
+		 * A fixed dp cannot hold text. At a 2x font scale the longest Quick Build status lines
+		 * wrap to three lines and the swipe hint sits below them, and both were clipped against a
+		 * 100dp box - the remedy the line names being the half that went missing. The dimen is
+		 * kept as a floor so ordinary text keeps the familiar height; larger text raises it.
+		 */
+		private val collapsedHeight: Float
+			get() = maxOf(minCollapsedHeight, measuredStatusHeight)
 		private val behavior: BottomSheetBehavior<EditorBottomSheet> by lazy {
 			BottomSheetBehavior.from(this).apply {
 				isFitToContents = false
@@ -434,6 +452,39 @@ class EditorBottomSheet
 			behavior.peekHeight = if (isSearchModeActive) 0 else collapsedHeight.roundToInt()
 		}
 
+		/**
+		 * Re-measures the build-status block and, if it now needs more room than the header has,
+		 * grows the header to fit it.
+		 *
+		 * The header's height is set explicitly (a slide scales it), so the block cannot simply
+		 * wrap - it has to be measured against an unbounded height on its own. Only applied while
+		 * the sheet is collapsed: mid-slide the height belongs to [onSlide], which reads
+		 * [collapsedHeight] itself and so picks the new value up on its next frame.
+		 */
+		private fun refreshCollapsedHeight() {
+			val header = binding.headerContainer
+			val status = binding.buildStatus.root
+			if (header.width == 0) {
+				return
+			}
+			status.measure(
+				MeasureSpec.makeMeasureSpec(header.width, MeasureSpec.EXACTLY),
+				MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+			)
+			val measured = status.measuredHeight.toFloat()
+			if (measured <= 0f || measured == measuredStatusHeight) {
+				return
+			}
+			measuredStatusHeight = measured
+			if (behavior.state != BottomSheetBehavior.STATE_COLLAPSED) {
+				return
+			}
+			applyPeekHeight()
+			header.updateLayoutParams<LayoutParams> {
+				height = (collapsedHeight + insetBottom).roundToInt()
+			}
+		}
+
 		fun setOffsetAnchor(view: View) {
 			val listener =
 				object : ViewTreeObserver.OnGlobalLayoutListener {
@@ -614,6 +665,9 @@ class EditorBottomSheet
 					it.statusText.gravity = gravity
 					it.statusText.text = text
 				}
+				// A longer line can take more rows than the last one did, so the header has to be
+				// re-measured against the new text rather than against the dimen.
+				post { refreshCollapsedHeight() }
 			}
 		}
 
