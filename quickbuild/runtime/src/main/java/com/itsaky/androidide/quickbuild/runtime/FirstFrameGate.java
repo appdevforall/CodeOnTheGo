@@ -8,6 +8,8 @@ package com.itsaky.androidide.quickbuild.runtime;
  * So the generation stays pending across the resume and is only released by {@link #drawn}, which the runtime calls once the frame that rendered it has completed. Everything a released generation owes - the ack to CoGo, the good-marking that ends its probation - hangs off that one release, so the moment the crash guard stops blaming a generation is the same moment there is drawn evidence it works.
  *
  * A generation that never draws is released by the runtime's own fallbacks instead: an activity with no live view tree, and the branch where the resumed activity is gone by the time the recreate runs, both complete without a frame. That is the deliberate looser case - waiting for a frame that will never arrive would strand the deploy unacked.
+ *
+ * One case is deliberately not released: a recreate that succeeds but never resumes, because the user backgrounded the app mid-relaunch and the task was then swiped away. No draw callback is ever installed, so the deploy ends only in CoGo's timeout, and until the next save {@link #pending} still names this generation, so an unrelated crash in the process would be reported against it. Releasing from onActivityDestroyed is not the fix, since recreate() itself destroys the armed activity on every normal reload; a destroy-based release would need to know a relaunch is still pending, which nothing here tracks yet.
  */
 final class FirstFrameGate {
 
