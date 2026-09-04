@@ -86,6 +86,17 @@ class DaemonProcessClient(
 		val deliberateStop = AtomicBoolean(false)
 
 		/**
+		 * Whether the session ever owned this child: true once its `configure` reply passed
+		 * [startLocked]'s checks, false when the start failed or was cancelled. The watcher
+		 * waits on it before reporting an exit, because a child can write its reply and exit in
+		 * the same breath and the watcher can wake before the start has read that reply - a
+		 * marker read at that moment calls a death a failed start, or the reverse. A child that
+		 * dies during its own configure is a failed [start], which the caller already sees as a
+		 * [DaemonReply.Failed]; only an owned child's exit is a death.
+		 */
+		val owned = CompletableDeferred<Boolean>()
+
+		/**
 		 * This child's stdout pump, so the death watcher can drain it before failing pending
 		 * requests. Assigned by [startReaders] before the watcher can observe an exit.
 		 */
@@ -167,7 +178,22 @@ class DaemonProcessClient(
 		val spawn = Spawn(proc, proc.outputStream.bufferedWriter())
 		this.spawn = spawn
 		startReaders(spawn)
+		try {
+			return configureLocked(spawn, config)
+		} finally {
+			// No-op after a configured start; every other way out, cancellation included, tells
+			// the watcher this child was never the session's.
+			spawn.owned.complete(false)
+		}
+	}
 
+	/**
+	 * The `configure` round trip of [startLocked], on a child already installed as [spawn].
+	 */
+	private suspend fun configureLocked(
+		spawn: Spawn,
+		config: DaemonConfig,
+	): DaemonReply<Unit> {
 		val configureReply =
 			request(DaemonOps.CONFIGURE) {
 				addProperty(RequestKeys.PROJECT_ROOT, config.projectRoot.absolutePath)
@@ -206,6 +232,8 @@ class DaemonProcessClient(
 								?.takeIf { it.isJsonPrimitive }
 								?.asString
 						configured = true
+						// Only now is an exit a death: from here the session owns this child.
+						spawn.owned.complete(true)
 						DaemonReply.Ok(Unit)
 					}
 				}
@@ -225,8 +253,9 @@ class DaemonProcessClient(
 				}
 			}
 		// A start that never reached a configured daemon must not leave the child behind: nothing
-		// else shuts it down, so it would hold its heap for the rest of the app's life and fire
-		// deathListener for a session that never had a daemon.
+		// else shuts it down, so a child that hangs would hold its heap for the rest of the
+		// app's life. A child that DIES here is already covered - [Spawn.owned] settles false,
+		// so the watcher reports no death for a session that never had a daemon.
 		if (outcome !is DaemonReply.Ok) {
 			// The unlocked body: [startMutex] is held for the whole of this method.
 			shutdownLocked()
@@ -536,8 +565,12 @@ class DaemonProcessClient(
 				return@launch
 			}
 			configured = false
+			// Settled by the start, not by which coroutine woke first - see [Spawn.owned]. Safe
+			// to wait on: this child's pending requests were failed above, which is what lets
+			// a start still inside its configure round trip finish and settle it.
+			val wasOwned = spawn.owned.await()
 			// This child's own marker, not a shared flag - see [Spawn.deliberateStop].
-			if (!spawn.deliberateStop.get()) {
+			if (wasOwned && !spawn.deliberateStop.get()) {
 				log.error("Quick-build daemon died with exit code {}", exitCode)
 				deathListener?.invoke(exitCode)
 			}
