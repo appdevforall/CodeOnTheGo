@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.data
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.test.runTest
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
@@ -61,107 +62,115 @@ class QuickBuildScratchTest {
 	}
 
 	@Test
-	fun `prepare creates the tree and reports ready`() {
-		val project = File(projects, "MyApp")
+	fun `prepare creates the tree and reports ready`() =
+		runTest {
+			val project = File(projects, "MyApp")
 
-		val prepared = scratch.prepare(project)
+			val prepared = scratch.prepare(project)
 
-		assertThat(prepared).isInstanceOf(QuickBuildScratch.Preparation.Ready::class.java)
-		assertThat((prepared as QuickBuildScratch.Preparation.Ready).dir.isDirectory).isTrue()
-		assertThat(prepared.dir).isEqualTo(scratch.treeFor(project))
-	}
-
-	@Test
-	fun `prepare fails with a user-facing message when the volume is below the floor`() {
-		// A floor no real filesystem satisfies forces the shortfall branch.
-		val guarded = QuickBuildScratch(root, minFreeBytes = Long.MAX_VALUE)
-
-		val prepared = guarded.prepare(File(projects, "MyApp"))
-
-		assertThat(prepared).isInstanceOf(QuickBuildScratch.Preparation.Failed::class.java)
-		// Named, with the two numbers the host's copy interpolates - the wording itself
-		// lives in the app module's resources.
-		val message = (prepared as QuickBuildScratch.Preparation.Failed).message
-		assertThat(message).isInstanceOf(QuickBuildMessage.NotEnoughStorage::class.java)
-		assertThat((message as QuickBuildMessage.NotEnoughStorage).requiredMb).isGreaterThan(0L)
-		// The failure never half-creates the tree.
-		assertThat(guarded.treeFor(File(projects, "MyApp")).exists()).isFalse()
-	}
-
-	@Test
-	fun `freeSpaceShortfall is null when the volume has room`() {
-		assertThat(scratch.freeSpaceShortfall()).isNull()
-	}
-
-	@Test
-	fun `an uncreatable root reports ScratchDirUnavailable, not a storage shortfall`() {
-		// usableSpace on a nonexistent path is 0, so without its own guard an uncreatable
-		// root would read as "not enough storage" - the wrong remedy on screen - when the
-		// real problem is the path.
-		val blocker = File(root, "blocker").apply { writeText("a file, not a dir") }
-		val blocked = QuickBuildScratch(File(blocker, "scratch"))
-
-		val message = blocked.freeSpaceShortfall()
-
-		assertThat(message).isInstanceOf(QuickBuildMessage.ScratchDirUnavailable::class.java)
-	}
-
-	@Test
-	fun `remove deletes the tree and tolerates a missing one`() {
-		val project = File(projects, "MyApp")
-		val tree = (scratch.prepare(project) as QuickBuildScratch.Preparation.Ready).dir
-		File(tree, "out/classes/Foo.class").apply {
-			parentFile!!.mkdirs()
-			writeText("bytecode")
+			assertThat(prepared).isInstanceOf(QuickBuildScratch.Preparation.Ready::class.java)
+			assertThat((prepared as QuickBuildScratch.Preparation.Ready).dir.isDirectory).isTrue()
+			assertThat(prepared.dir).isEqualTo(scratch.treeFor(project))
 		}
 
-		scratch.remove(project)
-		assertThat(tree.exists()).isFalse()
-
-		// Second remove: nothing there, nothing thrown.
-		scratch.remove(project)
-	}
-
 	@Test
-	fun `sweep removes every tree, including a populated one`() {
-		val first = File(projects, "FirstApp")
-		val second = File(projects, "SecondApp")
-		val firstTree = (scratch.prepare(first) as QuickBuildScratch.Preparation.Ready).dir
-		val secondTree = (scratch.prepare(second) as QuickBuildScratch.Preparation.Ready).dir
-		File(secondTree, "out/stale.dex").apply {
-			parentFile!!.mkdirs()
-			writeText("stale")
+	fun `prepare fails with a user-facing message when the volume is below the floor`() =
+		runTest {
+			// A floor no real filesystem satisfies forces the shortfall branch.
+			val guarded = QuickBuildScratch(root, minFreeBytes = Long.MAX_VALUE)
+
+			val prepared = guarded.prepare(File(projects, "MyApp"))
+
+			assertThat(prepared).isInstanceOf(QuickBuildScratch.Preparation.Failed::class.java)
+			// Named, with the two numbers the host's copy interpolates - the wording itself
+			// lives in the app module's resources.
+			val message = (prepared as QuickBuildScratch.Preparation.Failed).message
+			assertThat(message).isInstanceOf(QuickBuildMessage.NotEnoughStorage::class.java)
+			assertThat((message as QuickBuildMessage.NotEnoughStorage).requiredMb).isGreaterThan(0L)
+			// The failure never half-creates the tree.
+			assertThat(guarded.treeFor(File(projects, "MyApp")).exists()).isFalse()
 		}
 
-		scratch.sweep()
-
-		assertThat(firstTree.exists()).isFalse()
-		assertThat(secondTree.exists()).isFalse()
-	}
+	@Test
+	fun `freeSpaceShortfall is null when the volume has room`() =
+		runTest {
+			assertThat(scratch.freeSpaceShortfall()).isNull()
+		}
 
 	@Test
-	fun `sweep reclaims the tree of a deleted project`() {
-		val project = File(projects, "Doomed").apply { mkdirs() }
-		val tree = (scratch.prepare(project) as QuickBuildScratch.Preparation.Ready).dir
+	fun `an uncreatable root reports ScratchDirUnavailable, not a storage shortfall`() =
+		runTest {
+			// usableSpace on a nonexistent path is 0, so without its own guard an uncreatable
+			// root would read as "not enough storage" - the wrong remedy on screen - when the
+			// real problem is the path.
+			val blocker = File(root, "blocker").apply { writeText("a file, not a dir") }
+			val blocked = QuickBuildScratch(File(blocker, "scratch"))
 
-		// The project folder is gone; only the key (derived from the path string)
-		// remains - the sweep must still find and delete the orphan tree.
-		project.deleteRecursively()
-		scratch.sweep()
+			val message = blocked.freeSpaceShortfall()
 
-		assertThat(tree.exists()).isFalse()
-	}
+			assertThat(message).isInstanceOf(QuickBuildMessage.ScratchDirUnavailable::class.java)
+		}
 
 	@Test
-	fun `sweep leaves stray files and tolerates a missing root`() {
-		val stray = File(root, "not-a-tree.txt").apply { writeText("keep me") }
-		scratch.sweep()
-		assertThat(stray.exists()).isTrue()
+	fun `remove deletes the tree and tolerates a missing one`() =
+		runTest {
+			val project = File(projects, "MyApp")
+			val tree = (scratch.prepare(project) as QuickBuildScratch.Preparation.Ready).dir
+			File(tree, "out/classes/Foo.class").apply {
+				parentFile!!.mkdirs()
+				writeText("bytecode")
+			}
 
-		root.deleteRecursively()
-		// Missing root: listFiles() is null; nothing thrown.
-		scratch.sweep()
-	}
+			scratch.remove(project)
+			assertThat(tree.exists()).isFalse()
+
+			// Second remove: nothing there, nothing thrown.
+			scratch.remove(project)
+		}
+
+	@Test
+	fun `sweep removes every tree, including a populated one`() =
+		runTest {
+			val first = File(projects, "FirstApp")
+			val second = File(projects, "SecondApp")
+			val firstTree = (scratch.prepare(first) as QuickBuildScratch.Preparation.Ready).dir
+			val secondTree = (scratch.prepare(second) as QuickBuildScratch.Preparation.Ready).dir
+			File(secondTree, "out/stale.dex").apply {
+				parentFile!!.mkdirs()
+				writeText("stale")
+			}
+
+			scratch.sweep()
+
+			assertThat(firstTree.exists()).isFalse()
+			assertThat(secondTree.exists()).isFalse()
+		}
+
+	@Test
+	fun `sweep reclaims the tree of a deleted project`() =
+		runTest {
+			val project = File(projects, "Doomed").apply { mkdirs() }
+			val tree = (scratch.prepare(project) as QuickBuildScratch.Preparation.Ready).dir
+
+			// The project folder is gone; only the key (derived from the path string)
+			// remains - the sweep must still find and delete the orphan tree.
+			project.deleteRecursively()
+			scratch.sweep()
+
+			assertThat(tree.exists()).isFalse()
+		}
+
+	@Test
+	fun `sweep leaves stray files and tolerates a missing root`() =
+		runTest {
+			val stray = File(root, "not-a-tree.txt").apply { writeText("keep me") }
+			scratch.sweep()
+			assertThat(stray.exists()).isTrue()
+
+			root.deleteRecursively()
+			// Missing root: listFiles() is null; nothing thrown.
+			scratch.sweep()
+		}
 
 	/**
 	 * Pins [dir] shut by clearing its write bit, so nothing inside it can be unlinked and
@@ -177,37 +186,39 @@ class QuickBuildScratchTest {
 	}
 
 	@Test
-	fun `remove reports an undeletable tree instead of throwing`() {
-		val project = File(projects, "Stuck")
-		val tree = (scratch.prepare(project) as QuickBuildScratch.Preparation.Ready).dir
-		val out = File(tree, "out").apply { mkdirs() }
-		val pinned = File(out, "pinned.class").apply { writeText("bytecode") }
-		pinShut(out)
+	fun `remove reports an undeletable tree instead of throwing`() =
+		runTest {
+			val project = File(projects, "Stuck")
+			val tree = (scratch.prepare(project) as QuickBuildScratch.Preparation.Ready).dir
+			val out = File(tree, "out").apply { mkdirs() }
+			val pinned = File(out, "pinned.class").apply { writeText("bytecode") }
+			pinShut(out)
 
-		// Teardown has to finish, so a tree that will not go is logged, never propagated.
-		scratch.remove(project)
+			// Teardown has to finish, so a tree that will not go is logged, never propagated.
+			scratch.remove(project)
 
-		assertThat(pinned.exists()).isTrue()
-		out.setWritable(true)
-	}
+			assertThat(pinned.exists()).isTrue()
+			out.setWritable(true)
+		}
 
 	@Test
-	fun `sweep keeps reclaiming past a tree it cannot delete`() {
-		val stuckTree =
-			(scratch.prepare(File(projects, "Stuck")) as QuickBuildScratch.Preparation.Ready).dir
-		val healthyTree =
-			(scratch.prepare(File(projects, "Healthy")) as QuickBuildScratch.Preparation.Ready).dir
-		val out = File(stuckTree, "out").apply { mkdirs() }
-		val pinned = File(out, "pinned.class").apply { writeText("bytecode") }
-		pinShut(out)
+	fun `sweep keeps reclaiming past a tree it cannot delete`() =
+		runTest {
+			val stuckTree =
+				(scratch.prepare(File(projects, "Stuck")) as QuickBuildScratch.Preparation.Ready).dir
+			val healthyTree =
+				(scratch.prepare(File(projects, "Healthy")) as QuickBuildScratch.Preparation.Ready).dir
+			val out = File(stuckTree, "out").apply { mkdirs() }
+			val pinned = File(out, "pinned.class").apply { writeText("bytecode") }
+			pinShut(out)
 
-		scratch.sweep()
+			scratch.sweep()
 
-		// A stuck tree costs its own disk and nothing else. Note this pins the OUTCOME, not
-		// the iteration order: listFiles() decides which tree is visited first, so a sweep
-		// that aborted on the failure would still pass whenever the stuck tree came last.
-		assertThat(pinned.exists()).isTrue()
-		assertThat(healthyTree.exists()).isFalse()
-		out.setWritable(true)
-	}
+			// A stuck tree costs its own disk and nothing else. Note this pins the OUTCOME, not
+			// the iteration order: listFiles() decides which tree is visited first, so a sweep
+			// that aborted on the failure would still pass whenever the stuck tree came last.
+			assertThat(pinned.exists()).isTrue()
+			assertThat(healthyTree.exists()).isFalse()
+			out.setWritable(true)
+		}
 }

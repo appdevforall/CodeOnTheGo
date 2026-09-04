@@ -1,5 +1,8 @@
 package org.appdevforall.cotg.quickbuild.data
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -13,14 +16,20 @@ import java.security.MessageDigest
  * ~50x per file (ADFA-4930); user sources never move. A tree exists only while its session
  * does, and nothing in it needs to survive one.
  *
+ * The path accessors are arithmetic. Everything that touches the disk - [freeSpaceShortfall],
+ * [prepare], [remove], [sweep] - suspends and runs under [ioDispatcher], because the callers
+ * are on the session thread that concurrency.md says must not block.
+ *
  * @property root parent of every per-project tree, created on demand; must be on app-private
  *   storage, since `/storage/emulated` gives up the whole point of this class.
  * @property minFreeBytes free-space floor in bytes that [freeSpaceShortfall] enforces on
  *   [root]'s volume, injectable so tests can drive the shortfall path.
+ * @property ioDispatcher where the disk work runs; injectable so tests can pin the hop.
  */
 class QuickBuildScratch(
 	private val root: File,
 	private val minFreeBytes: Long = DEFAULT_MIN_FREE_BYTES,
+	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
 	/** Outcome of [prepare]: a usable tree, or a user-facing reason there is none. */
 	sealed interface Preparation {
@@ -103,7 +112,10 @@ class QuickBuildScratch(
 	 * @return null when there is room, else the user-facing message to surface; creates [root]
 	 *   as a side effect, since usable space cannot be read through a directory that is not there.
 	 */
-	fun freeSpaceShortfall(): QuickBuildMessage? {
+	suspend fun freeSpaceShortfall(): QuickBuildMessage? = withContext(ioDispatcher) { freeSpaceShortfallBlocking() }
+
+	/** The [freeSpaceShortfall] body, for callers already on [ioDispatcher]. */
+	private fun freeSpaceShortfallBlocking(): QuickBuildMessage? {
 		// An uncreatable root must not fall through to the space read: usableSpace on a
 		// nonexistent path is 0, which would report "not enough storage" - the wrong
 		// remedy on screen - for what is a permissions or path problem.
@@ -127,14 +139,15 @@ class QuickBuildScratch(
 	 * @return [Preparation.Ready] with the tree, or [Preparation.Failed] on a space shortfall or
 	 *   an unwritable location; an already-existing tree is reused, not cleared.
 	 */
-	fun prepare(projectRoot: File): Preparation {
-		freeSpaceShortfall()?.let { return Preparation.Failed(it) }
-		val tree = treeFor(projectRoot)
-		if (!tree.isDirectory && !tree.mkdirs()) {
-			return Preparation.Failed(QuickBuildMessage.ScratchDirUnavailable(tree.absolutePath))
+	suspend fun prepare(projectRoot: File): Preparation =
+		withContext(ioDispatcher) {
+			freeSpaceShortfallBlocking()?.let { return@withContext Preparation.Failed(it) }
+			val tree = treeFor(projectRoot)
+			if (!tree.isDirectory && !tree.mkdirs()) {
+				return@withContext Preparation.Failed(QuickBuildMessage.ScratchDirUnavailable(tree.absolutePath))
+			}
+			Preparation.Ready(tree)
 		}
-		return Preparation.Ready(tree)
-	}
 
 	/**
 	 * Deletes the project's tree; a missing tree is a no-op. Session-teardown hook.
@@ -145,18 +158,19 @@ class QuickBuildScratch(
 	 * @param projectRoot the project whose tree to delete; its own directory, and the generation
 	 *   counter inside it, are untouched.
 	 */
-	fun remove(projectRoot: File) {
-		val tree = treeFor(projectRoot)
-		// deleteRecursively() also returns false for a tree that was never there, which is a
-		// documented no-op - so the residue, not the return value alone, is the failure.
-		if (!tree.deleteRecursively() && tree.exists()) {
-			log.error(
-				"Quick Build: could not fully delete the scratch tree {}; the next session for " +
-					"this project reuses what is left, so its build may start from stale intermediates",
-				tree.absolutePath,
-			)
+	suspend fun remove(projectRoot: File) =
+		withContext(ioDispatcher) {
+			val tree = treeFor(projectRoot)
+			// deleteRecursively() also returns false for a tree that was never there, which is a
+			// documented no-op - so the residue, not the return value alone, is the failure.
+			if (!tree.deleteRecursively() && tree.exists()) {
+				log.error(
+					"Quick Build: could not fully delete the scratch tree {}; the next session for " +
+						"this project reuses what is left, so its build may start from stale intermediates",
+					tree.absolutePath,
+				)
+			}
 		}
-	}
 
 	/**
 	 * Reclaims every tree under [root]. Called only at session-manager start, when nothing is
@@ -166,19 +180,20 @@ class QuickBuildScratch(
 	 * A running session's tree is [remove]d at its own teardown, which is why this needs no
 	 * spare-list: there is nothing live for it to protect.
 	 */
-	fun sweep() {
-		root.listFiles()?.forEach { child ->
-			if (child.isDirectory && !child.deleteRecursively() && child.exists()) {
-				// Not fatal: nothing live depends on a leftover, and the project it belongs
-				// to gets the same reuse behaviour as any warm tree. Logged because a tree
-				// that never clears is disk this class promises to reclaim.
-				log.warn(
-					"Quick Build: could not reclaim the leftover scratch tree {}; it stays on disk",
-					child.absolutePath,
-				)
+	suspend fun sweep() =
+		withContext(ioDispatcher) {
+			root.listFiles()?.forEach { child ->
+				if (child.isDirectory && !child.deleteRecursively() && child.exists()) {
+					// Not fatal: nothing live depends on a leftover, and the project it belongs
+					// to gets the same reuse behaviour as any warm tree. Logged because a tree
+					// that never clears is disk this class promises to reclaim.
+					log.warn(
+						"Quick Build: could not reclaim the leftover scratch tree {}; it stays on disk",
+						child.absolutePath,
+					)
+				}
 			}
 		}
-	}
 
 	companion object {
 		private val log = LoggerFactory.getLogger("QB-Scratch")

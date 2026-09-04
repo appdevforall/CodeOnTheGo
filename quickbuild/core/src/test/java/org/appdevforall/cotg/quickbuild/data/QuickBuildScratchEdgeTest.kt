@@ -1,10 +1,14 @@
 package org.appdevforall.cotg.quickbuild.data
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.test.runTest
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 
 /**
  * Key-sanitization and preparation edges of [QuickBuildScratch] beyond
@@ -43,31 +47,66 @@ class QuickBuildScratchEdgeTest {
 	}
 
 	@Test
-	fun `prepare is idempotent on an existing tree`() {
-		val scratch = scratch()
-		val project = File(tmp, "proj").apply { mkdirs() }
-		val first = scratch.prepare(project) as QuickBuildScratch.Preparation.Ready
-		File(first.dir, "work").mkdirs()
+	fun `prepare is idempotent on an existing tree`() =
+		runTest {
+			val scratch = scratch()
+			val project = File(tmp, "proj").apply { mkdirs() }
+			val first = scratch.prepare(project) as QuickBuildScratch.Preparation.Ready
+			File(first.dir, "work").mkdirs()
 
-		val second = scratch.prepare(project)
+			val second = scratch.prepare(project)
 
-		// The existing tree (and anything in it) is kept, not recreated.
-		assertThat(second).isEqualTo(first)
-		assertThat(File(first.dir, "work").isDirectory).isTrue()
-	}
+			// The existing tree (and anything in it) is kept, not recreated.
+			assertThat(second).isEqualTo(first)
+			assertThat(File(first.dir, "work").isDirectory).isTrue()
+		}
 
 	@Test
-	fun `a tree blocked by a stray file fails with the user-facing message`() {
-		val scratch = scratch()
-		val project = File(tmp, "proj").apply { mkdirs() }
-		val tree = scratch.treeFor(project)
-		tree.parentFile!!.mkdirs()
-		tree.writeText("not a directory")
+	fun `a tree blocked by a stray file fails with the user-facing message`() =
+		runTest {
+			val scratch = scratch()
+			val project = File(tmp, "proj").apply { mkdirs() }
+			val tree = scratch.treeFor(project)
+			tree.parentFile!!.mkdirs()
+			tree.writeText("not a directory")
 
-		val preparation = scratch.prepare(project)
+			val preparation = scratch.prepare(project)
 
-		assertThat(preparation).isInstanceOf(QuickBuildScratch.Preparation.Failed::class.java)
-		assertThat((preparation as QuickBuildScratch.Preparation.Failed).message)
-			.isInstanceOf(QuickBuildMessage.ScratchDirUnavailable::class.java)
-	}
+			assertThat(preparation).isInstanceOf(QuickBuildScratch.Preparation.Failed::class.java)
+			assertThat((preparation as QuickBuildScratch.Preparation.Failed).message)
+				.isInstanceOf(QuickBuildMessage.ScratchDirUnavailable::class.java)
+		}
+
+	/**
+	 * The callers sit on the session thread, which must not block, so every disk touch has to
+	 * run on the injected dispatcher. Pinned through the root: [File.isDirectory] is the first
+	 * call the space guard makes and [File.listFiles] the first sweep makes.
+	 */
+	@Test
+	fun `disk work runs on the injected dispatcher, not the caller's thread`() =
+		runTest {
+			val ioThread = "qb-scratch-io-probe"
+			val executor = Executors.newSingleThreadExecutor { Thread(it, ioThread) }
+			val seen = CopyOnWriteArrayList<String>()
+			val probedRoot =
+				object : File(tmp, "scratch-root") {
+					override fun isDirectory(): Boolean = super.isDirectory().also { seen += Thread.currentThread().name }
+
+					override fun listFiles(): Array<File>? = super.listFiles().also { seen += Thread.currentThread().name }
+				}
+			try {
+				val probed = QuickBuildScratch(probedRoot, ioDispatcher = executor.asCoroutineDispatcher())
+				val project = File(tmp, "proj").apply { mkdirs() }
+
+				assertThat(probed.freeSpaceShortfall()).isNull()
+				assertThat(probed.prepare(project)).isInstanceOf(QuickBuildScratch.Preparation.Ready::class.java)
+				probed.remove(project)
+				probed.sweep()
+			} finally {
+				executor.shutdown()
+			}
+
+			assertThat(seen).isNotEmpty()
+			assertThat(seen.toSet()).containsExactly(ioThread)
+		}
 }

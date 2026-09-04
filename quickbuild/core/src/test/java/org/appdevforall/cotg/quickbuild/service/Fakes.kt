@@ -188,9 +188,9 @@ class FakeDeploy : DeploySender {
 class MemoryGenerationStore : GenerationStore {
 	var value: Long? = null
 
-	override fun load(): Long? = value
+	override suspend fun load(): Long? = value
 
-	override fun save(generation: Long) {
+	override suspend fun save(generation: Long) {
 		value = generation
 	}
 }
