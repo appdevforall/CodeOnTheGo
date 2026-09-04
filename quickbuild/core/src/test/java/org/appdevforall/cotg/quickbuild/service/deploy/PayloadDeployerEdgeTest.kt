@@ -55,7 +55,7 @@ class PayloadDeployerEdgeTest {
 				writeText("{}")
 			}
 		File(mainDir, "AndroidManifest.xml").writeText("<manifest/>")
-		tracker = GenerationTracker(store)
+		tracker = GenerationTracker(store, initial = 0L)
 		// Every build recompiles the service: the policy then requires a restart deploy.
 		daemon.compileReply =
 			DaemonReply.Ok(CompileOutput(File("/fake/classes"), listOf("com/example/SyncService.class")))

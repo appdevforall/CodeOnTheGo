@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.domain.session
 
 import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
+import org.appdevforall.cotg.quickbuild.domain.reload.BuildDiagnostic
 
 /**
  * What the status surface should show, derived purely from session state rather than set and
@@ -54,11 +55,14 @@ sealed interface QuickBuildStatus {
 	 *   the surface then shows no timing.
 	 * @property restarted the deploy relaunched the proxy-app process (service/provider/Application
 	 *   code changed), so the surface phrases it as a restart rather than a plain reload.
+	 * @property diagnostics the warnings the landed build's compile produced, for the surface to
+	 *   list under the reload line the way a failed build lists its errors; empty when none.
 	 */
 	data class UpToDate(
 		val generation: Long,
 		val buildDurationMillis: Long?,
 		val restarted: Boolean = false,
+		val diagnostics: List<BuildDiagnostic> = emptyList(),
 	) : QuickBuildStatus
 
 	/**
@@ -152,7 +156,7 @@ sealed interface QuickBuildStatus {
 				}
 
 				is QuickBuildSessionState.Deployed -> {
-					UpToDate(state.generation, state.buildDurationMillis, state.restarted)
+					UpToDate(state.generation, state.buildDurationMillis, state.restarted, state.diagnostics)
 				}
 
 				is QuickBuildSessionState.Invalidated -> {

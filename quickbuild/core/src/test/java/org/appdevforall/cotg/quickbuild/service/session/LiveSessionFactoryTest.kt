@@ -114,7 +114,7 @@ class LiveSessionFactoryTest {
 				CompileOutput(File("/fake/classes"), changedClassFiles = listOf("com/example/Foo.class")),
 			)
 		val executor =
-			factory().executorFor(proxyApp, layout(), GenerationTracker(MemoryGenerationStore()), baselineGeneration = 0L)
+			factory().executorFor(proxyApp, layout(), GenerationTracker(MemoryGenerationStore(), initial = 0L), baselineGeneration = 0L)
 		return executor.execute(
 			BuildRequest(
 				buildId = 1,
@@ -170,7 +170,7 @@ class LiveSessionFactoryTest {
 						proxyAppUid = 10123,
 						layout = layout(),
 					),
-					GenerationTracker(MemoryGenerationStore()),
+					GenerationTracker(MemoryGenerationStore(), initial = 0L),
 				)
 
 			val outcome =
@@ -278,7 +278,7 @@ class LiveSessionFactoryTest {
 					proxyAppUid = 10123,
 					layout = QuickBuildProjectLayout(RecordingRoot(projectRoot.path, walkThreads)),
 				),
-				GenerationTracker(MemoryGenerationStore()),
+				GenerationTracker(MemoryGenerationStore(), initial = 0L),
 			)
 
 			assertThat(walkThreads).isNotEmpty()
