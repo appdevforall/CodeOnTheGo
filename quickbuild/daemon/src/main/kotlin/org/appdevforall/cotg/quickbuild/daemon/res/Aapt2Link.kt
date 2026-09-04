@@ -3,6 +3,7 @@ package org.appdevforall.cotg.quickbuild.daemon.res
 import org.appdevforall.cotg.quickbuild.protocol.Diagnostic
 import java.io.File
 import java.io.IOException
+import java.io.Reader
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipFile
@@ -84,10 +85,19 @@ class Aapt2Link(
 		 * as timed out, which is a rare spurious relink failure and the hardest kind to diagnose.
 		 *
 		 * @param process the aapt2 child this run's watchdog guards.
+		 * @param beforeKill runs after the liveness check and BEFORE the kill. The kill is what
+		 *   closes the child's pipe and releases the request thread's output drain, so a timeout
+		 *   flag stored after it can land after that thread has already read the flag - and a
+		 *   link really cut short at the deadline is then reported as an ordinary link failure
+		 *   with nothing naming the timeout. Ordering it here keeps the store ahead of the wake-up.
 		 * @return true when a live process was killed here.
 		 */
-		internal fun killIfAlive(process: Process): Boolean {
+		internal fun killIfAlive(
+			process: Process,
+			beforeKill: () -> Unit = {},
+		): Boolean {
 			if (!process.isAlive) return false
+			beforeKill()
 			process.destroyForcibly()
 			return true
 		}
@@ -103,12 +113,58 @@ class Aapt2Link(
 		 *
 		 * @param process the aapt2 child this run's watchdog guards.
 		 * @param timeoutMillis how long the child is given before the kill.
+		 * @param beforeKill see [killIfAlive]; the caller's timeout flag belongs here, not after
+		 *   the return.
 		 * @return true only when the wait expired AND a live process was killed.
 		 */
 		internal fun watchdogTimedOut(
 			process: Process,
 			timeoutMillis: Long,
-		): Boolean = !process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS) && killIfAlive(process)
+			beforeKill: () -> Unit = {},
+		): Boolean = !process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS) && killIfAlive(process, beforeKill)
+
+		/**
+		 * Reads [reader] to EOF, keeping at most [maxChars] of it.
+		 *
+		 * The rest is drained and dropped rather than left in the pipe: a child blocked on a full
+		 * pipe never exits, and the watchdog would then kill a process that had only been
+		 * talkative. The bound exists because every other step in this path is bounded
+		 * ([parseDiagnostics] keeps 50 entries and a 2000-char fallback) and the read that feeds
+		 * them was the one place a pathological aapt2 could grow the daemon's heap on a 2-4 GB
+		 * phone without limit. A truncated read ends with a marker naming how much was dropped.
+		 *
+		 * @param reader the child's merged output; read to EOF and not closed here.
+		 * @param maxChars how many characters to retain before the marker.
+		 * @return the retained output, plus the marker when anything was dropped.
+		 */
+		internal fun readBounded(
+			reader: Reader,
+			maxChars: Int,
+		): String {
+			val kept = StringBuilder()
+			val buffer = CharArray(8192)
+			var dropped = 0L
+			while (true) {
+				val n = reader.read(buffer)
+				if (n < 0) break
+				val room = maxChars - kept.length
+				if (room >= n) {
+					kept.appendRange(buffer, 0, n)
+				} else {
+					if (room > 0) kept.appendRange(buffer, 0, room)
+					dropped += n - maxOf(room, 0)
+				}
+			}
+			if (dropped > 0) kept.append("\n[aapt2 output truncated: $dropped more characters dropped]")
+			return kept.toString()
+		}
+
+		/**
+		 * Characters of aapt2 output retained per run. A phone-sized res tree's link produces a
+		 * few hundred bytes of notes on success and one line per broken resource on failure, so
+		 * 256K holds thousands of diagnostics - far past what [parseDiagnostics] keeps.
+		 */
+		internal const val MAX_OUTPUT_CHARS = 256 * 1024
 	}
 
 	/** Outcome of one relink. */
@@ -374,10 +430,11 @@ class Aapt2Link(
 	 * Runs an aapt2 command, capturing its merged output; a launch failure becomes exit -1.
 	 *
 	 * The output is drained to EOF before the exit code is waited on, since aapt2 can outrun the
-	 * pipe buffer and waiting first would deadlock against a full pipe. That drain is itself
-	 * unbounded, so a wedged aapt2 would stop the single-threaded daemon loop from answering ANY
+	 * pipe buffer and waiting first would deadlock against a full pipe. That drain has no time
+	 * bound, so a wedged aapt2 would stop the single-threaded daemon loop from answering ANY
 	 * request, `ping` and `shutdown` included - hence the watchdog, which kills the child at
-	 * [timeoutMillis] and thereby closes the pipe and releases the read.
+	 * [timeoutMillis] and thereby closes the pipe and releases the read. Its size is bounded by
+	 * [readBounded], so a flooding aapt2 costs at most [MAX_OUTPUT_CHARS] of heap.
 	 *
 	 * @param command the full argv, executable first; run to completion, so the caller blocks.
 	 * @return the exit code and the merged stdout/stderr text, never null and never thrown; a
@@ -394,18 +451,17 @@ class Aapt2Link(
 			}
 		val timedOut = AtomicBoolean(false)
 		// Daemon thread, so a watchdog still waiting cannot hold up JVM exit. It ends on its
-		// own as soon as the child does, so nothing interrupts it.
+		// own as soon as the child does, so nothing interrupts it. The flag is stored before
+		// the kill (see killIfAlive), since the kill is what wakes the read below.
 		Thread {
-			if (watchdogTimedOut(process, timeoutMillis)) {
-				timedOut.set(true)
-			}
+			watchdogTimedOut(process, timeoutMillis) { timedOut.set(true) }
 		}.apply {
 			isDaemon = true
 			name = "aapt2-watchdog"
 			start()
 		}
 		return try {
-			val output = process.inputStream.bufferedReader().use { it.readText() }
+			val output = process.inputStream.bufferedReader().use { readBounded(it, MAX_OUTPUT_CHARS) }
 			val exitCode = process.waitFor()
 			if (timedOut.get()) {
 				ProcessResult(-1, "aapt2 timed out after $timeoutMillis ms and was killed: ${command.joinToString(" ")}")
