@@ -305,7 +305,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				launch {
 					buildViewModel.buildState.collect { onBuildStateChanged(it) }
 				}
-				quickBuildSessionManager()?.let { quickBuild ->
+				// The first resolve builds the whole Quick Build graph, and that reads shared
+				// preferences and noBackupFilesDir, so it is disk I/O. Do it off the main
+				// thread; every later call site finds a singleton already built and pays only
+				// a map lookup. Still inside repeatOnLifecycle, so a resolve that failed once
+				// is retried on the next return to the editor rather than being cached as null.
+				withContext(Dispatchers.IO) { quickBuildSessionManager() }?.let { quickBuild ->
 					// ADFA-4128: the toolbar icon reads the session status
 					// pull-style in prepare(); nothing else rebuilds the toolbar when
 					// e.g. a watcher-triggered build fails, so push every status
@@ -665,15 +670,17 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * experiments flag only, no SDK check: Quick Build works from API 28, where a degraded
 	 * resource shim covers 28/29.
 	 *
-	 * Resolving the Koin singleton is NOT cheap and it is not inert. [observeStates] calls
-	 * this from onCreate, so with experiments on the whole graph is built at project open,
-	 * on the main thread - as do onTrimMemory, onBuildServiceConnected and
-	 * QuickBuildAction.prepare(). Construction reads shared preferences (the history store)
-	 * and the scratch root (noBackupFilesDir), so it does main-thread disk I/O, and
-	 * QuickBuildSessionManager's init block installs the daemon death listener and five
-	 * coroutines on the session executor. What still waits for the first tap is the daemon
-	 * process and the host service binding, not the graph. Moving this resolve off the main
-	 * thread is tracked separately.
+	 * Resolving the Koin singleton is NOT cheap and it is not inert. Construction reads
+	 * shared preferences (the history store) and the scratch root (noBackupFilesDir), so it
+	 * does disk I/O, and QuickBuildSessionManager's init block installs the daemon death
+	 * listener and five coroutines on the session executor. What still waits for the first
+	 * tap is the daemon process and the host service binding, not the graph.
+	 *
+	 * [observeStates] therefore does the FIRST resolve off the main thread, which is why the
+	 * graph is built at project open without blocking it. The other callers - onTrimMemory,
+	 * onBuildServiceConnected, QuickBuildAction.prepare() - call this on the main thread and
+	 * find the singleton already built, so they pay a map lookup. Call it from a background
+	 * context if you ever add a call site that could be the first one.
 	 *
 	 * Protected (not private): [EditorHandlerActivity]'s split-button dropdown
 	 * calls this too, to trigger a quick build / restart from the long-press menu.
