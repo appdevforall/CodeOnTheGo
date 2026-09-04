@@ -983,10 +983,17 @@ abstract class BaseEditorActivity :
 		TabLayoutMediator(
 			binding.memUsageView.metricsIndicator,
 			binding.memUsageView.metricsPager,
-		) { tab, position ->
-			// Dots carry no label, but they are still focusable, so give them a spoken position.
-			tab.contentDescription = getString(string.metrics_carousel_page, position + 1, pages.size)
-		}.attach()
+		) { _, _ -> }.attach()
+
+		binding.memUsageView.metricsIndicator.apply {
+			// A pure indicator, not a control: the carousel pages by swipe (MetricsCarouselLayout),
+			// so the dots need neither 48dp touch targets nor their own accessibility nodes --
+			// ViewPager2 already reports page position. Swallowing touches keeps the dots from
+			// acting as tabs while leaving TabLayoutMediator to track the selected page.
+			@Suppress("ClickableViewAccessibility")
+			setOnTouchListener { _, _ -> true }
+			importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+		}
 	}
 
 	private fun watchMemory() {
@@ -1808,8 +1815,12 @@ abstract class BaseEditorActivity :
 
 						// Filter out diagonal flings so only an intentional right swipe opens the drawer.
 						// A horizontal fling that started on the bottom-sheet tab strip is the user
-						// scrolling tabs, not asking for the drawer.
-						if (isDrawerOpenFling && !isTouchOnBottomSheetTabs(e1)) {
+						// scrolling tabs, not asking for the drawer; one that started on the metrics
+						// carousel is the user paging it backwards.
+						if (isDrawerOpenFling &&
+							!isTouchOnBottomSheetTabs(e1) &&
+							!isTouchOnMetricsCarousel(e1)
+						) {
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
 						}
@@ -1831,8 +1842,28 @@ abstract class BaseEditorActivity :
 
 	private fun isTouchOnBottomSheetTabs(ev: MotionEvent): Boolean {
 		val tabs = contentOrNull?.bottomSheet?.binding?.tabs ?: return false
+		return containsTouch(tabs, ev)
+	}
+
+	private fun isTouchOnMetricsCarousel(ev: MotionEvent): Boolean {
+		val binding = _binding ?: return false
+
+		// The carousel is laid out at the top of the reveal even while the content card covers it,
+		// and siblings do not clip each other, so getGlobalVisibleRect reports it visible either
+		// way. Without this check the drawer gesture would be dead over the top of a closed editor.
+		if (binding.swipeReveal.dragProgress <= 0f) {
+			return false
+		}
+
+		return containsTouch(binding.memUsageView.root, ev)
+	}
+
+	private fun containsTouch(
+		view: View,
+		ev: MotionEvent,
+	): Boolean {
 		val rect = Rect()
-		if (!tabs.getGlobalVisibleRect(rect)) return false
+		if (!view.getGlobalVisibleRect(rect)) return false
 		return rect.contains(ev.rawX.toInt(), ev.rawY.toInt())
 	}
 
