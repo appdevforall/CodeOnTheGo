@@ -40,6 +40,42 @@ class DeployChannelWaitsTest {
 
 	private fun connect(generation: Long) = connections.onConnected(ConnectedTarget(target, "com.example.quickbuild", generation))
 
+	/**
+	 * A target whose binder answers [IBinder.pingBinder] as scripted. A reflection proxy,
+	 * because android.jar's [IBinder] is unmocked on the JVM and only the ping is live.
+	 */
+	private fun pingable(alive: Boolean): PingableTarget = PingableTarget(alive)
+
+	private class PingableTarget(
+		alive: Boolean,
+	) {
+		private val binder: IBinder =
+			java.lang.reflect.Proxy.newProxyInstance(
+				IBinder::class.java.classLoader,
+				arrayOf(IBinder::class.java),
+			) { _, method, _ ->
+				when (method.name) {
+					"pingBinder" -> alive
+					else -> null
+				}
+			} as IBinder
+
+		val target =
+			object : IQuickBuildTarget {
+				override fun asBinder(): IBinder = binder
+
+				override fun onPayload(
+					generation: Long,
+					dexPayload: ParcelFileDescriptor?,
+					resourcesPayload: ParcelFileDescriptor?,
+					assetsPayload: ParcelFileDescriptor?,
+					metadataJson: String?,
+				) = Unit
+
+				override fun onBuildStatus(statusJson: String?) = Unit
+			}
+	}
+
 	@Test
 	fun `awaitDisconnect reports true when the proxy app actually disconnects`() =
 		runTest {
@@ -67,6 +103,35 @@ class DeployChannelWaitsTest {
 	fun `awaitDisconnect reports true immediately when nothing is connected`() =
 		runTest {
 			assertThat(channel.awaitDisconnect(5_000)).isTrue()
+		}
+
+	@Test
+	fun `awaitDisconnect reports true on timeout when the process no longer answers a ping`() =
+		runTest {
+			// The death notification is late, not absent: the process is gone, so a ping
+			// fails. Reporting false here would attribute the timeout to a runtime that
+			// ignored the restart and cost a Gradle rebuild.
+			val dead = pingable(alive = false)
+			connections.onConnected(ConnectedTarget(dead.target, "com.example.quickbuild", 7))
+			val awaited = async { channel.awaitDisconnect(5_000) }
+
+			advanceTimeBy(5_001)
+
+			assertThat(awaited.await()).isTrue()
+			assertThat(connections.target.value).isNull()
+		}
+
+	@Test
+	fun `awaitDisconnect reports false on timeout when the process still answers a ping`() =
+		runTest {
+			val alive = pingable(alive = true)
+			connections.onConnected(ConnectedTarget(alive.target, "com.example.quickbuild", 7))
+			val awaited = async { channel.awaitDisconnect(5_000) }
+
+			advanceTimeBy(5_001)
+
+			assertThat(awaited.await()).isFalse()
+			assertThat(connections.target.value).isNotNull()
 		}
 
 	@Test

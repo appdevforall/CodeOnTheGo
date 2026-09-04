@@ -188,9 +188,9 @@ internal class PayloadDeployer(
 		when (val result = recovered.result) {
 			is DeployResult.Reloaded -> {
 				if (!deploy.awaitDisconnect(restartDisconnectTimeoutMillis)) {
-					// The runtime acked but kept running, so it predates restart support
-					// and hot-swapped instead, leaving a live service possibly stale. A
-					// proxy app rebuild reinstalls a current runtime.
+					// The runtime acked but its process still answers, so it predates
+					// restart support and hot-swapped instead, leaving a live service
+					// possibly stale. A proxy app rebuild reinstalls a current runtime.
 					return BuildOutcome.RequiresProxyAppRebuild(
 						InvalidationReason.OUTDATED_BASELINE,
 						"proxy app acknowledged a restart deploy but did not exit " +
