@@ -558,7 +558,7 @@ final class ResourceStore {
 	 *
 	 * The swap must not run on the binder thread the deploy arrives on: setProviders rebuilds every attached Resources in place and the swap then closes the replaced provider's ApkAssets, either of which can race an inflation already in progress on the main thread - a lookup straddling the swap mixes old and new values, or touches a just-closed provider. Serializing with the main thread removes both races, and Looper FIFO keeps a posted swap ahead of the recreate the deploy posts right after it.
 	 *
-	 * Inline on the main thread, not posted, because the boot restore path runs during the first activity's creation and its swap must land before anything inflates.
+	 * Inline when already on the main thread, since posting from there would only queue the swap behind whatever else is waiting. Every current caller arrives off it - a deploy on a binder thread, the boot restore on its own thread - so in practice the swap is posted; the boot restore accepts that the first activity inflates against the baseline table and recreates it once the swap lands.
 	 *
 	 * A swap failure is never thrown from here: on the posted path no caller is left to catch it, and the previous provider set stays live either way. The result is still deliberately NOT returned synchronously to the deploy chain - that would make a deploy arriving on a binder thread block on a main-thread round trip in the hot reload path, which is the very thing posting the swap exists to avoid. It travels back through {@code onOutcome} instead, so the deploy that queued the swap can fail rather than ack a swap that did not land. Each swap un-commits its own fields on failure, so what stays live is a consistent previous generation.
 	 *

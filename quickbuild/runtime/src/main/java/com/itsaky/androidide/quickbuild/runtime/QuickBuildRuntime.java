@@ -88,6 +88,19 @@ final class QuickBuildRuntime {
 	}
 
 	/**
+	 * Runs the boot-time resource restore on its own thread. Package-private so the JVM test can pin the dispatch off the caller's thread, which is the main thread inside the first activity's creation.
+	 *
+	 * @param body
+	 *            the restore to run
+	 * @return the started thread, so a test can join it
+	 */
+	static Thread startBootRestoreThread(Runnable body) {
+		Thread thread = new Thread(body, "qb-boot-restore");
+		thread.start();
+		return thread;
+	}
+
+	/**
 	 * Opens a persisted store file as a read-only fd, the form the resource paths take.
 	 *
 	 * @param file
@@ -190,6 +203,13 @@ final class QuickBuildRuntime {
 
 	/** Newest generation already recorded as good, so the write happens once rather than per resume. */
 	private volatile long lastMarkedGoodGeneration = -1;
+
+	/**
+	 * True from the moment a persisted generation's resources are taken for restore until their swap has landed or failed.
+	 *
+	 * The restore runs off the main thread and its swap is posted, so the first activity draws against the baseline table. That frame proves the code half only: {@link #markLiveGenerationGood} waits for this to clear, or a generation whose resources then fail to render would already be recorded as good and be unblamable.
+	 */
+	private volatile boolean bootRestoreInFlight;
 
 	/**
 	 * @param application
@@ -492,36 +512,133 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Applies the resource payloads a persisted boot left pending, once a Context exists.
+	 * Restores the resource payloads a persisted boot left pending, once a Context exists.
 	 *
-	 * The code half already loaded pre-Context in {@link PayloadStore#ensureBaseline}. Components that read resources before the first activity, such as providers, see baseline resources until this runs. A failure keeps baseline resources and the next deploy re-applies current ones.
+	 * The code half already loaded pre-Context in {@link PayloadStore#ensureBaseline}. The extraction runs on its own thread and only the swap is posted to the main thread: this is dispatched from inside the first activity's creation, and running the asset merge or the API 28/29 apk copy inline there - both bounded only by the payload cap - cost a launch stall or an ANR on exactly the low-end devices the legacy path exists for. The price is that the first activity inflates against the baseline table; it is recreated once the swap lands, so the screen shows the restored resources one frame late rather than never.
+	 *
+	 * A failure keeps baseline resources under this generation's code, which is the mixed state a deploy-time failure reports, so it is reported the same way: banner and crash report, rather than the one log line it used to leave. The report is best-effort, since CoGo may not have connected yet.
 	 *
 	 * @param context
 	 *            application context, for the Resources to swap and the cache dir to extract assets into
 	 */
-	private void applyPendingBootResources(android.content.Context context) {
-		PayloadPersistence.Loaded pending = PayloadStore.INSTANCE.takePendingBootResources();
+	private void applyPendingBootResources(final android.content.Context context) {
+		final PayloadPersistence.Loaded pending = PayloadStore.INSTANCE.takePendingBootResources();
 		if (pending == null) {
 			return;
 		}
+		// Set before the thread starts, so the first frame - which is coming on this
+		// thread as soon as the activity finishes creating - finds it.
+		bootRestoreInFlight = true;
+		startBootRestoreThread(new Runnable() {
+
+			@Override
+			public void run() {
+				restoreBootResources(pending, context);
+			}
+		});
+	}
+
+	/**
+	 * The {@link #applyPendingBootResources} body: extracts, posts the swaps, and settles the restore on their outcome.
+	 *
+	 * @param pending
+	 *            the persisted generation's resource files, at least one of them non-null
+	 * @param context
+	 *            application context
+	 */
+	private void restoreBootResources(PayloadPersistence.Loaded pending,
+			android.content.Context context) {
+		final long generation = pending.generation;
+		// One outcome per swap posted, like a backgrounded deploy: a payload carrying both
+		// a table and assets lands in two swaps, and the recreate has to wait for the last.
+		final SwapAckGate gate = new SwapAckGate(
+				(pending.arscFile == null ? 0 : 1) + (pending.assetsFile == null ? 0 : 1));
+		ResourceStore.SwapOutcome onOutcome = new ResourceStore.SwapOutcome() {
+
+			@Override
+			public void onSwapCommitted() {
+				if (gate.committed()) {
+					onBootRestoreLanded(generation);
+				}
+			}
+
+			@Override
+			public void onSwapFailed(Throwable error) {
+				gate.failed();
+				onBootRestoreFailed(generation, error);
+			}
+		};
 		try {
-			// No failure listener: there is no deploy in flight to fail here, and the store
-			// already logs a failed swap. Baseline resources stay live and the next deploy
-			// re-applies the current ones, which is what this method's contract promises.
 			if (pending.arscFile != null) {
 				ResourceStore.INSTANCE.applyTable(
-						openReadOnly(pending.arscFile), pending.generation, context, null);
+						openReadOnly(pending.arscFile), generation, context, onOutcome);
 			}
 			if (pending.assetsFile != null) {
 				ResourceStore.INSTANCE.applyAssets(
-						openReadOnly(pending.assetsFile), pending.generation,
+						openReadOnly(pending.assetsFile), generation,
 						PayloadStore.INSTANCE.baselineFingerprint(),
-						context, null);
+						context, onOutcome);
 			}
-			RuntimeLog.i("restored persisted resources for gen " + pending.generation);
+			if (gate.noSwapPosted()) {
+				onBootRestoreLanded(generation);
+			}
 		} catch (Throwable error) {
-			RuntimeLog.e("could not restore persisted resources", error);
+			// The same hazard as a deploy that throws after applyTable posted: the table
+			// swap is still queued and would commit over a merge that failed. Refuse it, so
+			// the process stays wholly on the baseline table rather than half on each.
+			ResourceStore.INSTANCE.abandon(generation);
+			gate.failed();
+			onBootRestoreFailed(generation, error);
 		}
+	}
+
+	/**
+	 * Ends the restore once its last swap has committed, and recreates the activity that inflated before it landed.
+	 *
+	 * Runs on the main thread inside the swap's guard, so the recreate is posted rather than run here; a live Resources now resolves the restored table, but the views the first activity already inflated keep their baseline values until it is recreated.
+	 *
+	 * @param generation
+	 *            the generation whose resources are now live
+	 */
+	private void onBootRestoreLanded(long generation) {
+		bootRestoreInFlight = false;
+		RuntimeLog.i("restored persisted resources for gen " + generation);
+		mainHandler.post(new Runnable() {
+
+			@Override
+			public void run() {
+				Activity top = tracker.topActivity();
+				if (top == null) {
+					// Nothing inflated against the baseline yet; the next activity created
+					// picks the restored table up through attachTo.
+					return;
+				}
+				try {
+					top.recreate();
+				} catch (Throwable error) {
+					// The table is live for every later inflate; only this activity's views
+					// are stale, and a crash here would cost the user the app for it.
+					RuntimeLog.w("could not recreate the activity after the boot restore", error);
+				}
+			}
+		});
+	}
+
+	/**
+	 * Ends the restore on a failure: baseline resources stay live under this generation's code, and the user and CoGo are told so.
+	 *
+	 * Mixed rather than "last working version", because that is what the process is: the persisted dex is this generation's and the table is the installed APK's. There is no rollback here - no snapshot precedes a boot - so the banner offers the one remedy the user has, a restart, which re-runs the restore.
+	 *
+	 * @param generation
+	 *            the generation whose resources could not be restored
+	 * @param error
+	 *            the extraction or swap failure
+	 */
+	private void onBootRestoreFailed(long generation, Throwable error) {
+		bootRestoreInFlight = false;
+		RuntimeLog.e("could not restore persisted resources for gen " + generation, error);
+		setOverlayState(OverlayState.mixed());
+		client.reportCrash(generation, CrashSummary.forBootRestoreReport(error));
 	}
 
 	/**
@@ -760,8 +877,16 @@ final class QuickBuildRuntime {
 	 * The probation ends on the recorded write rather than on the frame that prompted it, so the two facts stay simultaneous: the moment this generation stops being blamed for a crash is the moment there is something to fall back to instead. A write that fails leaves it on probation, which is the expensive direction, not a safe one: nothing recorded it, so a later crash anywhere in the app blames a generation that demonstrably reached the screen and quarantines it. That is why a failed write releases the latch and the next resume tries again.
 	 *
 	 * Written off the main thread, because the write is fsynced and this runs on the frame path; latched per generation, so it costs one short-lived thread per generation rather than one per resume. Losing the write to a process death only makes the fallback one generation older.
+	 *
+	 * Deferred while a boot restore is in flight: a frame drawn against the baseline table has not shown this generation's resources, and recording it good from that frame would leave a table that fails to render unblamable.
 	 */
 	private void markLiveGenerationGood() {
+		if (bootRestoreInFlight) {
+			// This frame drew against the baseline table, so it proves the code half only;
+			// the frame after the restore's recreate is the one that vouches for the
+			// generation. Not latched, so that frame comes back here.
+			return;
+		}
 		final long generation = PayloadStore.INSTANCE.generation();
 		final PayloadPersistence store = PayloadStore.INSTANCE.persistence();
 		if (generation <= 0 || generation == lastMarkedGoodGeneration || store == null) {

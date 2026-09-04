@@ -6,6 +6,8 @@ package com.itsaky.androidide.quickbuild.runtime;
  * A resource swap is queued to the main looper and lands after the deploy method has returned, so acking at apply time claims a reload that can still fail. When it did fail, the rollback, the quarantine and the crash report all ran after CoGo had already been told the generation reloaded, and CoGo's deploy resolves on the first report naming that generation: the build was recorded as a successful reload with a timing number while the session manager separately raised a reload crash, so one save produced both signals. The foreground branch does not have this problem - it acks from a drawn frame, which cannot precede the swap that the frame renders.
  *
  * So the ack is owed only once, and only when every posted swap has committed and none has failed. A deploy that posts no swap at all - a dex-only edit, the commonest one - still owes it immediately, which is what {@link #noSwapPosted} is for.
+ *
+ * The boot-time resource restore counts its swaps the same way, to recreate the first activity once the last of them has landed.
  */
 final class SwapAckGate {
 
