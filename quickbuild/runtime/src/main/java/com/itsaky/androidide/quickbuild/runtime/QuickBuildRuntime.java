@@ -51,6 +51,30 @@ final class QuickBuildRuntime {
 	}
 
 	/**
+	 * Builds a drawn frame's completion, deciding NOW - on the frame's own draw pass - whether it proves the live generation's resources.
+	 *
+	 * The draw listener fires during the traversal, which runs as an async message ahead of the sync barrier, and the completion is posted behind it. A boot restore's swap message, posted earlier by the restore thread, therefore runs between the two: the traversal drew the baseline table, the swap then commits and clears {@link #bootRestoreInFlight}, and a completion that read the flag when it ran would record good a generation whose table never rendered. Reading it here, before the post, ties the verdict to the frame that was drawn.
+	 *
+	 * Package-private and free of Activity so a JVM test can pin the ordering; the listener that calls this needs a live ViewTreeObserver.
+	 *
+	 * @param restore
+	 *            whether a boot restore is still in flight, read once, here
+	 * @param completion
+	 *            what runs when the posted completion lands; told whether the frame proved the resources
+	 * @return the runnable to post to the main thread
+	 */
+	static Runnable frameCompletion(BootRestoreProbe restore, final FrameCompletion completion) {
+		final boolean frameProvesResources = !restore.inFlight();
+		return new Runnable() {
+
+			@Override
+			public void run() {
+				completion.complete(frameProvesResources);
+			}
+		};
+	}
+
+	/**
 	 * Creates and starts the one runtime for this process. Idempotent, and never throws.
 	 *
 	 * @param application
@@ -169,9 +193,10 @@ final class QuickBuildRuntime {
 	}
 
 	private final Application application;
-	private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+	private final Handler mainHandler = new Handler(Looper.getMainLooper());
 	private final ActivityTracker tracker = new ActivityTracker(this);
+
 	private final QuickBuildClient client = new QuickBuildClient(this);
 
 	private final StatusOverlay overlay = new StatusOverlay();
@@ -207,9 +232,18 @@ final class QuickBuildRuntime {
 	/**
 	 * True from the moment a persisted generation's resources are taken for restore until their swap has landed or failed.
 	 *
-	 * The restore runs off the main thread and its swap is posted, so the first activity draws against the baseline table. That frame proves the code half only: {@link #markLiveGenerationGood} waits for this to clear, or a generation whose resources then fail to render would already be recorded as good and be unblamable.
+	 * The restore runs off the main thread and its swap is posted, so the first activity draws against the baseline table. That frame proves the code half only, so it must not record the generation good, or a table that then fails to render would be unblamable. Sampled ON the draw pass ({@link #frameCompletion}), never when the posted completion runs: the swap message can land between the two, clear this, and make a baseline frame read as a restored one.
 	 */
 	private volatile boolean bootRestoreInFlight;
+
+	/** Reads {@link #bootRestoreInFlight} for {@link #frameCompletion}, which is static so a JVM test can drive it. */
+	private final BootRestoreProbe bootRestore = new BootRestoreProbe() {
+
+		@Override
+		public boolean inFlight() {
+			return bootRestoreInFlight;
+		}
+	};
 
 	/**
 	 * @param application
@@ -461,7 +495,8 @@ final class QuickBuildRuntime {
 
 			@Override
 			public void run() {
-				onFirstFrameDrawn(activity);
+				// No frame is coming, so the restore state now is the best available.
+				onFirstFrameDrawn(activity, !bootRestoreInFlight);
 			}
 		});
 	}
@@ -610,6 +645,15 @@ final class QuickBuildRuntime {
 					return;
 				}
 				scheduled[0] = true;
+				// Built here, on the draw pass, so what this frame proves is fixed before
+				// the swap message behind the traversal's sync barrier can change it.
+				final Runnable completion = frameCompletion(bootRestore, new FrameCompletion() {
+
+					@Override
+					public void complete(boolean frameProvesResources) {
+						onFirstFrameDrawn(activity, frameProvesResources);
+					}
+				});
 				mainHandler.post(new Runnable() {
 
 					@Override
@@ -629,7 +673,7 @@ final class QuickBuildRuntime {
 								merged.removeOnDrawListener(listener[0]);
 							}
 						}
-						onFirstFrameDrawn(activity);
+						completion.run();
 					}
 				});
 			}
@@ -786,13 +830,13 @@ final class QuickBuildRuntime {
 	 *
 	 * Written off the main thread, because the write is fsynced and this runs on the frame path; latched per generation, so it costs one short-lived thread per generation rather than one per resume. Losing the write to a process death only makes the fallback one generation older.
 	 *
-	 * Deferred while a boot restore is in flight: a frame drawn against the baseline table has not shown this generation's resources, and recording it good from that frame would leave a table that fails to render unblamable.
+	 * Skipped for a frame drawn while a boot restore was in flight: it drew the baseline table, so it has not shown this generation's resources, and recording it good would leave a table that fails to render unblamable. The frame after the restore's recreate is the one that vouches; nothing is latched here, so that frame comes back.
+	 *
+	 * @param frameProvesResources
+	 *            whether the frame drew this generation's resource table, decided on its draw pass ({@link #frameCompletion}) - not re-read here, because the restore may have landed since
 	 */
-	private void markLiveGenerationGood() {
-		if (bootRestoreInFlight) {
-			// This frame drew against the baseline table, so it proves the code half only;
-			// the frame after the restore's recreate is the one that vouches for the
-			// generation. Not latched, so that frame comes back here.
+	private void markLiveGenerationGood(boolean frameProvesResources) {
+		if (!frameProvesResources) {
 			return;
 		}
 		final long generation = PayloadStore.INSTANCE.generation();
@@ -878,8 +922,10 @@ final class QuickBuildRuntime {
 	 *
 	 * @param activity
 	 *            the activity that drew the frame, which hosts the overlay
+	 * @param frameProvesResources
+	 *            false when the frame drew the baseline table under a boot restore, so it may complete the reload but not vouch for the generation
 	 */
-	private void onFirstFrameDrawn(Activity activity) {
+	private void onFirstFrameDrawn(Activity activity, boolean frameProvesResources) {
 		long acked = firstFrame.drawn(PayloadStore.INSTANCE.generation());
 		if (acked >= 0) {
 			long reloadMillis = SystemClock.uptimeMillis() - pendingReloadStartUptime;
@@ -899,7 +945,7 @@ final class QuickBuildRuntime {
 		// reached the screen - which is true whether it arrived by hot swap or by a
 		// fresh process booting it, and only the first of those leaves a pending
 		// generation behind.
-		markLiveGenerationGood();
+		markLiveGenerationGood(frameProvesResources);
 	}
 
 	/**
@@ -1090,6 +1136,12 @@ final class QuickBuildRuntime {
 		}
 	}
 
+	/** Reads whether a boot resource restore is still in flight; the seam {@link #frameCompletion} samples on the draw pass. */
+	interface BootRestoreProbe {
+
+		boolean inFlight();
+	}
+
 	/**
 	 * Installs the callback that runs a reload's completion on the resumed activity's first drawn frame.
 	 *
@@ -1101,5 +1153,15 @@ final class QuickBuildRuntime {
 		 * @return true when a first-frame callback was installed, false when the activity has no live view tree and the caller must complete without a frame
 		 */
 		boolean install();
+	}
+
+	/** A drawn frame's completion, run from the posted message with the verdict its draw pass fixed. */
+	interface FrameCompletion {
+
+		/**
+		 * @param frameProvesResources
+		 *            true when the frame drew the live generation's resource table, false when it drew the baseline under a boot restore
+		 */
+		void complete(boolean frameProvesResources);
 	}
 }
