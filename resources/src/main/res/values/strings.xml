@@ -1675,8 +1675,10 @@
 
 	<string name="metrics_carousel_memory_chart">Memory usage chart</string>
 	<string name="metrics_title_memory">Memory usage</string>
-	<string name="metrics_title_brand_mark">Code On The Go</string>
-	<string name="metrics_carousel_brand_mark">Code On The Go logo</string>
+	<string name="metrics_network_chart">Network traffic chart</string>
+	<string name="metrics_title_network">Network traffic</string>
+	<string name="metrics_network_received">Received</string>
+	<string name="metrics_network_transmitted">Sent</string>
 
 </resources>
 
