@@ -53,6 +53,48 @@ class DexToolEdgeTest {
 		return (0 until classDefs).map { index -> dex.getInt(classDefsOffset + index * 32 + 4) }
 	}
 
+	/**
+	 * Neither case needs d8: both fail in the strip pass, before the reflective call, which is
+	 * why an unusable jar path is enough for the tool. The pass reads and rewrites every class
+	 * file on every dex, so a phone that fills up or a class from a newer compiler lands here
+	 * far more often than in d8 - and must answer as a dex failure naming the file, not as an
+	 * internal error naming nothing.
+	 */
+	@Test
+	fun `a class file the strip pass cannot read fails the dex and names the file`() {
+		val classesDir = compileTinyClass()
+		val tiny = File(classesDir, "demo/Tiny.class")
+		check(tiny.setReadable(false)) { "could not revoke read permission" }
+		try {
+			DexTool(File(tempDir, "no-such-d8.jar"), File(tempDir, "android.jar"), minApi = 30).use { tool ->
+				val result = tool.dex(listOf(classesDir), File(tempDir, "dex"))
+
+				assertThat(result).isInstanceOf(DexTool.Result.Failed::class.java)
+				assertThat((result as DexTool.Result.Failed).message).contains("Tiny.class")
+			}
+		} finally {
+			tiny.setReadable(true)
+		}
+	}
+
+	@Test
+	fun `a class file from a newer compiler than ASM knows fails the dex and names the file`() {
+		val classesDir = compileTinyClass()
+		val tiny = File(classesDir, "demo/Tiny.class")
+		val bytes = tiny.readBytes()
+		// Class-file major version lives at bytes 6-7 (big-endian); 99 is far past any ASM release.
+		bytes[6] = 0
+		bytes[7] = 99
+		tiny.writeBytes(bytes)
+
+		DexTool(File(tempDir, "no-such-d8.jar"), File(tempDir, "android.jar"), minApi = 30).use { tool ->
+			val result = tool.dex(listOf(classesDir), File(tempDir, "dex"))
+
+			assertThat(result).isInstanceOf(DexTool.Result.Failed::class.java)
+			assertThat((result as DexTool.Result.Failed).message).contains("Tiny.class")
+		}
+	}
+
 	@Test
 	@EnabledIf("org.appdevforall.cotg.quickbuild.daemon.TestSdk#dexToolchainAvailable")
 	fun `a d8 compilation failure surfaces d8's own message, not a throw`() {
