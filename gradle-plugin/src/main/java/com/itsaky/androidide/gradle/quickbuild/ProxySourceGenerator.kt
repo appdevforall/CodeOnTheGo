@@ -17,6 +17,84 @@ object ProxySourceGenerator {
 	private const val CLASS_LOADERS_CLASS = "com.itsaky.androidide.quickbuild.runtime.QuickBuildClassLoaders"
 
 	/**
+	 * Every word Java refuses as an identifier: the reserved words plus the three literals,
+	 * which are equally illegal in a package or class name.
+	 *
+	 * `_` and the contextual words (`var`, `record`, `sealed`, `yield`) are deliberately absent:
+	 * they are legal identifiers at the positions a proxy source writes them.
+	 */
+	private val JAVA_RESERVED_WORDS =
+		setOf(
+			"abstract",
+			"assert",
+			"boolean",
+			"break",
+			"byte",
+			"case",
+			"catch",
+			"char",
+			"class",
+			"const",
+			"continue",
+			"default",
+			"do",
+			"double",
+			"else",
+			"enum",
+			"extends",
+			"final",
+			"finally",
+			"float",
+			"for",
+			"goto",
+			"if",
+			"implements",
+			"import",
+			"instanceof",
+			"int",
+			"interface",
+			"long",
+			"native",
+			"new",
+			"package",
+			"private",
+			"protected",
+			"public",
+			"return",
+			"short",
+			"static",
+			"strictfp",
+			"super",
+			"switch",
+			"synchronized",
+			"this",
+			"throw",
+			"throws",
+			"transient",
+			"try",
+			"void",
+			"volatile",
+			"while",
+			"true",
+			"false",
+			"null",
+		)
+
+	/**
+	 * The first segment of [className] that Java will not accept as an identifier, if any.
+	 *
+	 * A proxy source is emitted as raw Java identifiers, so a segment like this produces a file
+	 * javac cannot parse: `package com.example.native` is legal Kotlin, legal in a manifest
+	 * `android:name`, and a syntax error in the `extends` clause and the package declaration the
+	 * generator writes. Caught before the proxies are compiled, the build says which component is
+	 * at fault and what the user can do instead; caught by javac, it says "<identifier> expected".
+	 *
+	 * @param className a fully qualified class name, or any dotted name.
+	 * @return the offending segment, or null when every segment is a legal Java identifier.
+	 */
+	fun reservedJavaSegment(className: String): String? = className.split('.').firstOrNull { it in JAVA_RESERVED_WORDS }
+
+	/**
 	 * Emits the proxy source for [component]; the Application entry has no proxy.
 	 *
 	 * @param component one entry of the manifest transform's component list, whose `proxyClass`
