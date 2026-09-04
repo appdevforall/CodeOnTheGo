@@ -277,7 +277,23 @@ class DexTool(
 				// report. Void methods take null; others echo a compatible argument so a future
 				// pass-through default keeps working.
 				else -> {
-					if (method.returnType == Void.TYPE) null else args?.firstOrNull { method.returnType.isInstance(it) }
+					if (method.returnType == Void.TYPE) {
+						null
+					} else {
+						// Fails loudly rather than returning null, for the same reason the daemon
+						// fails loudly on any input it cannot answer for: null is not a legal
+						// answer for a primitive return type - isInstance is false for every
+						// primitive, so int foo() would fall through here - and d8 would unbox it
+						// into a NullPointerException raised inside its own call, blamed on d8
+						// rather than on this arm. A guessed value would be worse still: it would
+						// be a silent wrong answer to a question we do not understand.
+						args?.firstOrNull { method.returnType.isInstance(it) }
+							?: error(
+								"r8 called ${method.name}, which this collector has no arm for and " +
+									"cannot answer: it returns ${method.returnType.name} and none of " +
+									"its arguments fit. Add an arm for it in D8DiagnosticsCollector.",
+							)
+					}
 				}
 			}
 		}

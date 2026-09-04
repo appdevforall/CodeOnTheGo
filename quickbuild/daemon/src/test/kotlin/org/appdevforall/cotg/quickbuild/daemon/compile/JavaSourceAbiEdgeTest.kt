@@ -163,4 +163,26 @@ class JavaSourceAbiEdgeTest {
 
 		assertThat(after).isNotEqualTo(before)
 	}
+
+	/**
+	 * A file javac does not hand back is not one whose ABI we know, so the snapshot must be
+	 * null rather than a map that silently omits it.
+	 *
+	 * The sibling case, a repeated path, is pinned above; nothing pinned this side of the same
+	 * check, so reverting it to `result.isNotEmpty()` or dropping it altogether went unnoticed.
+	 *
+	 * A redundant path segment is the reproducible way in. The map is keyed by
+	 * [java.io.File.getAbsolutePath], which keeps the dot, while javac reports the unit under
+	 * the path it resolved, so the lookup misses and the file is dropped.
+	 */
+	@Test
+	fun `a source javac does not hand back leaves the snapshot unknown`() {
+		val real = write("Dotted.java", "package demo;\n\npublic class Dotted {}")
+		val viaDot = File(tempDir, "./Dotted.java")
+
+		assertThat(JavaSourceAbi.snapshot(listOf(viaDot))).isNull()
+		// Sanity: the same content under its plain path is fine, so the null above is the
+		// completeness check firing rather than a broken fixture.
+		assertThat(JavaSourceAbi.snapshot(listOf(real))).isNotNull()
+	}
 }

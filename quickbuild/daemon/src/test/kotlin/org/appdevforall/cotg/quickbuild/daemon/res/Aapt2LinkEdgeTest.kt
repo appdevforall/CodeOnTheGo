@@ -9,6 +9,9 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -243,5 +246,73 @@ class Aapt2LinkEdgeTest {
 		} finally {
 			running.destroyForcibly()
 		}
+	}
+
+	/**
+	 * The verdict, not just the helper: a link whose child exited just after the deadline must
+	 * not be reported as timed out.
+	 *
+	 * The neighbouring test pins [Aapt2Link.killIfAlive] in isolation, which held under the
+	 * pre-fix code too because nothing consulted it. This pins the pairing that decides the
+	 * outcome. The losing timing cannot be produced with a real process - an already-exited
+	 * child makes `waitFor(timeout)` return true immediately - so the process is a stub.
+	 *
+	 * Goes red if the kill check is dropped from the verdict and the expired wait is trusted
+	 * on its own.
+	 */
+	@Test
+	fun `a child that exited just after the deadline is not reported as timed out`() {
+		val exitedAfterTheWait = StubProcess(waitExpired = true, alive = false)
+		val stillRunning = StubProcess(waitExpired = true, alive = true)
+		val finishedInTime = StubProcess(waitExpired = false, alive = false)
+
+		assertThat(Aapt2Link.watchdogTimedOut(exitedAfterTheWait, 1L)).isFalse()
+		assertThat(exitedAfterTheWait.killed).isFalse()
+
+		assertThat(Aapt2Link.watchdogTimedOut(stillRunning, 1L)).isTrue()
+		assertThat(stillRunning.killed).isTrue()
+
+		assertThat(Aapt2Link.watchdogTimedOut(finishedInTime, 1L)).isFalse()
+		assertThat(finishedInTime.killed).isFalse()
+	}
+
+	/**
+	 * A process whose wait result and liveness are set independently, which no real process
+	 * lets a test do.
+	 *
+	 * @property waitExpired what the timed wait reports; false means the child finished first.
+	 * @property alive whether the child is still running when the kill is attempted.
+	 */
+	private class StubProcess(
+		private val waitExpired: Boolean,
+		private val alive: Boolean,
+	) : Process() {
+		/** Whether [destroyForcibly] was reached, which is what a real kill would be. */
+		var killed: Boolean = false
+			private set
+
+		override fun getOutputStream(): OutputStream = OutputStream.nullOutputStream()
+
+		override fun getInputStream(): InputStream = InputStream.nullInputStream()
+
+		override fun getErrorStream(): InputStream = InputStream.nullInputStream()
+
+		override fun waitFor(): Int = 0
+
+		override fun waitFor(
+			timeout: Long,
+			unit: TimeUnit,
+		): Boolean = !waitExpired
+
+		override fun exitValue(): Int = 0
+
+		override fun destroy() = Unit
+
+		override fun destroyForcibly(): Process {
+			killed = true
+			return this
+		}
+
+		override fun isAlive(): Boolean = alive
 	}
 }

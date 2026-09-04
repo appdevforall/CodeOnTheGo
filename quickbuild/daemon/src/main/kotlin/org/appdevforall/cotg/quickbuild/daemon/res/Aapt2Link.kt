@@ -91,6 +91,24 @@ class Aapt2Link(
 			process.destroyForcibly()
 			return true
 		}
+
+		/**
+		 * The watchdog's verdict for one run: whether the link was actually cut short.
+		 *
+		 * Both halves matter and only together. An expired wait alone is not enough - it also
+		 * returns false for a child that exited just after the deadline - so the verdict is the
+		 * KILL, which [killIfAlive] only reports for a process that was still running. Held here
+		 * rather than inline in the watchdog thread so the pairing is pinned by a test; the
+		 * timing that produces the losing case cannot be reproduced with a real process.
+		 *
+		 * @param process the aapt2 child this run's watchdog guards.
+		 * @param timeoutMillis how long the child is given before the kill.
+		 * @return true only when the wait expired AND a live process was killed.
+		 */
+		internal fun watchdogTimedOut(
+			process: Process,
+			timeoutMillis: Long,
+		): Boolean = !process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS) && killIfAlive(process)
 	}
 
 	/** Outcome of one relink. */
@@ -378,7 +396,7 @@ class Aapt2Link(
 		// Daemon thread, so a watchdog still waiting cannot hold up JVM exit. It ends on its
 		// own as soon as the child does, so nothing interrupts it.
 		Thread {
-			if (!process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS) && killIfAlive(process)) {
+			if (watchdogTimedOut(process, timeoutMillis)) {
 				timedOut.set(true)
 			}
 		}.apply {
