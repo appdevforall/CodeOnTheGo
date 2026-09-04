@@ -52,8 +52,8 @@ class AndroidIDEInitScriptPluginTest {
 			"callback, which AGP (the repo's current AGP_VERSION_LATEST) forbids with " +
 			"PropertyAccessNotAllowedException - so enabling LogSender fails to configure ':app' on " +
 			"both 8.14.3 and 9.5.1. That is a LogSenderPlugin/AGP issue (the known-logsender bucket), " +
-			"orthogonal to the init-script plugin injection this suite covers. Re-enable once " +
-			"LogSenderPlugin moves the debuggable read to onVariants (ADFA-5459).",
+			"orthogonal to the init-script plugin injection this suite covers. The fix (move the read " +
+			"to onVariants, which also covers JdwpPlugin) is ADFA-5433; re-enabling this test is ADFA-5459.",
 	)
 	@ParameterizedTest
 	@ValueSource(strings = ["8.14.3", "9.5.1"])
