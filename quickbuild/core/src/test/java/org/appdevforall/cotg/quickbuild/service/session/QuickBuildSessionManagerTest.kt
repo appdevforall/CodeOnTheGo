@@ -5109,4 +5109,68 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value)
 				.isEqualTo(QuickBuildSessionState.Deployed(1, buildDurationMillis = 5))
 		}
+
+	@Test
+	fun `a save after a failed respawn still reports the build's daemon death`() =
+		runTest {
+			// With no build in flight the watcher is a death's only reporter, and a respawn that
+			// then fails must forget it: the save that recovers from Degraded(restartFailed)
+			// builds against the dead daemon, and that death arrives from the build side alone.
+			// Dropped as a re-report, the session sits in Building until a session restart.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			daemon.startReply = DaemonReply.Failed("daemon JVM would not start")
+			daemon.die(exitCode = 137)
+			advanceUntilIdle()
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Degraded(0, restartFailed = true))
+
+			scriptedOutcomes += BuildOutcome.InfrastructureFailure("daemon not running", daemonDied = true)
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			// The build's report went through: Building moved on to Degraded and one more respawn
+			// was attempted for it - one per save, which failed again - rather than the session
+			// parking in Building with a status nothing but "Restart session" can move.
+			assertThat(daemon.startConfigs).hasSize(3)
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Degraded(0, restartFailed = true))
+		}
+
+	@Test
+	fun `a death first seen by a build after a proxy app rebuild is not dropped as the death before it`() =
+		runTest {
+			// The rebuild brings up a daemon of its own while a respawn for the previous death is
+			// still parked, and that respawn ends Superseded, which reports nothing. The rebuild
+			// must reset the reporter itself, or the new daemon's first death, when the build in
+			// flight sees it before the watcher does, is dropped as a re-report of the old one.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			val respawnGate = CompletableDeferred<Unit>()
+			daemon.startGate = respawnGate
+			daemon.die(exitCode = 137)
+			advanceUntilIdle()
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			respawnGate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(daemon.startConfigs).hasSize(3)
+
+			// The new daemon dies under a build, and the build's failure is the first report.
+			scriptedOutcomes += BuildOutcome.InfrastructureFailure("pipe broke", daemonDied = true)
+			manager.save(sourceFile)
+			advanceUntilIdle()
+
+			// Reported, so it was respawned: a fourth start, and the session is not stuck in
+			// Building behind a report that was thrown away.
+			assertThat(daemon.startConfigs).hasSize(4)
+			assertThat(daemon.isRunning).isTrue()
+			assertThat(manager.state.value).isNotInstanceOf(QuickBuildSessionState.Building::class.java)
+		}
 }
