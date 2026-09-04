@@ -48,7 +48,8 @@ import java.util.concurrent.Executors
  * reads shared preferences and noBackupFilesDir, and its init block installs the daemon death
  * listener and five coroutines on the session executor. ProjectHandlerActivity resolves it from
  * onCreate whenever experiments are on, so the graph is built at project open - off the main
- * thread, since the construction does disk I/O.
+ * thread, since the construction does disk I/O, and through QuickBuildGraphWarmUp, which is the
+ * only place that resolves it: main-thread code reads the built instance or null from there.
  */
 val quickBuildModule =
 	module {
