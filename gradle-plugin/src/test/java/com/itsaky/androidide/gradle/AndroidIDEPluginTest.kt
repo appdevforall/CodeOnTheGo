@@ -38,8 +38,8 @@ class AndroidIDEPluginTest {
 		"LogSenderPlugin reads ApplicationVariantBuilder.debuggable inside an AGP beforeVariants " +
 			"callback, which AGP forbids with PropertyAccessNotAllowedException, so enabling " +
 			"LogSender fails to configure ':app'. Same LogSenderPlugin/AGP issue that disables the " +
-			"debuggable-variants test in AndroidIDEInitScriptPluginTest; re-enable once " +
-			"LogSenderPlugin moves the debuggable read to onVariants (ADFA-5459).",
+			"debuggable-variants test in AndroidIDEInitScriptPluginTest. The fix (move the read to " +
+			"onVariants, which also covers JdwpPlugin) is ADFA-5433; re-enabling this test is ADFA-5459.",
 	)
 	@Test
 	fun `test logsender must be enabled if specified explicitly`(
