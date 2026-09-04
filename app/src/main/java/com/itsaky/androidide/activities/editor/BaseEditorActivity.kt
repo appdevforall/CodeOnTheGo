@@ -1342,7 +1342,11 @@ abstract class BaseEditorActivity :
 		return null
 	}
 
-	fun doSetStatus(
+	/**
+	 * Writes the status line. Open so the subclass that shares the line with Quick Build can see
+	 * every write, including the debugger's here, and hand the line's ownership to the writer.
+	 */
+	open fun doSetStatus(
 		text: CharSequence,
 		@GravityInt gravity: Int = Gravity.CENTER,
 	) {
