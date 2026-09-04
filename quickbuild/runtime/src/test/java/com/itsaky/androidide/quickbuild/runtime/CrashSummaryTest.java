@@ -223,4 +223,14 @@ class CrashSummaryTest {
 
 		assertThat(mixed.length()).isEqualTo(plain.length());
 	}
+	@Test
+	void theBootRestoreReportSaysNothingWasRolledBack() {
+		// A boot restore has no snapshot to roll back to, so its report must not borrow the
+		// deploy-time wording that says the code was rolled back.
+		String report = CrashSummary.forBootRestoreReport(lifecycleCrash());
+
+		assertThat(report).startsWith(CrashSummary.BOOT_RESTORE_PREFIX);
+		assertThat(report).doesNotContain("Rolled back");
+		assertThat(report).contains("MainActivity.kt:22");
+	}
 }
