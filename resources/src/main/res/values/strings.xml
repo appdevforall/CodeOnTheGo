@@ -1174,6 +1174,7 @@
 	<string name="quick_build_install_failed">Quick Build could not install your app.</string>
 	<string name="quick_build_installed_but_unresolvable">Quick Build installed %1$s, but Android will not open it. Restarting the session reinstalls it.</string>
 	<string name="quick_build_foreign_app_installed">%1$s is already installed on this device and was not built here, so Quick Build cannot replace it without deleting its data. Back it up and uninstall it yourself first.</string>
+	<string name="quick_build_daemon_start_failed">Quick Build could not start its compiler. Tap Quick Build to try again. (%1$s)</string>
 	<string name="quick_build_daemon_restart_failed">Quick Build could not restart its compiler. Tap Quick Build to try again, or restart the session from the long-press menu. (%1$s)</string>
 	<string name="quick_build_daemon_restart_retrying">Quick Build is restarting its compiler - your app keeps running. If it does not come back, long-press Quick Build and choose Restart session.</string>
 	<string name="quick_build_not_enough_storage">Quick Build needs about %1$d MB free in app storage, but only %2$d MB is available. Free up space and try again.</string>
