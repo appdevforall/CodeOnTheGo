@@ -21,6 +21,21 @@ final class Generations {
 	}
 
 	/**
+	 * Whether a failed reload has left the process serving two generations at once.
+	 *
+	 * The rollback restores the dex, but a resource swap that already committed cannot be undone: the store keeps single provider slots and closes the replaced one, and the API 28/29 path cannot unmount an asset path at all. A deploy posts its table swap and then does the asset merge on the binder thread, so when the merge throws the swap has usually landed. The app then runs the previous generation's classes over the failed generation's resources until a resources-carrying deploy or a process restart, and a banner claiming the last working version would be false.
+	 *
+	 * @param swappedGeneration
+	 *            the newest generation whose resource swap committed, or -1 before any
+	 * @param failedGeneration
+	 *            the generation whose reload failed
+	 * @return true when the failed generation's resources are what the screen resolves against
+	 */
+	static boolean leavesMixedState(long swappedGeneration, long failedGeneration) {
+		return swappedGeneration == failedGeneration;
+	}
+
+	/**
 	 * What a failed reload owes, decided from where the store stands relative to the failure.
 	 *
 	 * The three cases matter because {@link #rollbackApplies} alone conflates two of them: a failure superseded by a newer deploy must stay silent, but a failure the store never adopted - an oversize payload, a full disk, a restart deploy missing its dex - still has to reach the host and the banner, or its only trace is the host's deploy timeout.
@@ -38,21 +53,6 @@ final class Generations {
 		return runningGeneration > failedGeneration
 				? FailureAction.LEAVE_ALONE
 				: FailureAction.REPORT_ONLY;
-	}
-
-	/**
-	 * Whether a failed reload has left the process serving two generations at once.
-	 *
-	 * The rollback restores the dex, but a resource swap that already committed cannot be undone: the store keeps single provider slots and closes the replaced one, and the API 28/29 path cannot unmount an asset path at all. A deploy posts its table swap and then does the asset merge on the binder thread, so when the merge throws the swap has usually landed. The app then runs the previous generation's classes over the failed generation's resources until a resources-carrying deploy or a process restart, and a banner claiming the last working version would be false.
-	 *
-	 * @param swappedGeneration
-	 *            the newest generation whose resource swap committed, or -1 before any
-	 * @param failedGeneration
-	 *            the generation whose reload failed
-	 * @return true when the failed generation's resources are what the screen resolves against
-	 */
-	static boolean leavesMixedState(long swappedGeneration, long failedGeneration) {
-		return swappedGeneration == failedGeneration;
 	}
 
 	/**

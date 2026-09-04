@@ -59,14 +59,14 @@ final class CrashSummary {
 	private static final int MAX_REPORT_CAUSES = 3;
 
 	/**
-	 * The full form reported to CoGo.
+	 * The full form reported to CoGo when a boot-time resource restore failed: {@link #BOOT_RESTORE_PREFIX}, then the same frames as {@link #forReport}, under the same length cap.
 	 *
 	 * @param error
-	 *            the failure to summarize; must be non-null
-	 * @return the exception and up to {@link #MAX_REPORT_CAUSES} causes, each with up to {@link #MAX_REPORT_FRAMES} frames, truncated to {@link #MAX_REPORT_LENGTH} chars
+	 *            the extraction or swap failure; must be non-null
+	 * @return the prefixed report, truncated to {@link #MAX_REPORT_LENGTH} chars as a whole
 	 */
-	static String forReport(Throwable error) {
-		return report(null, error);
+	static String forBootRestoreReport(Throwable error) {
+		return report(BOOT_RESTORE_PREFIX, error);
 	}
 
 	/**
@@ -81,14 +81,32 @@ final class CrashSummary {
 	}
 
 	/**
-	 * The full form reported to CoGo when a boot-time resource restore failed: {@link #BOOT_RESTORE_PREFIX}, then the same frames as {@link #forReport}, under the same length cap.
+	 * The full form reported to CoGo.
 	 *
 	 * @param error
-	 *            the extraction or swap failure; must be non-null
-	 * @return the prefixed report, truncated to {@link #MAX_REPORT_LENGTH} chars as a whole
+	 *            the failure to summarize; must be non-null
+	 * @return the exception and up to {@link #MAX_REPORT_CAUSES} causes, each with up to {@link #MAX_REPORT_FRAMES} frames, truncated to {@link #MAX_REPORT_LENGTH} chars
 	 */
-	static String forBootRestoreReport(Throwable error) {
-		return report(BOOT_RESTORE_PREFIX, error);
+	static String forReport(Throwable error) {
+		return report(null, error);
+	}
+
+	/**
+	 * Appends at most {@code limit} of {@code error}'s frames, one per line.
+	 *
+	 * @param sb
+	 *            the summary under construction
+	 * @param error
+	 *            the failure whose trace to read; a trace stripped by the VM is simply empty
+	 * @param limit
+	 *            the most frames to append
+	 */
+	private static void appendFrames(StringBuilder sb, Throwable error, int limit) {
+		StackTraceElement[] frames = error.getStackTrace();
+		int count = Math.min(frames.length, limit);
+		for (int i = 0; i < count; i++) {
+			sb.append("\n at ").append(frames[i]);
+		}
 	}
 
 	/**
@@ -118,24 +136,6 @@ final class CrashSummary {
 			cause = cause.getCause();
 		}
 		return truncate(sb, MAX_REPORT_LENGTH);
-	}
-
-	/**
-	 * Appends at most {@code limit} of {@code error}'s frames, one per line.
-	 *
-	 * @param sb
-	 *            the summary under construction
-	 * @param error
-	 *            the failure whose trace to read; a trace stripped by the VM is simply empty
-	 * @param limit
-	 *            the most frames to append
-	 */
-	private static void appendFrames(StringBuilder sb, Throwable error, int limit) {
-		StackTraceElement[] frames = error.getStackTrace();
-		int count = Math.min(frames.length, limit);
-		for (int i = 0; i < count; i++) {
-			sb.append("\n at ").append(frames[i]);
-		}
 	}
 
 	/**

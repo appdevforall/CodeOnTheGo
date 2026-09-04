@@ -26,6 +26,22 @@ class GenerationsTest {
 	}
 
 	@Test
+	void aFailureAfterItsOwnSwapCommittedLeavesAMixedState() {
+		// The common ordering: applyTable posts and returns, applyAssets throws on the binder
+		// thread, and by then the table swap has committed. The dex rolls back, the table
+		// cannot, so the banner must not claim the last working version.
+		assertThat(Generations.leavesMixedState(7, 7)).isTrue();
+	}
+
+	@Test
+	void aFailureBeforeAnySwapCommittedIsNotMixed() {
+		// The swap was refused or never posted: the screen resolves the previous table under
+		// the previous dex, which is the last working version the banner names.
+		assertThat(Generations.leavesMixedState(-1, 7)).isFalse();
+		assertThat(Generations.leavesMixedState(6, 7)).isFalse();
+	}
+
+	@Test
 	void aFailureSupersededByANewerLiveGenerationStaysSilent() {
 		// Gen 6's posted recreate throws after gen 7 already applied: gen 7 owns the store,
 		// the pending ack and the screen, so gen 6's failure must touch and say nothing.
@@ -90,20 +106,5 @@ class GenerationsTest {
 		// Defensive rather than reachable, but the rule is an equality and should say so:
 		// a failure naming a generation ahead of the store owns nothing either.
 		assertThat(Generations.rollbackApplies(6, 7)).isFalse();
-	}
-	@Test
-	void aFailureAfterItsOwnSwapCommittedLeavesAMixedState() {
-		// The common ordering: applyTable posts and returns, applyAssets throws on the binder
-		// thread, and by then the table swap has committed. The dex rolls back, the table
-		// cannot, so the banner must not claim the last working version.
-		assertThat(Generations.leavesMixedState(7, 7)).isTrue();
-	}
-
-	@Test
-	void aFailureBeforeAnySwapCommittedIsNotMixed() {
-		// The swap was refused or never posted: the screen resolves the previous table under
-		// the previous dex, which is the last working version the banner names.
-		assertThat(Generations.leavesMixedState(-1, 7)).isFalse();
-		assertThat(Generations.leavesMixedState(6, 7)).isFalse();
 	}
 }
