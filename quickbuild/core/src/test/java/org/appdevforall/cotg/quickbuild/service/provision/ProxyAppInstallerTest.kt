@@ -46,8 +46,15 @@ class ProxyAppInstallerTest {
 			return uid
 		}
 
+		/** Makes the NEXT stamp lookup alone throw - one transient PackageManager fault. */
+		var stampThrowsOnce = false
+
 		override fun lastUpdateTime(packageName: String): Long? {
 			check(!lookupsThrow) { "lastUpdateTime lookup failed" }
+			if (stampThrowsOnce) {
+				stampThrowsOnce = false
+				error("lastUpdateTime lookup failed once")
+			}
 			return stamp
 		}
 
@@ -657,4 +664,34 @@ class ProxyAppInstallerTest {
 			.isEqualTo(ProxyAppInstaller.sha256OrNull(File(dir, "copy.apk").apply { writeText("apk-bytes-v1") }))
 		assertThat(ProxyAppInstaller.sha256OrNull(File(dir, "missing.apk"))).isNull()
 	}
+
+	/**
+	 * A throw and an absence must stay distinguishable on the pre-install stamp read. Folded
+	 * into one null, the poll's first pass reads the OLD stamp of an installed package as "any
+	 * stamp counts", and reports an install that never ran - the session then assembles onto
+	 * a baseline the device is not running.
+	 */
+	@Test
+	fun `a transient stamp-read failure before the install does not read the old stamp as the change`() =
+		runTest {
+			packages.uid = 10123
+			packages.stamp = 111L
+			packages.installedApk = File(dir, "installed.apk").apply { writeText("apk-bytes-v0") }
+			packages.stampThrowsOnce = true
+
+			val result = async { installer(timeoutMillis = 30_000L).ensureInstalled(apk, PKG) }
+			runCurrent()
+			assertThat(installLaunches).containsExactly(apk)
+			advanceTimeBy(5_000L)
+			runCurrent()
+
+			// Still waiting: the pre-existing install must not read as completion.
+			assertThat(result.isCompleted).isFalse()
+
+			packages.stamp = 444L
+			advanceTimeBy(2_000L)
+			runCurrent()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+		}
 }
