@@ -163,7 +163,7 @@ class IncrementalCompiler(
 	init {
 		Files.createDirectories(icCachesDir)
 		Files.createDirectories(classesDir)
-		val fingerprint = discardStaleIncrementalState(classpathJars)
+		val fingerprint = discardStaleIncrementalState(classpathJars, compilerPluginJars)
 		val snapshotDir = workDir.resolve("cp-snap")
 		Files.createDirectories(snapshotDir)
 		// Snapshot the fixed session classpath once; a classpath change is a session
@@ -202,16 +202,26 @@ class IncrementalCompiler(
 	 *
 	 * @param classpathJars the session classpath, fingerprinted before the per-jar snapshots are
 	 *   computed over it.
+	 * @param compilerPluginJars the session's kotlinc plugins, fingerprinted the same way: a
+	 *   plugin (the Compose compiler above all) changes the bytecode emitted for sources the
+	 *   engine would otherwise see as unchanged, so IC caches seeded under one plugin set are
+	 *   as stale under another as under a rewritten jar.
 	 * @return the computed fingerprint - NOT yet written: `init` commits it as its last
 	 *   statement, after the per-jar snapshots exist, so a throw mid-construction cannot leave
 	 *   a fingerprint describing snapshots that were never built (which would defeat the
 	 *   `assureNoClasspathSnapshotsChanges(true)` guard on the retry).
 	 */
-	private fun discardStaleIncrementalState(classpathJars: List<File>): String {
+	private fun discardStaleIncrementalState(
+		classpathJars: List<File>,
+		compilerPluginJars: List<File>,
+	): String {
 		val fingerprint =
 			classpathJars.joinToString("\n") { entry ->
 				"${entry.absolutePath}|${entryFingerprint(entry)}"
-			}
+			} +
+				compilerPluginJars.joinToString("") { plugin ->
+					"\nplugin:${plugin.absolutePath}|${entryFingerprint(plugin)}"
+				}
 		val file = fingerprintFile()
 		val previous = if (file.isFile) file.readText() else null
 		if (previous != fingerprint) {
