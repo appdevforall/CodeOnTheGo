@@ -1052,10 +1052,11 @@ abstract class BaseEditorActivity :
 
 	override fun onPause() {
 		super.onPause()
+		// Sampling continues while backgrounded so the hour of history has no gaps; the x axis
+		// assumes evenly spaced samples and would otherwise misreport their age (ADFA-5486).
+		// Only the listeners go, so nothing updates a chart nobody is looking at.
 		memoryUsageWatcher.listener = null
-		memoryUsageWatcher.stopWatching(false)
 		networkUsageWatcher.listener = null
-		networkUsageWatcher.stopWatching()
 
 		this.isDestroying = isFinishing
 		getFileTreeFragment()?.saveTreeState()
@@ -1073,9 +1074,17 @@ abstract class BaseEditorActivity :
 		}
 
 		memoryUsageWatcher.listener = memoryUsageListener
-		memoryUsageWatcher.startWatching()
 		networkUsageWatcher.listener = networkUsageListener
-		networkUsageWatcher.startWatching()
+		if (!memoryUsageWatcher.isWatching) {
+			memoryUsageWatcher.startWatching()
+		}
+		if (!networkUsageWatcher.isWatching) {
+			networkUsageWatcher.startWatching()
+		}
+
+		// Draw whatever was sampled while we were away, rather than waiting for the next tick.
+		memUsageChartRenderer.rebuild()
+		networkUsageChartRenderer.rebuild()
 
 		apkInstallationViewModel.reloadStatus(this)
 

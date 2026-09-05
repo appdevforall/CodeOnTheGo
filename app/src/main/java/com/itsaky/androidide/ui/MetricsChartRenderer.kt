@@ -167,6 +167,11 @@ abstract class MetricsChartRenderer(
 			axisRight.textColor = textColor
 			axisLeft.textColor = textColor
 			legend.textColor = textColor
+			// MPAndroidChart defaults every component's text to Color.BLACK. The y axis and legend
+			// were given a themed colour and the x axis never was, so its labels have always been
+			// drawn black on a near-black surface -- which is the "x axis has no labels" of
+			// ADFA-5486. They were there the whole time, just invisible.
+			xAxis.textColor = textColor
 
 			data.setValueTextColor(textColor)
 			setBackgroundColor(bgColor)
