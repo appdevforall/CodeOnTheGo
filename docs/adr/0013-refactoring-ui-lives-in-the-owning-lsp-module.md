@@ -1,6 +1,6 @@
 # 0013. Refactoring UI lives in the owning LSP module
 
-- **Status:** Proposed
+- **Status:** Accepted, revised 2026-09-05 (see Revision below)
 - **Date:** 2026-08-03
 - **Deciders:** Code On The Go team
 
@@ -44,18 +44,21 @@ So a refactoring in `lsp/kotlin` either renders its own UI, or a new inversion m
 - **Render in `app`.** `app` is the integration point and already hosts `BottomSheetDialogFragment`s and `ILanguageClient`. Rejected: same inversion problem, and it puts Kotlin-specific refactoring UI in the module where nothing else language-specific lives.
 - **A new `lsp/kotlin-ui` module.** Keeps Compose out of `lsp/kotlin` without inverting. Rejected for now: a new Gradle module in a ~80-module build is disproportionate for one sheet. Reconsider once extract-method and inline-variable have landed and the UI surface is known.
 
-## Revision (2026-09-14, ADFA-5048)
+## Revision: a shared `:lsp:ui` for UI that serves two languages
 
-The Alternatives section rejected "a new `lsp/kotlin-ui` module" *for now*, to be reconsidered "once extract-method and inline-variable have landed and the UI surface is known." That point has arrived: extract-variable and inline-variable shipped, and extract-method (this ticket) makes a second language — `lsp/java` — want the *same* sheet rather than a second copy of it.
+- **Date:** 2026-09-05
+- **Tickets:** ADFA-5047 (extract variable), ADFA-5048 (extract method)
 
-**Amendment: refactoring UI that two language servers share lives in `:lsp:ui`, behind plain-data contracts, not in the owning LSP module.** `:lsp:ui` holds the Compose sheets (`ExtractMethodSheet`, `ExtractVariableSheet`, …) and their `ViewModel`/state, and each is driven by a plain-data contract (`MethodCandidateView`, `CandidateView`, …) carrying only labels, names and rendered signature text — no PSI, no javac types, no analysis session. The owning LSP module still owns the analysis and the small adapter that maps its own candidate type onto the contract; only the shared UI moves.
+The decision above anticipated its own revisit: *"If three or more `lsp/*` modules end up with Compose UI, extracting a shared UI module becomes worthwhile"*, and *"Reconsider once extract-method and inline-variable have landed and the UI surface is known"*. Both refactorings have now landed in both languages, and the trigger turned out to be duplication between two modules rather than a third one appearing.
 
-This narrows the original decision rather than reversing it:
+**The rule is now:** a refactoring sheet used by **more than one** language server lives in **`:lsp:ui`**, behind a plain-data contract of strings, name sets and index positions. A sheet used by exactly one stays in that language's own module.
 
-- **Shared refactoring sheets** (used by more than one `lsp/*` module) live in `:lsp:ui`.
-- **Single-language UI** stays with its owner — `lsp/java`'s `AutoFixImportsAction` dialog is unaffected, and a refactoring only one language offers has no reason to move.
+- `:lsp:ui` holds `ExtractVariableSheet` and `ExtractMethodSheet` with their `ViewModel`s, states, events and the shared `LabelledSection`/`OptionList`. Neither knows what a `KtExpression` or a javac `Tree` is: each caller maps its own plan into `CandidateView`/`MethodCandidateView` and maps a selection back out.
+- Language-specific wording stays with the language. `NameMessages` and the keyword set are passed in, because two of the four name-problem strings name the language ("Not a valid Java name") and a shared lookup would show a Java user Kotlin's wording.
+- The extract-method signature preview crosses the boundary as a **prefix and a suffix around the name**, not a rendered string: the preview follows what the user types, and each language keeps one derivation shared with its own edit builder.
+- `lsp/kotlin` keeps `InlineVariableSheet`, which has no Java counterpart, under the original decision.
 
-The "three or more Compose `lsp/*` modules" trigger in Consequences is superseded by this: the shared module now exists, so a new interactive refactoring renders through `:lsp:ui` instead of adding Compose to its own `lsp/*` module.
+Everything else in this ADR stands unchanged: the plain-data plan boundary, the `BottomSheetDialogFragment` hosting a `ComposeView`, the `ContextWrapper` walk for a `FragmentActivity`, and ADR 0009's UDF shape. The costs listed above are unchanged too, except that Compose now sits in one shared module rather than being added to each language server in turn.
 
 ## Related
 
