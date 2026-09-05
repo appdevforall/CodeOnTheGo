@@ -108,7 +108,8 @@ internal class ProxyAppBuildRunner(
 
 	/**
 	 * Runs the one-time provision: disk-space guard, Gradle proxy app build and install,
-	 * scratch tree, deploy-channel session, daemon start, and session assembly.
+	 * scratch tree, deploy-channel session, daemon start, and session assembly. A failure
+	 * after the scratch tree exists removes it, so retries do not pile trees up.
 	 *
 	 * @param superseded probed after the Gradle build and after the daemon start, the two
 	 *   points a "Restart session" can land
@@ -191,10 +192,12 @@ internal class ProxyAppBuildRunner(
 						}
 
 						is DaemonReply.BuildFailed -> {
+							scratch.remove(outcome.layout.projectRoot)
 							ProvisionResult.Failed(QuickBuildMessage.DaemonRejectedConfiguration)
 						}
 
 						is DaemonReply.Failed -> {
+							scratch.remove(outcome.layout.projectRoot)
 							ProvisionResult.Failed(QuickBuildMessage.DaemonStartFailed(started.message))
 						}
 					}
@@ -211,6 +214,9 @@ internal class ProxyAppBuildRunner(
 						daemonController.markIntentionalTransition()
 						daemonController.shutdown()
 					}
+					// After the daemon is down, since it writes into the tree until then. Not
+					// on the superseded paths: the restart in flight reuses the tree.
+					scratch.remove(outcome.layout.projectRoot)
 					// Class name and stack are in the log line above; see the provision()
 					// catch for why a messageless throw gets the named case.
 					ProvisionResult.Failed(
