@@ -101,6 +101,46 @@ class JavacFixture(
 			) ?: error("no rewrite for '$prefix' in scope '${option.label}'")
 		return text.substring(0, rewrite.span.start) + rewrite.newText + text.substring(rewrite.span.end)
 	}
+
+	/** The extract-method plan for a bare cursor placed just after [prefix]. */
+	fun methodPlanAfter(
+		prefix: String,
+		documentVersion: Int = 1,
+	): ExtractMethodPlan {
+		val cursor = cursorAfter(prefix)
+		return buildExtractMethodPlan(task, root, text, cursor, cursor, documentVersion)
+	}
+
+	/**
+	 * The extract-method plan for a selection covering [selection] verbatim.
+	 *
+	 * Selecting by text rather than by offsets keeps a case readable and makes a snap-outward test say
+	 * what it means: the selection is written exactly as a finger would have dragged it.
+	 */
+	fun methodPlanOver(
+		selection: String,
+		documentVersion: Int = 1,
+	): ExtractMethodPlan {
+		val start = text.indexOf(selection)
+		require(start >= 0) { "the fixture contains no '$selection'" }
+		return buildExtractMethodPlan(task, root, text, start, start + selection.length, documentVersion)
+	}
+
+	/** The file as it reads after applying [plan]'s candidate at [index] under [name]. */
+	fun applyMethod(
+		plan: ExtractMethodPlan,
+		name: String,
+		index: Int = 0,
+	): String {
+		val candidate = plan.candidates.getOrNull(index) ?: error("no candidate at $index: ${plan.refusal}")
+		val rewrites = buildExtractMethodRewrites(plan.fileText, candidate, name) ?: error("no rewrite for '$name'")
+		var result = text
+		// Descending, as the language client applies them: an earlier edit must not shift a later one.
+		rewrites.sortedByDescending { it.span.start }.forEach { rewrite ->
+			result = result.substring(0, rewrite.span.start) + rewrite.newText + result.substring(rewrite.span.end)
+		}
+		return result
+	}
 }
 
 /** Whether [source] compiles on its own, which is what most of these findings are really about. */
