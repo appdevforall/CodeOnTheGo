@@ -1,9 +1,136 @@
 package org.appdevforall.cotg.quickbuild.service
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import org.appdevforall.cotg.quickbuild.data.CompileOutput
+import org.appdevforall.cotg.quickbuild.data.DaemonConfig
+import org.appdevforall.cotg.quickbuild.data.DaemonReply
+import org.appdevforall.cotg.quickbuild.data.DexOutput
+import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
+import org.appdevforall.cotg.quickbuild.data.QuickBuildPaths
+import org.appdevforall.cotg.quickbuild.data.RelinkInputs
+import org.appdevforall.cotg.quickbuild.data.RelinkOutput
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationStore
 import org.appdevforall.cotg.quickbuild.service.deploy.DeployResult
 import org.appdevforall.cotg.quickbuild.service.deploy.DeploySender
 import java.io.File
+
+/** Scripted [QuickBuildDaemon]: every op records its arguments and replies per script. */
+class FakeDaemon : QuickBuildDaemon {
+	val startConfigs = mutableListOf<DaemonConfig>()
+	val compileCalls = mutableListOf<Pair<List<File>, List<File>>>()
+
+	/** Removed-sources arg of each `compile`, so removed-source assertions need not unpick the changed set. */
+	val compileRemovedFiles = mutableListOf<List<File>>()
+	val dexCalls = mutableListOf<List<File>>()
+	val relinkCalls = mutableListOf<RelinkInputs>()
+	var shutdownCount = 0
+
+	var startReply: DaemonReply<Unit> = DaemonReply.Ok(Unit)
+	var compileReply: DaemonReply<CompileOutput> =
+		DaemonReply.Ok(CompileOutput(File("/fake/classes"), changedClassFiles = emptyList()))
+	var dexReply: DaemonReply<DexOutput> = DaemonReply.Ok(DexOutput(File("/fake/classes.dex")))
+	var relinkReply: DaemonReply<RelinkOutput> = DaemonReply.Ok(RelinkOutput(File("/fake/resources.arsc")))
+
+	var deathListener: ((Int) -> Unit)? = null
+		private set
+
+	override var isRunning: Boolean = false
+
+	/** Null by default, matching a daemon that reports no filesystem for its scratch tree. */
+	override var scratchFsType: String? = null
+
+	/**
+	 * When set, the NEXT [start] parks here after recording its config, consuming the
+	 * gate - later starts pass through. Lets a race test hold a respawn mid-start while
+	 * something else (a rebaseline, a teardown) takes the daemon down.
+	 */
+	var startGate: CompletableDeferred<Unit>? = null
+
+	/**
+	 * Makes a gated [start] finish its wait even after the calling coroutine is cancelled.
+	 * Models a daemon spawn already past the point of no return: cancellation is cooperative,
+	 * so the start completes and leaves a zombie process the caller still has to stop.
+	 */
+	var startSurvivesCancel = false
+
+	/**
+	 * When set, the NEXT [shutdown] parks here, consuming the gate - later shutdowns pass
+	 * through. Lets a test hold a teardown's daemon stop open while a new session goes live.
+	 */
+	var shutdownGate: CompletableDeferred<Unit>? = null
+
+	/**
+	 * Runs inside [start], after the reply is decided but before it is returned. The hook for a
+	 * child that dies during its own spawn: call [die] here and then yield, and the death lands
+	 * while the respawn is still in flight, which is the ordering a real spawn produces - the
+	 * death watcher runs on its own dispatcher while `start` is suspended on IO.
+	 */
+	var onStart: suspend () -> Unit = {}
+
+	override suspend fun start(config: DaemonConfig): DaemonReply<Unit> {
+		startConfigs += config
+		startGate?.let { gate ->
+			startGate = null
+			if (startSurvivesCancel) {
+				withContext(NonCancellable) { gate.await() }
+			} else {
+				gate.await()
+			}
+		}
+		if (startReply is DaemonReply.Ok) isRunning = true
+		onStart()
+		return startReply
+	}
+
+	/**
+	 * Runs inside [compile], i.e. mid-build. The hook for anything that has to land while
+	 * a build is in flight - a tap promoting the running build, a teardown racing it.
+	 */
+	var onCompile: () -> Unit = {}
+
+	override suspend fun compile(
+		allSources: List<File>,
+		changedFiles: List<File>,
+		removedFiles: List<File>,
+	): DaemonReply<CompileOutput> {
+		compileCalls += allSources to changedFiles
+		compileRemovedFiles += removedFiles
+		onCompile()
+		return compileReply
+	}
+
+	override suspend fun dex(classesDirs: List<File>): DaemonReply<DexOutput> {
+		dexCalls += classesDirs
+		return dexReply
+	}
+
+	override suspend fun relink(inputs: RelinkInputs): DaemonReply<RelinkOutput> {
+		relinkCalls += inputs
+		return relinkReply
+	}
+
+	override suspend fun ping(): Boolean = isRunning
+
+	override suspend fun shutdown() {
+		shutdownGate?.let { gate ->
+			shutdownGate = null
+			gate.await()
+		}
+		shutdownCount++
+		isRunning = false
+	}
+
+	override fun setDeathListener(listener: ((Int) -> Unit)?) {
+		deathListener = listener
+	}
+
+	fun die(exitCode: Int) {
+		isRunning = false
+		deathListener?.invoke(exitCode)
+	}
+}
 
 /** Recording [DeploySender] with a scripted result. */
 class FakeDeploy : DeploySender {
@@ -61,9 +188,27 @@ class FakeDeploy : DeploySender {
 class MemoryGenerationStore : GenerationStore {
 	var value: Long? = null
 
-	override fun load(): Long? = value
+	override suspend fun load(): Long? = value
 
-	override fun save(generation: Long) {
+	override suspend fun save(generation: Long) {
 		value = generation
 	}
+}
+
+/** In-memory [QuickBuildPaths] over one temp dir, so a test needs no staged toolchain. */
+class FakePaths(
+	baseDir: File,
+) : QuickBuildPaths {
+	override val javaBinary = File(baseDir, "jdk/bin/java")
+	override val daemonJar = File(baseDir, "quickbuild/daemon/quickbuild-daemon.jar")
+	override val runtimeAar = File(baseDir, "quickbuild/quickbuild-runtime.aar")
+	override val aapt2 = File(baseDir, "sdk/aapt2")
+	override val d8Jar = File(baseDir, "sdk/d8.jar")
+	override val composeCompilerPlugin = File(baseDir, "quickbuild/daemon/compose-compiler-plugin.jar")
+	override val androidJar = File(baseDir, "sdk/android.jar")
+
+	/** Stands in for the app's noBackupFilesDir subtree; a temp dir in tests. */
+	override val projectScratchRoot = File(baseDir, "app-private/quickbuild-scratch")
+
+	override fun daemonEnvironment(): Map<String, String> = emptyMap()
 }

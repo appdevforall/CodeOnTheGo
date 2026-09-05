@@ -30,7 +30,7 @@ class PayloadDeployerRetentionTest {
 	private fun deployer() =
 		PayloadDeployer(
 			deploy = deploy,
-			generations = GenerationTracker(MemoryGenerationStore()),
+			generations = GenerationTracker(MemoryGenerationStore(), initial = 0L),
 			entryActivity = "com.example.app.MainActivity",
 			proxyAppPackage = "com.example.app",
 			launcherActivity = "com.example.app.Proxy0Activity",
@@ -162,7 +162,7 @@ class PayloadDeployerRetentionTest {
 			val deployer =
 				PayloadDeployer(
 					deploy = deploy,
-					generations = GenerationTracker(MemoryGenerationStore()),
+					generations = GenerationTracker(MemoryGenerationStore(), initial = 0L),
 					entryActivity = "com.example.app.MainActivity",
 					proxyAppPackage = "com.example.app",
 					launcherActivity = "com.example.app.Proxy0Activity",
@@ -200,7 +200,7 @@ class PayloadDeployerRetentionTest {
 			val deployer =
 				PayloadDeployer(
 					deploy = deploy,
-					generations = GenerationTracker(MemoryGenerationStore()),
+					generations = GenerationTracker(MemoryGenerationStore(), initial = 0L),
 					entryActivity = "com.example.app.MainActivity",
 					proxyAppPackage = "com.example.app",
 					launcherActivity = "com.example.app.Proxy0Activity",
