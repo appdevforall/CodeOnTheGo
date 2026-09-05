@@ -39,6 +39,21 @@
 		tools:text="Memory usage"
 		xmlns:tools="http://schemas.android.com/tools" />
 
+	<!-- Exports the visible chart as an image. Tucked into the graph's bottom-right corner because every gesture over the
+		chart is already spoken for: paging, the two-finger tap that undocks, pinch to zoom, and a tap on the x axis for the sampling
+		rate. The icon is small but the button keeps a full touch target. -->
+	<ImageButton
+		android:id="@+id/metrics_snapshot"
+		android:layout_width="@dimen/metrics_carousel_snapshot_touch_target"
+		android:layout_height="@dimen/metrics_carousel_snapshot_touch_target"
+		android:background="?attr/selectableItemBackgroundBorderless"
+		android:contentDescription="@string/metrics_carousel_snapshot"
+		android:padding="@dimen/metrics_carousel_snapshot_padding"
+		android:scaleType="fitCenter"
+		android:src="@drawable/ic_camera"
+		app:layout_constraintBottom_toBottomOf="@id/metrics_pager"
+		app:layout_constraintEnd_toEndOf="@id/metrics_pager" />
+
 	<!-- Shown in place of the carousel while it is floating in its own window. Only one carousel can be live at a time (the
 		watchers hold a single listener each), so undocking moves it out of the editor rather than copying it; without this the reveal
 		would open on an empty strip that reads as broken, and there would be no way back if the window is off screen. -->

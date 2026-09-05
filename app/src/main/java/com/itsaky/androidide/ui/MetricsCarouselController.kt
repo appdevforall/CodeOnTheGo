@@ -124,13 +124,9 @@ class MetricsCarouselController(
 		memoryRenderer.onXAxisTap = { showSamplingRateDialog() }
 		networkRenderer.onXAxisTap = { showSamplingRateDialog() }
 
-		// Long-press the title to export the chart. The gestures over the chart itself are spoken
-		// for -- paging, panning a zoomed chart, and the two-finger tap that undocks -- and the
-		// title is an unambiguous target that works the same docked or floating.
-		binding.metricsTitle.setOnLongClickListener {
-			exportSnapshot()
-			true
-		}
+		// A camera button in the graph's bottom-right corner exports the chart. The gestures over
+		// the chart are all spoken for, so this is a control rather than another gesture.
+		binding.metricsSnapshot.setOnClickListener { exportSnapshot() }
 
 		memoryUsageWatcher.listener = memoryListener
 		networkUsageWatcher.listener = networkListener
@@ -151,7 +147,7 @@ class MetricsCarouselController(
 
 		memoryRenderer.onXAxisTap = null
 		networkRenderer.onXAxisTap = null
-		binding?.metricsTitle?.setOnLongClickListener(null)
+		binding?.metricsSnapshot?.setOnClickListener(null)
 		pageCallback?.let { binding?.metricsPager?.unregisterOnPageChangeCallback(it) }
 		pageCallback = null
 
