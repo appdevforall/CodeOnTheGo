@@ -145,6 +145,40 @@ class IncrementalCompilerEdgeTest {
 		assertThat(warnings.map { it.severity }.toSet()).containsExactly(Diagnostic.Severity.WARNING)
 	}
 
+	@Test
+	fun `a javac error behind a warning flood survives the cap`() {
+		// 60 [removal] warnings come first in source order, then one unresolved local type:
+		// the error is javac's 61st diagnostic, past MAX_DIAGNOSTICS. A cap that trims by
+		// position drops it and the user sees "failed" without the reason.
+		val uses = (1..60).joinToString("\n") { "\t\tInteger i$it = new Integer($it);" }
+		val source =
+			writeJava(
+				"main/java/demo/Buried.java",
+				"package demo;\n\npublic class Buried {\n\tvoid m() {\n$uses\n\t\tMissingType last = null;\n\t}\n}\n",
+			)
+
+		val result = compiler().compile(listOf(source), changedFiles = listOf(source))
+
+		assertThat(result).isInstanceOf(IncrementalCompiler.Result.Failed::class.java)
+		val diagnostics = (result as IncrementalCompiler.Result.Failed).diagnostics
+		assertThat(diagnostics).hasSize(IncrementalCompiler.MAX_DIAGNOSTICS + 1)
+		// The error leads, the warnings that were ahead of it in source order follow.
+		assertThat(diagnostics.first().severity).isEqualTo(Diagnostic.Severity.ERROR)
+		assertThat(diagnostics.first().message).contains("MissingType")
+		assertThat(
+			diagnostics
+				.drop(1)
+				.dropLast(1)
+				.map { it.severity }
+				.toSet(),
+		).containsExactly(Diagnostic.Severity.WARNING)
+		// Warnings keep their own order under the reordering.
+		assertThat(diagnostics[1].message).contains("Integer(int)")
+		// 61 reported, 50 kept: the 11 trimmed are all warnings.
+		assertThat(diagnostics.last().message).isEqualTo("+11 more javac diagnostics elided")
+		assertThat(diagnostics.last().severity).isEqualTo(Diagnostic.Severity.ERROR)
+	}
+
 	/**
 	 * Compiles a one-method class into its own classes directory, so a test can use REAL class
 	 * bytes as a directory classpath entry - the Kotlin snapshotter reads every class it finds
