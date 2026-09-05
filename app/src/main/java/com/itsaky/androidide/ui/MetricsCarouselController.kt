@@ -17,12 +17,15 @@
 
 package com.itsaky.androidide.ui
 
+import android.widget.Toast
 import androidx.annotation.UiThread
 import androidx.viewpager2.widget.ViewPager2
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.MetricsSnapshot
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 
 /**
@@ -111,6 +114,14 @@ class MetricsCarouselController(
 		// onPageSelected does not fire for the page the carousel opens on.
 		showTitleFor(binding.metricsPager.currentItem)
 
+		// Long-press the title to export the chart. The gestures over the chart itself are spoken
+		// for -- paging, panning a zoomed chart, and the two-finger tap that undocks -- and the
+		// title is an unambiguous target that works the same docked or floating.
+		binding.metricsTitle.setOnLongClickListener {
+			exportSnapshot()
+			true
+		}
+
 		memoryUsageWatcher.listener = memoryListener
 		networkUsageWatcher.listener = networkListener
 	}
@@ -128,6 +139,7 @@ class MetricsCarouselController(
 			networkUsageWatcher.listener = null
 		}
 
+		binding?.metricsTitle?.setOnLongClickListener(null)
 		pageCallback?.let { binding?.metricsPager?.unregisterOnPageChangeCallback(it) }
 		pageCallback = null
 
@@ -135,6 +147,41 @@ class MetricsCarouselController(
 		memoryRenderer.detach()
 		networkRenderer.detach()
 		binding = null
+	}
+
+	/**
+	 * Writes the visible chart to an image and offers it to another app (ADFA-5486).
+	 *
+	 * @return whether a snapshot was produced.
+	 */
+	@UiThread
+	fun exportSnapshot(): Boolean {
+		val binding = this.binding ?: return false
+		val context = binding.root.context
+		val position = binding.metricsPager.currentItem
+		val page = pages.getOrNull(position) ?: return false
+
+		val renderer =
+			when (page) {
+				is MetricsPage.MemoryChart -> memoryRenderer
+				is MetricsPage.NetworkChart -> networkRenderer
+			}
+
+		val label = context.getString(page.title)
+		val bitmap = renderer.snapshot()
+		if (bitmap == null) {
+			Toast.makeText(context, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
+			return false
+		}
+
+		val file = MetricsSnapshot.write(context, bitmap, label)
+		if (file == null) {
+			Toast.makeText(context, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
+			return false
+		}
+
+		IntentUtils.shareFile(context, file, MetricsSnapshot.MIME_TYPE)
+		return true
 	}
 
 	/**

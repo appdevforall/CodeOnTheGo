@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.ui
 
+import android.graphics.Bitmap
 import android.os.SystemClock
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
@@ -91,6 +92,13 @@ abstract class MetricsChartRenderer(
 	 */
 	@UiThread
 	abstract fun rebuild()
+
+	/**
+	 * An image of the chart as it currently looks, or `null` when nothing is attached
+	 * (ADFA-5486's snapshot export).
+	 */
+	@UiThread
+	fun snapshot(): Bitmap? = chart?.chartBitmap
 
 	/**
 	 * Applies the configuration every metrics chart shares. Subclasses override to add their own --
