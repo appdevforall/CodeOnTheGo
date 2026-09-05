@@ -382,6 +382,9 @@ abstract class BaseEditorActivity :
 				service: IBinder,
 			) {
 				debuggerService = (service as DebuggerService.Binder).getService()
+				// A service bound after the idle-stop timer unbound its predecessor starts with no target
+				// package; the debugeePackageFlow collector only pushes *changes*, so seed it here.
+				debuggerService!!.targetPackage = debuggerViewModel.debugeePackageFlow.value
 				debuggerService!!.showOverlay()
 
 				isDebuggerStarting = false
@@ -405,6 +408,13 @@ abstract class BaseEditorActivity :
 			}
 		}
 
+	/**
+	 * `unbindService` does not invoke [ServiceConnection.onServiceDisconnected] -- that fires only when
+	 * the service process dies -- so the reference has to be dropped here. Left in place, a later
+	 * `ATTACHED` made [ensureDebuggerServiceBound] return early and drove the destroyed instance, whose
+	 * foreground collector was already cancelled: the overlay it added was never hidden again
+	 * (ADFA-2648).
+	 */
 	private fun unbindDebuggerService() {
 		try {
 			unbindService(debuggerServiceConnection)
@@ -412,6 +422,9 @@ abstract class BaseEditorActivity :
 			if (e !is IllegalArgumentException) {
 				log.error("Failed to stop debugger service", e)
 			}
+		} finally {
+			debuggerService = null
+			isDebuggerStarting = false
 		}
 	}
 
