@@ -79,6 +79,8 @@ internal const val USER_MESSAGE_QUEUE_DEPTH = 8
  * Everything stateful runs on [dispatcher]. Effects are launched rather than run inline so a
  * reducer dispatch never re-enters itself, and that dispatcher's single thread is what keeps
  * the launched work ordered.
+ *
+ * Splitting the foreground-ask policy and the daemon-death reporter out of this class is ADFA-5501.
  */
 class QuickBuildSessionManager(
 	/** Warm compile server; its death listener is wired here, in [init]. */
