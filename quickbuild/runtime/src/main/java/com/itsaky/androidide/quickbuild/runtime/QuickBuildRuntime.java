@@ -1075,9 +1075,9 @@ final class QuickBuildRuntime {
 				onBootRestoreLanded(generation);
 			}
 		} catch (Throwable error) {
-			// The same hazard as a deploy that throws after applyTable posted: the table
-			// swap is still queued and would commit over a merge that failed. Refuse it, so
-			// the process stays wholly on the baseline table rather than half on each.
+			// Same hazard as a deploy that throws after applyTable posted: a table swap still
+			// queued would commit over a merge that failed, so refuse it. A swap that already
+			// committed cannot be undone; the process then runs mixed, and the banner says so.
 			ResourceStore.INSTANCE.abandon(generation);
 			gate.failed();
 			onBootRestoreFailed(generation, error);
