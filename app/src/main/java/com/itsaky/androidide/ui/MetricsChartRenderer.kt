@@ -24,6 +24,7 @@ import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.components.LimitLine
+import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
@@ -107,6 +108,38 @@ abstract class MetricsChartRenderer(
 	abstract fun rebuild()
 
 	/**
+	 * Whether a horizontal drag starting at this screen position should pan the chart rather than
+	 * page the carousel.
+	 *
+	 * True only inside the plot area of a chart that is zoomed in: at rest there is nothing to pan
+	 * to, so the swipe belongs to the carousel, and the strip below the x axis is never the chart's.
+	 */
+	@UiThread
+	fun handlesHorizontalDragAt(
+		rawX: Float,
+		rawY: Float,
+	): Boolean {
+		val chart = this.chart ?: return false
+		if (chart.viewPortHandler.scaleX <= 1f) {
+			return false
+		}
+
+		val location = IntArray(2)
+		chart.getLocationOnScreen(location)
+		val x = rawX - location[0]
+		val y = rawY - location[1]
+		return chart.viewPortHandler.contentRect.contains(x, y)
+	}
+
+	/**
+	 * Returns the chart to its unzoomed state.
+	 */
+	@UiThread
+	fun resetZoom() {
+		chart?.fitScreen()
+	}
+
+	/**
 	 * An image of the chart as it currently looks, or `null` when nothing is attached
 	 * (ADFA-5486's snapshot export).
 	 */
@@ -122,15 +155,27 @@ abstract class MetricsChartRenderer(
 		chart.apply {
 			val colorAccent = context.resolveAttr(R.attr.colorAccent)
 
-			isDragEnabled = false
 			description.isEnabled = false
 			xAxis.axisLineColor = colorAccent
 			axisRight.axisLineColor = colorAccent
 
+			// Zoom the time axis only. Zooming the value axis on a memory or throughput chart just
+			// makes the numbers lie about their own scale; time is the axis worth magnifying.
+			setScaleXEnabled(true)
+			setScaleYEnabled(false)
 			setPinchZoom(false)
+			// Panning is what makes zoom usable: without it you magnify and are then stranded.
+			// MetricsCarouselLayout decides per gesture whether a horizontal drag pans the chart or
+			// pages the carousel.
+			isDragEnabled = true
+			setDoubleTapToZoomEnabled(false)
+
 			setBackgroundColor(context.resolveAttr(R.attr.colorSurfaceDim))
 			setDrawGridBackground(true)
-			setScaleEnabled(true)
+
+			// Below the plot, so the strip under it can be reserved for the carousel swipe and the
+			// plot itself can pan when zoomed (ADFA-5486).
+			xAxis.position = XAxis.XAxisPosition.BOTTOM
 
 			// The right axis carries the labels; the left is unused.
 			axisLeft.isEnabled = false
@@ -152,6 +197,12 @@ abstract class MetricsChartRenderer(
 	 * range, so a window keeps the cost independent of how much is retained.
 	 */
 	private fun showNewestWindow(chart: SafeLineChart) {
+		// Once the user has zoomed in, the view is theirs. Re-centring on every redraw would drag
+		// them back to the newest samples once a second, which makes zooming useless.
+		if (chart.viewPortHandler.scaleX > 1f) {
+			return
+		}
+
 		// xMax is the newest sample's index. entryCount would be the total across every series --
 		// 7200 for the network chart's two -- which would scroll the window off the end of the data.
 		val newestIndex = chart.data?.xMax ?: return

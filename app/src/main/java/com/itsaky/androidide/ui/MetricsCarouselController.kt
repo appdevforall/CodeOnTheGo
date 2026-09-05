@@ -113,6 +113,9 @@ class MetricsCarouselController(
 			object : ViewPager2.OnPageChangeCallback() {
 				override fun onPageSelected(position: Int) {
 					showTitleFor(position)
+					// A page left zoomed would keep claiming horizontal drags when swiped back to.
+					memoryRenderer.resetZoom()
+					networkRenderer.resetZoom()
 				}
 			}.also { binding.metricsPager.registerOnPageChangeCallback(it) }
 
@@ -121,6 +124,13 @@ class MetricsCarouselController(
 
 		// A tap on the x axis opens the sampling-rate chooser (ADFA-5486). The axis is drawn by the
 		// chart, not a view of its own, so the strip of the pager it occupies is the target.
+		binding.root.horizontalDragBelongsToChart = { rawX, rawY ->
+			currentRenderer()?.handlesHorizontalDragAt(rawX, rawY) ?: false
+		}
+		binding.root.onPagingEnabledChanged = { enabled ->
+			binding.metricsPager.isUserInputEnabled = enabled
+		}
+
 		memoryRenderer.onXAxisTap = { showSamplingRateDialog() }
 		networkRenderer.onXAxisTap = { showSamplingRateDialog() }
 
@@ -145,6 +155,9 @@ class MetricsCarouselController(
 			networkUsageWatcher.listener = null
 		}
 
+		binding?.root?.horizontalDragBelongsToChart = null
+		binding?.root?.onPagingEnabledChanged = null
+		binding?.metricsPager?.isUserInputEnabled = true
 		memoryRenderer.onXAxisTap = null
 		networkRenderer.onXAxisTap = null
 		binding?.metricsSnapshot?.setOnClickListener(null)
@@ -155,6 +168,18 @@ class MetricsCarouselController(
 		memoryRenderer.detach()
 		networkRenderer.detach()
 		binding = null
+	}
+
+	/**
+	 * The renderer behind the page currently on screen, or `null` when nothing is bound.
+	 */
+	private fun currentRenderer(): MetricsChartRenderer? {
+		val binding = this.binding ?: return null
+		return when (pages.getOrNull(binding.metricsPager.currentItem)) {
+			is MetricsPage.MemoryChart -> memoryRenderer
+			is MetricsPage.NetworkChart -> networkRenderer
+			null -> null
+		}
 	}
 
 	/**
