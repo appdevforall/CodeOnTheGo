@@ -68,6 +68,7 @@ fun candidateExpressionsAt(
 	fileText: String,
 	selectionStart: Int,
 	selectionEnd: Int,
+	hoisted: Boolean = true,
 ): CandidateSyntax {
 	val trees = Trees.instance(task)
 	val positions = trees.sourcePositions
@@ -79,7 +80,7 @@ fun candidateExpressionsAt(
 			?: (if (start == end && start > 0) deepestPathAt(root, positions, start - 1, start - 1) else null)
 			?: return CandidateSyntax.NONE
 
-	if (!isExtractionPosition(anchor)) return CandidateSyntax.NONE
+	if (!isExtractionPosition(anchor, hoisted)) return CandidateSyntax.NONE
 
 	val ceiling = enclosingExecutableBody(anchor)?.leaf ?: return CandidateSyntax.NONE
 	val collected = mutableListOf<TreePath>()
@@ -89,7 +90,7 @@ fun candidateExpressionsAt(
 	while (path != null) {
 		val leaf = path.leaf
 		if (leaf is ClassTree || leaf is MethodTree) break
-		if (isLegalExtractionTarget(path, trees)) {
+		if (isLegalExtractionTarget(path, trees, hoisted)) {
 			val span = spanOf(root, positions, leaf)
 			if (span != null && seen.add(span)) {
 				collected += path
@@ -165,8 +166,17 @@ internal fun deepestPathAt(
  * Rejects positions where no local declaration can precede the expression: annotation arguments (must be
  * constant), `this(...)`/`super(...)` arguments (nothing can precede them), and anything outside an
  * executable body -- notably a field initializer, where an initializer block would change when it runs.
+ *
+ * [hoisted] is false for a refactoring that substitutes **in place** rather than lifting a declaration
+ * above the enclosing statement -- extract method. The conditional-evaluation rejection exists only
+ * because hoisting moves *when* the expression runs; replacing `it.hasNext()` with `extracted(it)`
+ * inside `while (...)` does not, so refusing it would cost extract method its best candidates in
+ * exactly the guarded code a helper reads best in.
  */
-internal fun isExtractionPosition(path: TreePath): Boolean {
+internal fun isExtractionPosition(
+	path: TreePath,
+	hoisted: Boolean = true,
+): Boolean {
 	var current: TreePath? = path
 	while (current != null) {
 		val leaf = current.leaf
@@ -175,7 +185,7 @@ internal fun isExtractionPosition(path: TreePath): Boolean {
 		current = current.parentPath
 	}
 	if (isCaseLabel(path)) return false
-	if (isConditionallyEvaluated(path)) return false
+	if (hoisted && isConditionallyEvaluated(path)) return false
 	return enclosingExecutableBody(path) != null
 }
 
@@ -258,7 +268,7 @@ private fun isForUpdate(
 private val SHORT_CIRCUIT_KINDS = setOf(Tree.Kind.CONDITIONAL_AND, Tree.Kind.CONDITIONAL_OR)
 
 /** `this(...)` and `super(...)`, whose method select is the bare keyword. */
-private fun isConstructorDelegation(invocation: MethodInvocationTree): Boolean {
+internal fun isConstructorDelegation(invocation: MethodInvocationTree): Boolean {
 	val name = (invocation.methodSelect as? IdentifierTree)?.name?.toString() ?: return false
 	return name == "this" || name == "super"
 }
@@ -294,6 +304,7 @@ internal fun enclosingExecutableBody(path: TreePath): TreePath? {
 internal fun isLegalExtractionTarget(
 	path: TreePath,
 	trees: Trees,
+	hoisted: Boolean = true,
 ): Boolean {
 	val leaf = path.leaf
 	if (leaf !is ExpressionTree) return false
@@ -321,8 +332,10 @@ internal fun isLegalExtractionTarget(
 	// compiles, so nothing would tell the user the behaviour changed.
 	if (parent is UnaryTree && parent.kind in INCREMENT_KINDS && parent.expression === leaf) return false
 	// The whole expression of an expression statement: the source `;` sits outside the candidate's span,
-	// so replacing the expression would leave a bare `v;` behind -- "not a statement".
-	if (parent is ExpressionStatementTree) return false
+	// so replacing the expression with a *name* leaves a bare `v;` behind -- "not a statement". A call is
+	// a statement, so extract method (hoisted = false) keeps this target; without it a bare cursor in
+	// `foo(a, b);` -- the commonest place to reach for extract method -- would offer nothing.
+	if (hoisted && parent is ExpressionStatementTree) return false
 	return true
 }
 
