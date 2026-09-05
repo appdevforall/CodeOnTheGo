@@ -45,10 +45,10 @@ val RESTART_SENSITIVE_KINDS: Set<ComponentKind> =
  * Safe because these two classes ship in the BASE APK dex and are absent from every
  * per-generation payload dex, which is exactly the daemon's compile output plus the generated
  * proxy classes. Payload loaders are parent-first with the APK loader as parent, so every
- * generation's proxy resolves the same `Class` object for these supertypes - their identity
+ * generation's loader resolves the same `Class` object for these classes - their identity
  * never changes across a hot swap, and the `ClassCastException` the restart rule exists to
- * prevent cannot arise from them. The proxies themselves hold no state: `ProxySourceGenerator`
- * emits an empty subclass for services and providers.
+ * prevent cannot arise from them. (The service keeps its real manifest name - services are
+ * never renamed - and the provider's proxy is an empty stateless subclass.)
  *
  * Keyed on the EXACT class name, never a package prefix or a "library-provided" test: the
  * safety comes from these specific classes being absent from the payload, and any library class
@@ -80,10 +80,15 @@ fun ComponentInfo.isRestartSensitive(): Boolean = kind in RESTART_SENSITIVE_KIND
  *
  * @property kind which manifest tag declared it, which is what decides restart vs recreate.
  * @property className the USER class FQN declared in the source manifest.
- * @property proxyClass the generated proxy FQN carried in the transformed manifest;
- *   null for the Application entry (nothing addresses it by manifest name).
- * @property launcher true for the launcher activity - its [proxyClass] is the explicit
- *   relaunch target after a restart-deploy.
+ * @property proxyClass the generated proxy FQN carried in the transformed manifest; null for
+ *   the Application, service and receiver entries, which keep the user's real name
+ *   (services/receivers are addressed by it via explicit intents, and the appComponentFactory
+ *   instantiates the manifest name through the payload loader), and null for an activity the
+ *   build could not proxy, which also keeps its real name.
+ * @property launcher true whenever the activity carries the MAIN/LAUNCHER intent filter,
+ *   proxied or not. When it was proxied, [proxyClass] is the explicit relaunch target after a
+ *   restart-deploy; for a launcher the build skipped, [proxyClass] is null and there is no
+ *   proxy to relaunch into, so read it with `?.proxyClass` rather than asserting.
  * @property supertypes the user-side (project-compiled) superclass chain recorded from
  *   class headers at proxy app build time. Carried but currently unread: [DeployPolicy]
  *   keeps no supertype index. Kept for a planned deploy mode that redefines classes in
