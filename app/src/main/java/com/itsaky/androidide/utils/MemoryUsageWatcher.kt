@@ -26,10 +26,13 @@ import androidx.core.content.getSystemService
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.termux.shared.reflection.ReflectionUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -38,248 +41,316 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Handles memory usage information of the IDE.
  *
  * @property updateInterval The interval at which to update the memory usage.
+ * @property coroutineDispatcher Where sampling runs. Injectable so tests can drive it with virtual
+ * time rather than waiting on a real clock.
+ * @property mainDispatcher Where listeners are notified.
  * @author Akash Yadav
  */
-class MemoryUsageWatcher(
-	private val updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
-) {
+class MemoryUsageWatcher
 	@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
-	private val coroutineDispatcher = newSingleThreadContext("MemoryUsageWatcher")
-	private val coroutineScope = CoroutineScope(coroutineDispatcher)
-	private val memoryUsage = ConcurrentHashMap<Int, ProcessMemoryInfo>()
-	private val watching = AtomicBoolean(false)
-
-	/**
-	 * Whether the memory usage watcher is watching processes for their memory usage.
-	 */
-	val isWatching: Boolean
-		get() = watching.get()
-
-	/**
-	 * The listener to be notified when the memory usage of a process changes.
-	 */
-	var listener: MemoryUsageListener? = null
-
-	companion object {
-		private val android_os_Debug_getMemoryInfo by lazy {
-			checkNotNull(
-				ReflectionUtils.getDeclaredMethod(
-					Debug::class.java,
-					"getMemoryInfo",
-					Int::class.javaPrimitiveType,
-					MemoryInfo::class.java,
-				),
-			) {
-				"Unable to find getMemoryInfo method in android.os.Debug class"
-			}
-		}
-
-		const val MAX_USAGE_ENTRIES = 30
-		const val DEFAULT_UPDATE_INTERVAL = 1000L
-		private val log = LoggerFactory.getLogger(MemoryUsageWatcher::class.java)
-	}
-
-	/**
-	 * Start watching processes for their memory usage.
-	 */
-	fun startWatching() {
-		if (isWatching) {
-			log.warn("Processes are already being watched for memory usage")
-			return
-		}
-
-		watching.set(true)
-
-		coroutineScope.launch(context = SupervisorJob() + coroutineDispatcher) {
-			while (isWatching) {
-				readUsages()
-
-				// don't bother to update if no listeners are set
-				listener?.also { listener ->
-					val usages = MutableIntObjectMap<ProcessMemoryInfo>(memoryUsage.size)
-					for ((pid, usage) in this@MemoryUsageWatcher.memoryUsage) {
-						usages[pid] = usage
-					}
-					withContext(Dispatchers.Main.immediate) {
-						listener.onMemoryUsageChanged(usages)
-					}
-				}
-
-				delay(1000)
-			}
-		}
-	}
-
-	private fun readUsages() {
-		val activityManager = BaseApplication.baseInstance.getSystemService<ActivityManager>()
-		if (activityManager == null) {
-			log.error("ActivityManager is null")
-			return
-		}
-
-		val pids = memoryUsage.keys.toIntArray()
-		pids.forEach { pid ->
-
-			// ActivityManager.getProcessMemoryInfo is rate-limited
-			// but it internally uses Debug.getMemoryInfo to get the memory info
-			// we use it directly using reflection to bypass the rate limit
-			val proc =
-				memoryUsage[pid] ?: run {
-					log.warn("Process {} is not being watched, but readUsages() was called for the process", pid)
-					return@forEach
-				}
-
-			ReflectionUtils.invokeMethod(android_os_Debug_getMemoryInfo, null, pid, proc.memInfo)
-
-			// From https://developer.android.com/tools/dumpsys#meminfo
-			// "PSS is a good measure for the actual RAM weight of a process and for comparison against
-			// the RAM use of other processes and the total available RAM."
-			val usage = proc.memInfo.totalPss
-
-			// values are in kB, convert to bytes
-			val usageBytes = usage * 1024L
-			memoryUsage[pid]!!.apply {
-				// we insert the usage entry at the start of the array, then increment the shift amount by 1
-				// this makes the newly inserted usage entry the last element in the array
-				// and the oldest usage entry the first element in the array
-
-				// this means that _history[_history.size - 1] will be the newest usage entry
-
-				// the "shift" amount basically indicates what is the start index of the array
-				// for example, if shift is 1, then _history[0] will actually return _history[1] (index shifted by 1 to the right)
-				// when the shift amount exceeds the size of the array, it will be reset to 0 (wrapped around)
-
-				_history[0] = usageBytes
-				_history.shift(1)
-			}
-		}
-	}
-
-	/**
-	 * Watches the memory usage of the given process.
-	 *
-	 * @param pid The process ID.
-	 * @param pname The process name.
-	 * @param unique Whether to unwatch the process with the same process name.
-	 */
-	fun watchProcess(
-		pid: Int,
-		pname: String,
-		unique: Boolean = true,
+	constructor(
+		updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
+		private val coroutineDispatcher: CoroutineContext = newSingleThreadContext("MemoryUsageWatcher"),
+		private val mainDispatcher: CoroutineContext = Dispatchers.Main.immediate,
 	) {
-		if (memoryUsage.containsKey(pid)) {
-			log.warn("Process {} is already being watched", pid)
-			return
-		}
-
-		if (unique) {
-			// unwatch the process with the given process name
-			unwatchProcess(pname)
-		}
-
-		memoryUsage[pid] =
-			ProcessMemoryInfo(
-				pid,
-				pname,
-				MutableShiftedLongArray(MAX_USAGE_ENTRIES),
-			)
-	}
-
-	/**
-	 * Returns the memory usage of all the registered processes.
-	 */
-	fun getMemoryUsages(): Array<ProcessMemoryInfo> = memoryUsage.values.toTypedArray()
-
-	/**
-	 * Returns the memory usage of the given process (in bytes).
-	 */
-	fun getMemoryUsage(processId: Int): ProcessMemoryInfo? = memoryUsage[processId]
-
-	/**
-	 * Removes the given process from the watch list.
-	 */
-	fun unwatchProcess(processId: Int) {
-		memoryUsage.remove(processId)
-	}
-
-	/**
-	 * Removes the process with the given process name from the watch list.
-	 */
-	fun unwatchProcess(procName: String) {
-		memoryUsage.values.forEach {
-			if (it.pname == procName) {
-				memoryUsage.remove(it.pid)
-			}
-		}
-	}
-
-	/**
-	 * Unwatches all the registered processes.
-	 */
-	fun unwatchAll() {
-		memoryUsage.clear()
-	}
-
-	/**
-	 * Stop watching processes for their memory usage.
-	 */
-	fun stopWatching(unwatchAll: Boolean = true) {
-		if (unwatchAll) {
-			unwatchAll()
-		}
-		watching.set(false)
-		coroutineScope.cancelIfActive("Cancellation requested")
-	}
-
-	/**
-	 * Registers a listener to be notified when the memory usage of a process changes.
-	 */
-	fun interface MemoryUsageListener {
 		/**
-		 * Called when the memory usage of a process changes.
-		 *
-		 * @param memoryUsage The memory usage of all the registered processes.
+		 * Milliseconds between samples. Changing it clears the history: the chart reads a sample's
+		 * age from its position, which assumes every sample is the same age apart, and a buffer
+		 * holding samples taken at two rates would silently misdate all the older ones (ADFA-5486).
 		 */
-		fun onMemoryUsageChanged(memoryUsage: IntObjectMap<ProcessMemoryInfo>)
-	}
+		var updateInterval: Long = updateInterval
+			set(value) {
+				if (field == value) {
+					return
+				}
+				field = value
+				clearHistory()
+			}
 
-	/**
-	 * Represents the memory usage of a process.
-	 *
-	 * @property pid The process ID.
-	 * @property memInfo The latest [MemoryInfo] object. Stored here to ensure that we only allocate
-	 * a single [MemoryInfo] object for a process.
-	 * @property usageHistory The memory usage history of the process.
-	 */
-	data class ProcessMemoryInfo(
-		val pid: Int,
-		val pname: String,
-		internal val _history: MutableShiftedLongArray,
-	) {
-		internal val memInfo: MemoryInfo = MemoryInfo()
+		private val coroutineScope = CoroutineScope(SupervisorJob() + coroutineDispatcher)
 
-		val usageHistory: ShiftedLongArray
-			get() = _history
+		/** The running sampling loop, so [stopWatching] can actually stop it. */
+		private var samplingJob: Job? = null
+		private val memoryUsage = ConcurrentHashMap<Int, ProcessMemoryInfo>()
+		private val watching = AtomicBoolean(false)
 
-		override fun equals(other: Any?): Boolean {
-			if (this === other) return true
-			if (other !is ProcessMemoryInfo) return false
+		/**
+		 * Whether the memory usage watcher is watching processes for their memory usage.
+		 */
+		val isWatching: Boolean
+			get() = watching.get()
 
-			if (pid != other.pid) return false
-			if (!_history.contentEquals(other._history)) return false
+		/**
+		 * The listener to be notified when the memory usage of a process changes.
+		 */
+		var listener: MemoryUsageListener? = null
 
-			return true
+		companion object {
+			private val android_os_Debug_getMemoryInfo by lazy {
+				checkNotNull(
+					ReflectionUtils.getDeclaredMethod(
+						Debug::class.java,
+						"getMemoryInfo",
+						Int::class.javaPrimitiveType,
+						MemoryInfo::class.java,
+					),
+				) {
+					"Unable to find getMemoryInfo method in android.os.Debug class"
+				}
+			}
+
+			/**
+			 * Samples retained per series: one hour at [DEFAULT_UPDATE_INTERVAL] (ADFA-5486).
+			 * About 29KB of longs per series, so the cost is in drawing rather than holding --
+			 * see MetricsChartRenderer, which shows a window of this rather than all of it.
+			 */
+			const val MAX_USAGE_ENTRIES = 10000
+			const val DEFAULT_UPDATE_INTERVAL = 1000L
+			private val log = LoggerFactory.getLogger(MemoryUsageWatcher::class.java)
 		}
 
-		override fun hashCode(): Int {
-			var result = pid
-			result = 31 * result + _history.contentHashCode()
-			return result
+		/**
+		 * Start watching processes for their memory usage.
+		 */
+		fun startWatching() {
+			if (!watching.compareAndSet(false, true)) {
+				log.warn("Processes are already being watched for memory usage")
+				return
+			}
+
+			samplingJob =
+				coroutineScope.launch {
+					while (isWatching) {
+						// A throw here used to end the coroutine while `watching` stayed true, so
+						// every later startWatching() was refused as "already watching" and
+						// sampling stopped for good. A sample is worth losing; the loop is not.
+						runCatching {
+							readUsages()
+
+							// don't bother to update if no listeners are set
+							listener?.also { listener ->
+								val usages = MutableIntObjectMap<ProcessMemoryInfo>(memoryUsage.size)
+								for ((pid, usage) in this@MemoryUsageWatcher.memoryUsage) {
+									usages[pid] = usage
+								}
+								withContext(mainDispatcher) {
+									listener.onMemoryUsageChanged(usages)
+								}
+							}
+						}.onFailure { failure ->
+							if (failure is CancellationException) {
+								throw failure
+							}
+							log.error("Memory usage sampling failed; continuing", failure)
+						}
+
+						delay(updateInterval)
+					}
+				}
+		}
+
+		private fun readUsages() {
+			if (memoryUsage.isEmpty()) {
+				// Nothing to sample. Returning before the service lookup keeps an idle watcher off
+				// BaseApplication, which a unit test does not have.
+				return
+			}
+
+			val activityManager = BaseApplication.baseInstance.getSystemService<ActivityManager>()
+			if (activityManager == null) {
+				log.error("ActivityManager is null")
+				return
+			}
+
+			val pids = memoryUsage.keys.toIntArray()
+			pids.forEach { pid ->
+
+				// ActivityManager.getProcessMemoryInfo is rate-limited
+				// but it internally uses Debug.getMemoryInfo to get the memory info
+				// we use it directly using reflection to bypass the rate limit
+				val proc =
+					memoryUsage[pid] ?: run {
+						log.warn("Process {} is not being watched, but readUsages() was called for the process", pid)
+						return@forEach
+					}
+
+				ReflectionUtils.invokeMethod(android_os_Debug_getMemoryInfo, null, pid, proc.memInfo)
+
+				// From https://developer.android.com/tools/dumpsys#meminfo
+				// "PSS is a good measure for the actual RAM weight of a process and for comparison against
+				// the RAM use of other processes and the total available RAM."
+				val usage = proc.memInfo.totalPss
+
+				// values are in kB, convert to bytes
+				val usageBytes = usage * 1024L
+				memoryUsage[pid]!!.apply {
+					// we insert the usage entry at the start of the array, then increment the shift amount by 1
+					// this makes the newly inserted usage entry the last element in the array
+					// and the oldest usage entry the first element in the array
+
+					// this means that _history[_history.size - 1] will be the newest usage entry
+
+					// the "shift" amount basically indicates what is the start index of the array
+					// for example, if shift is 1, then _history[0] will actually return _history[1] (index shifted by 1 to the right)
+					// when the shift amount exceeds the size of the array, it will be reset to 0 (wrapped around)
+
+					_history[0] = usageBytes
+					_history.shift(1)
+				}
+			}
+		}
+
+		/**
+		 * Watches the memory usage of the given process.
+		 *
+		 * @param pid The process ID.
+		 * @param pname The process name.
+		 * @param unique Whether to unwatch the process with the same process name.
+		 */
+		fun watchProcess(
+			pid: Int,
+			pname: String,
+			unique: Boolean = true,
+		) {
+			if (memoryUsage.containsKey(pid)) {
+				log.warn("Process {} is already being watched", pid)
+				return
+			}
+
+			if (unique) {
+				// unwatch the process with the given process name
+				unwatchProcess(pname)
+			}
+
+			memoryUsage[pid] =
+				ProcessMemoryInfo(
+					pid,
+					pname,
+					MutableShiftedLongArray(MAX_USAGE_ENTRIES),
+				)
+		}
+
+		/**
+		 * Discards every recorded sample, keeping the watched processes.
+		 */
+		fun clearHistory() {
+			memoryUsage.values.forEach { it._history.clear() }
+		}
+
+		/**
+		 * Returns the memory usage of all the registered processes.
+		 */
+		fun getMemoryUsages(): Array<ProcessMemoryInfo> = memoryUsage.values.toTypedArray()
+
+		/**
+		 * Returns the memory usage of the given process (in bytes).
+		 */
+		fun getMemoryUsage(processId: Int): ProcessMemoryInfo? = memoryUsage[processId]
+
+		/**
+		 * Removes the given process from the watch list.
+		 */
+		fun unwatchProcess(processId: Int) {
+			memoryUsage.remove(processId)
+		}
+
+		/**
+		 * Removes the process with the given process name from the watch list.
+		 */
+		fun unwatchProcess(procName: String) {
+			memoryUsage.values.forEach {
+				if (it.pname == procName) {
+					memoryUsage.remove(it.pid)
+				}
+			}
+		}
+
+		/**
+		 * Unwatches all the registered processes.
+		 */
+		fun unwatchAll() {
+			memoryUsage.clear()
+		}
+
+		/**
+		 * Stop watching processes for their memory usage.
+		 */
+		fun stopWatching(unwatchAll: Boolean = true) {
+			if (unwatchAll) {
+				unwatchAll()
+			}
+			watching.set(false)
+			// Cancelled rather than left to notice the flag: the loop spends almost all its time in
+			// delay(updateInterval), up to a minute at the slowest rate, so a stop followed by a
+			// start inside that window would leave the old loop running alongside the new one.
+			samplingJob?.cancel()
+			samplingJob = null
+		}
+
+		/**
+		 * Stops sampling and releases the sampling thread. The watcher cannot be started again.
+		 *
+		 * Separate from [stopWatching] because a watcher is stopped and restarted across the
+		 * editor's lifecycle; only a terminal teardown should give up the thread, and
+		 * `newSingleThreadContext` holds one until it is closed.
+		 */
+		fun close() {
+			stopWatching()
+			listener = null
+			coroutineScope.cancelIfActive("Watcher closed")
+			(coroutineDispatcher as? ExecutorCoroutineDispatcher)?.close()
+		}
+
+		/**
+		 * Registers a listener to be notified when the memory usage of a process changes.
+		 */
+		fun interface MemoryUsageListener {
+			/**
+			 * Called when the memory usage of a process changes.
+			 *
+			 * @param memoryUsage The memory usage of all the registered processes.
+			 */
+			fun onMemoryUsageChanged(memoryUsage: IntObjectMap<ProcessMemoryInfo>)
+		}
+
+		/**
+		 * Represents the memory usage of a process.
+		 *
+		 * @property pid The process ID.
+		 * @property memInfo The latest [MemoryInfo] object. Stored here to ensure that we only allocate
+		 * a single [MemoryInfo] object for a process.
+		 * @property usageHistory The memory usage history of the process.
+		 */
+		data class ProcessMemoryInfo(
+			val pid: Int,
+			val pname: String,
+			internal val _history: MutableShiftedLongArray,
+		) {
+			internal val memInfo: MemoryInfo = MemoryInfo()
+
+			val usageHistory: ShiftedLongArray
+				get() = _history
+
+			override fun equals(other: Any?): Boolean {
+				if (this === other) return true
+				if (other !is ProcessMemoryInfo) return false
+
+				if (pid != other.pid) return false
+				if (!_history.contentEquals(other._history)) return false
+
+				return true
+			}
+
+			override fun hashCode(): Int {
+				var result = pid
+				result = 31 * result + _history.contentHashCode()
+				return result
+			}
 		}
 	}
-}

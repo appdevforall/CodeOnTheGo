@@ -12,6 +12,7 @@ import com.itsaky.androidide.floating.permission.OverlayPermission
 import com.itsaky.androidide.floating.service.FloatingTabService
 import com.itsaky.androidide.floating.window.InitialBounds
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.ui.MetricsCarouselController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -62,6 +63,36 @@ class IdeFloatingTabController(
 		}
 	}
 
+	/**
+	 * Float the metrics carousel, moving it out of the editor. [MetricsCarouselDockableContent]
+	 * rebinds the same controller, since only one carousel may be live at a time.
+	 */
+	fun floatMetricsCarousel(
+		controller: MetricsCarouselController,
+		title: String,
+		onUndocked: () -> Unit,
+	) {
+		if (!OverlayPermission.canDrawOverlays(activity)) {
+			activity.startActivity(OverlayPermission.requestIntent(activity))
+			return
+		}
+		if (DockingManager.isFloating(MetricsCarouselDockableContent.ID)) {
+			return
+		}
+
+		onUndocked()
+		DockingManager.undock(
+			MetricsCarouselDockableContent(controller, title),
+			InitialBounds.cascaded(activity, undockCounter++),
+		)
+		FloatingTabService.ensureRunning(activity.applicationContext)
+	}
+
+	/** Bring the floating metrics carousel back into the editor. */
+	fun redockMetricsCarousel() {
+		DockingManager.dock(MetricsCarouselDockableContent.ID)
+	}
+
 	fun floatPluginTab(
 		tabId: String,
 		title: String,
@@ -101,6 +132,15 @@ class IdeFloatingTabController(
 			}
 			DockingManager.remove(tab.id)
 			panel?.release()
+
+			// DockingManager.remove does not run the window's teardown -- reconcile only dismisses
+			// windows it still knows about -- so content that holds resources has to be told
+			// directly. Editor panels have release() above; everything else gets onDestroyView,
+			// which is what the metrics carousel uses to unbind its controller.
+			if (panel == null) {
+				runCatching { tab.content.onDestroyView() }
+					.onFailure { log.error("Failed to release floating content {}", tab.id, it) }
+			}
 		}
 	}
 
@@ -132,6 +172,16 @@ class IdeFloatingTabController(
 					bringIdeToFront()
 					activity.selectPluginTabById(content.tabId)
 				}
+			}
+
+			is MetricsCarouselDockableContent -> {
+				// onDestroyView has already unbound the controller from the window, so the editor
+				// only has to put its own carousel back. Done for Close as well as Redock: closing
+				// the window must not leave the editor showing "tap to bring them back" forever.
+				if (event is DockingEvent.Redock) {
+					bringIdeToFront()
+				}
+				activity.onFloatingMetricsCarouselGone()
 			}
 		}
 	}

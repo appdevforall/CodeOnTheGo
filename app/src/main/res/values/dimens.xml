@@ -9,6 +9,8 @@
 	<dimen name="editor_mem_usage_view_height">248dp</dimen>
 	<dimen name="metrics_carousel_title_padding_horizontal">16dp</dimen>
 	<dimen name="metrics_carousel_title_padding_vertical">4dp</dimen>
+	<dimen name="metrics_carousel_snapshot_touch_target">40dp</dimen>
+	<dimen name="metrics_carousel_snapshot_padding">10dp</dimen>
 	<dimen name="editor_container_corners">28dp</dimen>
 
 	<dimen name="snackbar_offset_bottom">28dp</dimen>

@@ -1,0 +1,381 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.itsaky.androidide.ui
+
+import android.graphics.Bitmap
+import android.os.SystemClock
+import android.view.MotionEvent
+import androidx.annotation.CallSuper
+import androidx.annotation.UiThread
+import com.github.mikephil.charting.components.AxisBase
+import com.github.mikephil.charting.components.LimitLine
+import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.formatter.IAxisValueFormatter
+import com.github.mikephil.charting.listener.ChartTouchListener
+import com.github.mikephil.charting.listener.OnChartGestureListener
+import com.itsaky.androidide.R
+import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.resolveAttr
+import kotlin.math.roundToLong
+
+/**
+ * Shared behaviour for the charts on the editor's metrics carousel.
+ *
+ * A renderer holds no sample state -- the watchers own the history -- so a chart view is attached
+ * when its carousel page binds and detached when the page is recycled, and [rebuild] can redraw the
+ * whole series from scratch at any time. That is what makes a chart safe as a recycled page.
+ *
+ * Subclasses supply the data and whatever axis configuration is specific to them; everything the
+ * charts have in common lives here, so a change to how metrics charts look or behave is made once.
+ *
+ * All methods must be called on the UI thread. MPAndroidChart is not thread-safe; see
+ * [SafeLineChart].
+ */
+abstract class MetricsChartRenderer(
+	// A provider, not a value: the sampling rate is user-settable, and a captured interval leaves
+	// the axis labelling ages with the old spacing -- reading -54s where the sample is really 295
+	// seconds old.
+	private val sampleIntervalMillis: () -> Long,
+	private val annotations: MetricsAnnotationStore? = null,
+	private val nowMillis: () -> Long = SystemClock::elapsedRealtime,
+) {
+	/**
+	 * Invoked when the chart's x axis is tapped, which opens the sampling-rate chooser
+	 * (ADFA-5486). Set by the host; the axis band is worked out here because only the chart knows
+	 * where it drew it.
+	 */
+	var onXAxisTap: (() -> Unit)? = null
+
+	/**
+	 * The attached chart, or `null` when no carousel page is bound to this renderer.
+	 */
+	protected var chart: SafeLineChart? = null
+		private set
+
+	/**
+	 * Attaches [chart], applies configuration, and renders the full current history.
+	 */
+	@UiThread
+	fun attach(chart: SafeLineChart) {
+		this.chart = chart
+		configure(chart)
+		rebuild()
+	}
+
+	/**
+	 * Detaches the current chart. Sample history is unaffected; a later [attach] renders it in full.
+	 */
+	@UiThread
+	@CallSuper
+	open fun detach() {
+		chart = null
+	}
+
+	/**
+	 * Detaches [chart] only if it is the currently attached one.
+	 *
+	 * A recycling container needs this: RecyclerView can bind a replacement view before recycling
+	 * the one it replaced, and an unconditional detach would then drop the new chart.
+	 */
+	@UiThread
+	fun detachIfAttached(chart: SafeLineChart) {
+		if (this.chart === chart) {
+			detach()
+		}
+	}
+
+	/**
+	 * Rebuilds the chart's series from the full current history.
+	 */
+	@UiThread
+	abstract fun rebuild()
+
+	/**
+	 * Whether a horizontal drag starting at this screen position should pan the chart rather than
+	 * page the carousel.
+	 *
+	 * True only inside the plot area of a chart that is zoomed in: at rest there is nothing to pan
+	 * to, so the swipe belongs to the carousel, and the strip below the x axis is never the chart's.
+	 */
+	@UiThread
+	fun handlesHorizontalDragAt(
+		rawX: Float,
+		rawY: Float,
+	): Boolean {
+		val chart = this.chart ?: return false
+		if (chart.viewPortHandler.scaleX <= 1f) {
+			return false
+		}
+
+		val location = IntArray(2)
+		chart.getLocationOnScreen(location)
+		val x = rawX - location[0]
+		val y = rawY - location[1]
+		return chart.viewPortHandler.contentRect.contains(x, y)
+	}
+
+	/**
+	 * Returns the chart to its unzoomed state.
+	 */
+	@UiThread
+	fun resetZoom() {
+		chart?.fitScreen()
+	}
+
+	/**
+	 * An image of the chart as it currently looks, or `null` when nothing is attached
+	 * (ADFA-5486's snapshot export).
+	 */
+	@UiThread
+	fun snapshot(): Bitmap? = chart?.chartBitmap
+
+	/**
+	 * Applies the configuration every metrics chart shares. Subclasses override to add their own --
+	 * a value formatter, axis range -- and must call through.
+	 */
+	@CallSuper
+	protected open fun configure(chart: SafeLineChart) {
+		chart.apply {
+			val colorAccent = context.resolveAttr(R.attr.colorAccent)
+
+			description.isEnabled = false
+			xAxis.axisLineColor = colorAccent
+			axisRight.axisLineColor = colorAccent
+
+			// Zoom the time axis only. Zooming the value axis on a memory or throughput chart just
+			// makes the numbers lie about their own scale; time is the axis worth magnifying.
+			setScaleXEnabled(true)
+			setScaleYEnabled(false)
+			setPinchZoom(false)
+			// Panning is what makes zoom usable: without it you magnify and are then stranded.
+			// MetricsCarouselLayout decides per gesture whether a horizontal drag pans the chart or
+			// pages the carousel.
+			isDragEnabled = true
+			setDoubleTapToZoomEnabled(false)
+
+			setBackgroundColor(context.resolveAttr(R.attr.colorSurfaceDim))
+			setDrawGridBackground(true)
+
+			// Below the plot, so the strip under it can be reserved for the carousel swipe and the
+			// plot itself can pan when zoomed (ADFA-5486).
+			xAxis.position = XAxis.XAxisPosition.BOTTOM
+
+			// The right axis carries the labels; the left is unused.
+			axisLeft.isEnabled = false
+
+			onChartGestureListener = XAxisTapListener(this)
+
+			xAxis.valueFormatter = ElapsedTimeFormatter(sampleIntervalMillis)
+			// One label per 15 samples keeps the window readable without crowding.
+			xAxis.granularity = X_LABEL_GRANULARITY_SAMPLES
+			xAxis.isGranularityEnabled = true
+		}
+	}
+
+	/**
+	 * Scrolls the viewport to the newest samples, showing [VISIBLE_SAMPLES] of them.
+	 *
+	 * The watchers retain an hour of history (ADFA-5486), far more than is legible at once in a
+	 * 200dp strip and more than is cheap to draw -- MPAndroidChart clips drawing to the visible x
+	 * range, so a window keeps the cost independent of how much is retained.
+	 */
+	private fun showNewestWindow(chart: SafeLineChart) {
+		// Once the user has zoomed in, the view is theirs. Re-centring on every redraw would drag
+		// them back to the newest samples once a second, which makes zooming useless.
+		if (chart.viewPortHandler.scaleX > 1f) {
+			return
+		}
+
+		// xMax is the newest sample's index. entryCount would be the total across every series --
+		// 7200 for the network chart's two -- which would scroll the window off the end of the data.
+		val newestIndex = chart.data?.xMax ?: return
+		if (newestIndex < VISIBLE_SAMPLES) {
+			return
+		}
+
+		chart.setVisibleXRangeMaximum(VISIBLE_SAMPLES.toFloat())
+		chart.moveViewToX(newestIndex - VISIBLE_SAMPLES.toFloat() + 1f)
+	}
+
+	/**
+	 * Turns a tap in the x-axis band into [onXAxisTap].
+	 *
+	 * The axis is drawn by the chart rather than being a view of its own, so there is nothing to
+	 * attach a click listener to. `contentTop` is the top of the plotting area, and the axis labels
+	 * sit above it, so a tap higher than that landed on the axis.
+	 */
+	private inner class XAxisTapListener(
+		private val chart: SafeLineChart,
+	) : OnChartGestureListener {
+		override fun onChartSingleTapped(me: MotionEvent?) {
+			val y = me?.y ?: return
+			if (y <= chart.viewPortHandler.contentTop()) {
+				onXAxisTap?.invoke()
+			}
+		}
+
+		override fun onChartGestureStart(
+			me: MotionEvent?,
+			lastPerformedGesture: ChartTouchListener.ChartGesture?,
+		) = Unit
+
+		override fun onChartGestureEnd(
+			me: MotionEvent?,
+			lastPerformedGesture: ChartTouchListener.ChartGesture?,
+		) = Unit
+
+		override fun onChartLongPressed(me: MotionEvent?) = Unit
+
+		override fun onChartDoubleTapped(me: MotionEvent?) = Unit
+
+		override fun onChartFling(
+			me1: MotionEvent?,
+			me2: MotionEvent?,
+			velocityX: Float,
+			velocityY: Float,
+		) = Unit
+
+		override fun onChartScale(
+			me: MotionEvent?,
+			scaleX: Float,
+			scaleY: Float,
+		) = Unit
+
+		override fun onChartTranslate(
+			me: MotionEvent?,
+			dX: Float,
+			dY: Float,
+		) = Unit
+	}
+
+	/**
+	 * Labels the x axis by age rather than by sample index, which is meaningless to a reader and
+	 * would run to 3599 at the current retention.
+	 */
+	private class ElapsedTimeFormatter(
+		private val sampleIntervalMillis: () -> Long,
+	) : IAxisValueFormatter {
+		override fun getFormattedValue(
+			value: Float,
+			axis: AxisBase?,
+		): String {
+			val newestIndex = (axis?.mAxisMaximum ?: value)
+			val secondsAgo = ((newestIndex - value) * sampleIntervalMillis() / 1000f).roundToLong()
+			return if (secondsAgo <= 0L) "now" else "-%ds".format(secondsAgo)
+		}
+	}
+
+	/**
+	 * Installs [datasets] on [chart] and applies the theme colours, then redraws.
+	 */
+	protected fun setData(
+		chart: SafeLineChart,
+		datasets: Array<LineDataSet>,
+	) {
+		val bgColor = chart.context.resolveAttr(R.attr.colorSurfaceDim)
+		val textColor = chart.context.resolveAttr(R.attr.colorOnSurface)
+
+		chart.apply {
+			data = LineData(*datasets)
+			axisRight.textColor = textColor
+			axisLeft.textColor = textColor
+			legend.textColor = textColor
+			// MPAndroidChart defaults every component's text to Color.BLACK. The y axis and legend
+			// were given a themed colour and the x axis never was, so its labels have always been
+			// drawn black on a near-black surface -- which is the "x axis has no labels" of
+			// ADFA-5486. They were there the whole time, just invisible.
+			xAxis.textColor = textColor
+
+			data.setValueTextColor(textColor)
+			setBackgroundColor(bgColor)
+			setGridBackgroundColor(bgColor)
+			notifyDataSetChanged()
+		}
+		applyAnnotations(chart)
+		showNewestWindow(chart)
+		chart.invalidate()
+	}
+
+	/**
+	 * Draws a vertical marker for each recent significant event (ADFA-5486).
+	 *
+	 * Annotations are stored by wall-clock time, not sample position, because the ring buffer
+	 * shifts under them. Age converts to an x position here: the newest sample sits at the buffer's
+	 * last index, and every [sampleIntervalMillis] before that is one index to the left. Anything
+	 * older than the buffer holds falls outside the axis and is not drawn.
+	 */
+	private fun applyAnnotations(chart: SafeLineChart) {
+		val store = annotations ?: return
+		val newestIndex = chart.data?.xMax ?: return
+
+		chart.xAxis.removeAllLimitLines()
+
+		val interval = sampleIntervalMillis()
+		val bufferSpanMillis = (newestIndex.toLong() + 1L) * interval
+		val now = nowMillis()
+		val markerColor = chart.context.resolveAttr(R.attr.colorOnSurface)
+
+		store.recentAnnotations(bufferSpanMillis).forEach { annotation ->
+			val samplesAgo = (now - annotation.atMillis).toFloat() / interval
+			val x = newestIndex - samplesAgo
+			if (x < 0f) {
+				return@forEach
+			}
+
+			chart.xAxis.addLimitLine(
+				LimitLine(x, annotation.label).apply {
+					lineWidth = ANNOTATION_LINE_WIDTH
+					lineColor = markerColor
+					textColor = markerColor
+					enableDashedLine(ANNOTATION_DASH_LENGTH, ANNOTATION_DASH_LENGTH, 0f)
+					labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
+				},
+			)
+		}
+	}
+
+	/**
+	 * Redraws after the attached series have been mutated in place.
+	 */
+	protected fun redraw(chart: SafeLineChart) {
+		chart.apply {
+			data.notifyDataChanged()
+			notifyDataSetChanged()
+		}
+		// Re-applied on every redraw, not just when data is set: the visible x range is held as a
+		// scale factor, so a layout change (a rotation, say) leaves the window pointing at a
+		// different part of the history. Landscape showed samples from half an hour ago.
+		applyAnnotations(chart)
+		showNewestWindow(chart)
+		chart.invalidate()
+	}
+
+	private companion object {
+		/**
+		 * Samples shown at once. An hour is retained; a minute is what fits legibly in the strip.
+		 */
+		const val VISIBLE_SAMPLES = 60
+
+		const val X_LABEL_GRANULARITY_SAMPLES = 15f
+
+		const val ANNOTATION_LINE_WIDTH = 1f
+		const val ANNOTATION_DASH_LENGTH = 6f
+	}
+}

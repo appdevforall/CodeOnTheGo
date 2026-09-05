@@ -28,6 +28,7 @@ import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.tooling.events.configuration.ProjectConfigurationStartEvent
+import com.itsaky.androidide.tooling.events.task.TaskFinishEvent
 import com.itsaky.androidide.tooling.events.task.TaskStartEvent
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -140,10 +141,17 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	}
 
 	override fun onProgressEvent(event: ProgressEvent) {
-		checkActivity("onProgressEvent") ?: return
+		val act = checkActivity("onProgressEvent") ?: return
 
 		if (event is ProjectConfigurationStartEvent || event is TaskStartEvent) {
-			activity.setStatus(event.descriptor.displayName)
+			act.setStatus(event.descriptor.displayName)
+		}
+
+		// Annotate the metrics charts with task starts and stops (ADFA-5486). Gradle emits these
+		// far faster than a chart can show them -- dozens a second during configuration -- so the
+		// store throttles to one every five seconds and keeps the first of each quiet period.
+		if (event is TaskStartEvent || event is TaskFinishEvent) {
+			act.recordMetricsAnnotation(event.descriptor.displayName)
 		}
 	}
 

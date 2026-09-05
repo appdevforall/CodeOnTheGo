@@ -21,10 +21,13 @@ import android.net.TrafficStats
 import android.os.Process
 import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.tasks.cancelIfActive
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -51,15 +54,31 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @param readTxBytes Reads the cumulative transmitted byte count. Injectable for tests.
  */
 class NetworkUsageWatcher(
-	private val updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
+	updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
 	private val uid: Int = Process.myUid(),
 	private val readRxBytes: (Int) -> Long = TrafficStats::getUidRxBytes,
 	private val readTxBytes: (Int) -> Long = TrafficStats::getUidTxBytes,
 ) {
 	@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
 	private val coroutineDispatcher = newSingleThreadContext("NetworkUsageWatcher")
-	private val coroutineScope = CoroutineScope(coroutineDispatcher)
+	private val coroutineScope = CoroutineScope(SupervisorJob() + coroutineDispatcher)
 	private val watching = AtomicBoolean(false)
+
+	/** The running sampling loop, so [stopWatching] can actually stop it. */
+	private var samplingJob: Job? = null
+
+	/**
+	 * Milliseconds between samples. Changing it clears the history, for the reason given on
+	 * [MemoryUsageWatcher.updateInterval].
+	 */
+	var updateInterval: Long = updateInterval
+		set(value) {
+			if (field == value) {
+				return
+			}
+			field = value
+			clearHistory()
+		}
 
 	/** Guards the two ring buffers: the sampler writes them, the UI thread snapshots them. */
 	private val historyLock = Any()
@@ -103,33 +122,78 @@ class NetworkUsageWatcher(
 			NetworkUsage(received.snapshot(), transmitted.snapshot())
 		}
 
+	/**
+	 * Discards every recorded sample and drops the cumulative baseline, so the next sample
+	 * re-establishes it rather than reporting everything since the last one as one huge delta.
+	 */
+	fun clearHistory() {
+		synchronized(historyLock) {
+			received.clear()
+			transmitted.clear()
+			lastRx = null
+			lastTx = null
+		}
+	}
+
 	fun startWatching() {
-		if (isWatching) {
+		if (!watching.compareAndSet(false, true)) {
 			log.warn("Network usage is already being watched")
 			return
 		}
 
-		watching.set(true)
+		samplingJob =
+			coroutineScope.launch {
+				while (isWatching) {
+					// A throw here used to end the coroutine while `watching` stayed true, so every
+					// later startWatching() was refused as "already watching" and sampling stopped
+					// for good. A sample is worth losing; the loop is not.
+					runCatching {
+						sampleOnce()
 
-		coroutineScope.launch(context = SupervisorJob() + coroutineDispatcher) {
-			while (isWatching) {
-				sampleOnce()
-
-				listener?.also { listener ->
-					val usage = getUsage()
-					withContext(Dispatchers.Main.immediate) {
-						listener.onNetworkUsageChanged(usage)
+						listener?.also { listener ->
+							val usage = getUsage()
+							withContext(Dispatchers.Main.immediate) {
+								listener.onNetworkUsageChanged(usage)
+							}
+						}
+					}.onFailure { failure ->
+						if (failure is CancellationException) {
+							throw failure
+						}
+						log.error("Network usage sampling failed; continuing", failure)
 					}
-				}
 
-				delay(updateInterval)
+					delay(updateInterval)
+				}
 			}
-		}
 	}
 
+	/**
+	 * Stops sampling. The watcher can be started again; [close] is what makes it unusable.
+	 *
+	 * The job is cancelled rather than left to notice the flag: it spends almost all its time in
+	 * `delay(updateInterval)`, which is up to a minute at the slowest rate, so a stop followed by a
+	 * start inside that window would leave the old loop running alongside the new one, both
+	 * recording samples and notifying the chart.
+	 */
 	fun stopWatching() {
 		watching.set(false)
-		coroutineScope.cancelIfActive("Cancellation requested")
+		samplingJob?.cancel()
+		samplingJob = null
+	}
+
+	/**
+	 * Stops sampling and releases the sampling thread. The watcher cannot be started again.
+	 *
+	 * Separate from [stopWatching] because a watcher is stopped and restarted across the editor's
+	 * lifecycle; only a terminal teardown should give up the thread, and `newSingleThreadContext`
+	 * holds one until it is closed.
+	 */
+	fun close() {
+		stopWatching()
+		listener = null
+		coroutineScope.cancelIfActive("Watcher closed")
+		(coroutineDispatcher as? ExecutorCoroutineDispatcher)?.close()
 	}
 
 	/**
@@ -212,7 +276,13 @@ class NetworkUsageWatcher(
 	}
 
 	companion object {
-		const val MAX_USAGE_ENTRIES = 30
+		/**
+		 * Samples retained per series (ADFA-5486). The span this covers depends on the interval:
+		 * under three hours at one second, about seventeen minutes at the 0.1s minimum. 80KB of
+		 * longs per series, so the cost is in drawing rather than holding -- see
+		 * MetricsChartRenderer, which shows a window of this rather than all of it.
+		 */
+		const val MAX_USAGE_ENTRIES = 10000
 		const val DEFAULT_UPDATE_INTERVAL = 1000L
 
 		/** [TrafficStats.UNSUPPORTED] widened to [Long], which is what the getters return. */

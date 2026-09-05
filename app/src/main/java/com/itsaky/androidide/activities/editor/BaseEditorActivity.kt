@@ -59,6 +59,7 @@ import androidx.core.os.BundleCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
@@ -66,7 +67,6 @@ import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN
@@ -119,10 +119,7 @@ import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.mainThreadHandler
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
-import com.itsaky.androidide.ui.MemoryUsageChartRenderer
-import com.itsaky.androidide.ui.MetricsCarouselAdapter
-import com.itsaky.androidide.ui.MetricsPage
-import com.itsaky.androidide.ui.NetworkUsageChartRenderer
+import com.itsaky.androidide.ui.MetricsCarouselController
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
@@ -132,7 +129,6 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
-import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.StringsInjectionException
 import com.itsaky.androidide.utils.StringsXmlInjector
 import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
@@ -154,6 +150,7 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.MetricsViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
@@ -189,22 +186,29 @@ abstract class BaseEditorActivity :
 	protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
 	private var drawerToggle: ActionBarDrawerToggle? = null
 	private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
-	protected val memoryUsageWatcher = MemoryUsageWatcher()
-	private var metricsPageCallback: ViewPager2.OnPageChangeCallback? = null
-	private val memUsageChartRenderer =
-		MemoryUsageChartRenderer(
-			usagesProvider = memoryUsageWatcher::getMemoryUsages,
+	private val metricsViewModel by viewModels<MetricsViewModel>()
+
+	/**
+	 * Sample history lives in [MetricsViewModel] so it survives configuration changes and activity
+	 * recreation rather than depending on this activity's configChanges declaration (ADFA-5486).
+	 */
+	protected val memoryUsageWatcher get() = metricsViewModel.memoryUsageWatcher
+
+	protected val networkUsageWatcher get() = metricsViewModel.networkUsageWatcher
+
+	protected val metricsCarousel by lazy {
+		MetricsCarouselController(
+			memoryUsageWatcher = memoryUsageWatcher,
+			networkUsageWatcher = networkUsageWatcher,
 			lineColorFor = ::getMemUsageLineColorFor,
+			annotations = metricsViewModel.annotations,
 		)
+	}
 
-	protected val networkUsageWatcher = NetworkUsageWatcher()
-	private val networkUsageChartRenderer =
-		NetworkUsageChartRenderer(usageProvider = networkUsageWatcher::getUsage)
-
-	private val networkUsageListener =
-		NetworkUsageWatcher.NetworkUsageListener { usage ->
-			networkUsageChartRenderer.onUsageChanged(usage)
-		}
+	/** Records a significant event for the charts to annotate (ADFA-5486). */
+	fun recordMetricsAnnotation(label: String) {
+		metricsViewModel.annotations.record(label)
+	}
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
@@ -323,11 +327,6 @@ abstract class BaseEditorActivity :
 					}
 				}
 			}
-		}
-
-	private val memoryUsageListener =
-		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
-			memUsageChartRenderer.onUsagesChanged(memoryUsage)
 		}
 
 	private val shizukuBinderReceivedListener =
@@ -529,19 +528,13 @@ abstract class BaseEditorActivity :
 		fullscreenManager?.destroy()
 		fullscreenManager = null
 
-		metricsPageCallback?.let { callback ->
-			_binding?.memUsageView?.metricsPager?.unregisterOnPageChangeCallback(callback)
-		}
-		metricsPageCallback = null
-		_binding?.memUsageView?.metricsPager?.adapter = null
-		memUsageChartRenderer.detach()
-		networkUsageChartRenderer.detach()
+		metricsCarousel.unbind()
 		_binding = null
 
 		if (isDestroying) {
-			memoryUsageWatcher.stopWatching(true)
+			// Sampling itself is stopped by MetricsViewModel.onCleared; the history has to outlive a
+			// recreation, so it must not be torn down whenever this activity goes away.
 			memoryUsageWatcher.listener = null
-			networkUsageWatcher.stopWatching()
 			networkUsageWatcher.listener = null
 			editorActivityScope.cancelIfActive("Activity is being destroyed")
 
@@ -880,7 +873,6 @@ abstract class BaseEditorActivity :
 
 		setupMetricsCarousel()
 		watchMemory()
-		watchNetwork()
 		observeFileOperations()
 
 		setupGestureDetector()
@@ -980,49 +972,57 @@ abstract class BaseEditorActivity :
 				content.editorAppBarLayout.updatePadding(top = topInset)
 			}
 
-			memUsageView.metricsPager.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+			metricsCarousel.pager?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				topMargin = (insetsTop * progress).roundToInt()
 			}
 		}
 	}
 
 	private fun setupMetricsCarousel() {
-		val pages =
-			listOf(
-				// The memory chart is the default page (ADFA-5487); network traffic is the second
-				// (ADFA-5489), replacing the brand-mark placeholder that ADFA-5487 shipped.
-				MetricsPage.MemoryChart(title = string.metrics_title_memory),
-				MetricsPage.NetworkChart(title = string.metrics_title_network),
-			)
-
-		binding.memUsageView.metricsPager.adapter =
-			MetricsCarouselAdapter(pages, memUsageChartRenderer, networkUsageChartRenderer)
-
-		val showTitleFor = { position: Int ->
-			pages.getOrNull(position)?.let { page ->
-				binding.memUsageView.metricsTitle.setText(page.title)
-			}
+		metricsCarousel.bind(binding.memUsageView)
+		binding.memUsageView.root.onTwoFingerTap = ::onMetricsCarouselUndockRequested
+		binding.memUsageView.metricsUndockedMessage.setOnClickListener {
+			onMetricsCarouselRedockRequested()
 		}
+	}
 
-		metricsPageCallback =
-			object : ViewPager2.OnPageChangeCallback() {
-				override fun onPageSelected(position: Int) {
-					showTitleFor(position)
-				}
-			}.also { binding.memUsageView.metricsPager.registerOnPageChangeCallback(it) }
+	/**
+	 * A two-finger tap on the carousel asks for it to be floated. Overridden where the floating
+	 * window machinery lives; a no-op here.
+	 */
+	protected open fun onMetricsCarouselUndockRequested() = Unit
 
-		// onPageSelected does not fire for the page the carousel opens on.
-		showTitleFor(binding.memUsageView.metricsPager.currentItem)
+	/** Whether the carousel is currently floating rather than docked here. */
+	protected open fun isMetricsCarouselUndocked(): Boolean = false
+
+	/** A tap on the "tap to bring them back" message asks for the floating carousel to re-dock. */
+	protected open fun onMetricsCarouselRedockRequested() = Unit
+
+	/**
+	 * Swaps the carousel for the message explaining where it has gone, or back again.
+	 *
+	 * Only one carousel can be live at a time, so undocking moves it out of the editor. Without the
+	 * message the reveal would open on an empty strip, and a window dragged off screen would leave
+	 * no way back.
+	 */
+	@UiThread
+	protected fun setMetricsCarouselUndocked(undocked: Boolean) {
+		val view = _binding?.memUsageView ?: return
+		view.metricsPager.isVisible = !undocked
+		view.metricsTitle.isVisible = !undocked
+		view.metricsUndockedMessage.isVisible = undocked
+
+		if (undocked) {
+			metricsCarousel.unbind()
+		} else {
+			metricsCarousel.bind(view)
+			metricsCarousel.refresh()
+		}
 	}
 
 	private fun watchMemory() {
-		memoryUsageWatcher.listener = memoryUsageListener
 		memoryUsageWatcher.watchProcess(Process.myPid(), PROC_IDE)
 		resetMemUsageChart()
-	}
-
-	private fun watchNetwork() {
-		networkUsageWatcher.listener = networkUsageListener
 	}
 
 	/**
@@ -1030,7 +1030,7 @@ abstract class BaseEditorActivity :
 	 * watching a process.
 	 */
 	protected fun resetMemUsageChart() {
-		memUsageChartRenderer.rebuild()
+		metricsCarousel.onWatchedProcessesChanged()
 	}
 
 	private fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
@@ -1043,10 +1043,10 @@ abstract class BaseEditorActivity :
 
 	override fun onPause() {
 		super.onPause()
-		memoryUsageWatcher.listener = null
-		memoryUsageWatcher.stopWatching(false)
-		networkUsageWatcher.listener = null
-		networkUsageWatcher.stopWatching()
+		// Sampling continues while backgrounded so the history has no gaps; the x axis assumes
+		// evenly spaced samples and would otherwise misreport their age (ADFA-5486). Only the
+		// carousel goes, so nothing updates a chart nobody is looking at.
+		metricsCarousel.unbind()
 
 		this.isDestroying = isFinishing
 		getFileTreeFragment()?.saveTreeState()
@@ -1063,10 +1063,20 @@ abstract class BaseEditorActivity :
 			log.warn("Unable to move debugger overlay to display {}", displayId, err)
 		}
 
-		memoryUsageWatcher.listener = memoryUsageListener
-		memoryUsageWatcher.startWatching()
-		networkUsageWatcher.listener = networkUsageListener
-		networkUsageWatcher.startWatching()
+		if (!isMetricsCarouselUndocked()) {
+			_binding?.let { metricsCarousel.bind(it.memUsageView) }
+		}
+		if (!memoryUsageWatcher.isWatching) {
+			memoryUsageWatcher.startWatching()
+		}
+		if (!networkUsageWatcher.isWatching) {
+			networkUsageWatcher.startWatching()
+		}
+
+		if (!isMetricsCarouselUndocked()) {
+			// Draw whatever was sampled while away, rather than waiting for the next tick.
+			metricsCarousel.refresh()
+		}
 
 		apkInstallationViewModel.reloadStatus(this)
 

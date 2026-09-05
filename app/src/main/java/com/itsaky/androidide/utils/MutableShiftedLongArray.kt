@@ -23,37 +23,52 @@ package com.itsaky.androidide.utils
  * @author Akash Yadav
  */
 class MutableShiftedLongArray(
-  array: LongArray,
-  shift: Int = 0
+	array: LongArray,
+	shift: Int = 0,
 ) : ShiftedLongArray(array, shift) {
+	/**
+	 * @param capacity The capacity of the array.
+	 * @param shift The shift amount.
+	 * @param init A function to initialize the values of the array.
+	 */
+	constructor(capacity: Int, shift: Int = 0, init: (Int) -> Long = { 0 }) : this(
+		LongArray(capacity, init),
+		shift,
+	)
 
-  /**
-   * @param capacity The capacity of the array.
-   * @param shift The shift amount.
-   * @param init A function to initialize the values of the array.
-   */
-  constructor(capacity: Int, shift: Int = 0, init: (Int) -> Long = { 0 }) : this(
-    LongArray(capacity, init),
-    shift)
+	operator fun set(
+		index: Int,
+		value: Long,
+	) {
+		checkIdx(index)
+		array[getShiftedIndex(index)] = value
+	}
 
-  operator fun set(index: Int, value: Long) {
-    checkIdx(index)
-    array[getShiftedIndex(index)] = value
-  }
+	/**
+	 * Sets the given value at the specified absolute (un-shifted) index.
+	 */
+	fun setAbsolute(
+		index: Int,
+		value: Long,
+	) {
+		array[index] = value
+	}
 
-  /**
-   * Sets the given value at the specified absolute (un-shifted) index.
-   */
-  fun setAbsolute(index: Int, value: Long) {
-    array[index] = value
-  }
+	/**
+	 * Resets every element to zero and returns the shift to its starting position, so the array reads
+	 * as though nothing had ever been recorded.
+	 */
+	fun clear() {
+		array.fill(0L)
+		shift = 0
+	}
 
-  /**
-   * Shifts the array by the specified amount. The shift amount is added to the current shift.
-   *
-   * @param shift The shift amount.
-   */
-  fun shift(shift: Int) {
-    this.shift = (this.shift + shift) % size
-  }
+	/**
+	 * Shifts the array by the specified amount. The shift amount is added to the current shift.
+	 *
+	 * @param shift The shift amount.
+	 */
+	fun shift(shift: Int) {
+		this.shift = (this.shift + shift) % size
+	}
 }
