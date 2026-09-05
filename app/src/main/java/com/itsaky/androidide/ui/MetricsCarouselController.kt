@@ -113,6 +113,7 @@ class MetricsCarouselController(
 			object : ViewPager2.OnPageChangeCallback() {
 				override fun onPageSelected(position: Int) {
 					showTitleFor(position)
+					updateArrows(position)
 					// A page left zoomed would keep claiming horizontal drags when swiped back to.
 					memoryRenderer.resetZoom()
 					networkRenderer.resetZoom()
@@ -138,6 +139,13 @@ class MetricsCarouselController(
 		// the chart are all spoken for, so this is a control rather than another gesture.
 		binding.metricsSnapshot.setOnClickListener { exportSnapshot() }
 
+		// Arrows are the dependable way to move between pages: a swipe has to share the gesture
+		// with panning a zoomed chart and with the editor's drawer, and loses often enough to be
+		// annoying.
+		binding.metricsPrevious.setOnClickListener { step(-1) }
+		binding.metricsNext.setOnClickListener { step(1) }
+		updateArrows(binding.metricsPager.currentItem)
+
 		memoryUsageWatcher.listener = memoryListener
 		networkUsageWatcher.listener = networkListener
 	}
@@ -161,6 +169,8 @@ class MetricsCarouselController(
 		memoryRenderer.onXAxisTap = null
 		networkRenderer.onXAxisTap = null
 		binding?.metricsSnapshot?.setOnClickListener(null)
+		binding?.metricsPrevious?.setOnClickListener(null)
+		binding?.metricsNext?.setOnClickListener(null)
 		pageCallback?.let { binding?.metricsPager?.unregisterOnPageChangeCallback(it) }
 		pageCallback = null
 
@@ -168,6 +178,30 @@ class MetricsCarouselController(
 		memoryRenderer.detach()
 		networkRenderer.detach()
 		binding = null
+	}
+
+	/**
+	 * Moves the carousel by [delta] pages, stopping at either end.
+	 */
+	@UiThread
+	private fun step(delta: Int) {
+		val pager = binding?.metricsPager ?: return
+		val target = (pager.currentItem + delta).coerceIn(0, pages.lastIndex)
+		if (target != pager.currentItem) {
+			pager.setCurrentItem(target, true)
+		}
+	}
+
+	/**
+	 * Dims the arrow that has nowhere to go, so the ends of the carousel are visible.
+	 */
+	@UiThread
+	private fun updateArrows(position: Int) {
+		val binding = this.binding ?: return
+		binding.metricsPrevious.isEnabled = position > 0
+		binding.metricsNext.isEnabled = position < pages.lastIndex
+		binding.metricsPrevious.alpha = if (position > 0) 1f else DISABLED_ARROW_ALPHA
+		binding.metricsNext.alpha = if (position < pages.lastIndex) 1f else DISABLED_ARROW_ALPHA
 	}
 
 	/**
@@ -295,5 +329,9 @@ class MetricsCarouselController(
 	@UiThread
 	fun onWatchedProcessesChanged() {
 		memoryRenderer.rebuild()
+	}
+
+	private companion object {
+		const val DISABLED_ARROW_ALPHA = 0.35f
 	}
 }

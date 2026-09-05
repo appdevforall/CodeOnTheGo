@@ -61,6 +61,9 @@ class MetricsCarouselLayout
 		 */
 		var horizontalDragBelongsToChart: ((Float, Float) -> Boolean)? = null
 
+		/** Invoked as each gesture begins. */
+		var onTouchDown: (() -> Unit)? = null
+
 		/**
 		 * Called with whether the carousel should accept touch paging for the gesture just
 		 * starting, and again with `true` when it ends.
@@ -97,6 +100,7 @@ class MetricsCarouselLayout
 		private fun routeHorizontalDrag(ev: MotionEvent) {
 			when (ev.actionMasked) {
 				MotionEvent.ACTION_DOWN -> {
+					onTouchDown?.invoke()
 					val chartPans = horizontalDragBelongsToChart?.invoke(ev.rawX, ev.rawY) ?: false
 					onPagingEnabledChanged?.invoke(!chartPans)
 				}

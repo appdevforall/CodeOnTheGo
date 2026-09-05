@@ -24,6 +24,37 @@
 		app:layout_constraintStart_toStartOf="parent"
 		app:layout_constraintTop_toTopOf="parent" />
 
+	<!-- Tapping an arrow moves the carousel. Swiping works too, but it competes with panning a zoomed chart and with the
+		drawer gesture, so a plain control is the reliable way. -->
+	<ImageButton
+		android:id="@+id/metrics_previous"
+		android:layout_width="@dimen/metrics_carousel_arrow_touch_target"
+		android:layout_height="@dimen/metrics_carousel_arrow_touch_target"
+		android:background="?attr/selectableItemBackgroundBorderless"
+		android:contentDescription="@string/metrics_carousel_previous"
+		android:padding="@dimen/metrics_carousel_arrow_padding"
+		android:scaleType="fitCenter"
+		android:src="@drawable/ic_arrow_left"
+		app:layout_constraintBottom_toBottomOf="@id/metrics_title"
+		app:layout_constraintEnd_toStartOf="@id/metrics_title"
+		app:layout_constraintHorizontal_chainStyle="packed"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toTopOf="@id/metrics_title" />
+
+	<ImageButton
+		android:id="@+id/metrics_next"
+		android:layout_width="@dimen/metrics_carousel_arrow_touch_target"
+		android:layout_height="@dimen/metrics_carousel_arrow_touch_target"
+		android:background="?attr/selectableItemBackgroundBorderless"
+		android:contentDescription="@string/metrics_carousel_next"
+		android:padding="@dimen/metrics_carousel_arrow_padding"
+		android:scaleType="fitCenter"
+		android:src="@drawable/ic_arrow_right"
+		app:layout_constraintBottom_toBottomOf="@id/metrics_title"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toEndOf="@id/metrics_title"
+		app:layout_constraintTop_toTopOf="@id/metrics_title" />
+
 	<TextView
 		android:id="@+id/metrics_title"
 		android:layout_width="0dp"
@@ -34,8 +65,9 @@
 		android:textAppearance="?attr/textAppearanceLabelMedium"
 		android:textColor="?attr/colorOnSurface"
 		app:layout_constraintBottom_toBottomOf="parent"
-		app:layout_constraintEnd_toEndOf="parent"
-		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintEnd_toStartOf="@id/metrics_next"
+		app:layout_constraintHorizontal_chainStyle="packed"
+		app:layout_constraintStart_toEndOf="@id/metrics_previous"
 		tools:text="Memory usage"
 		xmlns:tools="http://schemas.android.com/tools" />
 

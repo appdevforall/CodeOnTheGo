@@ -21,6 +21,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
 import com.itsaky.androidide.floating.model.DockableContent
 import com.itsaky.androidide.floating.window.FloatingWindowHost
@@ -66,12 +67,28 @@ class MetricsCarouselDockableContent(
 		// way back, so the gesture would only be a second, less discoverable route.
 		binding.root.onTwoFingerTap = null
 
+		// Nothing here is typed into, so nothing here should take focus. A focusable child in an
+		// overlay window makes the window focusable, and the soft keyboard then opens over the
+		// chart on every touch.
+		binding.root.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+		binding.root.isFocusable = false
+		binding.root.isFocusableInTouchMode = false
+
+		// Belt and braces: if something upstream has already opened the keyboard, a touch on the
+		// chart puts it away rather than leaving it covering the window.
+		binding.root.onTouchDown = { hideSoftInput(binding.root) }
+
 		controller.bind(binding)
 		return binding.root
 	}
 
 	override fun onDestroyView() {
 		controller.unbind()
+	}
+
+	private fun hideSoftInput(view: View) {
+		val manager = view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+		manager?.hideSoftInputFromWindow(view.windowToken, 0)
 	}
 
 	companion object {

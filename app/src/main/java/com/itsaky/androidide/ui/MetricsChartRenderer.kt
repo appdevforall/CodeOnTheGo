@@ -64,6 +64,16 @@ abstract class MetricsChartRenderer(
 	var onXAxisTap: (() -> Unit)? = null
 
 	/**
+	 * Whether the user has pinched this chart.
+	 *
+	 * Recorded from the scale gesture rather than read back from the chart. Showing a window of
+	 * [VISIBLE_SAMPLES] out of a buffer of thousands *is* a zoom as far as the chart is concerned --
+	 * scaleX sits around 166 at rest -- so testing scaleX for "has the user zoomed" is always true,
+	 * which silently disabled the auto-follow window and handed every horizontal drag to the chart.
+	 */
+	private var userHasZoomed = false
+
+	/**
 	 * The attached chart, or `null` when no carousel page is bound to this renderer.
 	 */
 	protected var chart: SafeLineChart? = null
@@ -85,6 +95,7 @@ abstract class MetricsChartRenderer(
 	@UiThread
 	@CallSuper
 	open fun detach() {
+		userHasZoomed = false
 		chart = null
 	}
 
@@ -120,7 +131,7 @@ abstract class MetricsChartRenderer(
 		rawY: Float,
 	): Boolean {
 		val chart = this.chart ?: return false
-		if (chart.viewPortHandler.scaleX <= 1f) {
+		if (!userHasZoomed) {
 			return false
 		}
 
@@ -136,7 +147,9 @@ abstract class MetricsChartRenderer(
 	 */
 	@UiThread
 	fun resetZoom() {
+		userHasZoomed = false
 		chart?.fitScreen()
+		chart?.let { showNewestWindow(it) }
 	}
 
 	/**
@@ -199,7 +212,7 @@ abstract class MetricsChartRenderer(
 	private fun showNewestWindow(chart: SafeLineChart) {
 		// Once the user has zoomed in, the view is theirs. Re-centring on every redraw would drag
 		// them back to the newest samples once a second, which makes zooming useless.
-		if (chart.viewPortHandler.scaleX > 1f) {
+		if (userHasZoomed) {
 			return
 		}
 
@@ -256,7 +269,9 @@ abstract class MetricsChartRenderer(
 			me: MotionEvent?,
 			scaleX: Float,
 			scaleY: Float,
-		) = Unit
+		) {
+			userHasZoomed = true
+		}
 
 		override fun onChartTranslate(
 			me: MotionEvent?,
