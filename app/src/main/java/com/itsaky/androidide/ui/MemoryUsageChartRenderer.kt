@@ -29,7 +29,6 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MemoryUsageWatcher.ProcessMemoryInfo
 import com.itsaky.androidide.utils.ShiftedLongArray
-import com.itsaky.androidide.utils.resolveAttr
 import kotlin.math.roundToLong
 
 /**
@@ -50,44 +49,17 @@ import kotlin.math.roundToLong
 class MemoryUsageChartRenderer(
 	private val usagesProvider: () -> Array<ProcessMemoryInfo>,
 	private val lineColorFor: (ProcessMemoryInfo) -> Int,
-) {
-	private var chart: SafeLineChart? = null
-
+) : MetricsChartRenderer() {
 	/**
 	 * Maps a watched pid to its dataset index in the attached chart's [LineData]. Empty whenever no
 	 * chart is attached.
 	 */
 	private val pidToDatasetIdx = MutableIntIntMap(initialCapacity = 3)
 
-	/**
-	 * Attaches [chart], applies the static chart configuration, and renders the full current
-	 * history. Replaces any previously attached chart.
-	 */
 	@UiThread
-	fun attach(chart: SafeLineChart) {
-		this.chart = chart
-		configure(chart)
-		rebuild()
-	}
-
-	/**
-	 * Detaches the current chart. Sample history is unaffected; a later [attach] renders it in full.
-	 */
-	@UiThread
-	fun detach() {
-		chart = null
+	override fun detach() {
+		super.detach()
 		pidToDatasetIdx.clear()
-	}
-
-	/**
-	 * Detaches [chart] only if it is the currently attached one. Use from a recycling container,
-	 * where the replacement view can be bound before the view it replaces is recycled.
-	 */
-	@UiThread
-	fun detachIfAttached(chart: SafeLineChart) {
-		if (this.chart === chart) {
-			detach()
-		}
 	}
 
 	/**
@@ -96,7 +68,7 @@ class MemoryUsageChartRenderer(
 	 * changes; [onUsagesChanged] calls it on its own when it detects such a change.
 	 */
 	@UiThread
-	fun rebuild() {
+	override fun rebuild() {
 		val chart = this.chart ?: return
 		val processes = usagesProvider()
 
@@ -125,21 +97,7 @@ class MemoryUsageChartRenderer(
 				}
 			}
 
-		val bgColor = chart.context.resolveAttr(R.attr.colorSurfaceDim)
-		val textColor = chart.context.resolveAttr(R.attr.colorOnSurface)
-
-		chart.apply {
-			data = LineData(*datasets)
-			axisRight.textColor = textColor
-			axisLeft.textColor = textColor
-			legend.textColor = textColor
-
-			data.setValueTextColor(textColor)
-			setBackgroundColor(bgColor)
-			setGridBackgroundColor(bgColor)
-			notifyDataSetChanged()
-			invalidate()
-		}
+		setData(chart, datasets)
 	}
 
 	/**
@@ -180,40 +138,19 @@ class MemoryUsageChartRenderer(
 		}
 
 		if (dataChanged) {
-			chart.apply {
-				data.notifyDataChanged()
-				notifyDataSetChanged()
-				invalidate()
-			}
+			redraw(chart)
 		}
 	}
 
-	/**
-	 * Applies the configuration that does not depend on the samples. Idempotent.
-	 */
-	private fun configure(chart: SafeLineChart) {
-		chart.apply {
-			val colorAccent = context.resolveAttr(R.attr.colorAccent)
-
-			isDragEnabled = false
-			description.isEnabled = false
-			xAxis.axisLineColor = colorAccent
-			axisRight.axisLineColor = colorAccent
-
-			setPinchZoom(false)
-			setBackgroundColor(context.resolveAttr(R.attr.colorSurfaceDim))
-			setDrawGridBackground(true)
-			setScaleEnabled(true)
-
-			axisLeft.isEnabled = false
-			axisRight.valueFormatter =
-				object : IAxisValueFormatter {
-					override fun getFormattedValue(
-						value: Float,
-						axis: AxisBase?,
-					): String = "%dMB".format(value.roundToLong())
-				}
-		}
+	override fun configure(chart: SafeLineChart) {
+		super.configure(chart)
+		chart.axisRight.valueFormatter =
+			object : IAxisValueFormatter {
+				override fun getFormattedValue(
+					value: Float,
+					axis: AxisBase?,
+				): String = "%dMB".format(value.roundToLong())
+			}
 	}
 
 	private fun labelFor(

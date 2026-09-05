@@ -22,13 +22,11 @@ import androidx.annotation.UiThread
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
-import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.NetworkUsageWatcher.NetworkUsage
-import com.itsaky.androidide.utils.resolveAttr
 import kotlin.math.ceil
 import kotlin.math.log10
 import kotlin.math.max
@@ -58,42 +56,14 @@ import kotlin.math.roundToLong
  */
 class NetworkUsageChartRenderer(
 	private val usageProvider: () -> NetworkUsage,
-) {
-	private var chart: SafeLineChart? = null
-
-	@UiThread
-	fun attach(chart: SafeLineChart) {
-		this.chart = chart
-		configure(chart)
-		rebuild()
-	}
-
-	@UiThread
-	fun detach() {
-		chart = null
-	}
-
-	/**
-	 * Detaches [chart] only if it is the currently attached one. See
-	 * [MemoryUsageChartRenderer.detachIfAttached].
-	 */
-	@UiThread
-	fun detachIfAttached(chart: SafeLineChart) {
-		if (this.chart === chart) {
-			detach()
-		}
-	}
-
+) : MetricsChartRenderer() {
 	/**
 	 * Rebuilds both series from the full sample history.
 	 */
 	@UiThread
-	fun rebuild() {
+	override fun rebuild() {
 		val chart = this.chart ?: return
 		val usage = usageProvider()
-
-		val textColor = chart.context.resolveAttr(R.attr.colorOnSurface)
-		val bgColor = chart.context.resolveAttr(R.attr.colorSurfaceDim)
 
 		val datasets =
 			arrayOf(
@@ -102,19 +72,7 @@ class NetworkUsageChartRenderer(
 			)
 
 		applyAxisRange(chart, usage)
-
-		chart.apply {
-			data = LineData(*datasets)
-			axisRight.textColor = textColor
-			axisLeft.textColor = textColor
-			legend.textColor = textColor
-
-			data.setValueTextColor(textColor)
-			setBackgroundColor(bgColor)
-			setGridBackgroundColor(bgColor)
-			notifyDataSetChanged()
-			invalidate()
-		}
+		setData(chart, datasets)
 	}
 
 	/**
@@ -145,12 +103,7 @@ class NetworkUsageChartRenderer(
 		update(transmitted, usage.transmitted, chart.context.getString(R.string.metrics_network_transmitted))
 
 		applyAxisRange(chart, usage)
-
-		chart.apply {
-			data.notifyDataChanged()
-			notifyDataSetChanged()
-			invalidate()
-		}
+		redraw(chart)
 	}
 
 	private fun dataset(
@@ -212,26 +165,14 @@ class NetworkUsageChartRenderer(
 		chart.axisRight.axisMaximum = ceil(peak.toLogBytes()).coerceAtLeast(MIN_AXIS_DECADES)
 	}
 
-	private fun configure(chart: SafeLineChart) {
-		chart.apply {
-			val colorAccent = context.resolveAttr(R.attr.colorAccent)
-
-			isDragEnabled = false
-			description.isEnabled = false
-			xAxis.axisLineColor = colorAccent
-			axisRight.axisLineColor = colorAccent
-
-			setPinchZoom(false)
-			setBackgroundColor(context.resolveAttr(R.attr.colorSurfaceDim))
-			setDrawGridBackground(true)
-			setScaleEnabled(true)
-
-			axisLeft.isEnabled = false
-			axisRight.valueFormatter = BytesAxisFormatter
+	override fun configure(chart: SafeLineChart) {
+		super.configure(chart)
+		chart.axisRight.apply {
+			valueFormatter = BytesAxisFormatter
 			// One label per decade, so the gridlines read as 1 kB / 1 MB rather than arbitrary
 			// fractions of a logarithm. The range itself is set per sample by applyAxisRange.
-			axisRight.granularity = 1f
-			axisRight.isGranularityEnabled = true
+			granularity = 1f
+			isGranularityEnabled = true
 		}
 	}
 
