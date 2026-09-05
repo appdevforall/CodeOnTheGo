@@ -499,7 +499,7 @@ class IncrementalCompiler(
 	 * `Helper.class`, which no stem-keyed sweep can reach; closing that needs javac's own
 	 * emitted-file list.
 	 *
-	 * TODO(ADFA-XXXXX): hook javac's emitted-file list (TaskListener/JavaFileManager) to sweep
+	 * TODO(ADFA-5504): hook javac's emitted-file list (TaskListener/JavaFileManager) to sweep
 	 *  top-level secondary classes too. Until then a deleted one stays in the payload dex until
 	 *  the next rebaseline: dead weight and name-resolvable, but no wrong behavior for code that
 	 *  does not look it up by name.
