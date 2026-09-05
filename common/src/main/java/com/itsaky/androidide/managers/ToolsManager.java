@@ -20,9 +20,9 @@ package com.itsaky.androidide.managers;
 import static org.adfa.constants.ConstantsKt.V7_KEY;
 import static org.adfa.constants.ConstantsKt.V8_KEY;
 
-import android.content.res.AssetManager;
 import android.os.Build;
 import androidx.annotation.NonNull;
+import androidx.annotation.VisibleForTesting;
 import androidx.annotation.WorkerThread;
 import com.aayushatharva.brotli4j.Brotli4jLoader;
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream;
@@ -107,7 +107,7 @@ public class ToolsManager {
 			// Load installed JDK distributions
 			IJdkDistributionProvider.getInstance().loadDistributions();
 
-			updateToolingJar(app.getAssets());
+			updateToolingJar(app);
 			extractLogSender(app);
 
 			writeNoMediaFile();
@@ -127,6 +127,44 @@ public class ToolsManager {
 				onFinish.run();
 			}
 		});
+	}
+
+	/**
+	 * Copies the stream to a temp sibling of toolingJarFile, renames it into place, then writes the stamp. The tooling server starts concurrently with this extraction (both run at app init), and launching `java -jar` against a half-written jar kills project init ("An unexpected error occurred while trying to open file ..."), so a partial jar must never be visible at the final path. rename(2) within one directory atomically replaces the target on Linux. The stamp is written only after a successful rename, so a failure at any step leaves the stamp absent and the next launch retries. Always closes the stream.
+	 */
+	@VisibleForTesting
+	static void extractToolingJar(InputStream toolingJarStream, File toolingJarFile, File stampFile, String stamp) {
+		try {
+			final var tempFile = new File(toolingJarFile.getParentFile(), toolingJarFile.getName() + ".part");
+			Objects.requireNonNull(toolingJarFile.getParentFile()).mkdirs();
+			try (final var fos = new FileOutputStream(tempFile)) {
+				IoUtilsKt.transferToStream(toolingJarStream, fos);
+			}
+			if (!tempFile.renameTo(toolingJarFile)) {
+				LOG.error("Failed to move extracted tooling API jar into place");
+				return;
+			}
+			if (stamp != null && !FileIOUtils.writeFileFromString(stampFile, stamp)) {
+				// Fail-safe: a lost stamp just re-extracts next launch, but say so.
+				LOG.warn("Failed to write tooling jar stamp file {}", stampFile);
+			}
+		} catch (Throwable err) {
+			LOG.error("Failed to copy tooling API jar", err);
+		} finally {
+			try {
+				toolingJarStream.close();
+			} catch (IOException e) {
+				LOG.error("Failed to close tooling API jar stream", e);
+			}
+		}
+	}
+
+	/**
+	 * Whether the jar at the final path was extracted from this exact APK install. True only when the jar exists AND the stamp file holds this install's stamp. The stamp is written only after a complete extraction, so a partial copy from a killed process can never satisfy this check. A null stamp (package lookup failed) always re-extracts.
+	 */
+	@VisibleForTesting
+	static boolean isToolingJarCurrent(File toolingJarFile, File stampFile, String stamp) {
+		return toolingJarFile.isFile() && stamp != null && stamp.equals(readStampFile(stampFile));
 	}
 
 	private static void deleteIdeenv() {
@@ -244,9 +282,30 @@ public class ToolsManager {
 		return sb.toString();
 	}
 
+	/**
+	 * Identity of the installed APK for the extraction stamp: versionName plus the package's lastUpdateTime, which changes on every (re)install - exactly when the bundled jar can change. Null (extract unconditionally) if the lookup fails.
+	 */
+	private static String installedApkStamp(BaseApplication app) {
+		try {
+			final var info = app.getPackageManager().getPackageInfo(app.getPackageName(), 0);
+			return info.versionName + ":" + info.lastUpdateTime;
+		} catch (Throwable err) {
+			LOG.warn("Could not read package info for tooling jar stamp", err);
+			return null;
+		}
+	}
+
 	@NonNull
 	private static String readInitScript() {
 		return ResourceUtils.readAssets2String(getCommonAsset("androidide.init.gradle"));
+	}
+
+	private static String readStampFile(File stampFile) {
+		try {
+			return stampFile.isFile() ? FileIOUtils.readFile2String(stampFile) : null;
+		} catch (Throwable err) {
+			return null;
+		}
 	}
 
 	private static boolean shouldExtractScheme(final BaseApplication app, final File dir,
@@ -293,10 +352,21 @@ public class ToolsManager {
 	}
 
 	@WorkerThread
-	private static void updateToolingJar(AssetManager assets) {
+	private static void updateToolingJar(BaseApplication app) {
 		// Ensure relevant shared libraries are loaded
 		Brotli4jLoader.ensureAvailability();
 
+		// Deliberately NOT gated on FeatureFlags.isExperimentsEnabled: a torn jar kills
+		// project init for every user, Quick Build or not, so gating would leave flag-off users exposed.
+		final var toolingJarFile = Environment.TOOLING_API_JAR;
+		final var stampFile = new File(toolingJarFile.getParentFile(), toolingJarFile.getName() + ".stamp");
+		final var stamp = installedApkStamp(app);
+		if (isToolingJarCurrent(toolingJarFile, stampFile, stamp)) {
+			// The jar from this exact APK install is already extracted; skip the copy.
+			return;
+		}
+
+		final var assets = app.getAssets();
 		final var toolingJarName = "tooling-api-all.jar";
 		InputStream toolingJarStream;
 		try {
@@ -310,25 +380,7 @@ public class ToolsManager {
 			}
 		}
 
-		try {
-			final var toolingJarFile = Environment.TOOLING_API_JAR;
-			if (toolingJarFile.exists()) {
-				FileUtils.delete(toolingJarFile);
-			}
-
-			Objects.requireNonNull(toolingJarFile.getParentFile()).mkdirs();
-			try (final var fos = new FileOutputStream(toolingJarFile)) {
-				IoUtilsKt.transferToStream(toolingJarStream, fos);
-			}
-		} catch (Throwable err) {
-			LOG.error("Failed to copy tooling API jar", err);
-		} finally {
-			try {
-				toolingJarStream.close();
-			} catch (IOException e) {
-				LOG.error("Failed to close tooling API jar stream", e);
-			}
-		}
+		extractToolingJar(toolingJarStream, toolingJarFile, stampFile, stamp);
 	}
 
 	private static void writeInitScript() {
