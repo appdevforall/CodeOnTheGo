@@ -145,7 +145,7 @@ internal class OrchestratorEventRouter(
 		when (this) {
 			is BuildOutcome.CompileError -> SessionFailure.CompileError(diagnostics)
 
-			is BuildOutcome.DeployFailure -> SessionFailure.DeployError(message)
+			is BuildOutcome.DeployFailure -> SessionFailure.DeployError(message, appNotRunning)
 
 			is BuildOutcome.InfrastructureFailure -> SessionFailure.DeployError(message)
 

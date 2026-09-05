@@ -22,6 +22,18 @@ Cases are organized in the following groups:
   3. Flags are read once per process. After creating or deleting any flag file, force-stop CoGo and reopen it.
 3. CoGo asks for the install permission during onboarding. If you skipped it, the first provisioning bounces you to a Settings screen and the session quietly reverts to idle. An automated run that cannot tap that Settings toggle can pre-grant it: `adb shell cmd appops set com.itsaky.androidide REQUEST_INSTALL_PACKAGES allow`
 
+## Traps that make the product look broken
+
+Each of these cost a real walk time or produced a wrong finding. They are method errors, not product defects - but every one of them reads as a product defect from the outside.
+
+- **Never tap the geometric centre of a view that extends under a system bar.** `uiautomator` reports a view's full bounds regardless of which window is drawn on top, so `clickable=true` at those bounds does not mean the centre is reachable - the tap lands on the navigation bar and nothing happens. Both common input harnesses compute the centre the same way, so they miss *identically*, and the second one looks like corroboration. Aim above the bottom inset.
+- **Find-in-file is a regex search.** A literal query containing `(`, `)`, `{`, `}` or `+` matches nothing, and Replace all then silently does nothing. Escape the metacharacters, or pick a query without them.
+- **Relaunch CoGo by explicit component**, never with `monkey -c LAUNCHER`. CoGo declares two LAUNCHER activities, so `monkey` picks one at random and can land you in LeakCanary:
+  ```bash
+  adb shell am start -n com.itsaky.androidide/.activities.SplashActivity
+  ```
+- **The wrapped corpus copies are branch-specific, and the newest is the wrong one.** Several worktrees hold wrapped copies; the most recently modified are pinned to AGP 9.3.1 / Gradle 9.6.1 from the benchmark's AGP-9 lineage, while this CoGo bundles Gradle 8.14.3. Selecting by modification time - the obvious heuristic - picks a project that fails at configure time inside CoGo and reads as a Quick Build defect. Match the wrapped copy's AGP/Gradle pin to the CoGo under test.
+
 ## Reading the lightning button
 
 The button is a split button and the session's status display. Every tone has its own icon shape as well as its own colour, so the state reads without relying on colour. There are five.
@@ -70,7 +82,7 @@ adb shell killall -2 screenrecord
 adb pull /sdcard/qa-A.mp4 . && adb shell rm /sdcard/qa-A.mp4
 ```
 
-Turn on Developer options -> Show taps first, or the taps are invisible in the recording. A file killed any way other than SIGINT has no `moov` atom and will not play; check the pulled file opens before deleting the device copy.
+Turn on Developer options -> Show taps first, or the taps are invisible in the recording. A `screenrecord` stopped any way other than SIGINT leaves a file with no `moov` atom that will not play; check the pulled file opens before deleting the device copy.
 
 ## Block A - core loop
 
@@ -83,6 +95,7 @@ Steps:
 1. Open `mybasic` and wait for the Gradle sync to finish.
 2. Tap the lightning button once.
 3. Approve the OS install prompt when it appears (allow up to 180 s for it).
+4. Tap the FAB once and confirm it responds. This is a baseline, not a Quick Build check.
 
 Expected:
 
@@ -90,6 +103,11 @@ Expected:
 2. The install prompt appears.
 3. The test app launches, showing "Hello user!" and a floating action button.
 4. The lightning button returns to READY (solid bolt).
+5. The FAB responds to a tap.
+
+Note the FAB baseline in step 4: T2, T3, T5, T6 and T9 all assert through the FAB, so a FAB that cannot be tapped fails five later tests with no way to tell when it broke. Establish here that it works. (The Basic Activity template draws under the navigation bar, so see the geometric-centre trap above before concluding the FAB is dead.)
+
+Note on timing: creating the project already ran a Quick Build setup build automatically. It builds the proxy APK but does not install it, so this first tap is measuring a **warm** provisioning, not cold. Do not quote T1's elapsed time as cold-start cost.
 
 ### T2 - Code-only edit
 
@@ -185,15 +203,14 @@ Steps:
 1. Open `app/build.gradle.kts` and make a harmless change - edit a comment.
 2. Save, and approve the reinstall dialog.
 3. Change the FAB's message literal again. Save.
-4. Tap the lightning button once.
 
 Expected:
 
 1. The save runs a real Gradle build, visibly longer than T2, and never hot-reloads.
 2. CoGo stays in the foreground.
 3. Narration reads "a full build is needed", then "rebuilding your app" - never "initial full build".
-4. After the reinstall, the code save alone does not redeploy.
-5. The one tap relaunches the app with the edit deployed.
+4. The rebaseline relaunches the app itself - no tap is needed to get it running again.
+5. The following code save deploys onto that relaunched app, showing the new message.
 
 ### T7b - A failed rebaseline recovers on save
 
@@ -202,7 +219,7 @@ Automated coverage: unit (partial)
 Steps:
 
 1. In `app/build.gradle.kts`, set `compileSdk` to a version the device does not have - 99. Save.
-2. Set it back to its original value. Save, and do not tap anything.
+2. Set it back to its original value. Save. Approve the OS reinstall prompt when it appears, but tap nothing else - the retry itself must not need a tap.
 
 Expected:
 
@@ -264,8 +281,8 @@ Automated coverage: none
 Steps:
 
 1. Force-stop CoGo: `adb shell am force-stop com.itsaky.androidide`.
-2. Reopen CoGo on `mybasic`.
-3. Tap the lightning button.
+2. Reopen CoGo on `mybasic` (`adb shell am start -n com.itsaky.androidide/.activities.SplashActivity`).
+3. Tap the lightning button, and approve the OS reinstall prompt when it appears.
 4. Change the FAB's message literal. Save.
 
 Expected:
@@ -319,7 +336,7 @@ Steps:
 
 Expected:
 
-1. Restart re-provisions cleanly and faster than T1, with no reinstall unless the app's bytes changed.
+1. Restart re-provisions cleanly and faster than T1. It **does** reinstall, every time: the generation stamp lives inside the APK, so a restart mints a new generation and therefore new bytes. Approve the install prompt. A restart that did *not* reinstall would be the surprising outcome.
 2. The icon tracks BUILDING, then READY.
 3. Help opens a popup describing Quick Build. Note: the content comes from `documentation.db`, a prebuilt asset owned by the documentation repository - until a row for `EDITOR_TOOLBAR_QUICK_BUILD` ships in it, Help opens the "no tooltip" fallback. That reads as a failure here; the fix is a documentation-repo row, not a code change in this repo.
 4. The dropdown has exactly three items: Quick Build, Restart session, Help.
@@ -406,7 +423,7 @@ Automated coverage: unit
 
 Steps:
 
-1. Open a real app that declares a Service.
+1. Open `service-app` from the wrapped corpus - a purpose-built fixture carrying both a Service and a helper class the Service calls, which is exactly what the two edits below need. Only 4 of the 30 corpus apps declare a Service at all, so pick this one rather than hunting.
 2. Edit the Service class. Tap the lightning button.
 3. Edit a helper class the Service calls. Tap the lightning button.
 
@@ -423,9 +440,91 @@ Automated coverage: none
 
 Steps:
 
-1. Wrap and push `sora-editor-full` first - it is not one of the bundled templates.
+1. Open `sora-editor-full` from the wrapped corpus - it is already wrapped there, with all 288 source files, so no wrap-and-push step is needed. Check its AGP/Gradle pin against the trap noted at the top before opening it.
 2. Start a session, make a warm code edit, and save.
 
 Expected:
 
 1. The warm edit deploys correctly. This is the one app where Quick Build currently loses to a standard incremental build, so the reload may be slower than a full build.
+
+## Block D - accessibility
+
+### T22 - Font scale 1.0 and 2.0
+
+Automated coverage: none - no instrumented test asserts layout at a font scale.
+
+Every Quick Build surface has to survive a 2x system font (CLAUDE.md). Read the current value
+first so you can put it back:
+
+```bash
+orig=$(adb shell settings get system font_scale | tr -d '\r')   # "null" if never set
+trap 'if [ "$orig" = null ]; then
+        adb shell settings delete system font_scale
+      else
+        adb shell settings put system font_scale "$orig"
+      fi' EXIT
+
+adb shell settings put system font_scale 2.0
+```
+
+Steps, at 1.0 and again at 2.0:
+
+1. Open a project and look at the toolbar: the bolt, and its long-press dropdown.
+2. Run T1 and watch the status bar through provisioning, compiling and the landed build.
+3. Force each actionable status line: cancel a build (T6), stop the app and save (T9), and
+   invalidate the session (T7).
+4. Tap Standard Run on a project a Quick Build session owns, to raise the clobber dialog.
+
+Expected:
+
+1. No status line is cut mid-word. The text is capped at three lines, and the collapsed sheet
+   header takes its height from what the status block measures, with
+   `editor_sheet_collapsed_height` as a floor rather than a ceiling - so three lines at 2.0 get
+   the room they need. The swipe hint below it is deliberately truncatable, with an ellipsis.
+
+   Swiping the sheet up is NOT a way to read a line that does not fit: `EditorBottomSheet`'s
+   `onSlide` scales the header container's height by `1 - sheetOffset`, so expanding the sheet
+   drives the header to zero and the status line disappears. No other surface shows this text,
+   so anything that overflows is simply lost - record it as a failure rather than swiping to
+   check.
+
+   The hint has to be legible, not merely present in the hierarchy. Two earlier defects showed
+   up as a missing or half-visible hint: the status block was measured against an UNSPECIFIED
+   height, which ConstraintLayout answers with a height that leaves the hint out; and the
+   collapsed peek is the header height alone, by decision (2026-09-04), while the sheet carries
+   its status-bar padding above the header, so the bottom of the header hangs below the window.
+   At 1.0 the hint happened to end at the window edge; at 2.0 the taller text pushed its lower
+   half under the navigation bar (A06, 2026-09-05). The header now carries that hidden strip as
+   bottom padding, so the block is laid out in the part that is on screen, and the header grows
+   by the strip only when the block needs more than the floor leaves visible. Record whether the
+   hint is fully visible at each font scale, and which strings overflow on which screen width.
+2. The dropdown's rows and the dialog's buttons stay on screen and reachable.
+3. Nothing overlaps the status bar at the top or the navigation bar at the bottom.
+
+## Block E - save follow-ups that run with the flag off
+
+### T23 - A manifest-only save refreshes the generated sources
+
+Automated coverage: `SaveResultFlagsTest` (the flag fold); nothing asserts the editor-side
+symptom below.
+
+Since this PR, a save runs Gradle's generate-sources step only for resource XML and
+`AndroidManifest.xml`; Kotlin, Java and other XML saves skip it. The manifest case is the one a
+resource-directory check alone would miss, so it gets its own walk. Flag state does not matter:
+run it with the experiments flag off, as every user has it.
+
+Steps:
+
+1. Open a Java or Kotlin app project and finish the sync.
+2. Open `app/src/main/AndroidManifest.xml` and add, inside `<manifest>`,
+   `<permission android:name="com.example.MY_PERM" />`.
+3. Save (Ctrl+S or the Save action). Change nothing else.
+4. In a source file, type `Manifest.permission.MY_PERM` (import `com.example.Manifest`, or the
+   project's applicationId) and wait for diagnostics to settle.
+5. Repeat step 3 on a Kotlin file with a whitespace-only edit.
+
+Expected:
+
+1. After step 3 Build Output shows a Gradle generate-sources run, without a resource being saved.
+2. After step 4 the reference resolves with no "cannot find symbol" diagnostic.
+3. After step 5 no Gradle run appears: a source-only save still skips it.

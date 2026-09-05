@@ -164,9 +164,13 @@ sealed interface SessionFailure {
 	 *
 	 * @property message why the deploy or reload failed, already user-facing - the status surface
 	 *   shows it verbatim.
+	 * @property appNotRunning true when the only thing wrong is that the user's app is not open,
+	 *   which one tap fixes. The status bar names that tap instead of sending the reader to Build
+	 *   Output for a fix that fits on the bar.
 	 */
 	data class DeployError(
 		val message: String,
+		val appNotRunning: Boolean = false,
 	) : SessionFailure
 
 	/**

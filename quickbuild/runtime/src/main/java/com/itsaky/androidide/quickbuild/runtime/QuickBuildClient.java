@@ -57,6 +57,9 @@ final class QuickBuildClient implements ServiceConnection {
 	/** Delay for the next rebind; reset to the minimum on every successful connect. */
 	private int rebindDelayMs = REBIND_MIN_DELAY_MS;
 
+	/** True once a connect rejection has been reported, so the backoff loop does not repeat an expected message at W for as long as CoGo has no session. Cleared on a successful connect, which is the only event that makes the next rejection newsworthy again. */
+	private boolean connectRejectionReported;
+
 	/** The callback CoGo drives; every method hands straight to the runtime's guarded handlers. */
 	private final IQuickBuildTarget.Stub target = new IQuickBuildTarget.Stub() {
 
@@ -306,6 +309,7 @@ final class QuickBuildClient implements ServiceConnection {
 			synchronized (this) {
 				rebindDelayMs = REBIND_MIN_DELAY_MS;
 			}
+			connectRejectionReported = false;
 			RuntimeLog.i("connected to CoGo (running gen " + runtime.runningGeneration() + ")");
 		} catch (RemoteException error) {
 			RuntimeLog.e("connect() to CoGo failed", error);
@@ -313,7 +317,16 @@ final class QuickBuildClient implements ServiceConnection {
 		} catch (RuntimeException error) {
 			// SecurityException (and any other binder-propagatable runtime exception) from
 			// the host: expected when CoGo has no live session. Continue standalone.
-			RuntimeLog.w("CoGo rejected connect(); continuing standalone", error);
+			//
+			// Reported once per streak. The backoff loop re-attempts for as long as the app
+			// outlives its session, so repeating an EXPECTED rejection at W buries the real
+			// entries around it - an orphaned app produced 14 of these in one restart window.
+			if (connectRejectionReported) {
+				RuntimeLog.d("CoGo rejected connect() again; still standalone: " + error);
+			} else {
+				connectRejectionReported = true;
+				RuntimeLog.w("CoGo rejected connect(); continuing standalone", error);
+			}
 			abandonHandshake(connected);
 		}
 	}
