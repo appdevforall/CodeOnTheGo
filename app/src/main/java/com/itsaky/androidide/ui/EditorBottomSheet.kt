@@ -114,6 +114,19 @@ class EditorBottomSheet
 		private var measuredStatusHeight = 0f
 
 		/**
+		 * The part of the sheet above the header: its status-bar top padding and the divider row.
+		 *
+		 * The collapsed peek is the header height alone, so while the sheet is collapsed this much
+		 * of the header hangs below the window. The header carries it as bottom padding, so the
+		 * status block is laid out in the part that is on screen, and [collapsedHeight] adds it
+		 * back when the block needs more room than the floor leaves visible. Zero before the sheet
+		 * has been laid out. The inflated root sits inside this view's padding, so its own top is
+		 * the padding; the header's top is relative to that root.
+		 */
+		private val chromeAboveHeader: Int
+			get() = binding.root.top + binding.headerContainer.top
+
+		/**
 		 * The collapsed header's height.
 		 *
 		 * A fixed dp cannot hold text. At a 2x font scale the longest Quick Build status lines
@@ -122,7 +135,7 @@ class EditorBottomSheet
 		 * kept as a floor so ordinary text keeps the familiar height; larger text raises it.
 		 */
 		private val collapsedHeight: Float
-			get() = maxOf(minCollapsedHeight, measuredStatusHeight)
+			get() = collapsedHeaderHeightPx(minCollapsedHeight, measuredStatusHeight, chromeAboveHeader)
 		private val behavior: BottomSheetBehavior<EditorBottomSheet> by lazy {
 			BottomSheetBehavior.from(this).apply {
 				isFitToContents = false
@@ -151,13 +164,15 @@ class EditorBottomSheet
 		private var currentObservedFragment: Fragment? = null
 
 		// BottomSheetBehavior repositions the sheet after layout without triggering onSlide,
-		// so refresh the FABs afterward. The peek goes with them: the chrome above the header is
-		// only known once the sheet has been laid out.
+		// so refresh the FABs afterward. The peek and the header's padding go with them: the
+		// chrome above the header is only known once the sheet has been laid out, and its
+		// status-bar padding can land after the header was first padded.
 		private val fabLayoutChangeListener =
 			OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
 				post {
 					updateFabVisibility(viewModel.sheetState.value)
 					applyPeekHeight()
+					applyCollapsedHeaderChrome()
 				}
 			}
 
@@ -457,6 +472,17 @@ class EditorBottomSheet
 		}
 
 		/**
+		 * Pads the collapsed header so its content box ends at the window, not [chromeAboveHeader]
+		 * px below it. Only while collapsed: mid-slide the padding belongs to [onSlide].
+		 */
+		private fun applyCollapsedHeaderChrome() {
+			if (behavior.state != BottomSheetBehavior.STATE_COLLAPSED) {
+				return
+			}
+			binding.headerContainer.updatePaddingRelative(bottom = insetBottom + chromeAboveHeader)
+		}
+
+		/**
 		 * Re-measures the build-status block and, if it now needs more room than the header has,
 		 * grows the header to fit it.
 		 *
@@ -510,7 +536,7 @@ class EditorBottomSheet
 
 						binding.root.updatePadding(bottom = anchorOffset + insetBottom)
 						binding.headerContainer.apply {
-							updatePaddingRelative(bottom = paddingBottom + insetBottom)
+							updatePaddingRelative(bottom = insetBottom + chromeAboveHeader)
 							updateLayoutParams<LayoutParams> {
 								height = (collapsedHeight + insetBottom).roundToInt()
 							}
@@ -527,7 +553,7 @@ class EditorBottomSheet
 			behavior.expandedOffset = 0
 			binding.root.updatePadding(bottom = insetBottom)
 			binding.headerContainer.apply {
-				updatePaddingRelative(bottom = insetBottom)
+				updatePaddingRelative(bottom = insetBottom + chromeAboveHeader)
 				updateLayoutParams<LayoutParams> {
 					height = (collapsedHeight + insetBottom).roundToInt()
 				}
@@ -551,8 +577,10 @@ class EditorBottomSheet
 				updateLayoutParams<LayoutParams> {
 					height = ((collapsedHeight + padding) * heightScale).roundToInt()
 				}
+				// The chrome padding goes with the header: as the sheet rises the header shrinks to
+				// nothing, and none of it hangs below the window any more.
 				updatePaddingRelative(
-					bottom = padding.roundToInt(),
+					bottom = (padding + chromeAboveHeader * heightScale).roundToInt(),
 				)
 			}
 
@@ -841,3 +869,16 @@ class EditorBottomSheet
 			binding.copyDiagnosticsFab.translationY = translationY
 		}
 	}
+
+/**
+ * The collapsed header's height: [floorPx], unless the status block needs more.
+ *
+ * [chromePx] of the header hang below the window while the sheet is collapsed (see
+ * `chromeAboveHeader`), so a block of [statusPx] needs a header of `statusPx + chromePx` to be
+ * fully on screen. A block that has not been measured yet ([statusPx] <= 0) keeps the floor.
+ */
+internal fun collapsedHeaderHeightPx(
+	floorPx: Float,
+	statusPx: Float,
+	chromePx: Int,
+): Float = if (statusPx <= 0f) floorPx else maxOf(floorPx, statusPx + chromePx)
