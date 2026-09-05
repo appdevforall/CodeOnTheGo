@@ -11,14 +11,14 @@
 	xmlns:tools="http://schemas.android.com/tools"
 	android:id="@+id/build_status_layout"
 	android:layout_width="match_parent"
-	android:layout_height="wrap_content"
-	android:minHeight="@dimen/editor_sheet_collapsed_height">
+	android:layout_height="wrap_content">
 
 	<!-- Three lines, not one: the Quick Build status strings name a remedy, and a remedy the user cannot read is not one.
 		There is no second surface - expanding the sheet scales this container's height by 1 - sheetOffset (EditorBottomSheet.onSlide),
 		so swiping up hides the line rather than revealing more of it. The collapsed header takes its height from what this block
-		measures, with the dimen as a floor, so three lines at a 2x font scale get the room they need instead of being clipped against
-		a fixed 100dp. -->
+		measures, with editor_sheet_collapsed_height as a floor, so three lines at a 2x font scale get the room they need instead
+		of being clipped against a fixed 100dp. No minHeight here: the floor lives in EditorBottomSheet, and the block is included
+		with match_parent so it fills the header's on-screen content box rather than the part that hangs below the window. -->
 	<TextView
 		android:id="@+id/statusText"
 		android:layout_width="0dp"
