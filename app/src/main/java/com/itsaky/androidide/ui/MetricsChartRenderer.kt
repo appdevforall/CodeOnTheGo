@@ -19,6 +19,7 @@ package com.itsaky.androidide.ui
 
 import android.graphics.Bitmap
 import android.os.SystemClock
+import android.view.MotionEvent
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
 import com.github.mikephil.charting.components.AxisBase
@@ -26,6 +27,8 @@ import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
+import com.github.mikephil.charting.listener.ChartTouchListener
+import com.github.mikephil.charting.listener.OnChartGestureListener
 import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.resolveAttr
@@ -45,10 +48,20 @@ import kotlin.math.roundToLong
  * [SafeLineChart].
  */
 abstract class MetricsChartRenderer(
-	private val sampleIntervalMillis: Long,
+	// A provider, not a value: the sampling rate is user-settable, and a captured interval leaves
+	// the axis labelling ages with the old spacing -- reading -54s where the sample is really 295
+	// seconds old.
+	private val sampleIntervalMillis: () -> Long,
 	private val annotations: MetricsAnnotationStore? = null,
 	private val nowMillis: () -> Long = SystemClock::elapsedRealtime,
 ) {
+	/**
+	 * Invoked when the chart's x axis is tapped, which opens the sampling-rate chooser
+	 * (ADFA-5486). Set by the host; the axis band is worked out here because only the chart knows
+	 * where it drew it.
+	 */
+	var onXAxisTap: (() -> Unit)? = null
+
 	/**
 	 * The attached chart, or `null` when no carousel page is bound to this renderer.
 	 */
@@ -122,6 +135,8 @@ abstract class MetricsChartRenderer(
 			// The right axis carries the labels; the left is unused.
 			axisLeft.isEnabled = false
 
+			onChartGestureListener = XAxisTapListener(this)
+
 			xAxis.valueFormatter = ElapsedTimeFormatter(sampleIntervalMillis)
 			// One label per 15 samples keeps the window readable without crowding.
 			xAxis.granularity = X_LABEL_GRANULARITY_SAMPLES
@@ -149,18 +164,69 @@ abstract class MetricsChartRenderer(
 	}
 
 	/**
+	 * Turns a tap in the x-axis band into [onXAxisTap].
+	 *
+	 * The axis is drawn by the chart rather than being a view of its own, so there is nothing to
+	 * attach a click listener to. `contentTop` is the top of the plotting area, and the axis labels
+	 * sit above it, so a tap higher than that landed on the axis.
+	 */
+	private inner class XAxisTapListener(
+		private val chart: SafeLineChart,
+	) : OnChartGestureListener {
+		override fun onChartSingleTapped(me: MotionEvent?) {
+			val y = me?.y ?: return
+			if (y <= chart.viewPortHandler.contentTop()) {
+				onXAxisTap?.invoke()
+			}
+		}
+
+		override fun onChartGestureStart(
+			me: MotionEvent?,
+			lastPerformedGesture: ChartTouchListener.ChartGesture?,
+		) = Unit
+
+		override fun onChartGestureEnd(
+			me: MotionEvent?,
+			lastPerformedGesture: ChartTouchListener.ChartGesture?,
+		) = Unit
+
+		override fun onChartLongPressed(me: MotionEvent?) = Unit
+
+		override fun onChartDoubleTapped(me: MotionEvent?) = Unit
+
+		override fun onChartFling(
+			me1: MotionEvent?,
+			me2: MotionEvent?,
+			velocityX: Float,
+			velocityY: Float,
+		) = Unit
+
+		override fun onChartScale(
+			me: MotionEvent?,
+			scaleX: Float,
+			scaleY: Float,
+		) = Unit
+
+		override fun onChartTranslate(
+			me: MotionEvent?,
+			dX: Float,
+			dY: Float,
+		) = Unit
+	}
+
+	/**
 	 * Labels the x axis by age rather than by sample index, which is meaningless to a reader and
 	 * would run to 3599 at the current retention.
 	 */
 	private class ElapsedTimeFormatter(
-		private val sampleIntervalMillis: Long,
+		private val sampleIntervalMillis: () -> Long,
 	) : IAxisValueFormatter {
 		override fun getFormattedValue(
 			value: Float,
 			axis: AxisBase?,
 		): String {
 			val newestIndex = (axis?.mAxisMaximum ?: value)
-			val secondsAgo = ((newestIndex - value) * sampleIntervalMillis / 1000f).roundToLong()
+			val secondsAgo = ((newestIndex - value) * sampleIntervalMillis() / 1000f).roundToLong()
 			return if (secondsAgo <= 0L) "now" else "-%ds".format(secondsAgo)
 		}
 	}
@@ -210,12 +276,13 @@ abstract class MetricsChartRenderer(
 
 		chart.xAxis.removeAllLimitLines()
 
-		val bufferSpanMillis = (newestIndex.toLong() + 1L) * sampleIntervalMillis
+		val interval = sampleIntervalMillis()
+		val bufferSpanMillis = (newestIndex.toLong() + 1L) * interval
 		val now = nowMillis()
 		val markerColor = chart.context.resolveAttr(R.attr.colorOnSurface)
 
 		store.recentAnnotations(bufferSpanMillis).forEach { annotation ->
-			val samplesAgo = (now - annotation.atMillis).toFloat() / sampleIntervalMillis
+			val samplesAgo = (now - annotation.atMillis).toFloat() / interval
 			val x = newestIndex - samplesAgo
 			if (x < 0f) {
 				return@forEach

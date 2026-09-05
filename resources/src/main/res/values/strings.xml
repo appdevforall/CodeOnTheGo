@@ -1679,6 +1679,9 @@
 	<string name="metrics_title_network">Network traffic</string>
 	<string name="metrics_carousel_undocked">Metrics are in a floating window.\nTap to bring them back.</string>
 	<string name="metrics_carousel_window_title">Metrics</string>
+	<string name="metrics_sampling_rate_title">Sampling rate</string>
+	<string name="metrics_sampling_rate_entry">Every %1$s</string>
+	<string name="metrics_sampling_rate_unavailable">%1$s (needs a 64-bit device)</string>
 	<string name="msg_metrics_snapshot_failed">Couldn\'t save the chart image.</string>
 	<string name="metrics_network_received">Received</string>
 	<string name="metrics_network_transmitted">Sent</string>

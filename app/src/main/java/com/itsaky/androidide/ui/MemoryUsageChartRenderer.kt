@@ -51,8 +51,9 @@ class MemoryUsageChartRenderer(
 	private val usagesProvider: () -> Array<ProcessMemoryInfo>,
 	private val lineColorFor: (ProcessMemoryInfo) -> Int,
 	annotations: MetricsAnnotationStore? = null,
+	sampleIntervalMillis: () -> Long = { MemoryUsageWatcher.DEFAULT_UPDATE_INTERVAL },
 ) : MetricsChartRenderer(
-		sampleIntervalMillis = MemoryUsageWatcher.DEFAULT_UPDATE_INTERVAL,
+		sampleIntervalMillis = sampleIntervalMillis,
 		annotations = annotations,
 	) {
 	/**

@@ -20,11 +20,14 @@ package com.itsaky.androidide.ui
 import android.widget.Toast
 import androidx.annotation.UiThread
 import androidx.viewpager2.widget.ViewPager2
+import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.MetricsSamplingRates
 import com.itsaky.androidide.utils.MetricsSnapshot
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 
@@ -53,12 +56,14 @@ class MetricsCarouselController(
 			usagesProvider = { memoryUsageWatcher.getMemoryUsages() },
 			lineColorFor = lineColorFor,
 			annotations = annotations,
+			sampleIntervalMillis = { memoryUsageWatcher.updateInterval },
 		)
 
 	private val networkRenderer =
 		NetworkUsageChartRenderer(
 			usageProvider = { networkUsageWatcher.getUsage() },
 			annotations = annotations,
+			sampleIntervalMillis = { networkUsageWatcher.updateInterval },
 		)
 
 	private val pages =
@@ -114,6 +119,11 @@ class MetricsCarouselController(
 		// onPageSelected does not fire for the page the carousel opens on.
 		showTitleFor(binding.metricsPager.currentItem)
 
+		// A tap on the x axis opens the sampling-rate chooser (ADFA-5486). The axis is drawn by the
+		// chart, not a view of its own, so the strip of the pager it occupies is the target.
+		memoryRenderer.onXAxisTap = { showSamplingRateDialog() }
+		networkRenderer.onXAxisTap = { showSamplingRateDialog() }
+
 		// Long-press the title to export the chart. The gestures over the chart itself are spoken
 		// for -- paging, panning a zoomed chart, and the two-finger tap that undocks -- and the
 		// title is an unambiguous target that works the same docked or floating.
@@ -139,6 +149,8 @@ class MetricsCarouselController(
 			networkUsageWatcher.listener = null
 		}
 
+		memoryRenderer.onXAxisTap = null
+		networkRenderer.onXAxisTap = null
 		binding?.metricsTitle?.setOnLongClickListener(null)
 		pageCallback?.let { binding?.metricsPager?.unregisterOnPageChangeCallback(it) }
 		pageCallback = null
@@ -148,6 +160,68 @@ class MetricsCarouselController(
 		networkRenderer.detach()
 		binding = null
 	}
+
+	/**
+	 * Offers the sampling rates this device supports, and shows the ones it does not so the reason
+	 * is visible rather than the faster rates simply being absent (ADFA-5486).
+	 */
+	@UiThread
+	fun showSamplingRateDialog() {
+		val context = binding?.root?.context ?: return
+		val rates = MetricsSamplingRates.ratesFor(IDEBuildConfigProvider.getInstance().deviceArch)
+		val current = memoryUsageWatcher.updateInterval
+
+		val labels =
+			rates
+				.map { rate ->
+					val label = context.getString(string.metrics_sampling_rate_entry, formatInterval(rate.intervalMillis))
+					if (rate.isAvailable) label else context.getString(string.metrics_sampling_rate_unavailable, label)
+				}.toTypedArray<CharSequence>()
+
+		val checked = rates.indexOfFirst { it.intervalMillis == current }
+
+		val dialog =
+			DialogUtils
+				.newMaterialDialogBuilder(context)
+				.setTitle(string.metrics_sampling_rate_title)
+				.setSingleChoiceItems(labels, checked) { dismissable, which ->
+					val rate = rates[which]
+					if (rate.isAvailable) {
+						setSamplingInterval(rate.intervalMillis)
+						dismissable.dismiss()
+					}
+					// An unavailable rate stays listed and does nothing; the message below says why.
+				}
+				// No setMessage: an AlertDialog shows either a message or a list, never both, and
+				// the message silently wins. The unavailable entries carry the explanation instead.
+				.setNegativeButton(string.cancel) { dismissable, _ -> dismissable.dismiss() }
+				.show()
+
+		// Grey the rates this device cannot use, so the list shows what the hardware costs.
+		dialog.listView?.let { list ->
+			rates.forEachIndexed { index, rate ->
+				list.getChildAt(index)?.isEnabled = rate.isAvailable
+			}
+		}
+	}
+
+	/**
+	 * Applies a new sampling interval to both watchers. Their histories are discarded, because a
+	 * buffer holding samples taken at two rates would misdate the older ones.
+	 */
+	@UiThread
+	private fun setSamplingInterval(intervalMillis: Long) {
+		memoryUsageWatcher.updateInterval = intervalMillis
+		networkUsageWatcher.updateInterval = intervalMillis
+		refresh()
+	}
+
+	private fun formatInterval(intervalMillis: Long): String =
+		if (intervalMillis < 1_000L) {
+			"%.1fs".format(intervalMillis / 1000.0)
+		} else {
+			"%ds".format(intervalMillis / 1_000L)
+		}
 
 	/**
 	 * Writes the visible chart to an image and offers it to another app (ADFA-5486).
