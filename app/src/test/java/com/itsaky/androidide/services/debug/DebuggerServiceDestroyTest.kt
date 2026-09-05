@@ -12,16 +12,6 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * ADFA-2648: the debug toolbar stayed on screen over other apps because a destroyed [DebuggerService]
- * was still reachable and still able to add its overlay window, while the collector that hides it on a
- * foreground change had died with the service's scope.
- *
- * The activity-side half of the fix (dropping the reference on unbind, since `unbindService` never
- * fires `onServiceDisconnected`) needs the whole editor activity to exercise and is covered on-device.
- * This pins the service-side half: after destroy, the instance holds no overlay manager, so a stale
- * caller's [DebuggerService.showOverlay] is a no-op rather than an orphaned window.
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [29])
 class DebuggerServiceDestroyTest {
@@ -49,7 +39,6 @@ class DebuggerServiceDestroyTest {
 		controller.destroy()
 
 		assertThat(service.hasOverlayManager).isFalse()
-		// A stale reference calling this after destroy is exactly the reported path; it must do nothing.
 		service.showOverlay()
 	}
 }

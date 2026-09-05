@@ -46,11 +46,6 @@ class DebuggerService : Service() {
 
 	internal var targetPackage: String? = null
 
-	/**
-	 * Whether this instance can still put the overlay on screen. False after [onDestroy], which is the
-	 * observable half of the ADFA-2648 invariant: a destroyed service must never add a window, because
-	 * the collector that would remove it again died with the service.
-	 */
 	internal val hasOverlayManager: Boolean
 		get() = overlayManager != null
 
@@ -112,9 +107,6 @@ class DebuggerService : Service() {
 		serviceScope.cancelIfActive("DebuggerService is being destroyed")
 
 		detachOverlay()
-		// The collector that hides the overlay on a foreground change died with serviceScope above. A
-		// caller still holding this instance -- unbindService() never fires onServiceDisconnected -- must
-		// not be able to add a window nothing will ever remove (ADFA-2648).
 		overlayManager = null
 		super.onDestroy()
 
