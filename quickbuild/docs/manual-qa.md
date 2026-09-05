@@ -488,14 +488,16 @@ Expected:
    so anything that overflows is simply lost - record it as a failure rather than swiping to
    check.
 
-   The hint has to be legible, not merely present in the hierarchy. An earlier defect showed up
-   as a missing hint: the status block was measured against an UNSPECIFIED height, which
-   ConstraintLayout answers with a height that leaves the hint out. The collapsed peek is the
-   header height alone, by decision (2026-09-04): the sheet keeps its earlier on-screen height,
-   and the status-bar padding the sheet carries above the header is not added to the peek, so the
-   bottom of the header can sit below the window and clip the hint on some devices. Record
-   whether the hint is visible at each font scale, and which strings overflow on which screen
-   width.
+   The hint has to be legible, not merely present in the hierarchy. Two earlier defects showed
+   up as a missing or half-visible hint: the status block was measured against an UNSPECIFIED
+   height, which ConstraintLayout answers with a height that leaves the hint out; and the
+   collapsed peek is the header height alone, by decision (2026-09-04), while the sheet carries
+   its status-bar padding above the header, so the bottom of the header hangs below the window.
+   At 1.0 the hint happened to end at the window edge; at 2.0 the taller text pushed its lower
+   half under the navigation bar (A06, 2026-09-05). The header now carries that hidden strip as
+   bottom padding, so the block is laid out in the part that is on screen, and the header grows
+   by the strip only when the block needs more than the floor leaves visible. Record whether the
+   hint is fully visible at each font scale, and which strings overflow on which screen width.
 2. The dropdown's rows and the dialog's buttons stay on screen and reachable.
 3. Nothing overlaps the status bar at the top or the navigation bar at the bottom.
 
