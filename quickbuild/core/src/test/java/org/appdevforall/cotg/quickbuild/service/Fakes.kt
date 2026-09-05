@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.service
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.data.CompileOutput
@@ -14,7 +15,11 @@ import org.appdevforall.cotg.quickbuild.data.RelinkOutput
 import org.appdevforall.cotg.quickbuild.domain.reload.GenerationStore
 import org.appdevforall.cotg.quickbuild.service.deploy.DeployResult
 import org.appdevforall.cotg.quickbuild.service.deploy.DeploySender
+import org.appdevforall.cotg.quickbuild.service.session.QuickBuildHistoryStore
 import java.io.File
+import java.util.Collections
+import java.util.concurrent.Executors
+import kotlin.coroutines.CoroutineContext
 
 /** Scripted [QuickBuildDaemon]: every op records its arguments and replies per script. */
 class FakeDaemon : QuickBuildDaemon {
@@ -153,6 +158,12 @@ class FakeDeploy : DeploySender {
 	var disconnects: Boolean = true
 
 	/**
+	 * When set, every [deploy] throws it after recording the call. Stands in for a binder
+	 * edge the sender did not classify into a [DeployResult] - the contract is throw-capable.
+	 */
+	var deployError: Throwable? = null
+
+	/**
 	 * Generation the fake "relaunched app" reconnects at, given the last deployed
 	 * generation; return null for a relaunch that never reconnects. Defaults to a
 	 * clean restart (reconnects at the deployed generation).
@@ -167,6 +178,7 @@ class FakeDeploy : DeploySender {
 		metadataJson: String,
 	): DeployResult {
 		calls += Call(generation, dexFile, arscFile, assetsZip, metadataJson)
+		deployError?.let { throw it }
 		return resultQueue.removeFirstOrNull() ?: result
 	}
 
@@ -211,4 +223,65 @@ class FakePaths(
 	override val projectScratchRoot = File(baseDir, "app-private/quickbuild-scratch")
 
 	override fun daemonEnvironment(): Map<String, String> = emptyMap()
+}
+
+/**
+ * In-memory [QuickBuildHistoryStore]. Defaults to `hasUsedQuickBuild = true` (the "warm
+ * path") so the many [QuickBuildSessionManagerTest] cases exercising prebuild/tap
+ * mechanics don't need to touch the gate; tests of the gate itself flip it to false.
+ */
+class FakeQuickBuildHistoryStore : QuickBuildHistoryStore {
+	private var used = true
+
+	/**
+	 * Thrown by [setHasUsedQuickBuild] when set. Stands in for any real store failure
+	 * (no project open, unwritable preferences): recording history is bookkeeping and must
+	 * never be able to swallow the tap that triggered it.
+	 */
+	var writeError: Throwable? = null
+
+	/** Runs on every [setHasUsedQuickBuild], so a test can observe WHEN the write lands. */
+	var onWrite: () -> Unit = {}
+
+	override fun hasUsedQuickBuild(): Boolean = used
+
+	override fun setHasUsedQuickBuild(used: Boolean) {
+		onWrite()
+		writeError?.let { throw it }
+		this.used = used
+	}
+}
+
+/**
+ * Dispatcher that runs every block on one named thread and counts the hops.
+ *
+ * Lets a test assert that work was moved off the caller's thread, which is the rule the
+ * single session dispatcher lives by (concurrency.md: nothing on that thread may block).
+ */
+class RecordingIoDispatcher : CoroutineDispatcher() {
+	/** Names of the threads blocks actually ran on; one entry per distinct thread. */
+	val threads: MutableSet<String> = Collections.synchronizedSet(mutableSetOf<String>())
+
+	/** How many blocks were handed to this dispatcher; zero means nothing hopped. */
+	@Volatile
+	var dispatches: Int = 0
+		private set
+
+	private val executor = Executors.newSingleThreadExecutor { Thread(it, THREAD_NAME) }
+
+	override fun dispatch(
+		context: CoroutineContext,
+		block: Runnable,
+	) {
+		dispatches++
+		executor.execute {
+			threads += Thread.currentThread().name
+			block.run()
+		}
+	}
+
+	companion object {
+		/** The one thread this dispatcher runs on, so a test can name it in an assertion. */
+		const val THREAD_NAME = "qb-test-io"
+	}
 }
