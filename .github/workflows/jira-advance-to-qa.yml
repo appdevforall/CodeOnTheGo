@@ -29,21 +29,10 @@ jobs:
           [[ "$BRANCH" =~ ADFA-[0-9]+ ]] || { echo "::warning::No ADFA key in $BRANCH"; exit 0; }
           KEY="${BASH_REMATCH[0]}"
 
-          # github.event.review.author_association is computed for an anonymous
-          # viewer. This org publishes no memberships, so a member reads as
-          # CONTRIBUTOR however much write access they hold, and only the direct
-          # collaborators read as COLLABORATOR. Ask the repository who may push
-          # instead. This endpoint answers "write" for maintain and "read" for
-          # triage, so the two names below cover every role that may push.
-          #
-          # The question is asked here rather than in if: because a skipped job
-          # runs no steps, so it cannot say why it declined. Every decline below
-          # exits 0: this is a convenience, and it never reddens a PR.
-          #
-          # This read needs no scope. Run 33932341806 asked the same endpoint
-          # from a job holding permissions: {} and got "write" for both a
-          # team-derived member and a direct collaborator, so the workflow
-          # keeps granting GITHUB_TOKEN nothing.
+          # author_association is an anonymous-viewer value: private org members
+          # read as CONTRIBUTOR, so it cannot say who may push. maintain reports
+          # here as write, triage as read. Asked in the step, not in if:, because
+          # a skipped job cannot warn.
           PERM=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$APPROVER/permission" --jq .permission) \
             || { echo "::warning::$KEY: cannot read repository access for $APPROVER, ticket untouched"; exit 0; }
           case "$PERM" in
