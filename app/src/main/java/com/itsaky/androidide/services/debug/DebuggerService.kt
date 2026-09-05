@@ -139,7 +139,7 @@ class DebuggerService : Service() {
 			overlayManager =
 				DebugOverlayManager.create(
 					ctx = this,
-					displayId = displayId
+					displayId = displayId,
 				)
 		}
 	}
