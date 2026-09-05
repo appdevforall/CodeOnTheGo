@@ -119,30 +119,6 @@ abstract class MetricsChartRenderer(
 	abstract fun rebuild()
 
 	/**
-	 * Whether a horizontal drag starting at this screen position should pan the chart rather than
-	 * page the carousel.
-	 *
-	 * True only inside the plot area of a chart that is zoomed in: at rest there is nothing to pan
-	 * to, so the swipe belongs to the carousel, and the strip below the x axis is never the chart's.
-	 */
-	@UiThread
-	fun handlesHorizontalDragAt(
-		rawX: Float,
-		rawY: Float,
-	): Boolean {
-		val chart = this.chart ?: return false
-		if (!userHasZoomed) {
-			return false
-		}
-
-		val location = IntArray(2)
-		chart.getLocationOnScreen(location)
-		val x = rawX - location[0]
-		val y = rawY - location[1]
-		return chart.viewPortHandler.contentRect.contains(x, y)
-	}
-
-	/**
 	 * Returns the chart to its unzoomed state.
 	 */
 	@UiThread

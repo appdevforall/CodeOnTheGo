@@ -125,12 +125,10 @@ class MetricsCarouselController(
 
 		// A tap on the x axis opens the sampling-rate chooser (ADFA-5486). The axis is drawn by the
 		// chart, not a view of its own, so the strip of the pager it occupies is the target.
-		binding.root.horizontalDragBelongsToChart = { rawX, rawY ->
-			currentRenderer()?.handlesHorizontalDragAt(rawX, rawY) ?: false
-		}
-		binding.root.onPagingEnabledChanged = { enabled ->
-			binding.metricsPager.isUserInputEnabled = enabled
-		}
+		// Paging is by the arrows only. A swipe in the plot competes with panning a zoomed chart
+		// and with the editor's drawer gesture, and losing that race intermittently made the
+		// carousel feel broken; with touch paging off, a horizontal drag is unambiguously a pan.
+		binding.metricsPager.isUserInputEnabled = false
 
 		memoryRenderer.onXAxisTap = { showSamplingRateDialog() }
 		networkRenderer.onXAxisTap = { showSamplingRateDialog() }
@@ -163,9 +161,6 @@ class MetricsCarouselController(
 			networkUsageWatcher.listener = null
 		}
 
-		binding?.root?.horizontalDragBelongsToChart = null
-		binding?.root?.onPagingEnabledChanged = null
-		binding?.metricsPager?.isUserInputEnabled = true
 		memoryRenderer.onXAxisTap = null
 		networkRenderer.onXAxisTap = null
 		binding?.metricsSnapshot?.setOnClickListener(null)

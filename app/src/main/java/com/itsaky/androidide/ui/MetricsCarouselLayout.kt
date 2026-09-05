@@ -28,11 +28,10 @@ import kotlin.math.hypot
 /**
  * Host for the editor's metrics carousel, which claims horizontal gestures that begin inside it.
  *
- * The carousel pages with a horizontal swipe, but a left-to-right swipe elsewhere in the editor
- * opens the navigation drawer -- documented behaviour, shown in the editor's own onboarding text.
- * Without this, the carousel could only page forwards. Asking every ancestor not to intercept, for
- * the rest of the gesture, hands horizontal drags that start in this strip to [ViewPager2] and
- * leaves the drawer gesture untouched everywhere else.
+ * A left-to-right swipe elsewhere in the editor opens the navigation drawer -- documented
+ * behaviour, shown in the editor's own onboarding text. Asking every ancestor not to intercept, for
+ * the rest of the gesture, keeps horizontal drags that start in this strip for the chart to pan
+ * with, and leaves the drawer gesture untouched everywhere else.
  *
  * This covers ancestors that intercept through the view hierarchy. The editor also runs an
  * activity-level [android.view.GestureDetector] from `dispatchTouchEvent`, which never calls
@@ -55,20 +54,8 @@ class MetricsCarouselLayout
 		 */
 		var onTwoFingerTap: (() -> Unit)? = null
 
-		/**
-		 * Asked, at the start of each gesture, whether a horizontal drag from this screen position
-		 * belongs to the chart (panning a zoomed plot) rather than to the carousel (paging).
-		 */
-		var horizontalDragBelongsToChart: ((Float, Float) -> Boolean)? = null
-
 		/** Invoked as each gesture begins. */
 		var onTouchDown: (() -> Unit)? = null
-
-		/**
-		 * Called with whether the carousel should accept touch paging for the gesture just
-		 * starting, and again with `true` when it ends.
-		 */
-		var onPagingEnabledChanged: ((Boolean) -> Unit)? = null
 
 		private var twoFingerDownAt = 0L
 		private var twoFingerDownX = 0f
@@ -84,39 +71,10 @@ class MetricsCarouselLayout
 		 */
 		override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
 			trackTwoFingerTap(ev)
-			routeHorizontalDrag(ev)
-			return super.dispatchTouchEvent(ev)
-		}
-
-		/**
-		 * Decides, once per gesture, who owns a horizontal drag.
-		 *
-		 * The carousel and a zoomed chart both want horizontal drags, and only one can have them.
-		 * The decision is made on the way down, before either has seen a move, by turning the
-		 * pager's touch paging off for the gesture: with it off the drag reaches the chart and pans
-		 * it. Inside the plot of a zoomed chart the chart wins; everywhere else -- including the
-		 * strip below the x axis, and the whole chart at rest -- the carousel does.
-		 */
-		private fun routeHorizontalDrag(ev: MotionEvent) {
-			when (ev.actionMasked) {
-				MotionEvent.ACTION_DOWN -> {
-					onTouchDown?.invoke()
-					val chartPans = horizontalDragBelongsToChart?.invoke(ev.rawX, ev.rawY) ?: false
-					onPagingEnabledChanged?.invoke(!chartPans)
-				}
-
-				MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-					onPagingEnabledChanged?.invoke(true)
-				}
-			}
-		}
-
-		override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
 			if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
-				// Cleared by the framework on the next ACTION_DOWN, so this lasts exactly one gesture.
-				parent?.requestDisallowInterceptTouchEvent(true)
+				onTouchDown?.invoke()
 			}
-			return super.onInterceptTouchEvent(ev)
+			return super.dispatchTouchEvent(ev)
 		}
 
 		/**
