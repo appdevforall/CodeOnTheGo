@@ -56,7 +56,7 @@ import kotlin.math.roundToLong
  */
 class NetworkUsageChartRenderer(
 	private val usageProvider: () -> NetworkUsage,
-) : MetricsChartRenderer() {
+) : MetricsChartRenderer(sampleIntervalMillis = NetworkUsageWatcher.DEFAULT_UPDATE_INTERVAL) {
 	/**
 	 * Rebuilds both series from the full sample history.
 	 */

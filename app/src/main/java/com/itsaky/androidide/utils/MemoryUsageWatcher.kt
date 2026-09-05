@@ -85,7 +85,12 @@ class MemoryUsageWatcher
 				}
 			}
 
-			const val MAX_USAGE_ENTRIES = 30
+			/**
+			 * Samples retained per series: one hour at [DEFAULT_UPDATE_INTERVAL] (ADFA-5486).
+			 * About 29KB of longs per series, so the cost is in drawing rather than holding --
+			 * see MetricsChartRenderer, which shows a window of this rather than all of it.
+			 */
+			const val MAX_USAGE_ENTRIES = 3600
 			const val DEFAULT_UPDATE_INTERVAL = 1000L
 			private val log = LoggerFactory.getLogger(MemoryUsageWatcher::class.java)
 		}

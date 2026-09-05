@@ -19,10 +19,13 @@ package com.itsaky.androidide.ui
 
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
+import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.resolveAttr
+import kotlin.math.roundToLong
 
 /**
  * Shared behaviour for the charts on the editor's metrics carousel.
@@ -37,7 +40,9 @@ import com.itsaky.androidide.utils.resolveAttr
  * All methods must be called on the UI thread. MPAndroidChart is not thread-safe; see
  * [SafeLineChart].
  */
-abstract class MetricsChartRenderer {
+abstract class MetricsChartRenderer(
+	private val sampleIntervalMillis: Long,
+) {
 	/**
 	 * The attached chart, or `null` when no carousel page is bound to this renderer.
 	 */
@@ -103,6 +108,47 @@ abstract class MetricsChartRenderer {
 
 			// The right axis carries the labels; the left is unused.
 			axisLeft.isEnabled = false
+
+			xAxis.valueFormatter = ElapsedTimeFormatter(sampleIntervalMillis)
+			// One label per 15 samples keeps the window readable without crowding.
+			xAxis.granularity = X_LABEL_GRANULARITY_SAMPLES
+			xAxis.isGranularityEnabled = true
+		}
+	}
+
+	/**
+	 * Scrolls the viewport to the newest samples, showing [VISIBLE_SAMPLES] of them.
+	 *
+	 * The watchers retain an hour of history (ADFA-5486), far more than is legible at once in a
+	 * 200dp strip and more than is cheap to draw -- MPAndroidChart clips drawing to the visible x
+	 * range, so a window keeps the cost independent of how much is retained.
+	 */
+	private fun showNewestWindow(chart: SafeLineChart) {
+		// xMax is the newest sample's index. entryCount would be the total across every series --
+		// 7200 for the network chart's two -- which would scroll the window off the end of the data.
+		val newestIndex = chart.data?.xMax ?: return
+		if (newestIndex < VISIBLE_SAMPLES) {
+			return
+		}
+
+		chart.setVisibleXRangeMaximum(VISIBLE_SAMPLES.toFloat())
+		chart.moveViewToX(newestIndex - VISIBLE_SAMPLES.toFloat() + 1f)
+	}
+
+	/**
+	 * Labels the x axis by age rather than by sample index, which is meaningless to a reader and
+	 * would run to 3599 at the current retention.
+	 */
+	private class ElapsedTimeFormatter(
+		private val sampleIntervalMillis: Long,
+	) : IAxisValueFormatter {
+		override fun getFormattedValue(
+			value: Float,
+			axis: AxisBase?,
+		): String {
+			val newestIndex = (axis?.mAxisMaximum ?: value)
+			val secondsAgo = ((newestIndex - value) * sampleIntervalMillis / 1000f).roundToLong()
+			return if (secondsAgo <= 0L) "now" else "-%ds".format(secondsAgo)
 		}
 	}
 
@@ -126,8 +172,9 @@ abstract class MetricsChartRenderer {
 			setBackgroundColor(bgColor)
 			setGridBackgroundColor(bgColor)
 			notifyDataSetChanged()
-			invalidate()
 		}
+		showNewestWindow(chart)
+		chart.invalidate()
 	}
 
 	/**
@@ -137,7 +184,20 @@ abstract class MetricsChartRenderer {
 		chart.apply {
 			data.notifyDataChanged()
 			notifyDataSetChanged()
-			invalidate()
 		}
+		// Re-applied on every redraw, not just when data is set: the visible x range is held as a
+		// scale factor, so a layout change (a rotation, say) leaves the window pointing at a
+		// different part of the history. Landscape showed samples from half an hour ago.
+		showNewestWindow(chart)
+		chart.invalidate()
+	}
+
+	private companion object {
+		/**
+		 * Samples shown at once. An hour is retained; a minute is what fits legibly in the strip.
+		 */
+		const val VISIBLE_SAMPLES = 60
+
+		const val X_LABEL_GRANULARITY_SAMPLES = 15f
 	}
 }

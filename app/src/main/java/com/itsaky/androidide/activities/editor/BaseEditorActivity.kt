@@ -154,6 +154,7 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.MetricsViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
@@ -189,17 +190,25 @@ abstract class BaseEditorActivity :
 	protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
 	private var drawerToggle: ActionBarDrawerToggle? = null
 	private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
-	protected val memoryUsageWatcher = MemoryUsageWatcher()
+	private val metricsViewModel by viewModels<MetricsViewModel>()
+
+	/**
+	 * Sample history lives in [MetricsViewModel] so it survives configuration changes and activity
+	 * recreation rather than depending on this activity's configChanges declaration (ADFA-5486).
+	 */
+	protected val memoryUsageWatcher get() = metricsViewModel.memoryUsageWatcher
+
+	protected val networkUsageWatcher get() = metricsViewModel.networkUsageWatcher
+
 	private var metricsPageCallback: ViewPager2.OnPageChangeCallback? = null
 	private val memUsageChartRenderer =
 		MemoryUsageChartRenderer(
-			usagesProvider = memoryUsageWatcher::getMemoryUsages,
+			usagesProvider = { memoryUsageWatcher.getMemoryUsages() },
 			lineColorFor = ::getMemUsageLineColorFor,
 		)
 
-	protected val networkUsageWatcher = NetworkUsageWatcher()
 	private val networkUsageChartRenderer =
-		NetworkUsageChartRenderer(usageProvider = networkUsageWatcher::getUsage)
+		NetworkUsageChartRenderer(usageProvider = { networkUsageWatcher.getUsage() })
 
 	private val networkUsageListener =
 		NetworkUsageWatcher.NetworkUsageListener { usage ->
@@ -539,9 +548,9 @@ abstract class BaseEditorActivity :
 		_binding = null
 
 		if (isDestroying) {
-			memoryUsageWatcher.stopWatching(true)
+			// Sampling itself is stopped by MetricsViewModel.onCleared; the history has to outlive a
+			// recreation, so it must not be torn down whenever this activity goes away.
 			memoryUsageWatcher.listener = null
-			networkUsageWatcher.stopWatching()
 			networkUsageWatcher.listener = null
 			editorActivityScope.cancelIfActive("Activity is being destroyed")
 
