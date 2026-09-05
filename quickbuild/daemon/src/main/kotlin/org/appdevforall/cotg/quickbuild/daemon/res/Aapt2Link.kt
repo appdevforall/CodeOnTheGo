@@ -379,7 +379,7 @@ class Aapt2Link(
 		val resourceInputs = libraryResources + flatFiles
 		val argfile = File(linkedApk.absoluteFile.parentFile, ARGFILE_NAME)
 		if (resourceInputs.size <= ARGFILE_THRESHOLD || resourceInputs.any(::hasWhitespace)) {
-			// TODO(ADFA-XXXXX): a whitespace path forces the inline form no matter how many
+			// TODO(ADFA-5503): a whitespace path forces the inline form no matter how many
 			// inputs, so an app several times larger than CoGo's own app module under a path like
 			// "My Application" would exceed the argv limit and fail the link loudly (E2BIG surfaces
 			// as Result.Failed). The fix is to stage the inputs under whitespace-free names and
