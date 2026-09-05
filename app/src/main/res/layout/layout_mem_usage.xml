@@ -39,4 +39,25 @@
 		tools:text="Memory usage"
 		xmlns:tools="http://schemas.android.com/tools" />
 
+	<!-- Shown in place of the carousel while it is floating in its own window. Only one carousel can be live at a time (the
+		watchers hold a single listener each), so undocking moves it out of the editor rather than copying it; without this the reveal
+		would open on an empty strip that reads as broken, and there would be no way back if the window is off screen. -->
+	<TextView
+		android:id="@+id/metrics_undocked_message"
+		android:layout_width="0dp"
+		android:layout_height="0dp"
+		android:background="?attr/selectableItemBackground"
+		android:clickable="true"
+		android:focusable="true"
+		android:gravity="center"
+		android:padding="@dimen/metrics_carousel_title_padding_horizontal"
+		android:text="@string/metrics_carousel_undocked"
+		android:textAppearance="?attr/textAppearanceLabelMedium"
+		android:textColor="?attr/colorOnSurface"
+		android:visibility="gone"
+		app:layout_constraintBottom_toBottomOf="parent"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toTopOf="parent" />
+
 </com.itsaky.androidide.ui.MetricsCarouselLayout>

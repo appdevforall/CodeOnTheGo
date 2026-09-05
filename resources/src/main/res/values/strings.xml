@@ -1677,6 +1677,8 @@
 	<string name="metrics_title_memory">Memory usage</string>
 	<string name="metrics_network_chart">Network traffic chart</string>
 	<string name="metrics_title_network">Network traffic</string>
+	<string name="metrics_carousel_undocked">Metrics are in a floating window.\nTap to bring them back.</string>
+	<string name="metrics_carousel_window_title">Metrics</string>
 	<string name="metrics_network_received">Received</string>
 	<string name="metrics_network_transmitted">Sent</string>
 

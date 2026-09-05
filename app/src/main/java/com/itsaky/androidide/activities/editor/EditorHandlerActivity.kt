@@ -66,6 +66,7 @@ import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
 import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
 import com.itsaky.androidide.deeplink.PendingDeepLinkOpen
 import com.itsaky.androidide.di.APPLICATION_SCOPE
+import com.itsaky.androidide.editor.floating.MetricsCarouselDockableContent
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
@@ -901,6 +902,24 @@ open class EditorHandlerActivity :
 		if (tabPosition < 0) return null
 		val child = _binding?.content?.editorContainer?.getChildAt(tabPosition) ?: return null
 		return if (child is CodeEditorView) child else null
+	}
+
+	override fun onMetricsCarouselUndockRequested() {
+		floatingTabController.floatMetricsCarousel(
+			controller = metricsCarousel,
+			title = getString(string.metrics_carousel_window_title),
+		) { setMetricsCarouselUndocked(true) }
+	}
+
+	override fun onMetricsCarouselRedockRequested() {
+		floatingTabController.redockMetricsCarousel()
+	}
+
+	override fun isMetricsCarouselUndocked(): Boolean = DockingManager.isFloating(MetricsCarouselDockableContent.ID)
+
+	/** The floating carousel has closed or re-docked; put the editor's own carousel back. */
+	fun onFloatingMetricsCarouselGone() {
+		setMetricsCarouselUndocked(false)
 	}
 
 	/** Undock the file tab at [fileIndex] into a floating window over other apps. */

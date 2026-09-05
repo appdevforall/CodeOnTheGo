@@ -59,6 +59,7 @@ import androidx.core.os.BundleCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
@@ -195,7 +196,7 @@ abstract class BaseEditorActivity :
 
 	protected val networkUsageWatcher get() = metricsViewModel.networkUsageWatcher
 
-	private val metricsCarousel by lazy {
+	protected val metricsCarousel by lazy {
 		MetricsCarouselController(
 			memoryUsageWatcher = memoryUsageWatcher,
 			networkUsageWatcher = networkUsageWatcher,
@@ -973,6 +974,44 @@ abstract class BaseEditorActivity :
 
 	private fun setupMetricsCarousel() {
 		metricsCarousel.bind(binding.memUsageView)
+		binding.memUsageView.root.onTwoFingerTap = ::onMetricsCarouselUndockRequested
+		binding.memUsageView.metricsUndockedMessage.setOnClickListener {
+			onMetricsCarouselRedockRequested()
+		}
+	}
+
+	/**
+	 * A two-finger tap on the carousel asks for it to be floated. Overridden where the floating
+	 * window machinery lives; a no-op here.
+	 */
+	protected open fun onMetricsCarouselUndockRequested() = Unit
+
+	/** Whether the carousel is currently floating rather than docked here. */
+	protected open fun isMetricsCarouselUndocked(): Boolean = false
+
+	/** A tap on the "tap to bring them back" message asks for the floating carousel to re-dock. */
+	protected open fun onMetricsCarouselRedockRequested() = Unit
+
+	/**
+	 * Swaps the carousel for the message explaining where it has gone, or back again.
+	 *
+	 * Only one carousel can be live at a time, so undocking moves it out of the editor. Without the
+	 * message the reveal would open on an empty strip, and a window dragged off screen would leave
+	 * no way back.
+	 */
+	@UiThread
+	protected fun setMetricsCarouselUndocked(undocked: Boolean) {
+		val view = _binding?.memUsageView ?: return
+		view.metricsPager.isVisible = !undocked
+		view.metricsTitle.isVisible = !undocked
+		view.metricsUndockedMessage.isVisible = undocked
+
+		if (undocked) {
+			metricsCarousel.unbind()
+		} else {
+			metricsCarousel.bind(view)
+			metricsCarousel.refresh()
+		}
 	}
 
 	private fun watchMemory() {
@@ -1018,7 +1057,9 @@ abstract class BaseEditorActivity :
 			log.warn("Unable to move debugger overlay to display {}", displayId, err)
 		}
 
-		_binding?.let { metricsCarousel.bind(it.memUsageView) }
+		if (!isMetricsCarouselUndocked()) {
+			_binding?.let { metricsCarousel.bind(it.memUsageView) }
+		}
 		if (!memoryUsageWatcher.isWatching) {
 			memoryUsageWatcher.startWatching()
 		}
@@ -1026,8 +1067,10 @@ abstract class BaseEditorActivity :
 			networkUsageWatcher.startWatching()
 		}
 
-		// Draw whatever was sampled while we were away, rather than waiting for the next tick.
-		metricsCarousel.refresh()
+		if (!isMetricsCarouselUndocked()) {
+			// Draw whatever was sampled while away, rather than waiting for the next tick.
+			metricsCarousel.refresh()
+		}
 
 		apkInstallationViewModel.reloadStatus(this)
 
