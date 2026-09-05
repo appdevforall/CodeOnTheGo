@@ -1,33 +1,26 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-  ~  This file is part of AndroidIDE.
-  ~
-  ~  AndroidIDE is free software: you can redistribute it and/or modify
-  ~  it under the terms of the GNU General Public License as published by
-  ~  the Free Software Foundation, either version 3 of the License, or
-  ~  (at your option) any later version.
-  ~
-  ~  AndroidIDE is distributed in the hope that it will be useful,
-  ~  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~  GNU General Public License for more details.
-  ~
-  ~  You should have received a copy of the GNU General Public License
-  ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+<?xml version="1.0" encoding="utf-8"?><!-- ~ This file is part of AndroidIDE. ~ ~ AndroidIDE is free software: you can redistribute
+	it and/or modify ~ it under the terms of the GNU General Public License as published by ~ the Free Software Foundation, either
+	version 3 of the License, or ~ (at your option) any later version. ~ ~ AndroidIDE is distributed in the hope that it will
+	be useful, ~ but WITHOUT ANY WARRANTY; without even the implied warranty of ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR
+	PURPOSE. See the ~ GNU General Public License for more details. ~ ~ You should have received a copy of the GNU General Public
+	License ~ along with AndroidIDE. If not, see <https://www.gnu.org/licenses/>. -->
 
 <resources>
-    <dimen name="editor_mem_usage_view_height">200dp</dimen>
-    <dimen name="editor_container_corners">28dp</dimen>
+	<dimen name="editor_mem_usage_view_height">248dp</dimen>
+	<dimen name="metrics_carousel_title_padding_horizontal">16dp</dimen>
+	<dimen name="metrics_carousel_title_padding_vertical">4dp</dimen>
+	<dimen name="metrics_carousel_image_padding">16dp</dimen>
+	<dimen name="editor_container_corners">28dp</dimen>
 
-  <dimen name="snackbar_offset_bottom">28dp</dimen>
-    <dimen name="tooltip_padding">8dp</dimen>
-    <dimen name="faq_bottom_padding">24dp</dimen>
-    <dimen name="_32sp">32sp</dimen>
-    <dimen name="_16sp">16sp</dimen>
-    <dimen name="_12sp">12sp</dimen>
+	<dimen name="snackbar_offset_bottom">28dp</dimen>
+	<dimen name="tooltip_padding">8dp</dimen>
+	<dimen name="faq_bottom_padding">24dp</dimen>
+	<dimen name="_32sp">32sp</dimen>
+	<dimen name="_16sp">16sp</dimen>
+	<dimen name="_12sp">12sp</dimen>
 
-    <!-- Sidebar header logo dimensions -->
-    <dimen name="sidebar_header_logo_size">44dp</dimen>
-    <dimen name="sidebar_header_logo_margin_top">64dp</dimen>
-    <dimen name="sidebar_header_logo_padding">6dp</dimen>
+	<!-- Sidebar header logo dimensions -->
+	<dimen name="sidebar_header_logo_size">44dp</dimen>
+	<dimen name="sidebar_header_logo_margin_top">64dp</dimen>
+	<dimen name="sidebar_header_logo_padding">6dp</dimen>
 </resources>

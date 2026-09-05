@@ -52,7 +52,6 @@ import androidx.annotation.GravityInt
 import androidx.annotation.RequiresApi
 import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
-import androidx.collection.MutableIntIntMap
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
@@ -67,11 +66,7 @@ import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.github.mikephil.charting.components.AxisBase
-import com.github.mikephil.charting.data.Entry
-import com.github.mikephil.charting.data.LineData
-import com.github.mikephil.charting.data.LineDataSet
-import com.github.mikephil.charting.formatter.IAxisValueFormatter
+import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN
@@ -124,6 +119,9 @@ import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.mainThreadHandler
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
+import com.itsaky.androidide.ui.MemoryUsageChartRenderer
+import com.itsaky.androidide.ui.MetricsCarouselAdapter
+import com.itsaky.androidide.ui.MetricsPage
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
@@ -145,7 +143,6 @@ import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.getOrStoreInitialPadding
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isDeepLinkTargetOfOpenProject
-import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.AppLogsCoordinator
 import com.itsaky.androidide.viewmodel.AppLogsViewModel
@@ -173,7 +170,6 @@ import rikka.shizuku.Shizuku
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlin.math.roundToLong
 
 /**
  * Base class for EditorActivity which handles most of the view related things.
@@ -192,7 +188,12 @@ abstract class BaseEditorActivity :
 	private var drawerToggle: ActionBarDrawerToggle? = null
 	private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
 	protected val memoryUsageWatcher = MemoryUsageWatcher()
-	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
+	private var metricsPageCallback: ViewPager2.OnPageChangeCallback? = null
+	private val memUsageChartRenderer =
+		MemoryUsageChartRenderer(
+			usagesProvider = memoryUsageWatcher::getMemoryUsages,
+			lineColorFor = ::getMemUsageLineColorFor,
+		)
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
@@ -315,45 +316,7 @@ abstract class BaseEditorActivity :
 
 	private val memoryUsageListener =
 		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
-			var dataChanged = false
-			memoryUsage.forEachValue { proc ->
-				_binding?.memUsageView?.chart?.apply {
-					val dataset =
-						(
-							data.getDataSetByIndex(
-								pidToDatasetIdxMap.getOrDefault(
-									proc.pid,
-									-1,
-								),
-							) as LineDataSet?
-						)
-							?: run {
-								log.error(
-									"No dataset found for process: {}: {}",
-									proc.pid,
-									proc.pname,
-								)
-								return@forEachValue
-							}
-
-					dataset.entries.mapIndexed { index, entry ->
-						entry.y =
-							(proc.usageHistory[index] / (1024.0 * 1024.0)).toFloat()
-					}
-
-					dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
-					dataset.notifyDataSetChanged()
-					dataChanged = true
-				}
-			}
-
-			if (dataChanged) {
-				_binding?.memUsageView?.chart?.apply {
-					data.notifyDataChanged()
-					notifyDataSetChanged()
-					invalidate()
-				}
-			}
+			memUsageChartRenderer.onUsagesChanged(memoryUsage)
 		}
 
 	private val shizukuBinderReceivedListener =
@@ -363,10 +326,6 @@ abstract class BaseEditorActivity :
 
 	private var isImeVisible = false
 	private var contentCardRealHeight: Int? = null
-	private val editorSurfaceContainerBackground by lazy {
-		resolveAttr(R.attr.colorSurfaceDim)
-	}
-
 	private var isDebuggerStarting = false
 		@UiThread set(value) {
 			field = value
@@ -559,6 +518,12 @@ abstract class BaseEditorActivity :
 		fullscreenManager?.destroy()
 		fullscreenManager = null
 
+		metricsPageCallback?.let { callback ->
+			_binding?.memUsageView?.metricsPager?.unregisterOnPageChangeCallback(callback)
+		}
+		metricsPageCallback = null
+		_binding?.memUsageView?.metricsPager?.adapter = null
+		memUsageChartRenderer.detach()
 		_binding = null
 
 		if (isDestroying) {
@@ -899,7 +864,7 @@ abstract class BaseEditorActivity :
 			)
 		feedbackButtonManager?.setupDraggableFab()
 
-		setupMemUsageChart()
+		setupMetricsCarousel()
 		watchMemory()
 		observeFileOperations()
 
@@ -1000,36 +965,42 @@ abstract class BaseEditorActivity :
 				content.editorAppBarLayout.updatePadding(top = topInset)
 			}
 
-			memUsageView.chart.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+			memUsageView.metricsPager.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				topMargin = (insetsTop * progress).roundToInt()
 			}
 		}
 	}
 
-	private fun setupMemUsageChart() {
-		binding.memUsageView.chart.apply {
-			val colorAccent = resolveAttr(R.attr.colorAccent)
+	private fun setupMetricsCarousel() {
+		val pages =
+			listOf(
+				// The memory chart is the default page (ADFA-5487). The logo is a placeholder second
+				// page until there is a real second metric; the network-traffic chart replaces it.
+				MetricsPage.MemoryChart(title = string.metrics_title_memory),
+				MetricsPage.Image(
+					drawable = R.drawable.cogo_brand_mark,
+					description = string.metrics_carousel_brand_mark,
+					title = string.metrics_title_brand_mark,
+				),
+			)
 
-			isDragEnabled = false
-			description.isEnabled = false
-			xAxis.axisLineColor = colorAccent
-			axisRight.axisLineColor = colorAccent
+		binding.memUsageView.metricsPager.adapter = MetricsCarouselAdapter(pages, memUsageChartRenderer)
 
-			setPinchZoom(false)
-			setBackgroundColor(editorSurfaceContainerBackground)
-			setDrawGridBackground(true)
-			setScaleEnabled(true)
-
-			axisLeft.isEnabled = false
-			axisRight.valueFormatter =
-				object :
-					IAxisValueFormatter {
-					override fun getFormattedValue(
-						value: Float,
-						axis: AxisBase?,
-					): String = "%dMB".format(value.roundToLong())
-				}
+		val showTitleFor = { position: Int ->
+			pages.getOrNull(position)?.let { page ->
+				binding.memUsageView.metricsTitle.setText(page.title)
+			}
 		}
+
+		metricsPageCallback =
+			object : ViewPager2.OnPageChangeCallback() {
+				override fun onPageSelected(position: Int) {
+					showTitleFor(position)
+				}
+			}.also { binding.memUsageView.metricsPager.registerOnPageChangeCallback(it) }
+
+		// onPageSelected does not fire for the page the carousel opens on.
+		showTitleFor(binding.memUsageView.metricsPager.currentItem)
 	}
 
 	private fun watchMemory() {
@@ -1038,46 +1009,12 @@ abstract class BaseEditorActivity :
 		resetMemUsageChart()
 	}
 
+	/**
+	 * Rebuilds the memory chart for the currently watched processes. Call after starting or stopping
+	 * watching a process.
+	 */
 	protected fun resetMemUsageChart() {
-		val processes = memoryUsageWatcher.getMemoryUsages()
-		val datasets =
-			Array(processes.size) { index ->
-				LineDataSet(
-					List(MemoryUsageWatcher.MAX_USAGE_ENTRIES) { Entry(it.toFloat(), 0f) },
-					processes[index].pname,
-				)
-			}
-
-		val bgColor = editorSurfaceContainerBackground
-		val textColor = resolveAttr(R.attr.colorOnSurface)
-
-		for ((index, proc) in processes.withIndex()) {
-			val dataset = datasets[index]
-			dataset.color = getMemUsageLineColorFor(proc)
-			dataset.setDrawIcons(false)
-			dataset.setDrawCircles(false)
-			dataset.setDrawCircleHole(false)
-			dataset.setDrawValues(false)
-			dataset.formLineWidth = 1f
-			dataset.formSize = 15f
-			dataset.isHighlightEnabled = false
-			pidToDatasetIdxMap[proc.pid] = index
-		}
-
-		binding.memUsageView.chart.setBackgroundColor(bgColor)
-
-		binding.memUsageView.chart.apply {
-			data = LineData(*datasets)
-			axisRight.textColor = textColor
-			axisLeft.textColor = textColor
-			legend.textColor = textColor
-
-			data.setValueTextColor(textColor)
-			setBackgroundColor(bgColor)
-			setGridBackgroundColor(bgColor)
-			notifyDataSetChanged()
-			invalidate()
-		}
+		memUsageChartRenderer.rebuild()
 	}
 
 	private fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
@@ -1885,8 +1822,12 @@ abstract class BaseEditorActivity :
 
 						// Filter out diagonal flings so only an intentional right swipe opens the drawer.
 						// A horizontal fling that started on the bottom-sheet tab strip is the user
-						// scrolling tabs, not asking for the drawer.
-						if (isDrawerOpenFling && !isTouchOnBottomSheetTabs(e1)) {
+						// scrolling tabs, not asking for the drawer; one that started on the metrics
+						// carousel is the user paging it backwards.
+						if (isDrawerOpenFling &&
+							!isTouchOnBottomSheetTabs(e1) &&
+							!isTouchOnMetricsCarousel(e1)
+						) {
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
 						}
@@ -1908,8 +1849,28 @@ abstract class BaseEditorActivity :
 
 	private fun isTouchOnBottomSheetTabs(ev: MotionEvent): Boolean {
 		val tabs = contentOrNull?.bottomSheet?.binding?.tabs ?: return false
+		return containsTouch(tabs, ev)
+	}
+
+	private fun isTouchOnMetricsCarousel(ev: MotionEvent): Boolean {
+		val binding = _binding ?: return false
+
+		// The carousel is laid out at the top of the reveal even while the content card covers it,
+		// and siblings do not clip each other, so getGlobalVisibleRect reports it visible either
+		// way. Without this check the drawer gesture would be dead over the top of a closed editor.
+		if (binding.swipeReveal.dragProgress <= 0f) {
+			return false
+		}
+
+		return containsTouch(binding.memUsageView.root, ev)
+	}
+
+	private fun containsTouch(
+		view: View,
+		ev: MotionEvent,
+	): Boolean {
 		val rect = Rect()
-		if (!tabs.getGlobalVisibleRect(rect)) return false
+		if (!view.getGlobalVisibleRect(rect)) return false
 		return rect.contains(ev.rawX.toInt(), ev.rawY.toInt())
 	}
 
