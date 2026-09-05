@@ -687,6 +687,10 @@
 	<string name="msg_emptyview_diagnostics">Open a file to show its diagnostic results</string>
 	<string name="log_filter_hint">Filter lines</string>
 	<string name="msg_no_filter_matches">No matching log entries found.</string>
+	<plurals name="msg_build_output_lines_omitted">
+		<item quantity="one">[%1$d build output line omitted]</item>
+		<item quantity="other">[%1$d build output lines omitted]</item>
+	</plurals>
 	<string name="msg_no_search_matches">No search matches found.</string>
 	<string name="log_action_filter">Filter</string>
 	<string name="log_action_search">Search</string>

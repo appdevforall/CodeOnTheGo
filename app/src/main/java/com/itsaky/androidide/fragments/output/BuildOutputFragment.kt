@@ -55,7 +55,20 @@ class BuildOutputFragment :
 
 	override val currentEditor: IDEEditor? get() = editor
 
-	private val outputBuffer = BuildOutputBuffer()
+	private val outputBuffer =
+		BuildOutputBuffer(
+			formatOmission = { lineCount ->
+				val context = context
+				if (context == null) {
+					BuildOutputBuffer.defaultOmissionMarker(lineCount)
+				} else {
+					val quantity = lineCount.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+					context.resources
+						.getQuantityString(R.plurals.msg_build_output_lines_omitted, quantity, quantity)
+						.plus('\n')
+				}
+			},
+		)
 
 	private var searchLayout: EditorSearchLayout? = null
 	private var filterBar: LogFilterBarController? = null
@@ -93,7 +106,13 @@ class BuildOutputFragment :
 
 		viewLifecycleOwner.lifecycleScope.launch {
 			launch {
-				restoreWindowFromViewModel()
+				try {
+					restoreWindowFromViewModel()
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to restore build output to the editor", e)
+				}
 				withContext(Dispatchers.Default) { processLogs() }
 			}
 			launch {
@@ -338,10 +357,10 @@ class BuildOutputFragment :
 						}
 					}
 				} else {
-					// Layout timed out; keep waiting so the restored content is not lost.
-					editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
+					// Replace content without waiting indefinitely for an offscreen editor's layout.
 					editorContentMutex.withLock {
-						if (isRestoreCurrent() && editor.appendBatchIfReady(content)) {
+						if (isRestoreCurrent()) {
+							editor.setText(content)
 							editorSourceChars =
 								BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
 							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
@@ -453,7 +472,11 @@ class BuildOutputFragment :
 	) {
 		if (!buildOutputViewModel.isCurrentSession(sessionToken)) return
 		val refreshEditorWindow =
-			BuildOutputViewModel.wouldExceedEditorWindow(editorSourceChars, sourceChars)
+			withContext(Dispatchers.Main) {
+				editorContentMutex.withLock {
+					BuildOutputViewModel.wouldExceedEditorWindow(editorSourceChars, sourceChars)
+				}
+			}
 		val visibleText =
 			BuildOutputViewModel.filterLines(
 				text,

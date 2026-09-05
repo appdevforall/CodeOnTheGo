@@ -292,7 +292,7 @@ class BuildOutputViewModel(
 
 		private const val SESSION_FILE_NAME = "build_output_session.txt"
 		/** Max length of [cachedContentSnapshot] to bound memory. */
-		private const val CACHE_SNAPSHOT_MAX_CHARS = EDITOR_WINDOW_MAX_CHARS
+		private const val CACHE_SNAPSHOT_MAX_CHARS = 128 * 1024
 		private val log = org.slf4j.LoggerFactory.getLogger(BuildOutputViewModel::class.java)
 	}
 }

@@ -142,6 +142,19 @@ class BuildOutputBufferTest {
 		}
 
 	@Test
+	fun `append cache retains a smaller tail than the editor window`() =
+		runTest {
+			val viewModel = BuildOutputViewModel(ApplicationProvider.getApplicationContext<Application>())
+			viewModel.clear()
+			val output = "x".repeat(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS - 1) + "\n"
+			assertThat(viewModel.append(output, viewModel.currentSessionToken)).isTrue()
+			assertThat(viewModel.getCachedContentSnapshot()).isEqualTo(output.takeLast(128 * 1024))
+			assertThat(viewModel.getWindowForEditor()).isEqualTo(output)
+			assertThat(viewModel.getFullContent()).isEqualTo(output)
+			viewModel.clear()
+		}
+
+	@Test
 	fun `window refresh uses hysteresis after reaching the editor limit`() {
 		val batchChars = 32 * 1024
 		var sourceChars = BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS

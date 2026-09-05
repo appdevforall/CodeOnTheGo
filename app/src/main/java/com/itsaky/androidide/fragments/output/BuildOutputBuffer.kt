@@ -28,6 +28,7 @@ import kotlinx.coroutines.channels.Channel
 internal class BuildOutputBuffer(
 	private val maxPendingChars: Int = DEFAULT_MAX_PENDING_CHARS,
 	private val maxBatchChars: Int = DEFAULT_MAX_BATCH_CHARS,
+	private val formatOmission: (Long) -> String = ::defaultOmissionMarker,
 ) {
 	data class Batch(
 		val text: String,
@@ -153,13 +154,19 @@ internal class BuildOutputBuffer(
 		right: Int,
 	): Int = (left.toLong() + right).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
-	private fun omissionMarker(lineCount: Long): String {
-		val noun = if (lineCount == 1L) "line" else "lines"
-		return "[$lineCount build output $noun omitted]\n"
-	}
+	private fun omissionMarker(lineCount: Long): String = formatOmission(lineCount)
 
 	companion object {
 		private const val DEFAULT_MAX_PENDING_CHARS = 256 * 1024
 		private const val DEFAULT_MAX_BATCH_CHARS = 32 * 1024
+
+		/**
+		 * Fallback marker for callers without a [android.content.Context]; the fragment supplies a
+		 * localized `msg_build_output_lines_omitted` plural instead.
+		 */
+		internal fun defaultOmissionMarker(lineCount: Long): String {
+			val noun = if (lineCount == 1L) "line" else "lines"
+			return "[$lineCount build output $noun omitted]\n"
+		}
 	}
 }
