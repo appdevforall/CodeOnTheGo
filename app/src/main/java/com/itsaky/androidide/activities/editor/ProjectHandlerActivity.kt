@@ -795,9 +795,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				fireAutostartStandardBuild()
 			}
 
-			AutostartBuild.NONE -> {
-				Unit
-			}
+			AutostartBuild.NONE -> {}
 		}
 	}
 

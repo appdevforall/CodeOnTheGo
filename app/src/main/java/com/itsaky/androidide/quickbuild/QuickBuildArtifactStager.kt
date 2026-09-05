@@ -15,14 +15,15 @@ import java.util.zip.ZipInputStream
  * runtime AAR, and the daemon zip unpacked into `daemon/` (the daemon jar plus the runtime
  * classpath its manifest Class-Path names).
  *
- * The daemon directory is wiped and re-extracted only when the installed APK changed, keyed on
- * the package's versionCode and lastUpdateTime - not a version constant, which would serve a
- * stale bundle when content changes without a bump; any install, an unchanged-version
- * reinstall included, moves lastUpdateTime. Besides saving a 62 MB extraction per provision,
- * this is what keeps a live compile daemon safe: a rebaseline provisions while the daemon is
- * running off the jars under `daemon/`, and a wipe under it turns a jar it has not opened yet
- * into a NoClassDefFoundError inside the daemon. An APK update force-stops the app and its
- * child processes, so no daemon from an earlier install can be alive when the wipe does run.
+ * The AAR is copied on every call. The daemon directory is wiped and re-extracted only when
+ * the installed APK changed: a stamp file, written last so a crash mid-extract leaves none,
+ * records the package's versionCode and lastUpdateTime - not a version constant, which would
+ * serve a stale bundle when content changes without a bump; any install, an unchanged-version
+ * reinstall included, moves lastUpdateTime. That saves a 62 MB extraction per provision and
+ * rebaseline. It also keeps the one wipe path away from a live compile daemon, which loads
+ * the jars under `daemon/` lazily: the wipe runs only after an APK update, which force-stops
+ * the app and its child processes. No known path stages while a daemon is alive anyway - a
+ * rebaseline shuts it down before the Gradle build runs - so this is a guard, not a fix.
  */
 object QuickBuildArtifactStager {
 	private val log = LoggerFactory.getLogger("QB-ArtifactStager")
