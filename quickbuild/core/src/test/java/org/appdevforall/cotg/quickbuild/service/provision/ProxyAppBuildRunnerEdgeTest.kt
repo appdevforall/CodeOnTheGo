@@ -147,6 +147,7 @@ class ProxyAppBuildRunnerEdgeTest {
 
 			assertThat(result)
 				.isEqualTo(ProxyAppBuildRunner.ProvisionResult.Failed(QuickBuildMessage.DaemonRejectedConfiguration))
+			assertThat(scratch.treeFor(projectRoot).exists()).isFalse()
 		}
 
 	@Test
@@ -158,6 +159,20 @@ class ProxyAppBuildRunnerEdgeTest {
 			val result = runner().provision(superseded = { false })
 
 			assertThat(result).isEqualTo(ProxyAppBuildRunner.ProvisionResult.Failed(QuickBuildMessage.DaemonStartFailed("jdk missing")))
+		}
+
+	@Test
+	fun `a daemon start failure after the scratch tree was prepared removes the tree`() =
+		runTest {
+			provisioner.provisionOutcome = { successOutcome() }
+			daemon.startReply = DaemonReply.Failed("jdk missing")
+			val tree = scratch.treeFor(projectRoot)
+
+			val result = runner().provision(superseded = { false })
+
+			assertThat(result).isInstanceOf(ProxyAppBuildRunner.ProvisionResult.Failed::class.java)
+			// prepare() created the tree; a retry of a failing provision must not accumulate them.
+			assertThat(tree.exists()).isFalse()
 		}
 
 	@Test
@@ -178,6 +193,9 @@ class ProxyAppBuildRunnerEdgeTest {
 			// ...and the daemon it started is left for the MANAGER to stop (this
 			// coroutine is already cancelled in the real flow).
 			assertThat(daemon.startConfigs).hasSize(1)
+			// The tree stays: the restart in flight reuses it, and the manager's teardown
+			// owns its removal once the daemon is down.
+			assertThat(scratch.treeFor(projectRoot).isDirectory).isTrue()
 		}
 
 	@Test
