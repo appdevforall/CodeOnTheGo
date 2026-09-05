@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @param readTxBytes Reads the cumulative transmitted byte count. Injectable for tests.
  */
 class NetworkUsageWatcher(
-	private val updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
+	updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
 	private val uid: Int = Process.myUid(),
 	private val readRxBytes: (Int) -> Long = TrafficStats::getUidRxBytes,
 	private val readTxBytes: (Int) -> Long = TrafficStats::getUidTxBytes,
@@ -60,6 +60,19 @@ class NetworkUsageWatcher(
 	private val coroutineDispatcher = newSingleThreadContext("NetworkUsageWatcher")
 	private val coroutineScope = CoroutineScope(coroutineDispatcher)
 	private val watching = AtomicBoolean(false)
+
+	/**
+	 * Milliseconds between samples. Changing it clears the history, for the reason given on
+	 * [MemoryUsageWatcher.updateInterval].
+	 */
+	var updateInterval: Long = updateInterval
+		set(value) {
+			if (field == value) {
+				return
+			}
+			field = value
+			clearHistory()
+		}
 
 	/** Guards the two ring buffers: the sampler writes them, the UI thread snapshots them. */
 	private val historyLock = Any()
@@ -102,6 +115,19 @@ class NetworkUsageWatcher(
 		synchronized(historyLock) {
 			NetworkUsage(received.snapshot(), transmitted.snapshot())
 		}
+
+	/**
+	 * Discards every recorded sample and drops the cumulative baseline, so the next sample
+	 * re-establishes it rather than reporting everything since the last one as one huge delta.
+	 */
+	fun clearHistory() {
+		synchronized(historyLock) {
+			received.clear()
+			transmitted.clear()
+			lastRx = null
+			lastTx = null
+		}
+	}
 
 	fun startWatching() {
 		if (isWatching) {
@@ -213,11 +239,12 @@ class NetworkUsageWatcher(
 
 	companion object {
 		/**
-		 * Samples retained per series: one hour at [DEFAULT_UPDATE_INTERVAL] (ADFA-5486).
-		 * About 29KB of longs per series, so the cost is in drawing rather than holding --
-		 * see MetricsChartRenderer, which shows a window of this rather than all of it.
+		 * Samples retained per series (ADFA-5486). The span this covers depends on the interval:
+		 * under three hours at one second, about seventeen minutes at the 0.1s minimum. 80KB of
+		 * longs per series, so the cost is in drawing rather than holding -- see
+		 * MetricsChartRenderer, which shows a window of this rather than all of it.
 		 */
-		const val MAX_USAGE_ENTRIES = 3600
+		const val MAX_USAGE_ENTRIES = 10000
 		const val DEFAULT_UPDATE_INTERVAL = 1000L
 
 		/** [TrafficStats.UNSUPPORTED] widened to [Long], which is what the getters return. */

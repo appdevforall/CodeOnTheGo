@@ -52,10 +52,24 @@ import kotlin.coroutines.CoroutineContext
 class MemoryUsageWatcher
 	@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
 	constructor(
-		private val updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
+		updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
 		private val coroutineDispatcher: CoroutineContext = newSingleThreadContext("MemoryUsageWatcher"),
 		private val mainDispatcher: CoroutineContext = Dispatchers.Main.immediate,
 	) {
+		/**
+		 * Milliseconds between samples. Changing it clears the history: the chart reads a sample's
+		 * age from its position, which assumes every sample is the same age apart, and a buffer
+		 * holding samples taken at two rates would silently misdate all the older ones (ADFA-5486).
+		 */
+		var updateInterval: Long = updateInterval
+			set(value) {
+				if (field == value) {
+					return
+				}
+				field = value
+				clearHistory()
+			}
+
 		private val coroutineScope = CoroutineScope(coroutineDispatcher)
 		private val memoryUsage = ConcurrentHashMap<Int, ProcessMemoryInfo>()
 		private val watching = AtomicBoolean(false)
@@ -90,7 +104,7 @@ class MemoryUsageWatcher
 			 * About 29KB of longs per series, so the cost is in drawing rather than holding --
 			 * see MetricsChartRenderer, which shows a window of this rather than all of it.
 			 */
-			const val MAX_USAGE_ENTRIES = 3600
+			const val MAX_USAGE_ENTRIES = 10000
 			const val DEFAULT_UPDATE_INTERVAL = 1000L
 			private val log = LoggerFactory.getLogger(MemoryUsageWatcher::class.java)
 		}
@@ -205,6 +219,13 @@ class MemoryUsageWatcher
 					pname,
 					MutableShiftedLongArray(MAX_USAGE_ENTRIES),
 				)
+		}
+
+		/**
+		 * Discards every recorded sample, keeping the watched processes.
+		 */
+		fun clearHistory() {
+			memoryUsage.values.forEach { it._history.clear() }
 		}
 
 		/**
