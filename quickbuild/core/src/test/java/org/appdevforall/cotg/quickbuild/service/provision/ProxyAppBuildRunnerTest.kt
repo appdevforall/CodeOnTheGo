@@ -453,6 +453,8 @@ class ProxyAppBuildRunnerTest {
 			// ...and the daemon started before it was shut down, intentionally (no respawn).
 			assertThat(daemon.shutdownCount).isEqualTo(1)
 			assertThat(daemon.isRunning).isFalse()
+			// ...and the scratch tree prepare() made is gone, so a retry starts clean.
+			assertThat(QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot).treeFor(projectRoot).exists()).isFalse()
 		}
 
 	@Test
