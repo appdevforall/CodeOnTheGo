@@ -20,8 +20,6 @@ package com.itsaky.androidide.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
-import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
@@ -40,10 +38,8 @@ sealed interface MetricsPage {
 		@StringRes override val title: Int,
 	) : MetricsPage
 
-	/** A static image. Placeholder page until real metrics exist to show alongside memory. */
-	data class Image(
-		@DrawableRes val drawable: Int,
-		@StringRes val description: Int,
+	/** The live network-traffic chart, rendered by [NetworkUsageChartRenderer]. */
+	data class NetworkChart(
 		@StringRes override val title: Int,
 	) : MetricsPage
 }
@@ -60,7 +56,8 @@ sealed interface MetricsPage {
  */
 class MetricsCarouselAdapter(
 	private val pages: List<MetricsPage>,
-	private val chartRenderer: MemoryUsageChartRenderer,
+	private val memoryChartRenderer: MemoryUsageChartRenderer,
+	private val networkChartRenderer: NetworkUsageChartRenderer,
 ) : RecyclerView.Adapter<MetricsCarouselAdapter.PageViewHolder>() {
 	sealed class PageViewHolder(
 		view: View,
@@ -69,9 +66,9 @@ class MetricsCarouselAdapter(
 			val chart: SafeLineChart,
 		) : PageViewHolder(chart)
 
-		class Image(
-			val image: ImageView,
-		) : PageViewHolder(image)
+		class NetworkChart(
+			val chart: SafeLineChart,
+		) : PageViewHolder(chart)
 	}
 
 	override fun getItemCount(): Int = pages.size
@@ -79,7 +76,7 @@ class MetricsCarouselAdapter(
 	override fun getItemViewType(position: Int): Int =
 		when (pages[position]) {
 			is MetricsPage.MemoryChart -> VIEW_TYPE_MEMORY_CHART
-			is MetricsPage.Image -> VIEW_TYPE_IMAGE
+			is MetricsPage.NetworkChart -> VIEW_TYPE_NETWORK_CHART
 		}
 
 	override fun onCreateViewHolder(
@@ -94,9 +91,9 @@ class MetricsCarouselAdapter(
 				)
 			}
 
-			VIEW_TYPE_IMAGE -> {
-				PageViewHolder.Image(
-					inflater.inflate(R.layout.item_metrics_image, parent, false) as ImageView,
+			VIEW_TYPE_NETWORK_CHART -> {
+				PageViewHolder.NetworkChart(
+					inflater.inflate(R.layout.item_metrics_network_chart, parent, false) as SafeLineChart,
 				)
 			}
 
@@ -110,31 +107,29 @@ class MetricsCarouselAdapter(
 		holder: PageViewHolder,
 		position: Int,
 	) {
-		when (val page = pages[position]) {
+		when (pages[position]) {
 			is MetricsPage.MemoryChart -> {
-				chartRenderer.attach((holder as PageViewHolder.MemoryChart).chart)
+				memoryChartRenderer.attach((holder as PageViewHolder.MemoryChart).chart)
 			}
 
-			is MetricsPage.Image -> {
-				(holder as PageViewHolder.Image).image.apply {
-					setImageResource(page.drawable)
-					contentDescription = context.getString(page.description)
-				}
+			is MetricsPage.NetworkChart -> {
+				networkChartRenderer.attach((holder as PageViewHolder.NetworkChart).chart)
 			}
 		}
 	}
 
 	override fun onViewRecycled(holder: PageViewHolder) {
-		if (holder is PageViewHolder.MemoryChart) {
-			// Only if this holder's chart is still the attached one: a rebind can create the
-			// replacement before RecyclerView recycles the view it replaced, and detaching then
-			// would drop the new chart instead of the old.
-			chartRenderer.detachIfAttached(holder.chart)
+		// Only if this holder's chart is still the attached one: a rebind can create the replacement
+		// before RecyclerView recycles the view it replaced, and detaching then would drop the new
+		// chart instead of the old.
+		when (holder) {
+			is PageViewHolder.MemoryChart -> memoryChartRenderer.detachIfAttached(holder.chart)
+			is PageViewHolder.NetworkChart -> networkChartRenderer.detachIfAttached(holder.chart)
 		}
 	}
 
 	private companion object {
 		const val VIEW_TYPE_MEMORY_CHART = 0
-		const val VIEW_TYPE_IMAGE = 1
+		const val VIEW_TYPE_NETWORK_CHART = 1
 	}
 }

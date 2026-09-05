@@ -122,6 +122,7 @@ import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
 import com.itsaky.androidide.ui.MemoryUsageChartRenderer
 import com.itsaky.androidide.ui.MetricsCarouselAdapter
 import com.itsaky.androidide.ui.MetricsPage
+import com.itsaky.androidide.ui.NetworkUsageChartRenderer
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
@@ -131,6 +132,7 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.StringsInjectionException
 import com.itsaky.androidide.utils.StringsXmlInjector
 import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
@@ -194,6 +196,15 @@ abstract class BaseEditorActivity :
 			usagesProvider = memoryUsageWatcher::getMemoryUsages,
 			lineColorFor = ::getMemUsageLineColorFor,
 		)
+
+	protected val networkUsageWatcher = NetworkUsageWatcher()
+	private val networkUsageChartRenderer =
+		NetworkUsageChartRenderer(usageProvider = networkUsageWatcher::getUsage)
+
+	private val networkUsageListener =
+		NetworkUsageWatcher.NetworkUsageListener { usage ->
+			networkUsageChartRenderer.onUsageChanged(usage)
+		}
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
@@ -524,11 +535,14 @@ abstract class BaseEditorActivity :
 		metricsPageCallback = null
 		_binding?.memUsageView?.metricsPager?.adapter = null
 		memUsageChartRenderer.detach()
+		networkUsageChartRenderer.detach()
 		_binding = null
 
 		if (isDestroying) {
 			memoryUsageWatcher.stopWatching(true)
 			memoryUsageWatcher.listener = null
+			networkUsageWatcher.stopWatching()
+			networkUsageWatcher.listener = null
 			editorActivityScope.cancelIfActive("Activity is being destroyed")
 
 			unbindDebuggerService()
@@ -866,6 +880,7 @@ abstract class BaseEditorActivity :
 
 		setupMetricsCarousel()
 		watchMemory()
+		watchNetwork()
 		observeFileOperations()
 
 		setupGestureDetector()
@@ -974,17 +989,14 @@ abstract class BaseEditorActivity :
 	private fun setupMetricsCarousel() {
 		val pages =
 			listOf(
-				// The memory chart is the default page (ADFA-5487). The logo is a placeholder second
-				// page until there is a real second metric; the network-traffic chart replaces it.
+				// The memory chart is the default page (ADFA-5487); network traffic is the second
+				// (ADFA-5489), replacing the brand-mark placeholder that ADFA-5487 shipped.
 				MetricsPage.MemoryChart(title = string.metrics_title_memory),
-				MetricsPage.Image(
-					drawable = R.drawable.cogo_brand_mark,
-					description = string.metrics_carousel_brand_mark,
-					title = string.metrics_title_brand_mark,
-				),
+				MetricsPage.NetworkChart(title = string.metrics_title_network),
 			)
 
-		binding.memUsageView.metricsPager.adapter = MetricsCarouselAdapter(pages, memUsageChartRenderer)
+		binding.memUsageView.metricsPager.adapter =
+			MetricsCarouselAdapter(pages, memUsageChartRenderer, networkUsageChartRenderer)
 
 		val showTitleFor = { position: Int ->
 			pages.getOrNull(position)?.let { page ->
@@ -1009,6 +1021,10 @@ abstract class BaseEditorActivity :
 		resetMemUsageChart()
 	}
 
+	private fun watchNetwork() {
+		networkUsageWatcher.listener = networkUsageListener
+	}
+
 	/**
 	 * Rebuilds the memory chart for the currently watched processes. Call after starting or stopping
 	 * watching a process.
@@ -1029,6 +1045,8 @@ abstract class BaseEditorActivity :
 		super.onPause()
 		memoryUsageWatcher.listener = null
 		memoryUsageWatcher.stopWatching(false)
+		networkUsageWatcher.listener = null
+		networkUsageWatcher.stopWatching()
 
 		this.isDestroying = isFinishing
 		getFileTreeFragment()?.saveTreeState()
@@ -1047,6 +1065,8 @@ abstract class BaseEditorActivity :
 
 		memoryUsageWatcher.listener = memoryUsageListener
 		memoryUsageWatcher.startWatching()
+		networkUsageWatcher.listener = networkUsageListener
+		networkUsageWatcher.startWatching()
 
 		apkInstallationViewModel.reloadStatus(this)
 
