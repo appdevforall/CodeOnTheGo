@@ -567,7 +567,12 @@ class IncrementalCompiler(
 	}
 
 	/**
-	 * First [MAX_DIAGNOSTICS] entries, plus one marker naming how many were elided.
+	 * First [MAX_DIAGNOSTICS] entries, errors ahead of warnings, plus one marker naming how
+	 * many were elided.
+	 *
+	 * Errors go first so the cap trims warnings: javac reports in source order, and a failed
+	 * compile whose first 50 messages were warnings would otherwise show "failed" with the
+	 * reason elided. Each severity keeps its own order.
 	 *
 	 * The marker takes the list's worst severity: a successful compile's warnings must stay
 	 * warnings all the way to the panel, which prints an ERROR marker as "error:" under a
@@ -578,9 +583,9 @@ class IncrementalCompiler(
 	 */
 	private fun List<Diagnostic>.capped(tool: String): List<Diagnostic> {
 		if (size <= MAX_DIAGNOSTICS) return this
-		val severity =
-			if (any { it.severity == Diagnostic.Severity.ERROR }) Diagnostic.Severity.ERROR else Diagnostic.Severity.WARNING
-		return take(MAX_DIAGNOSTICS) +
+		val (errors, warnings) = partition { it.severity == Diagnostic.Severity.ERROR }
+		val severity = if (errors.isEmpty()) Diagnostic.Severity.WARNING else Diagnostic.Severity.ERROR
+		return (errors + warnings).take(MAX_DIAGNOSTICS) +
 			Diagnostic(severity, "+${size - MAX_DIAGNOSTICS} more $tool diagnostics elided")
 	}
 
