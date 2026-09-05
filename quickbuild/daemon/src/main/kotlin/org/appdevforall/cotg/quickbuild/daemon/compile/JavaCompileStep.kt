@@ -111,7 +111,7 @@ object JavaCompileStep {
 			// module image AGP builds (JdkImageTransform) from the platform's
 			// core-for-system-modules.jar. So a .java calling a JVM-only java.* API compiles
 			// green here and fails in the standard build. Closing that gap means shipping or
-			// building such an image on the device; tracked as ADFA-XXXXX.
+			// building such an image on the device; tracked as ADFA-5502.
 			"--release",
 			IncrementalCompiler.JVM_TARGET,
 		)
