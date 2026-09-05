@@ -19,6 +19,7 @@ package com.itsaky.androidide.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 
 /**
@@ -37,6 +38,9 @@ class MetricsViewModel : ViewModel() {
 	val memoryUsageWatcher = MemoryUsageWatcher()
 
 	val networkUsageWatcher = NetworkUsageWatcher()
+
+	/** Significant events for the charts to annotate (ADFA-5486). */
+	val annotations = MetricsAnnotationStore()
 
 	override fun onCleared() {
 		super.onCleared()

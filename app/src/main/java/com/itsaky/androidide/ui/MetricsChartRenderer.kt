@@ -17,13 +17,16 @@
 
 package com.itsaky.androidide.ui
 
+import android.os.SystemClock
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
 import com.github.mikephil.charting.components.AxisBase
+import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.itsaky.androidide.R
+import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.resolveAttr
 import kotlin.math.roundToLong
 
@@ -42,6 +45,8 @@ import kotlin.math.roundToLong
  */
 abstract class MetricsChartRenderer(
 	private val sampleIntervalMillis: Long,
+	private val annotations: MetricsAnnotationStore? = null,
+	private val nowMillis: () -> Long = SystemClock::elapsedRealtime,
 ) {
 	/**
 	 * The attached chart, or `null` when no carousel page is bound to this renderer.
@@ -178,8 +183,46 @@ abstract class MetricsChartRenderer(
 			setGridBackgroundColor(bgColor)
 			notifyDataSetChanged()
 		}
+		applyAnnotations(chart)
 		showNewestWindow(chart)
 		chart.invalidate()
+	}
+
+	/**
+	 * Draws a vertical marker for each recent significant event (ADFA-5486).
+	 *
+	 * Annotations are stored by wall-clock time, not sample position, because the ring buffer
+	 * shifts under them. Age converts to an x position here: the newest sample sits at the buffer's
+	 * last index, and every [sampleIntervalMillis] before that is one index to the left. Anything
+	 * older than the buffer holds falls outside the axis and is not drawn.
+	 */
+	private fun applyAnnotations(chart: SafeLineChart) {
+		val store = annotations ?: return
+		val newestIndex = chart.data?.xMax ?: return
+
+		chart.xAxis.removeAllLimitLines()
+
+		val bufferSpanMillis = (newestIndex.toLong() + 1L) * sampleIntervalMillis
+		val now = nowMillis()
+		val markerColor = chart.context.resolveAttr(R.attr.colorOnSurface)
+
+		store.recentAnnotations(bufferSpanMillis).forEach { annotation ->
+			val samplesAgo = (now - annotation.atMillis).toFloat() / sampleIntervalMillis
+			val x = newestIndex - samplesAgo
+			if (x < 0f) {
+				return@forEach
+			}
+
+			chart.xAxis.addLimitLine(
+				LimitLine(x, annotation.label).apply {
+					lineWidth = ANNOTATION_LINE_WIDTH
+					lineColor = markerColor
+					textColor = markerColor
+					enableDashedLine(ANNOTATION_DASH_LENGTH, ANNOTATION_DASH_LENGTH, 0f)
+					labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
+				},
+			)
+		}
 	}
 
 	/**
@@ -193,6 +236,7 @@ abstract class MetricsChartRenderer(
 		// Re-applied on every redraw, not just when data is set: the visible x range is held as a
 		// scale factor, so a layout change (a rotation, say) leaves the window pointing at a
 		// different part of the history. Landscape showed samples from half an hour ago.
+		applyAnnotations(chart)
 		showNewestWindow(chart)
 		chart.invalidate()
 	}
@@ -204,5 +248,8 @@ abstract class MetricsChartRenderer(
 		const val VISIBLE_SAMPLES = 60
 
 		const val X_LABEL_GRANULARITY_SAMPLES = 15f
+
+		const val ANNOTATION_LINE_WIDTH = 1f
+		const val ANNOTATION_DASH_LENGTH = 6f
 	}
 }

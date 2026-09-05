@@ -201,7 +201,13 @@ abstract class BaseEditorActivity :
 			memoryUsageWatcher = memoryUsageWatcher,
 			networkUsageWatcher = networkUsageWatcher,
 			lineColorFor = ::getMemUsageLineColorFor,
+			annotations = metricsViewModel.annotations,
 		)
+	}
+
+	/** Records a significant event for the charts to annotate (ADFA-5486). */
+	fun recordMetricsAnnotation(label: String) {
+		metricsViewModel.annotations.record(label)
 	}
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()

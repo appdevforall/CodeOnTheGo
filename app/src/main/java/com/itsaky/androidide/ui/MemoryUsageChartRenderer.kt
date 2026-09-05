@@ -28,6 +28,7 @@ import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MemoryUsageWatcher.ProcessMemoryInfo
+import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.ShiftedLongArray
 import kotlin.math.roundToLong
 
@@ -49,7 +50,11 @@ import kotlin.math.roundToLong
 class MemoryUsageChartRenderer(
 	private val usagesProvider: () -> Array<ProcessMemoryInfo>,
 	private val lineColorFor: (ProcessMemoryInfo) -> Int,
-) : MetricsChartRenderer(sampleIntervalMillis = MemoryUsageWatcher.DEFAULT_UPDATE_INTERVAL) {
+	annotations: MetricsAnnotationStore? = null,
+) : MetricsChartRenderer(
+		sampleIntervalMillis = MemoryUsageWatcher.DEFAULT_UPDATE_INTERVAL,
+		annotations = annotations,
+	) {
 	/**
 	 * Maps a watched pid to its dataset index in the attached chart's [LineData]. Empty whenever no
 	 * chart is attached.

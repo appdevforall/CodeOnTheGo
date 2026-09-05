@@ -25,6 +25,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.itsaky.androidide.R
+import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.NetworkUsageWatcher.NetworkUsage
 import kotlin.math.ceil
@@ -56,7 +57,11 @@ import kotlin.math.roundToLong
  */
 class NetworkUsageChartRenderer(
 	private val usageProvider: () -> NetworkUsage,
-) : MetricsChartRenderer(sampleIntervalMillis = NetworkUsageWatcher.DEFAULT_UPDATE_INTERVAL) {
+	annotations: MetricsAnnotationStore? = null,
+) : MetricsChartRenderer(
+		sampleIntervalMillis = NetworkUsageWatcher.DEFAULT_UPDATE_INTERVAL,
+		annotations = annotations,
+	) {
 	/**
 	 * Rebuilds both series from the full sample history.
 	 */

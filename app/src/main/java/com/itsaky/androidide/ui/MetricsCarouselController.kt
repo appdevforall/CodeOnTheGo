@@ -22,6 +22,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 
 /**
@@ -42,15 +43,20 @@ class MetricsCarouselController(
 	private val memoryUsageWatcher: MemoryUsageWatcher,
 	private val networkUsageWatcher: NetworkUsageWatcher,
 	lineColorFor: (MemoryUsageWatcher.ProcessMemoryInfo) -> Int,
+	annotations: MetricsAnnotationStore? = null,
 ) {
 	private val memoryRenderer =
 		MemoryUsageChartRenderer(
 			usagesProvider = { memoryUsageWatcher.getMemoryUsages() },
 			lineColorFor = lineColorFor,
+			annotations = annotations,
 		)
 
 	private val networkRenderer =
-		NetworkUsageChartRenderer(usageProvider = { networkUsageWatcher.getUsage() })
+		NetworkUsageChartRenderer(
+			usageProvider = { networkUsageWatcher.getUsage() },
+			annotations = annotations,
+		)
 
 	private val pages =
 		listOf(
