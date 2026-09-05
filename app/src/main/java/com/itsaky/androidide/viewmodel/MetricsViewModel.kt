@@ -40,9 +40,9 @@ class MetricsViewModel : ViewModel() {
 
 	override fun onCleared() {
 		super.onCleared()
-		memoryUsageWatcher.listener = null
-		memoryUsageWatcher.stopWatching(true)
-		networkUsageWatcher.listener = null
-		networkUsageWatcher.stopWatching()
+		// close(), not stopWatching(): this is the terminal teardown, and each watcher holds a
+		// dedicated sampling thread that newSingleThreadContext keeps alive until it is closed.
+		memoryUsageWatcher.close()
+		networkUsageWatcher.close()
 	}
 }

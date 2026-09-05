@@ -26,10 +26,13 @@ import androidx.core.content.getSystemService
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.termux.shared.reflection.ReflectionUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -70,7 +73,10 @@ class MemoryUsageWatcher
 				clearHistory()
 			}
 
-		private val coroutineScope = CoroutineScope(coroutineDispatcher)
+		private val coroutineScope = CoroutineScope(SupervisorJob() + coroutineDispatcher)
+
+		/** The running sampling loop, so [stopWatching] can actually stop it. */
+		private var samplingJob: Job? = null
 		private val memoryUsage = ConcurrentHashMap<Int, ProcessMemoryInfo>()
 		private val watching = AtomicBoolean(false)
 
@@ -113,31 +119,40 @@ class MemoryUsageWatcher
 		 * Start watching processes for their memory usage.
 		 */
 		fun startWatching() {
-			if (isWatching) {
+			if (!watching.compareAndSet(false, true)) {
 				log.warn("Processes are already being watched for memory usage")
 				return
 			}
 
-			watching.set(true)
+			samplingJob =
+				coroutineScope.launch {
+					while (isWatching) {
+						// A throw here used to end the coroutine while `watching` stayed true, so
+						// every later startWatching() was refused as "already watching" and
+						// sampling stopped for good. A sample is worth losing; the loop is not.
+						runCatching {
+							readUsages()
 
-			coroutineScope.launch(context = SupervisorJob() + coroutineDispatcher) {
-				while (isWatching) {
-					readUsages()
+							// don't bother to update if no listeners are set
+							listener?.also { listener ->
+								val usages = MutableIntObjectMap<ProcessMemoryInfo>(memoryUsage.size)
+								for ((pid, usage) in this@MemoryUsageWatcher.memoryUsage) {
+									usages[pid] = usage
+								}
+								withContext(mainDispatcher) {
+									listener.onMemoryUsageChanged(usages)
+								}
+							}
+						}.onFailure { failure ->
+							if (failure is CancellationException) {
+								throw failure
+							}
+							log.error("Memory usage sampling failed; continuing", failure)
+						}
 
-					// don't bother to update if no listeners are set
-					listener?.also { listener ->
-						val usages = MutableIntObjectMap<ProcessMemoryInfo>(memoryUsage.size)
-						for ((pid, usage) in this@MemoryUsageWatcher.memoryUsage) {
-							usages[pid] = usage
-						}
-						withContext(mainDispatcher) {
-							listener.onMemoryUsageChanged(usages)
-						}
+						delay(updateInterval)
 					}
-
-					delay(updateInterval)
 				}
-			}
 		}
 
 		private fun readUsages() {
@@ -271,7 +286,25 @@ class MemoryUsageWatcher
 				unwatchAll()
 			}
 			watching.set(false)
-			coroutineScope.cancelIfActive("Cancellation requested")
+			// Cancelled rather than left to notice the flag: the loop spends almost all its time in
+			// delay(updateInterval), up to a minute at the slowest rate, so a stop followed by a
+			// start inside that window would leave the old loop running alongside the new one.
+			samplingJob?.cancel()
+			samplingJob = null
+		}
+
+		/**
+		 * Stops sampling and releases the sampling thread. The watcher cannot be started again.
+		 *
+		 * Separate from [stopWatching] because a watcher is stopped and restarted across the
+		 * editor's lifecycle; only a terminal teardown should give up the thread, and
+		 * `newSingleThreadContext` holds one until it is closed.
+		 */
+		fun close() {
+			stopWatching()
+			listener = null
+			coroutineScope.cancelIfActive("Watcher closed")
+			(coroutineDispatcher as? ExecutorCoroutineDispatcher)?.close()
 		}
 
 		/**
