@@ -11,23 +11,46 @@ jobs:
     name: Move linked Jira ticket to QA
     runs-on: ubuntu-latest
     # Public repo: anyone can approve, and a fork branch can be named after
-    # anyone's ticket. Only our own branches, and only an approval from an org
-    # member or a repo collaborator. That is a proxy for write access, not proof
-    # of it -- proving it needs a token this workflow deliberately does not hold.
+    # anyone's ticket, so only our own branches qualify. Whether the approver
+    # may push is settled inside the job, not here.
     if: >-
       github.event.review.state == 'approved' &&
       github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
+      github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Move the ticket to QA
         timeout-minutes: 5
         env:
           BRANCH: ${{ github.event.pull_request.head.ref }}
+          APPROVER: ${{ github.event.review.user.login }}
+          GH_TOKEN: ${{ github.token }}
           AUTH: ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}
         run: |
-          [[ "$BRANCH" =~ ADFA-[0-9]+ ]] || { echo "No ADFA key in $BRANCH"; exit 0; }
+          [[ "$BRANCH" =~ ADFA-[0-9]+ ]] || { echo "::warning::No ADFA key in $BRANCH"; exit 0; }
           KEY="${BASH_REMATCH[0]}"
+
+          # github.event.review.author_association is computed for an anonymous
+          # viewer. This org publishes no memberships, so a member reads as
+          # CONTRIBUTOR however much write access they hold, and only the direct
+          # collaborators read as COLLABORATOR. Ask the repository who may push
+          # instead. This endpoint answers "write" for maintain and "read" for
+          # triage, so the two names below cover every role that may push.
+          #
+          # The question is asked here rather than in if: because a skipped job
+          # runs no steps, so it cannot say why it declined. Every decline below
+          # exits 0: this is a convenience, and it never reddens a PR.
+          #
+          # This read needs no scope. Run 33932341806 asked the same endpoint
+          # from a job holding permissions: {} and got "write" for both a
+          # team-derived member and a direct collaborator, so the workflow
+          # keeps granting GITHUB_TOKEN nothing.
+          PERM=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$APPROVER/permission" --jq .permission) \
+            || { echo "::warning::$KEY: cannot read repository access for $APPROVER, ticket untouched"; exit 0; }
+          case "$PERM" in
+            admin | write) ;;
+            *) echo "::warning::$KEY: $APPROVER has $PERM access, not write; ticket untouched"; exit 0 ;;
+          esac
+
           API="https://appdevforall.atlassian.net/rest/api/3/issue/$KEY/transitions"
           jira() { curl -sS -f --max-time 30 -u "$AUTH" "$@"; }
 
@@ -46,5 +69,5 @@ jobs:
             jira -X POST -H 'Content-Type: application/json' \
               -d "{\"transition\":{\"id\":\"$ID\"}}" "$API" \
               || { echo "::warning::$KEY: transition \"$STEP\" failed"; exit 0; }
-            echo "$KEY: $STEP"
+            echo "::notice::$KEY: $STEP"
           done
