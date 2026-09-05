@@ -66,7 +66,6 @@ import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN
@@ -119,10 +118,7 @@ import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.mainThreadHandler
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
-import com.itsaky.androidide.ui.MemoryUsageChartRenderer
-import com.itsaky.androidide.ui.MetricsCarouselAdapter
-import com.itsaky.androidide.ui.MetricsPage
-import com.itsaky.androidide.ui.NetworkUsageChartRenderer
+import com.itsaky.androidide.ui.MetricsCarouselController
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
@@ -132,7 +128,6 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
-import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.StringsInjectionException
 import com.itsaky.androidide.utils.StringsXmlInjector
 import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
@@ -200,20 +195,13 @@ abstract class BaseEditorActivity :
 
 	protected val networkUsageWatcher get() = metricsViewModel.networkUsageWatcher
 
-	private var metricsPageCallback: ViewPager2.OnPageChangeCallback? = null
-	private val memUsageChartRenderer =
-		MemoryUsageChartRenderer(
-			usagesProvider = { memoryUsageWatcher.getMemoryUsages() },
+	private val metricsCarousel by lazy {
+		MetricsCarouselController(
+			memoryUsageWatcher = memoryUsageWatcher,
+			networkUsageWatcher = networkUsageWatcher,
 			lineColorFor = ::getMemUsageLineColorFor,
 		)
-
-	private val networkUsageChartRenderer =
-		NetworkUsageChartRenderer(usageProvider = { networkUsageWatcher.getUsage() })
-
-	private val networkUsageListener =
-		NetworkUsageWatcher.NetworkUsageListener { usage ->
-			networkUsageChartRenderer.onUsageChanged(usage)
-		}
+	}
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
@@ -332,11 +320,6 @@ abstract class BaseEditorActivity :
 					}
 				}
 			}
-		}
-
-	private val memoryUsageListener =
-		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
-			memUsageChartRenderer.onUsagesChanged(memoryUsage)
 		}
 
 	private val shizukuBinderReceivedListener =
@@ -538,13 +521,7 @@ abstract class BaseEditorActivity :
 		fullscreenManager?.destroy()
 		fullscreenManager = null
 
-		metricsPageCallback?.let { callback ->
-			_binding?.memUsageView?.metricsPager?.unregisterOnPageChangeCallback(callback)
-		}
-		metricsPageCallback = null
-		_binding?.memUsageView?.metricsPager?.adapter = null
-		memUsageChartRenderer.detach()
-		networkUsageChartRenderer.detach()
+		metricsCarousel.unbind()
 		_binding = null
 
 		if (isDestroying) {
@@ -889,7 +866,6 @@ abstract class BaseEditorActivity :
 
 		setupMetricsCarousel()
 		watchMemory()
-		watchNetwork()
 		observeFileOperations()
 
 		setupGestureDetector()
@@ -989,49 +965,19 @@ abstract class BaseEditorActivity :
 				content.editorAppBarLayout.updatePadding(top = topInset)
 			}
 
-			memUsageView.metricsPager.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+			metricsCarousel.pager?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				topMargin = (insetsTop * progress).roundToInt()
 			}
 		}
 	}
 
 	private fun setupMetricsCarousel() {
-		val pages =
-			listOf(
-				// The memory chart is the default page (ADFA-5487); network traffic is the second
-				// (ADFA-5489), replacing the brand-mark placeholder that ADFA-5487 shipped.
-				MetricsPage.MemoryChart(title = string.metrics_title_memory),
-				MetricsPage.NetworkChart(title = string.metrics_title_network),
-			)
-
-		binding.memUsageView.metricsPager.adapter =
-			MetricsCarouselAdapter(pages, memUsageChartRenderer, networkUsageChartRenderer)
-
-		val showTitleFor = { position: Int ->
-			pages.getOrNull(position)?.let { page ->
-				binding.memUsageView.metricsTitle.setText(page.title)
-			}
-		}
-
-		metricsPageCallback =
-			object : ViewPager2.OnPageChangeCallback() {
-				override fun onPageSelected(position: Int) {
-					showTitleFor(position)
-				}
-			}.also { binding.memUsageView.metricsPager.registerOnPageChangeCallback(it) }
-
-		// onPageSelected does not fire for the page the carousel opens on.
-		showTitleFor(binding.memUsageView.metricsPager.currentItem)
+		metricsCarousel.bind(binding.memUsageView)
 	}
 
 	private fun watchMemory() {
-		memoryUsageWatcher.listener = memoryUsageListener
 		memoryUsageWatcher.watchProcess(Process.myPid(), PROC_IDE)
 		resetMemUsageChart()
-	}
-
-	private fun watchNetwork() {
-		networkUsageWatcher.listener = networkUsageListener
 	}
 
 	/**
@@ -1039,7 +985,7 @@ abstract class BaseEditorActivity :
 	 * watching a process.
 	 */
 	protected fun resetMemUsageChart() {
-		memUsageChartRenderer.rebuild()
+		metricsCarousel.onWatchedProcessesChanged()
 	}
 
 	private fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
@@ -1052,11 +998,10 @@ abstract class BaseEditorActivity :
 
 	override fun onPause() {
 		super.onPause()
-		// Sampling continues while backgrounded so the hour of history has no gaps; the x axis
-		// assumes evenly spaced samples and would otherwise misreport their age (ADFA-5486).
-		// Only the listeners go, so nothing updates a chart nobody is looking at.
-		memoryUsageWatcher.listener = null
-		networkUsageWatcher.listener = null
+		// Sampling continues while backgrounded so the history has no gaps; the x axis assumes
+		// evenly spaced samples and would otherwise misreport their age (ADFA-5486). Only the
+		// carousel goes, so nothing updates a chart nobody is looking at.
+		metricsCarousel.unbind()
 
 		this.isDestroying = isFinishing
 		getFileTreeFragment()?.saveTreeState()
@@ -1073,8 +1018,7 @@ abstract class BaseEditorActivity :
 			log.warn("Unable to move debugger overlay to display {}", displayId, err)
 		}
 
-		memoryUsageWatcher.listener = memoryUsageListener
-		networkUsageWatcher.listener = networkUsageListener
+		_binding?.let { metricsCarousel.bind(it.memUsageView) }
 		if (!memoryUsageWatcher.isWatching) {
 			memoryUsageWatcher.startWatching()
 		}
@@ -1083,8 +1027,7 @@ abstract class BaseEditorActivity :
 		}
 
 		// Draw whatever was sampled while we were away, rather than waiting for the next tick.
-		memUsageChartRenderer.rebuild()
-		networkUsageChartRenderer.rebuild()
+		metricsCarousel.refresh()
 
 		apkInstallationViewModel.reloadStatus(this)
 
