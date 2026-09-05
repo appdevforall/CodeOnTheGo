@@ -415,7 +415,6 @@ abstract class BaseEditorActivity :
 			}
 		} finally {
 			debuggerService = null
-			isDebuggerStarting = false
 		}
 	}
 
@@ -678,6 +677,7 @@ abstract class BaseEditorActivity :
 			return
 		}
 
+		debuggerViewModel.debugeePackage = packageName
 		startDebuggerAndDo {
 			withContext(Dispatchers.Main.immediate) {
 				doLaunchApp(
