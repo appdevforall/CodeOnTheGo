@@ -88,6 +88,21 @@
 		app:layout_constraintBottom_toBottomOf="@id/metrics_pager"
 		app:layout_constraintEnd_toEndOf="@id/metrics_pager" />
 
+	<!-- Battery level, in the graph's top-right corner. Hidden while charging, when a rising level would contradict a chart
+		about power being spent, and on every page but the power one. -->
+	<TextView
+		android:id="@+id/metrics_battery"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:paddingHorizontal="@dimen/metrics_carousel_title_padding_vertical"
+		android:textAppearance="?attr/textAppearanceLabelSmall"
+		android:textColor="?attr/colorOnSurface"
+		android:visibility="gone"
+		app:layout_constraintEnd_toEndOf="@id/metrics_pager"
+		app:layout_constraintTop_toTopOf="@id/metrics_pager"
+		tools:text="84%"
+		xmlns:tools="http://schemas.android.com/tools" />
+
 	<!-- Shown in place of the carousel while it is floating in its own window. Only one carousel can be live at a time (the
 		watchers hold a single listener each), so undocking moves it out of the editor rather than copying it; without this the reveal
 		would open on an empty strip that reads as broken, and there would be no way back if the window is off screen. -->

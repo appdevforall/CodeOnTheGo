@@ -17,10 +17,13 @@
 
 package com.itsaky.androidide.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import com.itsaky.androidide.utils.DevicePowerSource
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.NetworkUsageWatcher
+import com.itsaky.androidide.utils.PowerUsageWatcher
 
 /**
  * Owns the sample history behind the editor's metrics carousel.
@@ -34,10 +37,18 @@ import com.itsaky.androidide.utils.NetworkUsageWatcher
  * This survives configuration changes and activity recreation. It does not survive the process being
  * killed -- see ADFA-5494.
  */
-class MetricsViewModel : ViewModel() {
+class MetricsViewModel(
+	application: Application,
+) : AndroidViewModel(application) {
 	val memoryUsageWatcher = MemoryUsageWatcher()
 
 	val networkUsageWatcher = NetworkUsageWatcher()
+
+	/**
+	 * Temperature and power (ADFA-5499). Needs a Context for the battery broadcast, which is why
+	 * this is an AndroidViewModel.
+	 */
+	val powerUsageWatcher = PowerUsageWatcher(source = DevicePowerSource(application))
 
 	/** Significant events for the charts to annotate (ADFA-5486). */
 	val annotations = MetricsAnnotationStore()
@@ -48,5 +59,6 @@ class MetricsViewModel : ViewModel() {
 		// dedicated sampling thread that newSingleThreadContext keeps alive until it is closed.
 		memoryUsageWatcher.close()
 		networkUsageWatcher.close()
+		powerUsageWatcher.close()
 	}
 }

@@ -42,6 +42,11 @@ sealed interface MetricsPage {
 	data class NetworkChart(
 		@StringRes override val title: Int,
 	) : MetricsPage
+
+	/** The live temperature and power chart, rendered by [PowerUsageChartRenderer]. */
+	data class PowerChart(
+		@StringRes override val title: Int,
+	) : MetricsPage
 }
 
 /**
@@ -58,6 +63,7 @@ class MetricsCarouselAdapter(
 	private val pages: List<MetricsPage>,
 	private val memoryChartRenderer: MemoryUsageChartRenderer,
 	private val networkChartRenderer: NetworkUsageChartRenderer,
+	private val powerChartRenderer: PowerUsageChartRenderer,
 ) : RecyclerView.Adapter<MetricsCarouselAdapter.PageViewHolder>() {
 	sealed class PageViewHolder(
 		view: View,
@@ -69,6 +75,10 @@ class MetricsCarouselAdapter(
 		class NetworkChart(
 			val chart: SafeLineChart,
 		) : PageViewHolder(chart)
+
+		class PowerChart(
+			val chart: SafeLineChart,
+		) : PageViewHolder(chart)
 	}
 
 	override fun getItemCount(): Int = pages.size
@@ -77,6 +87,7 @@ class MetricsCarouselAdapter(
 		when (pages[position]) {
 			is MetricsPage.MemoryChart -> VIEW_TYPE_MEMORY_CHART
 			is MetricsPage.NetworkChart -> VIEW_TYPE_NETWORK_CHART
+			is MetricsPage.PowerChart -> VIEW_TYPE_POWER_CHART
 		}
 
 	override fun onCreateViewHolder(
@@ -94,6 +105,12 @@ class MetricsCarouselAdapter(
 			VIEW_TYPE_NETWORK_CHART -> {
 				PageViewHolder.NetworkChart(
 					inflater.inflate(R.layout.item_metrics_network_chart, parent, false) as SafeLineChart,
+				)
+			}
+
+			VIEW_TYPE_POWER_CHART -> {
+				PageViewHolder.PowerChart(
+					inflater.inflate(R.layout.item_metrics_power_chart, parent, false) as SafeLineChart,
 				)
 			}
 
@@ -115,6 +132,10 @@ class MetricsCarouselAdapter(
 			is MetricsPage.NetworkChart -> {
 				networkChartRenderer.attach((holder as PageViewHolder.NetworkChart).chart)
 			}
+
+			is MetricsPage.PowerChart -> {
+				powerChartRenderer.attach((holder as PageViewHolder.PowerChart).chart)
+			}
 		}
 	}
 
@@ -125,11 +146,13 @@ class MetricsCarouselAdapter(
 		when (holder) {
 			is PageViewHolder.MemoryChart -> memoryChartRenderer.detachIfAttached(holder.chart)
 			is PageViewHolder.NetworkChart -> networkChartRenderer.detachIfAttached(holder.chart)
+			is PageViewHolder.PowerChart -> powerChartRenderer.detachIfAttached(holder.chart)
 		}
 	}
 
 	private companion object {
 		const val VIEW_TYPE_MEMORY_CHART = 0
 		const val VIEW_TYPE_NETWORK_CHART = 1
+		const val VIEW_TYPE_POWER_CHART = 2
 	}
 }

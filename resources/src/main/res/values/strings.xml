@@ -1682,6 +1682,10 @@
 	<string name="metrics_sampling_rate_title">Sampling rate</string>
 	<string name="metrics_sampling_rate_entry">Every %1$s</string>
 	<string name="metrics_sampling_rate_unavailable">%1$s (needs a 64-bit device)</string>
+	<string name="metrics_title_power">Temperature and power</string>
+	<string name="metrics_power_chart">Temperature and power chart</string>
+	<string name="metrics_power_temperature">Battery temp</string>
+	<string name="metrics_power_draw">Power</string>
 	<string name="metrics_carousel_previous">Previous metric</string>
 	<string name="metrics_carousel_next">Next metric</string>
 	<string name="metrics_carousel_snapshot">Save chart image</string>

@@ -196,10 +196,13 @@ abstract class BaseEditorActivity :
 
 	protected val networkUsageWatcher get() = metricsViewModel.networkUsageWatcher
 
+	protected val powerUsageWatcher get() = metricsViewModel.powerUsageWatcher
+
 	protected val metricsCarousel by lazy {
 		MetricsCarouselController(
 			memoryUsageWatcher = memoryUsageWatcher,
 			networkUsageWatcher = networkUsageWatcher,
+			powerUsageWatcher = powerUsageWatcher,
 			lineColorFor = ::getMemUsageLineColorFor,
 			annotations = metricsViewModel.annotations,
 		)
@@ -1071,6 +1074,9 @@ abstract class BaseEditorActivity :
 		}
 		if (!networkUsageWatcher.isWatching) {
 			networkUsageWatcher.startWatching()
+		}
+		if (!powerUsageWatcher.isWatching) {
+			powerUsageWatcher.startWatching()
 		}
 
 		if (!isMetricsCarouselUndocked()) {

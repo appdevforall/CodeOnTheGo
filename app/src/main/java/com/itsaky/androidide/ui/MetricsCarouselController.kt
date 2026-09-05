@@ -19,6 +19,7 @@ package com.itsaky.androidide.ui
 
 import android.widget.Toast
 import androidx.annotation.UiThread
+import androidx.core.view.isVisible
 import androidx.viewpager2.widget.ViewPager2
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
@@ -30,6 +31,7 @@ import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.MetricsSamplingRates
 import com.itsaky.androidide.utils.MetricsSnapshot
 import com.itsaky.androidide.utils.NetworkUsageWatcher
+import com.itsaky.androidide.utils.PowerUsageWatcher
 
 /**
  * Drives one metrics carousel: its pages, its renderers, and the title that names the current page.
@@ -48,6 +50,7 @@ import com.itsaky.androidide.utils.NetworkUsageWatcher
 class MetricsCarouselController(
 	private val memoryUsageWatcher: MemoryUsageWatcher,
 	private val networkUsageWatcher: NetworkUsageWatcher,
+	private val powerUsageWatcher: PowerUsageWatcher,
 	lineColorFor: (MemoryUsageWatcher.ProcessMemoryInfo) -> Int,
 	annotations: MetricsAnnotationStore? = null,
 ) {
@@ -72,7 +75,22 @@ class MetricsCarouselController(
 			// (ADFA-5489), replacing the brand-mark placeholder that ADFA-5487 shipped.
 			MetricsPage.MemoryChart(title = string.metrics_title_memory),
 			MetricsPage.NetworkChart(title = string.metrics_title_network),
+			MetricsPage.PowerChart(title = string.metrics_title_power),
 		)
+
+	private val powerRenderer =
+		PowerUsageChartRenderer(
+			usageProvider = { powerUsageWatcher.getUsage() },
+			batteryProvider = { powerUsageWatcher.latestBattery },
+			annotations = annotations,
+			sampleIntervalMillis = { powerUsageWatcher.updateInterval },
+		)
+
+	private val powerListener =
+		PowerUsageWatcher.PowerUsageListener { usage ->
+			powerRenderer.onUsageChanged(usage)
+			updateBatteryReadout()
+		}
 
 	private val memoryListener =
 		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
@@ -101,7 +119,7 @@ class MetricsCarouselController(
 	fun bind(binding: LayoutMemUsageBinding) {
 		this.binding = binding
 
-		binding.metricsPager.adapter = MetricsCarouselAdapter(pages, memoryRenderer, networkRenderer)
+		binding.metricsPager.adapter = MetricsCarouselAdapter(pages, memoryRenderer, networkRenderer, powerRenderer)
 
 		val showTitleFor = { position: Int ->
 			pages.getOrNull(position)?.let { page ->
@@ -114,9 +132,11 @@ class MetricsCarouselController(
 				override fun onPageSelected(position: Int) {
 					showTitleFor(position)
 					updateArrows(position)
+					updateBatteryReadout()
 					// A page left zoomed would keep claiming horizontal drags when swiped back to.
 					memoryRenderer.resetZoom()
 					networkRenderer.resetZoom()
+					powerRenderer.resetZoom()
 				}
 			}.also { binding.metricsPager.registerOnPageChangeCallback(it) }
 
@@ -132,6 +152,9 @@ class MetricsCarouselController(
 
 		memoryRenderer.onXAxisTap = { showSamplingRateDialog() }
 		networkRenderer.onXAxisTap = { showSamplingRateDialog() }
+		powerRenderer.onXAxisTap = { showSamplingRateDialog() }
+
+		updateBatteryReadout()
 
 		// A camera button in the graph's bottom-right corner exports the chart. The gestures over
 		// the chart are all spoken for, so this is a control rather than another gesture.
@@ -146,6 +169,7 @@ class MetricsCarouselController(
 
 		memoryUsageWatcher.listener = memoryListener
 		networkUsageWatcher.listener = networkListener
+		powerUsageWatcher.listener = powerListener
 	}
 
 	/**
@@ -160,9 +184,13 @@ class MetricsCarouselController(
 		if (networkUsageWatcher.listener === networkListener) {
 			networkUsageWatcher.listener = null
 		}
+		if (powerUsageWatcher.listener === powerListener) {
+			powerUsageWatcher.listener = null
+		}
 
 		memoryRenderer.onXAxisTap = null
 		networkRenderer.onXAxisTap = null
+		powerRenderer.onXAxisTap = null
 		binding?.metricsSnapshot?.setOnClickListener(null)
 		binding?.metricsPrevious?.setOnClickListener(null)
 		binding?.metricsNext?.setOnClickListener(null)
@@ -172,6 +200,7 @@ class MetricsCarouselController(
 		binding?.metricsPager?.adapter = null
 		memoryRenderer.detach()
 		networkRenderer.detach()
+		powerRenderer.detach()
 		binding = null
 	}
 
@@ -200,6 +229,22 @@ class MetricsCarouselController(
 	}
 
 	/**
+	 * Shows the battery level beside the power chart, and nowhere else (ADFA-5499).
+	 *
+	 * It is a readout rather than a plotted series because the level moves about a percent every few
+	 * minutes: over the chart's window a line would be flat, spending an axis on a constant.
+	 */
+	@UiThread
+	private fun updateBatteryReadout() {
+		val binding = this.binding ?: return
+		val onPowerPage = pages.getOrNull(binding.metricsPager.currentItem) is MetricsPage.PowerChart
+		val readout = if (onPowerPage) powerRenderer.batteryReadout() else null
+
+		binding.metricsBattery.text = readout.orEmpty()
+		binding.metricsBattery.isVisible = readout != null
+	}
+
+	/**
 	 * The renderer behind the page currently on screen, or `null` when nothing is bound.
 	 */
 	private fun currentRenderer(): MetricsChartRenderer? {
@@ -207,6 +252,7 @@ class MetricsCarouselController(
 		return when (pages.getOrNull(binding.metricsPager.currentItem)) {
 			is MetricsPage.MemoryChart -> memoryRenderer
 			is MetricsPage.NetworkChart -> networkRenderer
+			is MetricsPage.PowerChart -> powerRenderer
 			null -> null
 		}
 	}
@@ -263,6 +309,7 @@ class MetricsCarouselController(
 	private fun setSamplingInterval(intervalMillis: Long) {
 		memoryUsageWatcher.updateInterval = intervalMillis
 		networkUsageWatcher.updateInterval = intervalMillis
+		powerUsageWatcher.updateInterval = intervalMillis
 		refresh()
 	}
 
@@ -289,6 +336,7 @@ class MetricsCarouselController(
 			when (page) {
 				is MetricsPage.MemoryChart -> memoryRenderer
 				is MetricsPage.NetworkChart -> networkRenderer
+				is MetricsPage.PowerChart -> powerRenderer
 			}
 
 		val label = context.getString(page.title)
@@ -316,6 +364,7 @@ class MetricsCarouselController(
 	fun refresh() {
 		memoryRenderer.rebuild()
 		networkRenderer.rebuild()
+		powerRenderer.rebuild()
 	}
 
 	/**

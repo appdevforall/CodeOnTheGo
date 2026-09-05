@@ -19,8 +19,10 @@ package com.itsaky.androidide.ui
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Paint
 import android.util.AttributeSet
 import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.YAxis
 import org.slf4j.LoggerFactory
 
 /**
@@ -52,6 +54,66 @@ class SafeLineChart : LineChart {
 	}
 
 	private var skippedFrames = 0L
+
+	/**
+	 * Bands painted behind the data, in x-value coordinates (ADFA-5499's thermal shading).
+	 *
+	 * Drawn here rather than by the caller because the chart owns the transformer that maps an
+	 * x value to a pixel, and that mapping changes with every zoom, pan and layout.
+	 */
+	var backgroundSpans: List<Span> = emptyList()
+		set(value) {
+			field = value
+			invalidate()
+		}
+
+	/**
+	 * A shaded range of the x axis.
+	 *
+	 * @property startX First x value covered, inclusive.
+	 * @property endX Last x value covered, inclusive.
+	 * @property color Fill colour, expected to carry its own alpha.
+	 */
+	data class Span(
+		val startX: Float,
+		val endX: Float,
+		val color: Int,
+	)
+
+	private val spanPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+	/**
+	 * Draws the spans immediately after the grid background, which is an opaque fill of the plot: a
+	 * span painted before [onDraw] delegates upwards is covered by it and never reaches the screen.
+	 * Landing here also puts the shading under the grid lines and the data, where it belongs.
+	 */
+	override fun drawGridBackground(canvas: Canvas) {
+		super.drawGridBackground(canvas)
+		drawBackgroundSpans(canvas)
+	}
+
+	private fun drawBackgroundSpans(canvas: Canvas) {
+		if (backgroundSpans.isEmpty()) {
+			return
+		}
+
+		val content = viewPortHandler.contentRect
+		val transformer = getTransformer(YAxis.AxisDependency.LEFT) ?: return
+
+		backgroundSpans.forEach { span ->
+			val left = transformer.getPixelForValues(span.startX, 0f).x.toFloat()
+			val right = transformer.getPixelForValues(span.endX, 0f).x.toFloat()
+			// A span scrolled out of view still maps to a pixel, so clip to the plot.
+			val clippedLeft = left.coerceAtLeast(content.left)
+			val clippedRight = right.coerceAtMost(content.right)
+			if (clippedRight <= clippedLeft) {
+				return@forEach
+			}
+
+			spanPaint.color = span.color
+			canvas.drawRect(clippedLeft, content.top, clippedRight, content.bottom, spanPaint)
+		}
+	}
 
 	override fun onDraw(canvas: Canvas) {
 		try {

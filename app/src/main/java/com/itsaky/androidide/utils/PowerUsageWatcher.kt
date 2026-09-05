@@ -1,0 +1,281 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.itsaky.androidide.utils
+
+import androidx.annotation.VisibleForTesting
+import com.itsaky.androidide.tasks.cancelIfActive
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.CoroutineContext
+
+/**
+ * Samples the device's temperature and power draw (ADFA-5499).
+ *
+ * What a normally-installed app can read is narrower than it sounds. Battery temperature and the
+ * current/voltage pair behind power come from the battery, free of any permission. The per-zone CPU
+ * and skin temperatures the platform itself can see need `android.permission.DEVICE_POWER`, which is
+ * signature-level and cannot be granted to an installed app at all -- hence [PowerSource], so a
+ * privileged build could supply better readings without the chart changing.
+ *
+ * Power is instantaneous rather than cumulative: a running total only ever rises and says nothing
+ * about which piece of work cost anything, whereas power lines up with the spikes on the memory and
+ * network pages.
+ *
+ * @param updateInterval Milliseconds between samples.
+ * @param source Where readings come from. Injectable so tests need no device.
+ */
+class PowerUsageWatcher
+	@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
+	constructor(
+		updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
+		private val source: PowerSource,
+		private val coroutineDispatcher: CoroutineContext = newSingleThreadContext("PowerUsageWatcher"),
+		private val mainDispatcher: CoroutineContext = Dispatchers.Main.immediate,
+	) {
+		private val coroutineScope = CoroutineScope(SupervisorJob() + coroutineDispatcher)
+		private val watching = AtomicBoolean(false)
+
+		/** The running sampling loop, so [stopWatching] can actually stop it. */
+		private var samplingJob: Job? = null
+
+		/** Guards the ring buffers: the sampler writes them, the UI thread snapshots them. */
+		private val historyLock = Any()
+
+		private val temperature = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
+		private val power = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
+
+		/**
+		 * The thermal throttling level at each sample, or [THERMAL_UNKNOWN].
+		 *
+		 * Kept per sample rather than as a separate timestamped log so the chart's shading lines up
+		 * with the sample grid exactly: a shaded span is just a run of equal values here.
+		 */
+		private val thermal = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
+
+		/**
+		 * Milliseconds between samples. Changing it clears the history, for the reason given on
+		 * [MemoryUsageWatcher.updateInterval].
+		 */
+		var updateInterval: Long = updateInterval
+			set(value) {
+				if (field == value) {
+					return
+				}
+				field = value
+				clearHistory()
+			}
+
+		/** The most recent battery reading, for the chart's legend. */
+		@Volatile
+		var latestBattery: BatteryState = BatteryState.UNKNOWN
+			private set
+
+		val isWatching: Boolean
+			get() = watching.get()
+
+		/** Notified on the main thread after each sample. */
+		var listener: PowerUsageListener? = null
+
+		/**
+		 * A snapshot of the sampled history, oldest first. The arrays are copies; handing out the
+		 * live ring buffers would let a reader see them mid-append.
+		 */
+		fun getUsage(): PowerUsage =
+			synchronized(historyLock) {
+				PowerUsage(temperature.snapshotArray(), power.snapshotArray(), thermal.snapshotArray())
+			}
+
+		fun clearHistory() {
+			synchronized(historyLock) {
+				temperature.clear()
+				power.clear()
+				thermal.clear()
+			}
+		}
+
+		fun startWatching() {
+			if (!watching.compareAndSet(false, true)) {
+				log.warn("Power usage is already being watched")
+				return
+			}
+
+			samplingJob =
+				coroutineScope.launch {
+					while (isWatching) {
+						runCatching {
+							sampleOnce()
+
+							listener?.also { listener ->
+								val usage = getUsage()
+								withContext(mainDispatcher) {
+									listener.onPowerUsageChanged(usage)
+								}
+							}
+						}.onFailure { failure ->
+							if (failure is CancellationException) {
+								throw failure
+							}
+							log.error("Power usage sampling failed; continuing", failure)
+						}
+
+						delay(updateInterval)
+					}
+				}
+		}
+
+		fun stopWatching() {
+			watching.set(false)
+			samplingJob?.cancel()
+			samplingJob = null
+		}
+
+		/** Stops sampling and releases the sampling thread. The watcher cannot be started again. */
+		fun close() {
+			stopWatching()
+			listener = null
+			coroutineScope.cancelIfActive("Watcher closed")
+			(coroutineDispatcher as? ExecutorCoroutineDispatcher)?.close()
+		}
+
+		/**
+		 * Takes one sample. The loop calls this once per [updateInterval]; tests call it directly.
+		 */
+		@VisibleForTesting
+		internal fun sampleOnce() {
+			val reading = source.read()
+			latestBattery = reading.battery
+
+			synchronized(historyLock) {
+				append(temperature, reading.temperatureMilliCelsius)
+				append(power, reading.powerMicroWatts)
+				append(thermal, reading.thermalStatus.toLong())
+			}
+		}
+
+		private fun append(
+			history: MutableShiftedLongArray,
+			value: Long,
+		) {
+			// Newest entry goes in at index 0 and the shift makes it the last element, matching
+			// MemoryUsageWatcher and NetworkUsageWatcher.
+			history[0] = value
+			history.shift(1)
+		}
+
+		/**
+		 * One sample's worth of readings.
+		 *
+		 * @property temperatureMilliCelsius Battery temperature, or [UNAVAILABLE].
+		 * @property powerMicroWatts Instantaneous draw, or [UNAVAILABLE]. Negative while charging,
+		 * because the battery current reverses.
+		 * @property thermalStatus The platform throttling level, or [THERMAL_UNKNOWN].
+		 * @property battery Level and charging state, for the legend.
+		 */
+		data class PowerReading(
+			val temperatureMilliCelsius: Long,
+			val powerMicroWatts: Long,
+			val thermalStatus: Int,
+			val battery: BatteryState,
+		)
+
+		/**
+		 * @property levelPercent Charge remaining, or -1 if unknown.
+		 * @property isCharging Whether the battery is being charged.
+		 */
+		data class BatteryState(
+			val levelPercent: Int,
+			val isCharging: Boolean,
+		) {
+			companion object {
+				val UNKNOWN = BatteryState(levelPercent = -1, isCharging = false)
+			}
+		}
+
+		/**
+		 * Where readings come from. An interface because the best available source depends on how
+		 * the app is installed: a privileged build can read per-zone temperatures that an installed
+		 * one cannot.
+		 */
+		fun interface PowerSource {
+			fun read(): PowerReading
+		}
+
+		/**
+		 * Sampled history, oldest first.
+		 *
+		 * @property temperatureMilliCelsius Battery temperature per sample.
+		 * @property powerMicroWatts Instantaneous draw per sample.
+		 * @property thermalStatus Throttling level per sample, for the chart's shading.
+		 */
+		data class PowerUsage(
+			val temperatureMilliCelsius: LongArray,
+			val powerMicroWatts: LongArray,
+			val thermalStatus: LongArray,
+		) {
+			override fun equals(other: Any?): Boolean =
+				this === other ||
+					(
+						other is PowerUsage &&
+							temperatureMilliCelsius.contentEquals(other.temperatureMilliCelsius) &&
+							powerMicroWatts.contentEquals(other.powerMicroWatts) &&
+							thermalStatus.contentEquals(other.thermalStatus)
+					)
+
+			override fun hashCode(): Int {
+				var result = temperatureMilliCelsius.contentHashCode()
+				result = 31 * result + powerMicroWatts.contentHashCode()
+				result = 31 * result + thermalStatus.contentHashCode()
+				return result
+			}
+		}
+
+		fun interface PowerUsageListener {
+			fun onPowerUsageChanged(usage: PowerUsage)
+		}
+
+		companion object {
+			/** Samples retained per series, matching the other watchers. */
+			const val MAX_USAGE_ENTRIES = 10000
+			const val DEFAULT_UPDATE_INTERVAL = 1000L
+
+			/** A reading the device does not provide. */
+			const val UNAVAILABLE = Long.MIN_VALUE
+
+			/** No throttling level could be read -- an API 28 device, or the call failed. */
+			const val THERMAL_UNKNOWN = -1
+
+			private val log = LoggerFactory.getLogger(PowerUsageWatcher::class.java)
+		}
+	}
+
+/**
+ * Copies this ring buffer into a plain array in logical order, oldest first.
+ */
+private fun ShiftedLongArray.snapshotArray(): LongArray = LongArray(size) { this[it] }
