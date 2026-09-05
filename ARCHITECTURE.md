@@ -67,7 +67,7 @@ Strategy: **layer-and-subsystem based**, not feature-by-feature. The Gradle buil
 |---|---|---|
 | Application | `app` | The IDE itself — activities, fragments, services, DI, agent, web server. Wires everything together. |
 | Build engine | `subprojects:tooling-api*`, `gradle-plugin*`, `subprojects:projects`, `subprojects:builder-model-impl` | Runs a real Gradle build of the user's project out-of-process and streams events back. |
-| Language tooling | `lsp:{api,java,kotlin,xml,indexing,…}`, `lexers`, `editor*`, `editor-treesitter` | Language servers, indexing, the Sora-based editor and highlighting. |
+| Language tooling | `lsp:{api,java,kotlin,xml,indexing,refactor-core,ui,…}`, `lexers`, `editor*`, `editor-treesitter` | Language servers, indexing, the Sora-based editor and highlighting. `lsp:refactor-core` holds the language-agnostic half of the refactorings (offset spans, block geometry, rewrite composition, name primitives) so `lsp:java` and `lsp:kotlin` share one copy; `lsp:ui` holds the Compose sheets they share. Neither depends on a language server. |
 | UI design tooling | `layouteditor`, `uidesigner`, `xml-inflater`, `vectormaster`, `compose-preview` | Visual/XML design surfaces for the *user's* app. |
 | Shell | `termux:{termux-app,termux-shared,termux-view,termux-emulator}` | Embedded Termux shell and terminal. |
 | Plugin system | `plugin-api`, `plugin-api:plugin-builder`, `plugin-manager` | In-app plugin SDK + manager — `AndroidManifest.xml` `<meta-data>` contract, permissions, extensions. See [plugin-api.md](docs/plugin-api.md) for the API surface & compatibility policy. |

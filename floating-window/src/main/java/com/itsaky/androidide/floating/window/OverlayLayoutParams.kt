@@ -16,8 +16,7 @@ import android.view.WindowManager
  * focusable so the IME can attach.
  */
 object OverlayLayoutParams {
-
-	private val overlayType: Int =
+	val overlayType: Int =
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 			WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 		} else {
@@ -25,19 +24,23 @@ object OverlayLayoutParams {
 			WindowManager.LayoutParams.TYPE_PHONE
 		}
 
-	fun create(state: FloatingWindowState, focusable: Boolean): WindowManager.LayoutParams =
-		WindowManager.LayoutParams(
-			state.bounds.width,
-			state.bounds.height,
-			overlayType,
-			flagsFor(focusable),
-			PixelFormat.TRANSLUCENT,
-		).apply {
-			gravity = Gravity.TOP or Gravity.START
-			x = state.bounds.x
-			y = state.bounds.y
-			softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-		}
+	fun create(
+		state: FloatingWindowState,
+		focusable: Boolean,
+	): WindowManager.LayoutParams =
+		WindowManager
+			.LayoutParams(
+				state.bounds.width,
+				state.bounds.height,
+				overlayType,
+				flagsFor(focusable),
+				PixelFormat.TRANSLUCENT,
+			).apply {
+				gravity = Gravity.TOP or Gravity.START
+				x = state.bounds.x
+				y = state.bounds.y
+				softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+			}
 
 	fun flagsFor(focusable: Boolean): Int {
 		val common =

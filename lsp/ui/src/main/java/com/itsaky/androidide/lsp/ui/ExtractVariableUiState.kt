@@ -1,16 +1,12 @@
-package com.itsaky.androidide.lsp.kotlin.refactor.ui
-
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.CandidateExpression
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.NameProblem
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.ScopeOption
+package com.itsaky.androidide.lsp.ui
 
 /**
- * Everything the extract-variable sheet renders, derived entirely from the
- * [com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionPlan].
+ * Everything the extract-variable sheet renders, derived entirely from the [CandidateView]s it was
+ * shown with.
  *
- * [showCandidatePicker] is false only when the plan holds a single candidate. It stays visible for an
- * exact selection: long-press is the natural gesture and selects exactly one token, so hiding the list
- * there leaves no way to widen to an enclosing expression short of cancelling and re-selecting.
+ * [showCandidatePicker] is false only when there is a single candidate. It stays visible for an exact
+ * selection: long-press is the natural gesture and selects exactly one token, so hiding the list there
+ * leaves no way to widen to an enclosing expression short of cancelling and re-selecting.
  *
  * [occurrenceCount] counts every site the selected scope would rewrite, **including** the one the user
  * selected, so "Replace all 3 occurrences" means three sites in total. [showReplaceAll] is false at a
@@ -56,16 +52,3 @@ sealed interface ExtractVariableUiEvent {
 
 	data object Dismissed : ExtractVariableUiEvent
 }
-
-/**
- * The user's finished decision, handed to the action to turn into an edit.
- *
- * Kept free of offsets and text so the sheet stays a pure chooser: resolving this into a rewrite, and
- * checking the document has not moved on, both belong to the action.
- */
-data class ExtractionChoice(
-	val candidate: CandidateExpression,
-	val scope: ScopeOption,
-	val name: String,
-	val replaceAll: Boolean,
-)

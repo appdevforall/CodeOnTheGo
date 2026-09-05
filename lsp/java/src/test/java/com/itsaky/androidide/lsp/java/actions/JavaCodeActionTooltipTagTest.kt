@@ -66,6 +66,9 @@ class JavaCodeActionTooltipTagTest {
 				// editor.codeactions.trycatch row, so long-press renders the documentation
 				// fallback. The Kotlin twin editor.codeactions.kotlin.trycatch is authored.
 				"ide.editor.lsp.java.surroundWithTryCatch" to TooltipTag.EDITOR_CODE_ACTIONS_TRY_CATCH,
+				// Tag is reserved ahead of content, as with try/catch above: ADFA-5047 specifies
+				// editor.codeactions.extractvariable and the documentation.db row is a hand-off item.
+				"ide.editor.lsp.java.extractVariable" to TooltipTag.EDITOR_CODE_ACTIONS_EXTRACT_VARIABLE,
 				// No tag pinned.
 				"ide.editor.lsp.java.diagnostics.variableToStatement" to "",
 				"ide.editor.lsp.java.diagnostics.fieldToBlock" to "",

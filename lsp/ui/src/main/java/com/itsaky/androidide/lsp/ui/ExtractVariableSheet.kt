@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.kotlin.refactor.ui
+package com.itsaky.androidide.lsp.ui
 
 import android.content.Context
 import android.content.ContextWrapper
@@ -14,22 +14,27 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.itsaky.androidide.common.compose.IdeTheme
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionPlan
 
 /**
- * Hosts [ExtractVariableSheetContent].
+ * Hosts [ExtractVariableSheetContent], for whichever language server showed it.
  *
- * The plan is handed in directly rather than through fragment arguments: it carries the file's text and
- * offset spans, which is neither `Parcelable` nor meaningful to restore -- after process death the
- * document may be entirely different. So [plan] is null on a recreated instance and the sheet dismisses
- * itself, which is the same outcome the action's document-version guard would reach anyway.
+ * The candidates are handed in directly rather than through fragment arguments: they are a view of an
+ * analysis result whose offsets refer to one snapshot of one document, which is neither `Parcelable`
+ * nor meaningful to restore -- after process death the document may be entirely different. So
+ * [candidates] is null on a recreated instance and the sheet dismisses itself, which is the same
+ * outcome the caller's document-version guard would reach anyway.
  */
 class ExtractVariableSheet : BottomSheetDialogFragment() {
-	private var plan: ExtractionPlan? = null
-	private var onChoice: ((ExtractionChoice) -> Unit)? = null
+	private var candidates: List<CandidateView>? = null
+	private var keywords: Set<String> = emptySet()
+	private var nameMessages: NameMessages? = null
+	private var onSelected: ((ExtractVariableSelection) -> Unit)? = null
 
 	private val viewModel: ExtractVariableViewModel by viewModels {
-		ExtractVariableViewModel.factory(requireNotNull(plan) { "sheet shown without a plan" })
+		ExtractVariableViewModel.factory(
+			requireNotNull(candidates) { "sheet shown without candidates" },
+			keywords,
+		)
 	}
 
 	override fun onCreateView(
@@ -37,7 +42,8 @@ class ExtractVariableSheet : BottomSheetDialogFragment() {
 		container: ViewGroup?,
 		savedInstanceState: Bundle?,
 	): View? {
-		if (plan == null) {
+		val messages = nameMessages
+		if (candidates == null || messages == null) {
 			dismissAllowingStateLoss()
 			return null
 		}
@@ -50,6 +56,7 @@ class ExtractVariableSheet : BottomSheetDialogFragment() {
 					val state by viewModel.uiState.collectAsStateWithLifecycle()
 					ExtractVariableSheetContent(
 						state = state,
+						nameMessages = messages,
 						onEvent = ::handleEvent,
 					)
 				}
@@ -60,7 +67,7 @@ class ExtractVariableSheet : BottomSheetDialogFragment() {
 	private fun handleEvent(event: ExtractVariableUiEvent) {
 		when (event) {
 			ExtractVariableUiEvent.Confirmed -> {
-				viewModel.choice()?.let { choice -> onChoice?.invoke(choice) }
+				viewModel.selection()?.let { selection -> onSelected?.invoke(selection) }
 				dismiss()
 			}
 
@@ -78,22 +85,27 @@ class ExtractVariableSheet : BottomSheetDialogFragment() {
 		private const val TAG = "extract_variable_sheet"
 
 		/**
-		 * Shows the sheet on [activity], calling [onChoice] once if the user confirms.
+		 * Shows the sheet on [activity], calling [onSelected] once if the user confirms.
 		 *
-		 * Returns false when the sheet could not be shown, so the caller can report a failure rather
-		 * than silently doing nothing.
+		 * [keywords] is the language's reserved-word set and [nameMessages] its name-problem strings, so
+		 * a Java user is never shown Kotlin's wording. Returns false when the sheet could not be shown,
+		 * so the caller can report a failure rather than silently doing nothing.
 		 */
 		fun show(
 			activity: FragmentActivity,
-			plan: ExtractionPlan,
-			onChoice: (ExtractionChoice) -> Unit,
+			candidates: List<CandidateView>,
+			keywords: Set<String>,
+			nameMessages: NameMessages,
+			onSelected: (ExtractVariableSelection) -> Unit,
 		): Boolean {
 			val manager = activity.supportFragmentManager
 			if (manager.isStateSaved || manager.isDestroyed) return false
 			ExtractVariableSheet()
 				.apply {
-					this.plan = plan
-					this.onChoice = onChoice
+					this.candidates = candidates
+					this.keywords = keywords
+					this.nameMessages = nameMessages
+					this.onSelected = onSelected
 				}.show(manager, TAG)
 			return true
 		}
