@@ -94,21 +94,40 @@ class MetricsCarouselController(
 			sampleInterval = { networkUsageWatcher.updateInterval },
 		)
 
-	private val pages =
-		listOf(
-			// The memory chart is the default page (ADFA-5487); network traffic is the second
-			// (ADFA-5489), replacing the brand-mark placeholder that ADFA-5487 shipped.
-			MetricsPage.MemoryChart(title = string.metrics_title_memory),
-			MetricsPage.NetworkChart(title = string.metrics_title_network),
-			MetricsPage.PowerChart(title = string.metrics_title_power),
-		)
-
 	private val powerRenderer =
 		PowerUsageChartRenderer(
 			usageProvider = { powerUsageWatcher.getUsage() },
 			batteryProvider = { powerUsageWatcher.latestBattery },
 			annotations = annotations,
 			sampleIntervalMillis = { powerUsageWatcher.updateInterval },
+		)
+
+	/**
+	 * The carousel's pages, in order.
+	 *
+	 * Declared after the renderers, not before: a page holds its own renderer, and Kotlin
+	 * initialises properties in declaration order, so listing the pages first read powerRenderer
+	 * while it was still null.
+	 */
+	private val pages: List<MetricsPage> =
+		listOf(
+			// The memory chart is the default page (ADFA-5487); network traffic is the second
+			// (ADFA-5489), replacing the brand-mark placeholder that ADFA-5487 shipped.
+			ChartPage(
+				title = string.metrics_title_memory,
+				contentDescription = string.metrics_carousel_memory_chart,
+				renderer = memoryRenderer,
+			),
+			ChartPage(
+				title = string.metrics_title_network,
+				contentDescription = string.metrics_network_chart,
+				renderer = networkRenderer,
+			),
+			ChartPage(
+				title = string.metrics_title_power,
+				contentDescription = string.metrics_power_chart,
+				renderer = powerRenderer,
+			),
 		)
 
 	private val powerListener =
@@ -158,7 +177,7 @@ class MetricsCarouselController(
 
 		this.binding = binding
 
-		binding.metricsPager.adapter = MetricsCarouselAdapter(pages, memoryRenderer, networkRenderer, powerRenderer)
+		binding.metricsPager.adapter = MetricsCarouselAdapter(pages)
 
 		val showTitleFor = { position: Int ->
 			pages.getOrNull(position)?.let { page ->
@@ -355,8 +374,8 @@ class MetricsCarouselController(
 	@UiThread
 	private fun updateBatteryReadout() {
 		val binding = this.binding ?: return
-		val onPowerPage = pages.getOrNull(binding.metricsPager.currentItem) is MetricsPage.PowerChart
-		val readout = if (onPowerPage) powerRenderer.batteryReadout() else null
+		val renderer = currentRenderer()
+		val readout = renderer?.readout()
 
 		binding.metricsBattery.text = readout.orEmpty()
 		binding.metricsBattery.isVisible = readout != null
@@ -369,7 +388,7 @@ class MetricsCarouselController(
 			} else {
 				binding.metricsBattery.lineHeight + binding.metricsBattery.paddingTop.toFloat()
 			}
-		powerRenderer.reserveTopSpace(reserved)
+		renderer?.reserveTopSpace(reserved)
 	}
 
 	/**
@@ -377,12 +396,7 @@ class MetricsCarouselController(
 	 */
 	private fun currentRenderer(): MetricsChartRenderer? {
 		val binding = this.binding ?: return null
-		return when (pages.getOrNull(binding.metricsPager.currentItem)) {
-			is MetricsPage.MemoryChart -> memoryRenderer
-			is MetricsPage.NetworkChart -> networkRenderer
-			is MetricsPage.PowerChart -> powerRenderer
-			null -> null
-		}
+		return pages.getOrNull(binding.metricsPager.currentItem)?.renderer
 	}
 
 	/**
@@ -511,12 +525,7 @@ class MetricsCarouselController(
 		val position = binding.metricsPager.currentItem
 		val page = pages.getOrNull(position) ?: return false
 
-		val renderer =
-			when (page) {
-				is MetricsPage.MemoryChart -> memoryRenderer
-				is MetricsPage.NetworkChart -> networkRenderer
-				is MetricsPage.PowerChart -> powerRenderer
-			}
+		val renderer = page.renderer
 
 		val label = context.getString(page.title)
 		val bitmap = renderer.snapshot()
