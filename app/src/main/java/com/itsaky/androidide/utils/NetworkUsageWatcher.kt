@@ -21,10 +21,13 @@ import android.net.TrafficStats
 import android.os.Process
 import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.tasks.cancelIfActive
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -32,6 +35,7 @@ import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Samples this app's network traffic (ADFA-5489).
@@ -50,177 +54,219 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @param readRxBytes Reads the cumulative received byte count. Injectable for tests.
  * @param readTxBytes Reads the cumulative transmitted byte count. Injectable for tests.
  */
-class NetworkUsageWatcher(
-	private val updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
-	private val uid: Int = Process.myUid(),
-	private val readRxBytes: (Int) -> Long = TrafficStats::getUidRxBytes,
-	private val readTxBytes: (Int) -> Long = TrafficStats::getUidTxBytes,
-) {
+class NetworkUsageWatcher
 	@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
-	private val coroutineDispatcher = newSingleThreadContext("NetworkUsageWatcher")
-	private val coroutineScope = CoroutineScope(coroutineDispatcher)
-	private val watching = AtomicBoolean(false)
+	constructor(
+		private val updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
+		private val uid: Int = Process.myUid(),
+		private val readRxBytes: (Int) -> Long = TrafficStats::getUidRxBytes,
+		private val readTxBytes: (Int) -> Long = TrafficStats::getUidTxBytes,
+		// Injectable so a test can drive the sampling loop on a virtual clock. Waiting on the wall
+		// clock instead is what hung the test executor the first time this was attempted.
+		private val coroutineDispatcher: CoroutineContext = newSingleThreadContext("NetworkUsageWatcher"),
+		private val mainDispatcher: CoroutineContext = Dispatchers.Main.immediate,
+	) {
+		// A parent job, so cancelling the scope in close() actually reaches the sampler. Without one
+		// the launch below had to supply its own, and nothing the scope did could stop it.
+		private val coroutineScope = CoroutineScope(SupervisorJob() + coroutineDispatcher)
+		private val watching = AtomicBoolean(false)
 
-	/** Guards the two ring buffers: the sampler writes them, the UI thread snapshots them. */
-	private val historyLock = Any()
+		/** The running sampling loop, so [stopWatching] can actually stop it. */
+		private var samplingJob: Job? = null
 
-	private val received = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
-	private val transmitted = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
+		/** Guards the two ring buffers: the sampler writes them, the UI thread snapshots them. */
+		private val historyLock = Any()
 
-	/**
-	 * The previous cumulative readings, or `null` before the first sample. The first sample
-	 * establishes a baseline and contributes no delta -- the alternative would be a spike equal to
-	 * everything the app had transferred since boot.
-	 */
-	private var lastRx: Long? = null
-	private var lastTx: Long? = null
+		private val received = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
+		private val transmitted = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
 
-	/**
-	 * Whether the platform reports traffic for this UID at all. Cleared permanently if a read comes
-	 * back [TrafficStats.UNSUPPORTED], which some devices and emulators do.
-	 */
-	@Volatile
-	var isSupported: Boolean = true
-		private set
+		/**
+		 * The previous cumulative readings, or `null` before the first sample. The first sample
+		 * establishes a baseline and contributes no delta -- the alternative would be a spike equal to
+		 * everything the app had transferred since boot.
+		 */
+		private var lastRx: Long? = null
+		private var lastTx: Long? = null
 
-	val isWatching: Boolean
-		get() = watching.get()
+		/**
+		 * Whether the platform reports traffic for this UID at all. Cleared permanently if a read comes
+		 * back [TrafficStats.UNSUPPORTED], which some devices and emulators do.
+		 */
+		@Volatile
+		var isSupported: Boolean = true
+			private set
 
-	/**
-	 * Notified on the main thread after each sample.
-	 */
-	var listener: NetworkUsageListener? = null
+		val isWatching: Boolean
+			get() = watching.get()
 
-	/**
-	 * A snapshot of the sampled history, oldest first. Safe to call from any thread at any time;
-	 * before the first sample every entry is zero.
-	 *
-	 * The arrays are copies. Handing out the live ring buffers would let the caller read them while
-	 * the sampler thread is midway through appending, and the chart renderer reads all 30 entries.
-	 */
-	fun getUsage(): NetworkUsage =
-		synchronized(historyLock) {
-			NetworkUsage(received.snapshot(), transmitted.snapshot())
-		}
+		/**
+		 * Notified on the main thread after each sample.
+		 */
+		var listener: NetworkUsageListener? = null
 
-	fun startWatching() {
-		if (isWatching) {
-			log.warn("Network usage is already being watched")
-			return
-		}
+		/**
+		 * A snapshot of the sampled history, oldest first. Safe to call from any thread at any time;
+		 * before the first sample every entry is zero.
+		 *
+		 * The arrays are copies. Handing out the live ring buffers would let the caller read them while
+		 * the sampler thread is midway through appending, and the chart renderer reads all 30 entries.
+		 */
+		fun getUsage(): NetworkUsage =
+			synchronized(historyLock) {
+				NetworkUsage(received.snapshot(), transmitted.snapshot())
+			}
 
-		watching.set(true)
+		fun startWatching() {
+			// compareAndSet, not a read then a write: two callers racing here would each start a
+			// sampler, and both would append to the same buffers.
+			if (!watching.compareAndSet(false, true)) {
+				log.warn("Network usage is already being watched")
+				return
+			}
 
-		coroutineScope.launch(context = SupervisorJob() + coroutineDispatcher) {
-			while (isWatching) {
-				sampleOnce()
+			samplingJob =
+				coroutineScope.launch(context = SupervisorJob() + coroutineDispatcher) {
+					while (isWatching) {
+						// The loop must outlive a bad sample. Without this an exception -- a
+						// misbehaving listener is enough -- ends the coroutine while `watching` stays
+						// true, so every later startWatching() is refused as "already watching" and
+						// sampling is dead for the rest of the session.
+						runCatching {
+							sampleOnce()
 
-				listener?.also { listener ->
-					val usage = getUsage()
-					withContext(Dispatchers.Main.immediate) {
-						listener.onNetworkUsageChanged(usage)
+							listener?.also { listener ->
+								val usage = getUsage()
+								withContext(mainDispatcher) {
+									listener.onNetworkUsageChanged(usage)
+								}
+							}
+						}.onFailure { failure ->
+							if (failure is CancellationException) {
+								throw failure
+							}
+							log.error("Network usage sampling failed; continuing", failure)
+						}
+
+						delay(updateInterval)
 					}
 				}
-
-				delay(updateInterval)
-			}
-		}
-	}
-
-	fun stopWatching() {
-		watching.set(false)
-		coroutineScope.cancelIfActive("Cancellation requested")
-	}
-
-	/**
-	 * Takes one sample. The sampling loop calls this once per [updateInterval]; tests call it
-	 * directly so the delta accounting can be exercised without threads or waiting.
-	 */
-	@VisibleForTesting
-	internal fun sampleOnce() {
-		if (!isSupported) {
-			return
 		}
 
-		val rx = readRxBytes(uid)
-		val tx = readTxBytes(uid)
-
-		if (rx == UNSUPPORTED || tx == UNSUPPORTED) {
-			// Not transient: the platform either accounts for this UID or it does not.
-			isSupported = false
-			log.info("Network usage is unavailable on this device; the traffic chart will read zero")
-			return
+		/**
+		 * Stops sampling. The watcher can be started again; the history is kept.
+		 */
+		fun stopWatching() {
+			watching.set(false)
+			// Cancel the job, not the scope. The loop spends nearly all its time in delay(), so waiting
+			// for it to notice the flag leaves it sampling for up to a full interval after the editor
+			// asked it to stop -- long enough for a stop/start to run two samplers at once. Cancelling
+			// the scope instead would end the watcher for good, and this is a pause, not a teardown.
+			coroutineScope.cancelIfActive("Cancellation requested")
 		}
 
-		synchronized(historyLock) {
-			record(received, previous = lastRx, current = rx)
-			record(transmitted, previous = lastTx, current = tx)
+		/**
+		 * Stops sampling and releases the sampling thread. Terminal: the watcher cannot be restarted.
+		 *
+		 * Separate from [stopWatching] because the editor stops and restarts the watcher across its
+		 * lifecycle, and only the final teardown should give up the thread that
+		 * [newSingleThreadContext] keeps alive.
+		 */
+		fun close() {
+			stopWatching()
+			listener = null
+			coroutineScope.cancelIfActive("Watcher closed")
+			(coroutineDispatcher as? ExecutorCoroutineDispatcher)?.close()
 		}
 
-		lastRx = rx
-		lastTx = tx
-	}
-
-	/**
-	 * Appends the delta between [previous] and [current] to [history].
-	 *
-	 * A negative delta means the counter went backwards, which happens when it is reset -- the
-	 * device rebooted, or the platform re-based its accounting. Treated as a fresh baseline (zero
-	 * for this interval) rather than plotted as negative traffic.
-	 */
-	private fun record(
-		history: MutableShiftedLongArray,
-		previous: Long?,
-		current: Long,
-	) {
-		val delta =
-			when {
-				previous == null -> 0L
-				current < previous -> 0L
-				else -> current - previous
+		/**
+		 * Takes one sample. The sampling loop calls this once per [updateInterval]; tests call it
+		 * directly so the delta accounting can be exercised without threads or waiting.
+		 */
+		@VisibleForTesting
+		internal fun sampleOnce() {
+			if (!isSupported) {
+				return
 			}
 
-		// Newest entry goes in at index 0 and the shift makes it the last element, so
-		// history[size - 1] is always the newest. Same convention as MemoryUsageWatcher.
-		history[0] = delta
-		history.shift(1)
+			val rx = readRxBytes(uid)
+			val tx = readTxBytes(uid)
+
+			if (rx == UNSUPPORTED || tx == UNSUPPORTED) {
+				// Not transient: the platform either accounts for this UID or it does not.
+				isSupported = false
+				log.info("Network usage is unavailable on this device; the traffic chart will read zero")
+				return
+			}
+
+			synchronized(historyLock) {
+				record(received, previous = lastRx, current = rx)
+				record(transmitted, previous = lastTx, current = tx)
+			}
+
+			lastRx = rx
+			lastTx = tx
+		}
+
+		/**
+		 * Appends the delta between [previous] and [current] to [history].
+		 *
+		 * A negative delta means the counter went backwards, which happens when it is reset -- the
+		 * device rebooted, or the platform re-based its accounting. Treated as a fresh baseline (zero
+		 * for this interval) rather than plotted as negative traffic.
+		 */
+		private fun record(
+			history: MutableShiftedLongArray,
+			previous: Long?,
+			current: Long,
+		) {
+			val delta =
+				when {
+					previous == null -> 0L
+					current < previous -> 0L
+					else -> current - previous
+				}
+
+			// Newest entry goes in at index 0 and the shift makes it the last element, so
+			// history[size - 1] is always the newest. Same convention as MemoryUsageWatcher.
+			history[0] = delta
+			history.shift(1)
+		}
+
+		/**
+		 * Bytes transferred per sampling interval, oldest first.
+		 *
+		 * @property received Bytes received during each interval.
+		 * @property transmitted Bytes transmitted during each interval.
+		 */
+		data class NetworkUsage(
+			val received: LongArray,
+			val transmitted: LongArray,
+		) {
+			override fun equals(other: Any?): Boolean =
+				this === other ||
+					(
+						other is NetworkUsage &&
+							received.contentEquals(other.received) &&
+							transmitted.contentEquals(other.transmitted)
+					)
+
+			override fun hashCode(): Int = 31 * received.contentHashCode() + transmitted.contentHashCode()
+		}
+
+		fun interface NetworkUsageListener {
+			fun onNetworkUsageChanged(usage: NetworkUsage)
+		}
+
+		companion object {
+			const val MAX_USAGE_ENTRIES = 30
+			const val DEFAULT_UPDATE_INTERVAL = 1000L
+
+			/** [TrafficStats.UNSUPPORTED] widened to [Long], which is what the getters return. */
+			private const val UNSUPPORTED = TrafficStats.UNSUPPORTED.toLong()
+
+			private val log = LoggerFactory.getLogger(NetworkUsageWatcher::class.java)
+		}
 	}
-
-	/**
-	 * Bytes transferred per sampling interval, oldest first.
-	 *
-	 * @property received Bytes received during each interval.
-	 * @property transmitted Bytes transmitted during each interval.
-	 */
-	data class NetworkUsage(
-		val received: LongArray,
-		val transmitted: LongArray,
-	) {
-		override fun equals(other: Any?): Boolean =
-			this === other ||
-				(
-					other is NetworkUsage &&
-						received.contentEquals(other.received) &&
-						transmitted.contentEquals(other.transmitted)
-				)
-
-		override fun hashCode(): Int = 31 * received.contentHashCode() + transmitted.contentHashCode()
-	}
-
-	fun interface NetworkUsageListener {
-		fun onNetworkUsageChanged(usage: NetworkUsage)
-	}
-
-	companion object {
-		const val MAX_USAGE_ENTRIES = 30
-		const val DEFAULT_UPDATE_INTERVAL = 1000L
-
-		/** [TrafficStats.UNSUPPORTED] widened to [Long], which is what the getters return. */
-		private const val UNSUPPORTED = TrafficStats.UNSUPPORTED.toLong()
-
-		private val log = LoggerFactory.getLogger(NetworkUsageWatcher::class.java)
-	}
-}
 
 /**
  * Copies this ring buffer into a plain array in logical order, oldest first.

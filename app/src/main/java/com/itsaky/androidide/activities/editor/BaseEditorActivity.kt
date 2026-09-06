@@ -541,8 +541,9 @@ abstract class BaseEditorActivity :
 		if (isDestroying) {
 			memoryUsageWatcher.stopWatching(true)
 			memoryUsageWatcher.listener = null
-			networkUsageWatcher.stopWatching()
-			networkUsageWatcher.listener = null
+			// close(), not stopWatching(): this is the terminal teardown, and the watcher holds a
+			// dedicated sampling thread that newSingleThreadContext keeps alive until it is closed.
+			networkUsageWatcher.close()
 			editorActivityScope.cancelIfActive("Activity is being destroyed")
 
 			unbindDebuggerService()
