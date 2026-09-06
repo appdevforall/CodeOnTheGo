@@ -1030,9 +1030,7 @@ abstract class BaseEditorActivity :
 	@UiThread
 	protected fun setMetricsCarouselUndocked(undocked: Boolean) {
 		val view = _binding?.memUsageView ?: return
-		view.metricsPager.isVisible = !undocked
-		view.metricsTitle.isVisible = !undocked
-		view.metricsUndockedMessage.isVisible = undocked
+		view.root.setUndocked(undocked)
 
 		if (undocked) {
 			metricsCarousel.unbind()

@@ -19,10 +19,15 @@ package com.itsaky.androidide.ui
 
 import android.content.Context
 import android.os.SystemClock
+import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.ViewConfiguration
+import androidx.appcompat.view.ContextThemeWrapper
+import androidx.core.view.isVisible
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.LayoutMemUsageBinding
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -39,6 +44,17 @@ class MetricsCarouselLayoutTest {
 	private val context = ApplicationProvider.getApplicationContext<Context>()
 
 	private fun layout() = MetricsCarouselLayout(context)
+
+	/**
+	 * The real layout, inflated against the app's theme.
+	 *
+	 * The theme is not optional: the strip's controls resolve Material attributes, and a bare
+	 * application context fails to inflate them.
+	 */
+	private fun inflatedStrip(): LayoutMemUsageBinding {
+		val themed = ContextThemeWrapper(context, R.style.Theme_AndroidIDE)
+		return LayoutMemUsageBinding.inflate(LayoutInflater.from(themed))
+	}
 
 	private var downTime = 0L
 
@@ -98,6 +114,37 @@ class MetricsCarouselLayoutTest {
 			dispatchTouchEvent(event)
 			event.recycle()
 		}
+	}
+
+	@Test
+	fun `undocking hides every carousel control, not just the chart`() {
+		val binding = inflatedStrip()
+
+		binding.root.setUndocked(true)
+
+		// The arrows and the camera are chrome for a chart that is not here. Left visible they sit
+		// over the message, and the camera is inert anyway because undocking unbinds its listener.
+		assertThat(binding.metricsPager.isVisible).isFalse()
+		assertThat(binding.metricsTitle.isVisible).isFalse()
+		assertThat(binding.metricsPrevious.isVisible).isFalse()
+		assertThat(binding.metricsNext.isVisible).isFalse()
+		assertThat(binding.metricsSnapshot.isVisible).isFalse()
+		assertThat(binding.metricsUndockedMessage.isVisible).isTrue()
+	}
+
+	@Test
+	fun `re-docking brings every control back`() {
+		val binding = inflatedStrip()
+
+		binding.root.setUndocked(true)
+		binding.root.setUndocked(false)
+
+		assertThat(binding.metricsPager.isVisible).isTrue()
+		assertThat(binding.metricsTitle.isVisible).isTrue()
+		assertThat(binding.metricsPrevious.isVisible).isTrue()
+		assertThat(binding.metricsNext.isVisible).isTrue()
+		assertThat(binding.metricsSnapshot.isVisible).isTrue()
+		assertThat(binding.metricsUndockedMessage.isVisible).isFalse()
 	}
 
 	@Test
