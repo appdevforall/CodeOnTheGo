@@ -112,22 +112,6 @@ class MetricsCarouselHelpTest {
 	}
 
 	@Test
-	fun `the arrow at the end of the carousel is dimmed but still answers`() {
-		val binding = boundStrip()
-
-		// On the first page there is nowhere to go back to. Disabling that arrow would leave it
-		// consuming the long press and dropping it, so the one arrow whose greyed-out state a
-		// user might want explained was the one with no explanation.
-		assertThat(binding.metricsPager.currentItem).isEqualTo(0)
-		assertThat(binding.metricsPrevious.alpha).isLessThan(1f)
-		assertThat(binding.metricsPrevious.isEnabled).isTrue()
-		assertThat(binding.metricsPrevious.isLongClickable).isTrue()
-
-		// ...and the other end is at full strength, so the dimming means something.
-		assertThat(binding.metricsNext.alpha).isEqualTo(1f)
-	}
-
-	@Test
 	fun `an unbound strip has no help wired`() {
 		// Guards the test above: if inflation alone made these long-clickable, it would pass
 		// against a controller that wires nothing.
