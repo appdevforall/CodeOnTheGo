@@ -93,6 +93,15 @@ class MetricsCarouselLayout
 		 */
 		private val twoFingerDownX = FloatArray(TWO_FINGERS)
 		private val twoFingerDownY = FloatArray(TWO_FINGERS)
+
+		/**
+		 * The pointers being tracked, by id rather than by index.
+		 *
+		 * A pointer's index is its slot in the current event and shifts when another pointer
+		 * lifts; its id is stable for the life of that finger. Keyed by index, the travel check
+		 * could compare one finger's current position against the other's starting point.
+		 */
+		private val twoFingerIds = IntArray(TWO_FINGERS) { MotionEvent.INVALID_POINTER_ID }
 		private var twoFingerTapCandidate = false
 
 		/**
@@ -135,6 +144,7 @@ class MetricsCarouselLayout
 						twoFingerTapCandidate = true
 						twoFingerDownAt = ev.eventTime
 						for (pointer in 0 until TWO_FINGERS) {
+							twoFingerIds[pointer] = ev.getPointerId(pointer)
 							twoFingerDownX[pointer] = ev.getX(pointer)
 							twoFingerDownY[pointer] = ev.getY(pointer)
 						}
@@ -146,12 +156,18 @@ class MetricsCarouselLayout
 
 				MotionEvent.ACTION_MOVE -> {
 					if (twoFingerTapCandidate) {
-						// Either finger travelling means this is a pinch, not a tap.
-						for (pointer in 0 until minOf(ev.pointerCount, TWO_FINGERS)) {
+						// Either finger travelling means this is a pinch, not a tap. Each is found
+						// by its id: a finger that has lifted is simply absent, rather than
+						// silently standing in for the other one.
+						for (pointer in 0 until TWO_FINGERS) {
+							val index = ev.findPointerIndex(twoFingerIds[pointer])
+							if (index < 0) {
+								continue
+							}
 							val travel =
 								hypot(
-									ev.getX(pointer) - twoFingerDownX[pointer],
-									ev.getY(pointer) - twoFingerDownY[pointer],
+									ev.getX(index) - twoFingerDownX[pointer],
+									ev.getY(index) - twoFingerDownY[pointer],
 								)
 							if (travel > touchSlop) {
 								twoFingerTapCandidate = false
@@ -171,8 +187,12 @@ class MetricsCarouselLayout
 							tapTimeout,
 						)
 					}
-					if (twoFingerTapCandidate && heldFor <= tapTimeout) {
-						twoFingerTapCandidate = false
+					// Cleared either way: a candidate that has outlasted the tap timeout is over,
+					// and leaving it set let a later part of the same gesture be measured against
+					// starting points that no longer mean anything.
+					val recognised = twoFingerTapCandidate && heldFor <= tapTimeout
+					twoFingerTapCandidate = false
+					if (recognised) {
 						log.debug("carousel two-finger tap recognised")
 						onTwoFingerTap?.invoke()
 					}
