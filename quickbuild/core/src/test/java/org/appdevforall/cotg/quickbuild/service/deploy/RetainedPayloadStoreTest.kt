@@ -1,6 +1,8 @@
 package org.appdevforall.cotg.quickbuild.service.deploy
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -108,5 +110,50 @@ class RetainedPayloadStoreTest {
 		store.clear()
 
 		assertThat(store.load()).isNull()
+	}
+
+	@Test
+	fun `a retain that cannot delete the old set leaves nothing loadable`() {
+		store.retain(1L, artifact("built.dex", "old-dex"), null, null, """{"gen":1}""")
+		assumeTrue(blockDeletion(), "the filesystem ignored the permission change")
+
+		store.retain(2L, artifact("next.dex", "new-dex"), null, null, """{"gen":2}""")
+
+		// Generation 1's bytes must not outlive a failed generation-2 swap: a re-send would
+		// replay them at a generation the session no longer deploys, leaving the app behind
+		// with nothing left to notice it.
+		assertThat(store.load()).isNull()
+	}
+
+	@Test
+	fun `a clear that cannot delete the set still makes it unloadable`() {
+		store.retain(1L, artifact("built.dex", "old-dex"), null, null, """{"gen":1}""")
+		assumeTrue(blockDeletion(), "the filesystem ignored the permission change")
+
+		store.clear()
+
+		// clear() runs when the baseline changed or a restart deploy landed; either way the
+		// old bytes must never come back as a hot swap.
+		assertThat(store.load()).isNull()
+	}
+
+	/**
+	 * Makes the retention directory's entries impossible to unlink while leaving the entries
+	 * themselves writable - the shape a failed `deleteRecursively` takes, since removing a name
+	 * needs write permission on the directory and rewriting a file's bytes needs it only on the
+	 * file.
+	 *
+	 * @return false when the platform ignored the permission change (a root test runner, or a
+	 *   filesystem without POSIX permissions), in which case the caller must skip
+	 */
+	private fun blockDeletion(): Boolean {
+		val dir = File(workDir, "last-deployed")
+		return dir.setWritable(false) && !dir.canWrite()
+	}
+
+	@AfterEach
+	fun restoreRetentionDirPermissions() {
+		// @TempDir cleanup fails on a directory it cannot empty.
+		File(workDir, "last-deployed").setWritable(true)
 	}
 }
