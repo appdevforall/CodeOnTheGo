@@ -17,7 +17,9 @@
 
 package com.itsaky.androidide.services.builder
 
+import android.content.Context
 import com.itsaky.androidide.logging.provider.IdeLogRouter
+import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tooling.api.IToolingApiClient
@@ -47,6 +49,7 @@ import kotlin.time.Duration.Companion.seconds
 internal class ToolingServerRunner(
 	private var listener: OnServerStartListener?,
 	private var observer: Observer?,
+	private val context: Context,
 ) {
 	/**
 	 * The server process's pid, or `null` before it has started.
@@ -113,6 +116,15 @@ internal class ToolingServerRunner(
 				var process: Process?
 				try {
 					log.info("Starting tooling API server...")
+					// The bundled jar is extracted asynchronously at app init, and nothing else
+					// orders that against this launch. On an APK update the PREVIOUS install's jar
+					// still sits at the final path until that extraction renames over it, so
+					// launching first would run the prior APK's tooling server for the whole
+					// session. This is stamp-guarded and idempotent - a no-op once init has done
+					// it, the extraction itself when it has not - and we are on Dispatchers.IO.
+					if (!ToolsManager.ensureToolingJar(context)) {
+						log.error("Tooling API jar is not from this install; the server may misbehave")
+					}
 					val command =
 						listOf(
 							Environment.JAVA.absolutePath, // The 'java' binary executable
