@@ -22,7 +22,7 @@ import android.view.MotionEvent
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.utils.PowerUsageWatcher
+import com.itsaky.androidide.utils.NetworkUsageWatcher
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -44,16 +44,16 @@ class MetricsChartAxisTapTest {
 
 	private fun laidOutChart(): SafeLineChart {
 		val chart = SafeLineChart(context)
+		// Any concrete renderer will do -- the tap band is decided by the base class, and every
+		// page positions its x axis the same way.
 		val renderer =
-			PowerUsageChartRenderer(
+			NetworkUsageChartRenderer(
 				usageProvider = {
-					PowerUsageWatcher.PowerUsage(
-						LongArray(SAMPLES) { 30_000L },
-						LongArray(SAMPLES) { 1_000_000L },
-						LongArray(SAMPLES),
+					NetworkUsageWatcher.NetworkUsage(
+						LongArray(SAMPLES) { 1_000L },
+						LongArray(SAMPLES) { 500L },
 					)
 				},
-				batteryProvider = { PowerUsageWatcher.BatteryState.UNKNOWN },
 			)
 		renderer.attach(chart)
 		renderer.onXAxisTap = { taps++ }
