@@ -52,7 +52,9 @@ internal class RetainedPayloadStore(
 	 * confirmed the payload, so what is retained is always something known to have run.
 	 *
 	 * The swap goes through a staging dir: a crash at any point leaves either the previous
-	 * set, or nothing - never a half-written mix that [load] could hand to a re-send.
+	 * set, or nothing - never a half-written mix that [load] could hand to a re-send. A
+	 * delete that fails is the same case: [purge] invalidates the old set before removing it,
+	 * so this deploy failing to retain leaves nothing to load rather than the older set.
 	 *
 	 * @param generation the generation the confirmed deploy claimed
 	 * @param dexFile the deployed classes, or null when the build moved no code
@@ -84,7 +86,7 @@ internal class RetainedPayloadStore(
 						addProperty("hasAssets", assetsZip != null)
 					}.toString(),
 			)
-			dir.deleteRecursively()
+			check(purge()) { "could not clear ${dir.absolutePath}" }
 			check(staging.renameTo(dir)) { "could not move staging into ${dir.absolutePath}" }
 		} catch (e: Exception) {
 			staging.deleteRecursively()
@@ -126,8 +128,32 @@ internal class RetainedPayloadStore(
 	 * generation supersedes the retained one but must never be replayed as a hot swap.
 	 */
 	fun clear() {
-		dir.deleteRecursively()
+		if (!purge()) {
+			log.warn("Could not fully drop the retained payload under {}; it is invalidated but its parts remain", dir)
+		}
 		stagingDir().deleteRecursively()
+	}
+
+	/**
+	 * Removes the retained set, invalidating it before its parts go so a failed delete cannot
+	 * leave a readable [META_NAME] behind. [File.deleteRecursively] reports failure by
+	 * returning false and may already have deleted part of the tree, so its result is what
+	 * decides whether the set is gone.
+	 *
+	 * The metadata is emptied rather than unlinked first: unlinking needs write permission on
+	 * [dir] and writing needs it only on the file, so an emptied [META_NAME] still fails [load]
+	 * closed in the case where the recursive delete cannot finish at all. [load] keys off the
+	 * metadata alone, so once it is unreadable the rest of the tree is inert.
+	 *
+	 * @return true when the directory is gone; false when parts of it survive, in which case
+	 *   the set is still unreadable but the caller cannot rename a new one into place
+	 */
+	private fun purge(): Boolean {
+		val meta = File(dir, META_NAME)
+		if (meta.isFile) {
+			runCatching { meta.writeText("") }
+		}
+		return dir.deleteRecursively()
 	}
 
 	/**
