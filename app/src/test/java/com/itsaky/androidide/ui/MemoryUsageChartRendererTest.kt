@@ -17,7 +17,10 @@
 
 package com.itsaky.androidide.ui
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.view.View
 import androidx.collection.MutableIntObjectMap
 import androidx.test.core.app.ApplicationProvider
 import com.github.mikephil.charting.data.LineDataSet
@@ -45,6 +48,30 @@ class MemoryUsageChartRendererTest {
 			usagesProvider = processes,
 			lineColorFor = { Color.BLUE },
 		)
+
+	/**
+	 * A chart showing one process with the given byte history, laid out and drawn once.
+	 *
+	 * The draw matters: MPAndroidChart queues the scroll to the newest samples as a job that only
+	 * runs during a draw pass, so without one the chart reports the oldest samples as visible.
+	 */
+	private fun laidOutChart(history: LongArray): SafeLineChart {
+		val chart = chart()
+		val process =
+			ProcessMemoryInfo(
+				PID_IDE,
+				"IDE",
+				MutableShiftedLongArray(LongArray(history.size) { history[it] }),
+			)
+		renderer { arrayOf(process) }.attach(chart)
+		chart.measure(
+			View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+			View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY),
+		)
+		chart.layout(0, 0, WIDTH, HEIGHT)
+		chart.draw(Canvas(Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)))
+		return chart
+	}
 
 	/** A process whose history ramps from [firstMegabytes] by 1MB per sample. */
 	private fun proc(
@@ -151,7 +178,44 @@ class MemoryUsageChartRendererTest {
 		assertThat(datasetFor(rebound, 0).entries.first().y).isEqualTo(100f)
 	}
 
+	@Test
+	fun `the axis is scaled to what is on screen, not to the whole buffer`() {
+		// An early 1.5 GB daemon peak, then a long quiet stretch around 200 MB.
+		val history = LongArray(SAMPLE_COUNT) { 200L * BYTES_PER_MB }
+		history[0] = 1_500L * BYTES_PER_MB
+		val chart = laidOutChart(history)
+
+		// Ranged over the whole buffer the axis reaches 1650 MB and presses every later reading
+		// into the bottom eighth of the plot for the hours the buffer takes to turn over.
+		assertThat(chart.axisRight.axisMaximum).isLessThan(400f)
+	}
+
+	@Test
+	fun `a peak still on screen does raise the axis`() {
+		// Guards the test above: it must not pass by ignoring peaks altogether.
+		val history = LongArray(SAMPLE_COUNT) { 200L * BYTES_PER_MB }
+		history[SAMPLE_COUNT - 1] = 1_500L * BYTES_PER_MB
+		val chart = laidOutChart(history)
+
+		assertThat(chart.axisRight.axisMaximum).isAtLeast(1_500f)
+	}
+
+	@Test
+	fun `an idle chart still has a readable scale`() {
+		val chart = laidOutChart(LongArray(SAMPLE_COUNT))
+
+		// Zero everywhere would otherwise collapse the axis to no height at all.
+		assertThat(chart.axisRight.axisMaximum).isGreaterThan(0f)
+		assertThat(chart.axisRight.axisMinimum).isEqualTo(0f)
+	}
+
 	private companion object {
 		const val BYTES_PER_MB = 1024L * 1024L
+		const val WIDTH = 720
+		const val HEIGHT = 400
+		const val PID_IDE = 1
+
+		/** Longer than the visible window, so the start of the history scrolls off screen. */
+		const val SAMPLE_COUNT = 200
 	}
 }
