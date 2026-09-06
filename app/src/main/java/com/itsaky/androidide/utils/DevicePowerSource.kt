@@ -75,8 +75,12 @@ class DevicePowerSource(
 	/**
 	 * Instantaneous draw, from current and voltage.
 	 *
-	 * Microamps times millivolts is nanowatts, so the product is scaled down to microwatts. The sign
-	 * follows the battery current: negative while charging, because current is then flowing in.
+	 * Microamps times millivolts is nanowatts, so the product is scaled down to microwatts.
+	 *
+	 * The sign is the platform's, passed through unchanged: `BATTERY_PROPERTY_CURRENT_NOW` is
+	 * positive for current entering the battery -- charging -- and negative for current leaving it.
+	 * Not every OEM honours that, which is one reason the chart plots the magnitude rather than the
+	 * signed value; the other is that a line dipping below zero reads as negative power spent.
 	 */
 	private fun readPower(battery: Intent?): Long {
 		val microAmps = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)

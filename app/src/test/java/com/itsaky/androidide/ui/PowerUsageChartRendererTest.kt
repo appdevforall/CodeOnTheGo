@@ -119,12 +119,13 @@ class PowerUsageChartRendererTest {
 	}
 
 	@Test
-	fun `power is plotted as a magnitude, so charging does not dip below zero`() {
+	fun `power is plotted as a magnitude, whichever way the current is signed`() {
 		val (_, chart) =
 			rendererFor(
 				usage(
 					temperature = longArrayOf(30_000L, 30_000L),
-					// The battery current reverses while charging.
+					// The platform signs the battery current by direction, and not every OEM signs it
+					// the same way round, so both signs have to plot as spent power.
 					power = longArrayOf(2_000_000L, -3_000_000L),
 				),
 			)

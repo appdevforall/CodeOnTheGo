@@ -117,12 +117,13 @@ class PowerUsageWatcherTest {
 	}
 
 	@Test
-	fun `negative power is kept as recorded, because charging reverses the current`() {
+	fun `the sign of the current is recorded, not interpreted`() {
 		val fixture = Fixture(listOf(reading(power = -3_000_000L)))
 
 		fixture.sample(1)
 
-		// The watcher records the sign; deciding how to plot it is the renderer's job.
+		// The watcher passes the platform's sign through. Deciding what it means -- and that the
+		// chart plots the magnitude either way -- is the renderer's job.
 		assertThat(
 			fixture.watcher
 				.getUsage()

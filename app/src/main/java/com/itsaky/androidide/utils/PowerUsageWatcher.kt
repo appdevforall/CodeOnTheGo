@@ -193,8 +193,9 @@ class PowerUsageWatcher
 		 * One sample's worth of readings.
 		 *
 		 * @property temperatureMilliCelsius Battery temperature, or [UNAVAILABLE].
-		 * @property powerMicroWatts Instantaneous draw, or [UNAVAILABLE]. Negative while charging,
-		 * because the battery current reverses.
+		 * @property powerMicroWatts Instantaneous draw, or [UNAVAILABLE]. Signed as the platform
+		 * signs the battery current: positive while charging, negative while discharging. Recorded
+		 * as read; the renderer decides how to plot it.
 		 * @property thermalStatus The platform throttling level, or [THERMAL_UNKNOWN].
 		 * @property battery Level and charging state, for the legend.
 		 */
