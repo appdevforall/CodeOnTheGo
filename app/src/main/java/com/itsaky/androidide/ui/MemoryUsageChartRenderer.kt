@@ -119,9 +119,18 @@ class MemoryUsageChartRenderer(
 	private fun applyAxisRange(
 		chart: SafeLineChart,
 		processes: Array<ProcessMemoryInfo>,
+	) = applyAxisRangeFor(chart) { visit -> processes.forEach(visit) }
+
+	/**
+	 * Sets the axis from whatever [forEachProcess] offers, so a caller that already holds the
+	 * samples does not have to ask the watcher for another copy of them.
+	 */
+	private fun applyAxisRangeFor(
+		chart: SafeLineChart,
+		forEachProcess: ((ProcessMemoryInfo) -> Unit) -> Unit,
 	) {
 		var peak = 0f
-		for (proc in processes) {
+		forEachProcess { proc ->
 			for (index in visibleSampleRange(chart, proc.usageHistory.size)) {
 				peak = max(peak, proc.usageHistory.megabytesAt(index))
 			}
@@ -138,8 +147,10 @@ class MemoryUsageChartRenderer(
 	 *
 	 * Falls back to [rebuild] when [memoryUsage] no longer matches the datasets the chart was built
 	 * with -- a process started or stopped being watched, or the chart was attached before this pid
-	 * existed. The in-place path is the common one and allocates nothing, which matters because this
-	 * runs once a second for the lifetime of the editor.
+	 * existed. The in-place path is the common one: it mutates the existing entries rather than
+	 * rebuilding the datasets, which is what matters because this runs once a second for the
+	 * lifetime of the editor. It is not allocation-free -- each series reformats its legend label
+	 * every tick -- so do not add work here on the assumption that it is.
 	 */
 	@UiThread
 	fun onUsagesChanged(memoryUsage: IntObjectMap<ProcessMemoryInfo>) {
@@ -171,7 +182,11 @@ class MemoryUsageChartRenderer(
 		}
 
 		if (dataChanged) {
-			applyAxisRange(chart, usagesProvider())
+			// From the samples already in hand: usagesProvider() copies every history, so calling
+			// it again here would snapshot the whole buffer a second time per tick.
+			applyAxisRangeFor(chart) { visit ->
+				memoryUsage.forEachValue { visit(it) }
+			}
 			redraw(chart)
 		}
 	}
@@ -201,7 +216,7 @@ class MemoryUsageChartRenderer(
 	): String = "%s - %.2fMB".format(pname, megabytes)
 }
 
-private const val BYTES_PER_MEGABYTE = 1024.0 * 1024.0
+internal const val BYTES_PER_MEGABYTE = 1024.0 * 1024.0
 
 /**
  * The sample at [index] in megabytes. [MemoryUsageWatcher] stores bytes.

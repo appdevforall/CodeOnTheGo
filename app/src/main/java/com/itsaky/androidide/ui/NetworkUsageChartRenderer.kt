@@ -28,6 +28,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.NetworkUsageWatcher.NetworkUsage
+import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.log10
 import kotlin.math.max
@@ -58,9 +59,9 @@ import kotlin.math.roundToLong
 class NetworkUsageChartRenderer(
 	private val usageProvider: () -> NetworkUsage,
 	annotations: MetricsAnnotationStore? = null,
-	sampleIntervalMillis: () -> Long = { NetworkUsageWatcher.DEFAULT_UPDATE_INTERVAL },
+	private val sampleInterval: () -> Long = { NetworkUsageWatcher.DEFAULT_UPDATE_INTERVAL },
 ) : MetricsChartRenderer(
-		sampleIntervalMillis = sampleIntervalMillis,
+		sampleIntervalMillis = sampleInterval,
 		annotations = annotations,
 	) {
 	/**
@@ -153,10 +154,21 @@ class NetworkUsageChartRenderer(
 		dataset.notifyDataSetChanged()
 	}
 
+	/**
+	 * The legend entry for a series, as a rate.
+	 *
+	 * The stored samples are bytes per sampling interval, and the legend says "/s", so the delta
+	 * has to be divided by that interval. It was not, which was harmless only while the interval
+	 * was fixed at one second: once ADFA-5486 let the user choose, picking "Every 5s" overstated
+	 * throughput fivefold, with the axis agreeing.
+	 */
 	private fun labelFor(
 		label: String,
 		bytes: Long,
-	): String = "%s - %s/s".format(label, formatBytes(bytes.toDouble(), decimals = 1))
+	): String = "%s - %s/s".format(label, formatBytes(bytesPerSecond(bytes), decimals = 1))
+
+	/** A per-interval byte count as a per-second rate. */
+	private fun bytesPerSecond(bytes: Long): Double = bytes.toDouble() * MILLIS_PER_SECOND / sampleInterval().coerceAtLeast(1L)
 
 	/**
 	 * Pins the axis to whole decades, from zero up to at least [MIN_AXIS_DECADES].
@@ -226,6 +238,8 @@ class NetworkUsageChartRenderer(
 		 */
 		const val MIN_AXIS_DECADES = 3f
 
+		const val MILLIS_PER_SECOND = 1_000.0
+
 		const val SERIES_COUNT = 2
 		const val RECEIVED_INDEX = 0
 		const val TRANSMITTED_INDEX = 1
@@ -256,9 +270,9 @@ private fun formatBytes(
 ): String {
 	val clamped = bytes.coerceAtLeast(0.0)
 	return when {
-		clamped < 1_000 -> "%d B".format(clamped.roundToLong())
-		clamped < 1_000_000 -> "%.${decimals}f kB".format(clamped / 1_000)
-		clamped < 1_000_000_000 -> "%.${decimals}f MB".format(clamped / 1_000_000)
-		else -> "%.${decimals}f GB".format(clamped / 1_000_000_000)
+		clamped < 1_000 -> "%d B".format(Locale.US, clamped.roundToLong())
+		clamped < 1_000_000 -> "%.${decimals}f kB".format(Locale.US, clamped / 1_000)
+		clamped < 1_000_000_000 -> "%.${decimals}f MB".format(Locale.US, clamped / 1_000_000)
+		else -> "%.${decimals}f GB".format(Locale.US, clamped / 1_000_000_000)
 	}
 }

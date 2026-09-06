@@ -163,6 +163,21 @@ class NetworkUsageChartRendererTest {
 	}
 
 	@Test
+	fun `the legend reports a rate, so a slower sampling rate does not overstate it`() {
+		val chart = SafeLineChart(context)
+		// 10 kB in a five-second interval is 2 kB/s, not 10 kB/s.
+		val renderer =
+			NetworkUsageChartRenderer(
+				usageProvider = { usage(longArrayOf(0L, 10_000L)) },
+				sampleInterval = { 5_000L },
+			)
+		renderer.attach(chart)
+
+		// Undivided, choosing "Every 5s" in the rate chooser overstated throughput fivefold.
+		assertThat(dataset(chart, 0).label).endsWith("2.0 kB/s")
+	}
+
+	@Test
 	fun `the legend reports the latest sample in byte units`() {
 		val (_, chart) = rendererFor(usage(longArrayOf(0L, 2_000L)))
 

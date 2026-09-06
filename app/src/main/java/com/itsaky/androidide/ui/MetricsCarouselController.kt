@@ -68,7 +68,7 @@ class MetricsCarouselController(
 	private val networkUsageWatcher: NetworkUsageWatcher,
 	private val powerUsageWatcher: PowerUsageWatcher,
 	lineColorFor: (MemoryUsageWatcher.ProcessMemoryInfo) -> Int,
-	annotations: MetricsAnnotationStore? = null,
+	private val annotations: MetricsAnnotationStore? = null,
 ) {
 	private val memoryRenderer =
 		MemoryUsageChartRenderer(
@@ -82,7 +82,7 @@ class MetricsCarouselController(
 		NetworkUsageChartRenderer(
 			usageProvider = { networkUsageWatcher.getUsage() },
 			annotations = annotations,
-			sampleIntervalMillis = { networkUsageWatcher.updateInterval },
+			sampleInterval = { networkUsageWatcher.updateInterval },
 		)
 
 	private val pages =
@@ -367,7 +367,7 @@ class MetricsCarouselController(
 	}
 
 	/**
-	 * Applies a new sampling interval to both watchers. Their histories are discarded, because a
+	 * Applies a new sampling interval to every watcher. Their histories are discarded, because a
 	 * buffer holding samples taken at two rates would misdate the older ones.
 	 */
 	@UiThread
@@ -383,6 +383,10 @@ class MetricsCarouselController(
 		memoryUsageWatcher.updateInterval = supported
 		networkUsageWatcher.updateInterval = supported
 		powerUsageWatcher.updateInterval = supported
+		// The annotations go with the samples they annotate. Left behind, task markers stood over
+		// a flat zero line with nothing to mark -- and this is the only route by which the store's
+		// throttle window is ever reset.
+		annotations?.clear()
 		refresh()
 	}
 
@@ -472,7 +476,7 @@ class MetricsCarouselController(
 	}
 
 	/**
-	 * Redraws both charts from the full history, for a host coming back to the foreground with
+	 * Redraws every chart from the full history, for a host coming back to the foreground with
 	 * samples gathered while it was away.
 	 */
 	@UiThread

@@ -18,6 +18,7 @@
 package com.itsaky.androidide.utils
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -32,10 +33,19 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class NetworkUsageWatcherTest {
+	/** Every watcher built here, so the sampling thread each one starts is released. */
+	private val created = mutableListOf<NetworkUsageWatcher>()
+
+	@After
+	fun tearDown() {
+		created.forEach { it.close() }
+		created.clear()
+	}
+
 	/**
 	 * A watcher fed a scripted sequence of cumulative readings, advancing one step per sample.
 	 */
-	private class Fixture(
+	private inner class Fixture(
 		rx: List<Long>,
 		tx: List<Long> = rx,
 	) {
@@ -48,7 +58,7 @@ class NetworkUsageWatcherTest {
 				uid = TEST_UID,
 				readRxBytes = { rxReadings[index.coerceIn(0, rxReadings.lastIndex)] },
 				readTxBytes = { txReadings[index.coerceIn(0, txReadings.lastIndex)] },
-			)
+			).also { created += it }
 
 		/** Takes [count] samples, walking the scripted readings. */
 		fun sample(count: Int) {
@@ -157,6 +167,34 @@ class NetworkUsageWatcherTest {
 		// The array handed out earlier must not have been mutated by the later sample.
 		assertThat(first.received).isEqualTo(asHandedOut)
 		assertThat(fixture.watcher.getUsage().received).isNotEqualTo(asHandedOut)
+	}
+
+	@Test
+	fun `stopping drops the cumulative baseline so a resume does not spike`() {
+		// 1 MB transferred, then the watcher is stopped while a download keeps running.
+		val fixture = Fixture(listOf(1_000_000L, 1_000_000L, 250_000_000L, 250_500_000L))
+		fixture.sample(2)
+
+		fixture.watcher.stopWatching()
+
+		// Resume: the counter has moved by 249 MB while nothing was watching.
+		fixture.sample(2)
+		val usage = fixture.watcher.getUsage()
+
+		// Kept, the baseline turns the whole gap into one interval's traffic -- the legend reads
+		// hundreds of MB/s and the axis is stretched for the next minute.
+		assertThat(usage.received.recent(2)).containsExactly(0L, 500_000L).inOrder()
+	}
+
+	@Test
+	fun `an unsupported counter stops the watcher rather than sampling zeroes forever`() {
+		val fixture = Fixture(listOf(-1L))
+
+		fixture.sample(1)
+
+		// Nothing more to read, so nothing more to do: the loop was repainting the charts once a
+		// second with data known to be permanently unavailable.
+		assertThat(fixture.watcher.isSupported).isFalse()
 	}
 
 	private companion object {

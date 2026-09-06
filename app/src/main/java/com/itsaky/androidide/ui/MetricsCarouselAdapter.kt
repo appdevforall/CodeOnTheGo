@@ -55,9 +55,9 @@ sealed interface MetricsPage {
  * [pages] is a constructor argument rather than a hardcoded list so that new displays -- a network
  * traffic chart, or pages contributed by plugins -- can be added without touching this class.
  *
- * The chart page holds no sample state of its own: [chartRenderer] is attached when the page binds
- * and detached when it is recycled, and rebuilds the full history from [MemoryUsageChartRenderer]'s
- * watcher each time. Swiping away from the chart and back therefore loses nothing.
+ * A chart page holds no sample state of its own: its renderer is attached when the page binds and
+ * detached when it is recycled, and rebuilds the full history from its watcher each time. Moving
+ * away from a chart and back therefore loses nothing.
  */
 class MetricsCarouselAdapter(
 	private val pages: List<MetricsPage>,

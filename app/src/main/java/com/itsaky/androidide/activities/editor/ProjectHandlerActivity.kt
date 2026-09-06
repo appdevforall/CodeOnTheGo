@@ -716,7 +716,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		service.startToolingServer { pid ->
 			memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_TOOLING)
-			resetMemUsageChart()
+			// The callback arrives on the tooling server's own thread, and the renderer is
+			// @UiThread: rebuild() clears and repopulates a non-thread-safe pid map that the
+			// once-a-second sample listener reads on the main thread, so racing it can plot one
+			// process's samples on another's line or throw out of the entry loop.
+			runOnUiThread { resetMemUsageChart() }
 
 			service.metadata().whenComplete { metadata, err ->
 				if (metadata == null || err != null) {
@@ -731,7 +735,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						metadata.pid,
 					)
 					memoryUsageWatcher.watchProcess(metadata.pid, PROC_GRADLE_TOOLING)
-					resetMemUsageChart()
+					// A CompletableFuture completion thread, for the same reason as above.
+					runOnUiThread { resetMemUsageChart() }
 				}
 			}
 

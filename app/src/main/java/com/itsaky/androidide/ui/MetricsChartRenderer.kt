@@ -189,7 +189,8 @@ abstract class MetricsChartRenderer(
 			// unreachable at the labels it is named for.
 			xAxis.position = XAxis.XAxisPosition.BOTTOM
 
-			// The right axis carries the labels; the left is unused.
+			// The right axis carries the labels. The left is unused by every page but the one with
+			// two units, which enables it in its own configure().
 			axisLeft.isEnabled = false
 			// The right axis rules the plot. Harmless while the left one is disabled, and it means
 			// a page that enables the left for a second unit gets its labels without a second set
@@ -209,7 +210,7 @@ abstract class MetricsChartRenderer(
 	/**
 	 * Scrolls the viewport to the newest samples, showing [VISIBLE_SAMPLES] of them.
 	 *
-	 * The watchers retain an hour of history (ADFA-5486), far more than is legible at once in a
+	 * The watchers retain thousands of samples (ADFA-5486), far more than is legible at once in a
 	 * 200dp strip and more than is cheap to draw -- MPAndroidChart clips drawing to the visible x
 	 * range, so a window keeps the cost independent of how much is retained.
 	 */
@@ -401,7 +402,10 @@ abstract class MetricsChartRenderer(
 		chart.xAxis.removeAllLimitLines()
 
 		val interval = sampleIntervalMillis()
-		val bufferSpanMillis = (newestIndex.toLong() + 1L) * interval
+		// The visible window, not the whole buffer. Spanning the buffer meant asking for every
+		// annotation the store holds -- up to MAX_ANNOTATIONS -- and building a LimitLine and a
+		// DashPathEffect for each one on every redraw, almost all of them clipped off screen.
+		val bufferSpanMillis = (VISIBLE_SAMPLES.toLong() + 1L) * interval
 		val now = nowMillis()
 		val markerColor = chart.context.resolveAttr(R.attr.colorOnSurface)
 
@@ -450,7 +454,7 @@ abstract class MetricsChartRenderer(
 
 	private companion object {
 		/**
-		 * Samples shown at once. An hour is retained; a minute is what fits legibly in the strip.
+		 * Samples shown at once. Thousands are retained; a minute is what fits legibly in the strip.
 		 */
 		const val VISIBLE_SAMPLES = 60
 

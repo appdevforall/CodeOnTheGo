@@ -67,11 +67,6 @@ open class SwipeRevealLayout
 			)
 		}
 
-		private val leftDragHelper: ViewDragHelper
-		private val rightDragHelper: ViewDragHelper
-
-		private var leftDragProgress = 0f
-		private var rightDragProgress = 0f
 		private var isVerticalDragEnabled = true
 
 		private var isDownInDragHandle = false
@@ -84,8 +79,6 @@ open class SwipeRevealLayout
 		private val dragHandleLocation = IntArray(2)
 
 		init {
-			leftDragHelper = ViewDragHelper.create(this, 1f, LeftDragCallback())
-			rightDragHelper = ViewDragHelper.create(this, 1f, RightDragCallback())
 		}
 
 		private val dragHelperCallback =
@@ -277,24 +270,17 @@ open class SwipeRevealLayout
 		override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
 			val action = ev.actionMasked
 			if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
-				leftDragHelper.cancel()
-				rightDragHelper.cancel()
 				dragHelper.cancel()
 				return false
 			}
 			if (action == MotionEvent.ACTION_DOWN) {
 				isDownInDragHandle = isTouchInDragHandle(ev)
 			}
-			val isLeft = leftDragHelper.shouldInterceptTouchEvent(ev)
-			val isRight = rightDragHelper.shouldInterceptTouchEvent(ev)
-			val isVertical = dragHelper.shouldInterceptTouchEvent(ev)
-			return isLeft || isRight || isVertical
+			return dragHelper.shouldInterceptTouchEvent(ev)
 		}
 
 		@SuppressLint("ClickableViewAccessibility")
 		override fun onTouchEvent(event: MotionEvent): Boolean {
-			leftDragHelper.processTouchEvent(event)
-			rightDragHelper.processTouchEvent(event)
 			dragHelper.processTouchEvent(event)
 			return true
 		}
@@ -325,7 +311,7 @@ open class SwipeRevealLayout
 		}
 
 		override fun computeScroll() {
-			if (leftDragHelper.continueSettling(true) or rightDragHelper.continueSettling(true) or dragHelper.continueSettling(true)) {
+			if (dragHelper.continueSettling(true)) {
 				postInvalidateOnAnimation()
 			}
 		}
@@ -409,64 +395,5 @@ open class SwipeRevealLayout
 			if (dragHelper.smoothSlideViewTo(overlappingContent, overlappingContent.left, y.toInt())) {
 				postInvalidateOnAnimation()
 			}
-		}
-
-		private inner class LeftDragCallback : ViewDragHelper.Callback() {
-			override fun tryCaptureView(
-				child: View,
-				pointerId: Int,
-			): Boolean {
-				return child.id == R.id.drawer_sidebar // Your left drawer ID
-			}
-
-			override fun onViewPositionChanged(
-				changedView: View,
-				left: Int,
-				top: Int,
-				dx: Int,
-				dy: Int,
-			) {
-				leftDragProgress = left.toFloat() / changedView.width
-				dragListener?.onDragProgress(this@SwipeRevealLayout, leftDragProgress)
-				invalidate()
-			}
-
-			override fun clampViewPositionHorizontal(
-				child: View,
-				left: Int,
-				dx: Int,
-			): Int = max(0, min(left, width - child.width))
-		}
-
-		private inner class RightDragCallback : ViewDragHelper.Callback() {
-			// There is no right drawer in this layout: R.id.right_drawer_sidebar does not exist, so
-			// the intended check was commented out and this returned true for every child. That made
-			// the helper capture whichever child sat under a horizontal drag and offset it sideways,
-			// and its onViewPositionChanged reported that horizontal travel to dragListener as if it
-			// were vertical reveal progress. It also stole horizontal gestures from child views, so a
-			// horizontally scrolling child (ADFA-5487's metrics carousel) raced this helper for them.
-			// Capture nothing until a right drawer actually exists to name here.
-			override fun tryCaptureView(
-				child: View,
-				pointerId: Int,
-			): Boolean = false
-
-			override fun onViewPositionChanged(
-				changedView: View,
-				left: Int,
-				top: Int,
-				dx: Int,
-				dy: Int,
-			) {
-				rightDragProgress = (width - left).toFloat() / changedView.width
-				dragListener?.onDragProgress(this@SwipeRevealLayout, rightDragProgress)
-				invalidate()
-			}
-
-			override fun clampViewPositionHorizontal(
-				child: View,
-				left: Int,
-				dx: Int,
-			): Int = max(width - child.width, min(left, width))
 		}
 	}
