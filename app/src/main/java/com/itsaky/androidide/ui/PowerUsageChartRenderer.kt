@@ -368,7 +368,7 @@ class PowerUsageChartRenderer(
 	 * hidden while charging, when a rising level would contradict a chart about power being spent.
 	 */
 	@UiThread
-	fun batteryReadout(): String? {
+	override fun readout(): String? {
 		val battery = batteryProvider()
 		if (battery.isCharging || battery.levelPercent < 0) {
 			return null

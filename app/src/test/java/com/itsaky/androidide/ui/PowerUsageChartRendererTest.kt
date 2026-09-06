@@ -279,7 +279,7 @@ class PowerUsageChartRendererTest {
 			)
 
 		// A level climbing while the chart is about power being spent reads as a contradiction.
-		assertThat(charging.batteryReadout()).isNull()
+		assertThat(charging.readout()).isNull()
 	}
 
 	@Test
@@ -290,7 +290,7 @@ class PowerUsageChartRendererTest {
 				battery = BatteryState(levelPercent = 62, isCharging = false),
 			)
 
-		assertThat(renderer.batteryReadout()).isEqualTo("62%")
+		assertThat(renderer.readout()).isEqualTo("62%")
 	}
 
 	@Test
@@ -301,7 +301,7 @@ class PowerUsageChartRendererTest {
 				battery = BatteryState.UNKNOWN,
 			)
 
-		assertThat(renderer.batteryReadout()).isNull()
+		assertThat(renderer.readout()).isNull()
 	}
 
 	private fun laidOut(chart: SafeLineChart) {
