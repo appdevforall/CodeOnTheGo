@@ -117,7 +117,7 @@ class PowerUsageWatcher
 		 */
 		fun getUsage(): PowerUsage =
 			synchronized(historyLock) {
-				PowerUsage(temperature.snapshotArray(), power.snapshotArray(), thermal.snapshotArray())
+				PowerUsage(temperature.toLongArray(), power.toLongArray(), thermal.toLongArray())
 			}
 
 		fun clearHistory() {
@@ -289,8 +289,3 @@ class PowerUsageWatcher
 			private val log = LoggerFactory.getLogger(PowerUsageWatcher::class.java)
 		}
 	}
-
-/**
- * Copies this ring buffer into a plain array in logical order, oldest first.
- */
-private fun ShiftedLongArray.snapshotArray(): LongArray = LongArray(size) { this[it] }

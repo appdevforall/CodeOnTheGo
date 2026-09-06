@@ -172,6 +172,11 @@ abstract class MetricsChartRenderer(
 
 			// The right axis carries the labels; the left is unused.
 			axisLeft.isEnabled = false
+			// The right axis rules the plot. Harmless while the left one is disabled, and it means
+			// a page that enables the left for a second unit gets its labels without a second set
+			// of grid lines at unrelated heights -- MPAndroidChart rules the plot once per enabled
+			// axis, and AxisBase defaults to drawing them.
+			axisLeft.setDrawGridLines(false)
 
 			onChartGestureListener = XAxisTapListener(this)
 

@@ -63,9 +63,17 @@ class PowerUsageChartRenderer(
 		annotations = annotations,
 	) {
 	@UiThread
-	override fun rebuild() {
+	override fun rebuild() = rebuild(usageProvider())
+
+	/**
+	 * Replaces both series from [usage].
+	 *
+	 * Takes the sample rather than fetching one so [onUsageChanged] can fall back to it without
+	 * asking the watcher for a second, later copy of the buffers it was just handed.
+	 */
+	@UiThread
+	private fun rebuild(usage: PowerUsage) {
 		val chart = this.chart ?: return
-		val usage = usageProvider()
 		val context = chart.context
 
 		val datasets =
@@ -92,14 +100,62 @@ class PowerUsageChartRenderer(
 	}
 
 	/**
-	 * Redraws from a fresh sample. Rebuilds rather than mutating in place: this chart samples
-	 * relatively slowly and has two short series, so the saving is not worth a second code path
-	 * that can disagree with the first.
+	 * Redraws from the sample just taken, mutating the existing entries in place.
+	 *
+	 * It used to discard [usage] and call [rebuild], which asked the watcher for another copy of
+	 * all three series and allocated two datasets and twenty thousand entries -- every tick, on
+	 * the UI thread. The KDoc justified that with "two short series"; they are MAX_USAGE_ENTRIES
+	 * long. Falls back to a full rebuild only when the chart's shape no longer matches.
 	 */
 	@UiThread
 	fun onUsageChanged(usage: PowerUsage) {
-		chart ?: return
-		rebuild()
+		val chart = this.chart ?: return
+		val data = chart.data
+		val temperature = data?.getDataSetByIndex(TEMPERATURE_INDEX) as LineDataSet?
+		val power = data?.getDataSetByIndex(POWER_INDEX) as LineDataSet?
+
+		if (temperature == null || power == null ||
+			temperature.entryCount != usage.temperatureMilliCelsius.size ||
+			power.entryCount != usage.powerMicroWatts.size
+		) {
+			rebuild(usage)
+			return
+		}
+
+		val context = chart.context
+		update(
+			dataset = temperature,
+			values = usage.temperatureMilliCelsius,
+			label = context.getString(R.string.metrics_power_temperature),
+			axis = YAxis.AxisDependency.LEFT,
+			transform = ::milliCelsiusToCelsius,
+		)
+		update(
+			dataset = power,
+			values = usage.powerMicroWatts,
+			label = context.getString(R.string.metrics_power_draw),
+			axis = YAxis.AxisDependency.RIGHT,
+			transform = ::microWattsToWatts,
+		)
+
+		applyAxisRanges(chart, usage)
+		applyThermalShading(chart, usage)
+		redraw(chart)
+	}
+
+	/** Rewrites one series' values in place and refreshes its legend entry. */
+	private fun update(
+		dataset: LineDataSet,
+		values: LongArray,
+		label: String,
+		axis: YAxis.AxisDependency,
+		transform: (Long) -> Float,
+	) {
+		for (index in values.indices) {
+			dataset.entries[index].y = transform(values[index])
+		}
+		dataset.label = labelFor(label, values.lastOrNull(), axis)
+		dataset.notifyDataSetChanged()
 	}
 
 	/**
@@ -261,6 +317,12 @@ class PowerUsageChartRenderer(
 		// single series family.
 		chart.axisLeft.isEnabled = true
 
+		// Integer labels need integer grid lines, exactly as the watt axis below does. Now that
+		// the range is tight -- 29 to 33 rather than 0 to 36 -- the axis would otherwise place
+		// lines half a degree apart and "%dC" would print 29C, 30C, 30C, 31C, 31C.
+		chart.axisLeft.granularity = 1f
+		chart.axisLeft.isGranularityEnabled = true
+
 		chart.axisLeft.valueFormatter =
 			object : IAxisValueFormatter {
 				override fun getFormattedValue(
@@ -348,6 +410,9 @@ class PowerUsageChartRenderer(
 
 		/** Visible against the plot surface without drowning the lines drawn over it. */
 		const val SHADE_ALPHA = 96
+
+		const val TEMPERATURE_INDEX = 0
+		const val POWER_INDEX = 1
 
 		const val THERMAL_LIGHT = 1
 		const val THERMAL_MODERATE = 2
