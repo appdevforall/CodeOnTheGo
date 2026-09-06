@@ -104,4 +104,43 @@ class MetricsAnnotationStoreTest {
 		// Without resetting the throttle, the next event would be swallowed for five seconds.
 		assertThat(store.record("second")).isTrue()
 	}
+
+	@Test
+	fun `sequence numbers count from the first annotation of the session`() {
+		val store = MetricsAnnotationStore(nowMillis = { now })
+
+		repeat(3) {
+			store.record("task")
+			now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
+		}
+
+		// The chart picks a label's row from this, so it has to be stable and gap-free.
+		assertThat(store.recentAnnotations(60_000L).map { it.sequence }).containsExactly(0L, 1L, 2L).inOrder()
+	}
+
+	@Test
+	fun `a throttled record consumes no sequence number`() {
+		val store = MetricsAnnotationStore(nowMillis = { now })
+
+		store.record("kept")
+		// Inside the throttle window, so this one is dropped rather than stored.
+		store.record("dropped")
+		now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
+		store.record("kept too")
+
+		// A gap here would leave a row unused and push neighbours together.
+		assertThat(store.recentAnnotations(60_000L).map { it.sequence }).containsExactly(0L, 1L).inOrder()
+	}
+
+	@Test
+	fun `clear restarts the numbering`() {
+		val store = MetricsAnnotationStore(nowMillis = { now })
+		store.record("before")
+
+		store.clear()
+		now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
+		store.record("after")
+
+		assertThat(store.recentAnnotations(60_000L).map { it.sequence }).containsExactly(0L)
+	}
 }

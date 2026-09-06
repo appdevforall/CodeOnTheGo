@@ -29,21 +29,25 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.PowerUsageWatcher
 import com.itsaky.androidide.utils.PowerUsageWatcher.PowerUsage
-import com.itsaky.androidide.utils.resolveAttr
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
 /**
  * Renders [PowerUsageWatcher] samples: battery temperature against power draw (ADFA-5499).
  *
- * The only page with two value axes. Degrees and milliwatts differ in unit and by orders of
- * magnitude, so temperature takes the left axis and power the right. Both series therefore have to
- * declare which axis they belong to -- a dataset left on the default would be drawn against an axis
- * whose labels do not describe it, which is a bug this codebase has already shipped once.
+ * The only page with two value axes. Degrees and watts differ in unit and by orders of magnitude,
+ * so temperature takes the left axis and power the right. Both series therefore have to declare
+ * which axis they belong to -- a dataset left on the default would be drawn against an axis whose
+ * labels do not describe it, which is a bug this codebase has already shipped once. Each axis's
+ * labels are drawn in its series' colour, so which axis reads which line needs no explaining.
  *
  * Thermal throttling is shown as background shading rather than as a line: the platform reports an
  * ordinal level, not a temperature, so plotting it against degrees would invent a scale. The level
  * is sampled alongside the readings, so a shaded band is simply a run of equal levels.
+ *
+ * Severity is carried by hue, green through red, at one fixed alpha. Ranking seven ordinals by
+ * depth of a single colour asks the eye to compare shades that are never side by side; distinct
+ * hues stay tellable apart wherever on the chart they fall.
  */
 class PowerUsageChartRenderer(
 	private val usageProvider: () -> PowerUsage,
@@ -74,7 +78,7 @@ class PowerUsageChartRenderer(
 					label = context.getString(R.string.metrics_power_draw),
 					lineColor = POWER_COLOR,
 					axis = YAxis.AxisDependency.RIGHT,
-					transform = ::microWattsToMilliWatts,
+					transform = ::microWattsToWatts,
 				),
 			)
 
@@ -113,7 +117,7 @@ class PowerUsageChartRenderer(
 				end++
 			}
 
-			shadeFor(chart, level)?.let { color ->
+			shadeFor(level)?.let { color ->
 				// Half a sample either side, so each sample covers its own cell: a single-sample
 				// spike would otherwise have zero width and never be drawn, and two adjacent runs
 				// would leave a sample-wide gap between them.
@@ -128,25 +132,23 @@ class PowerUsageChartRenderer(
 	/**
 	 * The shade for a throttling level, or `null` where there is nothing to say.
 	 *
-	 * Alpha rises with severity so the bands read as a gradient of concern rather than as separate
-	 * categories, and stays low enough throughout that the plotted lines remain the foreground.
+	 * Level 0 is unthrottled and level -1 is a device that reports no level at all; neither is
+	 * shaded, because shading everything would say nothing. The alpha is the same for every level,
+	 * so hue alone ranks them, and low enough throughout that the plotted lines stay the foreground.
 	 */
-	private fun shadeFor(
-		chart: SafeLineChart,
-		level: Int,
-	): Int? {
-		val alpha =
+	private fun shadeFor(level: Int): Int? {
+		val hue =
 			when (level) {
-				THERMAL_LIGHT -> 24
-				THERMAL_MODERATE -> 40
-				THERMAL_SEVERE -> 64
-				THERMAL_CRITICAL -> 88
-				THERMAL_EMERGENCY, THERMAL_SHUTDOWN -> 112
+				THERMAL_LIGHT -> SHADE_LIGHT
+				THERMAL_MODERATE -> SHADE_MODERATE
+				THERMAL_SEVERE -> SHADE_SEVERE
+				THERMAL_CRITICAL -> SHADE_CRITICAL
+				THERMAL_EMERGENCY -> SHADE_EMERGENCY
+				THERMAL_SHUTDOWN -> SHADE_SHUTDOWN
 				else -> return null
 			}
 
-		val base = chart.context.resolveAttr(R.attr.colorError)
-		return ColorUtils.setAlphaComponent(base, alpha)
+		return ColorUtils.setAlphaComponent(hue, SHADE_ALPHA)
 	}
 
 	private fun series(
@@ -185,7 +187,20 @@ class PowerUsageChartRenderer(
 		return if (axis == YAxis.AxisDependency.LEFT) {
 			"%s - %.1fC".format(label, milliCelsiusToCelsius(value))
 		} else {
-			"%s - %.0fmW".format(label, milliWattsMagnitude(value))
+			"%s - %s".format(label, formatPower(value))
+		}
+	}
+
+	/**
+	 * The latest draw, for the legend. Below a watt it is given in milliwatts: an idle device would
+	 * otherwise read "0.0W", losing the very value the legend exists to show.
+	 */
+	private fun formatPower(microWatts: Long): String {
+		val watts = wattsMagnitude(microWatts)
+		return if (watts < 1f) {
+			"%.0fmW".format(abs(microWatts) / MICROWATTS_PER_MILLIWATT)
+		} else {
+			"%.1fW".format(watts)
 		}
 	}
 
@@ -195,6 +210,7 @@ class PowerUsageChartRenderer(
 		// Two units, two axes: the base class disables the left one because every other page has a
 		// single series family.
 		chart.axisLeft.isEnabled = true
+
 		chart.axisLeft.valueFormatter =
 			object : IAxisValueFormatter {
 				override fun getFormattedValue(
@@ -203,13 +219,33 @@ class PowerUsageChartRenderer(
 				): String = "%dC".format(value.roundToLong())
 			}
 
+		// Watts, not milliwatts: a build peaks in single digit watts, so mW labels spent three
+		// characters on trailing zeros. Whole watts, so the labels carry no decimal point either.
 		chart.axisRight.valueFormatter =
 			object : IAxisValueFormatter {
 				override fun getFormattedValue(
 					value: Float,
 					axis: AxisBase?,
-				): String = "%dmW".format(value.roundToLong())
+				): String = "%dW".format(value.roundToLong())
 			}
+
+		// Integer labels need integer gridlines to match. Left to pick its own spacing the axis
+		// will place lines a fraction of a watt apart on an idle device, and rounding those to
+		// whole watts prints the same label several times over.
+		chart.axisRight.granularity = 1f
+		chart.axisRight.isGranularityEnabled = true
+	}
+
+	/**
+	 * Each axis's labels take the colour of the line they describe. With two axes carrying
+	 * unrelated units, colour is what says which reads which; one shared text colour cannot.
+	 */
+	override fun styleValueAxes(
+		chart: SafeLineChart,
+		defaultTextColor: Int,
+	) {
+		chart.axisLeft.textColor = TEMPERATURE_COLOR
+		chart.axisRight.textColor = POWER_COLOR
 	}
 
 	/**
@@ -235,6 +271,21 @@ class PowerUsageChartRenderer(
 		/** Half the x-axis width of one sample, which is 1 because x values are sample indices. */
 		const val HALF_SAMPLE = 0.5f
 
+		/**
+		 * Throttling shades, green through red. Deliberately six distinct hues rather than one
+		 * colour at six depths: the bands are separated in time, so shades of one colour would have
+		 * to be compared across the width of the chart.
+		 */
+		val SHADE_LIGHT = Color.rgb(76, 175, 80)
+		val SHADE_MODERATE = Color.rgb(0, 188, 212)
+		val SHADE_SEVERE = Color.rgb(253, 216, 53)
+		val SHADE_CRITICAL = Color.rgb(251, 140, 0)
+		val SHADE_EMERGENCY = Color.rgb(183, 65, 14)
+		val SHADE_SHUTDOWN = Color.rgb(229, 57, 53)
+
+		/** Visible against the plot surface without drowning the lines drawn over it. */
+		const val SHADE_ALPHA = 96
+
 		const val THERMAL_LIGHT = 1
 		const val THERMAL_MODERATE = 2
 		const val THERMAL_SEVERE = 3
@@ -254,7 +305,10 @@ private fun milliCelsiusToCelsius(milliCelsius: Long): Float =
  * Power is plotted as a magnitude. The battery current reverses while charging, and a line that
  * dips below zero would read as the device spending negative power.
  */
-private fun microWattsToMilliWatts(microWatts: Long): Float =
-	if (microWatts == PowerUsageWatcher.UNAVAILABLE) 0f else abs(microWatts) / 1000f
+private fun microWattsToWatts(microWatts: Long): Float =
+	if (microWatts == PowerUsageWatcher.UNAVAILABLE) 0f else abs(microWatts) / MICROWATTS_PER_WATT
 
-private fun milliWattsMagnitude(microWatts: Long): Float = abs(microWatts) / 1000f
+private fun wattsMagnitude(microWatts: Long): Float = abs(microWatts) / MICROWATTS_PER_WATT
+
+private const val MICROWATTS_PER_WATT = 1_000_000f
+private const val MICROWATTS_PER_MILLIWATT = 1_000f

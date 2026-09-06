@@ -82,7 +82,30 @@ class PowerUsageChartRendererTest {
 	}
 
 	@Test
-	fun `temperature is plotted in degrees and power in milliwatts`() {
+	fun `the power axis is labelled in whole watts`() {
+		val (_, chart) = rendererFor(usage(temperature = longArrayOf(30_000L), power = longArrayOf(8_400_000L)))
+		val axis = chart.axisRight
+
+		assertThat(axis.valueFormatter.getFormattedValue(8.4f, axis)).isEqualTo("8W")
+		assertThat(axis.valueFormatter.getFormattedValue(0f, axis)).isEqualTo("0W")
+		// Without this the axis puts gridlines a fraction of a watt apart on an idle device, and
+		// rounding them to whole watts prints the same label several times over.
+		assertThat(axis.isGranularityEnabled).isTrue()
+		assertThat(axis.granularity).isEqualTo(1f)
+	}
+
+	@Test
+	fun `each axis takes the colour of the line it describes`() {
+		val (_, chart) = rendererFor(usage(temperature = longArrayOf(30_000L), power = longArrayOf(1_000_000L)))
+
+		// Two axes with unrelated units; colour is what pairs each with its series.
+		assertThat(chart.axisLeft.textColor).isEqualTo(dataset(chart, 0).color)
+		assertThat(chart.axisRight.textColor).isEqualTo(dataset(chart, 1).color)
+		assertThat(chart.axisLeft.textColor).isNotEqualTo(chart.axisRight.textColor)
+	}
+
+	@Test
+	fun `temperature is plotted in degrees and power in watts`() {
 		val (_, chart) =
 			rendererFor(
 				usage(
@@ -92,7 +115,7 @@ class PowerUsageChartRendererTest {
 			)
 
 		assertThat(dataset(chart, 0).entries.last().y).isWithin(0.01f).of(29.7f)
-		assertThat(dataset(chart, 1).entries.last().y).isWithin(0.01f).of(6358.064f)
+		assertThat(dataset(chart, 1).entries.last().y).isWithin(0.001f).of(6.358064f)
 	}
 
 	@Test
@@ -108,7 +131,7 @@ class PowerUsageChartRendererTest {
 
 		val ys = dataset(chart, 1).entries.map { it.y }
 
-		assertThat(ys).containsExactly(2000f, 3000f).inOrder()
+		assertThat(ys).containsExactly(2f, 3f).inOrder()
 		assertThat(ys.none { it < 0f }).isTrue()
 	}
 
@@ -189,19 +212,43 @@ class PowerUsageChartRendererTest {
 	}
 
 	@Test
-	fun `adjacent levels shade separately, and deeper for the worse one`() {
+	fun `each throttling level gets its own hue, green through red`() {
 		val (_, chart) =
 			rendererFor(
 				usage(
-					temperature = LongArray(4) { 30_000L },
-					thermal = longArrayOf(1L, 1L, 4L, 4L),
+					temperature = LongArray(6) { 30_000L },
+					thermal = longArrayOf(1L, 2L, 3L, 4L, 5L, 6L),
 				),
 			)
 
-		assertThat(chart.backgroundSpans).hasSize(2)
-		val (light, critical) = chart.backgroundSpans
-		// The bands read as a gradient of concern rather than as unrelated categories.
-		assertThat(critical.color ushr 24).isGreaterThan(light.color ushr 24)
+		assertThat(chart.backgroundSpans).hasSize(6)
+		assertThat(chart.backgroundSpans.map { it.color or OPAQUE }).isEqualTo(EXPECTED_HUES)
+	}
+
+	@Test
+	fun `no two levels share a colour, and the alpha does not vary`() {
+		val (_, chart) =
+			rendererFor(
+				usage(
+					temperature = LongArray(6) { 30_000L },
+					thermal = longArrayOf(1L, 2L, 3L, 4L, 5L, 6L),
+				),
+			)
+
+		// Hue alone ranks the levels, so a repeat would make two of them indistinguishable...
+		assertThat(chart.backgroundSpans.map { it.color }.toSet()).hasSize(6)
+		// ...and a varying alpha would add a second, weaker ranking that disagrees with it.
+		assertThat(chart.backgroundSpans.map { it.color ushr 24 }.toSet()).hasSize(1)
+	}
+
+	@Test
+	fun `the legend reports power in watts, and in milliwatts below a watt`() {
+		val (_, loaded) = rendererFor(usage(temperature = longArrayOf(30_000L), power = longArrayOf(6_358_064L)))
+		assertThat(dataset(loaded, 1).label).endsWith("6.4W")
+
+		// An idle device reads 0.0W in watts, losing the value the legend exists to show.
+		val (_, idle) = rendererFor(usage(temperature = longArrayOf(30_000L), power = longArrayOf(6_000L)))
+		assertThat(dataset(idle, 1).label).endsWith("6mW")
 	}
 
 	@Test
@@ -251,5 +298,14 @@ class PowerUsageChartRendererTest {
 			)
 
 		assertThat(renderer.batteryReadout()).isNull()
+	}
+
+	private companion object {
+		const val OPAQUE = 0xFF000000.toInt()
+
+		/** The palette ADFA-5499 specifies: green, cyan, yellow, orange, rust, red. */
+		val EXPECTED_HUES =
+			listOf(0xFF4CAF50, 0xFF00BCD4, 0xFFFDD835, 0xFFFB8C00, 0xFFB7410E, 0xFFE53935)
+				.map { it.toInt() }
 	}
 }

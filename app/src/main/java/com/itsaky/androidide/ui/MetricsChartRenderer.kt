@@ -285,8 +285,6 @@ abstract class MetricsChartRenderer(
 
 		chart.apply {
 			data = LineData(*datasets)
-			axisRight.textColor = textColor
-			axisLeft.textColor = textColor
 			legend.textColor = textColor
 			// MPAndroidChart defaults every component's text to Color.BLACK. The y axis and legend
 			// were given a themed colour and the x axis never was, so its labels have always been
@@ -295,6 +293,7 @@ abstract class MetricsChartRenderer(
 			xAxis.textColor = textColor
 
 			data.setValueTextColor(textColor)
+			styleValueAxes(this, textColor)
 			setBackgroundColor(bgColor)
 			setGridBackgroundColor(bgColor)
 			notifyDataSetChanged()
@@ -305,12 +304,32 @@ abstract class MetricsChartRenderer(
 	}
 
 	/**
+	 * Colours the value axes' labels. Called from [setData], not [configure], because the styling
+	 * here is re-applied on every redraw and would otherwise overwrite whatever a subclass had set
+	 * up once at configuration time.
+	 *
+	 * The default paints both in the surface's text colour, which suits a page whose series all
+	 * share one unit. A page with two unrelated axes overrides this.
+	 */
+	protected open fun styleValueAxes(
+		chart: SafeLineChart,
+		defaultTextColor: Int,
+	) {
+		chart.axisLeft.textColor = defaultTextColor
+		chart.axisRight.textColor = defaultTextColor
+	}
+
+	/**
 	 * Draws a vertical marker for each recent significant event (ADFA-5486).
 	 *
 	 * Annotations are stored by wall-clock time, not sample position, because the ring buffer
 	 * shifts under them. Age converts to an x position here: the newest sample sits at the buffer's
 	 * last index, and every [sampleIntervalMillis] before that is one index to the left. Anything
 	 * older than the buffer holds falls outside the axis and is not drawn.
+	 *
+	 * Labels are staggered across [ANNOTATION_LABEL_SLOTS] rows. Gradle fires tasks in bursts, so
+	 * several markers land within a few pixels of each other and their labels, all drawn on one
+	 * row, overwrite each other into an unreadable smear.
 	 */
 	private fun applyAnnotations(chart: SafeLineChart) {
 		val store = annotations ?: return
@@ -337,10 +356,18 @@ abstract class MetricsChartRenderer(
 					textColor = markerColor
 					enableDashedLine(ANNOTATION_DASH_LENGTH, ANNOTATION_DASH_LENGTH, 0f)
 					labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
+					// Rows are counted up from the bottom of the plot, and the offset is in dp:
+					// LimitLine converts it on the way in.
+					yOffset = ANNOTATION_LABEL_ROW_HEIGHT_DP * slotFor(annotation.sequence)
 				},
 			)
 		}
 	}
+
+	/**
+	 * The row an annotation's label sits on, cycling so that neighbours never share one.
+	 */
+	private fun slotFor(sequence: Long): Int = (sequence % ANNOTATION_LABEL_SLOTS).toInt()
 
 	/**
 	 * Redraws after the attached series have been mutated in place.
@@ -368,5 +395,16 @@ abstract class MetricsChartRenderer(
 
 		const val ANNOTATION_LINE_WIDTH = 1f
 		const val ANNOTATION_DASH_LENGTH = 6f
+
+		/**
+		 * Rows the annotation labels cycle through, counted up from the bottom of the plot.
+		 *
+		 * Eight rows at [ANNOTATION_LABEL_ROW_HEIGHT_DP] apiece stay inside the strip's plot area
+		 * while spreading a burst of Gradle tasks far enough apart to read.
+		 */
+		const val ANNOTATION_LABEL_SLOTS = 8
+
+		/** One row, in dp. The label text is 10dp, so this leaves a little air between rows. */
+		const val ANNOTATION_LABEL_ROW_HEIGHT_DP = 12f
 	}
 }

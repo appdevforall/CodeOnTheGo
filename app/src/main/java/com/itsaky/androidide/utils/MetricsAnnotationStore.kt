@@ -43,6 +43,9 @@ class MetricsAnnotationStore(
 	 */
 	private var lastRecordedAt: Long? = null
 
+	/** Hands each annotation its [Annotation.sequence]. */
+	private var nextSequence: Long = 0L
+
 	/**
 	 * An annotated moment.
 	 *
@@ -52,6 +55,16 @@ class MetricsAnnotationStore(
 	data class Annotation(
 		val atMillis: Long,
 		val label: String,
+		/**
+		 * Position in the order recorded, counted from the first annotation of the session.
+		 *
+		 * The chart staggers labels across rows to stop them overwriting each other, and picks the
+		 * row from this. Its own position in [recentAnnotations] would not do: that list shifts as
+		 * older entries age out of it, so a label would hop between rows while merely sitting
+		 * still. Counting from the first annotation instead pins a label to one row for life, and
+		 * makes consecutive annotations differ, which is when a collision is likeliest.
+		 */
+		val sequence: Long,
 	)
 
 	/**
@@ -68,7 +81,7 @@ class MetricsAnnotationStore(
 		}
 
 		lastRecordedAt = now
-		annotations.addLast(Annotation(now, label))
+		annotations.addLast(Annotation(now, label, nextSequence++))
 		while (annotations.size > MAX_ANNOTATIONS) {
 			annotations.removeFirst()
 		}
@@ -88,6 +101,7 @@ class MetricsAnnotationStore(
 	fun clear() {
 		annotations.clear()
 		lastRecordedAt = null
+		nextSequence = 0L
 	}
 
 	companion object {
