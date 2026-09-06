@@ -21,12 +21,16 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.annotation.UiThread
+import androidx.core.widget.ImageViewCompat
 import androidx.viewpager2.widget.ViewPager2
+import com.itsaky.androidide.R
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
 import com.itsaky.androidide.floating.window.OverlayDialogs
@@ -111,6 +115,15 @@ class MetricsCarouselController(
 	private var pageCallback: ViewPager2.OnPageChangeCallback? = null
 
 	/**
+	 * The page the user is on, kept across bind and unbind.
+	 *
+	 * The pager itself cannot hold it: docking and undocking inflate a fresh layout and a fresh
+	 * ViewPager2, which starts at zero. Without this, undocking while reading the network chart
+	 * put the floating window on the memory chart.
+	 */
+	private var currentPage = 0
+
+	/**
 	 * The pager of the bound carousel, or `null` when nothing is bound. Exposed so a host can apply
 	 * layout that is its own concern, such as the editor's status-bar inset.
 	 */
@@ -133,6 +146,18 @@ class MetricsCarouselController(
 
 		binding.metricsPager.adapter = MetricsCarouselAdapter(pages, memoryRenderer, networkRenderer)
 
+		// The arrows carry their colour from app:tint, which only AppCompat applies -- and only
+		// when AppCompat's factory is on the inflater. The floating window inflates from a plain
+		// window context, so there it produced an ordinary ImageButton, app:tint was ignored, and
+		// the vector's own android:tint="#000000" took over: black arrows on a near-black strip.
+		// Setting the tint here works whichever inflater built the view.
+		tintArrows(binding)
+
+		// Before the page callback is registered, so restoring does not fire it. Docking and
+		// undocking rebind the carousel, and a rebind used to drop the user back on the first
+		// page: undocking while reading the network chart showed them the memory chart instead.
+		binding.metricsPager.setCurrentItem(currentPage, false)
+
 		val showTitleFor = { position: Int ->
 			pages.getOrNull(position)?.let { page ->
 				binding.metricsTitle.setText(page.title)
@@ -142,6 +167,7 @@ class MetricsCarouselController(
 		pageCallback =
 			object : ViewPager2.OnPageChangeCallback() {
 				override fun onPageSelected(position: Int) {
+					currentPage = position
 					showTitleFor(position)
 					updateArrows(position)
 					// A page left zoomed would keep claiming horizontal drags when swiped back to.
@@ -215,6 +241,29 @@ class MetricsCarouselController(
 		if (target != pager.currentItem) {
 			pager.setCurrentItem(target, true)
 		}
+	}
+
+	/**
+	 * Colours both arrows from the theme, rather than trusting the layout's `app:tint`.
+	 *
+	 * Falls back to the title's own colour if the attribute does not resolve: a window context
+	 * carrying a different theme is exactly the case this is here for, and an unresolved colour
+	 * attribute comes back as 0 -- transparent -- rather than as an error.
+	 */
+	@UiThread
+	private fun tintArrows(binding: LayoutMemUsageBinding) {
+		val fallback = binding.metricsTitle.currentTextColor
+		val value = TypedValue()
+		val color =
+			if (binding.root.context.theme
+					.resolveAttribute(R.attr.colorOnSurface, value, true)
+			) {
+				value.data
+			} else {
+				fallback
+			}
+		ImageViewCompat.setImageTintList(binding.metricsPrevious, ColorStateList.valueOf(color))
+		ImageViewCompat.setImageTintList(binding.metricsNext, ColorStateList.valueOf(color))
 	}
 
 	/**
