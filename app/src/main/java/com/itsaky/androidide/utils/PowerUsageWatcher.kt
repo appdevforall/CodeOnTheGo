@@ -62,6 +62,13 @@ class PowerUsageWatcher
 		private val coroutineScope = CoroutineScope(SupervisorJob() + coroutineDispatcher)
 		private val watching = AtomicBoolean(false)
 
+		/**
+		 * Set by [close] and never cleared. Without it a start after a terminal teardown would flip
+		 * [isWatching] to true and launch into a cancelled scope, leaving the watcher reporting
+		 * that it is sampling when no loop exists -- and nothing ever retries.
+		 */
+		private val closed = AtomicBoolean(false)
+
 		/** The running sampling loop, so [stopWatching] can actually stop it. */
 		private var samplingJob: Job? = null
 
@@ -83,12 +90,13 @@ class PowerUsageWatcher
 		 * Milliseconds between samples. Changing it clears the history, for the reason given on
 		 * [MemoryUsageWatcher.updateInterval].
 		 */
-		var updateInterval: Long = updateInterval
+		var updateInterval: Long = MetricsSamplingRates.coerceToSafeRange(updateInterval)
 			set(value) {
-				if (field == value) {
+				val safe = MetricsSamplingRates.coerceToSafeRange(value)
+				if (field == safe) {
 					return
 				}
-				field = value
+				field = safe
 				clearHistory()
 			}
 
@@ -121,6 +129,11 @@ class PowerUsageWatcher
 		}
 
 		fun startWatching() {
+			if (closed.get()) {
+				log.warn("Power usage watcher is closed and cannot be restarted")
+				return
+			}
+
 			if (!watching.compareAndSet(false, true)) {
 				log.warn("Power usage is already being watched")
 				return
@@ -158,6 +171,7 @@ class PowerUsageWatcher
 
 		/** Stops sampling and releases the sampling thread. The watcher cannot be started again. */
 		fun close() {
+			closed.set(true)
 			stopWatching()
 			listener = null
 			coroutineScope.cancelIfActive("Watcher closed")

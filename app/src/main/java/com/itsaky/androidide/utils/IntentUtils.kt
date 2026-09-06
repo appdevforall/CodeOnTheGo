@@ -71,12 +71,14 @@ object IntentUtils {
 	}
 
 	@JvmStatic
+	@JvmOverloads
 	fun shareFile(
 		context: Context,
 		file: File,
 		mimeType: String,
+		extraFlags: Int = 0,
 	) {
-		startIntent(context = context, file = file, mimeType = mimeType)
+		startIntent(context = context, file = file, mimeType = mimeType, extraFlags = extraFlags)
 	}
 
 	@JvmStatic
@@ -86,6 +88,9 @@ object IntentUtils {
 		file: File,
 		mimeType: String = MIME_ANY,
 		intentAction: String = Intent.ACTION_SEND,
+		// For a context with no task of its own -- a floating window's -- where startActivity
+		// needs FLAG_ACTIVITY_NEW_TASK. Zero leaves an activity-hosted share exactly as it was.
+		extraFlags: Int = 0,
 	) {
 		val uri = context.fileProviderUriFor(file)
 		val intent =
@@ -96,7 +101,7 @@ object IntentUtils {
 				.intent
 				.setAction(intentAction)
 				.setDataAndType(uri, mimeType)
-				.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+				.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or extraFlags)
 
 		context.startActivity(Intent.createChooser(intent, null))
 	}

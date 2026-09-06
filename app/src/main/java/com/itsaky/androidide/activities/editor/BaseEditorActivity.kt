@@ -559,7 +559,12 @@ abstract class BaseEditorActivity :
 		fullscreenManager?.destroy()
 		fullscreenManager = null
 
-		metricsCarousel.unbind()
+		// Same reasoning as onPause: a floating carousel is bound to the window, not to these
+		// views. On a real teardown the window goes with the editor, so releasing the controller
+		// then is correct.
+		if (!isMetricsCarouselUndocked() || isDestroying) {
+			metricsCarousel.unbind()
+		}
 		if (isDestroying) {
 			metricsCarousel.close()
 		}
@@ -1070,7 +1075,13 @@ abstract class BaseEditorActivity :
 		// Sampling continues while backgrounded so the history has no gaps; the x axis assumes
 		// evenly spaced samples and would otherwise misreport their age (ADFA-5486). Only the
 		// carousel goes, so nothing updates a chart nobody is looking at.
-		metricsCarousel.unbind()
+		// Not while it is floating: the controller is then bound to the window's own views, and
+		// unbinding would clear the watcher listeners and detach the renderers -- leaving the
+		// overlay showing a chart that never updates again, which is the one state undocking
+		// exists for. onResume already guards its rebind the same way.
+		if (!isMetricsCarouselUndocked()) {
+			metricsCarousel.unbind()
+		}
 
 		this.isDestroying = isFinishing
 		getFileTreeFragment()?.saveTreeState()
