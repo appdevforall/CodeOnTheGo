@@ -45,8 +45,10 @@ object MetricsSnapshot {
 	/**
 	 * Writes [bitmap] as a PNG named after [label] and the current time.
 	 *
-	 * Old snapshots are cleared first: this is a scratch directory for handing one image to another
-	 * app, not a gallery, and an IDE session could otherwise leave a pile of them behind.
+	 * Old snapshots are cleared afterwards, not first: this is a scratch directory for handing one
+	 * image to another app, not a gallery, and an IDE session could otherwise leave a pile of them
+	 * behind. Clearing first meant a second export could delete the file a first was still about
+	 * to hand over, so the receiving app was given a URI with nothing behind it.
 	 *
 	 * @return the file, or `null` if it could not be written.
 	 */
@@ -57,9 +59,7 @@ object MetricsSnapshot {
 	): File? {
 		val directory = File(context.cacheDir, DIRECTORY)
 		return try {
-			if (directory.exists()) {
-				directory.listFiles()?.forEach { it.delete() }
-			} else if (!directory.mkdirs()) {
+			if (!directory.exists() && !directory.mkdirs()) {
 				log.error("Could not create the snapshot directory at {}", directory)
 				return null
 			}
@@ -71,10 +71,23 @@ object MetricsSnapshot {
 					return null
 				}
 			}
+			deleteAllExcept(directory, file)
 			file
 		} catch (io: IOException) {
 			log.error("Could not write the chart snapshot", io)
 			null
+		}
+	}
+
+	/** Removes every other snapshot, leaving only the one just written. */
+	private fun deleteAllExcept(
+		directory: File,
+		keep: File,
+	) {
+		directory.listFiles()?.forEach { file ->
+			if (file != keep && !file.delete()) {
+				log.warn("Could not delete the stale chart snapshot at {}", file)
+			}
 		}
 	}
 

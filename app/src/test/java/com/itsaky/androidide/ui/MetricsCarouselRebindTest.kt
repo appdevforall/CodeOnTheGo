@@ -19,6 +19,7 @@ package com.itsaky.androidide.ui
 
 import android.content.Context
 import android.view.LayoutInflater
+import android.view.View
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.widget.ImageViewCompat
 import androidx.test.core.app.ApplicationProvider
@@ -73,6 +74,14 @@ class MetricsCarouselRebindTest {
 
 	private fun strip() = LayoutMemUsageBinding.inflate(LayoutInflater.from(context))
 
+	/** The pager needs a size before a chart page can produce a bitmap to export. */
+	private fun laidOut(binding: LayoutMemUsageBinding) {
+		val width = View.MeasureSpec.makeMeasureSpec(720, View.MeasureSpec.EXACTLY)
+		val height = View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY)
+		binding.root.measure(width, height)
+		binding.root.layout(0, 0, 720, 400)
+	}
+
 	@Test
 	fun `the page survives a rebind`() {
 		val controller = controller()
@@ -102,6 +111,21 @@ class MetricsCarouselRebindTest {
 
 		// A restored page with the first page's title would be worse than not restoring at all.
 		assertThat(floating.metricsTitle.text.toString()).isEqualTo(title)
+	}
+
+	@Test
+	fun `a second snapshot is refused while the first is still being written`() {
+		val controller = controller()
+		val binding = strip()
+		controller.bind(binding)
+		laidOut(binding)
+
+		// The camera button is not debounced, and each tap used to launch its own coroutine over
+		// the same scratch directory -- and, within the same second, the same filename, since the
+		// name is the chart label plus a whole-second timestamp. The first export could then hand
+		// another app a URI whose file the second had already replaced.
+		assertThat(controller.exportSnapshot()).isTrue()
+		assertThat(controller.exportSnapshot()).isFalse()
 	}
 
 	@Test
