@@ -108,8 +108,7 @@ class MemoryUsageChartRenderer(
 				}
 			}
 
-		applyAxisRange(chart, processes)
-		setData(chart, datasets)
+		setData(chart, datasets) { applyAxisRange(it, processes) }
 	}
 
 	/**
@@ -188,10 +187,11 @@ class MemoryUsageChartRenderer(
 		if (dataChanged) {
 			// From the samples already in hand: usagesProvider() copies every history, so calling
 			// it again here would snapshot the whole buffer a second time per tick.
-			applyAxisRangeFor(chart) { visit ->
-				memoryUsage.forEachValue { visit(it) }
+			redraw(chart) { ranged ->
+				applyAxisRangeFor(ranged) { visit ->
+					memoryUsage.forEachValue { visit(it) }
+				}
 			}
-			redraw(chart)
 		}
 	}
 

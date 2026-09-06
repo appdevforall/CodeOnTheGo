@@ -98,6 +98,47 @@ class NetworkUsageChartRendererTest {
 	private fun laidOut(chart: SafeLineChart) = chart.layOutAndDraw()
 
 	@Test
+	fun `a rebuild after layout leaves the bounds and the transform in step`() {
+		val chart = SafeLineChart(context)
+		var samples = LongArray(SAMPLE_COUNT) { 500L }
+		val renderer = NetworkUsageChartRenderer(usageProvider = { usage(samples) })
+		renderer.attach(chart)
+		laidOut(chart)
+
+		// Rebuild after the layout, and assert without drawing again: a draw recomputes the
+		// transform on its own, which is what made the first version of this test pass with the
+		// bug still in place.
+		samples = LongArray(SAMPLE_COUNT) { 900_000L }
+		renderer.rebuild()
+
+		// Setting axisMinimum and axisMaximum only stores them; notifyDataSetChanged is what turns
+		// them into a value-to-pixel transform.
+		val ceiling = chart.axisRight.axisMaximum
+		val pixel = chart.getPixelForValues(0f, ceiling, YAxis.AxisDependency.RIGHT)
+
+		assertThat(pixel.y.toFloat()).isWithin(1f).of(chart.viewPortHandler.contentTop())
+	}
+
+	@Test
+	fun `a tick keeps the bounds and the transform in step`() {
+		val chart = SafeLineChart(context)
+		var samples = LongArray(SAMPLE_COUNT) { 500L }
+		val renderer = NetworkUsageChartRenderer(usageProvider = { usage(samples) })
+		renderer.attach(chart)
+		laidOut(chart)
+
+		// A burst raises the ceiling. The per-tick path had the same ordering bug as the rebuild,
+		// and it is the one that runs once a second.
+		samples = LongArray(SAMPLE_COUNT) { 900_000L }
+		renderer.onUsageChanged(usage(samples))
+
+		val ceiling = chart.axisRight.axisMaximum
+		val pixel = chart.getPixelForValues(0f, ceiling, YAxis.AxisDependency.RIGHT)
+
+		assertThat(pixel.y.toFloat()).isWithin(1f).of(chart.viewPortHandler.contentTop())
+	}
+
+	@Test
 	fun `the axis is scaled to what is on screen, not to the whole buffer`() {
 		// A one-off gigabyte burst near the start of a long history, then quiet chatter.
 		val samples = LongArray(SAMPLE_COUNT) { 500L }

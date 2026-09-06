@@ -82,11 +82,7 @@ class NetworkUsageChartRenderer(
 				dataset(usage.transmitted, chart.context.getString(R.string.metrics_network_transmitted), TRANSMITTED_COLOR),
 			)
 
-		setData(chart, datasets)
-		// After, not before: setData is what scrolls the window to the newest samples, and the
-		// range is derived from what that window ends up showing.
-		applyAxisRange(chart, usage)
-		chart.invalidate()
+		setData(chart, datasets) { applyAxisRange(it, usage) }
 	}
 
 	/**
@@ -116,9 +112,7 @@ class NetworkUsageChartRenderer(
 		update(received, usage.received, chart.context.getString(R.string.metrics_network_received))
 		update(transmitted, usage.transmitted, chart.context.getString(R.string.metrics_network_transmitted))
 
-		redraw(chart)
-		applyAxisRange(chart, usage)
-		chart.invalidate()
+		redraw(chart) { applyAxisRange(it, usage) }
 	}
 
 	private fun dataset(
