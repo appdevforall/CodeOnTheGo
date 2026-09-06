@@ -272,6 +272,16 @@ class MetricsCarouselController(
 
 		binding.metricsBattery.text = readout.orEmpty()
 		binding.metricsBattery.isVisible = readout != null
+
+		// lineHeight rather than the measured height: this runs on bind, before the readout has
+		// been laid out, and it is the text's own size that grows with the font scale.
+		val reserved =
+			if (readout == null) {
+				0f
+			} else {
+				binding.metricsBattery.lineHeight + binding.metricsBattery.paddingTop.toFloat()
+			}
+		powerRenderer.reserveTopSpace(reserved)
 	}
 
 	/**

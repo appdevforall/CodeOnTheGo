@@ -342,6 +342,24 @@ class PowerUsageChartRendererTest {
 	}
 
 	@Test
+	fun `the battery readout gets room, and gives it back`() {
+		val (renderer, chart) = rendererFor(usage(temperature = LongArray(SAMPLES) { 30_000L }))
+		laidOut(chart)
+		val unreserved = chart.viewPortHandler.contentTop()
+
+		// The readout is anchored over the chart's top-right corner, where the right axis prints
+		// its topmost label; at a 2.0 font scale it grew down into the plot and hid that label.
+		renderer.reserveTopSpace(READOUT_HEIGHT_PX)
+		laidOut(chart)
+		assertThat(chart.viewPortHandler.contentTop()).isGreaterThan(unreserved)
+
+		// Off the power page the readout is hidden, and the plot should have the room back.
+		renderer.reserveTopSpace(0f)
+		laidOut(chart)
+		assertThat(chart.viewPortHandler.contentTop()).isEqualTo(unreserved)
+	}
+
+	@Test
 	fun `only one axis rules the plot`() {
 		val (_, chart) = rendererFor(usage(temperature = LongArray(SAMPLES) { 30_000L }))
 		laidOut(chart)
@@ -403,6 +421,9 @@ class PowerUsageChartRendererTest {
 		const val WIDTH = 720
 		const val HEIGHT = 400
 		const val SAMPLES = 200
+
+		/** A readout two lines tall, which is roughly what a 2.0 font scale gives. */
+		const val READOUT_HEIGHT_PX = 80f
 
 		const val OPAQUE = 0xFF000000.toInt()
 
