@@ -86,7 +86,7 @@ class MetricsCarouselController(
 		NetworkUsageChartRenderer(
 			usageProvider = { networkUsageWatcher.getUsage() },
 			annotations = annotations,
-			sampleIntervalMillis = { networkUsageWatcher.updateInterval },
+			sampleInterval = { networkUsageWatcher.updateInterval },
 		)
 
 	private val pages =

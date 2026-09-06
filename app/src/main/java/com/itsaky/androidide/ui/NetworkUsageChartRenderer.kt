@@ -59,9 +59,9 @@ import kotlin.math.roundToLong
 class NetworkUsageChartRenderer(
 	private val usageProvider: () -> NetworkUsage,
 	annotations: MetricsAnnotationStore? = null,
-	sampleIntervalMillis: () -> Long = { NetworkUsageWatcher.DEFAULT_UPDATE_INTERVAL },
+	private val sampleInterval: () -> Long = { NetworkUsageWatcher.DEFAULT_UPDATE_INTERVAL },
 ) : MetricsChartRenderer(
-		sampleIntervalMillis = sampleIntervalMillis,
+		sampleIntervalMillis = sampleInterval,
 		annotations = annotations,
 	) {
 	override val helpTag: String = TooltipTag.CAROUSEL_CHART_NETWORK
@@ -157,10 +157,21 @@ class NetworkUsageChartRenderer(
 		dataset.notifyDataSetChanged()
 	}
 
+	/**
+	 * The legend entry for a series, as a rate.
+	 *
+	 * The stored samples are bytes per sampling interval, and the legend says "/s", so the delta
+	 * has to be divided by that interval. It was not, which was harmless only while the interval
+	 * was fixed at one second: once ADFA-5486 let the user choose, picking "Every 5s" overstated
+	 * throughput fivefold, with the axis agreeing.
+	 */
 	private fun labelFor(
 		label: String,
 		bytes: Long,
-	): String = "%s - %s/s".format(label, formatBytes(bytes.toDouble(), decimals = 1))
+	): String = "%s - %s/s".format(label, formatBytes(bytesPerSecond(bytes), decimals = 1))
+
+	/** A per-interval byte count as a per-second rate. */
+	private fun bytesPerSecond(bytes: Long): Double = bytes.toDouble() * MILLIS_PER_SECOND / sampleInterval().coerceAtLeast(1L)
 
 	/**
 	 * Pins the axis to whole decades, from zero up to at least [MIN_AXIS_DECADES].
@@ -229,6 +240,8 @@ class NetworkUsageChartRenderer(
 		 * sensible scale instead of collapsing onto a single value.
 		 */
 		const val MIN_AXIS_DECADES = 3f
+
+		const val MILLIS_PER_SECOND = 1_000.0
 
 		const val SERIES_COUNT = 2
 		const val RECEIVED_INDEX = 0
