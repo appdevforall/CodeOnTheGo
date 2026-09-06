@@ -115,12 +115,33 @@ class MetricsCarouselHelpTest {
 	}
 
 	@Test
-	fun `each chart page declares its own help tag`() {
-		// The charts are not in the list above: MPAndroidChart swallows the touch events a view
-		// long press needs, so they answer through the chart's gesture listener instead.
-		assertThat(TooltipTag.CAROUSEL_CHART_MEMORY).isEqualTo("carousel.chart.memory")
-		assertThat(TooltipTag.CAROUSEL_CHART_NETWORK).isEqualTo("carousel.chart.network")
-		assertThat(TooltipTag.CAROUSEL_CHART_POWER).isEqualTo("carousel.chart.power")
+	fun `each control is wired to its own tag`() {
+		val binding = LayoutMemUsageBinding.inflate(LayoutInflater.from(context))
+		val targets = controller().helpTargets(binding)
+
+		// Asserting the constants against their own literals, as this test used to, would pass
+		// just as happily with two controls' tags swapped.
+		val byTag = targets.associate { (view, tag) -> tag to view }
+		assertThat(byTag[TooltipTag.CAROUSEL_PREVIOUS]).isSameInstanceAs(binding.metricsPrevious)
+		assertThat(byTag[TooltipTag.CAROUSEL_NEXT]).isSameInstanceAs(binding.metricsNext)
+		assertThat(byTag[TooltipTag.CAROUSEL_SNAPSHOT]).isSameInstanceAs(binding.metricsSnapshot)
+		assertThat(byTag[TooltipTag.CAROUSEL_BATTERY]).isSameInstanceAs(binding.metricsBattery)
+		assertThat(byTag[TooltipTag.CAROUSEL_TITLE]).isSameInstanceAs(binding.metricsTitle)
+		assertThat(byTag[TooltipTag.CAROUSEL_UNDOCKED]).isSameInstanceAs(binding.metricsUndockedMessage)
+		// Every tag distinct, so no two controls can answer with the same one.
+		assertThat(targets.map { it.second }.toSet()).hasSize(targets.size)
+	}
+
+	@Test
+	fun `unbinding keeps the undocked message answering`() {
+		val binding = LayoutMemUsageBinding.inflate(LayoutInflater.from(context))
+		val controller = controller()
+		controller.bind(binding)
+		controller.unbind()
+
+		// That view becomes visible *because* the carousel unbound, so clearing its listener left
+		// the one control a user can still reach with no help at all.
+		assertThat(binding.metricsUndockedMessage.isLongClickable).isTrue()
 	}
 
 	@Test
