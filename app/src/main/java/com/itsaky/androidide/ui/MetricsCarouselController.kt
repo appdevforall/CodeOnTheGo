@@ -161,6 +161,16 @@ class MetricsCarouselController(
 	private var currentPage = 0
 
 	/**
+	 * Whether an export is already running.
+	 *
+	 * One at a time. The camera button is not debounced and each tap launched its own coroutine,
+	 * so two quick taps raced over the same scratch directory -- and, within the same second, over
+	 * the same filename, since the name is the chart label and a whole-second timestamp. Touched
+	 * only on the main thread, which is where both the tap and the coroutine's continuations run.
+	 */
+	private var exportInFlight = false
+
+	/**
 	 * The pager of the bound carousel, or `null` when nothing is bound. Exposed so a host can apply
 	 * layout that is its own concern, such as the editor's status-bar inset.
 	 */
@@ -472,6 +482,10 @@ class MetricsCarouselController(
 	@UiThread
 	fun exportSnapshot(): Boolean {
 		val binding = this.binding ?: return false
+		if (exportInFlight) {
+			log.debug("Ignoring a snapshot request while one is already being written")
+			return false
+		}
 		val context = binding.root.context
 		val position = binding.metricsPager.currentItem
 		val page = pages.getOrNull(position) ?: return false
@@ -492,13 +506,24 @@ class MetricsCarouselController(
 		// it ends in startActivity, which throws from a context with no task of its own unless it is
 		// given FLAG_ACTIVITY_NEW_TASK, so it keeps the context the carousel is hosted in.
 		val appContext = context.applicationContext
+		exportInFlight = true
 		scope.launch {
 			// Everything here is guarded: the scope has no exception handler, so anything escaping
 			// reaches the global crash reporter and is filed as a crash. MetricsSnapshot.write
 			// converts only IOException, and shareFile ends in startActivity, which throws
 			// ActivityNotFoundException on a device with nothing able to receive an image.
 			runCatching {
-				val file = withContext(Dispatchers.IO) { MetricsSnapshot.write(appContext, bitmap, label) }
+				val file =
+					withContext(Dispatchers.IO) {
+						// Recycled as soon as it has been encoded: getChartBitmap hands back a
+						// fresh full-size ARGB_8888 copy of the plot on every tap, which is
+						// megabytes that would otherwise sit around until the collector noticed.
+						try {
+							MetricsSnapshot.write(appContext, bitmap, label)
+						} finally {
+							bitmap.recycle()
+						}
+					}
 				// Read through the property, not the local captured above: the export is no longer
 				// instantaneous, and the carousel can be unbound or rebound while the file is
 				// written, which would leave the share pointed at a dead host.
@@ -514,11 +539,16 @@ class MetricsCarouselController(
 				IntentUtils.shareFile(host, file, MetricsSnapshot.MIME_TYPE, extraFlags)
 			}.onFailure { failure ->
 				if (failure is CancellationException) {
+					// Cleared before rethrowing: a cancelled export is finished either way, and
+					// leaving the flag set would refuse every later one for the life of the
+					// carousel.
+					exportInFlight = false
 					throw failure
 				}
 				log.error("Could not share the chart snapshot", failure)
 				Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
 			}
+			exportInFlight = false
 		}
 		return true
 	}
