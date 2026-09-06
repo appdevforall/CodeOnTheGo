@@ -69,12 +69,13 @@ class MemoryUsageChartRenderer(
 		pidToDatasetIdx.clear()
 	}
 
+	override val helpTag: String = TooltipTag.CAROUSEL_CHART_MEMORY
+
 	/**
 	 * Rebuilds the chart's datasets from scratch for the currently watched processes, rendering each
 	 * process's complete [ProcessMemoryInfo.usageHistory]. Call when the set of watched processes
 	 * changes; [onUsagesChanged] calls it on its own when it detects such a change.
 	 */
-	override val helpTag: String = TooltipTag.CAROUSEL_CHART_MEMORY
 
 	@UiThread
 	override fun rebuild() {
