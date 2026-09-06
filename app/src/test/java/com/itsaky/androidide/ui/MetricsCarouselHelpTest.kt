@@ -21,6 +21,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import androidx.appcompat.view.ContextThemeWrapper
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.R
@@ -109,6 +110,47 @@ class MetricsCarouselHelpTest {
 
 		val unwired = controls.filterNot { (_, view) -> view.isLongClickable }.map { it.first }
 		assertThat(unwired).isEmpty()
+	}
+
+	@Test
+	fun `the arrow at the end of the carousel is dimmed but still answers a long press`() {
+		val binding = boundStrip()
+
+		// On the first page there is nowhere to go back to. Disabling that arrow would leave it
+		// consuming the long press and dropping it, so the one arrow whose greyed-out state a
+		// user is likeliest to ask about was the one with no answer.
+		assertThat(binding.metricsPager.currentItem).isEqualTo(0)
+		assertThat(binding.metricsPrevious.alpha).isLessThan(1f)
+		assertThat(binding.metricsPrevious.isEnabled).isTrue()
+		assertThat(binding.metricsPrevious.isLongClickable).isTrue()
+		// It answers no tap, though: that is the narrower and the true statement.
+		assertThat(binding.metricsPrevious.isClickable).isFalse()
+
+		// ...and the other end is at full strength, so the dimming means something.
+		assertThat(binding.metricsNext.alpha).isEqualTo(1f)
+		assertThat(binding.metricsNext.isClickable).isTrue()
+	}
+
+	@Test
+	fun `a dimmed arrow still reads as disabled to a screen reader`() {
+		val binding = boundStrip()
+
+		// Alpha is invisible to accessibility services, so dropping isEnabled would have taken
+		// the state away from exactly the users who cannot see the dimming.
+		val previous = nodeInfoFor(binding.metricsPrevious)
+		assertThat(previous.isEnabled).isFalse()
+		assertThat(previous.isClickable).isFalse()
+
+		val next = nodeInfoFor(binding.metricsNext)
+		assertThat(next.isEnabled).isTrue()
+		assertThat(next.isClickable).isTrue()
+	}
+
+	/** What a screen reader would be handed for [view]. */
+	private fun nodeInfoFor(view: View): AccessibilityNodeInfoCompat {
+		val info = view.createAccessibilityNodeInfo()
+		assertThat(info).isNotNull()
+		return AccessibilityNodeInfoCompat.wrap(info!!)
 	}
 
 	@Test
