@@ -76,7 +76,7 @@ abstract class MetricsChartRenderer(
 	 * never calls `super`, so the framework's long-press detection never runs and a view listener
 	 * would be installed, look wired, and never fire.
 	 */
-	protected open val helpTag: String? = null
+	protected abstract val helpTag: String
 
 	/**
 	 * The help tag for a long press at [y], or `null` if this page has none.
@@ -86,14 +86,21 @@ abstract class MetricsChartRenderer(
 	 */
 	@VisibleForTesting
 	internal fun helpTagAt(y: Float): String? {
-		val chart = this.chart ?: return null
 		// The axis band answers for the sampling rate, the plot for the metric itself, matching
 		// where a tap goes.
-		return if (y >= chart.viewPortHandler.contentBottom()) {
-			TooltipTag.CAROUSEL_AXIS_TIME
-		} else {
-			helpTag
-		}
+		return if (isOnAxisBand(y)) TooltipTag.CAROUSEL_AXIS_TIME else helpTag
+	}
+
+	/**
+	 * Whether [y] landed on the x axis band rather than in the plot.
+	 *
+	 * One predicate, because the tap that opens the sampling-rate chooser and the long press that
+	 * explains it have to agree on where that band is: written twice, they can drift apart and the
+	 * tooltip then describes a control the tap no longer reaches.
+	 */
+	private fun isOnAxisBand(y: Float): Boolean {
+		val chart = this.chart ?: return false
+		return y >= chart.viewPortHandler.contentBottom()
 	}
 
 	/**
@@ -284,7 +291,7 @@ abstract class MetricsChartRenderer(
 	) : OnChartGestureListener {
 		override fun onChartSingleTapped(me: MotionEvent?) {
 			val y = me?.y ?: return
-			if (y >= chart.viewPortHandler.contentBottom()) {
+			if (isOnAxisBand(y)) {
 				onXAxisTap?.invoke()
 			}
 		}

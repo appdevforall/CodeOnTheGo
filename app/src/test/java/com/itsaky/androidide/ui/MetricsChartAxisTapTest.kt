@@ -58,12 +58,7 @@ class MetricsChartAxisTapTest {
 		renderer.attach(chart)
 		renderer.onXAxisTap = { taps++ }
 
-		// Without a layout pass the plot area has no extent, so every coordinate is on its edge.
-		chart.measure(
-			View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
-			View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY),
-		)
-		chart.layout(0, 0, WIDTH, HEIGHT)
+		chart.layOutAndDraw()
 		return chart
 	}
 
@@ -82,7 +77,7 @@ class MetricsChartAxisTapTest {
 
 		// Guards the other tests: on an unlaid-out chart they would all tap the same edge.
 		assertThat(chart.viewPortHandler.contentBottom()).isGreaterThan(chart.viewPortHandler.contentTop())
-		assertThat(chart.viewPortHandler.contentBottom()).isLessThan(HEIGHT.toFloat())
+		assertThat(chart.viewPortHandler.contentBottom()).isLessThan(CHART_HEIGHT.toFloat())
 	}
 
 	@Test
@@ -115,8 +110,6 @@ class MetricsChartAxisTapTest {
 	}
 
 	private companion object {
-		const val WIDTH = 720
-		const val HEIGHT = 400
 		const val SAMPLES = 60
 	}
 }

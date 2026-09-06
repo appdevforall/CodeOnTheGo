@@ -43,6 +43,7 @@ import com.itsaky.androidide.utils.MetricsSamplingRates
 import com.itsaky.androidide.utils.MetricsSnapshot
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.PowerUsageWatcher
+import com.itsaky.androidide.utils.clearLongPressHelp
 import com.itsaky.androidide.utils.displayTooltipOnLongPress
 import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import kotlinx.coroutines.CancellationException
@@ -279,12 +280,7 @@ class MetricsCarouselController(
 				// reach with no help at all.
 				.filterNot { (view, _) -> view === bound.metricsUndockedMessage }
 				.map { (view, _) -> view }
-				.forEach { control ->
-					control.setOnLongClickListener(null)
-					// setOnLongClickListener(null) leaves isLongClickable set, so the view would still
-					// claim a long press it no longer answers.
-					control.isLongClickable = false
-				}
+				.forEach(View::clearLongPressHelp)
 		}
 		binding?.metricsPrevious?.setOnClickListener(null)
 		binding?.metricsNext?.setOnClickListener(null)

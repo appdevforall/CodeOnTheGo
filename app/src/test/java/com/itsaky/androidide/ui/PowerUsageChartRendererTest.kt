@@ -304,15 +304,7 @@ class PowerUsageChartRendererTest {
 		assertThat(renderer.batteryReadout()).isNull()
 	}
 
-	private fun laidOut(chart: SafeLineChart) {
-		chart.measure(
-			View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
-			View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY),
-		)
-		chart.layout(0, 0, WIDTH, HEIGHT)
-		// The scroll to the newest samples is a job that only runs during a draw pass.
-		chart.draw(Canvas(Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)))
-	}
+	private fun laidOut(chart: SafeLineChart) = chart.layOutAndDraw()
 
 	@Test
 	fun `the power axis starts at zero, never below it`() {
@@ -353,8 +345,6 @@ class PowerUsageChartRendererTest {
 	}
 
 	private companion object {
-		const val WIDTH = 720
-		const val HEIGHT = 400
 		const val SAMPLES = 200
 
 		const val OPAQUE = 0xFF000000.toInt()

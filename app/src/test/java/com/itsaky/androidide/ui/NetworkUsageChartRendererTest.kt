@@ -38,9 +38,6 @@ import kotlin.math.log10
 @RunWith(RobolectricTestRunner::class)
 class NetworkUsageChartRendererTest {
 	private companion object {
-		const val WIDTH = 720
-		const val HEIGHT = 400
-
 		/** Longer than the visible window, so the start of the history scrolls off screen. */
 		const val SAMPLE_COUNT = 200
 	}
@@ -98,21 +95,7 @@ class NetworkUsageChartRendererTest {
 		assertThat(ys[2] - ys[1]).isLessThan(4f)
 	}
 
-	/**
-	 * Lays the chart out and draws it once.
-	 *
-	 * The draw is not decoration: MPAndroidChart queues the scroll to the newest samples as a job
-	 * that only runs during a draw pass, so without one the chart still reports the *oldest*
-	 * samples as visible and every assertion here would read the wrong window.
-	 */
-	private fun laidOut(chart: SafeLineChart) {
-		chart.measure(
-			View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
-			View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY),
-		)
-		chart.layout(0, 0, WIDTH, HEIGHT)
-		chart.draw(Canvas(Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)))
-	}
+	private fun laidOut(chart: SafeLineChart) = chart.layOutAndDraw()
 
 	@Test
 	fun `the axis is scaled to what is on screen, not to the whole buffer`() {

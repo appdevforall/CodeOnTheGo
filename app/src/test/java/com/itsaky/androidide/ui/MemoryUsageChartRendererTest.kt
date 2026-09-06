@@ -49,12 +49,7 @@ class MemoryUsageChartRendererTest {
 			lineColorFor = { Color.BLUE },
 		)
 
-	/**
-	 * A chart showing one process with the given byte history, laid out and drawn once.
-	 *
-	 * The draw matters: MPAndroidChart queues the scroll to the newest samples as a job that only
-	 * runs during a draw pass, so without one the chart reports the oldest samples as visible.
-	 */
+	/** A chart showing one process with the given byte history, laid out and drawn once. */
 	private fun laidOutChart(history: LongArray): SafeLineChart {
 		val chart = chart()
 		val process =
@@ -64,12 +59,7 @@ class MemoryUsageChartRendererTest {
 				MutableShiftedLongArray(LongArray(history.size) { history[it] }),
 			)
 		renderer { arrayOf(process) }.attach(chart)
-		chart.measure(
-			View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
-			View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY),
-		)
-		chart.layout(0, 0, WIDTH, HEIGHT)
-		chart.draw(Canvas(Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)))
+		chart.layOutAndDraw()
 		return chart
 	}
 
@@ -211,8 +201,6 @@ class MemoryUsageChartRendererTest {
 
 	private companion object {
 		const val BYTES_PER_MB = 1024L * 1024L
-		const val WIDTH = 720
-		const val HEIGHT = 400
 		const val PID_IDE = 1
 
 		/** Longer than the visible window, so the start of the history scrolls off screen. */
