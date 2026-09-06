@@ -17,6 +17,10 @@
 
 package com.itsaky.androidide.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
@@ -25,6 +29,7 @@ import androidx.annotation.UiThread
 import androidx.viewpager2.widget.ViewPager2
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
+import com.itsaky.androidide.floating.window.OverlayDialogs
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.IntentUtils
@@ -296,7 +301,13 @@ class MetricsCarouselController(
 				// No setMessage: an AlertDialog shows either a message or a list, never both, and
 				// the message silently wins. The unavailable entries carry the explanation instead.
 				.setNegativeButton(string.cancel) { dismissable, _ -> dismissable.dismiss() }
-				.show()
+				.create()
+
+		// Not builder.show(): while the carousel is floating, `context` is the overlay window's
+		// context, which carries no activity token -- adding an ordinary application window
+		// against it throws BadTokenException. OverlayDialogs raises the dialog to the overlay
+		// window type first, which also puts it above the floating windows instead of behind them.
+		OverlayDialogs.show(dialog)
 	}
 
 	/**
@@ -350,7 +361,10 @@ class MetricsCarouselController(
 		val label = context.getString(page.title)
 		val bitmap = renderer.snapshot()
 		if (bitmap == null) {
-			Toast.makeText(context, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
+			// The application context, not the host: a toast's window is added against whatever
+			// context built it, and a floating window's context fixes a window type a toast
+			// cannot use.
+			Toast.makeText(context.applicationContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
 			return false
 		}
 
@@ -373,7 +387,11 @@ class MetricsCarouselController(
 					Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
 					return@runCatching
 				}
-				IntentUtils.shareFile(host, file, MetricsSnapshot.MIME_TYPE)
+				// A floating window's context has no task, so startActivity needs NEW_TASK there.
+				// Docked, the host is the activity and the flag would change its task affinity.
+				val extraFlags =
+					if (host.findActivityOrNull() == null) Intent.FLAG_ACTIVITY_NEW_TASK else 0
+				IntentUtils.shareFile(host, file, MetricsSnapshot.MIME_TYPE, extraFlags)
 			}.onFailure { failure ->
 				if (failure is CancellationException) {
 					throw failure
@@ -415,6 +433,14 @@ class MetricsCarouselController(
 
 	private companion object {
 		private val log = LoggerFactory.getLogger(MetricsCarouselController::class.java)
+
+		/** The nearest [Activity] up the context chain, or `null` for a window context. */
+		private tailrec fun Context.findActivityOrNull(): Activity? =
+			when (this) {
+				is Activity -> this
+				is ContextWrapper -> baseContext.findActivityOrNull()
+				else -> null
+			}
 
 		const val DISABLED_ARROW_ALPHA = 0.35f
 
