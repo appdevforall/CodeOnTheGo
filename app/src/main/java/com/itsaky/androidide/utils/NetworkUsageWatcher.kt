@@ -124,6 +124,7 @@ class NetworkUsageWatcher
 		/**
 		 * Notified on the main thread after each sample.
 		 */
+		@Volatile
 		var listener: NetworkUsageListener? = null
 
 		/**
@@ -184,6 +185,15 @@ class NetworkUsageWatcher
 							log.error("Network usage sampling failed; continuing", failure)
 						}
 
+						// A device whose counters are unsupported has nothing further to give, and
+						// the loop was otherwise repainting three charts a second with data known
+						// to be permanently zero. Clearing the flag too, so isWatching does not
+						// claim a sampler that has stopped.
+						if (!isSupported) {
+							watching.set(false)
+							break
+						}
+
 						delay(updateInterval)
 					}
 				}
@@ -199,6 +209,14 @@ class NetworkUsageWatcher
 		 */
 		fun stopWatching() {
 			watching.set(false)
+			// Drop the cumulative baseline as well. Left set, the first sample after a resume
+			// reports everything transferred while the watcher was stopped as a single interval --
+			// background a Gradle download for three minutes and the chart reads hundreds of MB/s.
+			// The next sample re-establishes it, which is what the null baseline means.
+			synchronized(historyLock) {
+				lastRx = null
+				lastTx = null
+			}
 			samplingJob?.cancel()
 			samplingJob = null
 		}
@@ -243,8 +261,10 @@ class NetworkUsageWatcher
 				record(transmitted, previous = lastTx, current = tx)
 			}
 
-			lastRx = rx
-			lastTx = tx
+			synchronized(historyLock) {
+				lastRx = rx
+				lastTx = tx
+			}
 		}
 
 		/**
