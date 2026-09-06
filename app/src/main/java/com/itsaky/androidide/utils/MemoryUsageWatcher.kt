@@ -121,8 +121,8 @@ class MemoryUsageWatcher
 			}
 
 			/**
-			 * Samples retained per series: one hour at [DEFAULT_UPDATE_INTERVAL] (ADFA-5486).
-			 * About 29KB of longs per series, so the cost is in drawing rather than holding --
+			 * Samples retained per series: nearly three hours at [DEFAULT_UPDATE_INTERVAL] (ADFA-5486).
+			 * About 80KB of longs per series, so the cost is in drawing rather than holding --
 			 * see MetricsChartRenderer, which shows a window of this rather than all of it.
 			 */
 			const val MAX_USAGE_ENTRIES = 10000
@@ -275,7 +275,15 @@ class MemoryUsageWatcher
 		/**
 		 * Returns the memory usage of all the registered processes.
 		 */
-		fun getMemoryUsages(): Array<ProcessMemoryInfo> = memoryUsage.values.toTypedArray()
+		fun getMemoryUsages(): Array<ProcessMemoryInfo> =
+			synchronized(historyLock) {
+				// Snapshots, not the live objects. The sampler's append is two writes and clear()
+				// is another two, and a reader holding nothing could see an advanced shift against
+				// an old value -- plotting a point one slot out of place, which is exactly the
+				// scrambled history the lock's own doc says it prevents. NetworkUsageWatcher and
+				// PowerUsageWatcher already hand out copies for this reason.
+				Array(memoryUsage.size) { index -> memoryUsage.values.elementAt(index).snapshot() }
+			}
 
 		/**
 		 * Returns the memory usage of the given process (in bytes).
@@ -366,6 +374,14 @@ class MemoryUsageWatcher
 
 			val usageHistory: ShiftedLongArray
 				get() = _history
+
+			/**
+			 * A copy of this process's history, safe to read while the sampler keeps appending.
+			 *
+			 * The MemoryInfo instance is shared deliberately: it is the sampler's scratch buffer
+			 * for the next reading and no reader looks at it.
+			 */
+			internal fun snapshot(): ProcessMemoryInfo = ProcessMemoryInfo(pid, pname, _history.copy())
 
 			override fun equals(other: Any?): Boolean {
 				if (this === other) return true

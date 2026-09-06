@@ -65,7 +65,7 @@ class MetricsCarouselController(
 	private val memoryUsageWatcher: MemoryUsageWatcher,
 	private val networkUsageWatcher: NetworkUsageWatcher,
 	lineColorFor: (MemoryUsageWatcher.ProcessMemoryInfo) -> Int,
-	annotations: MetricsAnnotationStore? = null,
+	private val annotations: MetricsAnnotationStore? = null,
 ) {
 	private val memoryRenderer =
 		MemoryUsageChartRenderer(
@@ -230,18 +230,6 @@ class MetricsCarouselController(
 	}
 
 	/**
-	 * The renderer behind the page currently on screen, or `null` when nothing is bound.
-	 */
-	private fun currentRenderer(): MetricsChartRenderer? {
-		val binding = this.binding ?: return null
-		return when (pages.getOrNull(binding.metricsPager.currentItem)) {
-			is MetricsPage.MemoryChart -> memoryRenderer
-			is MetricsPage.NetworkChart -> networkRenderer
-			null -> null
-		}
-	}
-
-	/**
 	 * Offers the sampling rates this device supports, and shows the ones it does not so the reason
 	 * is visible rather than the faster rates simply being absent (ADFA-5486).
 	 */
@@ -311,7 +299,7 @@ class MetricsCarouselController(
 	}
 
 	/**
-	 * Applies a new sampling interval to both watchers. Their histories are discarded, because a
+	 * Applies a new sampling interval to every watcher. Their histories are discarded, because a
 	 * buffer holding samples taken at two rates would misdate the older ones.
 	 */
 	@UiThread
@@ -326,6 +314,10 @@ class MetricsCarouselController(
 			)
 		memoryUsageWatcher.updateInterval = supported
 		networkUsageWatcher.updateInterval = supported
+		// The annotations go with the samples they annotate. Left behind, task markers stood over
+		// a flat zero line with nothing to mark -- and this is the only route by which the store's
+		// throttle window is ever reset.
+		annotations?.clear()
 		refresh()
 	}
 
@@ -414,7 +406,7 @@ class MetricsCarouselController(
 	}
 
 	/**
-	 * Redraws both charts from the full history, for a host coming back to the foreground with
+	 * Redraws every chart from the full history, for a host coming back to the foreground with
 	 * samples gathered while it was away.
 	 */
 	@UiThread
