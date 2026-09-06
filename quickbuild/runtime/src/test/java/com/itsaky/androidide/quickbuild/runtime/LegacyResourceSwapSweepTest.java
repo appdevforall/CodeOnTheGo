@@ -1,6 +1,7 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,14 +47,24 @@ class LegacyResourceSwapSweepTest {
 		// Cache space is the only thing at stake, so an undeletable file must not stop the
 		// sweep or the swap that follows it.
 		write("gen-1.zip");
+		write("probe.txt");
+		File probe = new File(tempDir, "probe.txt");
 		assertThat(tempDir.setWritable(false)).isTrue();
 		try {
+			// A root worker unlinks regardless of the directory mode, which would sweep
+			// gen-1.zip away and fail this test for a reason it is not about. The effective
+			// uid is the wrong question and user.name is not even tied to it, so ask the
+			// filesystem for the capability at stake: a probe that deletes means this
+			// worker cannot be denied one, and there is no undeletable apk to test with.
+			assumeFalse(probe.delete(), "this worker deletes despite the directory mode");
+
 			assertThat(LegacyResourceSwap.deleteStaleApks(tempDir)).isEqualTo(0);
 
 			assertThat(new File(tempDir, "gen-1.zip").isFile()).isTrue();
 		} finally {
 			// Or the temp-dir teardown inherits the problem.
 			tempDir.setWritable(true);
+			probe.delete();
 		}
 	}
 
