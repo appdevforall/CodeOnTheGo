@@ -18,6 +18,9 @@
 package com.itsaky.androidide.ui
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.LineDataSet
@@ -34,6 +37,14 @@ import kotlin.math.log10
  */
 @RunWith(RobolectricTestRunner::class)
 class NetworkUsageChartRendererTest {
+	private companion object {
+		const val WIDTH = 720
+		const val HEIGHT = 400
+
+		/** Longer than the visible window, so the start of the history scrolls off screen. */
+		const val SAMPLE_COUNT = 200
+	}
+
 	private val context = ApplicationProvider.getApplicationContext<Context>()
 
 	private fun usage(
@@ -85,6 +96,55 @@ class NetworkUsageChartRendererTest {
 		assertThat(ys[2]).isWithin(0.01f).of(log10(2.0 * 1024 * 1024 + 1).toFloat())
 		assertThat(ys[1]).isGreaterThan(2f)
 		assertThat(ys[2] - ys[1]).isLessThan(4f)
+	}
+
+	/**
+	 * Lays the chart out and draws it once.
+	 *
+	 * The draw is not decoration: MPAndroidChart queues the scroll to the newest samples as a job
+	 * that only runs during a draw pass, so without one the chart still reports the *oldest*
+	 * samples as visible and every assertion here would read the wrong window.
+	 */
+	private fun laidOut(chart: SafeLineChart) {
+		chart.measure(
+			View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+			View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY),
+		)
+		chart.layout(0, 0, WIDTH, HEIGHT)
+		chart.draw(Canvas(Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)))
+	}
+
+	@Test
+	fun `the axis is scaled to what is on screen, not to the whole buffer`() {
+		// A one-off gigabyte burst near the start of a long history, then quiet chatter.
+		val samples = LongArray(SAMPLE_COUNT) { 500L }
+		samples[0] = 1_000_000_000L
+
+		val chart = SafeLineChart(context)
+		val renderer = NetworkUsageChartRenderer(usageProvider = { usage(samples) })
+		renderer.attach(chart)
+		laidOut(chart)
+		// A second pass, now that the chart has a viewport to report.
+		renderer.rebuild()
+
+		// Scaled to the burst the axis would reach 9 decades and flatten the 500 B chatter onto the
+		// baseline for the rest of the session -- the opposite of what the log axis is for.
+		assertThat(chart.axisRight.axisMaximum).isLessThan(4f)
+	}
+
+	@Test
+	fun `a burst still on screen does raise the axis`() {
+		// Guards the test above: it must not pass by ignoring bursts altogether.
+		val samples = LongArray(SAMPLE_COUNT) { 500L }
+		samples[SAMPLE_COUNT - 1] = 1_000_000_000L
+
+		val chart = SafeLineChart(context)
+		val renderer = NetworkUsageChartRenderer(usageProvider = { usage(samples) })
+		renderer.attach(chart)
+		laidOut(chart)
+		renderer.rebuild()
+
+		assertThat(chart.axisRight.axisMaximum).isAtLeast(9f)
 	}
 
 	@Test

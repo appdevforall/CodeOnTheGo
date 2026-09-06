@@ -22,6 +22,7 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
+import androidx.annotation.VisibleForTesting
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
@@ -33,6 +34,8 @@ import com.github.mikephil.charting.listener.OnChartGestureListener
 import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.resolveAttr
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToLong
 
 /**
@@ -202,6 +205,36 @@ abstract class MetricsChartRenderer(
 
 		chart.setVisibleXRangeMaximum(VISIBLE_SAMPLES.toFloat())
 		chart.moveViewToX(newestIndex - VISIBLE_SAMPLES.toFloat() + 1f)
+	}
+
+	/**
+	 * The sample indices currently on screen, for a series of [sampleCount] samples.
+	 *
+	 * The buffer holds thousands of samples and the window shows sixty of them, so anything derived
+	 * from "all the data" -- an axis range, a peak -- describes a chart the user is not looking at.
+	 *
+	 * While the chart is following the newest samples this is [VISIBLE_SAMPLES] at the end of the
+	 * buffer by definition; only once the user has pinched or panned is the chart itself asked.
+	 */
+	@VisibleForTesting
+	internal fun visibleSampleRange(
+		chart: SafeLineChart,
+		sampleCount: Int,
+	): IntRange {
+		if (sampleCount <= 0) {
+			return IntRange.EMPTY
+		}
+
+		// Until the user drives the viewport themselves, the window is exactly what
+		// showNewestWindow put there, and saying so is both cheaper and more reliable than asking
+		// the chart -- which reports the whole data range until it has been laid out and drawn.
+		if (!userHasZoomed) {
+			return (sampleCount - VISIBLE_SAMPLES).coerceAtLeast(0)..(sampleCount - 1)
+		}
+
+		val from = floor(chart.lowestVisibleX).toInt().coerceIn(0, sampleCount - 1)
+		val to = ceil(chart.highestVisibleX).toInt().coerceIn(from, sampleCount - 1)
+		return from..to
 	}
 
 	/**
