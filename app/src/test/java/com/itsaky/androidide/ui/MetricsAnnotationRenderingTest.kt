@@ -71,12 +71,30 @@ class MetricsAnnotationRenderingTest {
 		var now = 0L
 		val store = MetricsAnnotationStore(nowMillis = { now })
 
-		/** Records [count] annotations, spaced far enough apart to clear the store's throttle. */
+		/** Records [count] task markers, spaced far enough apart to clear the store's throttle. */
 		fun recordBurst(count: Int) {
-			repeat(count) { index ->
-				store.record("task $index")
-				now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
-			}
+			repeat(count) { index -> record("task $index") }
+		}
+
+		/**
+		 * Records one annotation and advances past the throttle window.
+		 *
+		 * Every caller wanted both halves and had to remember the second one; forgetting it made
+		 * the store drop the next annotation, and the test then asserted against a chart with one
+		 * fewer marker than it had asked for.
+		 */
+		fun record(
+			label: String,
+			kind: MetricsAnnotationStore.Kind = MetricsAnnotationStore.Kind.TASK,
+		) {
+			store.record(label, kind)
+			now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
+		}
+
+		/** Records a build outcome, whose label comes from its kind, and advances the clock. */
+		fun recordBuild(kind: MetricsAnnotationStore.Kind) {
+			store.recordBuild(kind)
+			now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
 		}
 	}
 
@@ -160,9 +178,8 @@ class MetricsAnnotationRenderingTest {
 	@Test
 	fun `a failed build is drawn in a different colour from a task marker`() {
 		val fixture = Fixture()
-		fixture.store.record("some task")
-		fixture.now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
-		fixture.store.record("Build failed", MetricsAnnotationStore.Kind.BUILD_FAILED)
+		fixture.record("some task")
+		fixture.record("Build failed", MetricsAnnotationStore.Kind.BUILD_FAILED)
 
 		val (_, chart) = render(fixture)
 
@@ -179,11 +196,9 @@ class MetricsAnnotationRenderingTest {
 	@Test
 	fun `a build starting and finishing share one colour, distinct from a failure`() {
 		val fixture = Fixture()
-		fixture.store.record("Build started", MetricsAnnotationStore.Kind.BUILD_STARTED)
-		fixture.now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
-		fixture.store.record("Build finished", MetricsAnnotationStore.Kind.BUILD_FINISHED)
-		fixture.now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
-		fixture.store.record("Build failed", MetricsAnnotationStore.Kind.BUILD_FAILED)
+		fixture.record("Build started", MetricsAnnotationStore.Kind.BUILD_STARTED)
+		fixture.record("Build finished", MetricsAnnotationStore.Kind.BUILD_FINISHED)
+		fixture.record("Build failed", MetricsAnnotationStore.Kind.BUILD_FAILED)
 
 		val (_, chart) = render(fixture)
 
@@ -198,7 +213,7 @@ class MetricsAnnotationRenderingTest {
 	@Test
 	fun `a cancelled build is not drawn as a failure`() {
 		val fixture = Fixture()
-		fixture.store.recordBuild(MetricsAnnotationStore.Kind.BUILD_CANCELLED)
+		fixture.recordBuild(MetricsAnnotationStore.Kind.BUILD_CANCELLED)
 
 		val (_, chart) = render(fixture)
 
@@ -212,7 +227,7 @@ class MetricsAnnotationRenderingTest {
 	@Test
 	fun `a build marker takes its label from its kind, not from the recorded text`() {
 		val fixture = Fixture()
-		fixture.store.recordBuild(MetricsAnnotationStore.Kind.BUILD_FAILED)
+		fixture.recordBuild(MetricsAnnotationStore.Kind.BUILD_FAILED)
 
 		val (_, chart) = render(fixture)
 

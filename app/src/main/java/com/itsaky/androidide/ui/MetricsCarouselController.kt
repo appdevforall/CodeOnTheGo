@@ -312,10 +312,12 @@ class MetricsCarouselController(
 	@UiThread
 	private fun updateArrows(position: Int) {
 		val binding = this.binding ?: return
-		binding.metricsPrevious.isEnabled = position > 0
-		binding.metricsNext.isEnabled = position < pages.lastIndex
-		binding.metricsPrevious.alpha = if (position > 0) 1f else DISABLED_ARROW_ALPHA
-		binding.metricsNext.alpha = if (position < pages.lastIndex) 1f else DISABLED_ARROW_ALPHA
+		// Dimmed, not disabled. A disabled View still consumes a touch and simply drops it, so a
+		// long press on the arrow at either end of the carousel showed no tooltip -- and that is
+		// exactly the arrow whose greying-out a user might want explained. [step] already clamps,
+		// so a tap on a dimmed arrow does nothing either way.
+		binding.metricsPrevious.alpha = if (position > 0) 1f else DIMMED_ARROW_ALPHA
+		binding.metricsNext.alpha = if (position < pages.lastIndex) 1f else DIMMED_ARROW_ALPHA
 	}
 
 	/**
@@ -571,7 +573,7 @@ class MetricsCarouselController(
 				else -> null
 			}
 
-		const val DISABLED_ARROW_ALPHA = 0.35f
+		const val DIMMED_ARROW_ALPHA = 0.35f
 
 		/** Dims a rate this device cannot offer, so the list shows what the hardware costs. */
 		const val UNAVAILABLE_RATE_ALPHA = 0.4f

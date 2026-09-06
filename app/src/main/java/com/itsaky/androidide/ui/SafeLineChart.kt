@@ -38,7 +38,6 @@ import org.slf4j.LoggerFactory
  * hierarchy on a background thread, which races the main-thread updates of the memory-usage chart. The
  * chart is a non-critical diagnostic view, so dropping the occasional frame is preferable to crashing the
  * whole IDE. The next `invalidate()` recovers cleanly.
- *
  */
 class SafeLineChart : LineChart {
 	constructor(context: Context) : super(context)

@@ -69,7 +69,6 @@ class NetworkUsageChartRenderer(
 	/**
 	 * Rebuilds both series from the full sample history.
 	 */
-
 	@UiThread
 	override fun rebuild() {
 		val chart = this.chart ?: return

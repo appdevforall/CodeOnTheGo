@@ -77,7 +77,6 @@ class MemoryUsageChartRenderer(
 	 * process's complete [ProcessMemoryInfo.usageHistory]. Call when the set of watched processes
 	 * changes; [onUsagesChanged] calls it on its own when it detects such a change.
 	 */
-
 	@UiThread
 	override fun rebuild() {
 		val chart = this.chart ?: return
