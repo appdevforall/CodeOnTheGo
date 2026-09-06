@@ -55,6 +55,14 @@ class MutableShiftedLongArray(
 	}
 
 	/**
+	 * An independent copy, in the same logical order.
+	 *
+	 * For handing a reader a stable view while the sampler keeps appending to this one. The copy
+	 * carries no shift, so index 0 is the oldest entry in it.
+	 */
+	fun copy(): MutableShiftedLongArray = MutableShiftedLongArray(LongArray(size) { this[it] })
+
+	/**
 	 * Resets every element to zero and returns the shift to its starting position, so the array reads
 	 * as though nothing had ever been recorded.
 	 */

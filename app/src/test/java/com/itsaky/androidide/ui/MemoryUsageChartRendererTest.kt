@@ -143,15 +143,45 @@ class MemoryUsageChartRendererTest {
 
 	@Test
 	fun `onUsagesChanged after detach is a no-op`() {
-		val processes = arrayOf(proc(pid = 1, pname = "IDE", firstMegabytes = 100))
+		var processes = arrayOf(proc(pid = 1, pname = "IDE", firstMegabytes = 100))
 		val renderer = renderer { processes }
-		renderer.attach(chart())
+		val detached = chart()
+		renderer.attach(detached)
+		val before = datasetFor(detached, 0).entries.map { it.y }
+
 		renderer.detach()
 
-		// A recycled carousel page must not keep the renderer writing into a dead view.
+		// Different samples, so a renderer that kept writing would visibly change the chart.
+		processes = arrayOf(proc(pid = 1, pname = "IDE", firstMegabytes = 900))
 		renderer.onUsagesChanged(
 			MutableIntObjectMap<ProcessMemoryInfo>().apply { put(1, processes[0]) },
 		)
+
+		// A recycled carousel page must not keep the renderer writing into a dead view. Asserting
+		// only that the call does not throw pinned nothing: it would not have thrown anyway.
+		assertThat(datasetFor(detached, 0).entries.map { it.y }).isEqualTo(before)
+	}
+
+	@Test
+	fun `a swapped process rebuilds rather than plotting its samples on another line`() {
+		// The count stays the same and a pid changes -- what a tooling-server pid correction does.
+		// The suite covered only the count-changed path, and correctness here rested on
+		// getDataSetByIndex(-1) happening to return null.
+		val first = proc(pid = 1, pname = "IDE", firstMegabytes = 100)
+		var processes = arrayOf(first)
+		val renderer = renderer { processes }
+		val chart = chart()
+		renderer.attach(chart)
+
+		val replacement = proc(pid = 2, pname = "Gradle Tooling", firstMegabytes = 700)
+		processes = arrayOf(replacement)
+		renderer.onUsagesChanged(
+			MutableIntObjectMap<ProcessMemoryInfo>().apply { put(2, replacement) },
+		)
+
+		assertThat(chart.data.dataSetCount).isEqualTo(1)
+		assertThat(datasetFor(chart, 0).label).startsWith("Gradle Tooling - ")
+		assertThat(datasetFor(chart, 0).entries.first().y).isEqualTo(700f)
 	}
 
 	@Test
@@ -200,7 +230,12 @@ class MemoryUsageChartRendererTest {
 	}
 
 	private companion object {
-		const val BYTES_PER_MB = 1024L * 1024L
+		/**
+		 * The production constant, not a copy of it. With its own literal the test verified its
+		 * own arithmetic: change the renderer to decimal megabytes and every assertion still
+		 * passed because both sides had stopped agreeing.
+		 */
+		val BYTES_PER_MB = BYTES_PER_MEGABYTE.toLong()
 		const val PID_IDE = 1
 
 		/** Longer than the visible window, so the start of the history scrolls off screen. */
