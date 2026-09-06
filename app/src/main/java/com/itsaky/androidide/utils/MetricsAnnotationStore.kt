@@ -18,6 +18,8 @@
 package com.itsaky.androidide.utils
 
 import android.os.SystemClock
+import androidx.annotation.StringRes
+import com.itsaky.androidide.resources.R.string
 
 /**
  * Records significant events for the metrics charts to annotate (ADFA-5486).
@@ -50,18 +52,34 @@ class MetricsAnnotationStore(
 	 * What kind of event an annotation marks, which decides both how it is drawn and whether the
 	 * throttle applies to it (ADFA-5509).
 	 */
-	enum class Kind {
+	enum class Kind(
+		/**
+		 * The label for this kind, or `null` for [TASK], whose label is the Gradle task's own name.
+		 *
+		 * A resource id rather than resolved text: the store lives in a ViewModel that outlives an
+		 * activity, so a label resolved at record time would keep the old language after the system
+		 * locale changes. Holding the id also removes the only reason a caller had to know which
+		 * string went with which kind.
+		 */
+		@StringRes val labelRes: Int?,
+	) {
 		/** A Gradle task starting or finishing. Throttled: Gradle emits dozens a second. */
-		TASK,
+		TASK(labelRes = null),
 
 		/** A build beginning. */
-		BUILD_STARTED,
+		BUILD_STARTED(string.metrics_annotation_build_started),
 
 		/** A build completing successfully. */
-		BUILD_FINISHED,
+		BUILD_FINISHED(string.metrics_annotation_build_finished),
 
 		/** A build failing. */
-		BUILD_FAILED,
+		BUILD_FAILED(string.metrics_annotation_build_failed),
+
+		/**
+		 * A build stopped by the user. Not a failure: the platform reports a cancel through the
+		 * same failure callback, and painting a deliberate stop in the error colour misreports it.
+		 */
+		BUILD_CANCELLED(string.metrics_annotation_build_cancelled),
 		;
 
 		/**
@@ -96,6 +114,13 @@ class MetricsAnnotationStore(
 		/** Decides the marker's colour, and whether the throttle could have dropped it. */
 		val kind: Kind = Kind.TASK,
 	)
+
+	/**
+	 * Records a build outcome. Its label comes from [Kind.labelRes], so the caller names the
+	 * outcome and nothing else.
+	 */
+	@Synchronized
+	fun recordBuild(kind: Kind): Boolean = record(label = "", kind = kind)
 
 	/**
 	 * Records [label] unless another annotation was recorded within [THROTTLE_INTERVAL_MS].

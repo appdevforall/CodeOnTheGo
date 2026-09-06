@@ -413,6 +413,11 @@ abstract class MetricsChartRenderer(
 		val interval = sampleIntervalMillis()
 		val bufferSpanMillis = (newestIndex.toLong() + 1L) * interval
 		val now = nowMillis()
+		// Resolved once per redraw rather than once per annotation: applyAnnotations runs on every
+		// sampling tick, there can be MAX_ANNOTATIONS of them, and resolveAttr allocates a
+		// TypedValue per call.
+		val markerColors = MetricsAnnotationStore.Kind.entries.associateWith { markerColorFor(chart, it) }
+
 		store.recentAnnotations(bufferSpanMillis).forEach { annotation ->
 			val samplesAgo = (now - annotation.atMillis).toFloat() / interval
 			val x = newestIndex - samplesAgo
@@ -421,8 +426,8 @@ abstract class MetricsChartRenderer(
 			}
 
 			chart.xAxis.addLimitLine(
-				LimitLine(x, annotation.label).apply {
-					val markerColor = markerColorFor(chart, annotation.kind)
+				LimitLine(x, labelFor(chart, annotation)).apply {
+					val markerColor = markerColors.getValue(annotation.kind)
 					lineWidth = ANNOTATION_LINE_WIDTH
 					lineColor = markerColor
 					textColor = markerColor
@@ -435,6 +440,17 @@ abstract class MetricsChartRenderer(
 			)
 		}
 	}
+
+	/**
+	 * An annotation's label, resolved now rather than when it was recorded.
+	 *
+	 * A build outcome carries a string id instead of text, so its marker follows the system
+	 * language even though the store holding it outlives the activity that recorded it.
+	 */
+	private fun labelFor(
+		chart: SafeLineChart,
+		annotation: MetricsAnnotationStore.Annotation,
+	): String = annotation.kind.labelRes?.let(chart.context::getString) ?: annotation.label
 
 	/**
 	 * The colour a marker is drawn in, from the kind of event it marks (ADFA-5509).
@@ -456,7 +472,10 @@ abstract class MetricsChartRenderer(
 
 				MetricsAnnotationStore.Kind.BUILD_FAILED -> R.attr.colorError
 
-				MetricsAnnotationStore.Kind.TASK -> R.attr.colorOnSurface
+				// A cancel is the user's own doing, so it is neither good news nor bad.
+				MetricsAnnotationStore.Kind.BUILD_CANCELLED,
+				MetricsAnnotationStore.Kind.TASK,
+				-> R.attr.colorOnSurface
 			}
 		return chart.context.resolveAttr(attr)
 	}

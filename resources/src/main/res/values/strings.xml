@@ -1687,6 +1687,7 @@
 	<string name="metrics_annotation_build_started">Build started</string>
 	<string name="metrics_annotation_build_finished">Build finished</string>
 	<string name="metrics_annotation_build_failed">Build failed</string>
+	<string name="metrics_annotation_build_cancelled">Build cancelled</string>
 	<string name="metrics_power_chart">Temperature and power chart</string>
 	<string name="metrics_power_temperature">Battery temp</string>
 	<string name="metrics_power_draw">Power</string>

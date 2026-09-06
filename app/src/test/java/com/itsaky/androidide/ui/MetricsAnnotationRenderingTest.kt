@@ -23,7 +23,10 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineDataSet
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.R
+import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.resolveAttr
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -162,7 +165,10 @@ class MetricsAnnotationRenderingTest {
 
 		val lines = chart.xAxis.limitLines
 		assertThat(lines).hasSize(2)
-		assertThat(lines[1].lineColor).isNotEqualTo(lines[0].lineColor)
+		// Which colour, not merely a different one: asserting inequality alone passes just as
+		// happily with the two attributes swapped, telling the user a failed build succeeded.
+		assertThat(lines[0].lineColor).isEqualTo(context.resolveAttr(R.attr.colorOnSurface))
+		assertThat(lines[1].lineColor).isEqualTo(context.resolveAttr(R.attr.colorError))
 		// The label sits on the line, so colouring only the line would leave it unreadable.
 		assertThat(lines[1].textColor).isEqualTo(lines[1].lineColor)
 	}
@@ -181,8 +187,39 @@ class MetricsAnnotationRenderingTest {
 		val lines = chart.xAxis.limitLines
 		assertThat(lines).hasSize(3)
 		// Started and finished are both outcomes worth seeing; only failure is bad news.
-		assertThat(lines[1].lineColor).isEqualTo(lines[0].lineColor)
-		assertThat(lines[2].lineColor).isNotEqualTo(lines[0].lineColor)
+		assertThat(lines[0].lineColor).isEqualTo(context.resolveAttr(R.attr.colorSuccess))
+		assertThat(lines[1].lineColor).isEqualTo(context.resolveAttr(R.attr.colorSuccess))
+		assertThat(lines[2].lineColor).isEqualTo(context.resolveAttr(R.attr.colorError))
+	}
+
+	@Test
+	fun `a cancelled build is not drawn as a failure`() {
+		val fixture = Fixture()
+		fixture.store.recordBuild(MetricsAnnotationStore.Kind.BUILD_CANCELLED)
+
+		val (_, chart) = render(fixture)
+
+		// The user stopped the build themselves; reporting that back in the error colour reads as
+		// something having gone wrong.
+		val line = chart.xAxis.limitLines.single()
+		assertThat(line.lineColor).isNotEqualTo(context.resolveAttr(R.attr.colorError))
+		assertThat(line.lineColor).isEqualTo(context.resolveAttr(R.attr.colorOnSurface))
+	}
+
+	@Test
+	fun `a build marker takes its label from its kind, not from the recorded text`() {
+		val fixture = Fixture()
+		fixture.store.recordBuild(MetricsAnnotationStore.Kind.BUILD_FAILED)
+
+		val (_, chart) = render(fixture)
+
+		// Resolved at draw time, so the marker follows the system language even though the store
+		// outlives the activity that recorded it.
+		assertThat(
+			chart.xAxis.limitLines
+				.single()
+				.label,
+		).isEqualTo(context.getString(string.metrics_annotation_build_failed))
 	}
 
 	private companion object {

@@ -632,6 +632,9 @@ class GradleBuildService :
 
 	override fun cancelCurrentBuild(): CompletableFuture<BuildCancellationRequestResult> {
 		checkServerStarted()
+		// Before delegating: the cancellation surfaces as a build failure, and the listener needs
+		// to know it was asked for rather than reporting the user's own action as an error.
+		eventListener?.onBuildCancelRequested()
 		return server!!.cancelCurrentBuild()
 	}
 
@@ -807,6 +810,15 @@ class GradleBuildService :
 
 	/** Handles events received from a Gradle build. */
 	interface EventListener {
+		/**
+		 * Called when the user asks for the running build to stop.
+		 *
+		 * The tooling API reports a cancelled build through [onBuildFailed], so a listener that
+		 * wants to tell the two apart has to be told here. Defaulted, because only a listener that
+		 * cares about the distinction needs it.
+		 */
+		fun onBuildCancelRequested() = Unit
+
 		/**
 		 * Called just before a build is started.
 		 *

@@ -48,6 +48,12 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	private var buildStartTimeMs: Long = System.currentTimeMillis()
 	private var lastOutputTimeMs: Long = SystemClock.elapsedRealtime()
 
+	/**
+	 * Set when the user asks for the running build to stop, so [onBuildFailed] can tell a cancel
+	 * from a real failure. Cleared as each build is prepared.
+	 */
+	private var cancelRequested = false
+
 	private var enabled = true
 	private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
 
@@ -80,30 +86,37 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	}
 
 	override fun prepareBuild(buildInfo: BuildInfo) {
-		val prepared = checkActivity("prepareBuild") ?: return
+		val act = checkActivity("prepareBuild") ?: return
 
-		prepared.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_STARTED)
+		cancelRequested = false
+
+		// A project sync runs through the same callbacks with no tasks, so annotating every
+		// prepareBuild put a "Build started" marker on the chart merely for opening a project --
+		// and blamed the sync's own memory spike on a build the user never ran.
+		if (buildInfo.tasks.isNotEmpty()) {
+			act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_STARTED)
+		}
 
 		pluginBuildService?.setBuildInProgress(true)
 
 		val isFirstBuild = GeneralPreferences.isFirstBuild
-		activity
+		act
 			.setStatus(
-				activity.getString(if (isFirstBuild) string.preparing_first else string.preparing),
+				act.getString(if (isFirstBuild) string.preparing_first else string.preparing),
 			)
 
 		if (isFirstBuild) {
-			activity.showFirstBuildNotice()
+			act.showFirstBuildNotice()
 		}
 
 		resetBuildTimers()
 
-		activity.editorViewModel.isBuildInProgress = true
-		activity.content.bottomSheet.clearBuildOutput()
+		act.editorViewModel.isBuildInProgress = true
+		act.content.bottomSheet.clearBuildOutput()
 
 		if (buildInfo.tasks.isNotEmpty()) {
 			onOutput(
-				activity.getString(R.string.title_run_tasks) + " : " + buildInfo.tasks,
+				act.getString(R.string.title_run_tasks) + " : " + buildInfo.tasks,
 			)
 		}
 	}
@@ -116,7 +129,9 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	override fun onBuildSuccessful(tasks: List<String?>) {
 		val act = checkActivity("onBuildSuccessful") ?: return
 
-		act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_FINISHED)
+		if (tasks.isNotEmpty()) {
+			act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_FINISHED)
+		}
 
 		pluginBuildService?.notifyBuildFinished()
 
@@ -145,6 +160,10 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		lastStatusLine = ""
 	}
 
+	override fun onBuildCancelRequested() {
+		cancelRequested = true
+	}
+
 	override fun onProgressEvent(event: ProgressEvent) {
 		val act = checkActivity("onProgressEvent") ?: return
 
@@ -163,7 +182,18 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	override fun onBuildFailed(tasks: List<String?>) {
 		val act = checkActivity("onBuildFailed") ?: return
 
-		act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_FAILED)
+		if (tasks.isNotEmpty()) {
+			// A build the user stopped arrives through this same callback. Marking it as a failure
+			// would report their own deliberate action back to them in the error colour.
+			act.recordBuildAnnotation(
+				if (cancelRequested) {
+					MetricsAnnotationStore.Kind.BUILD_CANCELLED
+				} else {
+					MetricsAnnotationStore.Kind.BUILD_FAILED
+				},
+			)
+		}
+		cancelRequested = false
 
 		analyzeCurrentFile()
 		GeneralPreferences.isFirstBuild = false

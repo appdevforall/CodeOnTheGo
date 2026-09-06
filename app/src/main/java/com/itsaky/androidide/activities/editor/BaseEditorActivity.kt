@@ -210,29 +210,19 @@ abstract class BaseEditorActivity :
 	}
 
 	/** Records a significant event for the charts to annotate (ADFA-5486). */
-	fun recordMetricsAnnotation(
-		label: String,
-		kind: MetricsAnnotationStore.Kind = MetricsAnnotationStore.Kind.TASK,
-	) {
-		metricsViewModel.annotations.record(label, kind)
+	fun recordMetricsAnnotation(label: String) {
+		metricsViewModel.annotations.record(label)
 	}
 
 	/**
 	 * Marks a build outcome on the charts (ADFA-5509).
 	 *
-	 * Separate from [recordMetricsAnnotation] so the caller names the outcome rather than repeating
-	 * the string lookup, and so these are never accidentally recorded as ordinary task markers --
-	 * which the throttle is allowed to drop.
+	 * Separate from [recordMetricsAnnotation] so a build outcome cannot be recorded as an ordinary
+	 * task marker, which the throttle is allowed to drop -- and so a task name cannot be recorded
+	 * as an outcome, which would give it an unthrottled marker in the error colour.
 	 */
 	fun recordBuildAnnotation(kind: MetricsAnnotationStore.Kind) {
-		val label =
-			when (kind) {
-				MetricsAnnotationStore.Kind.BUILD_STARTED -> string.metrics_annotation_build_started
-				MetricsAnnotationStore.Kind.BUILD_FINISHED -> string.metrics_annotation_build_finished
-				MetricsAnnotationStore.Kind.BUILD_FAILED -> string.metrics_annotation_build_failed
-				MetricsAnnotationStore.Kind.TASK -> return
-			}
-		metricsViewModel.annotations.record(getString(label), kind)
+		metricsViewModel.annotations.recordBuild(kind)
 	}
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
