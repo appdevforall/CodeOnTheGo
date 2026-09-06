@@ -67,6 +67,7 @@ import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DiagnosticsFormatter
 import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
+import com.itsaky.androidide.utils.clearLongPressHelp
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -332,17 +333,17 @@ class EditorBottomSheet
 
 			binding.tabs.clearOnTabSelectedListeners()
 			binding.shareOutputAction.setOnClickListener(null)
-			binding.shareOutputAction.setOnLongClickListener(null)
+			binding.shareOutputAction.clearLongPressHelp()
 			binding.clearOutputAction.setOnClickListener(null)
-			binding.clearOutputAction.setOnLongClickListener(null)
+			binding.clearOutputAction.clearLongPressHelp()
 			binding.searchOutputAction.setOnClickListener(null)
-			binding.searchOutputAction.setOnLongClickListener(null)
+			binding.searchOutputAction.clearLongPressHelp()
 			binding.filterOutputAction.setOnClickListener(null)
-			binding.filterOutputAction.setOnLongClickListener(null)
+			binding.filterOutputAction.clearLongPressHelp()
 			binding.wordWrapOutputAction.setOnClickListener(null)
-			binding.wordWrapOutputAction.setOnLongClickListener(null)
+			binding.wordWrapOutputAction.clearLongPressHelp()
 			binding.viewOptionsOutputAction.setOnClickListener(null)
-			binding.viewOptionsOutputAction.setOnLongClickListener(null)
+			binding.viewOptionsOutputAction.clearLongPressHelp()
 			binding.copyDiagnosticsFab.setOnClickListener(null)
 			binding.headerContainer.setOnClickListener(null)
 			removeOnLayoutChangeListener(fabLayoutChangeListener)

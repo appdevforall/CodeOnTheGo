@@ -76,7 +76,7 @@ abstract class MetricsChartRenderer(
 	 * never calls `super`, so the framework's long-press detection never runs and a view listener
 	 * would be installed, look wired, and never fire.
 	 */
-	protected open val helpTag: String? = null
+	protected abstract val helpTag: String
 
 	/**
 	 * The help tag for a long press at [y], or `null` if this page has none.
@@ -86,14 +86,21 @@ abstract class MetricsChartRenderer(
 	 */
 	@VisibleForTesting
 	internal fun helpTagAt(y: Float): String? {
-		val chart = this.chart ?: return null
 		// The axis band answers for the sampling rate, the plot for the metric itself, matching
 		// where a tap goes.
-		return if (y >= chart.viewPortHandler.contentBottom()) {
-			TooltipTag.CAROUSEL_AXIS_TIME
-		} else {
-			helpTag
-		}
+		return if (isOnAxisBand(y)) TooltipTag.CAROUSEL_AXIS_TIME else helpTag
+	}
+
+	/**
+	 * Whether [y] landed on the x axis band rather than in the plot.
+	 *
+	 * One predicate, because the tap that opens the sampling-rate chooser and the long press that
+	 * explains it have to agree on where that band is: written twice, they can drift apart and the
+	 * tooltip then describes a control the tap no longer reaches.
+	 */
+	private fun isOnAxisBand(y: Float): Boolean {
+		val chart = this.chart ?: return false
+		return y >= chart.viewPortHandler.contentBottom()
 	}
 
 	/**
@@ -111,6 +118,25 @@ abstract class MetricsChartRenderer(
 	 */
 	protected var chart: SafeLineChart? = null
 		private set
+
+	/**
+	 * Keeps [pixels] of the chart's top clear of the plot and its labels.
+	 *
+	 * The battery readout is anchored to the pager's top-right corner, over the chart, where the
+	 * right axis prints its topmost label. At the default font scale the readout sits above the
+	 * plot and the two do not meet; the strip is a fixed height, so at a 2.0 font scale the
+	 * readout grows down into the plot and hides that label. Reserving its height moves the plot
+	 * instead, which scales with the text rather than against it.
+	 */
+	@UiThread
+	fun reserveTopSpace(pixels: Float) {
+		val chart = this.chart ?: return
+		chart.setExtraTopOffset(pixels / chart.resources.displayMetrics.density)
+		// setExtraTopOffset only stores the value; the viewport is recomputed by calculateOffsets,
+		// which is protected and otherwise runs only when the chart's size changes.
+		chart.notifyDataSetChanged()
+		chart.invalidate()
+	}
 
 	/**
 	 * Attaches [chart], applies configuration, and renders the full current history.
@@ -202,6 +228,11 @@ abstract class MetricsChartRenderer(
 
 			// The right axis carries the labels; the left is unused.
 			axisLeft.isEnabled = false
+			// The right axis rules the plot. Harmless while the left one is disabled, and it means
+			// a page that enables the left for a second unit gets its labels without a second set
+			// of grid lines at unrelated heights -- MPAndroidChart rules the plot once per enabled
+			// axis, and AxisBase defaults to drawing them.
+			axisLeft.setDrawGridLines(false)
 
 			onChartGestureListener = XAxisTapListener(this)
 
@@ -284,7 +315,7 @@ abstract class MetricsChartRenderer(
 	) : OnChartGestureListener {
 		override fun onChartSingleTapped(me: MotionEvent?) {
 			val y = me?.y ?: return
-			if (y >= chart.viewPortHandler.contentBottom()) {
+			if (isOnAxisBand(y)) {
 				onXAxisTap?.invoke()
 			}
 		}

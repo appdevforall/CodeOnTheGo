@@ -28,6 +28,7 @@ import com.itsaky.androidide.services.builder.ThermalInfo
 import com.itsaky.androidide.services.builder.ThermalState
 import com.itsaky.androidide.utils.PowerUsageWatcher.BatteryState
 import com.itsaky.androidide.utils.PowerUsageWatcher.PowerReading
+import kotlin.math.abs
 
 /**
  * Reads temperature and power from the battery, which is all a normally-installed app can see
@@ -92,7 +93,18 @@ class DevicePowerSource(
 			return PowerUsageWatcher.UNAVAILABLE
 		}
 
-		return microAmps.toLong() * milliVolts.toLong() / NANOWATTS_PER_MICROWATT
+		val microWatts = microAmps.toLong() * milliVolts.toLong() / NANOWATTS_PER_MICROWATT
+
+		// The sign of CURRENT_NOW is documented and not always honoured; the unit is the same
+		// story. Several OEM kernels report milliamps, which makes a five-watt build read as five
+		// milliwatts -- indistinguishable from an idle device, with no error path at all. Outside
+		// a plausible envelope, report the reading as unavailable rather than as a believable lie.
+		val magnitude = abs(microWatts)
+		return if (magnitude == 0L || magnitude in MIN_PLAUSIBLE_MICROWATTS..MAX_PLAUSIBLE_MICROWATTS) {
+			microWatts
+		} else {
+			PowerUsageWatcher.UNAVAILABLE
+		}
 	}
 
 	/**
@@ -110,8 +122,14 @@ class DevicePowerSource(
 		}
 
 		return when (ThermalInfo.getThermalState(context)) {
-			ThermalState.Throttled -> PowerManager.THERMAL_STATUS_SEVERE
+			// LIGHT, not SEVERE. The fallback knows only throttled or not, and its own
+			// PowerManager mapping counts LIGHT and MODERATE as not throttled -- so one mild trip
+			// point was painted with the middle hue of a six-level severity scale. Claim the least
+			// the reading could mean.
+			ThermalState.Throttled -> PowerManager.THERMAL_STATUS_LIGHT
+
 			ThermalState.NotThrottled -> PowerManager.THERMAL_STATUS_NONE
+
 			else -> PowerUsageWatcher.THERMAL_UNKNOWN
 		}
 	}
@@ -121,7 +139,11 @@ class DevicePowerSource(
 
 		val level = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
 		val scale = battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-		val status = battery.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
+		// EXTRA_PLUGGED rather than EXTRA_STATUS. A device held at a charge cap -- Adaptive
+		// Charging, or any battery-protection limit -- reports NOT_CHARGING while plugged in, so
+		// testing the status showed the battery readout for a device on mains power with its
+		// current still reversed. Plugged is the question the readout actually asks.
+		val plugged = battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
 
 		val percent =
 			if (level < 0 || scale <= 0) {
@@ -132,12 +154,18 @@ class DevicePowerSource(
 
 		return BatteryState(
 			levelPercent = percent,
-			isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL,
+			isCharging = plugged != 0,
 		)
 	}
 
 	private companion object {
 		/** Microamps times millivolts gives nanowatts; this scales the product to microwatts. */
 		const val NANOWATTS_PER_MICROWATT = 1_000L
+
+		/** A milliwatt: below this a non-zero reading is likelier a unit mismatch than a real draw. */
+		const val MIN_PLAUSIBLE_MICROWATTS = 1_000L
+
+		/** A hundred watts: no phone draws this, so that is a unit mismatch the other way. */
+		const val MAX_PLAUSIBLE_MICROWATTS = 100_000_000L
 	}
 }

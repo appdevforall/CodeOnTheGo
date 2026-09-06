@@ -23,6 +23,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
+import com.itsaky.androidide.floating.model.ChromeControl
 import com.itsaky.androidide.floating.model.DockableContent
 import com.itsaky.androidide.floating.window.FloatingWindowHost
 import com.itsaky.androidide.ui.MetricsCarouselController
@@ -48,6 +49,17 @@ class MetricsCarouselDockableContent(
 	override val title: String,
 ) : DockableContent {
 	override val id: String = ID
+
+	/**
+	 * The window chrome's own help, the same handler the editor and plugin tabs install.
+	 *
+	 * Without it the undocked carousel was the one floating window whose minimize, maximize and
+	 * dock controls answered no long press -- and the dock control is the only way back, so it is
+	 * the one that most needs explaining. ADFA-5510 wired help to everything inside the carousel
+	 * and missed the frame around it.
+	 */
+	override val onChromeControlLongPress: (ChromeControl, View) -> Unit =
+		ChromeControlTooltips.handler
 
 	override fun onCreateView(
 		context: Context,

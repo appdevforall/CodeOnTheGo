@@ -82,6 +82,9 @@ class SafeLineChart : LineChart {
 
 	private val spanPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
+	/** Reused by [drawBackgroundSpans]: two (x, y) pairs, transformed in place. */
+	private val spanPoints = FloatArray(4)
+
 	/**
 	 * Draws the spans immediately after the grid background, which is an opaque fill of the plot: a
 	 * span painted before [onDraw] delegates upwards is covered by it and never reaches the screen.
@@ -101,8 +104,16 @@ class SafeLineChart : LineChart {
 		val transformer = getTransformer(YAxis.AxisDependency.LEFT) ?: return
 
 		backgroundSpans.forEach { span ->
-			val left = transformer.getPixelForValues(span.startX, 0f).x.toFloat()
-			val right = transformer.getPixelForValues(span.endX, 0f).x.toFloat()
+			// A reused buffer through pointValuesToPixel, not two getPixelForValues calls: those
+			// hand back pooled MPPointD instances that have to be recycled, and this runs inside
+			// onDraw for every span on every frame of every pan and zoom.
+			spanPoints[0] = span.startX
+			spanPoints[1] = 0f
+			spanPoints[2] = span.endX
+			spanPoints[3] = 0f
+			transformer.pointValuesToPixel(spanPoints)
+			val left = spanPoints[0]
+			val right = spanPoints[2]
 			// A span scrolled out of view still maps to a pixel, so clip to the plot.
 			val clippedLeft = left.coerceAtLeast(content.left)
 			val clippedRight = right.coerceAtMost(content.right)

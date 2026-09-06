@@ -30,6 +30,7 @@ import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.PowerUsageWatcher
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -49,13 +50,30 @@ class MetricsCarouselHelpTest {
 			R.style.Theme_AndroidIDE,
 		)
 
+	/**
+	 * Every controller this test builds, so [tearDown] can release them.
+	 *
+	 * Each one installs itself as the listener on three watchers; a controller left bound holds
+	 * its views and goes on being fed for the rest of the JVM's life, and the tests then run
+	 * against a growing pile of live carousels.
+	 */
+	private val controllers = mutableListOf<MetricsCarouselController>()
+
+	@After
+	fun tearDown() {
+		controllers.forEach { it.unbind() }
+		controllers.clear()
+	}
+
 	private fun boundStrip(): LayoutMemUsageBinding {
 		val binding = LayoutMemUsageBinding.inflate(LayoutInflater.from(context))
 		controller().bind(binding)
 		return binding
 	}
 
-	private fun controller() =
+	private fun controller() = newController().also(controllers::add)
+
+	private fun newController() =
 		MetricsCarouselController(
 			memoryUsageWatcher = MemoryUsageWatcher(),
 			networkUsageWatcher = NetworkUsageWatcher(uid = TEST_UID),
@@ -154,15 +172,11 @@ class MetricsCarouselHelpTest {
 				},
 			)
 		renderer.attach(chart)
-		chart.measure(
-			View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
-			View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY),
-		)
-		chart.layout(0, 0, WIDTH, HEIGHT)
+		chart.layOutAndDraw()
 
 		val handler = chart.viewPortHandler
 		// Guards the two assertions below: on an unlaid-out chart both points land on one edge.
-		assertThat(handler.contentBottom()).isLessThan(HEIGHT.toFloat())
+		assertThat(handler.contentBottom()).isLessThan(CHART_HEIGHT.toFloat())
 
 		// Below the plot is the time axis, which is what the sampling rate belongs to.
 		assertThat(renderer.helpTagAt(handler.contentBottom() + 1f)).isEqualTo(TooltipTag.CAROUSEL_AXIS_TIME)
@@ -173,8 +187,6 @@ class MetricsCarouselHelpTest {
 
 	private companion object {
 		const val TEST_UID = 10_123
-		const val WIDTH = 720
-		const val HEIGHT = 400
 		const val SAMPLES = 60
 	}
 }

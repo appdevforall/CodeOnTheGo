@@ -24,6 +24,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineDataSet
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.resolveAttr
@@ -57,6 +58,8 @@ class MetricsAnnotationRenderingTest {
 			annotations = annotations,
 			nowMillis = now,
 		) {
+		override val helpTag: String = TooltipTag.CAROUSEL_CHART_MEMORY
+
 		override fun rebuild() {
 			val chart = this.chart ?: return
 			val entries = List(sampleCount) { Entry(it.toFloat(), 0f) }
