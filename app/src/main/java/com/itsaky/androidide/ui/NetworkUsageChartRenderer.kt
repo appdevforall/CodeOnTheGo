@@ -64,10 +64,11 @@ class NetworkUsageChartRenderer(
 		sampleIntervalMillis = sampleIntervalMillis,
 		annotations = annotations,
 	) {
+	override val helpTag: String = TooltipTag.CAROUSEL_CHART_NETWORK
+
 	/**
 	 * Rebuilds both series from the full sample history.
 	 */
-	override val helpTag: String = TooltipTag.CAROUSEL_CHART_NETWORK
 
 	@UiThread
 	override fun rebuild() {

@@ -39,12 +39,14 @@ import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.PowerUsageWatcher
 import com.itsaky.androidide.utils.displayTooltipOnLongPress
 import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 
 /**
  * Drives one metrics carousel: its pages, its renderers, and the title that names the current page.
@@ -401,9 +403,17 @@ class MetricsCarouselController(
 	 */
 	@UiThread
 	private fun setSamplingInterval(intervalMillis: Long) {
-		memoryUsageWatcher.updateInterval = intervalMillis
-		networkUsageWatcher.updateInterval = intervalMillis
-		powerUsageWatcher.updateInterval = intervalMillis
+		// Clamped to what this device supports, which is decided here rather than in the watchers:
+		// the arch comes from IDEBuildConfigProvider, which a plain JVM test cannot resolve, so the
+		// watchers keep only an absolute floor to stop delay() spinning. This is the policy.
+		val supported =
+			MetricsSamplingRates.coerceToSupportedRange(
+				intervalMillis,
+				IDEBuildConfigProvider.getInstance().deviceArch,
+			)
+		memoryUsageWatcher.updateInterval = supported
+		networkUsageWatcher.updateInterval = supported
+		powerUsageWatcher.updateInterval = supported
 		refresh()
 	}
 
@@ -449,19 +459,28 @@ class MetricsCarouselController(
 		// given FLAG_ACTIVITY_NEW_TASK, so it keeps the context the carousel is hosted in.
 		val appContext = context.applicationContext
 		scope.launch {
-			val file = withContext(Dispatchers.IO) { MetricsSnapshot.write(appContext, bitmap, label) }
-			if (file == null) {
+			// Everything here is guarded: the scope has no exception handler, so anything escaping
+			// reaches the global crash reporter and is filed as a crash. MetricsSnapshot.write
+			// converts only IOException, and shareFile ends in startActivity, which throws
+			// ActivityNotFoundException on a device with nothing able to receive an image.
+			runCatching {
+				val file = withContext(Dispatchers.IO) { MetricsSnapshot.write(appContext, bitmap, label) }
+				// Read through the property, not the local captured above: the export is no longer
+				// instantaneous, and the carousel can be unbound or rebound while the file is
+				// written, which would leave the share pointed at a dead host.
+				val host = this@MetricsCarouselController.binding?.root?.context
+				if (file == null || host == null) {
+					Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
+					return@runCatching
+				}
+				IntentUtils.shareFile(host, file, MetricsSnapshot.MIME_TYPE)
+			}.onFailure { failure ->
+				if (failure is CancellationException) {
+					throw failure
+				}
+				log.error("Could not share the chart snapshot", failure)
 				Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
-				return@launch
 			}
-			// Re-read the host rather than capturing it: the export is no longer instantaneous, and
-			// the carousel can be unbound (docked, undocked, recreated) while the file is written.
-			val host = binding?.root?.context
-			if (host == null) {
-				Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
-				return@launch
-			}
-			IntentUtils.shareFile(host, file, MetricsSnapshot.MIME_TYPE)
 		}
 		return true
 	}
@@ -496,6 +515,8 @@ class MetricsCarouselController(
 	}
 
 	private companion object {
+		private val log = LoggerFactory.getLogger(MetricsCarouselController::class.java)
+
 		const val DISABLED_ARROW_ALPHA = 0.35f
 
 		/** Dims a rate this device cannot offer, so the list shows what the hardware costs. */
