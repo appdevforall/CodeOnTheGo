@@ -30,6 +30,10 @@ import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.PowerUsageWatcher
 import com.itsaky.androidide.utils.PowerUsageWatcher.PowerUsage
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToLong
 
 /**
@@ -83,6 +87,7 @@ class PowerUsageChartRenderer(
 			)
 
 		setData(chart, datasets)
+		applyAxisRanges(chart, usage)
 		applyThermalShading(chart, usage)
 	}
 
@@ -95,6 +100,51 @@ class PowerUsageChartRenderer(
 	fun onUsageChanged(usage: PowerUsage) {
 		chart ?: return
 		rebuild()
+	}
+
+	/**
+	 * Ranges both axes over the samples on screen.
+	 *
+	 * Two problems, one cause. Left to itself MPAndroidChart ranges over every entry, which
+	 * includes the buffer's unsampled prefix -- ten thousand slots that plot as zero -- so the
+	 * 29-33C band this page exists to show was pressed into the top tenth of the plot with a
+	 * negative gridline beneath it. And the right axis, unpinned, picked up MPAndroidChart's 10%
+	 * bottom padding: a negative watt label under a series deliberately plotted as a magnitude
+	 * precisely so it could never read as negative power spent.
+	 */
+	private fun applyAxisRanges(
+		chart: SafeLineChart,
+		usage: PowerUsage,
+	) {
+		val visible = visibleSampleRange(chart, usage.temperatureMilliCelsius.size)
+
+		var hottest = Float.NEGATIVE_INFINITY
+		var coldest = Float.POSITIVE_INFINITY
+		var peakWatts = 0f
+		for (index in visible) {
+			val milliCelsius = usage.temperatureMilliCelsius[index]
+			// Skip the unsampled prefix and anything the device does not report: both plot at
+			// zero, and letting zero into the range is what flattened the real readings.
+			if (milliCelsius != PowerUsageWatcher.UNAVAILABLE && milliCelsius != 0L) {
+				val celsius = milliCelsiusToCelsius(milliCelsius)
+				hottest = max(hottest, celsius)
+				coldest = min(coldest, celsius)
+			}
+			peakWatts = max(peakWatts, microWattsToWatts(usage.powerMicroWatts[index]))
+		}
+
+		// Power always starts at zero: it is a magnitude, so there is nothing below it.
+		chart.axisRight.axisMinimum = 0f
+		chart.axisRight.axisMaximum = max(peakWatts * AXIS_HEADROOM, MIN_AXIS_WATTS)
+
+		if (hottest.isFinite() && coldest.isFinite()) {
+			chart.axisLeft.axisMinimum = floor(coldest) - TEMPERATURE_MARGIN_CELSIUS
+			chart.axisLeft.axisMaximum = ceil(hottest) + TEMPERATURE_MARGIN_CELSIUS
+		} else {
+			// Nothing readable yet; a plausible room-to-warm span beats a range built from zeros.
+			chart.axisLeft.axisMinimum = DEFAULT_MIN_CELSIUS
+			chart.axisLeft.axisMaximum = DEFAULT_MAX_CELSIUS
+		}
 	}
 
 	/**
@@ -267,6 +317,19 @@ class PowerUsageChartRenderer(
 	private companion object {
 		val TEMPERATURE_COLOR = Color.rgb(255, 138, 101)
 		val POWER_COLOR = Color.rgb(129, 212, 250)
+
+		/** Keeps the tallest line off the top frame of the plot. */
+		const val AXIS_HEADROOM = 1.1f
+
+		/** Floor for the power axis, so an idle device still has a readable scale. */
+		const val MIN_AXIS_WATTS = 2f
+
+		/** Air above and below the temperature range, so the line is not drawn on the frame. */
+		const val TEMPERATURE_MARGIN_CELSIUS = 1f
+
+		/** Shown until the first readable temperature arrives. */
+		const val DEFAULT_MIN_CELSIUS = 20f
+		const val DEFAULT_MAX_CELSIUS = 40f
 
 		/** Half the x-axis width of one sample, which is 1 because x values are sample indices. */
 		const val HALF_SAMPLE = 0.5f

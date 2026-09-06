@@ -18,6 +18,9 @@
 package com.itsaky.androidide.ui
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.LineDataSet
@@ -301,7 +304,59 @@ class PowerUsageChartRendererTest {
 		assertThat(renderer.batteryReadout()).isNull()
 	}
 
+	private fun laidOut(chart: SafeLineChart) {
+		chart.measure(
+			View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+			View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY),
+		)
+		chart.layout(0, 0, WIDTH, HEIGHT)
+		// The scroll to the newest samples is a job that only runs during a draw pass.
+		chart.draw(Canvas(Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)))
+	}
+
+	@Test
+	fun `the power axis starts at zero, never below it`() {
+		val (_, chart) =
+			rendererFor(usage(temperature = LongArray(SAMPLES) { 30_000L }, power = LongArray(SAMPLES) { 7_000_000L }))
+		laidOut(chart)
+
+		// Unpinned, the chart's own 10% bottom padding prints a negative watt label under a series
+		// plotted as a magnitude precisely so it could never read as negative power.
+		assertThat(chart.axisRight.axisMinimum).isEqualTo(0f)
+	}
+
+	@Test
+	fun `the temperature axis ignores the buffer's unsampled zeros`() {
+		// A real reading only in the newest slots; the rest of the buffer has never been written.
+		val temperature = LongArray(SAMPLES)
+		for (index in SAMPLES - 10 until SAMPLES) {
+			temperature[index] = 30_000L
+		}
+		val (_, chart) = rendererFor(usage(temperature = temperature))
+		laidOut(chart)
+
+		// Ranged over the zeros the 30C band is squeezed into the top tenth of the plot, with a
+		// negative gridline below it.
+		assertThat(chart.axisLeft.axisMinimum).isGreaterThan(20f)
+		assertThat(chart.axisLeft.axisMaximum).isLessThan(40f)
+	}
+
+	@Test
+	fun `an unreadable temperature falls back to a plausible span`() {
+		val (_, chart) =
+			rendererFor(usage(temperature = LongArray(SAMPLES) { PowerUsageWatcher.UNAVAILABLE }))
+		laidOut(chart)
+
+		// Nothing readable, so a sensible range beats one computed from placeholder zeros.
+		assertThat(chart.axisLeft.axisMinimum).isLessThan(chart.axisLeft.axisMaximum)
+		assertThat(chart.axisLeft.axisMaximum).isAtMost(40f)
+	}
+
 	private companion object {
+		const val WIDTH = 720
+		const val HEIGHT = 400
+		const val SAMPLES = 200
+
 		const val OPAQUE = 0xFF000000.toInt()
 
 		/** The palette ADFA-5499 specifies: green, cyan, yellow, orange, rust, red. */
