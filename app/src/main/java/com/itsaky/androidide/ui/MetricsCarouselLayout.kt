@@ -58,8 +58,14 @@ class MetricsCarouselLayout
 		var onTouchDown: (() -> Unit)? = null
 
 		private var twoFingerDownAt = 0L
-		private var twoFingerDownX = 0f
-		private var twoFingerDownY = 0f
+
+		/**
+		 * Where each of the two fingers landed. Both are tracked, not just the first: a pinch that
+		 * keeps one finger still and spreads the other travels no distance at index 0, so watching
+		 * only that finger let a zoom be read as a tap and undock the chart.
+		 */
+		private val twoFingerDownX = FloatArray(TWO_FINGERS)
+		private val twoFingerDownY = FloatArray(TWO_FINGERS)
 		private var twoFingerTapCandidate = false
 
 		/**
@@ -98,11 +104,13 @@ class MetricsCarouselLayout
 				}
 
 				MotionEvent.ACTION_POINTER_DOWN -> {
-					if (ev.pointerCount == 2) {
+					if (ev.pointerCount == TWO_FINGERS) {
 						twoFingerTapCandidate = true
 						twoFingerDownAt = ev.eventTime
-						twoFingerDownX = ev.getX(0)
-						twoFingerDownY = ev.getY(0)
+						for (pointer in 0 until TWO_FINGERS) {
+							twoFingerDownX[pointer] = ev.getX(pointer)
+							twoFingerDownY[pointer] = ev.getY(pointer)
+						}
 					} else {
 						// A third finger is not this gesture.
 						twoFingerTapCandidate = false
@@ -110,10 +118,18 @@ class MetricsCarouselLayout
 				}
 
 				MotionEvent.ACTION_MOVE -> {
-					if (twoFingerTapCandidate && ev.pointerCount >= 1) {
-						val travel = hypot(ev.getX(0) - twoFingerDownX, ev.getY(0) - twoFingerDownY)
-						if (travel > touchSlop) {
-							twoFingerTapCandidate = false
+					if (twoFingerTapCandidate) {
+						// Either finger travelling means this is a pinch, not a tap.
+						for (pointer in 0 until minOf(ev.pointerCount, TWO_FINGERS)) {
+							val travel =
+								hypot(
+									ev.getX(pointer) - twoFingerDownX[pointer],
+									ev.getY(pointer) - twoFingerDownY[pointer],
+								)
+							if (travel > touchSlop) {
+								twoFingerTapCandidate = false
+								break
+							}
 						}
 					}
 				}
@@ -141,4 +157,8 @@ class MetricsCarouselLayout
 		// A person's two-finger tap is far slower than the single-finger tap timeout: the two
 		// fingers land and lift out of step. Anything shorter than a long press counts.
 		private val tapTimeout = ViewConfiguration.getLongPressTimeout().toLong()
+
+		private companion object {
+			const val TWO_FINGERS = 2
+		}
 	}

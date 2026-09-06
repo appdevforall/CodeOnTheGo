@@ -18,6 +18,7 @@
 package com.itsaky.androidide.utils
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.After
 import org.junit.Test
 
 /**
@@ -28,6 +29,17 @@ import org.junit.Test
  * the history goes when the rate does.
  */
 class WatcherIntervalChangeTest {
+	/** Every watcher built here, so the sampling threads they hold are released. */
+	private val created = mutableListOf<NetworkUsageWatcher>()
+
+	@After
+	fun tearDown() {
+		// An @After rather than a close at the end of each test: a watcher holds a dedicated
+		// sampling thread until close(), and a failed assertion would skip a trailing call.
+		created.forEach { it.close() }
+		created.clear()
+	}
+
 	private fun networkWatcher(readings: List<Long>): Pair<NetworkUsageWatcher, () -> Unit> {
 		var index = -1
 		val watcher =
@@ -35,7 +47,7 @@ class WatcherIntervalChangeTest {
 				uid = TEST_UID,
 				readRxBytes = { readings[index.coerceIn(0, readings.lastIndex)] },
 				readTxBytes = { readings[index.coerceIn(0, readings.lastIndex)] },
-			)
+			).also { created += it }
 		return watcher to {
 			index++
 			watcher.sampleOnce()

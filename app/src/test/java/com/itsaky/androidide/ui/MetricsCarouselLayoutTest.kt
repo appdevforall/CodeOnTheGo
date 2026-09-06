@@ -149,6 +149,42 @@ class MetricsCarouselLayoutTest {
 	}
 
 	@Test
+	fun `a pinch anchored on the first finger is not a tap`() {
+		// The awkward case: hold one finger still and spread the other. Watching only pointer 0
+		// sees no travel at all, so the zoom was recognised as a tap and undocked the chart.
+		var taps = 0
+		val layout = layout().apply { onTwoFingerTap = { taps++ } }
+		downTime = SystemClock.uptimeMillis()
+		val travel = ViewConfiguration.get(context).scaledTouchSlop * 4f
+
+		layout.dispatch(
+			event(MotionEvent.ACTION_DOWN, 500f to 450f),
+			event(pointerDown(1), 500f to 450f, 900f to 450f),
+			event(MotionEvent.ACTION_MOVE, 500f to 450f, 900f + travel to 450f, eventTime = downTime + 20L),
+			event(pointerUp(1), 500f to 450f, 900f + travel to 450f, eventTime = downTime + 40L),
+		)
+
+		assertThat(taps).isEqualTo(0)
+	}
+
+	@Test
+	fun `a pinch anchored on the second finger is not a tap either`() {
+		var taps = 0
+		val layout = layout().apply { onTwoFingerTap = { taps++ } }
+		downTime = SystemClock.uptimeMillis()
+		val travel = ViewConfiguration.get(context).scaledTouchSlop * 4f
+
+		layout.dispatch(
+			event(MotionEvent.ACTION_DOWN, 500f to 450f),
+			event(pointerDown(1), 500f to 450f, 900f to 450f),
+			event(MotionEvent.ACTION_MOVE, 500f - travel to 450f, 900f to 450f, eventTime = downTime + 20L),
+			event(pointerUp(1), 500f - travel to 450f, 900f to 450f, eventTime = downTime + 40L),
+		)
+
+		assertThat(taps).isEqualTo(0)
+	}
+
+	@Test
 	fun `a long two-finger hold is not a tap`() {
 		var taps = 0
 		val layout = layout().apply { onTwoFingerTap = { taps++ } }

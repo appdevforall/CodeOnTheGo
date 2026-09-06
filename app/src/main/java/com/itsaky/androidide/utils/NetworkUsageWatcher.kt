@@ -72,6 +72,13 @@ class NetworkUsageWatcher
 		private val coroutineScope = CoroutineScope(SupervisorJob() + coroutineDispatcher)
 		private val watching = AtomicBoolean(false)
 
+		/**
+		 * Set by [close] and never cleared. Without it a start after a terminal teardown would flip
+		 * [isWatching] to true and launch into a cancelled scope, leaving the watcher reporting that
+		 * it is sampling when no loop exists.
+		 */
+		private val closed = AtomicBoolean(false)
+
 		/** The running sampling loop, so [stopWatching] can actually stop it. */
 		private var samplingJob: Job? = null
 
@@ -145,6 +152,11 @@ class NetworkUsageWatcher
 		}
 
 		fun startWatching() {
+			if (closed.get()) {
+				log.warn("Network usage watcher is closed and cannot be restarted")
+				return
+			}
+
 			if (!watching.compareAndSet(false, true)) {
 				log.warn("Network usage is already being watched")
 				return
@@ -199,6 +211,7 @@ class NetworkUsageWatcher
 		 * holds one until it is closed.
 		 */
 		fun close() {
+			closed.set(true)
 			stopWatching()
 			listener = null
 			coroutineScope.cancelIfActive("Watcher closed")

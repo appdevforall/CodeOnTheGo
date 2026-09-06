@@ -17,6 +17,9 @@
 
 package com.itsaky.androidide.ui
 
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.annotation.UiThread
 import androidx.viewpager2.widget.ViewPager2
@@ -112,6 +115,13 @@ class MetricsCarouselController(
 	 */
 	@UiThread
 	fun bind(binding: LayoutMemUsageBinding) {
+		// A carousel can be re-bound without an intervening unbind -- docking, undocking and an
+		// activity recreation all route through here. Releasing first keeps one page callback and
+		// one set of listeners alive rather than accumulating them on views that are already gone.
+		if (this.binding != null) {
+			unbind()
+		}
+
 		this.binding = binding
 
 		binding.metricsPager.adapter = MetricsCarouselAdapter(pages, memoryRenderer, networkRenderer)
@@ -243,11 +253,37 @@ class MetricsCarouselController(
 
 		val checked = rates.indexOfFirst { it.intervalMillis == current }
 
+		// A choice adapter that knows which rows are selectable, rather than reaching into the
+		// list's laid-out children afterwards: getChildAt only sees rows that already exist, and a
+		// recycled row comes back enabled, so an unavailable rate could look selectable and then
+		// silently do nothing.
+		val adapter =
+			object : ArrayAdapter<CharSequence>(
+				context,
+				android.R.layout.simple_list_item_single_choice,
+				android.R.id.text1,
+				labels,
+			) {
+				override fun areAllItemsEnabled(): Boolean = false
+
+				override fun isEnabled(position: Int): Boolean = rates.getOrNull(position)?.isAvailable ?: false
+
+				override fun getView(
+					position: Int,
+					convertView: View?,
+					parent: ViewGroup,
+				): View =
+					super.getView(position, convertView, parent).apply {
+						isEnabled = isEnabled(position)
+						alpha = if (isEnabled) 1f else UNAVAILABLE_RATE_ALPHA
+					}
+			}
+
 		val dialog =
 			DialogUtils
 				.newMaterialDialogBuilder(context)
 				.setTitle(string.metrics_sampling_rate_title)
-				.setSingleChoiceItems(labels, checked) { dismissable, which ->
+				.setSingleChoiceItems(adapter, checked) { dismissable, which ->
 					val rate = rates[which]
 					if (rate.isAvailable) {
 						setSamplingInterval(rate.intervalMillis)
@@ -259,13 +295,6 @@ class MetricsCarouselController(
 				// the message silently wins. The unavailable entries carry the explanation instead.
 				.setNegativeButton(string.cancel) { dismissable, _ -> dismissable.dismiss() }
 				.show()
-
-		// Grey the rates this device cannot use, so the list shows what the hardware costs.
-		dialog.listView?.let { list ->
-			rates.forEachIndexed { index, rate ->
-				list.getChildAt(index)?.isEnabled = rate.isAvailable
-			}
-		}
 	}
 
 	/**
@@ -367,5 +396,8 @@ class MetricsCarouselController(
 
 	private companion object {
 		const val DISABLED_ARROW_ALPHA = 0.35f
+
+		/** Dims a rate this device cannot offer, so the list shows what the hardware costs. */
+		const val UNAVAILABLE_RATE_ALPHA = 0.4f
 	}
 }
