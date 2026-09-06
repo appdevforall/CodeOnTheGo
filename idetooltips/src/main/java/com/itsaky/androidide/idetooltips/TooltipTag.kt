@@ -235,6 +235,15 @@ object TooltipTag {
 	const val WINDOW_DOCK = "window-dock"
 	const val WINDOW_UNDOCK = "window-undock"
 
+	/**
+	 * The floating window's close control.
+	 *
+	 * Distinct from [WINDOW_UNDOCK], which names the opposite action and belongs to the editor
+	 * controls that open something in a window. The chrome's close button borrowed that tag, so a
+	 * long press on it answered "Opens the file in a separate window".
+	 */
+	const val WINDOW_CLOSE = "window-close"
+
 	// Delete project
 	const val DELETE_PROJECT = "project.delete"
 	const val DELETE_PROJECT_SELECT = "project.delete.select"

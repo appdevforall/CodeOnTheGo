@@ -124,6 +124,25 @@ class MetricsCarouselRebindTest {
 	}
 
 	@Test
+	fun `dimming an end arrow changes its alpha, not its tint`() {
+		val binding = strip()
+		controller().bind(binding)
+
+		// The two are orthogonal, which is why asserting the arrows share a tint does not
+		// contradict their looking different at the ends of the carousel: the tint is the colour
+		// the glyph is drawn in, and the dimming is alpha over the top of it. A later change that
+		// dimmed through a state-aware ColorStateList instead would break that, and this says so.
+		assertThat(binding.metricsPager.currentItem).isEqualTo(0)
+		assertThat(binding.metricsPrevious.alpha).isLessThan(binding.metricsNext.alpha)
+
+		val previous = ImageViewCompat.getImageTintList(binding.metricsPrevious)!!
+		val next = ImageViewCompat.getImageTintList(binding.metricsNext)!!
+		assertThat(previous.defaultColor).isEqualTo(next.defaultColor)
+		// One colour, no per-state variation: nothing here depends on the enabled state.
+		assertThat(previous.isStateful).isFalse()
+	}
+
+	@Test
 	fun `the arrow tint is the colour the title uses`() {
 		val binding = strip()
 		controller().bind(binding)
