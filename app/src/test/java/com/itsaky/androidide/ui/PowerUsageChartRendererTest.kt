@@ -334,6 +334,71 @@ class PowerUsageChartRendererTest {
 	}
 
 	@Test
+	fun `the battery readout gets room, and gives it back`() {
+		val (renderer, chart) = rendererFor(usage(temperature = LongArray(SAMPLES) { 30_000L }))
+		laidOut(chart)
+		val unreserved = chart.viewPortHandler.contentTop()
+
+		// The readout is anchored over the chart's top-right corner, where the right axis prints
+		// its topmost label; at a 2.0 font scale it grew down into the plot and hid that label.
+		renderer.reserveTopSpace(READOUT_HEIGHT_PX)
+		laidOut(chart)
+		assertThat(chart.viewPortHandler.contentTop()).isGreaterThan(unreserved)
+
+		// Off the power page the readout is hidden, and the plot should have the room back.
+		renderer.reserveTopSpace(0f)
+		laidOut(chart)
+		assertThat(chart.viewPortHandler.contentTop()).isEqualTo(unreserved)
+	}
+
+	@Test
+	fun `only one axis rules the plot`() {
+		val (_, chart) = rendererFor(usage(temperature = LongArray(SAMPLES) { 30_000L }))
+		laidOut(chart)
+
+		// Both axes drew grid lines at their own pitch, so the plot carried two interleaved sets
+		// of horizontal rules -- nine of them, including a pair eight pixels apart. Only the
+		// labelled axis should rule the plot; the left axis is enabled for its labels alone.
+		assertThat(chart.axisLeft.isDrawGridLinesEnabled).isFalse()
+		assertThat(chart.axisRight.isDrawGridLinesEnabled).isTrue()
+	}
+
+	@Test
+	fun `the temperature axis does not repeat a label`() {
+		val (_, chart) = rendererFor(usage(temperature = LongArray(SAMPLES) { 30_000L }))
+		laidOut(chart)
+
+		// Ranged over a few degrees and formatted without decimals, a finer pitch prints
+		// "29C, 30C, 30C, 31C".
+		assertThat(chart.axisLeft.granularity).isEqualTo(1f)
+		assertThat(chart.axisLeft.isGranularityEnabled).isTrue()
+	}
+
+	@Test
+	fun `a new sample updates the existing series rather than replacing them`() {
+		val (renderer, chart) = rendererFor(usage(temperature = LongArray(SAMPLES) { 30_000L }))
+		val before = dataset(chart, 0)
+
+		renderer.onUsageChanged(usage(temperature = LongArray(SAMPLES) { 31_000L }))
+
+		// Rebuilding allocated two datasets and 2 * MAX_USAGE_ENTRIES entries every tick, on the
+		// UI thread, and threw away the sample it had just been handed.
+		assertThat(dataset(chart, 0)).isSameInstanceAs(before)
+		assertThat(before.entries.last().y).isEqualTo(31f)
+	}
+
+	@Test
+	fun `a series that no longer matches the sample is rebuilt`() {
+		val (renderer, chart) = rendererFor(usage(temperature = LongArray(SAMPLES) { 30_000L }))
+
+		// The buffer grows to its full length over the first minutes of a session, so an
+		// in-place update has to notice when the shape it is writing into is the wrong one.
+		renderer.onUsageChanged(usage(temperature = LongArray(SAMPLES + 1) { 31_000L }))
+
+		assertThat(dataset(chart, 0).entryCount).isEqualTo(SAMPLES + 1)
+	}
+
+	@Test
 	fun `an unreadable temperature falls back to a plausible span`() {
 		val (_, chart) =
 			rendererFor(usage(temperature = LongArray(SAMPLES) { PowerUsageWatcher.UNAVAILABLE }))
@@ -346,6 +411,9 @@ class PowerUsageChartRendererTest {
 
 	private companion object {
 		const val SAMPLES = 200
+
+		/** A readout two lines tall, which is roughly what a 2.0 font scale gives. */
+		const val READOUT_HEIGHT_PX = 80f
 
 		const val OPAQUE = 0xFF000000.toInt()
 

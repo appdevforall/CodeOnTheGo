@@ -136,7 +136,7 @@ class NetworkUsageWatcher
 		 */
 		fun getUsage(): NetworkUsage =
 			synchronized(historyLock) {
-				NetworkUsage(received.snapshot(), transmitted.snapshot())
+				NetworkUsage(received.toLongArray(), transmitted.toLongArray())
 			}
 
 		/**
@@ -333,8 +333,3 @@ class NetworkUsageWatcher
 			private val log = LoggerFactory.getLogger(NetworkUsageWatcher::class.java)
 		}
 	}
-
-/**
- * Copies this ring buffer into a plain array in logical order, oldest first.
- */
-private fun ShiftedLongArray.snapshot(): LongArray = LongArray(size) { this[it] }

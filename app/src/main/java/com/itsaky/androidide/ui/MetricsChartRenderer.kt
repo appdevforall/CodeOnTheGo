@@ -120,6 +120,25 @@ abstract class MetricsChartRenderer(
 		private set
 
 	/**
+	 * Keeps [pixels] of the chart's top clear of the plot and its labels.
+	 *
+	 * The battery readout is anchored to the pager's top-right corner, over the chart, where the
+	 * right axis prints its topmost label. At the default font scale the readout sits above the
+	 * plot and the two do not meet; the strip is a fixed height, so at a 2.0 font scale the
+	 * readout grows down into the plot and hides that label. Reserving its height moves the plot
+	 * instead, which scales with the text rather than against it.
+	 */
+	@UiThread
+	fun reserveTopSpace(pixels: Float) {
+		val chart = this.chart ?: return
+		chart.setExtraTopOffset(pixels / chart.resources.displayMetrics.density)
+		// setExtraTopOffset only stores the value; the viewport is recomputed by calculateOffsets,
+		// which is protected and otherwise runs only when the chart's size changes.
+		chart.notifyDataSetChanged()
+		chart.invalidate()
+	}
+
+	/**
 	 * Attaches [chart], applies configuration, and renders the full current history.
 	 */
 	@UiThread
@@ -209,6 +228,11 @@ abstract class MetricsChartRenderer(
 
 			// The right axis carries the labels; the left is unused.
 			axisLeft.isEnabled = false
+			// The right axis rules the plot. Harmless while the left one is disabled, and it means
+			// a page that enables the left for a second unit gets its labels without a second set
+			// of grid lines at unrelated heights -- MPAndroidChart rules the plot once per enabled
+			// axis, and AxisBase defaults to drawing them.
+			axisLeft.setDrawGridLines(false)
 
 			onChartGestureListener = XAxisTapListener(this)
 
