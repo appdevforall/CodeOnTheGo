@@ -25,6 +25,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineDataSet
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R.string
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,6 +50,8 @@ class MetricsCarouselAdapterTest {
 	private class TestRenderer(
 		private val readout: String? = null,
 	) : MetricsChartRenderer(sampleIntervalMillis = { 1_000L }) {
+		override val helpTag: String = TooltipTag.CAROUSEL_CHART_MEMORY
+
 		val attached = mutableListOf<SafeLineChart>()
 
 		override fun rebuild() {
