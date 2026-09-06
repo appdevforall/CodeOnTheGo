@@ -125,7 +125,7 @@ class NetworkUsageWatcher
 			}
 
 			samplingJob =
-				coroutineScope.launch(context = SupervisorJob() + coroutineDispatcher) {
+				coroutineScope.launch {
 					while (isWatching) {
 						// The loop must outlive a bad sample. Without this an exception -- a
 						// misbehaving listener is enough -- ends the coroutine while `watching` stays
@@ -161,7 +161,8 @@ class NetworkUsageWatcher
 			// for it to notice the flag leaves it sampling for up to a full interval after the editor
 			// asked it to stop -- long enough for a stop/start to run two samplers at once. Cancelling
 			// the scope instead would end the watcher for good, and this is a pause, not a teardown.
-			coroutineScope.cancelIfActive("Cancellation requested")
+			samplingJob?.cancel()
+			samplingJob = null
 		}
 
 		/**

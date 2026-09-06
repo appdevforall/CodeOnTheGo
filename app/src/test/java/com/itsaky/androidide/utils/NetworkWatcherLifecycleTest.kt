@@ -65,19 +65,25 @@ class NetworkWatcherLifecycleTest {
 			var samples = 0
 			val watcher = watcher(dispatcher) { samples++ }
 
-			watcher.startWatching()
-			advanceTimeBy(INTERVAL_MS * 3)
-			val whileRunning = samples
+			try {
+				watcher.startWatching()
+				advanceTimeBy(INTERVAL_MS * 3)
+				val whileRunning = samples
 
-			watcher.stopWatching()
-			advanceTimeBy(INTERVAL_MS * 5)
+				watcher.stopWatching()
+				advanceTimeBy(INTERVAL_MS * 5)
 
-			// Cancelling the job rather than waiting for the loop to observe a flag is what makes
-			// this exact: nothing is sampled after the stop.
-			assertThat(whileRunning).isGreaterThan(0)
-			assertThat(samples).isEqualTo(whileRunning)
-			assertThat(watcher.isWatching).isFalse()
-			watcher.close()
+				// Cancelling the job rather than waiting for the loop to observe a flag is what makes
+				// this exact: nothing is sampled after the stop.
+				assertThat(whileRunning).isGreaterThan(0)
+				assertThat(samples).isEqualTo(whileRunning)
+				assertThat(watcher.isWatching).isFalse()
+			} finally {
+				// In a finally: a failed assertion would otherwise leave the sampling loop alive,
+				// and runTest's trailing advanceUntilIdle then advances virtual time forever. That
+				// spin is synchronous, so no test timeout can interrupt it -- it just pins a core.
+				watcher.close()
+			}
 		}
 
 	@Test
@@ -87,18 +93,24 @@ class NetworkWatcherLifecycleTest {
 			var samples = 0
 			val watcher = watcher(dispatcher) { samples++ }
 
-			watcher.startWatching()
-			advanceTimeBy(INTERVAL_MS * 2)
-			watcher.stopWatching()
-			watcher.startWatching()
+			try {
+				watcher.startWatching()
+				advanceTimeBy(INTERVAL_MS * 2)
+				watcher.stopWatching()
+				watcher.startWatching()
 
-			val before = samples
-			advanceTimeBy(INTERVAL_MS * 4)
-			val perInterval = (samples - before) / 4
+				val before = samples
+				advanceTimeBy(INTERVAL_MS * 4)
+				val perInterval = (samples - before) / 4
 
-			// Two loops would double the rate against the same buffer.
-			assertThat(perInterval).isEqualTo(1)
-			watcher.close()
+				// Two loops would double the rate against the same buffer.
+				assertThat(perInterval).isEqualTo(1)
+			} finally {
+				// In a finally: a failed assertion would otherwise leave the sampling loop alive,
+				// and runTest's trailing advanceUntilIdle then advances virtual time forever. That
+				// spin is synchronous, so no test timeout can interrupt it -- it just pins a core.
+				watcher.close()
+			}
 		}
 
 	@Test
@@ -107,22 +119,29 @@ class NetworkWatcherLifecycleTest {
 			val dispatcher = StandardTestDispatcher(testScheduler)
 			var samples = 0
 			val watcher = watcher(dispatcher) { samples++ }
-			var thrown = 0
-			watcher.listener =
-				NetworkUsageWatcher.NetworkUsageListener {
-					if (thrown++ == 0) {
-						throw IllegalStateException("listener blew up")
+
+			try {
+				var thrown = 0
+				watcher.listener =
+					NetworkUsageWatcher.NetworkUsageListener {
+						if (thrown++ == 0) {
+							throw IllegalStateException("listener blew up")
+						}
 					}
-				}
 
-			watcher.startWatching()
-			advanceTimeBy(INTERVAL_MS * 4)
+				watcher.startWatching()
+				advanceTimeBy(INTERVAL_MS * 4)
 
-			// Uncaught, the exception ends the coroutine while isWatching stays true, so every
-			// later startWatching() is refused and the charts freeze for good.
-			assertThat(samples).isGreaterThan(1)
-			assertThat(watcher.isWatching).isTrue()
-			watcher.close()
+				// Uncaught, the exception ends the coroutine while isWatching stays true, so every
+				// later startWatching() is refused and the charts freeze for good.
+				assertThat(samples).isGreaterThan(1)
+				assertThat(watcher.isWatching).isTrue()
+			} finally {
+				// In a finally: a failed assertion would otherwise leave the sampling loop alive,
+				// and runTest's trailing advanceUntilIdle then advances virtual time forever. That
+				// spin is synchronous, so no test timeout can interrupt it -- it just pins a core.
+				watcher.close()
+			}
 		}
 
 	private companion object {
