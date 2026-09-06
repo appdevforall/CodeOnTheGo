@@ -137,6 +137,20 @@ class RetainedPayloadStoreTest {
 		assertThat(store.load()).isNull()
 	}
 
+	@Test
+	fun `a set that can be neither emptied nor deleted is refused rather than re-sent`() {
+		store.retain(1L, artifact("built.dex", "old-dex"), null, null, """{"gen":1}""")
+		assumeTrue(blockMetadataWrite(), "the filesystem ignored the permission change")
+		assumeTrue(blockDeletion(), "the filesystem ignored the permission change")
+
+		store.clear()
+
+		// Both halves of the in-place invalidation are refused here, so nothing inside the
+		// retention directory changed at all. Reading the untouched metadata back would
+		// re-send generation 1 onto a baseline the session has already moved past.
+		assertThat(store.load()).isNull()
+	}
+
 	/**
 	 * Makes the retention directory's entries impossible to unlink while leaving the entries
 	 * themselves writable - the shape a failed `deleteRecursively` takes, since removing a name
@@ -151,9 +165,23 @@ class RetainedPayloadStoreTest {
 		return dir.setWritable(false) && !dir.canWrite()
 	}
 
+	/**
+	 * Makes the metadata impossible to rewrite - the other half of the invalidation, which fails
+	 * independently of [blockDeletion] because it turns on the file's own mode rather than the
+	 * directory's.
+	 *
+	 * @return false when the platform ignored the permission change, in which case the caller
+	 *   must skip
+	 */
+	private fun blockMetadataWrite(): Boolean {
+		val meta = File(File(workDir, "last-deployed"), "meta.json")
+		return meta.setWritable(false) && !meta.canWrite()
+	}
+
 	@AfterEach
 	fun restoreRetentionDirPermissions() {
 		// @TempDir cleanup fails on a directory it cannot empty.
 		File(workDir, "last-deployed").setWritable(true)
+		File(File(workDir, "last-deployed"), "meta.json").setWritable(true)
 	}
 }
