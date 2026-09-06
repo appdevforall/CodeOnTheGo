@@ -120,6 +120,15 @@ abstract class MetricsChartRenderer(
 		private set
 
 	/**
+	 * A short readout to show beside this page's chart, or `null` if it has none.
+	 *
+	 * Asked of the renderer rather than decided from the page's type, so the carousel does not
+	 * have to know which of its pages happens to have a battery on it.
+	 */
+	@UiThread
+	open fun readout(): String? = null
+
+	/**
 	 * Keeps [pixels] of the chart's top clear of the plot and its labels.
 	 *
 	 * The battery readout is anchored to the pager's top-right corner, over the chart, where the

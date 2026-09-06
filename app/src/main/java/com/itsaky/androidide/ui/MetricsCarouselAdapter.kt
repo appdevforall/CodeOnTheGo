@@ -18,7 +18,6 @@
 package com.itsaky.androidide.ui
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.StringRes
 import androidx.recyclerview.widget.RecyclerView
@@ -27,33 +26,47 @@ import com.itsaky.androidide.R
 /**
  * A page of the editor's metrics carousel.
  *
+ * A page says what it is called, what it is, and what draws it. Nothing else in the carousel needs
+ * to know which page it is holding, which is what lets [MetricsCarouselAdapter] be page-agnostic.
+ *
+ * Deliberately an ordinary interface rather than a sealed one. The adapter has always claimed that
+ * a new display -- including one contributed by a plugin -- could be added without touching it;
+ * while this was sealed that was impossible, since a plugin is a different module and could not
+ * implement it at all.
+ *
  * @property title Names the page. Shown below the carousel, and the only cue to which page is
  * showing, so every page needs one.
+ * @property contentDescription What the plot is, for a screen reader.
+ * @property renderer Draws this page and owns its axes, annotations and shading.
  */
-sealed interface MetricsPage {
+interface MetricsPage {
 	@get:StringRes val title: Int
 
-	/** The live memory-usage chart, rendered by [MemoryUsageChartRenderer]. */
-	data class MemoryChart(
-		@StringRes override val title: Int,
-	) : MetricsPage
+	@get:StringRes val contentDescription: Int
 
-	/** The live network-traffic chart, rendered by [NetworkUsageChartRenderer]. */
-	data class NetworkChart(
-		@StringRes override val title: Int,
-	) : MetricsPage
-
-	/** The live temperature and power chart, rendered by [PowerUsageChartRenderer]. */
-	data class PowerChart(
-		@StringRes override val title: Int,
-	) : MetricsPage
+	val renderer: MetricsChartRenderer
 }
+
+/**
+ * A page showing one line chart.
+ *
+ * There used to be a type per metric -- `MemoryChart`, `NetworkChart`, `PowerChart` -- each with a
+ * layout of its own that differed from its siblings by one attribute, plus a view type, a view
+ * holder subclass and a branch in four `when` expressions. They differed in nothing a chart page
+ * needs to differ in.
+ */
+data class ChartPage(
+	@StringRes override val title: Int,
+	@StringRes override val contentDescription: Int,
+	override val renderer: MetricsChartRenderer,
+) : MetricsPage
 
 /**
  * Backs the editor's horizontally swipeable carousel of metric displays.
  *
- * [pages] is a constructor argument rather than a hardcoded list so that new displays -- a network
- * traffic chart, or pages contributed by plugins -- can be added without touching this class.
+ * [pages] is a constructor argument rather than a hardcoded list so that new displays can be added
+ * without touching this class -- and now nothing here names a page or a metric, so that is true
+ * rather than aspirational.
  *
  * A chart page holds no sample state of its own: its renderer is attached when the page binds and
  * detached when it is recycled, and rebuilds the full history from its watcher each time. Moving
@@ -61,98 +74,56 @@ sealed interface MetricsPage {
  */
 class MetricsCarouselAdapter(
 	private val pages: List<MetricsPage>,
-	private val memoryChartRenderer: MemoryUsageChartRenderer,
-	private val networkChartRenderer: NetworkUsageChartRenderer,
-	private val powerChartRenderer: PowerUsageChartRenderer,
 ) : RecyclerView.Adapter<MetricsCarouselAdapter.PageViewHolder>() {
-	sealed class PageViewHolder(
-		view: View,
-	) : RecyclerView.ViewHolder(view) {
-		class MemoryChart(
-			val chart: SafeLineChart,
-		) : PageViewHolder(chart)
-
-		class NetworkChart(
-			val chart: SafeLineChart,
-		) : PageViewHolder(chart)
-
-		class PowerChart(
-			val chart: SafeLineChart,
-		) : PageViewHolder(chart)
+	/**
+	 * @property boundRenderer What was attached to [chart] at bind time, so [onViewRecycled] can
+	 * detach the right renderer without being told the position -- which it is not.
+	 */
+	class PageViewHolder(
+		val chart: SafeLineChart,
+	) : RecyclerView.ViewHolder(chart) {
+		var boundRenderer: MetricsChartRenderer? = null
 	}
 
 	override fun getItemCount(): Int = pages.size
 
-	override fun getItemViewType(position: Int): Int =
-		when (pages[position]) {
-			is MetricsPage.MemoryChart -> VIEW_TYPE_MEMORY_CHART
-			is MetricsPage.NetworkChart -> VIEW_TYPE_NETWORK_CHART
-			is MetricsPage.PowerChart -> VIEW_TYPE_POWER_CHART
-		}
+	/**
+	 * One view type per page, so a chart is never recycled from one page onto another.
+	 *
+	 * Not a saving worth making here: a chart carries the state its renderer put on it, and some of
+	 * that is written by one renderer and cleared by none of the others -- the thermal shading on
+	 * the power page is set through [SafeLineChart.backgroundSpans], which a memory or network
+	 * renderer has no reason to touch. A handful of pages, each keeping its own chart, costs
+	 * nothing and cannot leak one page's decoration onto another.
+	 */
+	override fun getItemViewType(position: Int): Int = position
 
 	override fun onCreateViewHolder(
 		parent: ViewGroup,
 		viewType: Int,
 	): PageViewHolder {
-		val inflater = LayoutInflater.from(parent.context)
-		return when (viewType) {
-			VIEW_TYPE_MEMORY_CHART -> {
-				PageViewHolder.MemoryChart(
-					inflater.inflate(R.layout.item_metrics_memory_chart, parent, false) as SafeLineChart,
-				)
-			}
-
-			VIEW_TYPE_NETWORK_CHART -> {
-				PageViewHolder.NetworkChart(
-					inflater.inflate(R.layout.item_metrics_network_chart, parent, false) as SafeLineChart,
-				)
-			}
-
-			VIEW_TYPE_POWER_CHART -> {
-				PageViewHolder.PowerChart(
-					inflater.inflate(R.layout.item_metrics_power_chart, parent, false) as SafeLineChart,
-				)
-			}
-
-			else -> {
-				throw IllegalArgumentException("Unknown metrics page view type: $viewType")
-			}
-		}
+		val chart =
+			LayoutInflater
+				.from(parent.context)
+				.inflate(R.layout.item_metrics_chart, parent, false) as SafeLineChart
+		return PageViewHolder(chart)
 	}
 
 	override fun onBindViewHolder(
 		holder: PageViewHolder,
 		position: Int,
 	) {
-		when (pages[position]) {
-			is MetricsPage.MemoryChart -> {
-				memoryChartRenderer.attach((holder as PageViewHolder.MemoryChart).chart)
-			}
-
-			is MetricsPage.NetworkChart -> {
-				networkChartRenderer.attach((holder as PageViewHolder.NetworkChart).chart)
-			}
-
-			is MetricsPage.PowerChart -> {
-				powerChartRenderer.attach((holder as PageViewHolder.PowerChart).chart)
-			}
-		}
+		val page = pages[position]
+		holder.chart.contentDescription = holder.chart.context.getString(page.contentDescription)
+		holder.boundRenderer = page.renderer
+		page.renderer.attach(holder.chart)
 	}
 
 	override fun onViewRecycled(holder: PageViewHolder) {
 		// Only if this holder's chart is still the attached one: a rebind can create the replacement
 		// before RecyclerView recycles the view it replaced, and detaching then would drop the new
 		// chart instead of the old.
-		when (holder) {
-			is PageViewHolder.MemoryChart -> memoryChartRenderer.detachIfAttached(holder.chart)
-			is PageViewHolder.NetworkChart -> networkChartRenderer.detachIfAttached(holder.chart)
-			is PageViewHolder.PowerChart -> powerChartRenderer.detachIfAttached(holder.chart)
-		}
-	}
-
-	private companion object {
-		const val VIEW_TYPE_MEMORY_CHART = 0
-		const val VIEW_TYPE_NETWORK_CHART = 1
-		const val VIEW_TYPE_POWER_CHART = 2
+		holder.boundRenderer?.detachIfAttached(holder.chart)
+		holder.boundRenderer = null
 	}
 }
