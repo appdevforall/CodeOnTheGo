@@ -159,6 +159,34 @@ class NetworkUsageWatcherTest {
 		assertThat(fixture.watcher.getUsage().received).isNotEqualTo(asHandedOut)
 	}
 
+	@Test
+	fun `stopping drops the cumulative baseline so a resume does not spike`() {
+		// 1 MB transferred, then the watcher is stopped while a download keeps running.
+		val fixture = Fixture(listOf(1_000_000L, 1_000_000L, 250_000_000L, 250_500_000L))
+		fixture.sample(2)
+
+		fixture.watcher.stopWatching()
+
+		// Resume: the counter has moved by 249 MB while nothing was watching.
+		fixture.sample(2)
+		val usage = fixture.watcher.getUsage()
+
+		// Kept, the baseline turns the whole gap into one interval's traffic -- the legend reads
+		// hundreds of MB/s and the axis is stretched for the next minute.
+		assertThat(usage.received.recent(2)).containsExactly(0L, 500_000L).inOrder()
+	}
+
+	@Test
+	fun `an unsupported counter stops the watcher rather than sampling zeroes forever`() {
+		val fixture = Fixture(listOf(-1L))
+
+		fixture.sample(1)
+
+		// Nothing more to read, so nothing more to do: the loop was repainting the charts once a
+		// second with data known to be permanently unavailable.
+		assertThat(fixture.watcher.isSupported).isFalse()
+	}
+
 	private companion object {
 		const val TEST_UID = 10_123
 	}
