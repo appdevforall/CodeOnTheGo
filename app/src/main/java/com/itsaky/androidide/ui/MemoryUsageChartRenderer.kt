@@ -147,8 +147,10 @@ class MemoryUsageChartRenderer(
 	 *
 	 * Falls back to [rebuild] when [memoryUsage] no longer matches the datasets the chart was built
 	 * with -- a process started or stopped being watched, or the chart was attached before this pid
-	 * existed. The in-place path is the common one and allocates nothing, which matters because this
-	 * runs once a second for the lifetime of the editor.
+	 * existed. The in-place path is the common one: it mutates the existing entries rather than
+	 * rebuilding the datasets, which is what matters because this runs once a second for the
+	 * lifetime of the editor. It is not allocation-free -- each series reformats its legend label
+	 * every tick -- so do not add work here on the assumption that it is.
 	 */
 	@UiThread
 	fun onUsagesChanged(memoryUsage: IntObjectMap<ProcessMemoryInfo>) {
@@ -222,7 +224,7 @@ class MemoryUsageChartRenderer(
 	): String = "%s - %.2fMB".format(pname, megabytes)
 }
 
-private const val BYTES_PER_MEGABYTE = 1024.0 * 1024.0
+internal const val BYTES_PER_MEGABYTE = 1024.0 * 1024.0
 
 /**
  * The sample at [index] in megabytes. [MemoryUsageWatcher] stores bytes.
