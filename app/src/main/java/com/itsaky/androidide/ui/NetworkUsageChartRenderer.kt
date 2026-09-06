@@ -80,8 +80,11 @@ class NetworkUsageChartRenderer(
 				dataset(usage.transmitted, chart.context.getString(R.string.metrics_network_transmitted), TRANSMITTED_COLOR),
 			)
 
-		applyAxisRange(chart, usage)
 		setData(chart, datasets)
+		// After, not before: setData is what scrolls the window to the newest samples, and the
+		// range is derived from what that window ends up showing.
+		applyAxisRange(chart, usage)
+		chart.invalidate()
 	}
 
 	/**
@@ -111,8 +114,9 @@ class NetworkUsageChartRenderer(
 		update(received, usage.received, chart.context.getString(R.string.metrics_network_received))
 		update(transmitted, usage.transmitted, chart.context.getString(R.string.metrics_network_transmitted))
 
-		applyAxisRange(chart, usage)
 		redraw(chart)
+		applyAxisRange(chart, usage)
+		chart.invalidate()
 	}
 
 	private fun dataset(
@@ -169,7 +173,16 @@ class NetworkUsageChartRenderer(
 		chart: SafeLineChart,
 		usage: NetworkUsage,
 	) {
-		val peak = max(usage.received.maxOrNull() ?: 0L, usage.transmitted.maxOrNull() ?: 0L)
+		// The peak of what is on screen, not of the whole buffer. Scaled to the buffer, one early
+		// burst raised the ceiling for the rest of the session and never let it back down --
+		// flattening everything after it, which is the opposite of what the log axis is for.
+		val samples = minOf(usage.received.size, usage.transmitted.size)
+		val visible = visibleSampleRange(chart, samples)
+		var peak = 0L
+		for (index in visible) {
+			peak = max(peak, max(usage.received[index], usage.transmitted[index]))
+		}
+
 		chart.axisRight.axisMinimum = 0f
 		chart.axisRight.axisMaximum = ceil(peak.toLogBytes()).coerceAtLeast(MIN_AXIS_DECADES)
 	}
