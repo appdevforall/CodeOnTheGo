@@ -1675,8 +1675,9 @@
 
 	<string name="metrics_carousel_memory_chart">Memory usage chart</string>
 	<string name="metrics_title_memory">Memory usage</string>
-	<string name="metrics_title_brand_mark">Code On The Go</string>
-	<string name="metrics_carousel_brand_mark">Code On The Go logo</string>
+	<!-- The product name has one spelling, in app_name; a second copy drifted to "Code On The Go"
+		while every other surface read "Code on the Go". Not translatable: a brand is not translated. -->
+	<string name="metrics_carousel_brand_mark" translatable="false">Code on the Go logo</string>
 
 </resources>
 

@@ -192,7 +192,7 @@ abstract class BaseEditorActivity :
 	private val memUsageChartRenderer =
 		MemoryUsageChartRenderer(
 			usagesProvider = memoryUsageWatcher::getMemoryUsages,
-			lineColorFor = ::getMemUsageLineColorFor,
+			lineColorFor = Companion::getMemUsageLineColorFor,
 		)
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
@@ -439,7 +439,26 @@ abstract class BaseEditorActivity :
 	companion object {
 		const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
+		/**
+		 * The plot colour for a watched process.
+		 *
+		 * On the companion rather than the activity: a bound reference to an activity method is
+		 * handed to the renderer, which the carousel adapter holds, so any path that misses the
+		 * adapter teardown would keep the whole editor reachable. Nothing here needs an activity.
+		 *
+		 * An unrecognised name falls back rather than throwing. The renderer now reaches this from
+		 * the once-a-second sample listener and from RecyclerView's bind pass, so a name nobody
+		 * added a colour for would take the editor down from a timer callback or mid-layout.
+		 */
 		@JvmStatic
+		fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
+			when (proc.pname) {
+				PROC_IDE -> Color.BLUE
+				PROC_GRADLE_TOOLING -> Color.RED
+				PROC_GRADLE_DAEMON -> Color.GREEN
+				else -> Color.GRAY
+			}
+
 		protected val PROC_IDE = "IDE"
 
 		@JvmStatic
@@ -965,9 +984,11 @@ abstract class BaseEditorActivity :
 				content.editorAppBarLayout.updatePadding(top = topInset)
 			}
 
-			memUsageView.metricsPager.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-				topMargin = (insetsTop * progress).roundToInt()
-			}
+			// translationY, not a margin: this runs on every frame of the reveal drag, and a
+			// margin change calls requestLayout, which now re-measures a ViewPager2, its
+			// RecyclerView and every attached page rather than the single chart view it used to.
+			// The visual result is identical for a pure vertical offset.
+			memUsageView.metricsPager.translationY = insetsTop * progress
 		}
 	}
 
@@ -980,7 +1001,8 @@ abstract class BaseEditorActivity :
 				MetricsPage.Image(
 					drawable = R.drawable.cogo_brand_mark,
 					description = string.metrics_carousel_brand_mark,
-					title = string.metrics_title_brand_mark,
+					// The product's own name, from the one place it is defined.
+					title = string.app_name,
 				),
 			)
 
@@ -1016,14 +1038,6 @@ abstract class BaseEditorActivity :
 	protected fun resetMemUsageChart() {
 		memUsageChartRenderer.rebuild()
 	}
-
-	private fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
-		when (proc.pname) {
-			PROC_IDE -> Color.BLUE
-			PROC_GRADLE_TOOLING -> Color.RED
-			PROC_GRADLE_DAEMON -> Color.GREEN
-			else -> throw IllegalArgumentException("Unknown process: $proc")
-		}
 
 	override fun onPause() {
 		super.onPause()
@@ -1855,6 +1869,14 @@ abstract class BaseEditorActivity :
 	private fun isTouchOnMetricsCarousel(ev: MotionEvent): Boolean {
 		val binding = _binding ?: return false
 
+		// A left-to-right fling pages the carousel *backwards*, so there is nothing for it to do
+		// on the first page -- which is the page the carousel opens on. Excluding the strip
+		// regardless left the documented right-swipe drawer gesture dead over the whole panel
+		// while doing nothing in its place.
+		if (binding.memUsageView.metricsPager.currentItem <= 0) {
+			return false
+		}
+
 		// The carousel is laid out at the top of the reveal even while the content card covers it,
 		// and siblings do not clip each other, so getGlobalVisibleRect reports it visible either
 		// way. Without this check the drawer gesture would be dead over the top of a closed editor.
@@ -1862,16 +1884,29 @@ abstract class BaseEditorActivity :
 			return false
 		}
 
-		return containsTouch(binding.memUsageView.root, ev)
+		// The pager, not the whole strip: the title and its row are not something the carousel
+		// pages from, and MetricsCarouselLayout has already walled that row off from every
+		// ancestor, so a fling there would otherwise be swallowed twice over.
+		return containsTouch(binding.memUsageView.metricsPager, ev)
 	}
 
 	private fun containsTouch(
 		view: View,
 		ev: MotionEvent,
 	): Boolean {
-		val rect = Rect()
-		if (!view.getGlobalVisibleRect(rect)) return false
-		return rect.contains(ev.rawX.toInt(), ev.rawY.toInt())
+		if (!view.isShown) return false
+
+		// getLocationOnScreen, not getGlobalVisibleRect: the latter reports window coordinates --
+		// ViewRootImpl intersects with the window and never offsets by its position on screen --
+		// while rawX/rawY are screen coordinates. In split-screen or freeform the window origin is
+		// not zero, so the two disagree and the hit test lands somewhere else entirely.
+		// SwipeRevealLayout.isTouchInDragHandle already uses this idiom.
+		val location = IntArray(2)
+		view.getLocationOnScreen(location)
+		val x = ev.rawX.toInt()
+		val y = ev.rawY.toInt()
+		return x >= location[0] && x < location[0] + view.width &&
+			y >= location[1] && y < location[1] + view.height
 	}
 
 	private fun showTooltip(tag: String) {
