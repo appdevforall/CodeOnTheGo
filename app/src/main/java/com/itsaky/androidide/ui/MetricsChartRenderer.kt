@@ -162,8 +162,9 @@ abstract class MetricsChartRenderer(
 			setBackgroundColor(context.resolveAttr(R.attr.colorSurfaceDim))
 			setDrawGridBackground(true)
 
-			// Below the plot, so the strip under it can be reserved for the carousel swipe and the
-			// plot itself can pan when zoomed (ADFA-5486).
+			// Below the plot, which is also where a tap opens the sampling-rate chooser
+			// (ADFA-5486). The two have to agree: they disagreed once, and the gesture was
+			// unreachable at the labels it is named for.
 			xAxis.position = XAxis.XAxisPosition.BOTTOM
 
 			// The right axis carries the labels; the left is unused.
@@ -207,15 +208,20 @@ abstract class MetricsChartRenderer(
 	 * Turns a tap in the x-axis band into [onXAxisTap].
 	 *
 	 * The axis is drawn by the chart rather than being a view of its own, so there is nothing to
-	 * attach a click listener to. `contentTop` is the top of the plotting area, and the axis labels
-	 * sit above it, so a tap higher than that landed on the axis.
+	 * attach a click listener to. `contentBottom` is the bottom of the plotting area and the axis
+	 * is drawn below it (see [configure]), so a tap lower than that landed on the axis.
+	 *
+	 * This used to test `contentTop`, which put the only way to reach the sampling-rate chooser in
+	 * an empty band at the *opposite* end of the chart from the labels it is named for. The strip
+	 * under the plot had been left alone for the carousel swipe; paging is by the arrows now, so it
+	 * is free.
 	 */
 	private inner class XAxisTapListener(
 		private val chart: SafeLineChart,
 	) : OnChartGestureListener {
 		override fun onChartSingleTapped(me: MotionEvent?) {
 			val y = me?.y ?: return
-			if (y <= chart.viewPortHandler.contentTop()) {
+			if (y >= chart.viewPortHandler.contentBottom()) {
 				onXAxisTap?.invoke()
 			}
 		}
