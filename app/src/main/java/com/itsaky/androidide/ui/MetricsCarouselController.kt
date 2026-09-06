@@ -26,6 +26,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.annotation.UiThread
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import androidx.viewpager2.widget.ViewPager2
@@ -222,14 +223,34 @@ class MetricsCarouselController(
 	@UiThread
 	private fun wireHelp(binding: LayoutMemUsageBinding) {
 		val context = binding.root.context
-		binding.root.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_PANEL)
-		binding.metricsTitle.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_TITLE)
-		binding.metricsPrevious.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_PREVIOUS)
-		binding.metricsNext.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_NEXT)
-		binding.metricsSnapshot.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_SNAPSHOT)
-		binding.metricsBattery.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_BATTERY)
-		binding.metricsUndockedMessage.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_UNDOCKED)
+		helpTargets(binding).forEach { (view, tag) ->
+			view.displayTooltipOnLongPress(context, tag)
+		}
 	}
+
+	/**
+	 * Every control that answers a long press, and the tag it answers with.
+	 *
+	 * One list drives the wiring, the unwiring and the test, because three hand-maintained copies
+	 * is how a control added later gets help on binding and keeps a stale listener after unbinding.
+	 *
+	 * The charts are absent on purpose: MPAndroidChart swallows the touch events a view-level long
+	 * press needs, so each renderer answers through the chart's own gesture listener instead.
+	 */
+	@VisibleForTesting
+	internal fun helpTargets(binding: LayoutMemUsageBinding): List<Pair<View, String>> =
+		listOf(
+			// The strip itself, for the gaps its children do not cover.
+			binding.root to TooltipTag.CAROUSEL_PANEL,
+			binding.metricsTitle to TooltipTag.CAROUSEL_TITLE,
+			binding.metricsPrevious to TooltipTag.CAROUSEL_PREVIOUS,
+			binding.metricsNext to TooltipTag.CAROUSEL_NEXT,
+			binding.metricsSnapshot to TooltipTag.CAROUSEL_SNAPSHOT,
+			binding.metricsBattery to TooltipTag.CAROUSEL_BATTERY,
+			// Wired even though it is only visible while undocked: the message is the one control
+			// that outlives unbind(), so its help must not be torn down with the rest.
+			binding.metricsUndockedMessage to TooltipTag.CAROUSEL_UNDOCKED,
+		)
 
 	/**
 	 * Stops feeding the carousel and releases the bound views. Sampling is unaffected -- the
@@ -252,20 +273,18 @@ class MetricsCarouselController(
 		powerRenderer.onXAxisTap = null
 		binding?.metricsSnapshot?.setOnClickListener(null)
 		binding?.let { bound ->
-			listOf(
-				bound.root,
-				bound.metricsTitle,
-				bound.metricsPrevious,
-				bound.metricsNext,
-				bound.metricsSnapshot,
-				bound.metricsBattery,
-				bound.metricsUndockedMessage,
-			).forEach { control ->
-				control.setOnLongClickListener(null)
-				// setOnLongClickListener(null) leaves isLongClickable set, so the view would still
-				// claim a long press it no longer answers.
-				control.isLongClickable = false
-			}
+			helpTargets(bound)
+				// All but the undocked message: that view becomes visible *because* the carousel
+				// unbound, so clearing its listener here left the one control the user can still
+				// reach with no help at all.
+				.filterNot { (view, _) -> view === bound.metricsUndockedMessage }
+				.map { (view, _) -> view }
+				.forEach { control ->
+					control.setOnLongClickListener(null)
+					// setOnLongClickListener(null) leaves isLongClickable set, so the view would still
+					// claim a long press it no longer answers.
+					control.isLongClickable = false
+				}
 		}
 		binding?.metricsPrevious?.setOnClickListener(null)
 		binding?.metricsNext?.setOnClickListener(null)
