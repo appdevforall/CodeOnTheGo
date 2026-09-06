@@ -89,6 +89,13 @@ class MemoryUsageWatcher
 		private val watching = AtomicBoolean(false)
 
 		/**
+		 * Set by [close] and never cleared. Without it a start after a terminal teardown would flip
+		 * [isWatching] to true and launch into a cancelled scope, leaving the watcher reporting that
+		 * it is sampling when no loop exists.
+		 */
+		private val closed = AtomicBoolean(false)
+
+		/**
 		 * Whether the memory usage watcher is watching processes for their memory usage.
 		 */
 		val isWatching: Boolean
@@ -127,6 +134,11 @@ class MemoryUsageWatcher
 		 * Start watching processes for their memory usage.
 		 */
 		fun startWatching() {
+			if (closed.get()) {
+				log.warn("Memory usage watcher is closed and cannot be restarted")
+				return
+			}
+
 			if (!watching.compareAndSet(false, true)) {
 				log.warn("Processes are already being watched for memory usage")
 				return
@@ -318,6 +330,7 @@ class MemoryUsageWatcher
 		 * `newSingleThreadContext` holds one until it is closed.
 		 */
 		fun close() {
+			closed.set(true)
 			stopWatching()
 			listener = null
 			coroutineScope.cancelIfActive("Watcher closed")
