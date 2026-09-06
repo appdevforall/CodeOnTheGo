@@ -1,6 +1,7 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayInputStream;
@@ -176,12 +177,22 @@ class PayloadPersistenceAtomicSetTest {
 		final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
 		Thread dexDeploys = new Thread(persister(store, failure, 2, 40, true));
 		Thread resourceDeploys = new Thread(persister(store, failure, 3, 41, false));
+		// Or a persist that never returns keeps the Gradle test worker alive after the
+		// join gave up on it.
+		dexDeploys.setDaemon(true);
+		resourceDeploys.setDaemon(true);
 
 		dexDeploys.start();
 		resourceDeploys.start();
 		dexDeploys.join(TimeUnit.SECONDS.toMillis(30));
 		resourceDeploys.join(TimeUnit.SECONDS.toMillis(30));
 
+		// A join that timed out proves nothing: the worker can still record its failure
+		// afterwards, so reading failure.get() straight after the wait would pass over a
+		// deadlocked persist as though it had succeeded.
+		assertWithMessage("dex deploy thread did not finish").that(dexDeploys.isAlive()).isFalse();
+		assertWithMessage("resource deploy thread did not finish").that(resourceDeploys.isAlive())
+				.isFalse();
 		assertThat(failure.get()).isNull();
 		// load() discards the store and answers null the moment the published meta names
 		// a file that is not there - which is exactly what an inheritance read
