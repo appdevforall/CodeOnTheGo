@@ -81,4 +81,28 @@ class WatcherIntervalChangeTest {
 	private companion object {
 		const val TEST_UID = 10_123
 	}
+
+	@Test
+	fun `a watcher refuses a non-positive sampling interval`() {
+		val watcher = NetworkUsageWatcher(uid = TEST_UID, readRxBytes = { 0L }, readTxBytes = { 0L })
+		try {
+			watcher.updateInterval = -1L
+
+			// Stored raw, this reaches delay(), which does not suspend for it: the loop spins.
+			assertThat(watcher.updateInterval).isAtLeast(MetricsSamplingRates.MIN_INTERVAL_64_BIT_MS)
+		} finally {
+			watcher.close()
+		}
+	}
+
+	@Test
+	fun `a watcher constructed with a non-positive interval is clamped too`() {
+		// The constructor initialiser bypasses the setter, so it needs its own guard.
+		val watcher = NetworkUsageWatcher(updateInterval = 0L, uid = TEST_UID, readRxBytes = { 0L }, readTxBytes = { 0L })
+		try {
+			assertThat(watcher.updateInterval).isAtLeast(MetricsSamplingRates.MIN_INTERVAL_64_BIT_MS)
+		} finally {
+			watcher.close()
+		}
+	}
 }

@@ -84,4 +84,26 @@ class MetricsSamplingRatesTest {
 		assertThat(CpuArch.ARM.is64Bit).isFalse()
 		assertThat(CpuArch.X86.is64Bit).isFalse()
 	}
+
+	@Test
+	fun `the safe range keeps a non-positive interval out of delay`() {
+		// delay() does not suspend for a non-positive value, so the sampling loop would spin and
+		// pin a core for as long as the editor is open.
+		assertThat(MetricsSamplingRates.coerceToSafeRange(0L)).isGreaterThan(0L)
+		assertThat(MetricsSamplingRates.coerceToSafeRange(-1_000L)).isGreaterThan(0L)
+		assertThat(MetricsSamplingRates.coerceToSafeRange(Long.MIN_VALUE)).isGreaterThan(0L)
+	}
+
+	@Test
+	fun `the safe range caps an absurdly long interval`() {
+		assertThat(MetricsSamplingRates.coerceToSafeRange(Long.MAX_VALUE))
+			.isEqualTo(MetricsSamplingRates.MAX_INTERVAL_MS)
+	}
+
+	@Test
+	fun `the safe range leaves a supported interval alone`() {
+		assertThat(MetricsSamplingRates.coerceToSafeRange(1_000L)).isEqualTo(1_000L)
+		assertThat(MetricsSamplingRates.coerceToSafeRange(MetricsSamplingRates.MIN_INTERVAL_64_BIT_MS))
+			.isEqualTo(MetricsSamplingRates.MIN_INTERVAL_64_BIT_MS)
+	}
 }

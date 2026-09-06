@@ -64,12 +64,13 @@ class MemoryUsageWatcher
 		 * age from its position, which assumes every sample is the same age apart, and a buffer
 		 * holding samples taken at two rates would silently misdate all the older ones (ADFA-5486).
 		 */
-		var updateInterval: Long = updateInterval
+		var updateInterval: Long = MetricsSamplingRates.coerceToSafeRange(updateInterval)
 			set(value) {
-				if (field == value) {
+				val safe = MetricsSamplingRates.coerceToSafeRange(value)
+				if (field == safe) {
 					return
 				}
-				field = value
+				field = safe
 				clearHistory()
 			}
 
@@ -78,6 +79,13 @@ class MemoryUsageWatcher
 		/** The running sampling loop, so [stopWatching] can actually stop it. */
 		private var samplingJob: Job? = null
 		private val memoryUsage = ConcurrentHashMap<Int, ProcessMemoryInfo>()
+
+		/**
+		 * Guards the per-process ring buffers, matching [NetworkUsageWatcher] and
+		 * [PowerUsageWatcher]. The sampler appends to them; [clearHistory] wipes them from whatever
+		 * thread changed the sampling rate.
+		 */
+		private val historyLock = Any()
 		private val watching = AtomicBoolean(false)
 
 		/**
@@ -200,8 +208,10 @@ class MemoryUsageWatcher
 					// for example, if shift is 1, then _history[0] will actually return _history[1] (index shifted by 1 to the right)
 					// when the shift amount exceeds the size of the array, it will be reset to 0 (wrapped around)
 
-					_history[0] = usageBytes
-					_history.shift(1)
+					synchronized(historyLock) {
+						_history[0] = usageBytes
+						_history.shift(1)
+					}
 				}
 			}
 		}
@@ -240,7 +250,14 @@ class MemoryUsageWatcher
 		 * Discards every recorded sample, keeping the watched processes.
 		 */
 		fun clearHistory() {
-			memoryUsage.values.forEach { it._history.clear() }
+			// Held while clearing because clear() is two writes -- fill the array, reset the shift --
+			// and the sampler's append is another two. Interleaved, they leave the buffer's shift
+			// pointing into data that is no longer there, and the chart plots a scrambled history.
+			// The rate dialog changes the interval from the UI thread while the sampler is running,
+			// so this is reachable, not theoretical.
+			synchronized(historyLock) {
+				memoryUsage.values.forEach { it._history.clear() }
+			}
 		}
 
 		/**
