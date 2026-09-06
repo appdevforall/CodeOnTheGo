@@ -143,4 +143,66 @@ class MetricsAnnotationStoreTest {
 
 		assertThat(store.recentAnnotations(60_000L).map { it.sequence }).containsExactly(0L)
 	}
+
+	@Test
+	fun `a build outcome is kept even inside the throttle window`() {
+		val store = MetricsAnnotationStore(nowMillis = { now })
+
+		store.record("some task")
+		// Well inside the window that drops a task marker.
+		now += 1_000L
+		store.record("Build failed", MetricsAnnotationStore.Kind.BUILD_FAILED)
+
+		// Dropped, this would be the one annotation on the chart worth having.
+		assertThat(store.recentAnnotations(60_000L).map { it.label })
+			.containsExactly("some task", "Build failed")
+			.inOrder()
+	}
+
+	@Test
+	fun `a task marker inside the window is still dropped`() {
+		val store = MetricsAnnotationStore(nowMillis = { now })
+
+		store.record("first task")
+		now += 1_000L
+		store.record("second task")
+
+		// Guards the test above: the bypass must be for build outcomes only.
+		assertThat(store.recentAnnotations(60_000L).map { it.label }).containsExactly("first task")
+	}
+
+	@Test
+	fun `a build outcome restarts the throttle window`() {
+		val store = MetricsAnnotationStore(nowMillis = { now })
+
+		store.record("Build started", MetricsAnnotationStore.Kind.BUILD_STARTED)
+		now += 1_000L
+		store.record("a task right behind it")
+
+		// Otherwise the first task marker lands a few pixels from the build marker and collides.
+		assertThat(store.recentAnnotations(60_000L).map { it.label }).containsExactly("Build started")
+	}
+
+	@Test
+	fun `the kind survives to the reader`() {
+		val store = MetricsAnnotationStore(nowMillis = { now })
+
+		store.record("Build started", MetricsAnnotationStore.Kind.BUILD_STARTED)
+		now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
+		store.record("Build failed", MetricsAnnotationStore.Kind.BUILD_FAILED)
+
+		// The renderer colours by kind, so it has to arrive intact.
+		assertThat(store.recentAnnotations(60_000L).map { it.kind })
+			.containsExactly(
+				MetricsAnnotationStore.Kind.BUILD_STARTED,
+				MetricsAnnotationStore.Kind.BUILD_FAILED,
+			).inOrder()
+	}
+
+	@Test
+	fun `only task markers are throttled`() {
+		assertThat(MetricsAnnotationStore.Kind.TASK.isThrottled).isTrue()
+		assertThat(MetricsAnnotationStore.Kind.entries.filter { it.isThrottled })
+			.containsExactly(MetricsAnnotationStore.Kind.TASK)
+	}
 }

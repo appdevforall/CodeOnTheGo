@@ -129,6 +129,7 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.StringsInjectionException
 import com.itsaky.androidide.utils.StringsXmlInjector
 import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
@@ -209,8 +210,29 @@ abstract class BaseEditorActivity :
 	}
 
 	/** Records a significant event for the charts to annotate (ADFA-5486). */
-	fun recordMetricsAnnotation(label: String) {
-		metricsViewModel.annotations.record(label)
+	fun recordMetricsAnnotation(
+		label: String,
+		kind: MetricsAnnotationStore.Kind = MetricsAnnotationStore.Kind.TASK,
+	) {
+		metricsViewModel.annotations.record(label, kind)
+	}
+
+	/**
+	 * Marks a build outcome on the charts (ADFA-5509).
+	 *
+	 * Separate from [recordMetricsAnnotation] so the caller names the outcome rather than repeating
+	 * the string lookup, and so these are never accidentally recorded as ordinary task markers --
+	 * which the throttle is allowed to drop.
+	 */
+	fun recordBuildAnnotation(kind: MetricsAnnotationStore.Kind) {
+		val label =
+			when (kind) {
+				MetricsAnnotationStore.Kind.BUILD_STARTED -> string.metrics_annotation_build_started
+				MetricsAnnotationStore.Kind.BUILD_FINISHED -> string.metrics_annotation_build_finished
+				MetricsAnnotationStore.Kind.BUILD_FAILED -> string.metrics_annotation_build_failed
+				MetricsAnnotationStore.Kind.TASK -> return
+			}
+		metricsViewModel.annotations.record(getString(label), kind)
 	}
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()

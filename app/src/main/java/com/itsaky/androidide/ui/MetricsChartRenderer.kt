@@ -413,8 +413,6 @@ abstract class MetricsChartRenderer(
 		val interval = sampleIntervalMillis()
 		val bufferSpanMillis = (newestIndex.toLong() + 1L) * interval
 		val now = nowMillis()
-		val markerColor = chart.context.resolveAttr(R.attr.colorOnSurface)
-
 		store.recentAnnotations(bufferSpanMillis).forEach { annotation ->
 			val samplesAgo = (now - annotation.atMillis).toFloat() / interval
 			val x = newestIndex - samplesAgo
@@ -424,6 +422,7 @@ abstract class MetricsChartRenderer(
 
 			chart.xAxis.addLimitLine(
 				LimitLine(x, annotation.label).apply {
+					val markerColor = markerColorFor(chart, annotation.kind)
 					lineWidth = ANNOTATION_LINE_WIDTH
 					lineColor = markerColor
 					textColor = markerColor
@@ -435,6 +434,31 @@ abstract class MetricsChartRenderer(
 				},
 			)
 		}
+	}
+
+	/**
+	 * The colour a marker is drawn in, from the kind of event it marks (ADFA-5509).
+	 *
+	 * Build outcomes are the events a user came to the chart for, so they get the theme's semantic
+	 * colours -- success for a build starting or finishing, error for one that failed -- while the
+	 * task markers that surround them stay in the ordinary text colour. Both the line and the label
+	 * take it; colouring only the line would leave the label unreadable against a coloured rule.
+	 */
+	private fun markerColorFor(
+		chart: SafeLineChart,
+		kind: MetricsAnnotationStore.Kind,
+	): Int {
+		val attr =
+			when (kind) {
+				MetricsAnnotationStore.Kind.BUILD_STARTED,
+				MetricsAnnotationStore.Kind.BUILD_FINISHED,
+				-> R.attr.colorSuccess
+
+				MetricsAnnotationStore.Kind.BUILD_FAILED -> R.attr.colorError
+
+				MetricsAnnotationStore.Kind.TASK -> R.attr.colorOnSurface
+			}
+		return chart.context.resolveAttr(attr)
 	}
 
 	/**

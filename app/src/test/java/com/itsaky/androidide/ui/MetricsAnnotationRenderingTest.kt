@@ -18,6 +18,7 @@
 package com.itsaky.androidide.ui
 
 import android.content.Context
+import androidx.appcompat.view.ContextThemeWrapper
 import androidx.test.core.app.ApplicationProvider
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineDataSet
@@ -35,7 +36,13 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class MetricsAnnotationRenderingTest {
-	private val context = ApplicationProvider.getApplicationContext<Context>()
+	// Themed: the marker colours come from theme attributes, and against a bare application
+	// context every one of them resolves to 0, so a colour test would pass by comparing nothing.
+	private val context: Context =
+		ContextThemeWrapper(
+			ApplicationProvider.getApplicationContext(),
+			com.itsaky.androidide.R.style.Theme_AndroidIDE,
+		)
 
 	/** A minimal renderer, so the placement is tested without a particular page's data. */
 	private class TestRenderer(
@@ -142,6 +149,40 @@ class MetricsAnnotationRenderingTest {
 		// merely sat still.
 		assertThat(chart.xAxis.limitLines).hasSize(1)
 		assertThat(rowsOf(chart).single()).isEqualTo(newestRowBefore)
+	}
+
+	@Test
+	fun `a failed build is drawn in a different colour from a task marker`() {
+		val fixture = Fixture()
+		fixture.store.record("some task")
+		fixture.now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
+		fixture.store.record("Build failed", MetricsAnnotationStore.Kind.BUILD_FAILED)
+
+		val (_, chart) = render(fixture)
+
+		val lines = chart.xAxis.limitLines
+		assertThat(lines).hasSize(2)
+		assertThat(lines[1].lineColor).isNotEqualTo(lines[0].lineColor)
+		// The label sits on the line, so colouring only the line would leave it unreadable.
+		assertThat(lines[1].textColor).isEqualTo(lines[1].lineColor)
+	}
+
+	@Test
+	fun `a build starting and finishing share one colour, distinct from a failure`() {
+		val fixture = Fixture()
+		fixture.store.record("Build started", MetricsAnnotationStore.Kind.BUILD_STARTED)
+		fixture.now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
+		fixture.store.record("Build finished", MetricsAnnotationStore.Kind.BUILD_FINISHED)
+		fixture.now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
+		fixture.store.record("Build failed", MetricsAnnotationStore.Kind.BUILD_FAILED)
+
+		val (_, chart) = render(fixture)
+
+		val lines = chart.xAxis.limitLines
+		assertThat(lines).hasSize(3)
+		// Started and finished are both outcomes worth seeing; only failure is bad news.
+		assertThat(lines[1].lineColor).isEqualTo(lines[0].lineColor)
+		assertThat(lines[2].lineColor).isNotEqualTo(lines[0].lineColor)
 	}
 
 	private companion object {

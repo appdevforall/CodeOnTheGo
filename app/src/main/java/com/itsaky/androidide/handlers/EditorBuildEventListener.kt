@@ -30,6 +30,7 @@ import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.tooling.events.configuration.ProjectConfigurationStartEvent
 import com.itsaky.androidide.tooling.events.task.TaskFinishEvent
 import com.itsaky.androidide.tooling.events.task.TaskStartEvent
+import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
@@ -79,7 +80,9 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	}
 
 	override fun prepareBuild(buildInfo: BuildInfo) {
-		checkActivity("prepareBuild") ?: return
+		val prepared = checkActivity("prepareBuild") ?: return
+
+		prepared.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_STARTED)
 
 		pluginBuildService?.setBuildInProgress(true)
 
@@ -112,6 +115,8 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
 	override fun onBuildSuccessful(tasks: List<String?>) {
 		val act = checkActivity("onBuildSuccessful") ?: return
+
+		act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_FINISHED)
 
 		pluginBuildService?.notifyBuildFinished()
 
@@ -157,6 +162,8 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
 	override fun onBuildFailed(tasks: List<String?>) {
 		val act = checkActivity("onBuildFailed") ?: return
+
+		act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_FAILED)
 
 		analyzeCurrentFile()
 		GeneralPreferences.isFirstBuild = false

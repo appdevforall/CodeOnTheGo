@@ -47,6 +47,34 @@ class MetricsAnnotationStore(
 	private var nextSequence: Long = 0L
 
 	/**
+	 * What kind of event an annotation marks, which decides both how it is drawn and whether the
+	 * throttle applies to it (ADFA-5509).
+	 */
+	enum class Kind {
+		/** A Gradle task starting or finishing. Throttled: Gradle emits dozens a second. */
+		TASK,
+
+		/** A build beginning. */
+		BUILD_STARTED,
+
+		/** A build completing successfully. */
+		BUILD_FINISHED,
+
+		/** A build failing. */
+		BUILD_FAILED,
+		;
+
+		/**
+		 * Whether the throttle may drop this kind.
+		 *
+		 * Only task events. A build outcome dropped because a task marker happened to land two
+		 * seconds earlier would be the one annotation on the chart worth having.
+		 */
+		val isThrottled: Boolean
+			get() = this == TASK
+	}
+
+	/**
 	 * An annotated moment.
 	 *
 	 * @property atMillis When it happened, on the same clock as [nowMillis].
@@ -65,23 +93,33 @@ class MetricsAnnotationStore(
 		 * makes consecutive annotations differ, which is when a collision is likeliest.
 		 */
 		val sequence: Long,
+		/** Decides the marker's colour, and whether the throttle could have dropped it. */
+		val kind: Kind = Kind.TASK,
 	)
 
 	/**
 	 * Records [label] unless another annotation was recorded within [THROTTLE_INTERVAL_MS].
 	 *
+	 * The throttle only applies to [Kind.TASK]; a build outcome is always kept. See
+	 * [Kind.isThrottled].
+	 *
 	 * @return whether it was recorded.
 	 */
 	@Synchronized
-	fun record(label: String): Boolean {
+	fun record(
+		label: String,
+		kind: Kind = Kind.TASK,
+	): Boolean {
 		val now = nowMillis()
 		val since = lastRecordedAt
-		if (since != null && now - since < THROTTLE_INTERVAL_MS) {
+		if (kind.isThrottled && since != null && now - since < THROTTLE_INTERVAL_MS) {
 			return false
 		}
 
+		// Set even for an unthrottled kind, so the next task marker waits its interval instead of
+		// landing a few pixels from a build marker and colliding with it.
 		lastRecordedAt = now
-		annotations.addLast(Annotation(now, label, nextSequence++))
+		annotations.addLast(Annotation(now, label, nextSequence++, kind))
 		while (annotations.size > MAX_ANNOTATIONS) {
 			annotations.removeFirst()
 		}
