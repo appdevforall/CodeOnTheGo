@@ -163,7 +163,14 @@ class MetricsCarouselLayout
 
 				MotionEvent.ACTION_POINTER_UP -> {
 					val heldFor = ev.eventTime - twoFingerDownAt
-					log.debug("carousel two-finger up: candidate={} heldFor={}ms limit={}ms", twoFingerTapCandidate, heldFor, tapTimeout)
+					if (log.isDebugEnabled) {
+						log.debug(
+							"carousel two-finger up: candidate={} heldFor={}ms limit={}ms",
+							twoFingerTapCandidate,
+							heldFor,
+							tapTimeout,
+						)
+					}
 					if (twoFingerTapCandidate && heldFor <= tapTimeout) {
 						twoFingerTapCandidate = false
 						log.debug("carousel two-finger tap recognised")
@@ -177,8 +184,6 @@ class MetricsCarouselLayout
 			}
 		}
 
-		private val log = LoggerFactory.getLogger(MetricsCarouselLayout::class.java)
-
 		private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
 		// A person's two-finger tap is far slower than the single-finger tap timeout: the two
@@ -186,6 +191,8 @@ class MetricsCarouselLayout
 		private val tapTimeout = ViewConfiguration.getLongPressTimeout().toLong()
 
 		private companion object {
+			private val log = LoggerFactory.getLogger(MetricsCarouselLayout::class.java)
+
 			const val TWO_FINGERS = 2
 		}
 	}

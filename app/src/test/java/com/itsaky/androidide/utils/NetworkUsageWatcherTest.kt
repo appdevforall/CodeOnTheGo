@@ -18,6 +18,7 @@
 package com.itsaky.androidide.utils
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -32,10 +33,19 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class NetworkUsageWatcherTest {
+	/** Every watcher built here, so the sampling thread each one starts is released. */
+	private val created = mutableListOf<NetworkUsageWatcher>()
+
+	@After
+	fun tearDown() {
+		created.forEach { it.close() }
+		created.clear()
+	}
+
 	/**
 	 * A watcher fed a scripted sequence of cumulative readings, advancing one step per sample.
 	 */
-	private class Fixture(
+	private inner class Fixture(
 		rx: List<Long>,
 		tx: List<Long> = rx,
 	) {
@@ -48,7 +58,7 @@ class NetworkUsageWatcherTest {
 				uid = TEST_UID,
 				readRxBytes = { rxReadings[index.coerceIn(0, rxReadings.lastIndex)] },
 				readTxBytes = { txReadings[index.coerceIn(0, txReadings.lastIndex)] },
-			)
+			).also { created += it }
 
 		/** Takes [count] samples, walking the scripted readings. */
 		fun sample(count: Int) {

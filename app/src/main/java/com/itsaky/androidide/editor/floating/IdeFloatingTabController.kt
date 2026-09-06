@@ -133,10 +133,11 @@ class IdeFloatingTabController(
 			DockingManager.remove(tab.id)
 			panel?.release()
 
-			// DockingManager.remove does not run the window's teardown -- reconcile only dismisses
-			// windows it still knows about -- so content that holds resources has to be told
-			// directly. Editor panels have release() above; everything else gets onDestroyView,
-			// which is what the metrics carousel uses to unbind its controller.
+			// A fallback, not the primary path: removing the tab makes the service's reconcile
+			// dismiss the window, and dismiss() already runs onDestroyView. This covers the case
+			// where no live window was there to dismiss -- the service not bound, or a tab removed
+			// before its window was created -- so content holding resources is still released.
+			// It follows that onDestroyView must be idempotent; the metrics carousel's unbind is.
 			if (panel == null) {
 				runCatching { tab.content.onDestroyView() }
 					.onFailure { log.error("Failed to release floating content {}", tab.id, it) }

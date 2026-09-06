@@ -29,6 +29,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.NetworkUsageWatcher.NetworkUsage
+import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.log10
 import kotlin.math.max
@@ -272,9 +273,9 @@ private fun formatBytes(
 ): String {
 	val clamped = bytes.coerceAtLeast(0.0)
 	return when {
-		clamped < 1_000 -> "%d B".format(clamped.roundToLong())
-		clamped < 1_000_000 -> "%.${decimals}f kB".format(clamped / 1_000)
-		clamped < 1_000_000_000 -> "%.${decimals}f MB".format(clamped / 1_000_000)
-		else -> "%.${decimals}f GB".format(clamped / 1_000_000_000)
+		clamped < 1_000 -> "%d B".format(Locale.US, clamped.roundToLong())
+		clamped < 1_000_000 -> "%.${decimals}f kB".format(Locale.US, clamped / 1_000)
+		clamped < 1_000_000_000 -> "%.${decimals}f MB".format(Locale.US, clamped / 1_000_000)
+		else -> "%.${decimals}f GB".format(Locale.US, clamped / 1_000_000_000)
 	}
 }

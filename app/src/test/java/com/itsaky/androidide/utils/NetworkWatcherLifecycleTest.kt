@@ -79,9 +79,7 @@ class NetworkWatcherLifecycleTest {
 				assertThat(samples).isEqualTo(whileRunning)
 				assertThat(watcher.isWatching).isFalse()
 			} finally {
-				// In a finally: a failed assertion would otherwise leave the sampling loop alive,
-				// and runTest's trailing advanceUntilIdle then advances virtual time forever. That
-				// spin is synchronous, so no test timeout can interrupt it -- it just pins a core.
+				// Closed here rather than after the assertions: see the class KDoc.
 				watcher.close()
 			}
 		}
@@ -101,14 +99,11 @@ class NetworkWatcherLifecycleTest {
 
 				val before = samples
 				advanceTimeBy(INTERVAL_MS * 4)
-				val perInterval = (samples - before) / 4
 
-				// Two loops would double the rate against the same buffer.
-				assertThat(perInterval).isEqualTo(1)
+				// The raw count, not a rate: integer division passed for anything from four to
+				// seven samples, so a second loop that only partly overlapped went unnoticed.
+				assertThat(samples - before).isEqualTo(4)
 			} finally {
-				// In a finally: a failed assertion would otherwise leave the sampling loop alive,
-				// and runTest's trailing advanceUntilIdle then advances virtual time forever. That
-				// spin is synchronous, so no test timeout can interrupt it -- it just pins a core.
 				watcher.close()
 			}
 		}
@@ -137,9 +132,6 @@ class NetworkWatcherLifecycleTest {
 				assertThat(samples).isGreaterThan(1)
 				assertThat(watcher.isWatching).isTrue()
 			} finally {
-				// In a finally: a failed assertion would otherwise leave the sampling loop alive,
-				// and runTest's trailing advanceUntilIdle then advances virtual time forever. That
-				// spin is synchronous, so no test timeout can interrupt it -- it just pins a core.
 				watcher.close()
 			}
 		}
