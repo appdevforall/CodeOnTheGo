@@ -97,6 +97,8 @@ final class AssetExtractor {
 	 *
 	 * A merge that dies part-way is recovered at the START of the next call, not on the failure path: {@link #MERGE_PENDING_MARKER} is written before the first byte and cleared only after the last, and finding it still there clears the dir. A cleared dir is safe - the provider falls through to the APK's baked-in assets - whereas a half-merged one serves a file from the wrong generation.
 	 *
+	 * Serialized on the class monitor because payloads arrive on a oneway binder callback, whose thread pool dispatches two calls at once - the same interleaving {@code PayloadPersistenceAtomicSetTest} pins for the persist. Two merges into the one shared dir would race entry-for-entry, and the pending marker cannot recover that: the second merge clears it on the way out, so the merged dir would be left holding two generations with nothing to notice.
+	 *
 	 * @param zipStream
 	 *            the changed-assets zip as it arrived over binder; read but never closed
 	 * @param assetsRoot
@@ -107,7 +109,7 @@ final class AssetExtractor {
 	 * @throws IOException
 	 *             on I/O failure, a path-traversal entry, or a stale dir that cannot be cleared - serving it anyway would violate the never-stale invariant
 	 */
-	static int extractCumulative(InputStream zipStream, File assetsRoot,
+	static synchronized int extractCumulative(InputStream zipStream, File assetsRoot,
 			String baselineFingerprint) throws IOException {
 		if (baselineFingerprint == null) {
 			throw new IOException("no baseline fingerprint; cannot key the asset override dir");
