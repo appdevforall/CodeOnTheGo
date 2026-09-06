@@ -1,6 +1,7 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayInputStream;
@@ -12,6 +13,9 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.Test;
@@ -61,6 +65,48 @@ class AssetExtractorTest {
 		File assetsDir = new File(AssetExtractor.currentDir(root), AssetExtractor.ASSETS_SUBDIR);
 		assertThat(readFile(new File(assetsDir, "kept.txt"))).isEqualTo("from the first merge");
 		assertThat(readFile(new File(assetsDir, "added.txt"))).isEqualTo("from the second merge");
+	}
+
+	@Test
+	void aMergeSerialisesOnTheExtractorMonitor() throws Exception {
+		// Payloads arrive on a oneway binder callback, whose thread pool can dispatch two
+		// at once, and both merges land in the one shared dir. The pending marker cannot
+		// recover an interleaved pair - the second merge clears it on the way out - so the
+		// merges have to be serialized, which is only true while each takes this monitor.
+		final File root = tempDir.resolve("assets-root").toFile();
+		Map<String, byte[]> entries = new LinkedHashMap<String, byte[]>();
+		entries.put("a.txt", "merged".getBytes("UTF-8"));
+		final InputStream zip = zipOf(entries);
+		final CountDownLatch started = new CountDownLatch(1);
+		final CountDownLatch finished = new CountDownLatch(1);
+		final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
+		Thread other = new Thread(new Runnable() {
+
+			@Override
+			public void run() {
+				started.countDown();
+				try {
+					AssetExtractor.extractCumulative(zip, root, "fp-1");
+				} catch (Throwable error) {
+					failure.set(error);
+				}
+				finished.countDown();
+			}
+		});
+		// Or a merge that never returns outlives the test and holds the Gradle worker up.
+		other.setDaemon(true);
+
+		synchronized (AssetExtractor.class) {
+			other.start();
+			assertThat(started.await(10, TimeUnit.SECONDS)).isTrue();
+			assertWithMessage("a merge ran to completion while the extractor monitor was held")
+					.that(finished.await(500, TimeUnit.MILLISECONDS)).isFalse();
+		}
+
+		assertThat(finished.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(failure.get()).isNull();
+		File assetsDir = new File(AssetExtractor.currentDir(root), AssetExtractor.ASSETS_SUBDIR);
+		assertThat(readFile(new File(assetsDir, "a.txt"))).isEqualTo("merged");
 	}
 
 	@Test
