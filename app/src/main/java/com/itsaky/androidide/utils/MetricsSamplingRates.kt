@@ -89,6 +89,17 @@ object MetricsSamplingRates {
 		intervalMillis: Long,
 		arch: CpuArch,
 	): Long = intervalMillis.coerceIn(minimumIntervalMillis(arch), MAX_INTERVAL_MS)
+
+	/**
+	 * Clamps [intervalMillis] into the range *any* device may run at.
+	 *
+	 * The watchers guard themselves with this rather than with [coerceToSupportedRange], which
+	 * needs to know the architecture and so cannot be called from a plain unit test. It is a safety
+	 * net, not the policy: what the user may pick is still decided by [ratesFor]. Its job is to
+	 * keep a non-positive interval out of `delay()`, which does not suspend for one -- the sampling
+	 * loop would then spin, pinning a core for as long as the editor is open.
+	 */
+	fun coerceToSafeRange(intervalMillis: Long): Long = intervalMillis.coerceIn(MIN_INTERVAL_64_BIT_MS, MAX_INTERVAL_MS)
 }
 
 /**

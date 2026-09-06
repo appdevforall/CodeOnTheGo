@@ -200,7 +200,7 @@ abstract class BaseEditorActivity :
 		MetricsCarouselController(
 			memoryUsageWatcher = memoryUsageWatcher,
 			networkUsageWatcher = networkUsageWatcher,
-			lineColorFor = ::getMemUsageLineColorFor,
+			lineColorFor = Companion::getMemUsageLineColorFor,
 			annotations = metricsViewModel.annotations,
 		)
 	}
@@ -449,7 +449,23 @@ abstract class BaseEditorActivity :
 	companion object {
 		const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
+		/**
+		 * The plot colour for a watched process.
+		 *
+		 * Lives on the companion, not on the activity: a bound reference to an activity method is
+		 * handed to [MetricsCarouselController], which is in turn handed to the floating window and
+		 * outlives an activity recreation. A pure function of the process name has no business
+		 * pinning an activity in memory, and this one is exactly that.
+		 */
 		@JvmStatic
+		fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
+			when (proc.pname) {
+				PROC_IDE -> Color.BLUE
+				PROC_GRADLE_TOOLING -> Color.RED
+				PROC_GRADLE_DAEMON -> Color.GREEN
+				else -> throw IllegalArgumentException("Unknown process: $proc")
+			}
+
 		protected val PROC_IDE = "IDE"
 
 		@JvmStatic
@@ -529,6 +545,9 @@ abstract class BaseEditorActivity :
 		fullscreenManager = null
 
 		metricsCarousel.unbind()
+		if (isDestroying) {
+			metricsCarousel.close()
+		}
 		_binding = null
 
 		if (isDestroying) {
@@ -1032,14 +1051,6 @@ abstract class BaseEditorActivity :
 	protected fun resetMemUsageChart() {
 		metricsCarousel.onWatchedProcessesChanged()
 	}
-
-	private fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
-		when (proc.pname) {
-			PROC_IDE -> Color.BLUE
-			PROC_GRADLE_TOOLING -> Color.RED
-			PROC_GRADLE_DAEMON -> Color.GREEN
-			else -> throw IllegalArgumentException("Unknown process: $proc")
-		}
 
 	override fun onPause() {
 		super.onPause()

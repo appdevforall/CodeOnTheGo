@@ -71,12 +71,13 @@ class NetworkUsageWatcher(
 	 * Milliseconds between samples. Changing it clears the history, for the reason given on
 	 * [MemoryUsageWatcher.updateInterval].
 	 */
-	var updateInterval: Long = updateInterval
+	var updateInterval: Long = MetricsSamplingRates.coerceToSafeRange(updateInterval)
 		set(value) {
-			if (field == value) {
+			val safe = MetricsSamplingRates.coerceToSafeRange(value)
+			if (field == safe) {
 				return
 			}
-			field = value
+			field = safe
 			clearHistory()
 		}
 

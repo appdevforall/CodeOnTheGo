@@ -30,6 +30,12 @@ import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.MetricsSamplingRates
 import com.itsaky.androidide.utils.MetricsSnapshot
 import com.itsaky.androidide.utils.NetworkUsageWatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Drives one metrics carousel: its pages, its renderers, and the title that names the current page.
@@ -83,6 +89,13 @@ class MetricsCarouselController(
 		NetworkUsageWatcher.NetworkUsageListener { usage ->
 			networkRenderer.onUsageChanged(usage)
 		}
+
+	/**
+	 * Runs the snapshot write. Main-dispatched so its result lands back on the UI thread, with the
+	 * disk work pushed to [Dispatchers.IO] inside; a SupervisorJob so one failed export does not
+	 * stop the next.
+	 */
+	private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
 	private var binding: LayoutMemUsageBinding? = null
 	private var pageCallback: ViewPager2.OnPageChangeCallback? = null
@@ -276,7 +289,11 @@ class MetricsCarouselController(
 	/**
 	 * Writes the visible chart to an image and offers it to another app (ADFA-5486).
 	 *
-	 * @return whether a snapshot was produced.
+	 * The bitmap has to be taken on the UI thread -- it is a copy of what the chart drew -- but
+	 * encoding and writing the PNG must not be. That is a directory listing, a delete and a file
+	 * write behind a full-chart encode, all of which used to run inside the click listener.
+	 *
+	 * @return whether a snapshot could be started. The write itself completes later.
 	 */
 	@UiThread
 	fun exportSnapshot(): Boolean {
@@ -298,14 +315,36 @@ class MetricsCarouselController(
 			return false
 		}
 
-		val file = MetricsSnapshot.write(context, bitmap, label)
-		if (file == null) {
-			Toast.makeText(context, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
-			return false
+		// The write takes the application context because it outlives the click. The share does not:
+		// it ends in startActivity, which throws from a context with no task of its own unless it is
+		// given FLAG_ACTIVITY_NEW_TASK, so it keeps the context the carousel is hosted in.
+		val appContext = context.applicationContext
+		scope.launch {
+			val file = withContext(Dispatchers.IO) { MetricsSnapshot.write(appContext, bitmap, label) }
+			if (file == null) {
+				Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
+				return@launch
+			}
+			// Re-read the host rather than capturing it: the export is no longer instantaneous, and
+			// the carousel can be unbound (docked, undocked, recreated) while the file is written.
+			val host = binding?.root?.context
+			if (host == null) {
+				Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
+				return@launch
+			}
+			IntentUtils.shareFile(host, file, MetricsSnapshot.MIME_TYPE)
 		}
-
-		IntentUtils.shareFile(context, file, MetricsSnapshot.MIME_TYPE)
 		return true
+	}
+
+	/**
+	 * Releases the controller for good. Distinct from [unbind], which runs on every dock, undock
+	 * and recreation; this is the terminal teardown and cancels any snapshot still being written.
+	 */
+	@UiThread
+	fun close() {
+		unbind()
+		scope.cancel()
 	}
 
 	/**
