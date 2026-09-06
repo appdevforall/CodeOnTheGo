@@ -17,8 +17,10 @@
 
 package com.itsaky.androidide.ui
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.os.SystemClock
+import android.util.TypedValue
 import android.view.MotionEvent
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
@@ -508,7 +510,24 @@ abstract class MetricsChartRenderer(
 				MetricsAnnotationStore.Kind.TASK,
 				-> R.attr.colorOnSurface
 			}
-		return chart.context.resolveAttr(attr)
+		// Not plain resolveAttr: it discards resolveAttribute's result and hands back TypedValue.data,
+		// which for an attribute the theme does not carry is 0 -- transparent. colorSuccess is
+		// ours rather than Material's, and a floating window is built against a window context
+		// whose theme is not the activity's, so a build marker could come out invisible. It falls
+		// back to the axis text colour, which configure has already set to something legible.
+		return chart.context.resolveColorAttr(attr, fallback = chart.xAxis.textColor)
+	}
+
+	/**
+	 * The colour [attr] names in this context's theme, or [fallback] if the theme has no such
+	 * attribute.
+	 */
+	private fun Context.resolveColorAttr(
+		attr: Int,
+		fallback: Int,
+	): Int {
+		val value = TypedValue()
+		return if (theme.resolveAttribute(attr, value, true)) value.data else fallback
 	}
 
 	/**

@@ -24,10 +24,12 @@ import com.itsaky.androidide.resources.R.string
 /**
  * Records significant events for the metrics charts to annotate (ADFA-5486).
  *
- * Significant means Gradle task starts and stops. A real build emits far too many of those to draw
- * -- dozens a second during configuration -- so they are throttled to at most one every
- * [THROTTLE_INTERVAL_MS]. The first event in a quiet period is the one kept, since the interesting
- * moment is when work *began*, not an arbitrary one from the middle of a burst.
+ * Significant means Gradle task starts and stops, and a build's own start and outcome
+ * (ADFA-5509). A real build emits far too many task events to draw -- dozens a second during
+ * configuration -- so those are throttled to at most one every [THROTTLE_INTERVAL_MS]. The first
+ * event in a quiet period is the one kept, since the interesting moment is when work *began*, not
+ * an arbitrary one from the middle of a burst. Build outcomes are never throttled and are the last
+ * thing evicted; see [Kind.isThrottled] and [record].
  *
  * Annotations are stored by wall-clock time rather than by sample position, because the charts hold
  * a ring buffer whose contents shift under them; a stored index would drift. The renderer converts
@@ -145,10 +147,29 @@ class MetricsAnnotationStore(
 		// landing a few pixels from a build marker and colliding with it.
 		lastRecordedAt = now
 		annotations.addLast(Annotation(now, label, nextSequence++, kind))
-		while (annotations.size > MAX_ANNOTATIONS) {
-			annotations.removeFirst()
-		}
+		evictToCapacity()
 		return true
+	}
+
+	/**
+	 * Drops the oldest annotations until the store is back within [MAX_ANNOTATIONS].
+	 *
+	 * Task markers go first, whatever their age. Plain oldest-first eviction dropped a build's
+	 * "Build started" while the build was still running -- 256 markers at one per
+	 * [THROTTLE_INTERVAL_MS] is about twenty minutes, which a clean build on a phone can exceed --
+	 * leaving an unpaired outcome on the chart and no way to see how long the build took. Task
+	 * markers are the padding here; the build's own moments are the point.
+	 */
+	private fun evictToCapacity() {
+		while (annotations.size > MAX_ANNOTATIONS) {
+			val oldestTask = annotations.indexOfFirst { it.kind.isThrottled }
+			if (oldestTask >= 0) {
+				annotations.removeAt(oldestTask)
+			} else {
+				// Nothing but build outcomes left, so the oldest of those has to go.
+				annotations.removeFirst()
+			}
+		}
 	}
 
 	/**

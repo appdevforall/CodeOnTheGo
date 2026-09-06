@@ -200,9 +200,54 @@ class MetricsAnnotationStoreTest {
 	}
 
 	@Test
-	fun `only task markers are throttled`() {
-		assertThat(MetricsAnnotationStore.Kind.TASK.isThrottled).isTrue()
-		assertThat(MetricsAnnotationStore.Kind.entries.filter { it.isThrottled })
-			.containsExactly(MetricsAnnotationStore.Kind.TASK)
+	fun `a build outcome inside the throttle window is still recorded`() {
+		// Asserting isThrottled against its own definition, as this test used to, would pass just
+		// as happily with record() ignoring the flag altogether.
+		store.record("a task")
+		now += 1_000L
+
+		MetricsAnnotationStore.Kind.entries
+			.filterNot { it == MetricsAnnotationStore.Kind.TASK }
+			.forEach { kind ->
+				assertThat(store.recordBuild(kind)).isTrue()
+				now += 1_000L
+			}
+
+		// One task marker, then every build outcome, none of them dropped.
+		assertThat(store.recentAnnotations(60_000L).map { it.kind })
+			.containsExactlyElementsIn(
+				listOf(MetricsAnnotationStore.Kind.TASK) +
+					MetricsAnnotationStore.Kind.entries.filterNot { it == MetricsAnnotationStore.Kind.TASK },
+			).inOrder()
+	}
+
+	@Test
+	fun `a full store evicts task markers before build outcomes`() {
+		store.recordBuild(MetricsAnnotationStore.Kind.BUILD_STARTED)
+		// Enough task markers to overflow the store several times over. A build long enough to do
+		// that -- about twenty minutes at one marker every five seconds -- used to lose its own
+		// "Build started", leaving an unpaired outcome and no way to see how long it took.
+		repeat(MetricsAnnotationStore.MAX_ANNOTATIONS * 2) {
+			now += MetricsAnnotationStore.THROTTLE_INTERVAL_MS
+			store.record("task $it")
+		}
+		store.recordBuild(MetricsAnnotationStore.Kind.BUILD_FINISHED)
+
+		val kinds = store.recentAnnotations(Long.MAX_VALUE / 2).map { it.kind }
+		assertThat(kinds.first()).isEqualTo(MetricsAnnotationStore.Kind.BUILD_STARTED)
+		assertThat(kinds.last()).isEqualTo(MetricsAnnotationStore.Kind.BUILD_FINISHED)
+		assertThat(kinds).hasSize(MetricsAnnotationStore.MAX_ANNOTATIONS)
+	}
+
+	@Test
+	fun `a store holding nothing but build outcomes still respects its bound`() {
+		// The fallback branch: with no task marker left to sacrifice, the oldest outcome goes.
+		repeat(MetricsAnnotationStore.MAX_ANNOTATIONS + 5) {
+			now += 1_000L
+			store.recordBuild(MetricsAnnotationStore.Kind.BUILD_FINISHED)
+		}
+
+		assertThat(store.recentAnnotations(Long.MAX_VALUE / 2))
+			.hasSize(MetricsAnnotationStore.MAX_ANNOTATIONS)
 	}
 }
