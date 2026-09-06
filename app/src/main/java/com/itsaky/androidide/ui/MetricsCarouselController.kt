@@ -28,6 +28,9 @@ import android.widget.Toast
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.AccessibilityDelegateCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.isVisible
 import androidx.viewpager2.widget.ViewPager2
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
@@ -201,6 +204,9 @@ class MetricsCarouselController(
 		// annoying.
 		binding.metricsPrevious.setOnClickListener { step(-1) }
 		binding.metricsNext.setOnClickListener { step(1) }
+		// After the click listeners, which set isClickable themselves.
+		ViewCompat.setAccessibilityDelegate(binding.metricsPrevious, arrowAccessibilityDelegate)
+		ViewCompat.setAccessibilityDelegate(binding.metricsNext, arrowAccessibilityDelegate)
 		updateArrows(binding.metricsPager.currentItem)
 
 		wireHelp(binding)
@@ -284,6 +290,8 @@ class MetricsCarouselController(
 		}
 		binding?.metricsPrevious?.setOnClickListener(null)
 		binding?.metricsNext?.setOnClickListener(null)
+		binding?.metricsPrevious?.let { ViewCompat.setAccessibilityDelegate(it, null) }
+		binding?.metricsNext?.let { ViewCompat.setAccessibilityDelegate(it, null) }
 		pageCallback?.let { binding?.metricsPager?.unregisterOnPageChangeCallback(it) }
 		pageCallback = null
 
@@ -312,10 +320,30 @@ class MetricsCarouselController(
 	@UiThread
 	private fun updateArrows(position: Int) {
 		val binding = this.binding ?: return
-		binding.metricsPrevious.isEnabled = position > 0
-		binding.metricsNext.isEnabled = position < pages.lastIndex
-		binding.metricsPrevious.alpha = if (position > 0) 1f else DISABLED_ARROW_ALPHA
-		binding.metricsNext.alpha = if (position < pages.lastIndex) 1f else DISABLED_ARROW_ALPHA
+		setPagingAvailable(binding.metricsPrevious, available = position > 0)
+		setPagingAvailable(binding.metricsNext, available = position < pages.lastIndex)
+	}
+
+	/**
+	 * Marks an arrow as leading somewhere, or not.
+	 *
+	 * Deliberately not `isEnabled`. A disabled View still consumes a touch and then drops it
+	 * without calling any listener, so a long press on the arrow at either end of the carousel
+	 * showed no tooltip -- and that is the arrow whose greying-out a user is likeliest to ask
+	 * about. [isClickable] is the narrower statement and the true one: the arrow does not answer a
+	 * tap, but it does answer a long press. [step] clamps anyway, so a tap on a dimmed arrow was
+	 * already a no-op.
+	 *
+	 * Alpha alone would have lost the state for anyone who cannot see it, since a screen reader
+	 * reads a node's flags rather than its opacity. [arrowAccessibilityDelegate] puts it back.
+	 */
+	@UiThread
+	private fun setPagingAvailable(
+		arrow: View,
+		available: Boolean,
+	) {
+		arrow.alpha = if (available) 1f else DIMMED_ARROW_ALPHA
+		arrow.isClickable = available
 	}
 
 	/**
@@ -571,7 +599,27 @@ class MetricsCarouselController(
 				else -> null
 			}
 
-		const val DISABLED_ARROW_ALPHA = 0.35f
+		const val DIMMED_ARROW_ALPHA = 0.35f
+
+		/**
+		 * Reports an arrow that leads nowhere as disabled, and as offering no tap.
+		 *
+		 * The views stay touch-enabled so they can still answer a long press with their tooltip
+		 * (see [setPagingAvailable]); without this, TalkBack would offer "double-tap to activate"
+		 * on an arrow that does nothing, and give no hint that the carousel has an end. Reads
+		 * [View.isClickable] rather than holding its own copy, so there is one source of truth.
+		 */
+		val arrowAccessibilityDelegate =
+			object : AccessibilityDelegateCompat() {
+				override fun onInitializeAccessibilityNodeInfo(
+					host: View,
+					info: AccessibilityNodeInfoCompat,
+				) {
+					super.onInitializeAccessibilityNodeInfo(host, info)
+					info.isEnabled = host.isClickable
+					info.isClickable = host.isClickable
+				}
+			}
 
 		/** Dims a rate this device cannot offer, so the list shows what the hardware costs. */
 		const val UNAVAILABLE_RATE_ALPHA = 0.4f
