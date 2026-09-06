@@ -89,7 +89,14 @@ class PowerUsageWatcher
 		/**
 		 * Milliseconds between samples. Changing it clears the history, for the reason given on
 		 * [MemoryUsageWatcher.updateInterval].
+		 *
+		 * Volatile: written on the UI thread and read on the watcher's own sampling thread.
+		 * Without it the reader can go on seeing a stale value indefinitely.
+		 *
+		 * Volatile: written on the UI thread and read on the watcher's own sampling thread.
+		 * Without it the reader can go on seeing a stale value indefinitely.
 		 */
+		@Volatile
 		var updateInterval: Long = MetricsSamplingRates.coerceToSafeRange(updateInterval)
 			set(value) {
 				val safe = MetricsSamplingRates.coerceToSafeRange(value)
@@ -109,6 +116,7 @@ class PowerUsageWatcher
 			get() = watching.get()
 
 		/** Notified on the main thread after each sample. */
+		@Volatile
 		var listener: PowerUsageListener? = null
 
 		/**

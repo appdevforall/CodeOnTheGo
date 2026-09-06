@@ -63,7 +63,11 @@ class MemoryUsageWatcher
 		 * Milliseconds between samples. Changing it clears the history: the chart reads a sample's
 		 * age from its position, which assumes every sample is the same age apart, and a buffer
 		 * holding samples taken at two rates would silently misdate all the older ones (ADFA-5486).
+		 *
+		 * Volatile: written on the UI thread and read on the watcher's own sampling thread.
+		 * Without it the reader can go on seeing a stale value indefinitely.
 		 */
+		@Volatile
 		var updateInterval: Long = MetricsSamplingRates.coerceToSafeRange(updateInterval)
 			set(value) {
 				val safe = MetricsSamplingRates.coerceToSafeRange(value)
@@ -103,7 +107,11 @@ class MemoryUsageWatcher
 
 		/**
 		 * The listener to be notified when the memory usage of a process changes.
+		 *
+		 * Volatile: written on the UI thread and read on the watcher's own sampling thread.
+		 * Without it the reader can go on seeing a stale value indefinitely.
 		 */
+		@Volatile
 		var listener: MemoryUsageListener? = null
 
 		companion object {

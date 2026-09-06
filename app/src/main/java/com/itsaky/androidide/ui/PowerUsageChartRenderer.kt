@@ -94,8 +94,7 @@ class PowerUsageChartRenderer(
 				),
 			)
 
-		setData(chart, datasets)
-		applyAxisRanges(chart, usage)
+		setData(chart, datasets) { applyAxisRanges(it, usage) }
 		applyThermalShading(chart, usage)
 	}
 
@@ -138,9 +137,8 @@ class PowerUsageChartRenderer(
 			transform = ::microWattsToWatts,
 		)
 
-		applyAxisRanges(chart, usage)
 		applyThermalShading(chart, usage)
-		redraw(chart)
+		redraw(chart) { applyAxisRanges(it, usage) }
 	}
 
 	/** Rewrites one series' values in place and refreshes its legend entry. */

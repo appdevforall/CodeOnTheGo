@@ -352,6 +352,7 @@ abstract class MetricsChartRenderer(
 	protected fun setData(
 		chart: SafeLineChart,
 		datasets: Array<LineDataSet>,
+		applyAxisRanges: (SafeLineChart) -> Unit = {},
 	) {
 		val bgColor = chart.context.resolveAttr(R.attr.colorSurfaceDim)
 		val textColor = chart.context.resolveAttr(R.attr.colorOnSurface)
@@ -369,8 +370,14 @@ abstract class MetricsChartRenderer(
 			styleValueAxes(this, textColor)
 			setBackgroundColor(bgColor)
 			setGridBackgroundColor(bgColor)
-			notifyDataSetChanged()
 		}
+		// Ranges first, then the notify. setting axisMinimum and axisMaximum only stores them;
+		// what recomputes the axis values and the value-to-pixel transform is notifyDataSetChanged,
+		// and it is protected against being called directly. Ranged after the notify -- as two of
+		// the three renderers did -- the chart draws its next frame through a transform built from
+		// the bounds MPAndroidChart picked for itself.
+		applyAxisRanges(chart)
+		chart.notifyDataSetChanged()
 		applyAnnotations(chart)
 		showNewestWindow(chart)
 		chart.invalidate()
@@ -448,7 +455,13 @@ abstract class MetricsChartRenderer(
 	/**
 	 * Redraws after the attached series have been mutated in place.
 	 */
-	protected fun redraw(chart: SafeLineChart) {
+	protected fun redraw(
+		chart: SafeLineChart,
+		applyAxisRanges: (SafeLineChart) -> Unit = {},
+	) {
+		// Same order as [setData], and for the same reason: the bounds have to be in place before
+		// the notify that turns them into a transform.
+		applyAxisRanges(chart)
 		chart.apply {
 			data.notifyDataChanged()
 			notifyDataSetChanged()
