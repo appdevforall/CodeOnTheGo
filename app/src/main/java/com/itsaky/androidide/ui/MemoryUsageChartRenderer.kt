@@ -30,6 +30,7 @@ import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MemoryUsageWatcher.ProcessMemoryInfo
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.ShiftedLongArray
+import kotlin.math.max
 import kotlin.math.roundToLong
 
 /**
@@ -103,7 +104,33 @@ class MemoryUsageChartRenderer(
 				}
 			}
 
+		applyAxisRange(chart, processes)
 		setData(chart, datasets)
+	}
+
+	/**
+	 * Scales the value axis to the samples on screen (ADFA-5486).
+	 *
+	 * Left to itself MPAndroidChart ranges over every entry in the data, which is the whole
+	 * retained buffer -- ten thousand samples, hours of it -- while sixty are visible. One early
+	 * Gradle daemon peak then flattened every later reading into the bottom of the plot and nothing
+	 * ever brought the ceiling back down. The network chart was fixed first; this is the sibling.
+	 */
+	private fun applyAxisRange(
+		chart: SafeLineChart,
+		processes: Array<ProcessMemoryInfo>,
+	) {
+		var peak = 0f
+		for (proc in processes) {
+			for (index in visibleSampleRange(chart, proc.usageHistory.size)) {
+				peak = max(peak, proc.usageHistory.megabytesAt(index))
+			}
+		}
+
+		chart.axisRight.axisMinimum = 0f
+		// A little headroom so the tallest line is not drawn on the frame, and a floor so an idle
+		// chart does not collapse onto a zero-height axis before the first samples land.
+		chart.axisRight.axisMaximum = max(peak * AXIS_HEADROOM, MIN_AXIS_MEGABYTES)
 	}
 
 	/**
@@ -144,6 +171,7 @@ class MemoryUsageChartRenderer(
 		}
 
 		if (dataChanged) {
+			applyAxisRange(chart, usagesProvider())
 			redraw(chart)
 		}
 	}
@@ -157,6 +185,14 @@ class MemoryUsageChartRenderer(
 					axis: AxisBase?,
 				): String = "%dMB".format(value.roundToLong())
 			}
+	}
+
+	private companion object {
+		/** Keeps the tallest line off the top frame of the plot. */
+		const val AXIS_HEADROOM = 1.1f
+
+		/** Floor for the axis, so an idle chart has a readable scale rather than a flat zero. */
+		const val MIN_AXIS_MEGABYTES = 64f
 	}
 
 	private fun labelFor(
