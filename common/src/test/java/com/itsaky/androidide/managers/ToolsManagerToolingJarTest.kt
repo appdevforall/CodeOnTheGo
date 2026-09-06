@@ -114,4 +114,54 @@ class ToolsManagerToolingJarTest {
 		assertThat(stampFile().exists()).isFalse()
 		assertThat(ToolsManager.isToolingJarCurrent(blockedTarget, stampFile(), stamp)).isFalse()
 	}
+
+	@Test
+	fun `ensureToolingJar replaces a previous install's jar before reporting ready`() {
+		// The tooling server launches `java -jar` against the final path. If it can reach
+		// that path while the previous install's jar is still there, it runs the prior APK's
+		// tooling server for the whole session - so the readiness check must do the
+		// replacement itself, not merely observe it.
+		jarFile().writeText("previous-install-bytes")
+		stampFile().writeText("1.2.2:1700000000")
+
+		val ready =
+			ToolsManager.ensureToolingJar(jarFile(), stampFile(), stamp) {
+				ByteArrayInputStream("this-install-bytes".toByteArray())
+			}
+
+		assertThat(ready).isTrue()
+		assertThat(jarFile().readText()).isEqualTo("this-install-bytes")
+		assertThat(stampFile().readText()).isEqualTo(stamp)
+	}
+
+	@Test
+	fun `ensureToolingJar does not open the asset when the jar is already this install's`() {
+		// Cheap enough to call again on the server's launch path, which is what lets the
+		// launch be ordered after extraction without paying for it on every project open.
+		jarFile().writeText("this-install-bytes")
+		stampFile().writeText(stamp)
+
+		val ready =
+			ToolsManager.ensureToolingJar(jarFile(), stampFile(), stamp) {
+				throw AssertionError("asset opened although the jar was already current")
+			}
+
+		assertThat(ready).isTrue()
+		assertThat(jarFile().readText()).isEqualTo("this-install-bytes")
+	}
+
+	@Test
+	fun `ensureToolingJar reports not-ready when the extraction could not land`() {
+		val blockedTarget = jarFile()
+		blockedTarget.mkdirs()
+		File(blockedTarget, "occupant").writeText("x")
+
+		val ready =
+			ToolsManager.ensureToolingJar(blockedTarget, stampFile(), stamp) {
+				ByteArrayInputStream("this-install-bytes".toByteArray())
+			}
+
+		// False is what lets the caller say so rather than silently run whatever is there.
+		assertThat(ready).isFalse()
+	}
 }
