@@ -1,0 +1,159 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.itsaky.androidide.ui
+
+import android.content.Context
+import android.view.LayoutInflater
+import android.view.View
+import androidx.appcompat.view.ContextThemeWrapper
+import androidx.test.core.app.ApplicationProvider
+import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.LayoutMemUsageBinding
+import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.NetworkUsageWatcher
+import com.itsaky.androidide.utils.PowerUsageWatcher
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+
+/**
+ * Pins that every control in the metrics carousel answers a long press (ADFA-5510).
+ *
+ * The assertion is that a listener is installed, not that a tooltip appears: TooltipManager reads
+ * the docs database from device storage in its static initialiser and cannot be loaded off-device.
+ * Whether a tag has copy behind it is the database's business, not this code's.
+ */
+@RunWith(RobolectricTestRunner::class)
+class MetricsCarouselHelpTest {
+	private val context: Context =
+		ContextThemeWrapper(
+			ApplicationProvider.getApplicationContext(),
+			R.style.Theme_AndroidIDE,
+		)
+
+	private fun boundStrip(): LayoutMemUsageBinding {
+		val binding = LayoutMemUsageBinding.inflate(LayoutInflater.from(context))
+		controller().bind(binding)
+		return binding
+	}
+
+	private fun controller() =
+		MetricsCarouselController(
+			memoryUsageWatcher = MemoryUsageWatcher(),
+			networkUsageWatcher = NetworkUsageWatcher(uid = TEST_UID),
+			powerUsageWatcher =
+				PowerUsageWatcher(
+					source = {
+						PowerUsageWatcher.PowerReading(
+							temperatureMilliCelsius = 30_000L,
+							powerMicroWatts = 1_000_000L,
+							thermalStatus = 0,
+							battery = PowerUsageWatcher.BatteryState.UNKNOWN,
+						)
+					},
+				),
+			lineColorFor = { android.graphics.Color.BLUE },
+			annotations = MetricsAnnotationStore(),
+		)
+
+	@Test
+	fun `every control in the strip answers a long press`() {
+		val binding = boundStrip()
+
+		val controls: List<Pair<String, View>> =
+			listOf(
+				"panel" to binding.root,
+				"title" to binding.metricsTitle,
+				"previous" to binding.metricsPrevious,
+				"next" to binding.metricsNext,
+				"snapshot" to binding.metricsSnapshot,
+				"battery" to binding.metricsBattery,
+				"undocked message" to binding.metricsUndockedMessage,
+			)
+
+		val unwired = controls.filterNot { (_, view) -> view.isLongClickable }.map { it.first }
+		assertThat(unwired).isEmpty()
+	}
+
+	@Test
+	fun `an unbound strip has no help wired`() {
+		// Guards the test above: if inflation alone made these long-clickable, it would pass
+		// against a controller that wires nothing.
+		val binding = LayoutMemUsageBinding.inflate(LayoutInflater.from(context))
+
+		assertThat(binding.metricsPrevious.isLongClickable).isFalse()
+		assertThat(binding.metricsSnapshot.isLongClickable).isFalse()
+	}
+
+	@Test
+	fun `unbinding releases the help listeners`() {
+		val binding = LayoutMemUsageBinding.inflate(LayoutInflater.from(context))
+		val controller = controller()
+		controller.bind(binding)
+		controller.unbind()
+
+		assertThat(binding.metricsPrevious.isLongClickable).isFalse()
+		assertThat(binding.metricsSnapshot.isLongClickable).isFalse()
+	}
+
+	@Test
+	fun `each chart page declares its own help tag`() {
+		// The charts are not in the list above: MPAndroidChart swallows the touch events a view
+		// long press needs, so they answer through the chart's gesture listener instead.
+		assertThat(TooltipTag.CAROUSEL_CHART_MEMORY).isEqualTo("carousel.chart.memory")
+		assertThat(TooltipTag.CAROUSEL_CHART_NETWORK).isEqualTo("carousel.chart.network")
+		assertThat(TooltipTag.CAROUSEL_CHART_POWER).isEqualTo("carousel.chart.power")
+	}
+
+	@Test
+	fun `a long press below the plot asks about the sampling rate, not the metric`() {
+		val chart = SafeLineChart(context)
+		val renderer =
+			NetworkUsageChartRenderer(
+				usageProvider = {
+					NetworkUsageWatcher.NetworkUsage(LongArray(SAMPLES) { 1_000L }, LongArray(SAMPLES) { 500L })
+				},
+			)
+		renderer.attach(chart)
+		chart.measure(
+			View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+			View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY),
+		)
+		chart.layout(0, 0, WIDTH, HEIGHT)
+
+		val handler = chart.viewPortHandler
+		// Guards the two assertions below: on an unlaid-out chart both points land on one edge.
+		assertThat(handler.contentBottom()).isLessThan(HEIGHT.toFloat())
+
+		// Below the plot is the time axis, which is what the sampling rate belongs to.
+		assertThat(renderer.helpTagAt(handler.contentBottom() + 1f)).isEqualTo(TooltipTag.CAROUSEL_AXIS_TIME)
+		// Inside the plot, the metric itself answers.
+		assertThat(renderer.helpTagAt((handler.contentTop() + handler.contentBottom()) / 2f))
+			.isEqualTo(TooltipTag.CAROUSEL_CHART_NETWORK)
+	}
+
+	private companion object {
+		const val TEST_UID = 10_123
+		const val WIDTH = 720
+		const val HEIGHT = 400
+		const val SAMPLES = 60
+	}
+}

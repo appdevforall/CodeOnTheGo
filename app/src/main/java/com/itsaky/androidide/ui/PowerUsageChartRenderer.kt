@@ -26,6 +26,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.PowerUsageWatcher
 import com.itsaky.androidide.utils.PowerUsageWatcher.PowerUsage
@@ -58,6 +59,8 @@ class PowerUsageChartRenderer(
 		sampleIntervalMillis = sampleIntervalMillis,
 		annotations = annotations,
 	) {
+	override val helpTag: String = TooltipTag.CAROUSEL_CHART_POWER
+
 	@UiThread
 	override fun rebuild() {
 		val chart = this.chart ?: return

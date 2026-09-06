@@ -26,6 +26,7 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MemoryUsageWatcher.ProcessMemoryInfo
 import com.itsaky.androidide.utils.MetricsAnnotationStore
@@ -73,6 +74,8 @@ class MemoryUsageChartRenderer(
 	 * process's complete [ProcessMemoryInfo.usageHistory]. Call when the set of watched processes
 	 * changes; [onUsagesChanged] calls it on its own when it detects such a change.
 	 */
+	override val helpTag: String = TooltipTag.CAROUSEL_CHART_MEMORY
+
 	@UiThread
 	override fun rebuild() {
 		val chart = this.chart ?: return

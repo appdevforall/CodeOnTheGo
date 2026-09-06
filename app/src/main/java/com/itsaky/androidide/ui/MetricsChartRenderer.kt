@@ -22,6 +22,7 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
+import androidx.annotation.VisibleForTesting
 import com.github.mikephil.charting.components.AxisBase
 import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
@@ -31,8 +32,10 @@ import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.github.mikephil.charting.listener.ChartTouchListener
 import com.github.mikephil.charting.listener.OnChartGestureListener
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.resolveAttr
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import kotlin.math.roundToLong
 
 /**
@@ -62,6 +65,34 @@ abstract class MetricsChartRenderer(
 	 * where it drew it.
 	 */
 	var onXAxisTap: (() -> Unit)? = null
+
+	/**
+	 * The help tag for this page's plot, shown on a long press (ADFA-5510).
+	 *
+	 * Routed through the chart's own gesture listener rather than [android.view.View.setOnLongClickListener]:
+	 * MPAndroidChart's `BarLineChartBase.onTouchEvent` hands the event to its touch listener and
+	 * never calls `super`, so the framework's long-press detection never runs and a view listener
+	 * would be installed, look wired, and never fire.
+	 */
+	protected open val helpTag: String? = null
+
+	/**
+	 * The help tag for a long press at [y], or `null` if this page has none.
+	 *
+	 * Separated from showing the tooltip so it can be tested: TooltipManager reads the docs
+	 * database from device storage in its static initialiser and cannot be loaded off-device.
+	 */
+	@VisibleForTesting
+	internal fun helpTagAt(y: Float): String? {
+		val chart = this.chart ?: return null
+		// The axis band answers for the sampling rate, the plot for the metric itself, matching
+		// where a tap goes.
+		return if (y >= chart.viewPortHandler.contentBottom()) {
+			TooltipTag.CAROUSEL_AXIS_TIME
+		} else {
+			helpTag
+		}
+	}
 
 	/**
 	 * Whether the user has pinched this chart.
@@ -236,7 +267,11 @@ abstract class MetricsChartRenderer(
 			lastPerformedGesture: ChartTouchListener.ChartGesture?,
 		) = Unit
 
-		override fun onChartLongPressed(me: MotionEvent?) = Unit
+		override fun onChartLongPressed(me: MotionEvent?) {
+			val y = me?.y ?: return
+			val tag = helpTagAt(y) ?: return
+			showIdeCategoryTooltipIfPresent(chart.context, chart, tag)
+		}
 
 		override fun onChartDoubleTapped(me: MotionEvent?) = Unit
 

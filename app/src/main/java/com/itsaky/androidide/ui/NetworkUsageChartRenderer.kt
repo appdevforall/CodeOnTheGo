@@ -25,6 +25,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.NetworkUsageWatcher.NetworkUsage
@@ -66,6 +67,8 @@ class NetworkUsageChartRenderer(
 	/**
 	 * Rebuilds both series from the full sample history.
 	 */
+	override val helpTag: String = TooltipTag.CAROUSEL_CHART_NETWORK
+
 	@UiThread
 	override fun rebuild() {
 		val chart = this.chart ?: return

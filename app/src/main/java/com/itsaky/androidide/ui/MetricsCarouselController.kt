@@ -22,10 +22,12 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.annotation.UiThread
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import androidx.viewpager2.widget.ViewPager2
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.IntentUtils
@@ -35,6 +37,8 @@ import com.itsaky.androidide.utils.MetricsSamplingRates
 import com.itsaky.androidide.utils.MetricsSnapshot
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.PowerUsageWatcher
+import com.itsaky.androidide.utils.displayTooltipOnLongPress
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -190,9 +194,34 @@ class MetricsCarouselController(
 		binding.metricsNext.setOnClickListener { step(1) }
 		updateArrows(binding.metricsPager.currentItem)
 
+		wireHelp(binding)
+
 		memoryUsageWatcher.listener = memoryListener
 		networkUsageWatcher.listener = networkListener
 		powerUsageWatcher.listener = powerListener
+	}
+
+	/**
+	 * Gives every control in the strip its long-press help (ADFA-5510).
+	 *
+	 * Here rather than at each host, because this runs for the docked strip and for the floating
+	 * window alike -- the window's own chrome already carries the `window-*` tags, and the carousel
+	 * inside it is this same controller.
+	 *
+	 * The charts are absent from this list on purpose: MPAndroidChart swallows the touch events a
+	 * view-level long press would need, so each renderer answers through the chart's gesture
+	 * listener instead.
+	 */
+	@UiThread
+	private fun wireHelp(binding: LayoutMemUsageBinding) {
+		val context = binding.root.context
+		binding.root.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_PANEL)
+		binding.metricsTitle.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_TITLE)
+		binding.metricsPrevious.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_PREVIOUS)
+		binding.metricsNext.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_NEXT)
+		binding.metricsSnapshot.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_SNAPSHOT)
+		binding.metricsBattery.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_BATTERY)
+		binding.metricsUndockedMessage.displayTooltipOnLongPress(context, TooltipTag.CAROUSEL_UNDOCKED)
 	}
 
 	/**
@@ -215,6 +244,22 @@ class MetricsCarouselController(
 		networkRenderer.onXAxisTap = null
 		powerRenderer.onXAxisTap = null
 		binding?.metricsSnapshot?.setOnClickListener(null)
+		binding?.let { bound ->
+			listOf(
+				bound.root,
+				bound.metricsTitle,
+				bound.metricsPrevious,
+				bound.metricsNext,
+				bound.metricsSnapshot,
+				bound.metricsBattery,
+				bound.metricsUndockedMessage,
+			).forEach { control ->
+				control.setOnLongClickListener(null)
+				// setOnLongClickListener(null) leaves isLongClickable set, so the view would still
+				// claim a long press it no longer answers.
+				control.isLongClickable = false
+			}
+		}
 		binding?.metricsPrevious?.setOnClickListener(null)
 		binding?.metricsNext?.setOnClickListener(null)
 		pageCallback?.let { binding?.metricsPager?.unregisterOnPageChangeCallback(it) }
@@ -340,7 +385,14 @@ class MetricsCarouselController(
 				// No setMessage: an AlertDialog shows either a message or a list, never both, and
 				// the message silently wins. The unavailable entries carry the explanation instead.
 				.setNegativeButton(string.cancel) { dismissable, _ -> dismissable.dismiss() }
+				// A dialog has no free surface to long-press, so help is a button here rather than a
+				// gesture. It does not dismiss: the point is to read it and then choose a rate.
+				.setNeutralButton(string.help, null)
 				.show()
+
+		dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener { helpAnchor ->
+			showIdeCategoryTooltipIfPresent(context, helpAnchor, TooltipTag.CAROUSEL_RATE)
+		}
 	}
 
 	/**
