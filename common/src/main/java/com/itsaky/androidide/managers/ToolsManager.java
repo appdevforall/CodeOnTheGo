@@ -20,6 +20,7 @@ package com.itsaky.androidide.managers;
 import static org.adfa.constants.ConstantsKt.V7_KEY;
 import static org.adfa.constants.ConstantsKt.V8_KEY;
 
+import android.content.Context;
 import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
@@ -68,6 +69,25 @@ public class ToolsManager {
 
 	private static final String CHAR_POOL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
+	/** Serializes the app-init extraction pass against the tooling server's own pre-launch check. */
+	private static final Object TOOLING_JAR_LOCK = new Object();
+
+	/**
+	 * Makes the jar at {@link Environment#TOOLING_API_JAR} this install's, extracting it if it is not, and reports whether that succeeded. Idempotent and serialized: {@link #init} extracts asynchronously while the tooling server launches `java -jar` against the same path from the project-open path, so whichever arrives second blocks on the monitor and then finds the stamp already current.
+	 *
+	 * The tooling server must call this before launching. On an APK update the previous install's jar sits at the final path until the rename below completes, and a server that opens it first runs the prior APK's tooling jar for the whole session.
+	 *
+	 * @param context
+	 *            any context; used for its assets and package info
+	 * @return true when the jar at the final path is this install's
+	 */
+	@WorkerThread
+	public static boolean ensureToolingJar(Context context) {
+		synchronized (TOOLING_JAR_LOCK) {
+			return updateToolingJar(context);
+		}
+	}
+
 	public static String generateIssuerDN() {
 		SecureRandom random = new SecureRandom();
 		String country = Environment.KEYSTORE_EU_COUNTRY_CODES[random.nextInt(Environment.KEYSTORE_EU_COUNTRY_CODES.length)];
@@ -107,7 +127,7 @@ public class ToolsManager {
 			// Load installed JDK distributions
 			IJdkDistributionProvider.getInstance().loadDistributions();
 
-			updateToolingJar(app);
+			ensureToolingJar(app);
 			extractLogSender(app);
 
 			writeNoMediaFile();
@@ -130,7 +150,28 @@ public class ToolsManager {
 	}
 
 	/**
-	 * Copies the stream to a temp sibling of toolingJarFile, renames it into place, then writes the stamp. The tooling server starts concurrently with this extraction (both run at app init), and launching `java -jar` against a half-written jar kills project init ("An unexpected error occurred while trying to open file ..."), so a partial jar must never be visible at the final path. rename(2) within one directory atomically replaces the target on Linux. The stamp is written only after a successful rename, so a failure at any step leaves the stamp absent and the next launch retries. Always closes the stream.
+	 * The extraction decision, split from asset lookup so a test can supply the bytes. Opens the source only when the jar on disk is not this install's, which is what makes this cheap enough to call again on the tooling server's launch path.
+	 *
+	 * @return true when the jar at the final path is this install's once this returns
+	 */
+	@VisibleForTesting
+	static boolean ensureToolingJar(File toolingJarFile, File stampFile, String stamp, ToolingJarSource source) {
+		if (isToolingJarCurrent(toolingJarFile, stampFile, stamp)) {
+			return true;
+		}
+		final InputStream stream;
+		try {
+			stream = source.open();
+		} catch (IOException err) {
+			LOG.error("Tooling jar not found in assets", err);
+			return false;
+		}
+		extractToolingJar(stream, toolingJarFile, stampFile, stamp);
+		return isToolingJarCurrent(toolingJarFile, stampFile, stamp);
+	}
+
+	/**
+	 * Copies the stream to a temp sibling of toolingJarFile, renames it into place, then writes the stamp. This runs asynchronously from app init while the tooling server launches `java -jar` against the same path on project open, and launching against a half-written jar kills project init ("An unexpected error occurred while trying to open file ..."), so a partial jar must never be visible at the final path. rename(2) within one directory atomically replaces the target on Linux. The stamp is written only after a successful rename, so a failure at any step leaves the stamp absent and the next launch retries. The stale-jar half of the same race - the server reaching the final path before this rename and running the previous install's jar - is closed by {@link #ensureToolingJar(Context)}, which the server calls before launching. Always closes the stream.
 	 */
 	@VisibleForTesting
 	static void extractToolingJar(InputStream toolingJarStream, File toolingJarFile, File stampFile, String stamp) {
@@ -285,13 +326,24 @@ public class ToolsManager {
 	/**
 	 * Identity of the installed APK for the extraction stamp: versionName plus the package's lastUpdateTime, which changes on every (re)install - exactly when the bundled jar can change. Null (extract unconditionally) if the lookup fails.
 	 */
-	private static String installedApkStamp(BaseApplication app) {
+	private static String installedApkStamp(Context context) {
 		try {
-			final var info = app.getPackageManager().getPackageInfo(app.getPackageName(), 0);
+			final var info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
 			return info.versionName + ":" + info.lastUpdateTime;
 		} catch (Throwable err) {
 			LOG.warn("Could not read package info for tooling jar stamp", err);
 			return null;
+		}
+	}
+
+	/** The bundled tooling jar, plain or brotli-compressed depending on the build. */
+	private static InputStream openToolingJarAsset(Context context) throws IOException {
+		final var assets = context.getAssets();
+		final var toolingJarName = getCommonAsset("tooling-api-all.jar");
+		try {
+			return assets.open(toolingJarName);
+		} catch (IOException err) {
+			return new BrotliInputStream(assets.open(toolingJarName + ".br"));
 		}
 	}
 
@@ -352,7 +404,7 @@ public class ToolsManager {
 	}
 
 	@WorkerThread
-	private static void updateToolingJar(BaseApplication app) {
+	private static boolean updateToolingJar(Context context) {
 		// Ensure relevant shared libraries are loaded
 		Brotli4jLoader.ensureAvailability();
 
@@ -360,27 +412,8 @@ public class ToolsManager {
 		// project init for every user, Quick Build or not, so gating would leave flag-off users exposed.
 		final var toolingJarFile = Environment.TOOLING_API_JAR;
 		final var stampFile = new File(toolingJarFile.getParentFile(), toolingJarFile.getName() + ".stamp");
-		final var stamp = installedApkStamp(app);
-		if (isToolingJarCurrent(toolingJarFile, stampFile, stamp)) {
-			// The jar from this exact APK install is already extracted; skip the copy.
-			return;
-		}
-
-		final var assets = app.getAssets();
-		final var toolingJarName = "tooling-api-all.jar";
-		InputStream toolingJarStream;
-		try {
-			toolingJarStream = assets.open(ToolsManager.getCommonAsset(toolingJarName));
-		} catch (IOException e) {
-			try {
-				toolingJarStream = new BrotliInputStream(assets.open(ToolsManager.getCommonAsset(toolingJarName + ".br")));
-			} catch (IOException e2) {
-				LOG.error("Tooling jar not found in assets {}", e2.getMessage());
-				return;
-			}
-		}
-
-		extractToolingJar(toolingJarStream, toolingJarFile, stampFile, stamp);
+		return ensureToolingJar(toolingJarFile, stampFile, installedApkStamp(context),
+				() -> openToolingJarAsset(context));
 	}
 
 	private static void writeInitScript() {
@@ -401,6 +434,13 @@ public class ToolsManager {
 				LOG.error("Failed to create .nomedia file in projects directory");
 			}
 		}
+	}
+
+	/** Opens the bundled tooling jar asset. Called only when the jar on disk is not this install's. */
+	@VisibleForTesting
+	interface ToolingJarSource {
+
+		InputStream open() throws IOException;
 	}
 
 }
