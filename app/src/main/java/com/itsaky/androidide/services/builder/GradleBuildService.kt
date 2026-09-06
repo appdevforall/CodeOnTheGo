@@ -24,6 +24,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.text.TextUtils
+import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationManagerCompat
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.analytics.IAnalyticsManager
@@ -174,6 +175,38 @@ class GradleBuildService :
 		)
 
 	companion object {
+		@VisibleForTesting
+		internal fun wrap(listener: EventListener?): EventListener? =
+			if (listener == null) {
+				null
+			} else {
+				object : EventListener {
+					override fun onBuildCancelRequested() {
+						runOnUiThread { listener.onBuildCancelRequested() }
+					}
+
+					override fun prepareBuild(buildInfo: BuildInfo) {
+						runOnUiThread { listener.prepareBuild(buildInfo) }
+					}
+
+					override fun onBuildSuccessful(tasks: List<String?>) {
+						runOnUiThread { listener.onBuildSuccessful(tasks) }
+					}
+
+					override fun onProgressEvent(event: ProgressEvent) {
+						runOnUiThread { listener.onProgressEvent(event) }
+					}
+
+					override fun onBuildFailed(tasks: List<String?>) {
+						runOnUiThread { listener.onBuildFailed(tasks) }
+					}
+
+					override fun onOutput(line: String?) {
+						runOnUiThread { listener.onOutput(line) }
+					}
+				}
+			}
+
 		private val log = LoggerFactory.getLogger(GradleBuildService::class.java)
 		private val NOTIFICATION_ID = R.string.app_name
 		private val SERVER_System_err = LoggerFactory.getLogger("ToolingApiErrorStream")
@@ -750,33 +783,6 @@ class GradleBuildService :
 		return this
 	}
 
-	private fun wrap(listener: EventListener?): EventListener? =
-		if (listener == null) {
-			null
-		} else {
-			object : EventListener {
-				override fun prepareBuild(buildInfo: BuildInfo) {
-					runOnUiThread { listener.prepareBuild(buildInfo) }
-				}
-
-				override fun onBuildSuccessful(tasks: List<String?>) {
-					runOnUiThread { listener.onBuildSuccessful(tasks) }
-				}
-
-				override fun onProgressEvent(event: ProgressEvent) {
-					runOnUiThread { listener.onProgressEvent(event) }
-				}
-
-				override fun onBuildFailed(tasks: List<String?>) {
-					runOnUiThread { listener.onBuildFailed(tasks) }
-				}
-
-				override fun onOutput(line: String?) {
-					runOnUiThread { listener.onOutput(line) }
-				}
-			}
-		}
-
 	private fun startServerOutputReader(input: InputStream): Job {
 		outputReaderJob?.let { job ->
 			if (job.isActive) {
@@ -814,10 +820,14 @@ class GradleBuildService :
 		 * Called when the user asks for the running build to stop.
 		 *
 		 * The tooling API reports a cancelled build through [onBuildFailed], so a listener that
-		 * wants to tell the two apart has to be told here. Defaulted, because only a listener that
-		 * cares about the distinction needs it.
+		 * wants to tell the two apart has to be told here.
+		 *
+		 * Deliberately not defaulted. It was, and the forwarding wrapper in [GradleBuildService]
+		 * then quietly inherited the no-op instead of passing it on -- so the cancel never reached
+		 * the real listener, and a build the user stopped went on being annotated as a failure. A
+		 * member with no default cannot be forgotten by a wrapper; the compiler asks for it.
 		 */
-		fun onBuildCancelRequested() = Unit
+		fun onBuildCancelRequested()
 
 		/**
 		 * Called just before a build is started.
