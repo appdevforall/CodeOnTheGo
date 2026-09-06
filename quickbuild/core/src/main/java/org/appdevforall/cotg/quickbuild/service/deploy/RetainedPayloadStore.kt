@@ -54,7 +54,8 @@ internal class RetainedPayloadStore(
 	 * The swap goes through a staging dir: a crash at any point leaves either the previous
 	 * set, or nothing - never a half-written mix that [load] could hand to a re-send. A
 	 * delete that fails is the same case: [purge] invalidates the old set before removing it,
-	 * so this deploy failing to retain leaves nothing to load rather than the older set.
+	 * so this deploy failing to retain leaves nothing to load rather than the older set - as
+	 * far as [purge] can still record it, which its own contract bounds.
 	 *
 	 * @param generation the generation the confirmed deploy claimed
 	 * @param dexFile the deployed classes, or null when the build moved no code
@@ -105,6 +106,10 @@ internal class RetainedPayloadStore(
 	 *   (missing part, corrupt metadata) - either way the caller falls back to rebuilding
 	 */
 	fun load(): RetainedPayload? {
+		if (invalidMarker().isFile) {
+			log.warn("Retained payload under {} could not be invalidated in place; refusing it", dir)
+			return null
+		}
 		val meta = File(dir, META_NAME)
 		if (!meta.isFile) return null
 		return try {
@@ -129,7 +134,7 @@ internal class RetainedPayloadStore(
 	 */
 	fun clear() {
 		if (!purge()) {
-			log.warn("Could not fully drop the retained payload under {}; it is invalidated but its parts remain", dir)
+			log.warn("Could not fully drop the retained payload under {}; its parts remain", dir)
 		}
 		stagingDir().deleteRecursively()
 	}
@@ -145,16 +150,37 @@ internal class RetainedPayloadStore(
 	 * closed in the case where the recursive delete cannot finish at all. [load] keys off the
 	 * metadata alone, so once it is unreadable the rest of the tree is inert.
 	 *
-	 * @return true when the directory is gone; false when parts of it survive, in which case
-	 *   the set is still unreadable but the caller cannot rename a new one into place
+	 * Both can fail together, though - a read-only [META_NAME] under a read-only [dir] refuses
+	 * the write and the unlink alike - and then nothing inside [dir] has changed, so [load]
+	 * would parse the superseded metadata and re-send a baseline the session has moved past.
+	 * The marker beside [dir] is the third place to record it: it needs only the parent, which
+	 * [retain] must be able to write anyway to rename its staging dir into place.
+	 *
+	 * @return true when the directory is gone; false when parts of it survive, in which case the
+	 *   caller cannot rename a new set into place. A false still leaves the old set unreadable -
+	 *   by the emptied [META_NAME], or by the marker when that write was refused too - except
+	 *   where neither could be written at all, which is a store whose whole tree has gone
+	 *   read-only and which [clear] can then only log
 	 */
 	private fun purge(): Boolean {
 		val meta = File(dir, META_NAME)
-		if (meta.isFile) {
-			runCatching { meta.writeText("") }
+		val invalidated = !meta.isFile || runCatching { meta.writeText("") }.isSuccess
+		if (!invalidated) {
+			runCatching { invalidMarker().writeText(dir.name) }
 		}
-		return dir.deleteRecursively()
+		if (!dir.deleteRecursively()) return false
+		// The set is gone, so the marker has nothing left to refuse; leaving it would refuse
+		// whatever the next retain puts here.
+		invalidMarker().delete()
+		return true
 	}
+
+	/**
+	 * The marker that makes [load] refuse a retained set [purge] could not invalidate in place.
+	 * It sits beside [dir] rather than inside it, because the case it exists for is [dir] being
+	 * unwritable.
+	 */
+	private fun invalidMarker(): File = File(dir.parentFile, dir.name + ".invalid")
 
 	/**
 	 * One payload part of the retained set.
