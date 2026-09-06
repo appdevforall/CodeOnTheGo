@@ -20,8 +20,11 @@ package com.itsaky.androidide.ui
 import android.content.Context
 import android.util.AttributeSet
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.isVisible
+import com.itsaky.androidide.R
 import org.slf4j.LoggerFactory
 import kotlin.math.hypot
 
@@ -56,6 +59,30 @@ class MetricsCarouselLayout
 
 		/** Invoked as each gesture begins. */
 		var onTouchDown: (() -> Unit)? = null
+
+		/**
+		 * Shows either the carousel or the "it is in a floating window" message, never a mix.
+		 *
+		 * The whole strip switches, not just the pager. The arrows and the snapshot button are
+		 * chrome for a chart that is not here: left behind they sit over the message, and the
+		 * camera is inert anyway because undocking unbinds the controller that listens to it.
+		 * Keeping the set here rather than at the call site is what stops a control added later
+		 * from being forgotten again.
+		 */
+		fun setUndocked(undocked: Boolean) {
+			val carouselIds =
+				intArrayOf(
+					R.id.metrics_pager,
+					R.id.metrics_title,
+					R.id.metrics_previous,
+					R.id.metrics_next,
+					R.id.metrics_snapshot,
+				)
+			carouselIds.forEach { id ->
+				findViewById<View>(id)?.isVisible = !undocked
+			}
+			findViewById<View>(R.id.metrics_undocked_message)?.isVisible = undocked
+		}
 
 		private var twoFingerDownAt = 0L
 
