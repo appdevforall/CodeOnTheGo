@@ -47,7 +47,6 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.Checkable
-import com.itsaky.androidide.models.installTaskRequestsIn
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
@@ -204,7 +203,7 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 					}
 
 					val toRun = viewModel.selected.toList()
-					if (installTaskRequestsIn(toRun).isEmpty()) {
+					if (!buildViewModel.installsAnAppVariant(toRun)) {
 						buildService.executeTasks(*toRun.toTypedArray())
 					} else if (!buildViewModel.runTasks(toRun)) {
 						flashError(R.string.build_in_progress_warning)

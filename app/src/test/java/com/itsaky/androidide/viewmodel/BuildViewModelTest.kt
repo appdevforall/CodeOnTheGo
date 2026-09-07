@@ -18,13 +18,19 @@
 package com.itsaky.androidide.viewmodel
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.project.AndroidModels
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
+import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Rule
 import org.junit.Test
+import java.util.concurrent.CompletableFuture
 
 /**
  * Covers [BuildViewModel.runQuickBuild]'s single-build guard. The dispatcher is deliberately
@@ -38,6 +44,14 @@ class BuildViewModelTest {
 
 	private val module = mockk<AndroidModule>(relaxed = true)
 	private val variant: AndroidModels.AndroidVariant = AndroidModels.AndroidVariant.getDefaultInstance()
+
+	private fun awaitOutcome(outcomes: List<BuildState>) {
+		repeat(100) {
+			mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+			if (outcomes.isNotEmpty()) return
+			Thread.sleep(20)
+		}
+	}
 
 	@Test
 	fun `givenAQueuedBuild_whenASecondRequestArrivesBeforeItRuns_thenTheSecondIsRejected`() {
@@ -81,6 +95,49 @@ class BuildViewModelTest {
 
 		assertThat(accepted).isTrue()
 		assertThat(viewModel.buildState.value).isEqualTo(BuildState.InProgress)
+	}
+
+	@Test
+	fun `givenTheProjectModel_thenOnlyInstallTasksOfAnAppVariantAreRoutedToTheInstaller`() {
+		val debug =
+			AndroidModels.AndroidVariant
+				.newBuilder()
+				.setName("debug")
+				.setMainArtifact(AndroidModels.AndroidArtifact.newBuilder().setAssembleTaskName("assembleDebug"))
+				.build()
+		val app =
+			mockk<AndroidModule> {
+				every { path } returns ":app"
+				every { variantList } returns listOf(debug)
+			}
+		val projectManager = mockk<IProjectManager> { every { getAndroidAppModules() } returns listOf(app) }
+		val viewModel = BuildViewModel { projectManager }
+
+		assertThat(viewModel.installsAnAppVariant(listOf(":app:installDebug"))).isTrue()
+		assertThat(viewModel.installsAnAppVariant(listOf("installDebug", ":app:assembleDebug"))).isTrue()
+		assertThat(viewModel.installsAnAppVariant(listOf(":app:installRelease"))).isFalse()
+		assertThat(viewModel.installsAnAppVariant(listOf(":lib:installDebug"))).isFalse()
+		assertThat(viewModel.installsAnAppVariant(listOf(":installDist", ":app:installGitHooks"))).isFalse()
+	}
+
+	@Test
+	fun `givenANullTaskResult_whenTasksRun_thenTheFailureIsReportedInsteadOfCrashing`() {
+		val buildService =
+			mockk<BuildService> {
+				every { executeTasks(any<List<String>>()) } returns CompletableFuture.completedFuture<TaskExecutionResult>(null)
+			}
+		Lookup.getDefault().register(BuildService.KEY_BUILD_SERVICE, buildService)
+		try {
+			val viewModel = BuildViewModel()
+			val outcomes = mutableListOf<BuildState>()
+
+			viewModel.runTasks(listOf(":app:installDebug")) { outcomes += it }
+			awaitOutcome(outcomes)
+
+			assertThat(outcomes).containsExactly(BuildState.Error("Task execution failed: null"))
+		} finally {
+			Lookup.getDefault().unregister(BuildService.KEY_BUILD_SERVICE)
+		}
 	}
 
 	@Test

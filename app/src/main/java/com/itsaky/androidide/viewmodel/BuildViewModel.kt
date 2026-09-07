@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.ApkMetadata
+import com.itsaky.androidide.models.InstallTaskRequest
 import com.itsaky.androidide.models.installTaskRequestsIn
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.IProjectManager
@@ -25,7 +26,9 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 
-class BuildViewModel : ViewModel() {
+class BuildViewModel(
+	private val projectManager: () -> IProjectManager = { IProjectManager.getInstance() },
+) : ViewModel() {
 	private val log = LoggerFactory.getLogger(BuildViewModel::class.java)
 
 	private val _buildState = MutableStateFlow<BuildState>(BuildState.Idle)
@@ -177,8 +180,8 @@ class BuildViewModel : ViewModel() {
 			}
 			try {
 				val result = withContext(Dispatchers.IO) { buildService.executeTasks(tasks) }.await()
-				if (!result.isSuccessful) {
-					throw RuntimeException("Task execution failed: ${result.failure}")
+				if (result == null || !result.isSuccessful) {
+					throw RuntimeException("Task execution failed: ${result?.failure}")
 				}
 				val apkFile = withContext(Dispatchers.IO) { apkForInstallRequests(tasks) }
 				if (apkFile == null) {
@@ -199,24 +202,22 @@ class BuildViewModel : ViewModel() {
 		return true
 	}
 
+	fun installsAnAppVariant(tasks: List<String>): Boolean = installTaskRequestsIn(tasks).any { appVariantFor(it) != null }
+
+	private fun appVariantFor(request: InstallTaskRequest): AndroidModels.AndroidVariant? =
+		projectManager()
+			.getAndroidAppModules()
+			.filter { request.modulePath == null || it.path == request.modulePath }
+			.firstNotNullOfOrNull { module ->
+				module.variantList.firstOrNull { it.mainArtifact.assembleTaskName == request.assembleTaskName }
+			}
+
 	private fun apkForInstallRequests(tasks: List<String>): File? {
-		val requests = installTaskRequestsIn(tasks)
-		if (requests.isEmpty()) return null
-		if (requests.size > 1) {
-			log.warn("Several install tasks were requested; only {} is installed.", requests.first())
+		val resolved = installTaskRequestsIn(tasks).mapNotNull { request -> appVariantFor(request)?.let { request to it } }
+		val (request, variant) = resolved.firstOrNull() ?: return null
+		if (resolved.size > 1) {
+			log.warn("Several install tasks were requested; only {} is installed.", request)
 		}
-		val request = requests.first()
-		val variant =
-			IProjectManager
-				.getInstance()
-				.getAndroidAppModules()
-				.filter { request.modulePath == null || it.path == request.modulePath }
-				.firstNotNullOfOrNull { module ->
-					module.variantList.firstOrNull { it.mainArtifact.assembleTaskName == request.assembleTaskName }
-				}
-				?: throw RuntimeException(
-					"No Android application variant is assembled by '${request.assembleTaskName}' in ${request.modulePath ?: "the project"}.",
-				)
 		val apkFile =
 			ApkMetadata.findApkFile(variant.mainArtifact.assembleTaskOutputListingFile)
 				?: throw RuntimeException("No APK found in output listing file.")
