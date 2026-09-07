@@ -13,7 +13,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Owns the payload's resource and asset overrides.
@@ -106,15 +109,17 @@ final class ResourceStore {
 	private long swappedGeneration = -1;
 
 	/**
-	 * Newest generation whose deploy was abandoned, or -1 when none has been.
+	 * Generations whose deploy was abandoned and whose swaps must therefore be refused.
 	 *
 	 * A swap is queued on the main thread and commits after the deploy method that queued it has returned, so a deploy that fails a later step - applyTable posts before applyAssets can throw - has its rollback run while its own table swap is still queued. Without this the abandoned generation's table commits over the dex the rollback just restored, and the screen renders a generation nothing else in the process believes is live.
 	 *
 	 * Refusing the commit is the whole remedy. Undoing one is not available: the store keeps single provider slots and closes the previous provider after each swap, and the API 28/29 path cannot unmount an added asset path at all.
 	 *
+	 * A set rather than a high-water mark, because two generations can be in flight at once with the OLDER one still healthy: a cold start restores persisted gen 10 on its own thread while CoGo's catch-up gen 11 arrives and fails. A watermark at 11 refused gen 10's swap, and a refused swap reports committed, so the restore logged success over the baseline table. Entries below {@link #swappedGeneration} are dropped as swaps commit, since the overtaken rule already refuses them.
+	 *
 	 * Written and read under the monitor, like {@link #swappedGeneration}.
 	 */
-	private long abandonedGeneration = -1;
+	private final Set<Long> abandonedGenerations = new HashSet<>();
 
 	/**
 	 * @param strategy
@@ -132,15 +137,13 @@ final class ResourceStore {
 	/**
 	 * Records that a generation's deploy was abandoned, so any swap it has already queued is refused rather than committed.
 	 *
-	 * Called by the runtime from both places that give up on a generation: a swap that failed, and a deploy step that threw after an earlier swap was already posted.
+	 * Called by the runtime from every place that gives up on a generation: a swap that failed, a deploy step that threw after an earlier swap was already posted, and the boot restore's equivalents of both.
 	 *
 	 * @param generation
-	 *            the abandoned generation; an older one than the newest already abandoned is ignored
+	 *            the abandoned generation; only its own swaps are refused, never another generation's
 	 */
 	synchronized void abandon(long generation) {
-		if (generation > abandonedGeneration) {
-			abandonedGeneration = generation;
-		}
+		abandonedGenerations.add(generation);
 	}
 
 	/**
@@ -262,6 +265,24 @@ final class ResourceStore {
 	}
 
 	/**
+	 * Records a committed swap, and forgets abandoned generations the overtaken rule now covers.
+	 *
+	 * Package-private so the pruning is JVM-tested; the three swap bodies call it under the monitor.
+	 *
+	 * @param generation
+	 *            the generation whose swap just took
+	 */
+	synchronized void recordSwapped(long generation) {
+		swappedGeneration = generation;
+		Iterator<Long> abandoned = abandonedGenerations.iterator();
+		while (abandoned.hasNext()) {
+			if (abandoned.next() < generation) {
+				abandoned.remove();
+			}
+		}
+	}
+
+	/**
 	 * Whether a queued swap must be dropped instead of committed.
 	 *
 	 * Two reasons, and they are different failures. Overtaken: a newer generation's swap already committed, so installing this one would put the older table back under the newer generation's label. Abandoned: this generation's own deploy gave up, so committing would render a generation whose rollback has already run.
@@ -271,13 +292,13 @@ final class ResourceStore {
 	 * @return true when the swap must be dropped
 	 */
 	synchronized boolean refusesSwap(long generation) {
-		return generation < swappedGeneration || generation <= abandonedGeneration;
+		return generation < swappedGeneration || abandonedGenerations.contains(generation);
 	}
 
 	/**
 	 * The newest generation whose swap has committed, or -1 before the first.
 	 *
-	 * For the failure path: a deploy that threw after its table swap had already committed has left that table live, and nothing can take it down again (see {@link #abandonedGeneration}). Read only after {@link #abandon} for the same generation, so a swap still queued at that point is refused rather than committing later and changing the answer.
+	 * For the failure path: a deploy that threw after its table swap had already committed has left that table live, and nothing can take it down again (see {@link #abandonedGenerations}). Read only after {@link #abandon} for the same generation, so a swap still queued at that point is refused rather than committing later and changing the answer.
 	 *
 	 * @return the committed generation, which the failure path compares with the one that failed
 	 */
@@ -333,9 +354,8 @@ final class ResourceStore {
 						// generation's label, and hand that apk to every later activity; mounting
 						// an abandoned one would mount the table of a generation whose rollback
 						// has already run.
-						RuntimeLog.w("dropping legacy table swap for gen " + generation
-								+ "; gen " + swappedGeneration + " committed, gen "
-								+ abandonedGeneration + " abandoned");
+						RuntimeLog.w("dropping legacy table swap for gen " + generation + ": "
+								+ refusalReason(generation));
 						return;
 					}
 					Resources appResources = appContext.getResources();
@@ -351,7 +371,7 @@ final class ResourceStore {
 					}
 					// Recorded only after the mount took, as in both loader swaps.
 					legacyTableZip = zip;
-					swappedGeneration = generation;
+					recordSwapped(generation);
 					LegacyResourceSwap.flushCaches(appResources);
 				}
 			}
@@ -390,9 +410,8 @@ final class ResourceStore {
 							// overtaken one would put the older table back under the newer generation's
 							// label; installing an abandoned one would serve a table whose dex has
 							// already been rolled back.
-							RuntimeLog.w("dropping table swap for gen " + generation + "; gen "
-									+ swappedGeneration + " committed, gen " + abandonedGeneration
-									+ " abandoned");
+							RuntimeLog.w("dropping table swap for gen " + generation + ": "
+									+ refusalReason(generation));
 							Streams.closeQuietly(next);
 							return;
 						}
@@ -411,7 +430,7 @@ final class ResourceStore {
 						}
 						// Recorded only after the install took: a rejected swap leaves the previous set
 						// live, so it must not block the next deploy from installing over it.
-						swappedGeneration = generation;
+						recordSwapped(generation);
 						attachAppResources(appContext);
 						Streams.closeQuietly(previous);
 					}
@@ -522,9 +541,8 @@ final class ResourceStore {
 						// Overtaken or abandoned, same as the table swap: a newer generation's providers
 						// are already installed and this pair would replace them with the older override
 						// dir, or this generation's own deploy has already been rolled back.
-						RuntimeLog.w("dropping assets swap for gen " + generation + "; gen "
-								+ swappedGeneration + " committed, gen " + abandonedGeneration
-								+ " abandoned");
+						RuntimeLog.w("dropping assets swap for gen " + generation + ": "
+								+ refusalReason(generation));
 						Streams.closeQuietly(next);
 						Streams.closeQuietly(nextDir);
 						return;
@@ -545,7 +563,7 @@ final class ResourceStore {
 						throw error;
 					}
 					// Recorded only after the install took, as in the table swap.
-					swappedGeneration = generation;
+					recordSwapped(generation);
 					attachAppResources(appContext);
 					Streams.closeQuietly(previous);
 					Streams.closeQuietly(previousDir);
@@ -557,6 +575,19 @@ final class ResourceStore {
 			Streams.closeQuietly(next);
 			Streams.closeQuietly(nextDir);
 		}
+	}
+
+	/**
+	 * Names why {@link #refusesSwap} refused a generation, for the dropped-swap log lines.
+	 *
+	 * @param generation
+	 *            the refused generation
+	 * @return the reason, in the form the three swap bodies append to their log line
+	 */
+	private synchronized String refusalReason(long generation) {
+		return abandonedGenerations.contains(generation)
+				? "abandoned"
+				: "overtaken by gen " + swappedGeneration;
 	}
 
 	/**
