@@ -17,6 +17,29 @@ class PersistedSelectionTest {
 	@TempDir
 	File dir;
 
+	/**
+	 * A dex-only generation has no boot restore to run. Stashing it as pending used to start a restore thread that swapped nothing and then recreated the first activity for it, on every cold start of a project that never deployed resources.
+	 */
+	@Test
+	void aDexOnlyGenerationHasNoResourcesToRestore() {
+		PayloadPersistence.Loaded loaded = new PayloadPersistence.Loaded(3,
+				"dex".getBytes(StandardCharsets.UTF_8), null, null);
+
+		assertThat(loaded.hasResources()).isFalse();
+	}
+
+	@Test
+	void aGenerationWithATableOrAssetsHasResourcesToRestore() {
+		byte[] dex = "dex".getBytes(StandardCharsets.UTF_8);
+
+		assertThat(new PayloadPersistence.Loaded(3, dex, new File(dir, "res.zip"), null)
+				.hasResources()).isTrue();
+		assertThat(new PayloadPersistence.Loaded(3, dex, null, new File(dir, "assets.zip"))
+				.hasResources()).isTrue();
+		assertThat(new PayloadPersistence.Loaded(3, null, new File(dir, "res.zip"), null)
+				.hasResources()).isTrue();
+	}
+
 	@Test
 	void anEmptyStoreBootsTheBakedBaseline() {
 		assertThat(PersistedSelection.selectPersisted(8, store(), fingerprint())).isNull();
