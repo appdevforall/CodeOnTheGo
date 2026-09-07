@@ -387,7 +387,10 @@ final class QuickBuildRuntime {
 					// undoes it is still on another thread. Marking rather than removing
 					// the callback also covers the inline swap, which fails before the
 					// recreate has been posted at all.
-					ackGate.failed();
+					if (!ackGate.failed()) {
+						// Both posts refused by a quitting looper: one rollback, not two.
+						return;
+					}
 					abandonedReloadGeneration = generation;
 					// A deploy carrying both payloads has a second swap that may still be
 					// queued behind this one; committing it would serve this generation's
@@ -1053,7 +1056,17 @@ final class QuickBuildRuntime {
 
 			@Override
 			public void onSwapFailed(Throwable error) {
-				gate.failed();
+				// Same two guards as the deploy path's listener. A persisted generation
+				// carrying both a table and assets has a second swap queued behind the one
+				// that failed; without the abandon it commits anyway, and the process runs
+				// this generation's assets over the baseline table while the banner says
+				// only the table is missing. Reporting only the first failure keeps a
+				// second one - both posts refused by a quitting looper - from raising a
+				// second banner and a second crash report for one boot.
+				if (!gate.failed()) {
+					return;
+				}
+				ResourceStore.INSTANCE.abandon(generation);
 				onBootRestoreFailed(generation, error);
 			}
 		};
