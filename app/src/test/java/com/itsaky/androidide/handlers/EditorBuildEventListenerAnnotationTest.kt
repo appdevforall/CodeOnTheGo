@@ -18,6 +18,8 @@
 package com.itsaky.androidide.handlers
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.tooling.events.internal.DefaultOperationDescriptor
 import com.itsaky.androidide.tooling.events.internal.DefaultProgressEvent
@@ -70,6 +72,31 @@ class EditorBuildEventListenerAnnotationTest {
 			eventTime = 0L,
 			descriptor = DefaultOperationDescriptor(name = "configure", displayName = "Configure"),
 		)
+
+	@Test
+	fun `preparing a build clears a stale cancel, even with no activity attached`() {
+		listener.cancelRequested = true
+
+		// No activity is attached here, so prepareBuild returns early -- which is the point. This
+		// listener outlives any one activity, and a cancel whose onBuildFailed arrived without one
+		// would otherwise leave the flag set for the next build to inherit and be mislabelled.
+		listener.prepareBuild(BuildInfo(BuildId.Unknown, listOf(":app:assembleDebug")))
+
+		assertThat(listener.cancelRequested).isFalse()
+	}
+
+	@Test
+	fun `preparing a build clears a stale pairing`() {
+		listener.annotatedBuild = true
+
+		// The flag means "a start marker was drawn for the build now running", so a new build
+		// must not inherit it: the outcome callbacks read it to decide whether to draw the other
+		// half of the pair, and they are handed a different task list from this one. Cleared
+		// before the activity check for the same reason as the cancel flag.
+		listener.prepareBuild(BuildInfo(BuildId.Unknown, listOf(":app:assembleDebug")))
+
+		assertThat(listener.annotatedBuild).isFalse()
+	}
 
 	@Test
 	fun `a task starting is annotated`() {

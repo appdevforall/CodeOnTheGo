@@ -53,7 +53,19 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	 * Set when the user asks for the running build to stop, so [onBuildFailed] can tell a cancel
 	 * from a real failure. Cleared as each build is prepared.
 	 */
-	private var cancelRequested = false
+	@VisibleForTesting
+	internal var cancelRequested = false
+
+	/**
+	 * Whether the build now running drew a "Build started" marker.
+	 *
+	 * The outcome callbacks used to decide for themselves, from the task list they are handed --
+	 * a different list from the one prepareBuild sees. If those two ever disagreed the chart got
+	 * a start with no finish, or a finish with no start, which is the one thing a pair of markers
+	 * exists to avoid. The build that started decides, and its outcome follows.
+	 */
+	@VisibleForTesting
+	internal var annotatedBuild = false
 
 	private var enabled = true
 	private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
@@ -87,14 +99,23 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	}
 
 	override fun prepareBuild(buildInfo: BuildInfo) {
-		val act = checkActivity("prepareBuild") ?: return
-
+		// Before the activity check, not after: this listener outlives any one activity, so a
+		// build whose outcome arrived with none attached would otherwise leave both flags set for
+		// the next build to inherit -- a stale cancel mislabelling a real failure, or a stale
+		// pairing drawing a finish for a build that never started.
 		cancelRequested = false
+		annotatedBuild = false
+
+		val act = checkActivity("prepareBuild") ?: return
 
 		// A project sync runs through the same callbacks with no tasks, so annotating every
 		// prepareBuild put a "Build started" marker on the chart merely for opening a project --
 		// and blamed the sync's own memory spike on a build the user never ran.
+		//
+		// The outcome callbacks are handed their own task list, which is not this one. Recorded
+		// here so the pair is decided once, by the build that started.
 		if (buildInfo.tasks.isNotEmpty()) {
+			annotatedBuild = true
 			act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_STARTED)
 		}
 
@@ -130,9 +151,10 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	override fun onBuildSuccessful(tasks: List<String?>) {
 		val act = checkActivity("onBuildSuccessful") ?: return
 
-		if (tasks.isNotEmpty()) {
+		if (annotatedBuild) {
 			act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_FINISHED)
 		}
+		annotatedBuild = false
 
 		pluginBuildService?.notifyBuildFinished()
 
@@ -193,7 +215,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	override fun onBuildFailed(tasks: List<String?>) {
 		val act = checkActivity("onBuildFailed") ?: return
 
-		if (tasks.isNotEmpty()) {
+		if (annotatedBuild) {
 			// A build the user stopped arrives through this same callback. Marking it as a failure
 			// would report their own deliberate action back to them in the error colour.
 			act.recordBuildAnnotation(
@@ -204,6 +226,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 				},
 			)
 		}
+		annotatedBuild = false
 		cancelRequested = false
 
 		analyzeCurrentFile()
