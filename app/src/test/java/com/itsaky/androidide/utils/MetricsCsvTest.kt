@@ -74,7 +74,7 @@ class MetricsCsvTest {
 		val lines = render(snapshot(rowTimes = LongArray(4)))
 
 		assertThat(lines).hasSize(1)
-		assertThat(lines.single()).isEqualTo(MetricsCsv.HEADER.joinToString(",") { "\"$it\"" })
+		assertThat(lines.single()).isEqualTo(EXPECTED_HEADER)
 	}
 
 	@Test
@@ -293,6 +293,18 @@ class MetricsCsvTest {
 	}
 
 	private companion object {
+		/**
+		 * The header line, spelled out rather than derived from [MetricsCsv.HEADER].
+		 *
+		 * This is the file's contract, and a test that builds its expectation from the same constant
+		 * the code builds the file from asserts only that the code is self-consistent -- a renamed
+		 * column or a change in how cells are quoted would rename it here too and stay green.
+		 * ADFA-5494 reads this format back, and ADFA-5526 and ADFA-5534 ship it inside reports, so a
+		 * schema change should have to come and edit this line on purpose.
+		 */
+		const val EXPECTED_HEADER =
+			"\"timestamp\",\"ide_pss_bytes\",\"gradle_tooling_pss_bytes\",\"gradle_daemon_pss_bytes\",\"net_rx_bytes\",\"net_tx_bytes\",\"battery_temp_millicelsius\",\"power_microwatts\",\"thermal_status\",\"annotation\",\"annotation_kind\""
+
 		/** 2026-09-06T22:33:40.123 in America/Los_Angeles, which is UTC-7 at that date. */
 		const val T0 = 1_788_759_220_123L
 	}
