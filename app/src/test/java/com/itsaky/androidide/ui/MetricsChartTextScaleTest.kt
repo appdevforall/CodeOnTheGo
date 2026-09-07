@@ -18,8 +18,13 @@
 package com.itsaky.androidide.ui
 
 import android.content.Context
+import android.view.LayoutInflater
+import android.view.View
+import androidx.appcompat.view.ContextThemeWrapper
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.LayoutMemUsageBinding
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import org.junit.Test
@@ -132,20 +137,58 @@ class MetricsChartTextScaleTest {
 	fun `eight annotation rows still fit the plot at the ceiling`() {
 		// The reason the ceiling is 1.5. The strip is a fixed height, and this is the constraint
 		// that sets the limit -- if it ever fails, the ceiling is too high or the strip too short.
+		//
+		// Measured, not guessed. This used to compare against a hand-picked 150dp with a comment
+		// admitting it was conservative, which pinned the ceiling against a number no layout change
+		// could ever move. The strip is laid out at the ceiling font scale and the pager reports
+		// what the title row -- itself grown by that scale -- left it.
 		val rows = MetricsChartRenderer.ANNOTATION_LABEL_SLOTS
 		val used = rows * MetricsChartRenderer.annotationRowHeightFor(context)
 
-		assertThat(used).isLessThan(PLOT_HEIGHT_DP)
+		assertThat(used).isLessThan(plotHeightDp())
+	}
+
+	/**
+	 * The plot area a chart page actually gets, in dp, with the system font scale at its largest.
+	 *
+	 * Measured the whole way down, with nothing allowed for by hand: the strip's height is the
+	 * dimen the layout uses, the pager's share of it comes from a real measure and layout of the
+	 * real strip, and the plot's share of *that* is the content rect a real chart page reports
+	 * after a real renderer has put its legend and axis on it. So shortening the strip fails this,
+	 * and so does anything above or inside the plot growing with the font scale.
+	 */
+	private fun plotHeightDp(): Float {
+		val themed = ContextThemeWrapper(context, R.style.Theme_AndroidIDE)
+		val strip = LayoutMemUsageBinding.inflate(LayoutInflater.from(themed))
+		val metrics = context.resources.displayMetrics
+		val stripHeightPx = context.resources.getDimensionPixelSize(R.dimen.editor_mem_usage_view_height)
+		val widthPx = (STRIP_WIDTH_DP * metrics.density).toInt()
+
+		strip.root.measure(
+			View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
+			View.MeasureSpec.makeMeasureSpec(stripHeightPx, View.MeasureSpec.EXACTLY),
+		)
+		strip.root.layout(0, 0, widthPx, stripHeightPx)
+
+		val page =
+			LayoutInflater
+				.from(themed)
+				.inflate(R.layout.item_metrics_chart, strip.metricsPager, false) as SafeLineChart
+		NetworkUsageChartRenderer(
+			usageProvider = {
+				NetworkUsageWatcher.NetworkUsage(LongArray(SAMPLES) { 1_000L }, LongArray(SAMPLES) { 500L })
+			},
+		).attach(page)
+		page.layOutAndDraw(width = strip.metricsPager.width, height = strip.metricsPager.height)
+
+		return page.viewPortHandler.contentHeight() / metrics.density
 	}
 
 	private companion object {
 		const val SAMPLES = 60
 		const val TOLERANCE = 0.01f
 
-		/**
-		 * The plot's share of editor_mem_usage_view_height (248dp), less the title row, the
-		 * legend and the x axis. Deliberately conservative.
-		 */
-		const val PLOT_HEIGHT_DP = 150f
+		/** A narrow phone, so the title row wraps here if it is ever going to. */
+		const val STRIP_WIDTH_DP = 360f
 	}
 }
