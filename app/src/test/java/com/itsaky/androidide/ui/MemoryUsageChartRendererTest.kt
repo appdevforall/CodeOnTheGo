@@ -23,6 +23,7 @@ import android.graphics.Color
 import android.view.View
 import androidx.collection.MutableIntObjectMap
 import androidx.test.core.app.ApplicationProvider
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.LineDataSet
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.utils.MemoryUsageWatcher
@@ -78,6 +79,20 @@ class MemoryUsageChartRendererTest {
 		chart: SafeLineChart,
 		index: Int,
 	) = chart.data.getDataSetByIndex(index) as LineDataSet
+
+	@Test
+	fun `every memory line is scaled by the axis that labels it`() {
+		val chart = laidOutChart(LongArray(SAMPLE_COUNT) { 100L * BYTES_PER_MB })
+
+		// configure() disables axisLeft and this renderer ranges and formats only axisRight, but
+		// MPAndroidChart defaults a dataset to LEFT -- so the lines were scaled by an axis nobody
+		// had configured while the labels beside them came from another.
+		val datasets = (0 until chart.data.dataSetCount).map { chart.data.getDataSetByIndex(it) }
+		assertThat(datasets).isNotEmpty()
+		for (dataset in datasets) {
+			assertThat(dataset.axisDependency).isEqualTo(YAxis.AxisDependency.RIGHT)
+		}
+	}
 
 	@Test
 	fun `attach renders the complete existing history, not a flat line`() {

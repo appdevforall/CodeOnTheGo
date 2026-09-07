@@ -18,6 +18,7 @@
 package com.itsaky.androidide.handlers
 
 import android.os.SystemClock
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
@@ -171,13 +172,23 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 			act.setStatus(event.descriptor.displayName)
 		}
 
-		// Annotate the metrics charts with task starts and stops (ADFA-5486). Gradle emits these
-		// far faster than a chart can show them -- dozens a second during configuration -- so the
-		// store throttles to one every five seconds and keeps the first of each quiet period.
-		if (event is TaskStartEvent || event is TaskFinishEvent) {
+		if (isAnnotated(event)) {
 			act.recordMetricsAnnotation(event.descriptor.displayName)
 		}
 	}
+
+	/**
+	 * Whether [event] is one the metrics charts annotate (ADFA-5486).
+	 *
+	 * Task starts and stops, and nothing else. Gradle emits these far faster than a chart can show
+	 * them -- dozens a second during configuration -- so the store throttles to one every five
+	 * seconds and keeps the first of each quiet period.
+	 *
+	 * Separated from [onProgressEvent] so the decision can be tested: that method needs a live
+	 * activity before it reaches this point, and returns early without one.
+	 */
+	@VisibleForTesting
+	internal fun isAnnotated(event: ProgressEvent): Boolean = event is TaskStartEvent || event is TaskFinishEvent
 
 	override fun onBuildFailed(tasks: List<String?>) {
 		val act = checkActivity("onBuildFailed") ?: return

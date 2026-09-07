@@ -21,6 +21,7 @@ import androidx.annotation.UiThread
 import androidx.collection.IntObjectMap
 import androidx.collection.MutableIntIntMap
 import com.github.mikephil.charting.components.AxisBase
+import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -95,6 +96,11 @@ class MemoryUsageChartRenderer(
 					},
 					proc.pname,
 				).apply {
+					// The right axis is the one configure() leaves enabled and the one this
+					// renderer ranges and formats. MPAndroidChart defaults a dataset to LEFT, so
+					// without this the lines were scaled by an axis nobody had configured while
+					// the labels beside them came from another.
+					axisDependency = YAxis.AxisDependency.RIGHT
 					color = lineColorFor(proc)
 					setDrawIcons(false)
 					setDrawCircles(false)
