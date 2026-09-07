@@ -278,13 +278,17 @@ abstract class MetricsChartRenderer(
 			// axis, and AxisBase defaults to drawing them.
 			axisLeft.setDrawGridLines(false)
 
-			// A dot, not a square, and smaller than the 15dp square each renderer used to ask for
-			// per dataset (ADFA-5553). The squares crowded the labels beside them and the axis
-			// below. Set here rather than on the datasets because that is the only place it holds:
-			// LegendRenderer takes the dataset's value whenever it is not NaN and only falls back
-			// to the legend otherwise, so a dataset that sets formSize silently wins and every new
-			// renderer has to remember not to.
+			// A dot, not the 15dp square each renderer used to ask for per dataset (ADFA-5553):
+			// the squares crowded the labels beside them and the axis below.
+			//
+			// On the legend, never on a dataset. LegendRenderer resolves each entry as
+			// `isNaN(entry.formSize) ? legend.formSize : entry.formSize`, and takes the legend's
+			// form only for an entry left at DEFAULT -- so a dataset that sets either one wins
+			// silently. The size itself is set in [applyTextScale], which has to re-apply it.
 			legend.form = Legend.LegendForm.CIRCLE
+			// Kept at the 1f the renderers used to ask for. Inert while the form is a circle, but
+			// leaving it NaN would silently adopt the library's 3f the day anyone chooses LINE.
+			legend.formLineWidth = 1f
 
 			onChartGestureListener = XAxisTapListener(this)
 
@@ -520,7 +524,12 @@ abstract class MetricsChartRenderer(
 		val scale = textScaleFor(chart.context)
 		chart.legend.textSize = BASE_TEXT_SIZE_DP * scale
 		// Scaled with its label: a fixed dot beside text at 1.5 reads as though it were shrinking.
+		// See [configure] for why the size is the legend's business and not a dataset's.
 		chart.legend.formSize = BASE_LEGEND_FORM_DP * scale
+		// The gaps go with them. Left fixed they close up as the text grows -- the same argument
+		// as the dot, applied to the space around it.
+		chart.legend.formToTextSpace = BASE_LEGEND_FORM_TO_TEXT_DP * scale
+		chart.legend.xEntrySpace = BASE_LEGEND_ENTRY_SPACE_DP * scale
 		chart.xAxis.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisLeft.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisRight.textSize = BASE_TEXT_SIZE_DP * scale
@@ -678,6 +687,12 @@ abstract class MetricsChartRenderer(
 		// Same order as [setData], and for the same reason: the bounds have to be in place before
 		// the notify that turns them into a transform.
 		applyAxisRanges(chart)
+		// Re-read the font scale here too, not only in [setData]. EditorActivityKt declares
+		// fontScale in configChanges, so the activity is never recreated for one -- and this is
+		// the only path a running chart takes per sample. Left out, a live scale change moved the
+		// annotation rows, which [applyAnnotations] re-reads below, while none of the text or the
+		// legend dot it spaces them for ever grew.
+		applyTextScale(chart)
 		chart.apply {
 			data.notifyDataChanged()
 			notifyDataSetChanged()
@@ -730,6 +745,12 @@ abstract class MetricsChartRenderer(
 		 * marker reads as part of its label rather than as a block beside it.
 		 */
 		const val BASE_LEGEND_FORM_DP = 8f
+
+		/** The gap between a legend dot and its label, in dp, at a font scale of 1. */
+		const val BASE_LEGEND_FORM_TO_TEXT_DP = 5f
+
+		/** The gap between one legend entry and the next, in dp, at a font scale of 1. */
+		const val BASE_LEGEND_ENTRY_SPACE_DP = 6f
 
 		/**
 		 * The most the chart will grow its text by, whatever the system font scale.

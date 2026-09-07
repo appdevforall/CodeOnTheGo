@@ -21,6 +21,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.github.mikephil.charting.components.Legend
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MutableShiftedLongArray
 import com.itsaky.androidide.utils.NetworkUsageWatcher
@@ -53,7 +54,7 @@ class MetricsChartLegendFormTest {
 					MemoryUsageWatcher.ProcessMemoryInfo(2, "Gradle Tooling", MutableShiftedLongArray(SAMPLES)),
 				)
 			},
-			lineColorFor = { 0 },
+			lineColorFor = { android.graphics.Color.BLUE },
 		).attach(chart)
 		return chart
 	}
@@ -88,21 +89,20 @@ class MetricsChartLegendFormTest {
 	@Test
 	fun `every page's legend marker is a dot`() {
 		charts().forEach { (name, chart) ->
-			assertThat(chart.legend.form).isEqualTo(Legend.LegendForm.CIRCLE)
-			assertThat(name to chart.legend.formSize)
-				.isEqualTo(name to MetricsChartRenderer.BASE_LEGEND_FORM_DP)
+			assertWithMessage(name).that(chart.legend.form).isEqualTo(Legend.LegendForm.CIRCLE)
 		}
 	}
+
+	// Deliberately no size assertion at the default scale: MPAndroidChart's own Legend constructor
+	// sets formSize to 8f, which is the value this renderer asks for, so such an assertion passes
+	// with the production line deleted. The scale test below is what pins the size, because 12f is
+	// a number only this code produces.
 
 	@Test
 	fun `no dataset overrides the legend, which is the only reason the legend's value applies`() {
 		charts().forEach { (name, chart) ->
 			chart.layOutAndDraw()
 
-			// LegendRenderer resolves each entry as `isNaN(entry.formSize) ? legend.formSize :
-			// entry.formSize`, and likewise takes the legend's form only for an entry left at
-			// DEFAULT. A dataset that sets either one wins silently -- which is what all three
-			// renderers used to do with `formSize = 15f`.
 			val entries = chart.legend.entries
 			assertThat(name to entries.isNotEmpty()).isEqualTo(name to true)
 			entries.forEach { entry ->
@@ -115,16 +115,21 @@ class MetricsChartLegendFormTest {
 	@Test
 	@Config(fontScale = 2.0f)
 	fun `the dot grows with its label, to the same ceiling`() {
-		// A fixed marker beside text at the 1.5 ceiling reads as though it were shrinking. The
-		// ceiling is the chart's, not the platform's, so this is 1.5 rather than 2.0.
-		val expected = MetricsChartRenderer.BASE_LEGEND_FORM_DP * MetricsChartRenderer.MAX_TEXT_SCALE
-
+		// A fixed marker beside text at the ceiling reads as though it were shrinking. Spelled out
+		// rather than derived from BASE_LEGEND_FORM_DP * MAX_TEXT_SCALE: computing the expectation
+		// from the same two constants the code multiplies can only show that a multiplication
+		// happened. 12f is 8dp at the chart's 1.5 ceiling -- which is the chart's, not the
+		// platform's 2.0 -- so raising either constant has to come and change this line.
 		charts().forEach { (name, chart) ->
-			assertThat(name to chart.legend.formSize).isEqualTo(name to expected)
+			assertWithMessage(name).that(chart.legend.formSize).isWithin(TOLERANCE).of(12f)
+			assertWithMessage(name).that(chart.legend.textSize).isWithin(TOLERANCE).of(15f)
 		}
 	}
 
 	private companion object {
 		const val SAMPLES = 60
+
+		/** The sizes are computed in floats and read back, so they land near-exactly. */
+		const val TOLERANCE = 0.01f
 	}
 }
