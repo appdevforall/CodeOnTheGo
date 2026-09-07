@@ -136,6 +136,16 @@ abstract class MetricsChartRenderer(
 	private var userHasZoomed = false
 
 	/**
+	 * The font scale [applyTextScale] last wrote to the attached chart, or NaN if none.
+	 *
+	 * [redraw] runs once per sampling tick per attached page, and re-applying the scale there
+	 * rewrites nine chart properties and re-measures four text sizes to catch a change that
+	 * happens at most a handful of times in a session. Per chart, so a rebind re-applies: [detach]
+	 * clears it.
+	 */
+	private var appliedTextScale = Float.NaN
+
+	/**
 	 * The attached chart, or `null` when no carousel page is bound to this renderer.
 	 */
 	protected var chart: SafeLineChart? = null
@@ -199,6 +209,7 @@ abstract class MetricsChartRenderer(
 	@CallSuper
 	open fun detach() {
 		userHasZoomed = false
+		appliedTextScale = Float.NaN
 		chart?.removeOnLayoutChangeListener(newestWindowOnLayout)
 		chart = null
 	}
@@ -560,6 +571,7 @@ abstract class MetricsChartRenderer(
 	@UiThread
 	private fun applyTextScale(chart: SafeLineChart) {
 		val scale = textScaleFor(chart.context)
+		appliedTextScale = scale
 		chart.legend.textSize = BASE_TEXT_SIZE_DP * scale
 		// Scaled with its label: a fixed dot beside text at 1.5 reads as though it were shrinking.
 		// See [configure] for why the size is the legend's business and not a dataset's.
@@ -585,6 +597,19 @@ abstract class MetricsChartRenderer(
 		val labels = (BASE_LABEL_COUNT / scale).roundToInt().coerceAtLeast(MIN_LABEL_COUNT)
 		chart.axisLeft.setLabelCount(labels, false)
 		chart.axisRight.setLabelCount(labels, false)
+	}
+
+	/**
+	 * Applies the font scale only if it has moved since the last time it was applied.
+	 *
+	 * For [redraw], which runs per sample. [setData] applies unconditionally: it installs fresh
+	 * [LineData], and the value text size is a property of the data rather than of the chart.
+	 */
+	@UiThread
+	private fun applyTextScaleIfChanged(chart: SafeLineChart) {
+		if (textScaleFor(chart.context) != appliedTextScale) {
+			applyTextScale(chart)
+		}
 	}
 
 	/**
@@ -734,8 +759,10 @@ abstract class MetricsChartRenderer(
 		// fontScale in configChanges, so the activity is never recreated for one -- and this is
 		// the only path a running chart takes per sample. Left out, a live scale change moved the
 		// annotation rows, which [applyAnnotations] re-reads below, while none of the text or the
-		// legend dot it spaces them for ever grew.
-		applyTextScale(chart)
+		// legend dot it spaces them for ever grew. Only when it has actually moved, though: this
+		// runs on every tick of every attached page and the answer changes a handful of times a
+		// session.
+		applyTextScaleIfChanged(chart)
 		chart.apply {
 			data.notifyDataChanged()
 			notifyDataSetChanged()
