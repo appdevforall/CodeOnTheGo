@@ -60,4 +60,38 @@ class BuildViewModelTest {
 
 		assertThat(viewModel.buildState.value).isEqualTo(BuildState.InProgress)
 	}
+
+	@Test
+	fun `givenAQueuedBuild_whenTasksAreRequested_thenTheRequestIsRefusedAndReported`() {
+		val viewModel = BuildViewModel()
+		val outcomes = mutableListOf<BuildState>()
+		viewModel.runQuickBuild(module, variant, launchInDebugMode = false)
+
+		val accepted = viewModel.runTasks(listOf(":app:installDebug")) { outcomes += it }
+
+		assertThat(accepted).isFalse()
+		assertThat(outcomes).containsExactly(BuildState.Error("A build is already in progress."))
+	}
+
+	@Test
+	fun `givenNoBuild_whenTasksAreRequested_thenTheSlotIsClaimedBeforeTheCoroutineRuns`() {
+		val viewModel = BuildViewModel()
+
+		val accepted = viewModel.runTasks(listOf(":app:installDebug"))
+
+		assertThat(accepted).isTrue()
+		assertThat(viewModel.buildState.value).isEqualTo(BuildState.InProgress)
+	}
+
+	@Test
+	fun `givenNoBuildService_whenTasksRun_thenTheRunEndsInAnErrorReportedOnce`() {
+		val viewModel = BuildViewModel()
+		val outcomes = mutableListOf<BuildState>()
+
+		viewModel.runTasks(listOf(":app:installDebug")) { outcomes += it }
+		mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+
+		assertThat(outcomes).containsExactly(BuildState.Error("Build service not found."))
+		assertThat(viewModel.buildState.value).isEqualTo(BuildState.Error("Build service not found."))
+	}
 }

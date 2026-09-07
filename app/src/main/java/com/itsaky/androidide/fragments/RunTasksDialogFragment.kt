@@ -206,8 +206,9 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 					val toRun = viewModel.selected.toList()
 					if (installTaskRequestsIn(toRun).isEmpty()) {
 						buildService.executeTasks(*toRun.toTypedArray())
-					} else {
-						buildViewModel.runTasks(toRun)
+					} else if (!buildViewModel.runTasks(toRun)) {
+						flashError(R.string.build_in_progress_warning)
+						return@setOnClickListener
 					}
 					dismiss()
 				}

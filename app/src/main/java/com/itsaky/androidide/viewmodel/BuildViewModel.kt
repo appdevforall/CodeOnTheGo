@@ -166,8 +166,8 @@ class BuildViewModel : ViewModel() {
 	fun runTasks(
 		tasks: List<String>,
 		onTerminalState: ((BuildState) -> Unit)? = null,
-	) {
-		if (!claimBuildSlot(onTerminalState)) return
+	): Boolean {
+		if (!claimBuildSlot(onTerminalState)) return false
 		viewModelScope.launch {
 			val reporter = RunReporter(onTerminalState)
 			val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
@@ -196,6 +196,7 @@ class BuildViewModel : ViewModel() {
 				}
 			}
 		}
+		return true
 	}
 
 	private fun apkForInstallRequests(tasks: List<String>): File? {
