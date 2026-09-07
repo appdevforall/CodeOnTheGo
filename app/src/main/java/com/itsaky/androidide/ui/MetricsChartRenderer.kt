@@ -27,6 +27,7 @@ import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
 import com.github.mikephil.charting.components.AxisBase
+import com.github.mikephil.charting.components.Legend
 import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.LineData
@@ -277,6 +278,14 @@ abstract class MetricsChartRenderer(
 			// axis, and AxisBase defaults to drawing them.
 			axisLeft.setDrawGridLines(false)
 
+			// A dot, not a square, and smaller than the 15dp square each renderer used to ask for
+			// per dataset (ADFA-5553). The squares crowded the labels beside them and the axis
+			// below. Set here rather than on the datasets because that is the only place it holds:
+			// LegendRenderer takes the dataset's value whenever it is not NaN and only falls back
+			// to the legend otherwise, so a dataset that sets formSize silently wins and every new
+			// renderer has to remember not to.
+			legend.form = Legend.LegendForm.CIRCLE
+
 			onChartGestureListener = XAxisTapListener(this)
 
 			xAxis.valueFormatter = ElapsedTimeFormatter(sampleIntervalMillis)
@@ -510,6 +519,8 @@ abstract class MetricsChartRenderer(
 	private fun applyTextScale(chart: SafeLineChart) {
 		val scale = textScaleFor(chart.context)
 		chart.legend.textSize = BASE_TEXT_SIZE_DP * scale
+		// Scaled with its label: a fixed dot beside text at 1.5 reads as though it were shrinking.
+		chart.legend.formSize = BASE_LEGEND_FORM_DP * scale
 		chart.xAxis.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisLeft.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisRight.textSize = BASE_TEXT_SIZE_DP * scale
@@ -711,6 +722,14 @@ abstract class MetricsChartRenderer(
 
 		/** MPAndroidChart's own default for value labels. */
 		const val BASE_VALUE_TEXT_SIZE_DP = 9f
+
+		/**
+		 * The legend's dot, in dp, at a font scale of 1.
+		 *
+		 * MPAndroidChart's own default, and about the cap height of [BASE_TEXT_SIZE_DP] text, so the
+		 * marker reads as part of its label rather than as a block beside it.
+		 */
+		const val BASE_LEGEND_FORM_DP = 8f
 
 		/**
 		 * The most the chart will grow its text by, whatever the system font scale.

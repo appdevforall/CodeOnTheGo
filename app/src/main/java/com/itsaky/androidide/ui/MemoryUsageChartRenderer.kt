@@ -106,8 +106,6 @@ class MemoryUsageChartRenderer(
 					setDrawCircles(false)
 					setDrawCircleHole(false)
 					setDrawValues(false)
-					formLineWidth = 1f
-					formSize = 15f
 					isHighlightEnabled = false
 					label = labelFor(proc.pname, entries.lastOrNull()?.y ?: 0f)
 				}

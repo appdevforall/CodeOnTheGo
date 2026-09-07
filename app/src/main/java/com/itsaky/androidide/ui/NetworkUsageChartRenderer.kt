@@ -133,8 +133,6 @@ class NetworkUsageChartRenderer(
 			setDrawCircles(false)
 			setDrawCircleHole(false)
 			setDrawValues(false)
-			formLineWidth = 1f
-			formSize = 15f
 			isHighlightEnabled = false
 			this.label = labelFor(label, samples.lastOrNull() ?: 0L)
 		}

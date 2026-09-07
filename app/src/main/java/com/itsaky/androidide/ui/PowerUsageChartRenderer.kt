@@ -275,8 +275,6 @@ class PowerUsageChartRenderer(
 			setDrawCircles(false)
 			setDrawCircleHole(false)
 			setDrawValues(false)
-			formLineWidth = 1f
-			formSize = 15f
 			isHighlightEnabled = false
 			this.label = labelFor(label, values.lastOrNull(), axis)
 		}
