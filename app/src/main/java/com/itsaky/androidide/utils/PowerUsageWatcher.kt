@@ -141,18 +141,12 @@ class PowerUsageWatcher
 		 */
 		fun getUsage(): PowerUsage =
 			synchronized(historyLock) {
-				PowerUsage(temperature.toLongArray(), power.toLongArray(), thermal.toLongArray())
-			}
-
-		/**
-		 * When each retained sample was taken, oldest first, as milliseconds since the epoch.
-		 *
-		 * A zero at an index means nothing was ever sampled there -- the buffer is fixed-length and
-		 * starts, and is cleared, full of them. A copy, for the same reason the values are copied.
-		 */
-		fun sampleTimes(): LongArray =
-			synchronized(historyLock) {
-				sampleTimes.toLongArray()
+				PowerUsage(
+					temperature.toLongArray(),
+					power.toLongArray(),
+					thermal.toLongArray(),
+					sampleTimes.toLongArray(),
+				)
 			}
 
 		fun clearHistory() {
@@ -285,11 +279,18 @@ class PowerUsageWatcher
 		 * @property temperatureMilliCelsius Battery temperature per sample.
 		 * @property powerMicroWatts Instantaneous draw per sample.
 		 * @property thermalStatus Throttling level per sample, for the chart's shading.
+		 * @property sampleTimes When each sample was taken, oldest first, as milliseconds since the
+		 * epoch, parallel to the values. Read in the same critical section as them, because reading
+		 * the two separately let the sampler append between the calls and shifted every value one
+		 * index against its timestamp (ADFA-5531). A zero means nothing was ever sampled at that
+		 * index -- the buffers are fixed-length and start, and are cleared, full of them. Defaulted
+		 * empty for the chart, which asks only how long ago a sample was and never when.
 		 */
 		data class PowerUsage(
 			val temperatureMilliCelsius: LongArray,
 			val powerMicroWatts: LongArray,
 			val thermalStatus: LongArray,
+			val sampleTimes: LongArray = LongArray(0),
 		) {
 			override fun equals(other: Any?): Boolean =
 				this === other ||
@@ -297,13 +298,15 @@ class PowerUsageWatcher
 						other is PowerUsage &&
 							temperatureMilliCelsius.contentEquals(other.temperatureMilliCelsius) &&
 							powerMicroWatts.contentEquals(other.powerMicroWatts) &&
-							thermalStatus.contentEquals(other.thermalStatus)
+							thermalStatus.contentEquals(other.thermalStatus) &&
+							sampleTimes.contentEquals(other.sampleTimes)
 					)
 
 			override fun hashCode(): Int {
 				var result = temperatureMilliCelsius.contentHashCode()
 				result = 31 * result + powerMicroWatts.contentHashCode()
 				result = 31 * result + thermalStatus.contentHashCode()
+				result = 31 * result + sampleTimes.contentHashCode()
 				return result
 			}
 		}

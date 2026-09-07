@@ -717,28 +717,29 @@ class MetricsCarouselController(
 	@UiThread
 	@VisibleForTesting
 	internal fun snapshot(): MetricsCsv.Snapshot {
-		val memoryTimes = memoryUsageWatcher.sampleTimes()
-		val networkTimes = networkUsageWatcher.sampleTimes()
-		val powerTimes = powerUsageWatcher.sampleTimes()
+		// One call per watcher, not one per array. Each returns its times and its values from a
+		// single critical section, which is what keeps a row of the file a single moment: two calls
+		// let the sampler append between them and every value came out one row off its timestamp.
+		val memory = memoryUsageWatcher.history()
 		val network = networkUsageWatcher.getUsage()
 		val power = powerUsageWatcher.getUsage()
 
 		return MetricsCsv.Snapshot(
-			rowTimes = memoryTimes,
+			rowTimes = memory.times,
 			memory =
-				memoryUsageWatcher.getMemoryUsages().associate { process ->
+				memory.processes.associate { process ->
 					process.pname to
 						MetricsCsv.Series(
-							times = memoryTimes,
-							values = process.usageHistory.toLongArray(),
+							times = memory.times,
+							values = process.usage,
 							since = process.watchedSinceMillis,
 						)
 				},
-			networkReceived = MetricsCsv.Series(networkTimes, network.received),
-			networkTransmitted = MetricsCsv.Series(networkTimes, network.transmitted),
-			temperature = MetricsCsv.Series(powerTimes, power.temperatureMilliCelsius),
-			power = MetricsCsv.Series(powerTimes, power.powerMicroWatts),
-			thermal = MetricsCsv.Series(powerTimes, power.thermalStatus),
+			networkReceived = MetricsCsv.Series(network.sampleTimes, network.received),
+			networkTransmitted = MetricsCsv.Series(network.sampleTimes, network.transmitted),
+			temperature = MetricsCsv.Series(power.sampleTimes, power.temperatureMilliCelsius),
+			power = MetricsCsv.Series(power.sampleTimes, power.powerMicroWatts),
+			thermal = MetricsCsv.Series(power.sampleTimes, power.thermalStatus),
 			annotations = markers(),
 		)
 	}

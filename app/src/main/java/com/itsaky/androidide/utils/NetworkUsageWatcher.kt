@@ -156,18 +156,7 @@ class NetworkUsageWatcher
 		 */
 		fun getUsage(): NetworkUsage =
 			synchronized(historyLock) {
-				NetworkUsage(received.toLongArray(), transmitted.toLongArray())
-			}
-
-		/**
-		 * When each retained sample was taken, oldest first, as milliseconds since the epoch.
-		 *
-		 * A zero at an index means nothing was ever sampled there -- the buffer is fixed-length and
-		 * starts, and is cleared, full of them. A copy, for the same reason the values are copied.
-		 */
-		fun sampleTimes(): LongArray =
-			synchronized(historyLock) {
-				sampleTimes.toLongArray()
+				NetworkUsage(received.toLongArray(), transmitted.toLongArray(), sampleTimes.toLongArray())
 			}
 
 		/**
@@ -332,20 +321,33 @@ class NetworkUsageWatcher
 		 *
 		 * @property received Bytes received during each interval.
 		 * @property transmitted Bytes transmitted during each interval.
+		 * @property sampleTimes When each sample was taken, oldest first, as milliseconds since the
+		 * epoch, parallel to the values. Read in the same critical section as them, because reading
+		 * the two separately let the sampler append between the calls and shifted every value one
+		 * index against its timestamp (ADFA-5531). A zero means nothing was ever sampled at that
+		 * index -- the buffers are fixed-length and start, and are cleared, full of them. Defaulted
+		 * empty for the chart, which asks only how long ago a sample was and never when.
 		 */
 		data class NetworkUsage(
 			val received: LongArray,
 			val transmitted: LongArray,
+			val sampleTimes: LongArray = LongArray(0),
 		) {
 			override fun equals(other: Any?): Boolean =
 				this === other ||
 					(
 						other is NetworkUsage &&
 							received.contentEquals(other.received) &&
-							transmitted.contentEquals(other.transmitted)
+							transmitted.contentEquals(other.transmitted) &&
+							sampleTimes.contentEquals(other.sampleTimes)
 					)
 
-			override fun hashCode(): Int = 31 * received.contentHashCode() + transmitted.contentHashCode()
+			override fun hashCode(): Int {
+				var result = received.contentHashCode()
+				result = 31 * result + transmitted.contentHashCode()
+				result = 31 * result + sampleTimes.contentHashCode()
+				return result
+			}
 		}
 
 		fun interface NetworkUsageListener {

@@ -20,6 +20,7 @@ package com.itsaky.androidide.utils
 import android.app.ActivityManager
 import android.os.Debug
 import android.os.Debug.MemoryInfo
+import androidx.annotation.VisibleForTesting
 import androidx.collection.IntObjectMap
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.getSystemService
@@ -59,6 +60,17 @@ class MemoryUsageWatcher
 		private val coroutineDispatcher: CoroutineContext = newSingleThreadContext("MemoryUsageWatcher"),
 		private val mainDispatcher: CoroutineContext = Dispatchers.Main.immediate,
 		private val nowMillis: () -> Long = System::currentTimeMillis,
+		// Injectable for the same reason the other watchers' readers are: it is the one part of a
+		// sample that needs a device. ActivityManager.getProcessMemoryInfo is rate-limited and
+		// internally uses Debug.getMemoryInfo, so the reflective call goes around the limit.
+		private val readTotalPssKb: (Int, MemoryInfo) -> Int = { pid, into ->
+			ReflectionUtils.invokeMethod(android_os_Debug_getMemoryInfo, null, pid, into)
+
+			// From https://developer.android.com/tools/dumpsys#meminfo
+			// "PSS is a good measure for the actual RAM weight of a process and for comparison
+			// against the RAM use of other processes and the total available RAM."
+			into.totalPss
+		},
 	) {
 		/**
 		 * Milliseconds between samples. Changing it clears the history: the chart reads a sample's
@@ -199,7 +211,8 @@ class MemoryUsageWatcher
 				}
 		}
 
-		private fun readUsages() {
+		@VisibleForTesting
+		internal fun readUsages() {
 			if (memoryUsage.isEmpty()) {
 				// Nothing to sample. Returning before the service lookup keeps an idle watcher off
 				// BaseApplication, which a unit test does not have.
@@ -212,49 +225,35 @@ class MemoryUsageWatcher
 				return
 			}
 
-			// Once per sample, not once per process: every process is read in this one pass, so
-			// they share a time, and that is what makes a row of the exported file a single moment.
-			synchronized(historyLock) {
-				sampleTimes[0] = nowMillis()
-				sampleTimes.shift(1)
-			}
-
+			// Read every process first, append nothing yet. The reading is the slow part and must
+			// not hold the lock; the append is the part a reader can see, and all of it -- the time
+			// and every process's value -- has to land in one critical section. A reader that
+			// caught the time appended but not the values got a file whose every row sat on its
+			// neighbour's timestamp, which is the one thing a row of this file is for (ADFA-5531).
+			val at = nowMillis()
 			val pids = memoryUsage.keys.toIntArray()
+			val sampled = ArrayList<Pair<ProcessMemoryInfo, Long>>(pids.size)
 			pids.forEach { pid ->
-
-				// ActivityManager.getProcessMemoryInfo is rate-limited
-				// but it internally uses Debug.getMemoryInfo to get the memory info
-				// we use it directly using reflection to bypass the rate limit
 				val proc =
 					memoryUsage[pid] ?: run {
 						log.warn("Process {} is not being watched, but readUsages() was called for the process", pid)
 						return@forEach
 					}
 
-				ReflectionUtils.invokeMethod(android_os_Debug_getMemoryInfo, null, pid, proc.memInfo)
-
-				// From https://developer.android.com/tools/dumpsys#meminfo
-				// "PSS is a good measure for the actual RAM weight of a process and for comparison against
-				// the RAM use of other processes and the total available RAM."
-				val usage = proc.memInfo.totalPss
-
 				// values are in kB, convert to bytes
-				val usageBytes = usage * 1024L
-				memoryUsage[pid]!!.apply {
-					// we insert the usage entry at the start of the array, then increment the shift amount by 1
-					// this makes the newly inserted usage entry the last element in the array
-					// and the oldest usage entry the first element in the array
+				sampled += proc to readTotalPssKb(pid, proc.memInfo) * 1024L
+			}
 
-					// this means that _history[_history.size - 1] will be the newest usage entry
-
-					// the "shift" amount basically indicates what is the start index of the array
-					// for example, if shift is 1, then _history[0] will actually return _history[1] (index shifted by 1 to the right)
-					// when the shift amount exceeds the size of the array, it will be reset to 0 (wrapped around)
-
-					synchronized(historyLock) {
-						_history[0] = usageBytes
-						_history.shift(1)
-					}
+			synchronized(historyLock) {
+				// The entry goes in at the start of the array and the shift amount goes up by one,
+				// which makes it the last element and the oldest the first -- so
+				// _history[_history.size - 1] is always the newest. The shift is the array's start
+				// index, wrapping back to 0 once it passes the end.
+				sampleTimes[0] = at
+				sampleTimes.shift(1)
+				sampled.forEach { (proc, usageBytes) ->
+					proc._history[0] = usageBytes
+					proc._history.shift(1)
 				}
 			}
 		}
@@ -310,14 +309,31 @@ class MemoryUsageWatcher
 		}
 
 		/**
-		 * When each retained sample was taken, oldest first, as milliseconds since the epoch.
+		 * Every retained sample, with the times the samples were taken at.
 		 *
-		 * A zero at an index means nothing was ever sampled there -- the buffer is fixed-length and
-		 * starts, and is cleared, full of them. A copy, for the same reason the values are copied.
+		 * One lock around the whole read, and it has to be: asking for the times and the values
+		 * separately let the sampler append between the two calls, which shifts every value one
+		 * index against its timestamp and puts each row of the exported file on its neighbour's
+		 * time (ADFA-5531). There is no accessor for the times alone, deliberately.
+		 *
+		 * A zero time at an index means nothing was ever sampled there -- the buffers are
+		 * fixed-length and start, and are cleared, full of them. Copies, for the same reason the
+		 * values have always been copied.
 		 */
-		fun sampleTimes(): LongArray =
+		fun history(): MemoryHistory =
 			synchronized(historyLock) {
-				sampleTimes.toLongArray()
+				MemoryHistory(
+					times = sampleTimes.toLongArray(),
+					processes =
+						memoryUsage.values.map { proc ->
+							ProcessHistory(
+								pid = proc.pid,
+								pname = proc.pname,
+								usage = proc._history.toLongArray(),
+								watchedSinceMillis = proc.watchedSinceMillis,
+							)
+						},
+				)
 			}
 
 		/**
@@ -392,6 +408,32 @@ class MemoryUsageWatcher
 			coroutineScope.cancelIfActive("Watcher closed")
 			(coroutineDispatcher as? ExecutorCoroutineDispatcher)?.close()
 		}
+
+		/**
+		 * One process's retained samples, detached from the watcher.
+		 *
+		 * @property usage The samples, oldest first, in bytes.
+		 * @property watchedSinceMillis When this process started being watched. Its buffer reaches
+		 * back to the start of the session however late in it the process appeared, and this is what
+		 * tells those zeros from a measurement.
+		 */
+		class ProcessHistory(
+			val pid: Int,
+			val pname: String,
+			val usage: LongArray,
+			val watchedSinceMillis: Long,
+		)
+
+		/**
+		 * Every watched process's samples and the times they were taken at, read together.
+		 *
+		 * @property times When each sample was taken, oldest first, as milliseconds since the epoch,
+		 * parallel to every entry in [processes].
+		 */
+		class MemoryHistory(
+			val times: LongArray,
+			val processes: List<ProcessHistory>,
+		)
 
 		/**
 		 * Registers a listener to be notified when the memory usage of a process changes.
