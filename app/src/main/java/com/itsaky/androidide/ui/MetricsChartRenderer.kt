@@ -40,6 +40,7 @@ import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 /**
@@ -419,6 +420,7 @@ abstract class MetricsChartRenderer(
 			xAxis.textColor = textColor
 
 			data.setValueTextColor(textColor)
+			applyTextScale(this)
 			styleValueAxes(this, textColor)
 			setBackgroundColor(bgColor)
 			setGridBackgroundColor(bgColor)
@@ -433,6 +435,37 @@ abstract class MetricsChartRenderer(
 		applyAnnotations(chart)
 		showNewestWindow(chart)
 		chart.invalidate()
+	}
+
+	/**
+	 * Sizes every piece of text the chart draws, following the system font scale up to a ceiling.
+	 *
+	 * MPAndroidChart sizes its text in dp, so nothing it draws responded to the font scale at all:
+	 * a user who asked for larger text got it everywhere in the IDE except inside these plots,
+	 * where the text is already the smallest on the screen (ADFA-5527).
+	 *
+	 * Followed only to [MAX_TEXT_SCALE], because a plot is dense by nature and the strip is a
+	 * fixed [R.dimen.editor_mem_usage_view_height]. At the full 2.0 the axis labels collide with
+	 * each other and the eight staggered annotation rows overlap, so honouring the scale
+	 * literally would make the chart less readable rather than more. A ceiling gives most of the
+	 * benefit and keeps the plot legible at the extreme.
+	 */
+	@UiThread
+	private fun applyTextScale(chart: SafeLineChart) {
+		val scale = textScaleFor(chart.context)
+		chart.legend.textSize = BASE_TEXT_SIZE_DP * scale
+		chart.xAxis.textSize = BASE_TEXT_SIZE_DP * scale
+		chart.axisLeft.textSize = BASE_TEXT_SIZE_DP * scale
+		chart.axisRight.textSize = BASE_TEXT_SIZE_DP * scale
+		chart.data?.setValueTextSize(BASE_VALUE_TEXT_SIZE_DP * scale)
+
+		// Bigger text needs fewer labels. Growing the text alone left the count untouched, so the
+		// memory page's nine value labels went from 29px apart to 6px -- crowded enough that the
+		// change made the axis worse rather than better. The count is a hint: granularity still
+		// has the last word, which is what keeps the temperature axis on whole degrees.
+		val labels = (BASE_LABEL_COUNT / scale).roundToInt().coerceAtLeast(MIN_LABEL_COUNT)
+		chart.axisLeft.setLabelCount(labels, false)
+		chart.axisRight.setLabelCount(labels, false)
 	}
 
 	/**
@@ -501,7 +534,7 @@ abstract class MetricsChartRenderer(
 					labelPosition = LimitLine.LimitLabelPosition.RIGHT_BOTTOM
 					// Rows are counted up from the bottom of the plot, and the offset is in dp:
 					// LimitLine converts it on the way in.
-					yOffset = ANNOTATION_LABEL_ROW_HEIGHT_DP * slotFor(annotation.sequence)
+					yOffset = annotationRowHeightFor(chart.context) * slotFor(annotation.sequence)
 				},
 			)
 		}
@@ -590,7 +623,8 @@ abstract class MetricsChartRenderer(
 		chart.invalidate()
 	}
 
-	private companion object {
+	@VisibleForTesting
+	internal companion object {
 		/**
 		 * Samples shown at once. Thousands are retained; a minute is what fits legibly in the strip.
 		 */
@@ -609,7 +643,41 @@ abstract class MetricsChartRenderer(
 		 */
 		const val ANNOTATION_LABEL_SLOTS = 8
 
-		/** One row, in dp. The label text is 10dp, so this leaves a little air between rows. */
+		/**
+		 * One row, in dp, at a font scale of 1. The label text is [BASE_TEXT_SIZE_DP], so this
+		 * leaves a little air between rows; it is scaled with the text by [annotationRowHeightFor],
+		 * or the rows would overlap exactly when the labels grew (ADFA-5527).
+		 */
 		const val ANNOTATION_LABEL_ROW_HEIGHT_DP = 12f
+
+		/** MPAndroidChart's own default for axis and legend text, which this matches at scale 1. */
+		const val BASE_TEXT_SIZE_DP = 10f
+
+		/** MPAndroidChart's own default for value labels. */
+		const val BASE_VALUE_TEXT_SIZE_DP = 9f
+
+		/**
+		 * The most the chart will grow its text by, whatever the system font scale.
+		 *
+		 * 1.5 rather than the platform's maximum of 2.0: see [applyTextScale]. Eight annotation
+		 * rows at 1.5 still fit the plot, where at 2.0 they do not.
+		 */
+		const val MAX_TEXT_SCALE = 1.5f
+
+		/** Value-axis labels at a font scale of 1, which is MPAndroidChart's own default. */
+		const val BASE_LABEL_COUNT = 6
+
+		/** Never fewer than this, or the axis stops conveying a scale at all. */
+		const val MIN_LABEL_COUNT = 3
+
+		/** The font scale the charts follow: the system's, held to [MAX_TEXT_SCALE]. */
+		@JvmStatic
+		fun textScaleFor(context: Context): Float =
+			context.resources.configuration.fontScale
+				.coerceIn(1f, MAX_TEXT_SCALE)
+
+		/** One annotation row, scaled with the label text it has to leave room for. */
+		@JvmStatic
+		fun annotationRowHeightFor(context: Context): Float = ANNOTATION_LABEL_ROW_HEIGHT_DP * textScaleFor(context)
 	}
 }
