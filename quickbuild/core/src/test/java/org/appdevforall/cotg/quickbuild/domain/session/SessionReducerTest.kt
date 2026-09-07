@@ -1223,6 +1223,28 @@ class SessionReducerTest {
 			.isEqualTo(listOf(SessionEffect.CancelProxyAppBuild, SessionEffect.TeardownSession))
 	}
 
+	/**
+	 * A rebaseline parks in Provisioning too, and its BUILDING tone says tapping stops it. The
+	 * stop used to take the first-provision arm and tear the live session down - watcher,
+	 * daemon, scratch tree - so a deliberate stop cost a cold provision that the rebuild's
+	 * own failure and slot-busy arms never do.
+	 */
+	@Test
+	fun `stopping a rebaseline cancels the Gradle build but keeps the live session`() {
+		val provisioning =
+			QuickBuildSessionState.Provisioning(
+				installAutoRetries = 1,
+				rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED,
+			)
+
+		val transition = reducer.reduce(provisioning, SessionEvent.CancelRequested)
+
+		// Stays parked until the cancelled build reports ProxyAppRebuildFailed, which lands
+		// in Invalidated with the retry count carried; no TeardownSession anywhere.
+		assertThat(transition.state).isEqualTo(provisioning)
+		assertThat(transition.effects).containsExactly(SessionEffect.CancelProxyAppBuild)
+	}
+
 	@Test
 	fun `stopping a queued tap during prebuild drops the tap and cancels the proxy app build`() {
 		val transition =
