@@ -103,7 +103,11 @@ object IntentUtils {
 				.setDataAndType(uri, mimeType)
 				.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or extraFlags)
 
-		context.startActivity(Intent.createChooser(intent, null))
+		// extraFlags on the chooser as well as on the intent it wraps. createChooser copies only
+		// the URI-grant flags outwards, and the chooser is what startActivity launches -- so a
+		// FLAG_ACTIVITY_NEW_TASK passed for a window context never reached the intent that needed
+		// it, and the share threw from a context with no task of its own.
+		context.startActivity(Intent.createChooser(intent, null).addFlags(extraFlags))
 	}
 
 	/**

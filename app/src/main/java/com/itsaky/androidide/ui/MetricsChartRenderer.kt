@@ -470,17 +470,21 @@ abstract class MetricsChartRenderer(
 		chart.xAxis.removeAllLimitLines()
 
 		val interval = sampleIntervalMillis()
-		// The visible window, not the whole buffer. Spanning the buffer meant asking for every
-		// annotation the store holds -- up to MAX_ANNOTATIONS -- and building a LimitLine and a
-		// DashPathEffect for each one on every redraw, almost all of them clipped off screen.
-		val bufferSpanMillis = (VISIBLE_SAMPLES.toLong() + 1L) * interval
+		// Back as far as the oldest sample on screen, and no further. Spanning the whole buffer
+		// meant building a LimitLine and a DashPathEffect for every annotation the store holds on
+		// every redraw, almost all of them clipped off screen; spanning a fixed sixty-one samples
+		// from now was wrong in the other direction, because a panned viewport shows older
+		// samples than that and their markers were dropped before their x was worked out.
+		val visible = visibleSampleRange(chart, newestIndex.toInt() + 1)
+		val oldestVisibleIndex = if (visible.isEmpty()) newestIndex else visible.first.toFloat()
+		val spanMillis = ((newestIndex - oldestVisibleIndex).toLong() + 1L) * interval
 		val now = nowMillis()
 		// Resolved once per redraw rather than once per annotation: applyAnnotations runs on every
 		// sampling tick, there can be MAX_ANNOTATIONS of them, and resolveAttr allocates a
 		// TypedValue per call.
 		val markerColors = MetricsAnnotationStore.Kind.entries.associateWith { markerColorFor(chart, it) }
 
-		store.recentAnnotations(bufferSpanMillis).forEach { annotation ->
+		store.recentAnnotations(spanMillis).forEach { annotation ->
 			val samplesAgo = (now - annotation.atMillis).toFloat() / interval
 			val x = newestIndex - samplesAgo
 			if (x < 0f) {
