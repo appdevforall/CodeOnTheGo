@@ -259,6 +259,15 @@ class MetricsCsvTest {
 	}
 
 	@Test
+	fun `hasRows tells a caller whether the file is worth sending`() {
+		// The writer always produces a file, header included, because the export button asked for
+		// one. Attaching it to feedback is a different question (ADFA-5534): an empty attachment on
+		// a report from a freshly started IDE is worse than no attachment.
+		assertThat(snapshot(rowTimes = LongArray(8)).hasRows).isFalse()
+		assertThat(snapshot(rowTimes = longArrayOf(0L, 0L, T0, 0L)).hasRows).isTrue()
+	}
+
+	@Test
 	fun `the memory columns are the three the chart can plot`() {
 		// Fixed, not derived from what is being watched: the set changes mid-session, and a header
 		// that followed it would describe a different file each time.

@@ -144,7 +144,18 @@ object MetricsCsv {
 		val power: Series = Series.EMPTY,
 		val thermal: Series = Series.EMPTY,
 		val annotations: List<Marker> = emptyList(),
-	)
+	) {
+		/**
+		 * Whether this snapshot has any sample to report.
+		 *
+		 * [write] always produces a file, header included, because the export button was asked for
+		 * one whatever the state of the buffers. Sending one is a different question: ADFA-5534
+		 * attaches the file to feedback only when there is something in it, rather than posting an
+		 * empty attachment, and ADFA-5526 will want the same of a crash report. This is how a caller
+		 * asks.
+		 */
+		val hasRows: Boolean get() = rowTimes.any { it != NO_SAMPLE }
+	}
 
 	/**
 	 * Writes [snapshot] to [out], timestamps in [zone].

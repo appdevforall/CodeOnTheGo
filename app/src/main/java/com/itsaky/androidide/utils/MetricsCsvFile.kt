@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.time.ZoneId
+import java.util.zip.GZIPOutputStream
 
 /**
  * Writes a [MetricsCsv.Snapshot] to a file the IDE can share (ADFA-5531).
@@ -35,6 +36,20 @@ object MetricsCsvFile {
 	private val log = LoggerFactory.getLogger(MetricsCsvFile::class.java)
 
 	private const val DIRECTORY = "metrics-exports"
+
+	/**
+	 * Where a file written for a report goes, rather than for the user.
+	 *
+	 * Separate from the exports because they prune independently: a feedback send must not evict an
+	 * export the user is about to hand to another app (ADFA-5534).
+	 */
+	private const val REPORT_DIRECTORY = "metrics-reports"
+
+	/** Gzip, not zip: one file, so an archive container adds a name and nothing else. */
+	private const val COMPRESSED_EXTENSION = "csv.gz"
+
+	/** Media type for a compressed file. */
+	const val COMPRESSED_MIME_TYPE = "application/gzip"
 
 	/**
 	 * How many exports to keep.
@@ -54,19 +69,44 @@ object MetricsCsvFile {
 		snapshot: MetricsCsv.Snapshot,
 		nowMillis: Long = System.currentTimeMillis(),
 		zone: ZoneId = ZoneId.systemDefault(),
+	): File? = write(context, snapshot, DIRECTORY, compress = false, nowMillis, zone)
+
+	/**
+	 * Writes [snapshot] gzipped, for attaching to a report, or `null` if it could not be written.
+	 *
+	 * Compressed because it travels: a full buffer is around a megabyte of text and it is highly
+	 * compressible -- the timestamps advance by a constant and the magnitudes barely move -- so this
+	 * is a large saving on an email attachment for no loss (ADFA-5534, and ADFA-5526 to come).
+	 */
+	fun writeForReport(
+		context: Context,
+		snapshot: MetricsCsv.Snapshot,
+		nowMillis: Long = System.currentTimeMillis(),
+		zone: ZoneId = ZoneId.systemDefault(),
+	): File? = write(context, snapshot, REPORT_DIRECTORY, compress = true, nowMillis, zone)
+
+	private fun write(
+		context: Context,
+		snapshot: MetricsCsv.Snapshot,
+		directoryName: String,
+		compress: Boolean,
+		nowMillis: Long,
+		zone: ZoneId,
 	): File? {
-		val directory = File(context.cacheDir, DIRECTORY)
+		val directory = File(context.cacheDir, directoryName)
 		return try {
 			if (!directory.exists() && !directory.mkdirs()) {
 				log.error("Could not create the metrics export directory at {}", directory)
 				return null
 			}
 
-			val file = File(directory, MetricsFileName.forTime(nowMillis, "csv", zone))
-			// Buffered and streamed rather than built into a string: a full buffer is ten thousand
-			// rows, and holding the whole file in memory to write it is a megabyte of char array
-			// the export does not need.
-			file.bufferedWriter().use { writer ->
+			val extension = if (compress) COMPRESSED_EXTENSION else "csv"
+			val file = File(directory, MetricsFileName.forTime(nowMillis, extension, zone))
+			// Streamed, not built into a string: a full buffer is ten thousand rows, and holding the
+			// whole file in memory to write it is a megabyte of char array nobody needs. Compressed
+			// on the way out for the same reason -- the uncompressed file never has to exist.
+			val sink = if (compress) GZIPOutputStream(file.outputStream()) else file.outputStream()
+			sink.bufferedWriter().use { writer ->
 				MetricsCsv.write(snapshot, zone, writer)
 			}
 			MetricsSnapshot.pruneTo(directory, KEEP_RECENT, file)
