@@ -81,7 +81,8 @@ class BuildOutputBufferTest {
 			buffer.offer("four")
 
 			val batch = buffer.takeBatch()
-			assertThat(batch.text).isEqualTo("[2 build output lines omitted]\nthree\nfour\n")
+			assertThat(batch.text).isEqualTo("three\nfour\n")
+			assertThat(batch.omittedLines).isEqualTo(2)
 			assertThat(batch.sourceChars).isEqualTo(19)
 			assertThat(buffer.pendingChars).isAtMost(11)
 		}
@@ -94,7 +95,8 @@ class BuildOutputBufferTest {
 			buffer.offer("0123456789")
 
 			val batch = buffer.takeBatch()
-			assertThat(batch.text).isEqualTo("[1 build output line omitted]\n3456789\n")
+			assertThat(batch.text).isEqualTo("3456789\n")
+			assertThat(batch.omittedLines).isEqualTo(1)
 			assertThat(batch.sourceChars).isEqualTo(11)
 			assertThat(buffer.pendingChars).isEqualTo(0)
 		}
@@ -142,15 +144,20 @@ class BuildOutputBufferTest {
 		}
 
 	@Test
-	fun `append cache retains a smaller tail than the editor window`() =
+	fun `repeated appends retain the complete editor window in the bounded cache`() =
 		runTest {
 			val viewModel = BuildOutputViewModel(ApplicationProvider.getApplicationContext<Application>())
 			viewModel.clear()
-			val output = "x".repeat(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS - 1) + "\n"
-			assertThat(viewModel.append(output, viewModel.currentSessionToken)).isTrue()
-			assertThat(viewModel.getCachedContentSnapshot()).isEqualTo(output.takeLast(128 * 1024))
-			assertThat(viewModel.getWindowForEditor()).isEqualTo(output)
-			assertThat(viewModel.getFullContent()).isEqualTo(output)
+			val first = "a".repeat(384 * 1024)
+			val second = "b".repeat(256 * 1024)
+			val fullOutput = first + second
+			assertThat(viewModel.append(first, viewModel.currentSessionToken)).isTrue()
+			assertThat(viewModel.append(second, viewModel.currentSessionToken)).isTrue()
+			assertThat(viewModel.getCachedContentSnapshot())
+				.isEqualTo(fullOutput.takeLast(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS))
+			assertThat(viewModel.getWindowForEditor())
+				.isEqualTo(fullOutput.takeLast(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS))
+			assertThat(viewModel.getFullContent()).isEqualTo(fullOutput)
 			viewModel.clear()
 		}
 

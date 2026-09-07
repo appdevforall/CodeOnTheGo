@@ -46,6 +46,9 @@ class BuildOutputViewModel(
 	application: Application,
 ) : AndroidViewModel(application) {
 	private val lock = ReentrantLock()
+	private val cachedContentSnapshot = StringBuilder()
+	// Reused until clear/onCleared so noisy builds do not open and close the file per line.
+	private var sessionOutputStream: FileOutputStream? = null
 
 	@Volatile
 	private var sessionGeneration = 0
@@ -73,24 +76,15 @@ class BuildOutputViewModel(
 	val showLineNumbers = MutableStateFlow(EditorPreferences.outputLineNumbers)
 
 	/**
-	 * Thread-safe snapshot of content for synchronous [getShareableContent] without blocking.
-	 * Updated on [append] and [clear]; primed on restore via [setCachedSnapshot].
-	 * Capped at [CACHE_SNAPSHOT_MAX_CHARS] to bound memory.
+	 * Returns the thread-safe cached snapshot for synchronous share/copy. Updated on [append] and
+	 * [clear], primed on restore via [setCachedSnapshot], and capped at
+	 * [CACHE_SNAPSHOT_MAX_CHARS].
 	 */
-	@Volatile
-	private var cachedContentSnapshot: String = ""
-
-	/** Returns the current cached snapshot for share/copy (non-blocking). */
-	fun getCachedContentSnapshot(): String = cachedContentSnapshot
+	fun getCachedContentSnapshot(): String = lock.withLock { cachedContentSnapshot.toString() }
 
 	/** Updates the cached snapshot (e.g. after loading full content on restore). Capped to [CACHE_SNAPSHOT_MAX_CHARS]. */
 	fun setCachedSnapshot(content: String) {
-		cachedContentSnapshot =
-			if (content.length <= CACHE_SNAPSHOT_MAX_CHARS) {
-				content
-			} else {
-				content.takeLast(CACHE_SNAPSHOT_MAX_CHARS)
-			}
+		lock.withLock { replaceCachedSnapshot(content) }
 	}
 
 	private val sessionFile: File
@@ -109,13 +103,16 @@ class BuildOutputViewModel(
 			lock.withLock {
 				if (!isCurrentSession(sessionToken)) return@withLock false
 				try {
-					FileOutputStream(sessionFile, true).use {
-						it.write(text.toByteArray(StandardCharsets.UTF_8))
-					}
-					cachedContentSnapshot =
-						(cachedContentSnapshot + text).takeLast(CACHE_SNAPSHOT_MAX_CHARS)
+					val output =
+						sessionOutputStream
+							?: FileOutputStream(sessionFile, true).also {
+								sessionOutputStream = it
+							}
+					output.write(text.toByteArray(StandardCharsets.UTF_8))
+					appendCachedSnapshot(text)
 					true
 				} catch (e: Exception) {
+					closeSessionOutputStream()
 					log.error("Failed to append build output to session file", e)
 					false
 				}
@@ -176,7 +173,8 @@ class BuildOutputViewModel(
 	fun clear() {
 		lock.withLock {
 			sessionGeneration++
-			cachedContentSnapshot = ""
+			closeSessionOutputStream()
+			cachedContentSnapshot.setLength(0)
 			try {
 				if (sessionFile.exists()) {
 					sessionFile.delete()
@@ -184,6 +182,37 @@ class BuildOutputViewModel(
 			} catch (e: Exception) {
 				log.error("Failed to delete build output session file", e)
 			}
+		}
+	}
+
+	override fun onCleared() {
+		lock.withLock { closeSessionOutputStream() }
+		super.onCleared()
+	}
+
+	private fun appendCachedSnapshot(text: String) {
+		if (text.length >= CACHE_SNAPSHOT_MAX_CHARS) {
+			replaceCachedSnapshot(text)
+			return
+		}
+		val overflow = cachedContentSnapshot.length + text.length - CACHE_SNAPSHOT_MAX_CHARS
+		if (overflow > 0) cachedContentSnapshot.delete(0, overflow)
+		cachedContentSnapshot.append(text)
+	}
+
+	private fun replaceCachedSnapshot(content: String) {
+		cachedContentSnapshot.setLength(0)
+		val start = (content.length - CACHE_SNAPSHOT_MAX_CHARS).coerceAtLeast(0)
+		cachedContentSnapshot.append(content, start, content.length)
+	}
+
+	private fun closeSessionOutputStream() {
+		try {
+			sessionOutputStream?.close()
+		} catch (e: Exception) {
+			log.error("Failed to close build output session file", e)
+		} finally {
+			sessionOutputStream = null
 		}
 	}
 
@@ -292,7 +321,7 @@ class BuildOutputViewModel(
 
 		private const val SESSION_FILE_NAME = "build_output_session.txt"
 		/** Max length of [cachedContentSnapshot] to bound memory. */
-		private const val CACHE_SNAPSHOT_MAX_CHARS = 128 * 1024
+		private const val CACHE_SNAPSHOT_MAX_CHARS = EDITOR_WINDOW_MAX_CHARS
 		private val log = org.slf4j.LoggerFactory.getLogger(BuildOutputViewModel::class.java)
 	}
 }

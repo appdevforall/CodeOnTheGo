@@ -55,20 +55,7 @@ class BuildOutputFragment :
 
 	override val currentEditor: IDEEditor? get() = editor
 
-	private val outputBuffer =
-		BuildOutputBuffer(
-			formatOmission = { lineCount ->
-				val context = context
-				if (context == null) {
-					BuildOutputBuffer.defaultOmissionMarker(lineCount)
-				} else {
-					val quantity = lineCount.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-					context.resources
-						.getQuantityString(R.plurals.msg_build_output_lines_omitted, quantity, quantity)
-						.plus('\n')
-				}
-			},
-		)
+	private val outputBuffer = BuildOutputBuffer()
 
 	private var searchLayout: EditorSearchLayout? = null
 	private var filterBar: LogFilterBarController? = null
@@ -325,17 +312,16 @@ class BuildOutputFragment :
 			val isFilteredEmpty = content.isBlank()
 
 			withContext(Dispatchers.Main) {
-				updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
-				noMatchTracker.prime(isFilteredEmpty)
-				if (!isSourceEmpty && isFilteredEmpty) {
-					editorContentMutex.withLock {
-						if (isRestoreCurrent()) {
-							editor?.run {
-								setText("")
-								editorSourceChars =
-									BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
-								onContentReplaced()
-							}
+				editorContentMutex.withLock {
+					if (!isRestoreCurrent()) return@withLock
+					updateEmptyState(isSourceEmpty = isSourceEmpty, isFilterActive = isFilterActive)
+					noMatchTracker.prime(isFilteredEmpty)
+					if (!isSourceEmpty && isFilteredEmpty) {
+						editor?.run {
+							setText("")
+							editorSourceChars =
+								BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
+							onContentReplaced()
 						}
 					}
 				}
@@ -346,7 +332,11 @@ class BuildOutputFragment :
 				val editor = this@BuildOutputFragment.editor ?: return@withContext
 				val layoutCompleted =
 					withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-						editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
+						editor.awaitLayout {
+							if (isRestoreCurrent()) {
+								updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+							}
+						}
 					}
 				if (layoutCompleted != null) {
 					editorContentMutex.withLock {
@@ -360,10 +350,16 @@ class BuildOutputFragment :
 					// Replace content without waiting indefinitely for an offscreen editor's layout.
 					editorContentMutex.withLock {
 						if (isRestoreCurrent()) {
-							editor.setText(content)
-							editorSourceChars =
-								BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
-							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+							val contentReplaced =
+								runCatching { editor.setText(content) }
+									.onFailure { log.error("Failed to restore build output before editor layout", it) }
+									.isSuccess
+							if (contentReplaced) {
+								editorSourceChars =
+									BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
+								updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+								onContentReplaced()
+							}
 						}
 					}
 				}
@@ -405,6 +401,7 @@ class BuildOutputFragment :
 	}
 
 	fun appendOutput(output: String?) {
+		if (!isAdded || activity == null) return
 		val text = output ?: return
 		if (text.isEmpty()) return
 		val sessionToken = buildOutputViewModel.currentSessionToken
@@ -446,6 +443,7 @@ class BuildOutputFragment :
 				flushToEditor(
 					batch.text,
 					batch.sourceChars,
+					batch.omittedLines,
 					batch.sessionToken,
 					editorGenAtDrain,
 				)
@@ -464,19 +462,18 @@ class BuildOutputFragment :
 	 * Uses [IDEEditor.awaitLayout] to guarantee the editor has physical dimensions (width > 0)
 	 * before attempting to insert text, preventing the Sora library's `ArrayIndexOutOfBoundsException`.
 	 */
-	private suspend fun flushToEditor(
+	internal suspend fun flushToEditor(
 		text: String,
 		sourceChars: Int,
+		omittedLines: Long,
 		sessionToken: Int,
 		editorGen: Int,
 	) {
 		if (!buildOutputViewModel.isCurrentSession(sessionToken)) return
+		// A filter render or clear can make this snapshot stale; the generation check before applying
+		// the batch makes that harmless without adding a Main-thread dispatch to every batch.
 		val refreshEditorWindow =
-			withContext(Dispatchers.Main) {
-				editorContentMutex.withLock {
-					BuildOutputViewModel.wouldExceedEditorWindow(editorSourceChars, sourceChars)
-				}
-			}
+			BuildOutputViewModel.wouldExceedEditorWindow(editorSourceChars, sourceChars)
 		val visibleText =
 			BuildOutputViewModel.filterLines(
 				text,
@@ -508,6 +505,20 @@ class BuildOutputFragment :
 			}
 
 		withContext(Dispatchers.Main) {
+			val editor = editor ?: return@withContext
+			val needsAppend = refreshedWindow == null && (visibleText.isNotEmpty() || omittedLines > 0)
+			if (needsAppend) {
+				val layoutCompleted =
+					withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
+						editor.awaitLayout {
+							if (editorGen == editorContentGeneration) {
+								updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+							}
+						}
+					}
+				// The batch is already persisted and will be recovered by the next window snapshot.
+				if (layoutCompleted == null) return@withContext
+			}
 			editorContentMutex.withLock {
 				if (
 					editorGen != editorContentGeneration ||
@@ -515,7 +526,6 @@ class BuildOutputFragment :
 				) {
 					return@withLock
 				}
-				val editor = editor ?: return@withLock
 				updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 				if (refreshedWindow != null) {
 					editorContentGeneration++
@@ -525,32 +535,25 @@ class BuildOutputFragment :
 					onContentReplaced()
 					return@withLock
 				}
-				if (visibleText.isEmpty()) {
+				val omissionMarker =
+					if (omittedLines > 0) formatOmissionMarker(omittedLines) else ""
+				val textToAppend = omissionMarker + visibleText
+				if (textToAppend.isEmpty()) {
 					editorSourceChars += sourceChars
 					return@withLock
 				}
-
-				val layoutCompleted =
-					withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-						editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
-					}
-				if (layoutCompleted != null) {
-					if (editor.appendBatchIfReady(visibleText)) {
-						editorSourceChars += sourceChars
-					}
-				} else {
-					editor.awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
-					if (
-						editorGen == editorContentGeneration &&
-						buildOutputViewModel.isCurrentSession(sessionToken) &&
-						editor.appendBatchIfReady(visibleText)
-					) {
-						editorSourceChars += sourceChars
-						updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
-					}
+				if (editor.appendBatchIfReady(textToAppend)) {
+					editorSourceChars += sourceChars
 				}
 			}
 		}
+	}
+
+	private fun formatOmissionMarker(lineCount: Long): String {
+		val quantity = lineCount.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+		return resources
+			.getQuantityString(R.plurals.msg_build_output_lines_omitted, quantity, lineCount)
+			.plus('\n')
 	}
 
 	private fun IDEEditor.appendBatchIfReady(text: String): Boolean {

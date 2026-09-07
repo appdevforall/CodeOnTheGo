@@ -28,12 +28,12 @@ import kotlinx.coroutines.channels.Channel
 internal class BuildOutputBuffer(
 	private val maxPendingChars: Int = DEFAULT_MAX_PENDING_CHARS,
 	private val maxBatchChars: Int = DEFAULT_MAX_BATCH_CHARS,
-	private val formatOmission: (Long) -> String = ::defaultOmissionMarker,
 ) {
 	data class Batch(
 		val text: String,
 		val sessionToken: Int,
 		val sourceChars: Int,
+		val omittedLines: Long,
 	)
 
 	private sealed interface Entry {
@@ -122,28 +122,27 @@ internal class BuildOutputBuffer(
 		val sessionToken = entries.first().sessionToken
 		val batch = StringBuilder(minOf(retainedChars, maxBatchChars))
 		var sourceChars = 0
+		var omittedLines = 0L
 		while (entries.isNotEmpty()) {
 			val entry = entries.first()
 			if (entry.sessionToken != sessionToken) break
-			val value =
-				when (entry) {
-					is Entry.Text -> entry.value
-					is Entry.Omission -> omissionMarker(entry.lineCount)
-				}
-			if (batch.isNotEmpty() && batch.length + value.length > maxBatchChars) break
+			if (entry is Entry.Text && batch.isNotEmpty() && batch.length + entry.value.length > maxBatchChars) break
 
 			entries.removeFirst()
-			batch.append(value)
 			when (entry) {
 				is Entry.Text -> {
+					batch.append(entry.value)
 					retainedChars -= entry.value.length
 					sourceChars = saturatedAdd(sourceChars, entry.value.length)
 				}
-				is Entry.Omission -> sourceChars = saturatedAdd(sourceChars, entry.sourceChars)
+				is Entry.Omission -> {
+					omittedLines += entry.lineCount
+					sourceChars = saturatedAdd(sourceChars, entry.sourceChars)
+				}
 			}
 		}
 		if (entries.isNotEmpty()) available.trySend(Unit)
-		return Batch(batch.toString(), sessionToken, sourceChars)
+		return Batch(batch.toString(), sessionToken, sourceChars, omittedLines)
 	}
 
 	private fun lineCount(text: String): Long =
@@ -154,19 +153,8 @@ internal class BuildOutputBuffer(
 		right: Int,
 	): Int = (left.toLong() + right).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
-	private fun omissionMarker(lineCount: Long): String = formatOmission(lineCount)
-
 	companion object {
 		private const val DEFAULT_MAX_PENDING_CHARS = 256 * 1024
 		private const val DEFAULT_MAX_BATCH_CHARS = 32 * 1024
-
-		/**
-		 * Fallback marker for callers without a [android.content.Context]; the fragment supplies a
-		 * localized `msg_build_output_lines_omitted` plural instead.
-		 */
-		internal fun defaultOmissionMarker(lineCount: Long): String {
-			val noun = if (lineCount == 1L) "line" else "lines"
-			return "[$lineCount build output $noun omitted]\n"
-		}
 	}
 }
