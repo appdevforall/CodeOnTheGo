@@ -46,9 +46,15 @@ final class SwapAckGate {
 	 * Cancels the ack for good.
 	 *
 	 * A swap that failed is reported by the failure path instead, which rolls the store back and names the generation to CoGo. A second swap of the same deploy committing afterwards must not turn that into a success.
+	 *
+	 * @return true when this call settled the gate, so the caller owns the one failure report; false when it was already settled, by an earlier failure or by the ack, and a second report would double up
 	 */
-	synchronized void failed() {
+	synchronized boolean failed() {
+		if (settled) {
+			return false;
+		}
 		settled = true;
+		return true;
 	}
 
 	/**
