@@ -18,6 +18,8 @@
 package com.itsaky.androidide.handlers
 
 import android.content.Context
+import android.os.SystemClock
+import com.itsaky.androidide.utils.MetricsCsv
 import com.itsaky.androidide.utils.MetricsCsvFile
 import com.itsaky.androidide.utils.MetricsSnapshotAssembler
 import com.itsaky.androidide.utils.MetricsSource
@@ -47,7 +49,26 @@ import java.io.File
  */
 class MetricsCrashAttachment(
 	private val context: Context,
+	private val nowMillis: () -> Long = SystemClock::elapsedRealtime,
+	private val writeFile: (MetricsCsv.Snapshot) -> File? = { snapshot ->
+		MetricsCsvFile.writeForReport(context, snapshot)
+	},
 ) : EventProcessor {
+	/**
+	 * The last file written, and when. Reused rather than rewritten for a moment afterwards.
+	 *
+	 * Not synchronised: two events racing here write two files and one of them wins the field,
+	 * which costs a write and loses nothing. A lock would be the more expensive mistake, since this
+	 * runs on the thread of whatever is being reported.
+	 */
+	@Volatile
+	private var recent: Recent? = null
+
+	private class Recent(
+		val atMillis: Long,
+		val file: File,
+	)
+
 	override fun process(
 		event: SentryEvent,
 		hint: Hint,
@@ -69,21 +90,64 @@ class MetricsCrashAttachment(
 		hint.addAttachment(Attachment(file.absolutePath, file.name, MetricsCsvFile.COMPRESSED_MIME_TYPE))
 	}
 
-	private fun writeSnapshot(metrics: MetricsSource.Metrics): File? =
-		MetricsSnapshotAssembler.withSnapshot(
-			context = context,
-			memory = metrics.memoryUsageWatcher,
-			network = metrics.networkUsageWatcher,
-			power = metrics.powerUsageWatcher,
-			annotations = metrics.annotations,
-		) { snapshot ->
-			// Nothing sampled yet is nothing to say. A header-only attachment on every early crash
-			// would be noise in the reports rather than context.
-			if (!snapshot.hasRows) null else MetricsCsvFile.writeForReport(context, snapshot)
+	/**
+	 * The file to attach, writing one if the last is too old to stand in.
+	 *
+	 * This runs on the thread of whatever is being reported, and it is not cheap: a full buffer is
+	 * 3600 rows, which format and gzip in 10-15ms on a desktop JVM and a good deal more on a phone.
+	 * A crash pays that once and it does not matter. But this processor is deliberately registered
+	 * for *every* event, including the non-fatal `Sentry.captureException` calls the IDE makes on
+	 * purpose -- and those arrive in bursts, on whatever thread noticed, the main one included. Paid
+	 * per event that is a visible stutter per event.
+	 *
+	 * So a file written moments ago is handed out again instead. The window is short because
+	 * freshness matters most at exactly the moment this is for: a crash gets at most
+	 * [REUSE_WINDOW_MS] less of its own tail, while a burst of non-fatals collapses to one write.
+	 * Every event still gets an attachment, which distinguishing crashes from non-fatals would not
+	 * manage here -- the IDE reports its own crashes through a plain `captureException`, so
+	 * `SentryEvent.isCrashed` is false for them and there is nothing at this level to tell the two
+	 * apart.
+	 *
+	 * The existence check is not belt and braces: [MetricsCsvFile] prunes its directory to the few
+	 * most recent, so a file handed out here can be deleted by a later write.
+	 */
+	private fun writeSnapshot(metrics: MetricsSource.Metrics): File? {
+		val now = nowMillis()
+		recent?.let { last ->
+			if (now - last.atMillis < REUSE_WINDOW_MS && last.file.exists()) {
+				return last.file
+			}
 		}
+
+		val file =
+			MetricsSnapshotAssembler.withSnapshot(
+				context = context,
+				memory = metrics.memoryUsageWatcher,
+				network = metrics.networkUsageWatcher,
+				power = metrics.powerUsageWatcher,
+				annotations = metrics.annotations,
+			) { snapshot ->
+				// Nothing sampled yet is nothing to say. A header-only attachment on every early
+				// crash would be noise in the reports rather than context.
+				if (!snapshot.hasRows) null else writeFile(snapshot)
+			}
+		if (file != null) {
+			recent = Recent(now, file)
+		}
+		return file
+	}
 
 	companion object {
 		private val log = LoggerFactory.getLogger(MetricsCrashAttachment::class.java)
+
+		/**
+		 * How long a written file stands in for the next one.
+		 *
+		 * Short deliberately: the cost this bounds is a burst of non-fatals, which arrive far
+		 * faster than this, and the thing it risks is the tail of a crash, which is the part worth
+		 * having.
+		 */
+		const val REUSE_WINDOW_MS = 5_000L
 
 		/** Registers this processor. Call once, from within `SentryAndroid.init`. */
 		fun install(
