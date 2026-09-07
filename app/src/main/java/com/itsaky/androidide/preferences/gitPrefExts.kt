@@ -8,9 +8,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GIT_USERNAME
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipTag
-import com.itsaky.androidide.preferences.internal.EditorPreferences
-import com.itsaky.androidide.preferences.internal.EditorPreferences.USE_ICU
-import com.itsaky.androidide.preferences.internal.EditorPreferences.useIcu
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
 import kotlinx.parcelize.Parcelize

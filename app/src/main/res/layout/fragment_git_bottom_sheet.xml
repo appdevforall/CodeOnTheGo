@@ -196,7 +196,7 @@
 				android:id="@+id/switch_commit_watermark"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:checked="false"
+				android:checked="true"
 				android:text="@string/add_commit_watermark" />
 
 			<TextView
@@ -204,8 +204,7 @@
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
 				android:text="@string/made_with_code_on_the_go"
-				android:visibility="gone"
-				app:layout_constraintTop_toBottomOf="@id/switch_commit_watermark" />
+				android:visibility="visible" />
 
 		</LinearLayout>
 

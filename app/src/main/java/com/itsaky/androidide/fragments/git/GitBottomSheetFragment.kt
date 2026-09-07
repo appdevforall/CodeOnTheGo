@@ -458,6 +458,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			}
 			setTooltipOnView(TooltipTag.PROJECT_GIT_COMMIT)
 		}
+		binding.switchCommitWatermark.isChecked = GitPreferences.shouldAddCommitWatermark
+		binding.tvCommitWatermark.isVisible = binding.switchCommitWatermark.isChecked
 		binding.switchCommitWatermark.setOnCheckedChangeListener { _, isChecked ->
 			binding.tvCommitWatermark.isVisible = isChecked
 		}
