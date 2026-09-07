@@ -218,6 +218,13 @@ class QuickBuildSessionManagerTest {
 		/** Survives [stop]; see [emitRacingStop]. */
 		private var lastOnBatch: ((ChangedFiles.Known) -> Unit)? = null
 
+		/** True between [start] and [stop]: the only time a real watcher forwards anything. */
+		val started: Boolean
+			get() = onBatch != null
+
+		/** True when this watcher's filter would pass an edit at [file]. */
+		fun watches(file: File): Boolean = filter.isRelevant(file)
+
 		override fun start(onBatch: (ChangedFiles.Known) -> Unit) {
 			startError()?.let { throw it }
 			this.onBatch = onBatch
@@ -1289,6 +1296,54 @@ class QuickBuildSessionManagerTest {
 			assertThat(executed).isEmpty()
 			// Proxy app rebuild succeeded: back to Ready at the unchanged generation.
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
+	/**
+	 * The watch set comes from the layout's module walk, and the watcher fixes its roots at
+	 * construction: a rebaseline that added a module used to keep the old watcher, so every
+	 * edit under the new module produced no batch, no build and no message.
+	 */
+	@Test
+	fun `a rebaseline that adds a module restarts the watcher over the new module's sources`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val first = watcher!!
+			val libSource = File(projectRoot, "lib/src/main/java/Lib.kt")
+			assertThat(first.watches(libSource)).isFalse()
+
+			// The settings edit that adds :lib lands together with the module itself.
+			File(projectRoot, "lib/build.gradle.kts").apply {
+				parentFile!!.mkdirs()
+				writeText("// lib")
+			}
+			libSource.parentFile!!.mkdirs()
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			val second = watcher!!
+			assertThat(second).isNotSameInstanceAs(first)
+			assertThat(second.started).isTrue()
+			assertThat(first.started).isFalse()
+			assertThat(second.watches(libSource)).isTrue()
+		}
+
+	@Test
+	fun `a rebaseline that leaves the module set alone keeps the running watcher`() =
+		runTest {
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val first = watcher!!
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			assertThat(watcher).isSameInstanceAs(first)
+			assertThat(first.started).isTrue()
 		}
 
 	@Test

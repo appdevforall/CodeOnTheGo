@@ -1314,6 +1314,10 @@ class QuickBuildSessionManager(
 						)
 					val annotationImpactDelegate =
 						sessionFactory.annotationImpactFor(result.proxyApp, result.layout)
+					// The rebuilt layout redoes the module walk the watch set comes from; a
+					// rebuild that added a module needs a watcher over the new roots, or
+					// edits under it are never seen.
+					val watch = sessionFactory.watchFor(result.layout, session.watch)
 					// The reinstalled APK boots at its stamp; the session's allocator must
 					// stay strictly above it or the runtime rejects every later deploy.
 					session.tracker.adoptAtLeast(result.baselineGeneration)
@@ -1322,7 +1326,9 @@ class QuickBuildSessionManager(
 						result.layout,
 						executorDelegate,
 						annotationImpactDelegate,
+						watch,
 						result.baselineGeneration,
+						::onWatcherBatch,
 					)
 					// The rebuild restarted the daemon, so the next death is a new one; the same
 					// reset as the provision's, without which a death first seen by a build
