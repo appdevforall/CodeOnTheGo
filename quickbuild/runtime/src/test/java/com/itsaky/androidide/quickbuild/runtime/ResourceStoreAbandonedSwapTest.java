@@ -13,7 +13,22 @@ import org.junit.jupiter.api.Test;
  */
 class ResourceStoreAbandonedSwapTest {
 
-	/** An out-of-order abandon must not lower the mark and let a refused swap through. */
+	/**
+	 * The regression: an older generation still in flight survives a newer one's failure.
+	 *
+	 * A cold start restores persisted gen 10 on its own thread while CoGo's catch-up gen 11 arrives and fails. Abandonment used to be a high-water mark, so gen 11's failure refused gen 10's queued swap; a refused swap reports committed, and the restore logged success over the baseline table.
+	 */
+	@Test
+	void abandoningANewerGenerationDoesNotRefuseAnOlderOnesQueuedSwap() {
+		ResourceStore store = new ResourceStore(ResourceSwapStrategy.RESOURCES_LOADER);
+
+		store.abandon(11);
+
+		assertThat(store.refusesSwap(10)).isFalse();
+		assertThat(store.refusesSwap(11)).isTrue();
+	}
+
+	/** Abandoning a second generation must not release the first one's refusal. */
 	@Test
 	void abandoningAnOlderGenerationDoesNotUndoANewerAbandon() {
 		ResourceStore store = new ResourceStore(ResourceSwapStrategy.RESOURCES_LOADER);
@@ -25,6 +40,20 @@ class ResourceStoreAbandonedSwapTest {
 		assertThat(store.refusesSwap(10)).isFalse();
 	}
 
+	/** A committed swap prunes the abandoned set below it, and the overtaken rule takes over the refusal. */
+	@Test
+	void aCommittedSwapForgetsAbandonedGenerationsItOvertook() {
+		ResourceStore store = new ResourceStore(ResourceSwapStrategy.RESOURCES_LOADER);
+
+		store.abandon(5);
+		store.abandon(9);
+		store.recordSwapped(7);
+
+		assertThat(store.refusesSwap(5)).isTrue();
+		assertThat(store.refusesSwap(9)).isTrue();
+		assertThat(store.refusesSwap(8)).isFalse();
+	}
+
 	/** Abandoning an older generation does not retroactively refuse a newer one's swap. */
 	@Test
 	void aSwapForAGenerationNewerThanTheAbandonedOneStillCommits() {
@@ -33,16 +62,6 @@ class ResourceStoreAbandonedSwapTest {
 		store.abandon(7);
 
 		assertThat(store.refusesSwap(8)).isFalse();
-	}
-
-	/** A generation older than the abandoned one is abandoned too: its deploy cannot have outlived the newer one's failure. */
-	@Test
-	void aSwapForAGenerationOlderThanTheAbandonedOneIsRefused() {
-		ResourceStore store = new ResourceStore(ResourceSwapStrategy.RESOURCES_LOADER);
-
-		store.abandon(7);
-
-		assertThat(store.refusesSwap(6)).isTrue();
 	}
 
 	/** The regression: after the deploy is abandoned, its own queued swap is refused. */
