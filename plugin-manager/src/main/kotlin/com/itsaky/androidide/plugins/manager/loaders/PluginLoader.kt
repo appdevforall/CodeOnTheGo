@@ -281,7 +281,7 @@ class PluginLoader(
 			val iconDay = metaData.getString("plugin.icon_day")
 			val iconNight = metaData.getString("plugin.icon_night")
 
-			// Absent for a .cgp built before ADFA-5256, so both stay nullable rather than
+			// Absent for a .cgp built before ADFA-5394, so both stay nullable rather than
 			// defaulting to a value that would read as a real, traceable answer.
 			val vcsRevision = metaData.getString("plugin.vcs_revision")?.takeIf { it.isNotBlank() }
 			val buildTimestamp = metaData.getString("plugin.build_timestamp")?.takeIf { it.isNotBlank() }

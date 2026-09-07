@@ -15,22 +15,24 @@ interface IPlugin {
 }
 
 @Parcelize
-data class PluginMetadata(
-	val id: String,
-	val name: String,
-	val version: String,
-	val description: String,
-	val author: String,
-	val minIdeVersion: String,
-	val permissions: List<String> = emptyList(),
-	val dependencies: List<String> = emptyList(),
-	val iconDayPath: String? = null,
-	val iconNightPath: String? = null,
-	/** Commit the plugin was built from, or null for a plugin built before provenance existed. */
-	val vcsRevision: String? = null,
-	/** `yyyyMMddHHmmss` UTC build stamp, commit-derived where the build could reach git. */
-	val buildTimestamp: String? = null,
-) : Parcelable
+data class PluginMetadata
+	@JvmOverloads
+	constructor(
+		val id: String,
+		val name: String,
+		val version: String,
+		val description: String,
+		val author: String,
+		val minIdeVersion: String,
+		val permissions: List<String> = emptyList(),
+		val dependencies: List<String> = emptyList(),
+		val iconDayPath: String? = null,
+		val iconNightPath: String? = null,
+		/** Commit the plugin was built from, or null for a plugin built before provenance existed. */
+		val vcsRevision: String? = null,
+		/** `yyyyMMddHHmmss` UTC build stamp, commit-derived where the build could reach git. */
+		val buildTimestamp: String? = null,
+	) : Parcelable
 
 enum class PluginPermission(
 	val key: String,
