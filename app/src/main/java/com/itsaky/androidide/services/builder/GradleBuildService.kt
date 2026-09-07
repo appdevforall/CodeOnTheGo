@@ -128,7 +128,13 @@ class GradleBuildService :
 	 * after that -- a rotation, a font-scale change -- gets a listener that hears about new daemons
 	 * only, so its memory chart silently loses the largest of the three processes. It reads this
 	 * instead. See [onGradleDaemonStarted].
+	 *
+	 * Volatile because the two ends are on different threads: the tooling API's client callbacks
+	 * write it on the RPC reader thread, and [ProjectHandlerActivity] reads it on the main thread
+	 * while binding. Without it a recreated activity can read a stale `null` and quietly leave the
+	 * daemon off the chart -- the very failure this field exists to prevent.
 	 */
+	@Volatile
 	var gradleDaemonPid: Int? = null
 		private set
 
