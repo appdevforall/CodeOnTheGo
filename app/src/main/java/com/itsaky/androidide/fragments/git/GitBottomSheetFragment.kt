@@ -450,7 +450,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							// Clear the inputs on successful commit
 							binding.commitSummary.text?.clear()
 							binding.commitDescription.text?.clear()
-							fileChangeAdapter.selectedFiles.clear()
+							fileChangeAdapter.clearSelection()
 							updateCheckAllButton()
 						}
 					}
