@@ -107,6 +107,27 @@ class MetricsCsvFileTest {
 	}
 
 	@Test
+	fun `the limit holds when the file just written is not the newest on disk`() {
+		// Pruning used to pick "the oldest n" across every file and then skip the one just written,
+		// which deleted one too few whenever that one sorted into the set -- and the directory crept
+		// one over the limit each time. Two writes inside a single filesystem timestamp are enough
+		// to sort it there.
+		//
+		// Dating the existing files into the future is what puts the new one at the front of the
+		// sort deterministically. Tying them all to one *past* value does not: the file written last
+		// still carries a real mtime, so it sorts last, is never in the set, and the skip never
+		// fires -- which is how the first version of this test passed against the unfixed code.
+		val future = System.currentTimeMillis() + 1_000_000L
+		repeat(MetricsCsvFile.KEEP_RECENT + 3) { i ->
+			MetricsCsvFile.write(context, snapshot(1), AT + i, zone)!!.setLastModified(future)
+		}
+
+		val directory = MetricsCsvFile.write(context, snapshot(1), AT + 900L, zone)!!.parentFile!!
+
+		assertThat(directory.listFiles()!!.size).isAtMost(MetricsCsvFile.KEEP_RECENT)
+	}
+
+	@Test
 	fun `files land under the cache, which the platform may reclaim`() {
 		val file: File = MetricsCsvFile.writeForReport(context, snapshot(2), AT, zone)!!
 

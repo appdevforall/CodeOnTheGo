@@ -52,28 +52,30 @@ object MetricsSnapshotAssembler {
 		power: PowerUsageWatcher,
 		annotations: MetricsAnnotationStore?,
 	): MetricsCsv.Snapshot {
-		val memoryTimes = memory.sampleTimes()
-		val networkTimes = network.sampleTimes()
-		val powerTimes = power.sampleTimes()
+		// One call per watcher, not one per array. Each hands back its times and its values from a
+		// single critical section, which is what keeps a row of the file a single moment: asking
+		// separately let a sample land between the two calls, and every value came out one row off
+		// its own timestamp.
+		val memoryHistory = memory.history()
 		val networkUsage = network.getUsage()
 		val powerUsage = power.getUsage()
 
 		return MetricsCsv.Snapshot(
-			rowTimes = memoryTimes,
+			rowTimes = memoryHistory.times,
 			memory =
-				memory.getMemoryUsages().associate { process ->
+				memoryHistory.processes.associate { process ->
 					process.pname to
 						MetricsCsv.Series(
-							times = memoryTimes,
-							values = process.usageHistory.toLongArray(),
+							times = memoryHistory.times,
+							values = process.usage,
 							since = process.watchedSinceMillis,
 						)
 				},
-			networkReceived = MetricsCsv.Series(networkTimes, networkUsage.received),
-			networkTransmitted = MetricsCsv.Series(networkTimes, networkUsage.transmitted),
-			temperature = MetricsCsv.Series(powerTimes, powerUsage.temperatureMilliCelsius),
-			power = MetricsCsv.Series(powerTimes, powerUsage.powerMicroWatts),
-			thermal = MetricsCsv.Series(powerTimes, powerUsage.thermalStatus),
+			networkReceived = MetricsCsv.Series(networkUsage.sampleTimes, networkUsage.received),
+			networkTransmitted = MetricsCsv.Series(networkUsage.sampleTimes, networkUsage.transmitted),
+			temperature = MetricsCsv.Series(powerUsage.sampleTimes, powerUsage.temperatureMilliCelsius),
+			power = MetricsCsv.Series(powerUsage.sampleTimes, powerUsage.powerMicroWatts),
+			thermal = MetricsCsv.Series(powerUsage.sampleTimes, powerUsage.thermalStatus),
 			annotations = markers(context, annotations),
 		)
 	}
