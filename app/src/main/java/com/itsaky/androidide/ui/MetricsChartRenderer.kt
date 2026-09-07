@@ -530,6 +530,11 @@ abstract class MetricsChartRenderer(
 		// as the dot, applied to the space around it.
 		chart.legend.formToTextSpace = BASE_LEGEND_FORM_TO_TEXT_DP * scale
 		chart.legend.xEntrySpace = BASE_LEGEND_ENTRY_SPACE_DP * scale
+		// yOffset is not only cosmetic: [isOnAxisBand] measures the band the sampling-rate tap
+		// lives in as `height - (legend.mNeededHeight + legend.yOffset)`. Left unscaled, the band
+		// creeps over the legend again as the text grows -- which is the ADFA-5510 defect this
+		// stack already fixed once.
+		chart.legend.yOffset = BASE_LEGEND_Y_OFFSET_DP * scale
 		chart.xAxis.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisLeft.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisRight.textSize = BASE_TEXT_SIZE_DP * scale
@@ -743,6 +748,13 @@ abstract class MetricsChartRenderer(
 		 *
 		 * MPAndroidChart's own default, and about the cap height of [BASE_TEXT_SIZE_DP] text, so the
 		 * marker reads as part of its label rather than as a block beside it.
+		 *
+		 * The dot and its label do not in fact share a ceiling, whatever [applyTextScale] reads
+		 * like: `ComponentBase.setTextSize` clamps to 6..24dp on the way in and `Legend.setFormSize`
+		 * does not. It makes no difference while [BASE_TEXT_SIZE_DP] times [MAX_TEXT_SCALE] stays
+		 * under 24 -- 15dp today -- and above that the text would stop growing while the dot kept
+		 * going, until the marker was larger than the label it is meant to sit inside. Raising
+		 * [BASE_TEXT_SIZE_DP] past 16 means clamping this too.
 		 */
 		const val BASE_LEGEND_FORM_DP = 8f
 
@@ -751,6 +763,9 @@ abstract class MetricsChartRenderer(
 
 		/** The gap between one legend entry and the next, in dp, at a font scale of 1. */
 		const val BASE_LEGEND_ENTRY_SPACE_DP = 6f
+
+		/** The gap the legend keeps above itself, in dp, at a font scale of 1. */
+		const val BASE_LEGEND_Y_OFFSET_DP = 3f
 
 		/**
 		 * The most the chart will grow its text by, whatever the system font scale.
