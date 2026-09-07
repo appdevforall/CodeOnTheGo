@@ -263,8 +263,7 @@ class GitBottomSheetViewModel(
 	}
 
 	fun commitChanges(
-		summary: String,
-		description: String? = null,
+		message: String,
 		selectedPaths: List<String>,
 		onSuccess: () -> Unit,
 	) {
@@ -279,8 +278,6 @@ class GitBottomSheetViewModel(
 
 				repository.stageFiles(filesToStage)
 
-				val message =
-					if (!description.isNullOrBlank()) "$summary\n\n$description" else summary
 				repository.commit(
 					message = message,
 					authorName = GitPreferences.userName,
