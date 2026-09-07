@@ -95,6 +95,13 @@ object MetricsCsv {
 	 * [NO_SAMPLE] entry marks an index nothing was ever recorded at, which is what tells an empty
 	 * cell apart from a measured zero.
 	 * @property values The samples themselves.
+	 * @property absent The in-band value this series uses for "the device did not provide a
+	 * reading", or `null` if it has none. Written as an empty cell, the same as an unsampled index.
+	 * A watcher that stores a sentinel -- `PowerUsageWatcher.UNAVAILABLE` is [Long.MIN_VALUE] --
+	 * would otherwise put `-9223372036854775808` in a numeric column, and every consumer that
+	 * averages or plots that column gets an answer that is not merely wrong but spectacular. The
+	 * sentinel is named by the caller rather than known here, because this file deliberately has no
+	 * Android types in it.
 	 * @property since When this series started being recorded. Samples timed before it belong to
 	 * the buffer's zero-filled past rather than to this series -- the Gradle daemon's buffer reaches
 	 * back to the start of the session however late in it the daemon appeared.
@@ -103,6 +110,7 @@ object MetricsCsv {
 		private val times: LongArray,
 		private val values: LongArray,
 		private val since: Long = 0L,
+		private val absent: Long? = null,
 	) {
 		/** The value at index [i], or `null` if this series has nothing to say there. */
 		fun at(i: Int): Long? {
@@ -110,7 +118,11 @@ object MetricsCsv {
 				return null
 			}
 			val time = times[i]
-			return if (time == NO_SAMPLE || time < since) null else values[i]
+			if (time == NO_SAMPLE || time < since) {
+				return null
+			}
+			val value = values[i]
+			return if (value == absent) null else value
 		}
 
 		companion object {
