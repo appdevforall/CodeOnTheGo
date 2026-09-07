@@ -117,6 +117,7 @@ object TooltipTag {
 	// Preferences - Git screen
 	const val PREFS_GIT_USERNAME = "prefs.git.username"
 	const val PREFS_GIT_USEREMAIL = "prefs.git.useremail"
+	const val PREFS_GIT_WATERMARK = "prefs.git.watermark"
 
 	// Preferences - Developer options screen
 	const val PREFS_DEVOPTIONS_DUMPLOGS = "prefs.devoptions.dumplogs"

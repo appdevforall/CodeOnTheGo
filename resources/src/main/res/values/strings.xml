@@ -1534,6 +1534,8 @@
     <string name="idepref_git_user_email_title">User email</string>
     <string name="idepref_git_user_email_summary">Used as author email in commits</string>
     <string name="idepref_git_author_missing_warning">Configure Git author in Preferences to enable commits.\nTap the avatar for more info.</string>
+    <string name="idepref_git_add_commit_watermark">Add watermark to commits</string>
+    <string name="idepref_git_add_commit_watermark_summary">Appends a Code on the Go credit to commits made from the Git tab. Each project can opt out separately.</string>
     <string name="git_committing_as">Committing as %1$s</string>
     <string name="git_committing_email">Email - %1$s</string>
     <string name="git_update_config_in_preferences">You can update your Git configuration in Preferences.</string>

@@ -249,16 +249,16 @@
 			app:strokeColor="?attr/colorError" />
 
 		<com.google.android.material.button.MaterialButton
-            android:id="@+id/commitHistoryButton"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"
-            android:text="@string/view_commit_history"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/btnAbortMerge"
-            app:layout_constraintVertical_bias="1.0" />
+			android:id="@+id/commitHistoryButton"
+			style="@style/Widget.Material3.Button.OutlinedButton"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="16dp"
+			android:layout_marginBottom="16dp"
+			android:text="@string/view_commit_history"
+			app:layout_constraintBottom_toBottomOf="parent"
+			app:layout_constraintTop_toBottomOf="@id/btnAbortMerge"
+			app:layout_constraintVertical_bias="1.0" />
 
 	</androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.core.widget.NestedScrollView>
