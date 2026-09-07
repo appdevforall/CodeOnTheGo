@@ -129,6 +129,16 @@ class GradleBuildService :
 	private val buildSessionId = UUID.randomUUID().toString()
 	private val buildId = AtomicLong(0)
 
+	/**
+	 * The build a cancel request would belong to, or null when none is running.
+	 *
+	 * The listener cannot work this out from the order it is called in (ADFA-5542), so it is told,
+	 * and this is what it is told. Written from the build's own thread in [prepareBuild] and read
+	 * from the UI thread by [cancelCurrentBuild], hence volatile.
+	 */
+	@Volatile
+	private var runningBuildId: BuildId? = null
+
 	@Volatile
 	private var tuningConfig: GradleTuningConfig? = null
 
@@ -181,24 +191,30 @@ class GradleBuildService :
 				null
 			} else {
 				object : EventListener {
-					override fun onBuildCancelRequested() {
-						runOnUiThread { listener.onBuildCancelRequested() }
+					override fun onBuildCancelRequested(buildId: BuildId?) {
+						runOnUiThread { listener.onBuildCancelRequested(buildId) }
 					}
 
 					override fun prepareBuild(buildInfo: BuildInfo) {
 						runOnUiThread { listener.prepareBuild(buildInfo) }
 					}
 
-					override fun onBuildSuccessful(tasks: List<String?>) {
-						runOnUiThread { listener.onBuildSuccessful(tasks) }
+					override fun onBuildSuccessful(
+						buildId: BuildId,
+						tasks: List<String?>,
+					) {
+						runOnUiThread { listener.onBuildSuccessful(buildId, tasks) }
 					}
 
 					override fun onProgressEvent(event: ProgressEvent) {
 						runOnUiThread { listener.onProgressEvent(event) }
 					}
 
-					override fun onBuildFailed(tasks: List<String?>) {
-						runOnUiThread { listener.onBuildFailed(tasks) }
+					override fun onBuildFailed(
+						buildId: BuildId,
+						tasks: List<String?>,
+					) {
+						runOnUiThread { listener.onBuildFailed(buildId, tasks) }
 					}
 
 					override fun onOutput(line: String?) {
@@ -387,6 +403,12 @@ class GradleBuildService :
 
 	override fun prepareBuild(buildInfo: BuildInfo): CompletableFuture<ClientGradleBuildConfig> =
 		CompletableFuture.supplyAsync {
+			// The server raises this only for a build that really started, so a second request
+			// rejected as already-in-progress cannot take the running build's name off the cancel.
+			// It is also well before the editor is told the build began, and the Stop control
+			// follows from that, so a cancel can never arrive with this unset.
+			runningBuildId = buildInfo.buildId
+
 			updateNotification(getString(R.string.build_status_in_progress), true)
 
 			val projectPath = ProjectManagerImpl.getInstance().projectDirPath ?: "unknown"
@@ -457,20 +479,26 @@ class GradleBuildService :
 		updateNotification(getString(R.string.build_status_sucess), false)
 
 		dispatchBuildResult(result, true)
-		eventListener?.onBuildSuccessful(result.tasks)
+		eventListener?.onBuildSuccessful(result.buildId, result.tasks)
 	}
 
 	override fun onBuildFailed(result: BuildResult) {
 		updateNotification(getString(R.string.build_status_failed), false)
 
 		dispatchBuildResult(result, false)
-		eventListener?.onBuildFailed(result.tasks)
+		eventListener?.onBuildFailed(result.buildId, result.tasks)
 	}
 
 	private fun dispatchBuildResult(
 		result: BuildResult,
 		isSuccess: Boolean,
 	) {
+		// Only if it is still this build's: a build whose result never arrived leaves its id here,
+		// and clearing that on someone else's outcome would drop the name off a live cancel.
+		if (runningBuildId == result.buildId) {
+			runningBuildId = null
+		}
+
 		val buildType = getBuildType(result.tasks)
 		analyticsManager.trackBuildCompleted(
 			metric =
@@ -666,8 +694,9 @@ class GradleBuildService :
 	override fun cancelCurrentBuild(): CompletableFuture<BuildCancellationRequestResult> {
 		checkServerStarted()
 		// Before delegating: the cancellation surfaces as a build failure, and the listener needs
-		// to know it was asked for rather than reporting the user's own action as an error.
-		eventListener?.onBuildCancelRequested()
+		// to know it was asked for rather than reporting the user's own action as an error. It is
+		// told which build, because it cannot infer that from when this arrives (ADFA-5542).
+		eventListener?.onBuildCancelRequested(runningBuildId)
 		return server!!.cancelCurrentBuild()
 	}
 
@@ -826,8 +855,13 @@ class GradleBuildService :
 		 * then quietly inherited the no-op instead of passing it on -- so the cancel never reached
 		 * the real listener, and a build the user stopped went on being annotated as a failure. A
 		 * member with no default cannot be forgotten by a wrapper; the compiler asks for it.
+		 *
+		 * @param buildId The build being stopped, or null if none was running. Carried because a
+		 *   listener cannot tell from arrival order which build a cancel belongs to: this call is
+		 *   made on the UI thread and runs inline, while [prepareBuild] is made from the build's
+		 *   own thread and is posted (ADFA-5542).
 		 */
-		fun onBuildCancelRequested()
+		fun onBuildCancelRequested(buildId: BuildId?)
 
 		/**
 		 * Called just before a build is started.
@@ -840,10 +874,15 @@ class GradleBuildService :
 		/**
 		 * Called when a build is successful.
 		 *
+		 * @param buildId The build that succeeded. [tasks] is the server's own list and not the one
+		 *   [prepareBuild] was given, so this is the only thing that names the build.
 		 * @param tasks The tasks that were run.
 		 * @see IToolingApiClient.onBuildSuccessful
 		 */
-		fun onBuildSuccessful(tasks: List<String?>)
+		fun onBuildSuccessful(
+			buildId: BuildId,
+			tasks: List<String?>,
+		)
 
 		/**
 		 * Called when a progress event is received from the Tooling API server.
@@ -855,10 +894,18 @@ class GradleBuildService :
 		/**
 		 * Called when a build fails.
 		 *
+		 * A build the user cancelled arrives here too; compare [buildId] with the one
+		 * [onBuildCancelRequested] named to tell the two apart.
+		 *
+		 * @param buildId The build that failed. [tasks] is the server's own list and not the one
+		 *   [prepareBuild] was given, so this is the only thing that names the build.
 		 * @param tasks The tasks that were run.
 		 * @see IToolingApiClient.onBuildFailed
 		 */
-		fun onBuildFailed(tasks: List<String?>)
+		fun onBuildFailed(
+			buildId: BuildId,
+			tasks: List<String?>,
+		)
 
 		/**
 		 * Called when the output line is received.

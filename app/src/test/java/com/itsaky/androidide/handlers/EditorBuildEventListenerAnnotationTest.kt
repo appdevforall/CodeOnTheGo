@@ -19,6 +19,7 @@ package com.itsaky.androidide.handlers
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.tooling.events.internal.DefaultOperationDescriptor
@@ -28,19 +29,24 @@ import com.itsaky.androidide.tooling.events.task.TaskFinishEvent
 import com.itsaky.androidide.tooling.events.task.TaskOperationDescriptor
 import com.itsaky.androidide.tooling.events.task.TaskStartEvent
 import com.itsaky.androidide.tooling.model.PluginIdentifier
+import com.itsaky.androidide.utils.MetricsAnnotationStore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Which Gradle progress events the metrics charts annotate (ADFA-5486).
+ * What the metrics charts annotate, and which build each annotation belongs to.
  *
- * Task starts and stops, and nothing else. Asserted against the predicate rather than through
- * `onProgressEvent`, which needs a live activity before it gets this far.
+ * Two decisions, both asserted against the predicate that makes them rather than through the
+ * callback that acts on it -- those need a live activity before they get this far. Which progress
+ * events are marked at all (ADFA-5486), and whether a build that failed was really the user
+ * stopping it (ADFA-5542).
  */
 @RunWith(RobolectricTestRunner::class)
 class EditorBuildEventListenerAnnotationTest {
 	private val listener = EditorBuildEventListener()
+
+	private fun buildId(id: Long) = BuildId(buildSessionId = "session", buildId = id, runType = BuildRunType.TaskRun)
 
 	private fun taskDescriptor() =
 		TaskOperationDescriptor(
@@ -74,28 +80,45 @@ class EditorBuildEventListenerAnnotationTest {
 		)
 
 	@Test
-	fun `preparing a build clears a stale cancel, even with no activity attached`() {
-		listener.cancelRequested = true
+	fun `a cancel that lands before its build is prepared still marks that build cancelled`() {
+		// The interleaving ADFA-5542 is about, and the one the main thread can really produce:
+		// onBuildCancelRequested is raised on the UI thread and runs inline, prepareBuild is
+		// raised from the build's own thread and is posted, so the cancel can overtake it. When
+		// the listener held a bare flag, prepareBuild cleared it and the build the user stopped
+		// was reported back to them as a failure.
+		listener.onBuildCancelRequested(buildId(7))
+		listener.prepareBuild(BuildInfo(buildId(7), listOf(":app:assembleDebug")))
 
-		// No activity is attached here, so prepareBuild returns early -- which is the point. This
-		// listener outlives any one activity, and a cancel whose onBuildFailed arrived without one
-		// would otherwise leave the flag set for the next build to inherit and be mislabelled.
-		listener.prepareBuild(BuildInfo(BuildId.Unknown, listOf(":app:assembleDebug")))
-
-		assertThat(listener.cancelRequested).isFalse()
+		assertThat(listener.outcomeKind(buildId(7)))
+			.isEqualTo(MetricsAnnotationStore.Kind.BUILD_CANCELLED)
 	}
 
 	@Test
-	fun `preparing a build clears a stale pairing`() {
-		listener.annotatedBuild = true
+	fun `a cancel is not inherited by the next build`() {
+		// The other half of keying to a build rather than to a moment. This listener outlives any
+		// one activity, so a cancel whose outcome never arrived stays held -- and must not relabel
+		// the next build's genuine failure.
+		listener.onBuildCancelRequested(buildId(7))
 
-		// The flag means "a start marker was drawn for the build now running", so a new build
-		// must not inherit it: the outcome callbacks read it to decide whether to draw the other
-		// half of the pair, and they are handed a different task list from this one. Cleared
-		// before the activity check for the same reason as the cancel flag.
-		listener.prepareBuild(BuildInfo(BuildId.Unknown, listOf(":app:assembleDebug")))
+		assertThat(listener.outcomeKind(buildId(8)))
+			.isEqualTo(MetricsAnnotationStore.Kind.BUILD_FAILED)
+	}
 
-		assertThat(listener.annotatedBuild).isFalse()
+	@Test
+	fun `a build nobody stopped is a failure`() {
+		assertThat(listener.outcomeKind(buildId(7)))
+			.isEqualTo(MetricsAnnotationStore.Kind.BUILD_FAILED)
+	}
+
+	@Test
+	fun `a cancel naming no build leaves the one already held alone`() {
+		// cancelCurrentBuild passes null when nothing is running. Taking that as "forget the
+		// cancel" would lose the attribution for a build still finishing.
+		listener.onBuildCancelRequested(buildId(7))
+		listener.onBuildCancelRequested(null)
+
+		assertThat(listener.outcomeKind(buildId(7)))
+			.isEqualTo(MetricsAnnotationStore.Kind.BUILD_CANCELLED)
 	}
 
 	@Test

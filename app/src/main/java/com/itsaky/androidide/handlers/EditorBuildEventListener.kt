@@ -26,6 +26,7 @@ import com.itsaky.androidide.projects.builder.BuildResult
 import com.itsaky.androidide.projects.builder.LaunchResult
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.services.builder.GradleBuildService
+import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.tooling.events.configuration.ProjectConfigurationStartEvent
@@ -50,14 +51,22 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	private var lastOutputTimeMs: Long = SystemClock.elapsedRealtime()
 
 	/**
-	 * Set when the user asks for the running build to stop, so [onBuildFailed] can tell a cancel
-	 * from a real failure. Cleared as each build is prepared.
+	 * The build the user asked to stop, so [onBuildFailed] can tell a cancel from a real failure.
+	 *
+	 * A build id and not a flag. A flag said only "a cancel happened recently", and the one thing
+	 * tying it to the build it belonged to was the order two main-thread runnables happened to run
+	 * in: [onBuildCancelRequested] is raised on the UI thread and so runs inline, while
+	 * [prepareBuild] is raised from the build's own thread and so is posted. A cancel arriving
+	 * after that post and before it ran was cleared by it, and the build the user stopped was
+	 * annotated as a failure (ADFA-5542). Identity does not depend on that order, and there is
+	 * nothing to clear per build: an id left over from a build whose outcome never arrived cannot
+	 * match the next build's.
 	 */
 	@VisibleForTesting
-	internal var cancelRequested = false
+	internal var cancelledBuildId: BuildId? = null
 
 	/**
-	 * Whether the build now running drew a "Build started" marker.
+	 * The build that drew a "Build started" marker, or null if the one running drew none.
 	 *
 	 * The outcome callbacks used to decide for themselves, from the task list they are handed --
 	 * a different list from the one prepareBuild sees. If those two ever disagreed the chart got
@@ -65,7 +74,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	 * exists to avoid. The build that started decides, and its outcome follows.
 	 */
 	@VisibleForTesting
-	internal var annotatedBuild = false
+	internal var annotatedBuildId: BuildId? = null
 
 	private var enabled = true
 	private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
@@ -99,13 +108,6 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	}
 
 	override fun prepareBuild(buildInfo: BuildInfo) {
-		// Before the activity check, not after: this listener outlives any one activity, so a
-		// build whose outcome arrived with none attached would otherwise leave both flags set for
-		// the next build to inherit -- a stale cancel mislabelling a real failure, or a stale
-		// pairing drawing a finish for a build that never started.
-		cancelRequested = false
-		annotatedBuild = false
-
 		val act = checkActivity("prepareBuild") ?: return
 
 		// A project sync runs through the same callbacks with no tasks, so annotating every
@@ -115,7 +117,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		// The outcome callbacks are handed their own task list, which is not this one. Recorded
 		// here so the pair is decided once, by the build that started.
 		if (buildInfo.tasks.isNotEmpty()) {
-			annotatedBuild = true
+			annotatedBuildId = buildInfo.buildId
 			act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_STARTED)
 		}
 
@@ -143,18 +145,50 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		}
 	}
 
+	/**
+	 * Drops what is held for [buildId] now that its outcome has been reported.
+	 *
+	 * Only for that build: another id in either field belongs to a build whose outcome has not
+	 * arrived, and clearing it would lose the pairing or the cancel that build is owed.
+	 */
+	private fun forget(buildId: BuildId) {
+		if (cancelledBuildId == buildId) {
+			cancelledBuildId = null
+		}
+		if (annotatedBuildId == buildId) {
+			annotatedBuildId = null
+		}
+	}
+
+	/**
+	 * Whether the failure of [buildId] is the user's own cancel or a real failure (ADFA-5542).
+	 *
+	 * Separated from [onBuildFailed] so the decision can be tested: that method needs a live
+	 * activity before it reaches this point, and returns early without one.
+	 */
+	@VisibleForTesting
+	internal fun outcomeKind(buildId: BuildId): MetricsAnnotationStore.Kind =
+		if (cancelledBuildId == buildId) {
+			MetricsAnnotationStore.Kind.BUILD_CANCELLED
+		} else {
+			MetricsAnnotationStore.Kind.BUILD_FAILED
+		}
+
 	private fun resetBuildTimers() {
 		buildStartTimeMs = System.currentTimeMillis()
 		lastOutputTimeMs = SystemClock.elapsedRealtime()
 	}
 
-	override fun onBuildSuccessful(tasks: List<String?>) {
+	override fun onBuildSuccessful(
+		buildId: BuildId,
+		tasks: List<String?>,
+	) {
 		val act = checkActivity("onBuildSuccessful") ?: return
 
-		if (annotatedBuild) {
+		if (annotatedBuildId == buildId) {
 			act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_FINISHED)
 		}
-		annotatedBuild = false
+		forget(buildId)
 
 		pluginBuildService?.notifyBuildFinished()
 
@@ -183,8 +217,12 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		lastStatusLine = ""
 	}
 
-	override fun onBuildCancelRequested() {
-		cancelRequested = true
+	override fun onBuildCancelRequested(buildId: BuildId?) {
+		// A cancel with no build running names nothing to attribute it to. Leaving the id already
+		// held alone keeps a build still finishing from being relabelled by it.
+		if (buildId != null) {
+			cancelledBuildId = buildId
+		}
 	}
 
 	override fun onProgressEvent(event: ProgressEvent) {
@@ -212,22 +250,18 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	@VisibleForTesting
 	internal fun isAnnotated(event: ProgressEvent): Boolean = event is TaskStartEvent || event is TaskFinishEvent
 
-	override fun onBuildFailed(tasks: List<String?>) {
+	override fun onBuildFailed(
+		buildId: BuildId,
+		tasks: List<String?>,
+	) {
 		val act = checkActivity("onBuildFailed") ?: return
 
-		if (annotatedBuild) {
+		if (annotatedBuildId == buildId) {
 			// A build the user stopped arrives through this same callback. Marking it as a failure
 			// would report their own deliberate action back to them in the error colour.
-			act.recordBuildAnnotation(
-				if (cancelRequested) {
-					MetricsAnnotationStore.Kind.BUILD_CANCELLED
-				} else {
-					MetricsAnnotationStore.Kind.BUILD_FAILED
-				},
-			)
+			act.recordBuildAnnotation(outcomeKind(buildId))
 		}
-		annotatedBuild = false
-		cancelRequested = false
+		forget(buildId)
 
 		analyzeCurrentFile()
 		GeneralPreferences.isFirstBuild = false

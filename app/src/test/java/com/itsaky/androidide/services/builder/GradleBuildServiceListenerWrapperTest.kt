@@ -19,6 +19,7 @@ package com.itsaky.androidide.services.builder
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.services.builder.GradleBuildService.EventListener
+import com.itsaky.androidide.tooling.api.messages.BuildId
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -40,12 +41,15 @@ class GradleBuildServiceListenerWrapperTest {
 	private class Recorder {
 		val calls = mutableListOf<String>()
 
+		var lastArgs: List<Any?> = emptyList()
+
 		val listener: EventListener =
 			Proxy.newProxyInstance(
 				EventListener::class.java.classLoader,
 				arrayOf(EventListener::class.java),
-			) { _, method, _ ->
+			) { _, method, args ->
 				calls += method.name
+				lastArgs = args.orEmpty().toList()
 				null
 			} as EventListener
 	}
@@ -71,14 +75,30 @@ class GradleBuildServiceListenerWrapperTest {
 	}
 
 	@Test
-	fun `a cancel request reaches the listener`() {
+	fun `a cancel request reaches the listener, naming its build`() {
 		val recorder = Recorder()
 		val wrapped = GradleBuildService.wrap(recorder.listener)!!
 
-		wrapped.onBuildCancelRequested()
+		wrapped.onBuildCancelRequested(BuildId.Unknown)
 
 		// The one this went wrong on, kept as its own case so the reason is legible in a report.
 		assertThat(recorder.calls).containsExactly("onBuildCancelRequested")
+
+		// The id is the whole of what makes a cancel attributable (ADFA-5542). A wrapper that
+		// forwarded the call and dropped the argument would be the same defect one layer in, and
+		// no signature would complain about it.
+		assertThat(recorder.lastArgs).containsExactly(BuildId.Unknown)
+	}
+
+	@Test
+	fun `an outcome reaches the listener with the build it belongs to`() {
+		val recorder = Recorder()
+		val wrapped = GradleBuildService.wrap(recorder.listener)!!
+
+		wrapped.onBuildFailed(BuildId.Unknown, listOf(":app:assembleDebug"))
+
+		assertThat(recorder.calls).containsExactly("onBuildFailed")
+		assertThat(recorder.lastArgs).containsExactly(BuildId.Unknown, listOf(":app:assembleDebug")).inOrder()
 	}
 
 	@Test
