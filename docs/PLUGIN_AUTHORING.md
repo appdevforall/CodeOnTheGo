@@ -98,7 +98,7 @@ classpath, so a root without AGP fails configuration with
 All plugin metadata is declared as `<meta-data>` tags inside
 `<application>` in `src/main/AndroidManifest.xml`. The loader reads
 these in `PluginLoader.getPluginMetadata()`
-(`plugin-manager/src/main/kotlin/com/itsaky/androidide/plugins/manager/loaders/PluginLoader.kt:227`).
+(`plugin-manager/src/main/kotlin/com/itsaky/androidide/plugins/manager/loaders/PluginLoader.kt`).
 
 | Key                       | Type                    | Required | Notes                                                                 |
 |---------------------------|-------------------------|----------|-----------------------------------------------------------------------|
@@ -313,10 +313,15 @@ The record is always written, even when everything is unknown -- a file saying
 `revision=unknown` is a definite statement, whereas a missing one is ambiguous
 between an old builder, a community build, and tampering.
 
+Reading back, the IDE treats a blank provenance value as an absent one, so a
+hand-written `plugin.vcs_revision=""` shows no `Built From` row at all rather
+than an empty one. Let the placeholder fill the value in and this never comes
+up.
+
 ## Permissions
 
 Declare permissions as a comma-separated list in `plugin.permissions`.
-Defined in `plugin-api/src/main/kotlin/com/itsaky/androidide/plugins/IPlugin.kt:28`:
+Defined by `PluginPermission` in `plugin-api/src/main/kotlin/com/itsaky/androidide/plugins/IPlugin.kt`:
 
 | Key                      | Grants                                                                          |
 |--------------------------|---------------------------------------------------------------------------------|

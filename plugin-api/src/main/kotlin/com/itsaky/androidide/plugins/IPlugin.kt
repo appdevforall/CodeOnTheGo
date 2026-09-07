@@ -14,6 +14,14 @@ interface IPlugin {
 	fun dispose()
 }
 
+/**
+ * Identity and provenance of an installed plugin, as the host read them out of the `.cgp`.
+ *
+ * Every field is derived by the IDE from the plugin's manifest; a plugin does not state its own
+ * metadata at runtime. [vcsRevision] and [buildTimestamp] are null for a plugin built before
+ * provenance existed, so null means "this build predates provenance" rather than "built from
+ * nothing" -- a caller that renders them should omit the field instead of showing it empty.
+ */
 @Parcelize
 data class PluginMetadata
 	@JvmOverloads

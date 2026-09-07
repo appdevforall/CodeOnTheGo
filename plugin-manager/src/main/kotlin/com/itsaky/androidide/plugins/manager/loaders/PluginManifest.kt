@@ -77,6 +77,13 @@ data class ManifestBuildAction(
 	val timeoutMs: Long = 600_000,
 )
 
+/**
+ * Absent and blank state the same thing -- the `.cgp` carries no revision -- so both become null.
+ * A blank value would reach the plugin details dialog as an empty "Built From" row, which reads as
+ * "built from nothing" rather than "this build predates provenance".
+ */
+internal fun normalizeProvenanceValue(raw: String?): String? = raw?.takeIf { it.isNotBlank() }
+
 fun PluginManifest.toPluginMetadata() =
 	PluginMetadata(
 		id = id,
@@ -126,15 +133,20 @@ object PluginManifestParser {
 	@Suppress("SENSELESS_COMPARISON")
 	private fun PluginManifest.normalize(): PluginManifest {
 		val normalizedActions = (buildActions ?: emptyList()).map { it.normalize() }
+		val normalizedRevision = normalizeProvenanceValue(vcsRevision)
+		val normalizedTimestamp = normalizeProvenanceValue(buildTimestamp)
 		return if (
 			permissions == null || dependencies == null || extensions == null || buildActions == null ||
-			normalizedActions !== buildActions
+			normalizedActions !== buildActions ||
+			normalizedRevision !== vcsRevision || normalizedTimestamp !== buildTimestamp
 		) {
 			copy(
 				permissions = permissions ?: emptyList(),
 				dependencies = dependencies ?: emptyList(),
 				extensions = extensions ?: emptyList(),
 				buildActions = normalizedActions,
+				vcsRevision = normalizedRevision,
+				buildTimestamp = normalizedTimestamp,
 			)
 		} else {
 			this
