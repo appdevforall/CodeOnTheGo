@@ -23,6 +23,7 @@ import android.os.SystemClock
 import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
@@ -38,6 +39,7 @@ import com.github.mikephil.charting.listener.OnChartGestureListener
 import com.itsaky.androidide.R
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.longPressHelpTimeoutMillis
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import kotlin.math.ceil
@@ -395,6 +397,15 @@ abstract class MetricsChartRenderer(
 	private inner class XAxisTapListener(
 		private val chart: SafeLineChart,
 	) : OnChartGestureListener {
+		/** The deferred half of a long press, waiting out the rest of the hold. */
+		private var pendingHelp: Runnable? = null
+
+		/** Whether this gesture already showed help, so its lift must not also count as a tap. */
+		private var helpShown = false
+
+		/** Whether the press that became a long press had started on the axis band. */
+		private var pendingTapOnAxis = false
+
 		override fun onChartSingleTapped(me: MotionEvent?) {
 			val y = me?.y ?: return
 			if (isOnAxisBand(y)) {
@@ -410,16 +421,43 @@ abstract class MetricsChartRenderer(
 		override fun onChartGestureEnd(
 			me: MotionEvent?,
 			lastPerformedGesture: ChartTouchListener.ChartGesture?,
-		) = Unit
+		) {
+			pendingHelp?.let(chart::removeCallbacks)
+			pendingHelp = null
+			// Lifted before the hold completed: the detector ate the tap, so stand in for it.
+			if (!helpShown && pendingTapOnAxis) {
+				onXAxisTap?.invoke()
+			}
+			helpShown = false
+			pendingTapOnAxis = false
+		}
 
 		override fun onChartLongPressed(me: MotionEvent?) {
 			val y = me?.y ?: return
 			val tag = helpTagAt(y) ?: return
-			// Haptic feedback left at its default, unlike every view-based help site, which
-			// passes false. Those rely on View.performLongClick buzzing for them;
-			// BarLineChartBase.onTouchEvent never calls super, so the framework's long press --
-			// and its feedback -- never runs here and this is the only thing that provides it.
-			showIdeCategoryTooltipIfPresent(chart.context, chart, tag)
+
+			// This arrives at the platform's own timeout -- 400ms by default, a brisk tap -- and
+			// help at that speed is what ADFA-5554 is about. Wait out the rest of the hold and
+			// show it only if the finger is still down; [onChartGestureEnd] cancels otherwise.
+			pendingHelp?.let(chart::removeCallbacks)
+			val onAxisBand = isOnAxisBand(y)
+			pendingHelp =
+				Runnable {
+					pendingHelp = null
+					helpShown = true
+					// Haptic feedback left at its default, unlike every view-based help site,
+					// which passes false. Those rely on View.performLongClick buzzing for them;
+					// BarLineChartBase.onTouchEvent never calls super, so the framework's long
+					// press -- and its feedback -- never runs here and this is the only thing
+					// that provides it.
+					showIdeCategoryTooltipIfPresent(chart.context, chart, tag)
+				}.also { chart.postDelayed(it, longPressHelpTimeoutMillis() - ViewConfiguration.getLongPressTimeout()) }
+
+			// GestureDetector has already decided this gesture is a long press, so it will not
+			// report the tap that would have opened the sampling-rate chooser. Remember whether
+			// this one was headed there, so a finger lifted before the hold completes still gets
+			// the tap it asked for rather than nothing at all.
+			pendingTapOnAxis = onAxisBand
 		}
 
 		override fun onChartDoubleTapped(me: MotionEvent?) = Unit

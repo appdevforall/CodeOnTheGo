@@ -31,4 +31,8 @@ import android.view.View
 fun View.clearLongPressHelp() {
 	setOnLongClickListener(null)
 	isLongClickable = false
+	// The hold is timed by a touch listener rather than the framework (ADFA-5554), so leaving that
+	// installed would keep the view swallowing every touch -- and performing its own clicks -- for
+	// help it no longer offers.
+	setOnTouchListener(null)
 }
