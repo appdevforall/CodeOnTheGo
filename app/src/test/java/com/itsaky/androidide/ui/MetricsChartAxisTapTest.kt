@@ -129,6 +129,34 @@ class MetricsChartAxisTapTest {
 	}
 
 	@Test
+	fun `a tap on the legend does not open the chooser`() {
+		val chart = laidOutChart()
+
+		// MPAndroidChart aligns the legend to the bottom by default, below the axis labels, so
+		// "everything under the plot" included it -- and the legend is the one part of a chart a
+		// reader expects to be tappable. Opening the rate chooser there is bad enough; picking a
+		// rate in it clears every buffer, so a mis-tap costs the history being looked at.
+		//
+		// Robolectric measures no real text, so the legend here is a few pixels rather than the
+		// ~10dp row a device draws. That is enough: the assertion is about which side of the
+		// boundary the legend's own rows fall on, and the bottom row is the legend's.
+		tapAt(chart, CHART_HEIGHT - 1f)
+
+		assertThat(taps).isEqualTo(0)
+	}
+
+	@Test
+	fun `the axis labels still open the chooser, with the legend excluded`() {
+		val chart = laidOutChart()
+
+		// The other half of the bound: narrowing the band must not put the rate chooser out of
+		// reach. One axis label's height below the plot always stays in it.
+		tapAt(chart, chart.viewPortHandler.contentBottom() + chart.xAxis.textSize / 2f)
+
+		assertThat(taps).isEqualTo(1)
+	}
+
+	@Test
 	fun `a tap above the plot does not open the chooser`() {
 		val chart = laidOutChart()
 

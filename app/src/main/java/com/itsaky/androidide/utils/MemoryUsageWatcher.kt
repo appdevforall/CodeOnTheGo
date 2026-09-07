@@ -508,7 +508,12 @@ class MemoryUsageWatcher
 			 * The MemoryInfo instance is shared deliberately: it is the sampler's scratch buffer
 			 * for the next reading and no reader looks at it.
 			 */
-			internal fun snapshot(): ProcessMemoryInfo = ProcessMemoryInfo(pid, pname, _history.copy())
+			internal fun snapshot(): ProcessMemoryInfo =
+				// Every field, including watchedSinceMillis. Dropping it let it default to 0, which
+				// reads as "watched since the epoch" -- so the guard that blanks a process's
+				// zero-filled past never fired, and the Gradle daemon's buffer exported as
+				// measured zeros from before it existed (ADFA-5531).
+				ProcessMemoryInfo(pid, pname, _history.copy(), watchedSinceMillis)
 
 			override fun equals(other: Any?): Boolean {
 				if (this === other) return true

@@ -14,6 +14,7 @@ import android.view.PixelCopy
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
@@ -21,6 +22,7 @@ import androidx.core.text.HtmlCompat
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.eventbus.events.editor.ReportCaughtExceptionEvent
 import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -300,6 +302,37 @@ object FeedbackManager {
 			else -> "Unknown Screen"
 		}
 
+	/**
+	 * The URI for the metrics attachment, or `null` if there is nothing to attach or it failed.
+	 *
+	 * Suspending, unlike the log: the caller reads the sample buffers on the main thread and writes
+	 * a compressed file off it, and neither belongs in a click listener. Guarded, because feedback
+	 * about a broken IDE has to send even when this part does not work.
+	 *
+	 * Both steps are inside the guard. [toUri] used to be chained outside it, so a FileProvider not
+	 * told about the attachment's directory threw past the guard and killed the whole send --
+	 * precisely what the guard is for.
+	 *
+	 * [CancellationException] is rethrown rather than swallowed. `runCatching` catches `Throwable`,
+	 * and [provider] really does suspend, so a destroyed activity had its cancellation eaten here
+	 * and the caller ran on to `startActivity()` on a dead activity.
+	 *
+	 * Separated from [sendFeedbackWithAttachments] so it can be tested: that one needs a live
+	 * activity and its lifecycle scope, and this is the part with the failure modes.
+	 */
+	@VisibleForTesting
+	internal suspend fun metricsAttachmentUri(
+		provider: (suspend () -> File?)?,
+		toUri: (File) -> Uri,
+	): Uri? =
+		runCatching { provider?.invoke()?.let(toUri) }
+			.onFailure { error ->
+				if (error is CancellationException) {
+					throw error
+				}
+				logger.error("Could not attach the metrics file", error)
+			}.getOrNull()
+
 	private fun sendFeedbackWithAttachments(
 		activity: AppCompatActivity,
 		logContent: String?,
@@ -310,14 +343,7 @@ object FeedbackManager {
 
 			val screenshotUri = handler.captureAndPrepareScreenshotUri(activity)
 			val logContentUri = handler.getLogUri(activity, logContent)
-			// Suspending, unlike the log: the caller has to read the sample buffers on the main
-			// thread and write a compressed file off it, and neither belongs in a click listener.
-			// Guarded, because feedback about a broken IDE must still send if this part fails.
-			val metricsUri =
-				runCatching { metricsAttachment?.invoke() }
-					.onFailure { error -> logger.error("Could not attach the metrics file", error) }
-					.getOrNull()
-					?.let { file -> activity.fileProviderUriFor(file) }
+			val metricsUri = metricsAttachmentUri(metricsAttachment, activity::fileProviderUriFor)
 
 			val feedbackRecipient = activity.getString(R.string.feedback_email)
 			val feedbackSubject =

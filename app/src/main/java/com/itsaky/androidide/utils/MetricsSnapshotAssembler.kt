@@ -126,9 +126,26 @@ object MetricsSnapshotAssembler {
 				},
 			networkReceived = MetricsCsv.Series(networkUsage.sampleTimes, networkUsage.received),
 			networkTransmitted = MetricsCsv.Series(networkUsage.sampleTimes, networkUsage.transmitted),
-			temperature = MetricsCsv.Series(powerUsage.sampleTimes, powerUsage.temperatureMilliCelsius),
-			power = MetricsCsv.Series(powerUsage.sampleTimes, powerUsage.powerMicroWatts),
-			thermal = MetricsCsv.Series(powerUsage.sampleTimes, powerUsage.thermalStatus),
+			// The power series carry in-band sentinels for a reading the device does not provide.
+			// Named here rather than in MetricsCsv, which has no Android types in it.
+			temperature =
+				MetricsCsv.Series(
+					powerUsage.sampleTimes,
+					powerUsage.temperatureMilliCelsius,
+					absent = PowerUsageWatcher.UNAVAILABLE,
+				),
+			power =
+				MetricsCsv.Series(
+					powerUsage.sampleTimes,
+					powerUsage.powerMicroWatts,
+					absent = PowerUsageWatcher.UNAVAILABLE,
+				),
+			thermal =
+				MetricsCsv.Series(
+					powerUsage.sampleTimes,
+					powerUsage.thermalStatus,
+					absent = PowerUsageWatcher.THERMAL_UNKNOWN.toLong(),
+				),
 			annotations = markers(context, annotations),
 		)
 	}
