@@ -19,6 +19,7 @@ package com.itsaky.androidide.utils
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -61,6 +62,14 @@ class MemoryUsageWatcherLivenessTest {
 		// reads this same figure back -- a flat line at 800MB for a daemon that has died, which is
 		// worse than no line at all.
 		watcher.getMemoryUsage(DEAD_PID)!!.memInfo.dalvikPss = STALE_PSS_KB
+
+		// The control, and it is not optional: a zero on its own proves nothing, because a zero is
+		// also what a watcher that read nothing at all would hold. Called alive, the same setup
+		// reads the stale figure back -- so the zero below is a decision rather than a default.
+		watcher.isProcessAlive = { true }
+		watcher.readUsages()
+		assertThat(newestSample(watcher, DEAD_PID)).isEqualTo(STALE_PSS_KB * 1024L)
+
 		watcher.isProcessAlive = { false }
 		watcher.readUsages()
 
@@ -71,17 +80,17 @@ class MemoryUsageWatcherLivenessTest {
 	fun `liveness is decided per process, not for the sample as a whole`() {
 		val watcher = watcher()
 		watcher.watchProcess(DEAD_PID, "Gradle Daemon")
-		watcher.watchProcess(LIVE_PID, "IDE")
+		watcher.watchProcess(OTHER_PID, "IDE")
 		val asked = mutableListOf<Int>()
 
 		watcher.isProcessAlive = { pid ->
 			asked += pid
-			pid == LIVE_PID
+			pid == OTHER_PID
 		}
 		watcher.readUsages()
 
 		// A dead daemon must not stop the IDE's own line being sampled.
-		assertThat(asked).containsExactly(DEAD_PID, LIVE_PID)
+		assertThat(asked).containsExactly(DEAD_PID, OTHER_PID)
 		assertThat(newestSample(watcher, DEAD_PID)).isEqualTo(0L)
 	}
 
@@ -89,7 +98,7 @@ class MemoryUsageWatcherLivenessTest {
 	fun `a process unwatched while it is being sampled does not take the sampler down with it`() {
 		val watcher = watcher()
 		watcher.watchProcess(DEAD_PID, "Gradle Daemon")
-		watcher.watchProcess(LIVE_PID, "IDE")
+		watcher.watchProcess(OTHER_PID, "IDE")
 
 		// The daemon is unwatched from a build event, on the main thread, while readUsages runs on
 		// the sampling thread. Reading the map twice per process left a window between the two in
@@ -104,7 +113,7 @@ class MemoryUsageWatcherLivenessTest {
 		watcher.readUsages()
 
 		assertThat(watcher.getMemoryUsage(DEAD_PID)).isNull()
-		assertThat(watcher.getMemoryUsage(LIVE_PID)).isNotNull()
+		assertThat(watcher.getMemoryUsage(OTHER_PID)).isNotNull()
 	}
 
 	@Test
@@ -114,23 +123,30 @@ class MemoryUsageWatcherLivenessTest {
 
 		// A new build starts a new daemon. watchProcess is unique by name, so the old pid is gone
 		// from the map before its exit is even reported.
-		watcher.watchProcess(LIVE_PID, "Gradle Daemon")
+		watcher.watchProcess(OTHER_PID, "Gradle Daemon")
 
 		// The exit of the old one arrives afterwards, which is the order the tooling server's
 		// reaper thread and its poll can produce. By pid this is a no-op; by name it would blank
 		// the line for the daemon that is actually running.
 		watcher.unwatchProcess(DEAD_PID)
 
-		assertThat(watcher.getMemoryUsage(LIVE_PID)).isNotNull()
+		assertThat(watcher.getMemoryUsage(OTHER_PID)).isNotNull()
 	}
 
 	@Test
 	fun `the default check really reads proc`() {
-		val watcher = watcher()
-
 		// Guards the tests above: they replace isProcessAlive wholesale, so nothing else here would
 		// notice if the real one stopped answering.
-		assertThat(watcher.isProcessAlive(LIVE_PID)).isTrue()
+		//
+		// This is the only test that needs a pid `/proc` really has, so it reads one here rather
+		// than in a companion initialiser. There it took the whole class down with an
+		// ExceptionInInitializerError on any platform without `/proc` -- four unrelated tests
+		// failing for a reason none of them is about -- instead of skipping the one that cares.
+		val selfPid = File("/proc/self").canonicalFile.name.toLongOrNull()
+		assumeTrue("no /proc on this platform", selfPid != null)
+
+		val watcher = watcher()
+		assertThat(watcher.isProcessAlive(selfPid!!.toInt())).isTrue()
 		assertThat(watcher.isProcessAlive(DEAD_PID)).isFalse()
 	}
 
@@ -142,12 +158,13 @@ class MemoryUsageWatcherLivenessTest {
 		const val STALE_PSS_KB = 800 * 1024
 
 		/**
-		 * The test JVM itself, which is certainly alive.
+		 * A second watched process.
 		 *
-		 * Read from `/proc/self`, which is the same source the check itself uses. Not
-		 * `Process.myPid()`: Robolectric answers that with 0, which is not a pid this process has and
-		 * collides with anything else standing in for "no such process".
+		 * Any number will do: every test that uses it replaces [MemoryUsageWatcher.isProcessAlive],
+		 * so nothing asks `/proc` about it. Not `Process.myPid()`, which Robolectric answers with 0
+		 * -- not a pid this process has, and a collision with anything standing in for "no such
+		 * process".
 		 */
-		val LIVE_PID = File("/proc/self").canonicalFile.name.toInt()
+		const val OTHER_PID = 4243
 	}
 }
