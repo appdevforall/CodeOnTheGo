@@ -134,4 +134,23 @@ open class ShiftedLongArray(
  * Shared so the watchers' snapshots cannot drift from [ShiftedLongArray]'s shift semantics; each
  * of them had its own private copy of this one line.
  */
-internal fun ShiftedLongArray.toLongArray(): LongArray = LongArray(size) { this[it] }
+internal fun ShiftedLongArray.toLongArray(): LongArray = copyInto(LongArray(size))
+
+/**
+ * Copies this ring buffer into [dest] in logical order, oldest first, and returns it.
+ *
+ * For a caller that owns its destination already. A crash handler must not allocate -- the crash it
+ * is reporting may be the heap running out -- so ADFA-5526 pre-allocates one set of destinations at
+ * startup and fills them here instead of taking eleven fresh arrays per snapshot.
+ *
+ * @throws IllegalArgumentException when [dest] is not exactly this buffer's length. A short
+ *   destination would silently truncate the history and a long one would leave a stale tail behind
+ *   it, and both read as data.
+ */
+internal fun ShiftedLongArray.copyInto(dest: LongArray): LongArray {
+	require(dest.size == size) { "Destination is ${dest.size} long, buffer is $size" }
+	for (i in 0 until size) {
+		dest[i] = this[i]
+	}
+	return dest
+}

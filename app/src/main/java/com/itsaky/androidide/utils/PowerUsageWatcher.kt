@@ -140,13 +140,34 @@ class PowerUsageWatcher
 		 * live ring buffers would let a reader see them mid-append.
 		 */
 		fun getUsage(): PowerUsage =
+			copyUsageInto(
+				LongArray(temperature.size),
+				LongArray(power.size),
+				LongArray(thermal.size),
+				LongArray(sampleTimes.size),
+			)
+
+		/**
+		 * [getUsage], into destinations the caller owns (ADFA-5526).
+		 *
+		 * The times come back with the values because they are read in the same critical section:
+		 * asking separately let a sample land between the calls and shifted every value one index
+		 * against its timestamp (ADFA-5531).
+		 */
+		fun copyUsageInto(
+			temperatureDest: LongArray,
+			powerDest: LongArray,
+			thermalDest: LongArray,
+			timesDest: LongArray,
+		): PowerUsage =
 			synchronized(historyLock) {
 				PowerUsage(
-					temperature.toLongArray(),
-					power.toLongArray(),
-					thermal.toLongArray(),
-					sampleTimes.toLongArray(),
+					temperature.copyInto(temperatureDest),
+					power.copyInto(powerDest),
+					thermal.copyInto(thermalDest),
+					sampleTimes.copyInto(timesDest),
 				)
+			}
 			}
 
 		fun clearHistory() {
@@ -316,8 +337,8 @@ class PowerUsageWatcher
 		}
 
 		companion object {
-			/** Samples retained per series, matching the other watchers. */
-			const val MAX_USAGE_ENTRIES = 10000
+			/** Samples retained per series, matching the other watchers (ADFA-5526). */
+			const val MAX_USAGE_ENTRIES = 3600
 			const val DEFAULT_UPDATE_INTERVAL = 1000L
 
 			/** A reading the device does not provide. */

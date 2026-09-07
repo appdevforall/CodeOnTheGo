@@ -155,8 +155,27 @@ class NetworkUsageWatcher
 		 * the sampler thread is midway through appending, and the chart renderer reads all 30 entries.
 		 */
 		fun getUsage(): NetworkUsage =
+			copyUsageInto(LongArray(received.size), LongArray(transmitted.size), LongArray(sampleTimes.size))
+
+		/**
+		 * [getUsage], into destinations the caller owns (ADFA-5526).
+		 *
+		 * The times come back with the values because they are read in the same critical section:
+		 * asking separately let a sample land between the calls and shifted every value one index
+		 * against its timestamp (ADFA-5531).
+		 */
+		fun copyUsageInto(
+			receivedDest: LongArray,
+			transmittedDest: LongArray,
+			timesDest: LongArray,
+		): NetworkUsage =
 			synchronized(historyLock) {
-				NetworkUsage(received.toLongArray(), transmitted.toLongArray(), sampleTimes.toLongArray())
+				NetworkUsage(
+					received.copyInto(receivedDest),
+					transmitted.copyInto(transmittedDest),
+					sampleTimes.copyInto(timesDest),
+				)
+			}
 			}
 
 		/**
@@ -356,12 +375,18 @@ class NetworkUsageWatcher
 
 		companion object {
 			/**
-			 * Samples retained per series (ADFA-5486). The span this covers depends on the interval:
-			 * under three hours at one second, about seventeen minutes at the 0.1s minimum. 80KB of
-			 * longs per series, so the cost is in drawing rather than holding -- see
-			 * MetricsChartRenderer, which shows a window of this rather than all of it.
+			 * Samples retained per series.
+			 *
+			 * An hour at [DEFAULT_UPDATE_INTERVAL], and the chart shows sixty of them at a time
+			 * (ADFA-5486). It was 10,000, which is nearly three hours nobody was looking at -- and
+			 * eleven buffers of that is 859KB held for the life of the process, doubled by the
+			 * pre-allocated snapshot destinations [MetricsScratch] adds so a crash handler never has
+			 * to allocate. At 3,600 the two together cost less than the one did (ADFA-5526).
+			 *
+			 * A count of samples, not a duration: at the fastest offered rate of 100ms it is six
+			 * minutes rather than an hour.
 			 */
-			const val MAX_USAGE_ENTRIES = 10000
+			const val MAX_USAGE_ENTRIES = 3600
 			const val DEFAULT_UPDATE_INTERVAL = 1000L
 
 			/** [TrafficStats.UNSUPPORTED] widened to [Long], which is what the getters return. */

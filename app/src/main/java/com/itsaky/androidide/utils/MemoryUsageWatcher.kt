@@ -157,11 +157,18 @@ class MemoryUsageWatcher
 			}
 
 			/**
-			 * Samples retained per series: nearly three hours at [DEFAULT_UPDATE_INTERVAL] (ADFA-5486).
-			 * About 80KB of longs per series, so the cost is in drawing rather than holding --
-			 * see MetricsChartRenderer, which shows a window of this rather than all of it.
+			 * Samples retained per series.
+			 *
+			 * An hour at [DEFAULT_UPDATE_INTERVAL], and the chart shows sixty of them at a time
+			 * (ADFA-5486). It was 10,000, which is nearly three hours nobody was looking at -- and
+			 * eleven buffers of that is 859KB held for the life of the process, doubled by the
+			 * pre-allocated snapshot destinations [MetricsScratch] adds so a crash handler never has
+			 * to allocate. At 3,600 the two together cost less than the one did (ADFA-5526).
+			 *
+			 * A count of samples, not a duration: at the fastest offered rate of 100ms it is six
+			 * minutes rather than an hour.
 			 */
-			const val MAX_USAGE_ENTRIES = 10000
+			const val MAX_USAGE_ENTRIES = 3600
 			const val DEFAULT_UPDATE_INTERVAL = 1000L
 			private val log = LoggerFactory.getLogger(MemoryUsageWatcher::class.java)
 		}
@@ -337,6 +344,32 @@ class MemoryUsageWatcher
 			}
 
 		/**
+		 * [history], into destinations the caller owns (ADFA-5526).
+		 *
+		 * Processes beyond the destinations given are dropped rather than allocated for -- the caller
+		 * sized itself for [MetricsCsv.MEMORY_COLUMNS], which is every process the chart can plot.
+		 */
+		fun copyHistoryInto(
+			timesDest: LongArray,
+			destinations: List<LongArray>,
+		): MemoryHistory =
+			synchronized(historyLock) {
+				MemoryHistory(
+					times = sampleTimes.copyInto(timesDest),
+					processes =
+						memoryUsage.values.take(destinations.size).mapIndexed { index, proc ->
+							ProcessHistory(
+								pid = proc.pid,
+								pname = proc.pname,
+								usage = proc._history.copyInto(destinations[index]),
+								watchedSinceMillis = proc.watchedSinceMillis,
+							)
+						},
+				)
+			}
+			}
+
+		/**
 		 * Returns the memory usage of all the registered processes.
 		 */
 		fun getMemoryUsages(): Array<ProcessMemoryInfo> =
@@ -411,6 +444,9 @@ class MemoryUsageWatcher
 
 		/**
 		 * One process's retained samples, detached from the watcher.
+		 *
+		 * Deliberately not [ProcessMemoryInfo], which carries a MemoryInfo and a ring buffer of its
+		 * own and is what [getMemoryUsages] allocates.
 		 *
 		 * @property usage The samples, oldest first, in bytes.
 		 * @property watchedSinceMillis When this process started being watched. Its buffer reaches
