@@ -88,6 +88,20 @@
 		app:layout_constraintBottom_toBottomOf="@id/metrics_pager"
 		app:layout_constraintEnd_toEndOf="@id/metrics_pager" />
 
+	<!-- Exports every retained sample as CSV (ADFA-5531). Left of the camera, sharing its corner and its touch target: both
+		are exports, and putting them together keeps the rest of the chart free for the gestures that already own it. -->
+	<ImageButton
+		android:id="@+id/metrics_export"
+		android:layout_width="@dimen/metrics_carousel_snapshot_touch_target"
+		android:layout_height="@dimen/metrics_carousel_snapshot_touch_target"
+		android:background="?attr/selectableItemBackgroundBorderless"
+		android:contentDescription="@string/metrics_carousel_export"
+		android:padding="@dimen/metrics_carousel_snapshot_padding"
+		android:scaleType="fitCenter"
+		android:src="@drawable/ic_spreadsheet"
+		app:layout_constraintBottom_toBottomOf="@id/metrics_snapshot"
+		app:layout_constraintEnd_toStartOf="@id/metrics_snapshot" />
+
 	<!-- Battery level, in the graph's top-right corner. Hidden while charging, when a rising level would contradict a chart
 		about power being spent, and on every page but the power one. -->
 	<TextView

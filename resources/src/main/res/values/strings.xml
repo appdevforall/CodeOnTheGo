@@ -1695,6 +1695,8 @@
 	<string name="metrics_carousel_next">Next metric</string>
 	<string name="metrics_carousel_snapshot">Save chart image</string>
 	<string name="msg_metrics_snapshot_failed">Couldn\'t save the chart image.</string>
+	<string name="metrics_carousel_export">Save metrics data</string>
+	<string name="msg_metrics_export_failed">Couldn\'t save the metrics data.</string>
 	<string name="metrics_network_received">Received</string>
 	<string name="metrics_network_transmitted">Sent</string>
 

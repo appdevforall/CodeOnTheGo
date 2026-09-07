@@ -22,6 +22,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.os.SystemClock
 import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
@@ -46,6 +47,8 @@ import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.MetricsCsv
+import com.itsaky.androidide.utils.MetricsCsvFile
 import com.itsaky.androidide.utils.MetricsSamplingRates
 import com.itsaky.androidide.utils.MetricsSnapshot
 import com.itsaky.androidide.utils.NetworkUsageWatcher
@@ -253,6 +256,7 @@ class MetricsCarouselController(
 		// A camera button in the graph's bottom-right corner exports the chart. The gestures over
 		// the chart are all spoken for, so this is a control rather than another gesture.
 		binding.metricsSnapshot.setOnClickListener { exportSnapshot() }
+		binding.metricsExport.setOnClickListener { exportCsv() }
 
 		// Arrows are the dependable way to move between pages: a swipe has to share the gesture
 		// with panning a zoomed chart and with the editor's drawer, and loses often enough to be
@@ -308,6 +312,7 @@ class MetricsCarouselController(
 			binding.metricsPrevious to TooltipTag.CAROUSEL_PREVIOUS,
 			binding.metricsNext to TooltipTag.CAROUSEL_NEXT,
 			binding.metricsSnapshot to TooltipTag.CAROUSEL_SNAPSHOT,
+			binding.metricsExport to TooltipTag.CAROUSEL_EXPORT,
 			binding.metricsBattery to TooltipTag.CAROUSEL_BATTERY,
 			// Wired even though it is only visible while undocked: the message is the one control
 			// that outlives unbind(), so its help must not be torn down with the rest.
@@ -334,6 +339,7 @@ class MetricsCarouselController(
 		networkRenderer.onXAxisTap = null
 		powerRenderer.onXAxisTap = null
 		binding?.metricsSnapshot?.setOnClickListener(null)
+		binding?.metricsExport?.setOnClickListener(null)
 		binding?.let { bound ->
 			helpTargets(bound)
 				// All but the undocked message: that view becomes visible *because* the carousel
@@ -617,7 +623,7 @@ class MetricsCarouselController(
 						// fresh full-size ARGB_8888 copy of the plot on every tap, which is
 						// megabytes that would otherwise sit around until the collector noticed.
 						try {
-							MetricsSnapshot.write(appContext, bitmap, label)
+							MetricsSnapshot.write(appContext, bitmap)
 						} finally {
 							bitmap.recycle()
 						}
@@ -649,6 +655,117 @@ class MetricsCarouselController(
 			exportInFlight = false
 		}
 		return true
+	}
+
+	/**
+	 * Writes every retained sample to a CSV file and offers it to another app (ADFA-5531).
+	 *
+	 * The whole buffer, not the visible window and not the current page: this is the file the
+	 * metrics format is defined around, and ADFA-5494, ADFA-5526 and ADFA-5534 all want everything
+	 * there is. Assembled on the UI thread because it is snapshots of the watchers' buffers, then
+	 * formatted and written off it -- ten thousand rows is not a click listener's work.
+	 *
+	 * @return whether an export could be started. The write itself completes later.
+	 */
+	@UiThread
+	fun exportCsv(): Boolean {
+		val binding = this.binding ?: return false
+		if (exportInFlight) {
+			log.debug("Ignoring an export request while one is already being written")
+			return false
+		}
+
+		val context = binding.root.context
+		val appContext = context.applicationContext
+		val snapshot = snapshot()
+		exportInFlight = true
+		scope.launch {
+			// Guarded for the same reason exportSnapshot is: the scope has no exception handler, so
+			// anything escaping here is filed as a crash.
+			runCatching {
+				val file = withContext(Dispatchers.IO) { MetricsCsvFile.write(appContext, snapshot) }
+				val host = this@MetricsCarouselController.binding?.root?.context
+				if (file == null || host == null) {
+					Toast.makeText(appContext, string.msg_metrics_export_failed, Toast.LENGTH_SHORT).show()
+					return@runCatching
+				}
+				val extraFlags =
+					if (host.findActivityOrNull() == null) Intent.FLAG_ACTIVITY_NEW_TASK else 0
+				IntentUtils.shareFile(host, file, MetricsCsv.MIME_TYPE, extraFlags)
+			}.onFailure { failure ->
+				if (failure is CancellationException) {
+					exportInFlight = false
+					throw failure
+				}
+				log.error("Could not share the metrics export", failure)
+				Toast.makeText(appContext, string.msg_metrics_export_failed, Toast.LENGTH_SHORT).show()
+			}
+			exportInFlight = false
+		}
+		return true
+	}
+
+	/**
+	 * The watchers' buffers, as the export format's view of them.
+	 *
+	 * Rows come from the memory watcher: it is the only one always recording, the network watcher
+	 * stops for good on a device whose counters are unsupported, and a power source can be missing.
+	 * The other series are read at the same index -- the watchers share an interval, are started
+	 * together and are cleared together -- and each carries its own sample times, so a series that
+	 * was not recording leaves empty cells rather than zeros.
+	 */
+	@UiThread
+	@VisibleForTesting
+	internal fun snapshot(): MetricsCsv.Snapshot {
+		val memoryTimes = memoryUsageWatcher.sampleTimes()
+		val networkTimes = networkUsageWatcher.sampleTimes()
+		val powerTimes = powerUsageWatcher.sampleTimes()
+		val network = networkUsageWatcher.getUsage()
+		val power = powerUsageWatcher.getUsage()
+
+		return MetricsCsv.Snapshot(
+			rowTimes = memoryTimes,
+			memory =
+				memoryUsageWatcher.getMemoryUsages().associate { process ->
+					process.pname to
+						MetricsCsv.Series(
+							times = memoryTimes,
+							values = process.usageHistory.toLongArray(),
+							since = process.watchedSinceMillis,
+						)
+				},
+			networkReceived = MetricsCsv.Series(networkTimes, network.received),
+			networkTransmitted = MetricsCsv.Series(networkTimes, network.transmitted),
+			temperature = MetricsCsv.Series(powerTimes, power.temperatureMilliCelsius),
+			power = MetricsCsv.Series(powerTimes, power.powerMicroWatts),
+			thermal = MetricsCsv.Series(powerTimes, power.thermalStatus),
+			annotations = markers(),
+		)
+	}
+
+	/**
+	 * The annotations, with their times moved onto the clock the samples carry.
+	 *
+	 * The store records on the monotonic clock and the samples on the wall clock, and the two are
+	 * read here as close together as they can be so the offset between them is the right one.
+	 */
+	private fun markers(): List<MetricsCsv.Marker> {
+		val store = annotations ?: return emptyList()
+		val nowEpoch = System.currentTimeMillis()
+		val nowMonotonic = SystemClock.elapsedRealtime()
+		return store.allAnnotations().map { annotation ->
+			MetricsCsv.Marker(
+				atMillis = MetricsCsv.epochFor(annotation.atMillis, nowEpoch, nowMonotonic),
+				label = labelFor(annotation),
+				kind = annotation.kind.name,
+			)
+		}
+	}
+
+	/** An annotation's text: a build outcome carries a string id, a task carries its own name. */
+	private fun labelFor(annotation: MetricsAnnotationStore.Annotation): String {
+		val context = binding?.root?.context ?: return annotation.label
+		return annotation.kind.labelRes?.let(context::getString) ?: annotation.label
 	}
 
 	/**

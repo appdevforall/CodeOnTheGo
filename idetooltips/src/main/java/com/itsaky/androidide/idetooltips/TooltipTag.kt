@@ -331,6 +331,7 @@ object TooltipTag {
 	const val CAROUSEL_PREVIOUS = "carousel.previous"
 	const val CAROUSEL_NEXT = "carousel.next"
 	const val CAROUSEL_SNAPSHOT = "carousel.snapshot"
+	const val CAROUSEL_EXPORT = "carousel.export"
 	const val CAROUSEL_CHART_MEMORY = "carousel.chart.memory"
 	const val CAROUSEL_CHART_NETWORK = "carousel.chart.network"
 	const val CAROUSEL_CHART_POWER = "carousel.chart.power"
