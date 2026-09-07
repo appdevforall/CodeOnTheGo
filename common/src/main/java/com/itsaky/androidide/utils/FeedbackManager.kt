@@ -48,6 +48,7 @@ object FeedbackManager {
 	fun showFeedbackDialog(
 		activity: AppCompatActivity,
 		logContent: String?,
+		metricsAttachment: (suspend () -> File?)? = null,
 	) {
 		val builder = DialogUtils.newMaterialDialogBuilder(activity)
 
@@ -61,7 +62,7 @@ object FeedbackManager {
 			).setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
 			.setPositiveButton(android.R.string.ok) { dialog, _ ->
 				dialog.dismiss()
-				sendFeedbackWithAttachments(activity, logContent)
+				sendFeedbackWithAttachments(activity, logContent, metricsAttachment)
 			}.show()
 	}
 
@@ -302,12 +303,21 @@ object FeedbackManager {
 	private fun sendFeedbackWithAttachments(
 		activity: AppCompatActivity,
 		logContent: String?,
+		metricsAttachment: (suspend () -> File?)? = null,
 	) {
 		activity.lifecycleScope.launch {
 			val handler = FeedbackEmailHandler(activity)
 
 			val screenshotUri = handler.captureAndPrepareScreenshotUri(activity)
 			val logContentUri = handler.getLogUri(activity, logContent)
+			// Suspending, unlike the log: the caller has to read the sample buffers on the main
+			// thread and write a compressed file off it, and neither belongs in a click listener.
+			// Guarded, because feedback about a broken IDE must still send if this part fails.
+			val metricsUri =
+				runCatching { metricsAttachment?.invoke() }
+					.onFailure { error -> logger.error("Could not attach the metrics file", error) }
+					.getOrNull()
+					?.let { file -> activity.fileProviderUriFor(file) }
 
 			val feedbackRecipient = activity.getString(R.string.feedback_email)
 			val feedbackSubject =
@@ -340,6 +350,7 @@ object FeedbackManager {
 					feedbackRecipient,
 					feedbackSubject,
 					feedbackBody,
+					metricsUri,
 				)
 
 			runCatching {

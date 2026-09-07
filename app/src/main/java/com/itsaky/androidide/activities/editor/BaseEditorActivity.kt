@@ -130,6 +130,8 @@ import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.MetricsCsvFile
+import com.itsaky.androidide.utils.MetricsSnapshotAssembler
 import com.itsaky.androidide.utils.StringsInjectionException
 import com.itsaky.androidide.utils.StringsXmlInjector
 import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
@@ -207,6 +209,36 @@ abstract class BaseEditorActivity :
 			lineColorFor = Companion::getMemUsageLineColorFor,
 			annotations = metricsViewModel.annotations,
 		)
+	}
+
+	/**
+	 * The metrics file to attach to feedback, or `null` when there is nothing to say (ADFA-5534).
+	 *
+	 * A report of "it got slow" arrives with no way to correlate it against anything; the session's
+	 * own samples turn that into something diagnosable.
+	 *
+	 * Assembled on the main thread because it reads the watchers' buffers, then written off it: the
+	 * file is up to a megabyte and it is gzipped on the way out. Returns null when nothing has been
+	 * sampled, so feedback sent from a freshly started IDE carries no empty attachment -- the writer
+	 * would happily produce a header-only file, and sending one is the caller's decision, not its.
+	 */
+	private suspend fun metricsAttachmentForFeedback(): File? {
+		val snapshot =
+			withContext(Dispatchers.Main.immediate) {
+				MetricsSnapshotAssembler.assemble(
+					context = this@BaseEditorActivity,
+					memory = memoryUsageWatcher,
+					network = networkUsageWatcher,
+					power = powerUsageWatcher,
+					annotations = metricsViewModel.annotations,
+				)
+			}
+		if (!snapshot.hasRows) {
+			return null
+		}
+		return withContext(Dispatchers.IO) {
+			MetricsCsvFile.writeForReport(applicationContext, snapshot)
+		}
 	}
 
 	/** Records a significant event for the charts to annotate (ADFA-5486). */
@@ -907,6 +939,7 @@ abstract class BaseEditorActivity :
 				activity = this,
 				feedbackFab = binding.fabFeedback.root,
 				getLogContent = ::getLogContent,
+				getMetricsAttachment = ::metricsAttachmentForFeedback,
 			)
 		feedbackButtonManager?.setupDraggableFab()
 
