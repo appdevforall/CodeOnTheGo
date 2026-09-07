@@ -86,6 +86,45 @@ class MemoryUsageWatcherLivenessTest {
 	}
 
 	@Test
+	fun `a process unwatched while it is being sampled does not take the sampler down with it`() {
+		val watcher = watcher()
+		watcher.watchProcess(DEAD_PID, "Gradle Daemon")
+		watcher.watchProcess(LIVE_PID, "IDE")
+
+		// The daemon is unwatched from a build event, on the main thread, while readUsages runs on
+		// the sampling thread. Reading the map twice per process left a window between the two in
+		// which the entry could be dropped, and the second read asserted it was there.
+		watcher.isProcessAlive = { pid ->
+			if (pid == DEAD_PID) {
+				watcher.unwatchProcess(DEAD_PID)
+			}
+			true
+		}
+
+		watcher.readUsages()
+
+		assertThat(watcher.getMemoryUsage(DEAD_PID)).isNull()
+		assertThat(watcher.getMemoryUsage(LIVE_PID)).isNotNull()
+	}
+
+	@Test
+	fun `unwatching a daemon by pid leaves the one that replaced it alone`() {
+		val watcher = watcher()
+		watcher.watchProcess(DEAD_PID, "Gradle Daemon")
+
+		// A new build starts a new daemon. watchProcess is unique by name, so the old pid is gone
+		// from the map before its exit is even reported.
+		watcher.watchProcess(LIVE_PID, "Gradle Daemon")
+
+		// The exit of the old one arrives afterwards, which is the order the tooling server's
+		// reaper thread and its poll can produce. By pid this is a no-op; by name it would blank
+		// the line for the daemon that is actually running.
+		watcher.unwatchProcess(DEAD_PID)
+
+		assertThat(watcher.getMemoryUsage(LIVE_PID)).isNotNull()
+	}
+
+	@Test
 	fun `the default check really reads proc`() {
 		val watcher = watcher()
 

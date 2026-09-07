@@ -67,13 +67,19 @@ class GradleDaemonWatcherTest {
 		exit: CompletableFuture<ProcessHandle> = CompletableFuture(),
 	) = handle(pid, DAEMON_COMMAND_LINE, exit = exit)
 
-	/** Runs whatever is scheduled straight away, so a test does not have to wait out the poll. */
-	private fun immediateScheduler(): ScheduledExecutorService =
+	/**
+	 * Runs whatever is scheduled straight away, so a test does not have to wait out the poll.
+	 *
+	 * [execute] is stubbed separately because the exit path uses it rather than [schedule], and a
+	 * test that wants to see what is queued there needs to hold it back.
+	 */
+	private fun immediateScheduler(execute: (Runnable) -> Unit = Runnable::run): ScheduledExecutorService =
 		mockk<ScheduledExecutorService>(relaxed = true).also { scheduler ->
 			every { scheduler.schedule(any<Runnable>(), any(), any<TimeUnit>()) } answers {
 				firstArg<Runnable>().run()
 				mockk(relaxed = true)
 			}
+			every { scheduler.execute(any()) } answers { execute(firstArg()) }
 		}
 
 	private fun watcher(
@@ -159,6 +165,27 @@ class GradleDaemonWatcherTest {
 		// Gradle starts a fresh daemon when the old one is gone -- after an idle timeout, or after
 		// the platform reclaimed it, which on a small device is the case worth plotting.
 		assertThat(started).containsExactly(3, 4).inOrder()
+		assertThat(exited).containsExactly(3)
+	}
+
+	@Test
+	fun `an exit is handed to the watcher's own thread rather than reported from the reaper's`() {
+		val deferred = ArrayDeque<Runnable>()
+		val exit = CompletableFuture<ProcessHandle>()
+		val handle = daemon(3L, exit = exit)
+
+		watcher(handle, scheduler = immediateScheduler(execute = deferred::add)).onBuildStarted()
+		exit.complete(handle)
+
+		// ProcessHandle.onExit fires on a process-reaper thread, while a start is reported from the
+		// poll. Reporting an exit from there lets the two cross: freeing the slot is what lets the
+		// next poll find a replacement daemon, so a start for the new one could reach the client
+		// ahead of the exit for the old one -- and the client would drop the line it had just been
+		// told to draw. Everything the client hears comes off the one thread instead.
+		assertThat(exited).isEmpty()
+
+		deferred.forEach(Runnable::run)
+
 		assertThat(exited).containsExactly(3)
 	}
 

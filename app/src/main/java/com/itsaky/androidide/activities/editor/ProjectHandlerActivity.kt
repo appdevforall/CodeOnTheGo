@@ -690,6 +690,25 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 	}
 
+	/**
+	 * Re-adds the processes the service already knows about to this activity's memory watcher.
+	 *
+	 * A configuration change replaces the activity and its [MemoryUsageWatcher] but not the service
+	 * or the processes it is driving, and both pids are reported on one-shot callbacks that a
+	 * replacement listener has already missed -- the tooling server's on the start it did not
+	 * request, the daemon's on the build that spawned it. Without this the chart came back after a
+	 * rotation plotting the IDE alone, which is the smallest of the three.
+	 */
+	private fun readoptWatchedProcesses(service: GradleBuildService) {
+		service.toolingServerPid?.let { pid ->
+			memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_TOOLING)
+		}
+		service.gradleDaemonPid?.let { pid ->
+			memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_DAEMON)
+		}
+		resetMemUsageChart()
+	}
+
 	protected fun onGradleBuildServiceConnected(service: GradleBuildService) {
 		log.info("Connected to Gradle build service")
 
@@ -697,6 +716,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		editorViewModel.isBoundToBuildSerice = true
 		Lookup.getDefault().update(BuildService.KEY_BUILD_SERVICE, service)
 		service.setEventListener(mBuildEventListener)
+		readoptWatchedProcesses(service)
 
 		if (service.isToolingServerStarted()) {
 			if (service.isBuildInProgress) {

@@ -155,7 +155,10 @@ class MemoryUsageWatcher(
 					// values are in kB, convert to bytes
 					proc.memInfo.totalPss * 1024L
 				}
-			memoryUsage[pid]!!.apply {
+			// [proc], not a second lookup: unwatchProcess runs on the main thread and can drop the
+			// entry between the two, and the Gradle daemon is unwatched from a build event
+			// (ADFA-5514), so the window is real rather than theoretical.
+			proc.apply {
 				// we insert the usage entry at the start of the array, then increment the shift amount by 1
 				// this makes the newly inserted usage entry the last element in the array
 				// and the oldest usage entry the first element in the array

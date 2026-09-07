@@ -119,6 +119,27 @@ class GradleBuildService :
 	 */
 	private var toolingApiClient: ForwardingToolingApiClient? = null
 	private var toolingServerRunner: ToolingServerRunner? = null
+
+	/**
+	 * The Gradle daemon's pid, or `null` when no daemon is known to be running.
+	 *
+	 * Remembered here and not merely forwarded, because the listener is an activity. A daemon is
+	 * reported once, when a build spawns it, and then outlives that build; an activity recreated
+	 * after that -- a rotation, a font-scale change -- gets a listener that hears about new daemons
+	 * only, so its memory chart silently loses the largest of the three processes. It reads this
+	 * instead. See [onGradleDaemonStarted].
+	 */
+	var gradleDaemonPid: Int? = null
+		private set
+
+	/**
+	 * The tooling server's pid, or `null` while no started server has one.
+	 *
+	 * Same reason as [gradleDaemonPid]: [startToolingServer] reports the pid to whoever asked for
+	 * the start, so an activity that finds the server already up never hears it.
+	 */
+	val toolingServerPid: Int?
+		get() = toolingServerRunner?.takeIf { it.isStarted }?.pid
 	private var outputReaderJob: Job? = null
 	private var notificationManager: NotificationManager? = null
 	private var server: IToolingApiServer? = null
@@ -422,11 +443,15 @@ class GradleBuildService :
 
 	override fun onGradleDaemonStarted(pid: Int) {
 		log.info("Gradle daemon started: pid {}", pid)
+		gradleDaemonPid = pid
 		eventListener?.onGradleDaemonStarted(pid)
 	}
 
 	override fun onGradleDaemonExited(pid: Int) {
 		log.info("Gradle daemon exited: pid {}", pid)
+		if (gradleDaemonPid == pid) {
+			gradleDaemonPid = null
+		}
 		eventListener?.onGradleDaemonExited(pid)
 	}
 

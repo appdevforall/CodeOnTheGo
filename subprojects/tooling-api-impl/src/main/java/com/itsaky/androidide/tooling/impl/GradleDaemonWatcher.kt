@@ -52,14 +52,16 @@ internal class GradleDaemonWatcher(
 	 * Looks for a daemon, if one is not already being reported.
 	 *
 	 * Called when a build starts. Cheap and idempotent while a daemon is known: a daemon survives
-	 * the build that spawned it and is reused by the next one, so the usual case is a single
-	 * comparison and no scan at all.
+	 * the build that spawned it and is reused by the next one, so the usual case is one scheduled
+	 * task that reads an int and returns.
+	 *
+	 * The "is one known already" test is deliberately left to the poll rather than made here. Every
+	 * change to [watched] happens on the scheduler, so asking there is asking after the exit of a
+	 * daemon that has just died has been dealt with -- and a build starting in that window is
+	 * exactly the case where the answer differs and a fresh daemon would otherwise go unplotted
+	 * until the build after next.
 	 */
 	fun onBuildStarted() {
-		if (watched.get() != NO_PID) {
-			return
-		}
-
 		var attempts = 0
 		lateinit var poll: Runnable
 		poll =
@@ -80,7 +82,10 @@ internal class GradleDaemonWatcher(
 					log.info("Gave up looking for a Gradle daemon after {} attempts", attempts)
 				}
 			}
-		scheduler.schedule(poll, POLL_INTERVAL_MS, TimeUnit.MILLISECONDS)
+		// Guarded: this one is submitted from the build's thread, and the scheduler rejects work
+		// once [shutdown] has run. A build outliving the watcher must not fail over the chart.
+		runCatching { scheduler.schedule(poll, POLL_INTERVAL_MS, TimeUnit.MILLISECONDS) }
+			.onFailure { err -> log.warn("Failed to schedule the Gradle daemon search", err) }
 	}
 
 	private fun report(handle: ProcessHandle) {
@@ -97,13 +102,26 @@ internal class GradleDaemonWatcher(
 		// the platform reclaiming it under memory pressure, which on a small device is precisely the
 		// case worth plotting. Either way the client has to be told, or it goes on charting a pid
 		// that no longer exists.
+		//
+		// Hop onto the scheduler to say so. onExit runs on a process-reaper thread while starts are
+		// reported from the poll, so the two could cross: freeing the slot is what lets the next
+		// poll find a new daemon, and a start for the new one could reach the client before the
+		// exit for the old one. The client would then be told to stop watching a daemon it had just
+		// been told to start. Both reports come off one thread now, in order.
 		handle.onExit().thenRun {
-			if (watched.compareAndSet(pid, NO_PID)) {
-				log.info("Gradle daemon {} exited", pid)
-				runCatching { onExited(pid) }
-					.onFailure { err -> log.warn("Failed to report exit of Gradle daemon {}", pid, err) }
-			}
+			runCatching { scheduler.execute { reportExit(pid) } }
+				.onFailure { err -> log.warn("Failed to queue exit of Gradle daemon {}", pid, err) }
 		}
+	}
+
+	private fun reportExit(pid: Int) {
+		if (!watched.compareAndSet(pid, NO_PID)) {
+			return
+		}
+
+		log.info("Gradle daemon {} exited", pid)
+		runCatching { onExited(pid) }
+			.onFailure { err -> log.warn("Failed to report exit of Gradle daemon {}", pid, err) }
 	}
 
 	fun shutdown() {

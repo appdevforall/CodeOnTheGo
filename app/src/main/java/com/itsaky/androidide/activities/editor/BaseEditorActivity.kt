@@ -1051,13 +1051,18 @@ abstract class BaseEditorActivity :
 	}
 
 	/**
-	 * Stops plotting the Gradle daemon, which has exited.
+	 * Stops plotting the Gradle daemon [pid], which has exited.
 	 *
 	 * Not on build finish: a daemon outlives the build that spawned it and goes on holding its heap
 	 * while idle, which is the number worth showing on a device that is short of memory.
+	 *
+	 * By pid rather than by name, so a late exit cannot take out its successor's line. Removing "the
+	 * Gradle daemon" would: a daemon that dies as the next build starts one is two reports racing
+	 * over one row, and [watchProcess]'s `unique` has already dropped the old pid by then, so this
+	 * is a no-op in exactly the case where the name would have been wrong.
 	 */
-	fun unwatchGradleDaemon() {
-		memoryUsageWatcher.unwatchProcess(PROC_GRADLE_DAEMON)
+	fun unwatchGradleDaemon(pid: Int) {
+		memoryUsageWatcher.unwatchProcess(pid)
 		resetMemUsageChart()
 	}
 
