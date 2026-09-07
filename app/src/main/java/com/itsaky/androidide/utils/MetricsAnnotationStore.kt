@@ -98,9 +98,26 @@ class MetricsAnnotationStore(
 		const val THROTTLE_INTERVAL_MS = 5_000L
 
 		/**
-		 * Enough to cover the deepest buffer at the slowest sampling rate, bounded so a long
-		 * session cannot grow this without limit.
+		 * Enough to cover the whole visible window at the slowest sampling rate.
+		 *
+		 * Derived rather than picked. The renderer asks for the annotations within
+		 * `(VISIBLE_SAMPLES + 1) * interval`, which at [MetricsSamplingRates.MAX_INTERVAL_MS] is
+		 * just over an hour, and the throttle admits one task marker every
+		 * [THROTTLE_INTERVAL_MS] -- so a busy hour can fill the window with more markers than a
+		 * flat 256 could hold, and eviction then dropped markers that still had samples on
+		 * screen beside them. The bound still exists: a session cannot grow this without limit,
+		 * it just no longer cuts into what is being drawn.
 		 */
-		const val MAX_ANNOTATIONS = 256
+		val MAX_ANNOTATIONS =
+			(VISIBLE_WINDOW_SAMPLES * MetricsSamplingRates.MAX_INTERVAL_MS / THROTTLE_INTERVAL_MS).toInt()
+
+		/**
+		 * How many samples a chart shows at once, plus the one the renderer allows for.
+		 *
+		 * Held here rather than read from MetricsChartRenderer.VISIBLE_SAMPLES: this class is in
+		 * `utils` and the renderer is in `ui`, so reaching for it would be an upward dependency.
+		 * If the renderer's window changes, this follows.
+		 */
+		private const val VISIBLE_WINDOW_SAMPLES = 61L
 	}
 }
