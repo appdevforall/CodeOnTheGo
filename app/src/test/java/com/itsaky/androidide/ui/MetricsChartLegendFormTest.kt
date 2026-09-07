@@ -40,6 +40,9 @@ import org.robolectric.annotation.Config
  * legend's only otherwise, so one renderer setting it again would silently take the setting back
  * without anything failing. That deference is what these tests pin -- asserting `legend.form` alone
  * would restate a setter and pass against the code this ticket exists to change.
+ *
+ * The size test runs at xhdpi on purpose. MPAndroidChart stores half of these properties in dp and
+ * half in pixels, and at Robolectric's default density of 1.0 nothing tells the two apart.
  */
 @RunWith(RobolectricTestRunner::class)
 class MetricsChartLegendFormTest {
@@ -113,17 +116,57 @@ class MetricsChartLegendFormTest {
 	}
 
 	@Test
-	@Config(fontScale = 2.0f)
-	fun `the dot grows with its label, to the same ceiling`() {
-		// A fixed marker beside text at the ceiling reads as though it were shrinking. Spelled out
-		// rather than derived from BASE_LEGEND_FORM_DP * MAX_TEXT_SCALE: computing the expectation
-		// from the same two constants the code multiplies can only show that a multiplication
-		// happened. 12f is 8dp at the chart's 1.5 ceiling -- which is the chart's, not the
-		// platform's 2.0 -- so raising either constant has to come and change this line.
+	@Config(fontScale = 2.0f, qualifiers = "xhdpi")
+	fun `the dot, its gaps and its label all grow together, to the same ceiling`() {
+		// A fixed marker beside text at the ceiling reads as though it were shrinking, and so do
+		// the gaps around it. Spelled out rather than derived from BASE_LEGEND_FORM_DP *
+		// MAX_TEXT_SCALE: computing the expectation from the same two constants the code
+		// multiplies can only show that a multiplication happened. Each figure below is its dp
+		// constant at the chart's 1.5 ceiling -- the chart's, not the platform's 2.0 -- so raising
+		// either constant has to come and change this line.
+		//
+		// Half of these properties are stored in pixels and half in dp, which is MPAndroidChart's
+		// doing and not ours: Legend keeps formSize, formToTextSpace and xEntrySpace as the dp it
+		// was given and converts them when it draws, while ComponentBase.setTextSize and
+		// setYOffset convert on the way in. At Robolectric's default density of 1.0 the two are
+		// indistinguishable and a pixel getter compared against a dp constant passes anyway, so
+		// this runs at xhdpi where they differ by 2x.
+		assertThat(context.resources.displayMetrics.density).isWithin(TOLERANCE).of(2f)
+
 		charts().forEach { (name, chart) ->
-			assertWithMessage(name).that(chart.legend.formSize).isWithin(TOLERANCE).of(12f)
-			assertWithMessage(name).that(chart.legend.textSize).isWithin(TOLERANCE).of(15f)
+			val legend = chart.legend
+			assertWithMessage("$name formSize").that(legend.formSize).isWithin(TOLERANCE).of(12f)
+			assertWithMessage("$name formToTextSpace").that(legend.formToTextSpace).isWithin(TOLERANCE).of(7.5f)
+			assertWithMessage("$name xEntrySpace").that(legend.xEntrySpace).isWithin(TOLERANCE).of(9f)
+
+			// 15dp and 4.5dp, in pixels. yOffset is the one with a consequence beyond looks:
+			// isOnAxisBand measures the sampling-rate tap band as
+			// `height - (legend.mNeededHeight + legend.yOffset)`, so an unscaled offset walks the
+			// band back over the legend as the text grows -- the ADFA-5510 defect this stack has
+			// already fixed once.
+			assertWithMessage("$name textSize").that(legend.textSize).isWithin(TOLERANCE).of(30f)
+			assertWithMessage("$name yOffset").that(legend.yOffset).isWithin(TOLERANCE).of(9f)
 		}
+	}
+
+	@Test
+	fun `a font scale changed mid-session still reaches the chart through a redraw`() {
+		// The per-tick path applies the scale only when it has moved, so this is the case that
+		// guards the saving: EditorActivityKt handles fontScale itself, so no activity is
+		// recreated and a redraw is the only thing a running chart does.
+		val usage = NetworkUsageWatcher.NetworkUsage(LongArray(SAMPLES) { 1L }, LongArray(SAMPLES) { 1L })
+		val chart = SafeLineChart(context)
+		val renderer = NetworkUsageChartRenderer(usageProvider = { usage })
+		renderer.attach(chart)
+		assertThat(chart.legend.formSize).isWithin(TOLERANCE).of(8f)
+
+		context.resources.configuration.fontScale = 2.0f
+		// The same sample, so the series keep their shape and this takes the in-place redraw
+		// rather than falling back to a rebuild, which would apply the scale by another route
+		// and prove nothing.
+		renderer.onUsageChanged(usage)
+
+		assertThat(chart.legend.formSize).isWithin(TOLERANCE).of(12f)
 	}
 
 	private companion object {
