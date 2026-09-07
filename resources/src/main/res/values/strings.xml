@@ -1522,6 +1522,8 @@
     <string name="cancel_clone">Cancel clone</string>
     <string name="initialising_clone">Initializing clone…</string>
     <string name="cancelling_clone">Cancelling clone…</string>
+    <string name="add_commit_watermark">Add commit message watermark</string>
+    <string name="made_with_code_on_the_go">Made with Code on the Go (appdevforall.org)</string>
 
     <!-- Git Preferences -->
     <string name="idepref_git_summary">Set and update Git configuration</string>

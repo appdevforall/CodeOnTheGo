@@ -9,6 +9,7 @@ import android.text.style.ClickableSpan
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -290,6 +291,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							recyclerView.visibility = View.GONE
 							cbCheckAll.visibility = View.GONE
 							commitSection.visibility = View.GONE
+							layoutWatermark.visibility = View.GONE
 							authorWarning.visibility = View.GONE
 							commitHistoryButton.visibility = View.GONE
 							btnAbortMerge.visibility = View.GONE
@@ -306,6 +308,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							cbCheckAll.isChecked = false
 							cbCheckAll.text = getString(R.string.changed_files_count, 0)
 							commitSection.visibility = View.GONE
+							layoutWatermark.visibility = View.GONE
 							authorWarning.visibility = View.GONE
 							commitHistoryButton.visibility = View.VISIBLE
 							btnAbortMerge.visibility = View.GONE
@@ -321,6 +324,10 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							cbCheckAll.isEnabled = hasSelectable
 							cbCheckAll.text = getString(R.string.changed_files_count, allChanges.size)
 							commitSection.visibility = View.VISIBLE
+							layoutWatermark.visibility = View.VISIBLE
+							switchCommitWatermark.setOnCheckedChangeListener { _, isChecked ->
+								tvCommitWatermark.isVisible = isChecked
+							}
 							authorWarning.visibility =
 								if (hasAuthorInfo()) View.GONE else View.VISIBLE
 							commitHistoryButton.visibility = View.VISIBLE

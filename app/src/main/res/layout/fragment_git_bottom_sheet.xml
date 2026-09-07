@@ -99,13 +99,6 @@
 			app:layout_constraintStart_toStartOf="parent"
 			app:layout_constraintTop_toBottomOf="@id/tv_branch_name" />
 
-		<androidx.constraintlayout.widget.Guideline
-			android:id="@+id/guideline_limit"
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:orientation="horizontal"
-			app:layout_constraintGuide_percent="0.45" />
-
 		<TextView
 			android:id="@+id/emptyView"
 			android:layout_width="0dp"
@@ -122,15 +115,16 @@
 		<androidx.recyclerview.widget.RecyclerView
 			android:id="@+id/recyclerView"
 			android:layout_width="0dp"
-			android:layout_height="0dp"
+			android:layout_height="wrap_content"
 			android:clipToPadding="false"
 			android:fadeScrollbars="false"
 			android:paddingVertical="4dp"
 			android:paddingEnd="8dp"
 			android:scrollbarStyle="outsideOverlay"
 			android:scrollbars="vertical"
-			app:layout_constraintBottom_toTopOf="@id/guideline_limit"
+			app:layout_constrainedHeight="true"
 			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintHeight_max="220dp"
 			app:layout_constraintStart_toStartOf="parent"
 			app:layout_constraintTop_toBottomOf="@id/cbCheckAll" />
 
@@ -158,7 +152,7 @@
 			android:hint="@string/commit_summary"
 			app:layout_constraintEnd_toEndOf="parent"
 			app:layout_constraintStart_toEndOf="@id/authorAvatar"
-			app:layout_constraintTop_toBottomOf="@id/guideline_limit">
+			app:layout_constraintTop_toBottomOf="@id/recyclerView">
 
 			<com.google.android.material.textfield.TextInputEditText
 				android:id="@+id/commitSummary"
@@ -187,6 +181,34 @@
 				android:minLines="2" />
 		</com.google.android.material.textfield.TextInputLayout>
 
+		<LinearLayout
+			android:id="@+id/layout_watermark"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:background="@drawable/bg_commit_watermark"
+			android:orientation="vertical"
+			android:padding="8dp"
+			android:visibility="gone"
+			app:layout_constraintTop_toBottomOf="@id/commitDescriptionLayout">
+
+			<com.google.android.material.materialswitch.MaterialSwitch
+				android:id="@+id/switch_commit_watermark"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:checked="false"
+				android:text="@string/add_commit_watermark" />
+
+			<TextView
+				android:id="@+id/tv_commit_watermark"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/made_with_code_on_the_go"
+				android:visibility="gone"
+				app:layout_constraintTop_toBottomOf="@id/switch_commit_watermark" />
+
+		</LinearLayout>
+
 		<TextView
 			android:id="@+id/authorWarning"
 			android:layout_width="match_parent"
@@ -196,13 +218,13 @@
 			android:textAppearance="?attr/textAppearanceCaption"
 			android:textColor="?attr/colorError"
 			android:visibility="gone"
-			app:layout_constraintTop_toBottomOf="@id/commitDescriptionLayout" />
+			app:layout_constraintTop_toBottomOf="@id/layout_watermark" />
 
 		<com.google.android.material.button.MaterialButton
 			android:id="@+id/commitButton"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:layout_marginTop="8dp"
+			android:layout_marginTop="16dp"
 			android:enabled="false"
 			android:text="@string/commit"
 			app:layout_constraintTop_toBottomOf="@id/authorWarning" />
@@ -227,15 +249,16 @@
 			app:strokeColor="?attr/colorError" />
 
 		<com.google.android.material.button.MaterialButton
-			android:id="@+id/commitHistoryButton"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:layout_marginTop="16dp"
-			android:layout_marginBottom="16dp"
-			android:text="@string/view_commit_history"
-			app:layout_constraintBottom_toBottomOf="parent"
-			app:layout_constraintTop_toBottomOf="@id/btnAbortMerge"
-			app:layout_constraintVertical_bias="1.0" />
+            android:id="@+id/commitHistoryButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"
+            android:text="@string/view_commit_history"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/btnAbortMerge"
+            app:layout_constraintVertical_bias="1.0" />
 
 	</androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.core.widget.NestedScrollView>
