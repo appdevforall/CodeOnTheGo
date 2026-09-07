@@ -1383,7 +1383,13 @@ class QuickBuildSessionManager(
 					// app are both fine; what failed is the user's build files. The message is
 					// surfaced here rather than through SurfaceProvisioningError, whose effect
 					// tears the session down.
-					surfaceUserMessage(result.message)
+					if (proxyAppBuildCancelIssued) {
+						// The user stopped this build and has already seen BUILD_CANCELLED;
+						// Gradle's account of its own cancellation would repeat that as an error.
+						log.info("Proxy app rebuild stopped by the user; parking for retry")
+					} else {
+						surfaceUserMessage(result.message)
+					}
 					dispatch(SessionEvent.ProxyAppRebuildFailed(park.reason, park.deployedGeneration))
 				} else {
 					// No invalidation to park back into (a rebuild from an unexpected state):

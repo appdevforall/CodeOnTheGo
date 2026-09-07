@@ -191,14 +191,24 @@ class SessionReducer {
 			}
 
 			SessionEvent.CancelRequested -> {
-				// No half-provisioned session is worth keeping. A cancel mid-install is safe
-				// because the epoch guard discards a late provisioning success, and the next
-				// tap re-provisions from build outputs still on disk. The user chose this, so
-				// the Idle it lands in carries no failure.
-				SessionTransition(
-					QuickBuildSessionState.Idle(),
-					listOf(SessionEffect.CancelProxyAppBuild, SessionEffect.TeardownSession),
-				)
+				if (state.rebaselineReason != null) {
+					// A rebaseline runs over a live session that is worth keeping: the proxy
+					// app still runs and the watcher, daemon and scratch tree are all good.
+					// Only the Gradle build is stopped; its cancelled outcome comes back as
+					// ProxyAppRebuildFailed and parks at Invalidated for retry, exactly where
+					// a build failure or a lost slot parks. Tearing down here made a
+					// deliberate stop cost the ~97 s cold provision a failure does not.
+					SessionTransition(state, listOf(SessionEffect.CancelProxyAppBuild))
+				} else {
+					// No half-provisioned session is worth keeping. A cancel mid-install is
+					// safe because the epoch guard discards a late provisioning success, and
+					// the next tap re-provisions from build outputs still on disk. The user
+					// chose this, so the Idle it lands in carries no failure.
+					SessionTransition(
+						QuickBuildSessionState.Idle(),
+						listOf(SessionEffect.CancelProxyAppBuild, SessionEffect.TeardownSession),
+					)
+				}
 			}
 
 			is SessionEvent.ProvisioningFailed -> {
