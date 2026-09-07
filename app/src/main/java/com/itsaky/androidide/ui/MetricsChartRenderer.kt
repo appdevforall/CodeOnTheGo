@@ -345,6 +345,10 @@ abstract class MetricsChartRenderer(
 		override fun onChartLongPressed(me: MotionEvent?) {
 			val y = me?.y ?: return
 			val tag = helpTagAt(y) ?: return
+			// Haptic feedback left at its default, unlike every view-based help site, which
+			// passes false. Those rely on View.performLongClick buzzing for them;
+			// BarLineChartBase.onTouchEvent never calls super, so the framework's long press --
+			// and its feedback -- never runs here and this is the only thing that provides it.
 			showIdeCategoryTooltipIfPresent(chart.context, chart, tag)
 		}
 
