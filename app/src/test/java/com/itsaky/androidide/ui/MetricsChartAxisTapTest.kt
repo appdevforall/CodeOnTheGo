@@ -18,6 +18,8 @@
 package com.itsaky.androidide.ui
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.view.MotionEvent
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
@@ -42,6 +44,9 @@ class MetricsChartAxisTapTest {
 
 	private var taps = 0
 
+	/** Set by [laidOutChart], for the tests that need to ask the renderer something. */
+	private lateinit var attachedRenderer: NetworkUsageChartRenderer
+
 	private fun laidOutChart(): SafeLineChart {
 		val chart = SafeLineChart(context)
 		// Any concrete renderer will do -- the tap band is decided by the base class, and every
@@ -57,6 +62,7 @@ class MetricsChartAxisTapTest {
 			)
 		renderer.attach(chart)
 		renderer.onXAxisTap = { taps++ }
+		attachedRenderer = renderer
 
 		chart.layOutAndDraw()
 		return chart
@@ -69,6 +75,39 @@ class MetricsChartAxisTapTest {
 		val event = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_UP, 10f, y, 0)
 		chart.onChartGestureListener.onChartSingleTapped(event)
 		event.recycle()
+	}
+
+	@Test
+	fun `a panned viewport is what the renderer reads, not the newest window`() {
+		val chart = laidOutChart()
+		drawOnce(chart)
+
+		// Zoom first: an unzoomed chart shows everything, so there is nothing a pan could move.
+		chart.setVisibleXRangeMaximum(VISIBLE_WINDOW.toFloat())
+		chart.moveViewToX(0f)
+		drawOnce(chart)
+		assertThat(chart.lowestVisibleX).isLessThan(10f)
+		assertThat(chart.highestVisibleX).isLessThan(SAMPLES / 2f)
+
+		// Until the user drives the viewport, the renderer says what showNewestWindow put there
+		// rather than asking the chart -- so it reports the newest samples even though the chart
+		// is showing the oldest.
+		assertThat(attachedRenderer.visibleSampleRange(chart, SAMPLES).last).isEqualTo(SAMPLES - 1)
+
+		val event = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_MOVE, 10f, 10f, 0)
+		chart.onChartGestureListener.onChartTranslate(event, -50f, 0f)
+		event.recycle()
+
+		// A pan is the user driving the viewport just as much as a pinch. Only a pinch used to
+		// count, so a pan left the renderer ranging and annotating against the wrong samples --
+		// and showNewestWindow scrolled the chart back on the next tick.
+		assertThat(attachedRenderer.visibleSampleRange(chart, SAMPLES).last)
+			.isLessThan(SAMPLES - 1)
+	}
+
+	/** MPAndroidChart runs its viewport jobs during a draw, so a pan is not real until one. */
+	private fun drawOnce(chart: SafeLineChart) {
+		chart.draw(Canvas(Bitmap.createBitmap(CHART_WIDTH, CHART_HEIGHT, Bitmap.Config.ARGB_8888)))
 	}
 
 	@Test
@@ -110,6 +149,16 @@ class MetricsChartAxisTapTest {
 	}
 
 	private companion object {
-		const val SAMPLES = 60
+		/**
+		 * Longer than the chart's visible window.
+		 *
+		 * It was exactly the window, and showNewestWindow returns early when the newest index is
+		 * below it -- so the pan test could not tell the fix from the bug, because nothing was
+		 * scrolling the viewport either way.
+		 */
+		const val SAMPLES = 200
+
+		/** The renderer's own visible window, which is what it scrolls to the newest samples. */
+		const val VISIBLE_WINDOW = 60
 	}
 }

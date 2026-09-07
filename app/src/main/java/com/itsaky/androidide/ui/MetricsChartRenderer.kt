@@ -367,7 +367,12 @@ abstract class MetricsChartRenderer(
 			me: MotionEvent?,
 			dX: Float,
 			dY: Float,
-		) = Unit
+		) {
+			// A pan is the user driving the viewport just as much as a pinch is. Left unrecorded,
+			// showNewestWindow dragged them back to the newest samples on the next tick -- once a
+			// second -- so panning a zoomed chart appeared not to work at all.
+			userHasZoomed = true
+		}
 	}
 
 	/**
