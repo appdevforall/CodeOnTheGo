@@ -13,7 +13,7 @@ import java.lang.reflect.Method;
  *
  * Persist the relinked apk, append it to the live AssetManager through the hidden addAssetPath, then flush the Resources caches so the deploy's activity recreate resolves against the new table. The new package shares the old package id and resource ids, and the last-added package wins the lookup.
  *
- * Degraded by design relative to the API 30+ loader path: an added path can never be removed, so each generation appends one more package until the process restarts, and a Resources with its own AssetManager only picks the table up when {@link ResourceStore#attachTo} reaches it. {@link #deleteStaleApks} sweeps the directory at startup instead, since nothing a previous process mounted survives its death.
+ * Degraded by design relative to the API 30+ loader path: an added path can never be removed, so each generation appends one more package until the process restarts, and a Resources with its own AssetManager only picks the table up when {@link ResourceStore#attachTo} reaches it. {@link #deleteStaleApks} sweeps the directory before this process writes its first apk instead, since nothing a previous process mounted survives its death.
  */
 final class LegacyResourceSwap {
 

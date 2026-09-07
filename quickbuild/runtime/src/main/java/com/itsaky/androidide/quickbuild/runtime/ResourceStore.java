@@ -122,6 +122,16 @@ final class ResourceStore {
 	private final Set<Long> abandonedGenerations = new HashSet<>();
 
 	/**
+	 * Serializes the one-time sweep of the API 28/29 apk cache with every write into it.
+	 *
+	 * Its own lock rather than the store's monitor: the sweep and the write are disk IO, and the swap bodies take the monitor on the main thread.
+	 */
+	private final Object legacyCacheLock = new Object();
+
+	/** Whether this process has swept the API 28/29 apk cache; guarded by {@link #legacyCacheLock}. */
+	private boolean sweptLegacyCache;
+
+	/**
 	 * @param strategy
 	 *            the swap mechanism to use; injected so tests can drive each branch without an SDK level
 	 */
@@ -307,6 +317,41 @@ final class ResourceStore {
 	}
 
 	/**
+	 * Writes a relinked apk into the API 28/29 cache, sweeping the previous process's apks first.
+	 *
+	 * The sweep has to happen before this process mounts any apk of its own, since a mounted path deleted underneath the AssetManager cannot be recovered, and it has to stay off the main thread: it is a readdir plus one unlink per apk the previous process wrote, unbounded, on the low-end devices this path exists for. Doing it here, under the lock every write takes, gives both for free - the first writer sweeps, on whichever thread it arrived on, and no other write can slip in between the sweep and the write.
+	 *
+	 * Package-private so the once-before-first-write rule is JVM-tested.
+	 *
+	 * @param in
+	 *            the relinked apk bytes
+	 * @param dir
+	 *            the cache directory
+	 * @param generation
+	 *            the generation naming the file
+	 * @return the written apk
+	 * @throws IOException
+	 *             when the write fails; a failed sweep is logged and does not fail the write
+	 */
+	File writeLegacyApk(InputStream in, File dir, long generation) throws IOException {
+		synchronized (legacyCacheLock) {
+			if (!sweptLegacyCache) {
+				sweptLegacyCache = true;
+				try {
+					int deleted = LegacyResourceSwap.deleteStaleApks(dir);
+					if (deleted > 0) {
+						RuntimeLog.i("swept " + deleted
+								+ " stale relinked apk(s) from a previous process");
+					}
+				} catch (Throwable error) {
+					RuntimeLog.w("could not sweep the legacy resource cache", error);
+				}
+			}
+			return LegacyResourceSwap.writeResourceApk(in, dir, generation);
+		}
+	}
+
+	/**
 	 * API 28/29 swap: write the apk to disk, then addAssetPath it into the application AssetManager and flush caches on the main thread.
 	 *
 	 * The mount is posted through {@link #swapProvidersOnMain} for the reason its own KDoc gives for the loader path: addAssetPath re-tables the live AssetManager and flushCaches drops the drawable and typed-value caches, and either can race an inflation already in progress - a lookup straddling the swap mixes old and new values. Running it on the arriving binder thread left that race open on exactly the devices this path exists for, since CoGo's classifier routes resource edits with no SDK gate.
@@ -332,7 +377,7 @@ final class ResourceStore {
 		final File zip;
 		try {
 			File dir = new File(appContext.getCacheDir(), LEGACY_TABLE_DIR);
-			zip = LegacyResourceSwap.writeResourceApk(in, dir, generation);
+			zip = writeLegacyApk(in, dir, generation);
 		} finally {
 			try {
 				in.close();

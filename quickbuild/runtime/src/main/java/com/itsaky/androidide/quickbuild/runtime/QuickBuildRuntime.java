@@ -223,9 +223,6 @@ final class QuickBuildRuntime {
 	/** Uptime at which the pending reload's payload arrived, the start of the reported duration. */
 	private volatile long pendingReloadStartUptime;
 
-	/** Latches the legacy resource-apk cache sweep, which is only safe before the first swap. */
-	private boolean sweptLegacyResourceCache;
-
 	/** Newest generation already recorded as good, so the write happens once rather than per resume. */
 	private volatile long lastMarkedGoodGeneration = -1;
 
@@ -460,10 +457,10 @@ final class QuickBuildRuntime {
 	 *            the activity being created, used only for its application context; every step is idempotent, so this runs safely on each activity
 	 */
 	void onActivityCreated(Activity activity) {
-		// First moment a usable Context exists; bind() is idempotent.
-		// The sweep runs before bind and before the boot resources apply, because it is
-		// only safe while this process has mounted no relinked apk of its own.
-		sweepLegacyResourceCache(activity.getApplicationContext());
+		// First moment a usable Context exists; bind() is idempotent. This runs on the
+		// main thread inside the first activity's creation, so nothing here may touch
+		// disk: the API 28/29 apk-cache sweep lives in ResourceStore, ahead of the first
+		// write on whichever thread makes it.
 		client.bind(activity.getApplicationContext());
 		PayloadStore.INSTANCE.attachPersistence(activity.getApplicationContext());
 		applyPendingBootResources(activity.getApplicationContext());
@@ -1110,30 +1107,6 @@ final class QuickBuildRuntime {
 		application.registerActivityLifecycleCallbacks(tracker);
 		bootProbation.bootedFromStore(PayloadStore.INSTANCE.bootedPersistedGeneration());
 		installCrashGuard();
-	}
-
-	/**
-	 * Deletes the relinked apks a previous process left in the API 28/29 resource cache, once.
-	 *
-	 * Those files can only be unmounted by the process dying, so the process that wrote them cannot clean them up and the cache would otherwise grow by one apk per deploy. Latched and run before this process mounts any of its own, since a mounted path deleted underneath the AssetManager cannot be recovered.
-	 *
-	 * @param context
-	 *            application context, for the cache directory
-	 */
-	private void sweepLegacyResourceCache(android.content.Context context) {
-		if (sweptLegacyResourceCache) {
-			return;
-		}
-		sweptLegacyResourceCache = true;
-		try {
-			int deleted = LegacyResourceSwap.deleteStaleApks(
-					new File(context.getCacheDir(), LegacyResourceSwap.TABLE_DIR));
-			if (deleted > 0) {
-				RuntimeLog.i("swept " + deleted + " stale relinked apk(s) from a previous process");
-			}
-		} catch (Throwable error) {
-			RuntimeLog.w("could not sweep the legacy resource cache", error);
-		}
 	}
 
 	/** Reads whether a boot resource restore is still in flight; the seam {@link #frameCompletion} samples on the draw pass. */
