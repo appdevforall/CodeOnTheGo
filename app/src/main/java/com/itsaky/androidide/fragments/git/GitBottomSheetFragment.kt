@@ -324,10 +324,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							cbCheckAll.isEnabled = hasSelectable
 							cbCheckAll.text = getString(R.string.changed_files_count, allChanges.size)
 							commitSection.visibility = View.VISIBLE
-							layoutWatermark.visibility = View.VISIBLE
-							switchCommitWatermark.setOnCheckedChangeListener { _, isChecked ->
-								tvCommitWatermark.isVisible = isChecked
-							}
+                            updateWatermarkUI()
 							authorWarning.visibility =
 								if (hasAuthorInfo()) View.GONE else View.VISIBLE
 							commitHistoryButton.visibility = View.VISIBLE
@@ -358,6 +355,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	override fun onResume() {
 		super.onResume()
 		updateAuthorUI()
+        updateWatermarkUI()
 	}
 
 	private fun updateAuthorUI() {
@@ -367,6 +365,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			if (!hasAuthor && allChanges.isNotEmpty()) View.VISIBLE else View.GONE
 		validateCommitButton()
 	}
+
+    private fun updateWatermarkUI() {
+        val hasChanges = viewModel.gitStatus.value.allChanges().isNotEmpty()
+        val isRepo = viewModel.isGitRepository.value
+        binding.layoutWatermark.isVisible = isRepo && hasChanges && GitPreferences.shouldAddCommitWatermark
+    }
 
 	private fun hasAuthorInfo(): Boolean = !GitPreferences.userName.isNullOrBlank() && !GitPreferences.userEmail.isNullOrBlank()
 
@@ -437,6 +441,9 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			}
 			setTooltipOnView(TooltipTag.PROJECT_GIT_COMMIT)
 		}
+        binding.switchCommitWatermark.setOnCheckedChangeListener { _, isChecked ->
+            binding.tvCommitWatermark.isVisible = isChecked
+        }
 	}
 
 	private fun showAuthorPopup() {
