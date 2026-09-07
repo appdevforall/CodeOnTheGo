@@ -1,11 +1,5 @@
-package com.itsaky.androidide.lsp.kotlin.refactor.ui
+package com.itsaky.androidide.lsp.ui
 
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.AnchorForm
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.CandidateExpression
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionPlan
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.NameProblem
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.ScopeOption
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.TextSpan
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -16,38 +10,29 @@ import org.junit.Test
 /**
  * The sheet's derivation logic, tested without Compose, a fragment or an activity.
  *
- * Every choice the sheet offers is recomputed from the plan, so all of this is exercisable as plain
- * state transitions -- which is the point of keeping the plan plain data.
+ * Every choice the sheet offers is recomputed from the candidate views it was given, so all of this is
+ * exercisable as plain state transitions -- which is the point of the sheet taking a view of a plan
+ * rather than the plan itself.
  */
 class ExtractVariableViewModelTest {
 	private fun scope(
 		label: String,
 		occurrences: Int,
-	) = ScopeOption(
-		label = label,
-		anchorForm = AnchorForm.ExistingBlock(contentSpan = TextSpan(0, 100), statementSpans = emptyList()),
-		occurrences = (0 until occurrences).map { TextSpan(it * 10, it * 10 + 5) },
-	)
+	) = ScopeView(label = label, occurrenceCount = occurrences)
 
 	private fun candidate(
 		label: String,
 		suggestedName: String,
-		scopes: List<ScopeOption>,
+		scopes: List<ScopeView>,
 		takenNames: Set<String> = emptySet(),
-	) = CandidateExpression(
+	) = CandidateView(
 		label = label,
-		span = TextSpan(0, 5),
 		suggestedName = suggestedName,
 		takenNames = takenNames,
 		scopes = scopes,
 	)
 
-	private fun plan(candidates: List<CandidateExpression>) =
-		ExtractionPlan(
-			fileText = "unused",
-			documentVersion = 1,
-			candidates = candidates,
-		)
+	private fun plan(candidates: List<CandidateView>) = candidates
 
 	private val threeCandidatePlan =
 		plan(
@@ -60,7 +45,7 @@ class ExtractVariableViewModelTest {
 
 	@Test
 	fun `starts on the innermost candidate, innermost scope, replace-all off`() {
-		val state = ExtractVariableViewModel(threeCandidatePlan).uiState.value
+		val state = viewModelFor(threeCandidatePlan).uiState.value
 
 		assertEquals(0, state.selectedCandidate)
 		assertEquals(0, state.selectedScope)
@@ -71,15 +56,15 @@ class ExtractVariableViewModelTest {
 
 	@Test
 	fun `shows the candidate picker only when there is a real choice`() {
-		assertTrue(ExtractVariableViewModel(threeCandidatePlan).uiState.value.showCandidatePicker)
+		assertTrue(viewModelFor(threeCandidatePlan).uiState.value.showCandidatePicker)
 
 		val single = plan(listOf(candidate("items.size", "size", listOf(scope("fun demo", 1)))))
-		assertFalse(ExtractVariableViewModel(single).uiState.value.showCandidatePicker)
+		assertFalse(viewModelFor(single).uiState.value.showCandidatePicker)
 	}
 
 	@Test
 	fun `changing the expression re-derives name, scopes and count`() {
-		val viewModel = ExtractVariableViewModel(threeCandidatePlan)
+		val viewModel = viewModelFor(threeCandidatePlan)
 
 		viewModel.onEvent(ExtractVariableUiEvent.CandidateSelected(1))
 		val state = viewModel.uiState.value
@@ -92,7 +77,7 @@ class ExtractVariableViewModelTest {
 
 	@Test
 	fun `changing the scope changes the occurrence count`() {
-		val viewModel = ExtractVariableViewModel(threeCandidatePlan)
+		val viewModel = viewModelFor(threeCandidatePlan)
 		assertEquals(1, viewModel.uiState.value.occurrenceCount)
 
 		viewModel.onEvent(ExtractVariableUiEvent.ScopeSelected(1))
@@ -103,7 +88,7 @@ class ExtractVariableViewModelTest {
 
 	@Test
 	fun `a scope change keeps the name the user typed`() {
-		val viewModel = ExtractVariableViewModel(threeCandidatePlan)
+		val viewModel = viewModelFor(threeCandidatePlan)
 		viewModel.onEvent(ExtractVariableUiEvent.NameChanged("mySize"))
 
 		viewModel.onEvent(ExtractVariableUiEvent.ScopeSelected(1))
@@ -113,7 +98,7 @@ class ExtractVariableViewModelTest {
 
 	@Test
 	fun `the replace-all toggle is hidden at a single occurrence`() {
-		val viewModel = ExtractVariableViewModel(threeCandidatePlan)
+		val viewModel = viewModelFor(threeCandidatePlan)
 		assertFalse(viewModel.uiState.value.showReplaceAll)
 
 		viewModel.onEvent(ExtractVariableUiEvent.ScopeSelected(1))
@@ -123,20 +108,20 @@ class ExtractVariableViewModelTest {
 
 	@Test
 	fun `an invalid name blocks confirming`() {
-		val viewModel = ExtractVariableViewModel(threeCandidatePlan)
+		val viewModel = viewModelFor(threeCandidatePlan)
 
 		viewModel.onEvent(ExtractVariableUiEvent.NameChanged("val"))
 
 		assertEquals(NameProblem.Keyword, viewModel.uiState.value.nameProblem)
 		assertFalse(viewModel.uiState.value.canConfirm)
-		assertNull(viewModel.choice())
+		assertNull(viewModel.selection())
 	}
 
 	@Test
 	fun `a name colliding with a visible declaration is rejected`() {
 		val colliding =
 			plan(listOf(candidate("items.size", "size1", listOf(scope("fun demo", 1)), takenNames = setOf("size"))))
-		val viewModel = ExtractVariableViewModel(colliding)
+		val viewModel = viewModelFor(colliding)
 
 		viewModel.onEvent(ExtractVariableUiEvent.NameChanged("size"))
 
@@ -144,23 +129,24 @@ class ExtractVariableViewModelTest {
 	}
 
 	@Test
-	fun `the choice carries the selected expression, scope, name and toggle`() {
-		val viewModel = ExtractVariableViewModel(threeCandidatePlan)
+	fun `the selection carries the chosen expression, scope, name and toggle`() {
+		val viewModel = viewModelFor(threeCandidatePlan)
 		viewModel.onEvent(ExtractVariableUiEvent.ScopeSelected(1))
 		viewModel.onEvent(ExtractVariableUiEvent.ReplaceAllChanged(true))
 		viewModel.onEvent(ExtractVariableUiEvent.NameChanged("total"))
 
-		val choice = viewModel.choice()
-		assertNotNull(choice)
-		assertEquals("items.size", choice!!.candidate.label)
-		assertEquals("fun demo", choice.scope.label)
-		assertEquals("total", choice.name)
-		assertTrue(choice.replaceAll)
+		val selection = viewModel.selection()
+		assertNotNull(selection)
+		// Indices, not resolved objects: mapping them back to a candidate is the caller's job.
+		assertEquals(0, selection!!.candidateIndex)
+		assertEquals(1, selection.scopeIndex)
+		assertEquals("total", selection.name)
+		assertTrue(selection.replaceAll)
 	}
 
 	@Test
 	fun `replace-all cannot leak from a wider scope into a single-occurrence one`() {
-		val viewModel = ExtractVariableViewModel(threeCandidatePlan)
+		val viewModel = viewModelFor(threeCandidatePlan)
 		viewModel.onEvent(ExtractVariableUiEvent.ScopeSelected(1))
 		viewModel.onEvent(ExtractVariableUiEvent.ReplaceAllChanged(true))
 		assertTrue(viewModel.uiState.value.replaceAll)
@@ -169,17 +155,27 @@ class ExtractVariableViewModelTest {
 		viewModel.onEvent(ExtractVariableUiEvent.ScopeSelected(0))
 
 		assertFalse(viewModel.uiState.value.replaceAll)
-		assertFalse(viewModel.choice()!!.replaceAll)
+		assertFalse(viewModel.selection()!!.replaceAll)
 	}
 
 	@Test
 	fun `switching expression resets replace-all`() {
-		val viewModel = ExtractVariableViewModel(threeCandidatePlan)
+		val viewModel = viewModelFor(threeCandidatePlan)
 		viewModel.onEvent(ExtractVariableUiEvent.ScopeSelected(1))
 		viewModel.onEvent(ExtractVariableUiEvent.ReplaceAllChanged(true))
 
 		viewModel.onEvent(ExtractVariableUiEvent.CandidateSelected(1))
 
 		assertFalse(viewModel.uiState.value.replaceAll)
+	}
+
+	/**
+	 * The keyword set is language-specific and irrelevant to state derivation, so every case here uses
+	 * a small Kotlin-shaped one; each language's own suite covers its real set.
+	 */
+	private fun viewModelFor(candidates: List<CandidateView>) = ExtractVariableViewModel(candidates, KEYWORDS)
+
+	private companion object {
+		private val KEYWORDS = setOf("val", "var", "fun", "when", "this")
 	}
 }

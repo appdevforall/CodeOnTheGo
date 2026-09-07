@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.TextSpan
+
 /** One derived parameter of the new function. Names are the originals, unchanged (R5). */
 data class MethodParameter(
 	val name: String,
@@ -165,7 +167,7 @@ sealed interface ExtractionRefusal {
  */
 data class ExtractMethodPlan(
 	override val fileText: String,
-	override val documentVersion: Int,
+	override val documentVersion: Int?,
 	val candidates: List<ExtractMethodCandidate>,
 	val refusal: ExtractionRefusal?,
 ) : RefactoringPlan {
@@ -175,7 +177,7 @@ data class ExtractMethodPlan(
 		fun refused(
 			refusal: ExtractionRefusal,
 			fileText: String = "",
-			documentVersion: Int = -1,
+			documentVersion: Int? = null,
 		) = ExtractMethodPlan(fileText, documentVersion, emptyList(), refusal = refusal)
 	}
 }

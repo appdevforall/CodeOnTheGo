@@ -4,15 +4,24 @@ import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.utils.renderName
+import com.itsaky.androidide.lsp.refactor.BlockPlacement
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.blockPlacementFor
+import com.itsaky.androidide.lsp.refactor.excludeUnsoundOccurrences
+import com.itsaky.androidide.lsp.refactor.hoistSkipsWrite
+import com.itsaky.androidide.lsp.refactor.hoistsOverLoopWrite
+import com.itsaky.androidide.lsp.refactor.servableOccurrences
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.psi.KtCallableDeclaration
 import org.jetbrains.kotlin.psi.KtDeclarationWithBody
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtLoopExpression
 import org.jetbrains.kotlin.psi.KtPropertyAccessor
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -32,7 +41,7 @@ internal fun buildExtractionPlan(
 	nioPath: Path,
 	selectionStart: Int,
 	selectionEnd: Int,
-	documentVersion: Int,
+	documentVersion: Int?,
 	cancelChecker: ScheduledCancelChecker,
 ): ExtractionPlan =
 	runCatching {
@@ -127,7 +136,7 @@ private fun KaSession.scopeOptionFor(
 				 * tested here; servableOccurrences is what makes the first served target placeable when
 				 * replace-all is on.
 				 */
-				if (blockPlacementFor(fileText, form, span) is BlockPlacement.Refused) return null
+				if (blockPlacementFor(fileText, form.block, span) is BlockPlacement.Refused) return null
 				form
 			}
 
@@ -142,11 +151,31 @@ private fun KaSession.scopeOptionFor(
 
 	val matches = findOccurrences(expression, frame.scopeElement, frame.searchRange)
 	val writes = writeOffsetsFor(expression, frame.scopeElement)
-	val sound = excludeUnsoundOccurrences(matches, span, writes)
-	val occurrences = servableOccurrences(fileText, anchorForm, sound, span)
+	// A loop outside this rung's subtree necessarily contains the rung, which hoistsOverLoopWrite reads
+	// as sound anyway, so the scan is bounded to the rung.
+	val loops = if (writes.isEmpty()) emptyList() else loopSpansWithin(frame.scopeElement)
+	val scopeSpan = spanOf(frame.scopeElement)
+	val block = (anchorForm as? AnchorForm.ExistingBlock)?.block
+	if (hoistSkipsWrite(span, scopeSpan, block, loops, writes)) return null
+
+	val sound =
+		excludeUnsoundOccurrences(matches, span, writes)
+			.filterNot { it != span && hoistsOverLoopWrite(it, scopeSpan, loops, writes) }
+	val occurrences = servableOccurrences(fileText, block, sound, span)
 
 	return ScopeOption(label = frame.label, anchorForm = anchorForm, occurrences = occurrences)
 }
+
+/**
+ * The spans of the loops inside [scope], for the shared hoist guards.
+ *
+ * The Java planner answers null when javac has no position for a loop, leaving containment
+ * unanswerable; PSI always carries a text range, so there is no such case here.
+ */
+private fun loopSpansWithin(scope: PsiElement): List<TextSpan> =
+	PsiTreeUtil.collectElementsOfType(scope, KtLoopExpression::class.java).map { spanOf(it) }
+
+private fun spanOf(element: PsiElement): TextSpan = TextSpan(element.textRange.startOffset, element.textRange.endOffset)
 
 /**
  * Fills in the `return` and written-type details of an expression-body rung, or null to decline it.

@@ -138,6 +138,15 @@
 	<string name="msg_confirm_open_project">Do you want to open the last opened project? The project was:\n%s</string>
 	<string name="title_close_project">Close this project</string>
 	<string name="msg_opened_project_does_not_exist">Last opened project doesn\'t exist.</string>
+	<string name="msg_deeplink_invalid_link">This link could not be opened.</string>
+	<string name="msg_deeplink_setup_incomplete">Finish setting up Code on the Go, then open this link again.</string>
+	<string name="msg_deeplink_project_not_found">No project named \"%s\" was found.</string>
+	<string name="msg_deeplink_file_not_found">File \"%s\" was not found in the project.</string>
+	<string name="msg_deeplink_invalid_line">\"%s\" is not a valid line number.</string>
+	<string name="msg_deeplink_invalid_column">\"%s\" is not a valid column number.</string>
+	<string name="msg_deeplink_no_value">(no value given)</string>
+	<string name="msg_deeplink_scan_failed">Could not scan projects for this link.</string>
+	<string name="msg_project_close_in_progress">A project close is already in progress. Try again in a moment.</string>
 	<string name="msg_create_new_project">Create new project</string>
 	<string name="msg_open_existing_project">Open a saved project</string>
 	<string name="msg_delete_existing_project">Delete a saved project</string>
@@ -542,6 +551,34 @@
 	<string name="msg_extract_variable_name_taken">That name is already used</string>
 	<string name="msg_extract_variable_nothing_to_extract">No expression to extract here</string>
 	<string name="msg_extract_variable_file_changed">The file changed. Try extracting again.</string>
+
+	<!-- Extract variable refactoring (Java) -->
+	<string name="msg_extract_variable_name_invalid_java">Not a valid Java name</string>
+	<string name="msg_extract_variable_name_keyword_java">That is a Java keyword</string>
+
+	<!-- Where a Java extracted declaration can go, listed under "Declare in" -->
+	<string name="label_extract_scope_method">method %1$s</string>
+	<string name="label_extract_scope_constructor">constructor</string>
+	<string name="label_extract_scope_static_initializer">static initializer</string>
+	<string name="label_extract_scope_initializer">initializer</string>
+	<string name="label_extract_scope_lambda">lambda</string>
+	<string name="label_extract_scope_if_block">if block</string>
+	<string name="label_extract_scope_else_block">else block</string>
+	<string name="label_extract_scope_for_loop">for loop</string>
+	<string name="label_extract_scope_while_loop">while loop</string>
+	<string name="label_extract_scope_do_while_loop">do-while loop</string>
+	<string name="label_extract_scope_try_block">try block</string>
+	<string name="label_extract_scope_finally_block">finally block</string>
+	<string name="label_extract_scope_catch_block">catch block</string>
+	<string name="label_extract_scope_synchronized_block">synchronized block</string>
+	<string name="label_extract_scope_switch_rule">switch rule</string>
+	<string name="label_extract_scope_switch_case">switch case</string>
+	<string name="label_extract_scope_block">block</string>
+	<string name="label_extract_scope_if_branch">if branch</string>
+	<string name="label_extract_scope_else_branch">else branch</string>
+	<string name="label_extract_scope_for_body">for body</string>
+	<string name="label_extract_scope_while_body">while body</string>
+	<string name="label_extract_scope_do_while_body">do-while body</string>
 
 	<!-- Extract method refactoring (Kotlin) -->
 	<string name="action_extract_method">Extract method</string>

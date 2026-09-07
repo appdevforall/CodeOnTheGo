@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.kotlin.refactor.ui
+package com.itsaky.androidide.lsp.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,16 +16,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.NameProblem
-import com.itsaky.androidide.resources.R
 
-/** Shared by the extract-variable and extract-method sheets; neither owns them. */
+/** Shared by every refactoring sheet in either language; none of them owns these. */
 @Composable
-internal fun LabelledSection(
+fun LabelledSection(
 	label: String,
+	modifier: Modifier = Modifier,
 	content: @Composable () -> Unit,
 ) {
-	Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+	Column(
+		modifier = modifier,
+		verticalArrangement = Arrangement.spacedBy(4.dp),
+	) {
 		Text(text = label, style = MaterialTheme.typography.labelLarge)
 		content()
 	}
@@ -33,14 +35,15 @@ internal fun LabelledSection(
 
 /** A radio group. Expression text is monospaced so a candidate reads as the code it is. */
 @Composable
-internal fun OptionList(
+fun OptionList(
 	options: List<String>,
 	selected: Int,
 	monospace: Boolean,
 	onSelect: (Int) -> Unit,
+	modifier: Modifier = Modifier,
 ) {
 	Column(
-		modifier = Modifier.selectableGroup(),
+		modifier = modifier.selectableGroup(),
 		verticalArrangement = Arrangement.spacedBy(8.dp),
 	) {
 		options.forEachIndexed { index, option ->
@@ -74,12 +77,3 @@ internal fun OptionList(
 		}
 	}
 }
-
-/** The message shown under a name field for each way a name can be unusable. */
-internal fun NameProblem.messageRes(): Int =
-	when (this) {
-		NameProblem.Blank -> R.string.msg_extract_variable_name_blank
-		NameProblem.NotAnIdentifier -> R.string.msg_extract_variable_name_invalid
-		NameProblem.Keyword -> R.string.msg_extract_variable_name_keyword
-		NameProblem.AlreadyTaken -> R.string.msg_extract_variable_name_taken
-	}

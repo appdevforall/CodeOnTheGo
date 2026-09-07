@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.kotlin.refactor.ui
+package com.itsaky.androidide.lsp.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +36,7 @@ import com.itsaky.androidide.resources.R
 @Composable
 fun ExtractVariableSheetContent(
 	state: ExtractVariableUiState,
+	nameMessages: NameMessages,
 	onEvent: (ExtractVariableUiEvent) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -41,6 +44,7 @@ fun ExtractVariableSheetContent(
 		modifier =
 			modifier
 				.fillMaxWidth()
+				.verticalScroll(rememberScrollState())
 				.navigationBarsPadding()
 				.padding(horizontal = 24.dp, vertical = 16.dp),
 		verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -67,7 +71,10 @@ fun ExtractVariableSheetContent(
 			label = { Text(stringResource(R.string.label_extract_variable_name)) },
 			isError = state.nameProblem != null,
 			singleLine = true,
-			supportingText = state.nameProblem?.let { problem -> { Text(stringResource(problem.messageRes())) } },
+			supportingText =
+				state.nameProblem?.let { problem ->
+					{ Text(stringResource(nameMessages.resFor(problem))) }
+				},
 			modifier = Modifier.fillMaxWidth(),
 		)
 

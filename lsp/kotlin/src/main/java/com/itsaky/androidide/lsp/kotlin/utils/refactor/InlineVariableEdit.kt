@@ -1,5 +1,11 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.RewriteSpan
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.detectNewline
+import com.itsaky.androidide.lsp.refactor.leadingIndentAt
+import com.itsaky.androidide.lsp.refactor.lineStartOffset
+
 /**
  * The edits one inline performs: one replacement per inlined reference plus, when the declaration is
  * deleted, one for the declaration.
