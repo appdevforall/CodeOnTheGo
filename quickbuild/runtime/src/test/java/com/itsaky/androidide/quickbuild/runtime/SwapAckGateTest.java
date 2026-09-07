@@ -47,6 +47,16 @@ class SwapAckGateTest {
 		assertThat(gate.noSwapPosted()).isFalse();
 	}
 
+	/** A failure after the ack was already owed changes nothing; the ack stands. */
+	@Test
+	void aFailureAfterTheAckDoesNotOwnAReport() {
+		SwapAckGate gate = new SwapAckGate(1);
+
+		assertThat(gate.committed()).isTrue();
+
+		assertThat(gate.failed()).isFalse();
+	}
+
 	/** One swap of a pair failing cancels the ack, even though the other one lands. */
 	@Test
 	void aFailureCancelsTheAckWhenTheOtherSwapStillCommits() {
@@ -74,6 +84,18 @@ class SwapAckGateTest {
 
 		assertThat(gate.committed()).isFalse();
 		assertThat(gate.committed()).isTrue();
+	}
+
+	/**
+	 * The failure report is owed once too: a deploy carrying a table and assets whose two posts are both refused by a quitting looper fails twice, and the second must not raise a second banner and crash report.
+	 */
+	@Test
+	void onlyTheFirstFailureOwnsTheReport() {
+		SwapAckGate gate = new SwapAckGate(2);
+
+		assertThat(gate.failed()).isTrue();
+		assertThat(gate.failed()).isFalse();
+		assertThat(gate.committed()).isFalse();
 	}
 
 	/** The ack is owed once: a late or duplicated commit finds the gate settled. */
