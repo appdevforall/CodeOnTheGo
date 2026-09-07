@@ -367,7 +367,6 @@ class MemoryUsageWatcher
 						},
 				)
 			}
-			}
 
 		/**
 		 * Returns the memory usage of all the registered processes.

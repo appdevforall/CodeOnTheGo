@@ -168,7 +168,6 @@ class PowerUsageWatcher
 					sampleTimes.copyInto(timesDest),
 				)
 			}
-			}
 
 		fun clearHistory() {
 			synchronized(historyLock) {

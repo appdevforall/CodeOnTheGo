@@ -154,8 +154,7 @@ class NetworkUsageWatcher
 		 * The arrays are copies. Handing out the live ring buffers would let the caller read them while
 		 * the sampler thread is midway through appending, and the chart renderer reads all 30 entries.
 		 */
-		fun getUsage(): NetworkUsage =
-			copyUsageInto(LongArray(received.size), LongArray(transmitted.size), LongArray(sampleTimes.size))
+		fun getUsage(): NetworkUsage = copyUsageInto(LongArray(received.size), LongArray(transmitted.size), LongArray(sampleTimes.size))
 
 		/**
 		 * [getUsage], into destinations the caller owns (ADFA-5526).
@@ -175,7 +174,6 @@ class NetworkUsageWatcher
 					transmitted.copyInto(transmittedDest),
 					sampleTimes.copyInto(timesDest),
 				)
-			}
 			}
 
 		/**
