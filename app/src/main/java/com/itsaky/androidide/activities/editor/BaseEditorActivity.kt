@@ -459,6 +459,12 @@ abstract class BaseEditorActivity :
 		 * handed to [MetricsCarouselController], which is in turn handed to the floating window and
 		 * outlives an activity recreation. A pure function of the process name has no business
 		 * pinning an activity in memory, and this one is exactly that.
+		 *
+		 * An unrecognised name falls back rather than throwing. This is reached from the
+		 * once-a-second sample listener and from RecyclerView's bind pass, so a name nobody added a
+		 * colour for would take the editor down from a timer callback or mid-layout -- a crash for
+		 * the sake of a line colour. 5d00a796a and 4c65554e5 each established that; this branch
+		 * removed it again, so it is written down here rather than rediscovered a fourth time.
 		 */
 		@JvmStatic
 		fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
@@ -466,7 +472,7 @@ abstract class BaseEditorActivity :
 				PROC_IDE -> Color.BLUE
 				PROC_GRADLE_TOOLING -> Color.RED
 				PROC_GRADLE_DAEMON -> Color.GREEN
-				else -> throw IllegalArgumentException("Unknown process: $proc")
+				else -> Color.GRAY
 			}
 
 		protected val PROC_IDE = "IDE"
@@ -1006,11 +1012,21 @@ abstract class BaseEditorActivity :
 	}
 
 	private fun setupMetricsCarousel() {
-		metricsCarousel.bind(binding.memUsageView)
 		binding.memUsageView.root.onTwoFingerTap = ::onMetricsCarouselUndockRequested
 		binding.memUsageView.metricsUndockedMessage.setOnClickListener {
 			onMetricsCarouselRedockRequested()
 		}
+
+		// Ask where the carousel is before binding one here. Only one can be live at a time, and
+		// the floating one outlives this activity -- so an activity recreated while it is floating
+		// (a night-mode or locale change, or leaving the editor and coming back) used to bind a
+		// second carousel into the strip and leave the floating one attached to a destroyed
+		// activity's views, frozen, with the strip showing no sign that it had gone anywhere.
+		//
+		// [setMetricsCarouselUndocked] is the same call the undock request makes, so the strip
+		// shows the "tap to bring them back" message and tapping it re-docks onto *this*
+		// activity's controller.
+		setMetricsCarouselUndocked(isMetricsCarouselUndocked())
 	}
 
 	/**
