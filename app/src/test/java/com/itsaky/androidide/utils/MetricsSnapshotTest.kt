@@ -73,14 +73,36 @@ class MetricsSnapshotTest {
 	}
 
 	@Test
-	fun `only the newest snapshot is kept`() {
-		val first = MetricsSnapshot.write(context, bitmap(), "Memory usage")
-		val second = MetricsSnapshot.write(context, bitmap(), "Network traffic")
+	fun `a shared snapshot survives the next few exports`() {
+		val shared = MetricsSnapshot.write(context, bitmap(), "Memory usage")!!
 
-		assertThat(second).isNotNull()
-		// This is a scratch directory for handing one image to another app, not a gallery.
-		val directory = File(context.cacheDir, "metrics-snapshots")
-		assertThat(directory.listFiles()!!.map { it.name }).containsExactly(second!!.name)
-		assertThat(first!!.exists()).isFalse()
+		// A share hands the recipient a FileProvider URI and the chooser returns long before the
+		// recipient opens it. Deleting the previous file on the next export pulled the image out
+		// from under an app that had not read it yet.
+		repeat(3) { index -> MetricsSnapshot.write(context, bitmap(), "Chart $index") }
+
+		assertThat(shared.exists()).isTrue()
+	}
+
+	@Test
+	fun `the directory stays bounded across many exports`() {
+		repeat(20) { index -> MetricsSnapshot.write(context, bitmap(), "Chart $index") }
+
+		// Bounded, not unbounded: this is a scratch directory, not a gallery.
+		val directory = MetricsSnapshot.write(context, bitmap(), "Last")!!.parentFile!!
+		assertThat(directory.listFiles()!!.size).isAtMost(MetricsSnapshot.KEEP_RECENT)
+	}
+
+	@Test
+	fun `the newest snapshot is the one handed back, and it is on disk`() {
+		MetricsSnapshot.write(context, bitmap(), "Memory usage")
+		val newest = MetricsSnapshot.write(context, bitmap(), "Network traffic")
+
+		// This used to assert that the previous file was gone. It is not, deliberately: a share
+		// can still be reading it. What has to hold is that the file returned exists and is in
+		// the scratch directory, which stays bounded -- see the two tests above.
+		assertThat(newest).isNotNull()
+		assertThat(newest!!.exists()).isTrue()
+		assertThat(newest.parentFile).isEqualTo(File(context.cacheDir, "metrics-snapshots"))
 	}
 }
