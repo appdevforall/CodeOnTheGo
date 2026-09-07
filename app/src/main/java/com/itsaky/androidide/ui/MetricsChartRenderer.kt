@@ -97,10 +97,25 @@ abstract class MetricsChartRenderer(
 	 * One predicate, because the tap that opens the sampling-rate chooser and the long press that
 	 * explains it have to agree on where that band is: written twice, they can drift apart and the
 	 * tooltip then describes a control the tap no longer reaches.
+	 *
+	 * Bounded below, not just above. Everything under the plot used to count, and the legend lives
+	 * there too -- MPAndroidChart aligns it to the bottom by default, under the axis labels. So
+	 * tapping the legend, which is the one thing in a chart a reader expects to be tappable, opened
+	 * the sampling-rate chooser; picking a rate there clears every buffer, and the user loses the
+	 * history they were looking at for an action they did not ask for.
+	 *
+	 * The band stops at the legend's top edge, and is never narrower than one axis label, so a
+	 * legend that measures larger than expected cannot squeeze the rate chooser out of reach.
 	 */
 	private fun isOnAxisBand(y: Float): Boolean {
 		val chart = this.chart ?: return false
-		return y >= chart.viewPortHandler.contentBottom()
+		val top = chart.viewPortHandler.contentBottom()
+		val legend = chart.legend
+		// What the chart reserves for the legend at the bottom: its measured height plus the
+		// offset it keeps above itself. Both are pixels, as MPAndroidChart stores them.
+		val reservedForLegend = if (legend.isEnabled) legend.mNeededHeight + legend.yOffset else 0f
+		val bottom = maxOf(chart.height - reservedForLegend, top + chart.xAxis.textSize)
+		return y >= top && y < bottom
 	}
 
 	/**
