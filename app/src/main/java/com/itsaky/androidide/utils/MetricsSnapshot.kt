@@ -23,9 +23,6 @@ import androidx.annotation.VisibleForTesting
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Writes a metrics chart image to a file the IDE can share (ADFA-5486).
@@ -47,13 +44,16 @@ object MetricsSnapshot {
 	 */
 	@VisibleForTesting
 	internal const val KEEP_RECENT = 5
-	private const val TIMESTAMP_PATTERN = "yyyyMMdd-HHmmss"
 
 	/** Media type for the written file, for the sharing intent. */
 	const val MIME_TYPE = "image/png"
 
 	/**
-	 * Writes [bitmap] as a PNG named after [label] and the current time.
+	 * Writes [bitmap] as a PNG, named by [MetricsFileName] like every other exported metrics file.
+	 *
+	 * The name used to lead with the chart's title. ADFA-5531 made one naming rule for the image and
+	 * the CSV so that a pair exported together sorts together, and a title in front of the timestamp
+	 * would have sorted them apart.
 	 *
 	 * A few recent snapshots are kept rather than only the newest. This is a scratch directory for
 	 * handing an image to another app, not a gallery, so it stays bounded -- but a share hands the
@@ -66,7 +66,7 @@ object MetricsSnapshot {
 	fun write(
 		context: Context,
 		bitmap: Bitmap,
-		label: String,
+		nowMillis: Long = System.currentTimeMillis(),
 	): File? {
 		val directory = File(context.cacheDir, DIRECTORY)
 		return try {
@@ -75,7 +75,7 @@ object MetricsSnapshot {
 				return null
 			}
 
-			val file = File(directory, "${fileNameFor(label)}.png")
+			val file = File(directory, MetricsFileName.forTime(nowMillis, "png"))
 			file.outputStream().use { output ->
 				if (!bitmap.compress(Bitmap.CompressFormat.PNG, QUALITY, output)) {
 					log.error("Could not encode the chart snapshot")
@@ -97,7 +97,7 @@ object MetricsSnapshot {
 	 * trusted to sort newest: two exports in the same second share a timestamp, and the filename
 	 * carries only whole seconds.
 	 */
-	private fun pruneTo(
+	internal fun pruneTo(
 		directory: File,
 		limit: Int,
 		newest: File,
@@ -111,20 +111,5 @@ object MetricsSnapshot {
 				log.warn("Could not delete the stale chart snapshot at {}", file)
 			}
 		}
-	}
-
-	/**
-	 * A filename from [label] and the current time, with anything that is not safe in a filename
-	 * replaced. Chart titles are translated, so they can contain spaces and non-ASCII.
-	 */
-	private fun fileNameFor(label: String): String {
-		val stamp = SimpleDateFormat(TIMESTAMP_PATTERN, Locale.US).format(Date())
-		val safeLabel =
-			label
-				.lowercase(Locale.US)
-				.replace(Regex("[^a-z0-9]+"), "-")
-				.trim('-')
-				.ifEmpty { "metrics" }
-		return "$safeLabel-$stamp"
 	}
 }

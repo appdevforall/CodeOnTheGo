@@ -27,8 +27,10 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 
 /**
- * Pins ADFA-5486's snapshot export: a chart becomes a PNG in the cache, named after the chart, with
- * only the newest one kept.
+ * Pins ADFA-5486's snapshot export: a chart becomes a PNG in the cache, with a few recent ones kept.
+ *
+ * The name used to lead with the chart's title. ADFA-5531 gave the image and the CSV one naming rule
+ * so a pair exported together sorts together, which is what the naming tests here now pin.
  */
 @RunWith(RobolectricTestRunner::class)
 class MetricsSnapshotTest {
@@ -38,7 +40,7 @@ class MetricsSnapshotTest {
 
 	@Test
 	fun `writes a png into the cache`() {
-		val file = MetricsSnapshot.write(context, bitmap(), "Memory usage")
+		val file = MetricsSnapshot.write(context, bitmap())
 
 		assertThat(file).isNotNull()
 		assertThat(file!!.exists()).isTrue()
@@ -49,54 +51,39 @@ class MetricsSnapshotTest {
 	}
 
 	@Test
-	fun `names the file after the chart`() {
-		val file = MetricsSnapshot.write(context, bitmap(), "Network traffic")
+	fun `the name is the shared metrics naming rule`() {
+		val file = MetricsSnapshot.write(context, bitmap(), AT)
 
-		assertThat(file!!.name).startsWith("network-traffic-")
-	}
-
-	@Test
-	fun `a title with punctuation or non-ascii still makes a usable filename`() {
-		// Chart titles are translated, so they are not guaranteed to be filename-safe.
-		val file = MetricsSnapshot.write(context, bitmap(), "Mémoire / usage (MB)")
-
-		assertThat(file).isNotNull()
-		assertThat(file!!.name).matches("[a-z0-9-]+\\.png")
-	}
-
-	@Test
-	fun `a title with nothing usable still produces a file`() {
-		val file = MetricsSnapshot.write(context, bitmap(), "***")
-
-		assertThat(file).isNotNull()
-		assertThat(file!!.name).startsWith("metrics-")
+		// The same name the CSV exported at that moment would get, differing only in extension --
+		// no chart title in front of it to sort the pair apart (ADFA-5531).
+		assertThat(file!!.name).isEqualTo(MetricsFileName.forTime(AT, "png"))
 	}
 
 	@Test
 	fun `a shared snapshot survives the next few exports`() {
-		val shared = MetricsSnapshot.write(context, bitmap(), "Memory usage")!!
+		val shared = MetricsSnapshot.write(context, bitmap(), AT)!!
 
 		// A share hands the recipient a FileProvider URI and the chooser returns long before the
 		// recipient opens it. Deleting the previous file on the next export pulled the image out
 		// from under an app that had not read it yet.
-		repeat(3) { index -> MetricsSnapshot.write(context, bitmap(), "Chart $index") }
+		repeat(3) { index -> MetricsSnapshot.write(context, bitmap(), AT + index + 1L) }
 
 		assertThat(shared.exists()).isTrue()
 	}
 
 	@Test
 	fun `the directory stays bounded across many exports`() {
-		repeat(20) { index -> MetricsSnapshot.write(context, bitmap(), "Chart $index") }
+		repeat(20) { index -> MetricsSnapshot.write(context, bitmap(), AT + index) }
 
 		// Bounded, not unbounded: this is a scratch directory, not a gallery.
-		val directory = MetricsSnapshot.write(context, bitmap(), "Last")!!.parentFile!!
+		val directory = MetricsSnapshot.write(context, bitmap(), AT + 100L)!!.parentFile!!
 		assertThat(directory.listFiles()!!.size).isAtMost(MetricsSnapshot.KEEP_RECENT)
 	}
 
 	@Test
 	fun `the newest snapshot is the one handed back, and it is on disk`() {
-		MetricsSnapshot.write(context, bitmap(), "Memory usage")
-		val newest = MetricsSnapshot.write(context, bitmap(), "Network traffic")
+		MetricsSnapshot.write(context, bitmap(), AT)
+		val newest = MetricsSnapshot.write(context, bitmap(), AT + 1L)
 
 		// This used to assert that the previous file was gone. It is not, deliberately: a share
 		// can still be reading it. What has to hold is that the file returned exists and is in
@@ -104,5 +91,15 @@ class MetricsSnapshotTest {
 		assertThat(newest).isNotNull()
 		assertThat(newest!!.exists()).isTrue()
 		assertThat(newest.parentFile).isEqualTo(File(context.cacheDir, "metrics-snapshots"))
+	}
+
+	private companion object {
+		/**
+		 * A fixed export time.
+		 *
+		 * The name carries milliseconds, so two writes in the same millisecond would be one file.
+		 * Real exports are a tap apart; a test loop is not.
+		 */
+		const val AT = 1_788_759_220_123L
 	}
 }
