@@ -1207,6 +1207,8 @@
 	<string name="label_plugin_author">Author</string>
 	<string name="label_plugin_description">Description</string>
 	<string name="label_plugin_min_ide_version">Min IDE Version</string>
+	<string name="label_plugin_built_from">Built From</string>
+	<string name="label_plugin_built_at">Built At</string>
 	<string name="label_value">%1$s: %2$s</string>
 	<string name="template_optional_tag">"- %1$s"</string>
 	<string name="label_separator">" - "</string>
