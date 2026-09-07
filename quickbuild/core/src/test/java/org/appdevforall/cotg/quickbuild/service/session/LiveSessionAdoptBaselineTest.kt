@@ -53,6 +53,24 @@ class LiveSessionAdoptBaselineTest {
 		override fun stop() = Unit
 	}
 
+	private class RecordingWatcher : ProjectWatcher {
+		var onBatch: ((ChangedFiles.Known) -> Unit)? = null
+		var stops = 0
+
+		override fun start(onBatch: (ChangedFiles.Known) -> Unit) {
+			this.onBatch = onBatch
+		}
+
+		override fun stop() {
+			stops++
+		}
+	}
+
+	private fun watch(
+		watcher: ProjectWatcher,
+		vararg roots: File,
+	) = SessionWatch(roots.toList(), emptyList(), WatchFilter(roots.toList()), watcher)
+
 	private class FixedAnnotationImpact(
 		override val active: Boolean,
 	) : AnnotationImpact {
@@ -72,15 +90,17 @@ class LiveSessionAdoptBaselineTest {
 			annotationProcessors = emptyList(),
 		)
 
-	private fun session(scope: kotlinx.coroutines.CoroutineScope): LiveSession {
+	private fun session(
+		scope: kotlinx.coroutines.CoroutineScope,
+		watcher: ProjectWatcher = NoopWatcher(),
+	): LiveSession {
 		val executor = SwitchableExecutor(RecordingExecutor())
 		return LiveSession(
 			proxyApp = proxyApp("com.example.old"),
 			layout = QuickBuildProjectLayout(projectRoot),
 			tracker = GenerationTracker(MemoryGenerationStore(), initial = 0L),
-			filter = WatchFilter(listOf(projectRoot)),
+			watch = watch(watcher, projectRoot),
 			orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), scope) {},
-			watcher = NoopWatcher(),
 			executor = executor,
 			annotationImpact = SwitchableAnnotationImpact(FixedAnnotationImpact(active = false)),
 			retainedPayloads = RetainedPayloadStore.forWorkDir(File(projectRoot, "work")),
@@ -102,8 +122,9 @@ class LiveSessionAdoptBaselineTest {
 				newLayout,
 				newExecutor,
 				newAnnotationImpact,
+				session.watch,
 				baselineGeneration = 9L,
-			)
+			) {}
 
 			assertThat(session.proxyApp.proxyAppPackage).isEqualTo("com.example.new")
 			assertThat(session.layout).isSameInstanceAs(newLayout)
@@ -126,8 +147,9 @@ class LiveSessionAdoptBaselineTest {
 				QuickBuildProjectLayout(projectRoot),
 				RecordingExecutor(),
 				FixedAnnotationImpact(active = false),
+				session.watch,
 				baselineGeneration = 9L,
-			)
+			) {}
 
 			// A reconnect below the new baseline must fall through to the forced rebuild;
 			// re-sending retention from the old baseline would resurrect superseded code.
@@ -153,8 +175,9 @@ class LiveSessionAdoptBaselineTest {
 				QuickBuildProjectLayout(projectRoot),
 				newExecutor,
 				FixedAnnotationImpact(active = false),
+				session.watch,
 				baselineGeneration = 0L,
-			)
+			) {}
 			session.executor.markCurrentBuildUserInitiated()
 
 			assertThat(newExecutor.userInitiatedMarks).isEqualTo(1)
@@ -179,13 +202,65 @@ class LiveSessionAdoptBaselineTest {
 				QuickBuildProjectLayout(projectRoot),
 				newExecutor,
 				FixedAnnotationImpact(active = false),
+				session.watch,
 				baselineGeneration = 0L,
-			)
+			) {}
 			runCurrent()
 
 			// adoptBaseline has to release the hold; drop its onBaselineReset and the batch
 			// sits in pending forever, so the user's edit never builds after a rebuild.
 			assertThat(newExecutor.requests.single().changes).isEqualTo(changed)
 			assertThat(oldExecutor.requests).isEmpty()
+		}
+
+	/**
+	 * The watch set is ProxyAppInfo-derived too: AndroidProjectWatcher fixes its inotify set
+	 * and poll list at construction, so a rebaseline that added a module used to leave the old
+	 * watcher running over the old roots and every edit under the new module unseen.
+	 */
+	@Test
+	fun `adoptBaseline starts the new watch set's watcher and stops the old one`() =
+		runTest {
+			val oldWatcher = RecordingWatcher()
+			val session = session(backgroundScope, oldWatcher)
+			val newWatcher = RecordingWatcher()
+			val newWatch = watch(newWatcher, projectRoot, File(projectRoot, "lib/src"))
+			val batches = mutableListOf<ChangedFiles.Known>()
+
+			session.adoptBaseline(
+				proxyApp("com.example.new"),
+				QuickBuildProjectLayout(projectRoot),
+				RecordingExecutor(),
+				FixedAnnotationImpact(active = false),
+				newWatch,
+				baselineGeneration = 0L,
+			) { batches += it }
+
+			assertThat(session.watch).isSameInstanceAs(newWatch)
+			assertThat(session.watcher).isSameInstanceAs(newWatcher)
+			assertThat(oldWatcher.stops).isEqualTo(1)
+			// Wired to the manager's batch sink, not started into the void.
+			val batch = ChangedFiles.Known(setOf(File(projectRoot, "lib/src/main/java/Lib.kt")))
+			newWatcher.onBatch!!.invoke(batch)
+			assertThat(batches).containsExactly(batch)
+		}
+
+	@Test
+	fun `adoptBaseline keeps the running watcher when handed the current watch set`() =
+		runTest {
+			val watcher = RecordingWatcher()
+			val session = session(backgroundScope, watcher)
+
+			session.adoptBaseline(
+				proxyApp("com.example.new"),
+				QuickBuildProjectLayout(projectRoot),
+				RecordingExecutor(),
+				FixedAnnotationImpact(active = false),
+				session.watch,
+				baselineGeneration = 0L,
+			) {}
+
+			assertThat(session.watcher).isSameInstanceAs(watcher)
+			assertThat(watcher.stops).isEqualTo(0)
 		}
 }
