@@ -51,6 +51,7 @@ import com.itsaky.androidide.utils.MetricsCsv
 import com.itsaky.androidide.utils.MetricsCsvFile
 import com.itsaky.androidide.utils.MetricsSamplingRates
 import com.itsaky.androidide.utils.MetricsSnapshot
+import com.itsaky.androidide.utils.MetricsSnapshotAssembler
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.PowerUsageWatcher
 import com.itsaky.androidide.utils.clearLongPressHelp
@@ -677,7 +678,7 @@ class MetricsCarouselController(
 
 		val context = binding.root.context
 		val appContext = context.applicationContext
-		val snapshot = snapshot()
+		val snapshot = snapshot(context)
 		exportInFlight = true
 		scope.launch {
 			// Guarded for the same reason exportSnapshot is: the scope has no exception handler, so
@@ -706,68 +707,21 @@ class MetricsCarouselController(
 	}
 
 	/**
-	 * The watchers' buffers, as the export format's view of them.
+	 * The watchers' buffers, for the export.
 	 *
-	 * Rows come from the memory watcher: it is the only one always recording, the network watcher
-	 * stops for good on a device whose counters are unsupported, and a power source can be missing.
-	 * The other series are read at the same index -- the watchers share an interval, are started
-	 * together and are cleared together -- and each carries its own sample times, so a series that
-	 * was not recording leaves empty cells rather than zeros.
+	 * The assembly itself is [MetricsSnapshotAssembler]: the same file is wanted by things that
+	 * have no carousel bound at all (ADFA-5534, ADFA-5526), so it cannot live here.
 	 */
 	@UiThread
 	@VisibleForTesting
-	internal fun snapshot(): MetricsCsv.Snapshot {
-		// One call per watcher, not one per array. Each returns its times and its values from a
-		// single critical section, which is what keeps a row of the file a single moment: two calls
-		// let the sampler append between them and every value came out one row off its timestamp.
-		val memory = memoryUsageWatcher.history()
-		val network = networkUsageWatcher.getUsage()
-		val power = powerUsageWatcher.getUsage()
-
-		return MetricsCsv.Snapshot(
-			rowTimes = memory.times,
-			memory =
-				memory.processes.associate { process ->
-					process.pname to
-						MetricsCsv.Series(
-							times = memory.times,
-							values = process.usage,
-							since = process.watchedSinceMillis,
-						)
-				},
-			networkReceived = MetricsCsv.Series(network.sampleTimes, network.received),
-			networkTransmitted = MetricsCsv.Series(network.sampleTimes, network.transmitted),
-			temperature = MetricsCsv.Series(power.sampleTimes, power.temperatureMilliCelsius),
-			power = MetricsCsv.Series(power.sampleTimes, power.powerMicroWatts),
-			thermal = MetricsCsv.Series(power.sampleTimes, power.thermalStatus),
-			annotations = markers(),
+	internal fun snapshot(context: Context): MetricsCsv.Snapshot =
+		MetricsSnapshotAssembler.assemble(
+			context = context,
+			memory = memoryUsageWatcher,
+			network = networkUsageWatcher,
+			power = powerUsageWatcher,
+			annotations = annotations,
 		)
-	}
-
-	/**
-	 * The annotations, with their times moved onto the clock the samples carry.
-	 *
-	 * The store records on the monotonic clock and the samples on the wall clock, and the two are
-	 * read here as close together as they can be so the offset between them is the right one.
-	 */
-	private fun markers(): List<MetricsCsv.Marker> {
-		val store = annotations ?: return emptyList()
-		val nowEpoch = System.currentTimeMillis()
-		val nowMonotonic = SystemClock.elapsedRealtime()
-		return store.allAnnotations().map { annotation ->
-			MetricsCsv.Marker(
-				atMillis = MetricsCsv.epochFor(annotation.atMillis, nowEpoch, nowMonotonic),
-				label = labelFor(annotation),
-				kind = annotation.kind.name,
-			)
-		}
-	}
-
-	/** An annotation's text: a build outcome carries a string id, a task carries its own name. */
-	private fun labelFor(annotation: MetricsAnnotationStore.Annotation): String {
-		val context = binding?.root?.context ?: return annotation.label
-		return annotation.kind.labelRes?.let(context::getString) ?: annotation.label
-	}
 
 	/**
 	 * Releases the controller for good. Distinct from [unbind], which runs on every dock, undock
