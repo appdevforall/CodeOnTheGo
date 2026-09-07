@@ -84,7 +84,7 @@ class MetricsAnnotationSpanTest {
 
 		// Pan back to where that marker lives, and record that the user drove the viewport.
 		chart.setVisibleXRangeMaximum(VISIBLE_WINDOW.toFloat())
-		chart.moveViewToX(0f)
+		chart.moveViewToXNow(0f)
 		draw(chart)
 		val event = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_MOVE, 10f, 10f, 0)
 		chart.onChartGestureListener.onChartTranslate(event, -50f, 0f)

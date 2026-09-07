@@ -84,7 +84,7 @@ class MetricsChartAxisTapTest {
 
 		// Zoom first: an unzoomed chart shows everything, so there is nothing a pan could move.
 		chart.setVisibleXRangeMaximum(VISIBLE_WINDOW.toFloat())
-		chart.moveViewToX(0f)
+		chart.moveViewToXNow(0f)
 		drawOnce(chart)
 		assertThat(chart.lowestVisibleX).isLessThan(10f)
 		assertThat(chart.highestVisibleX).isLessThan(SAMPLES / 2f)

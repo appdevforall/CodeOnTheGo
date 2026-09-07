@@ -22,6 +22,7 @@ import android.graphics.Bitmap
 import android.os.SystemClock
 import android.util.TypedValue
 import android.view.MotionEvent
+import android.view.View
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
@@ -155,8 +156,12 @@ abstract class MetricsChartRenderer(
 	 */
 	@UiThread
 	fun attach(chart: SafeLineChart) {
+		// A rebind can attach the replacement before the view it replaced is recycled, so the
+		// outgoing chart is let go of here rather than waiting for a [detach] that names it.
+		this.chart?.removeOnLayoutChangeListener(newestWindowOnLayout)
 		this.chart = chart
 		configure(chart)
+		chart.addOnLayoutChangeListener(newestWindowOnLayout)
 		rebuild()
 	}
 
@@ -167,6 +172,7 @@ abstract class MetricsChartRenderer(
 	@CallSuper
 	open fun detach() {
 		userHasZoomed = false
+		chart?.removeOnLayoutChangeListener(newestWindowOnLayout)
 		chart = null
 	}
 
@@ -277,9 +283,35 @@ abstract class MetricsChartRenderer(
 			return
 		}
 
+		// Before the first layout there is no plot area to place a window in, and applying one
+		// anyway is worse than waiting: the scale is clamped against an empty content rect, and the
+		// layout that follows resets the chart's transform. [newestWindowOnLayout] re-applies it as
+		// soon as there is something to apply it to (ADFA-5515).
+		if (!chart.viewPortHandler.hasChartDimens()) {
+			return
+		}
+
 		chart.setVisibleXRangeMaximum(VISIBLE_SAMPLES.toFloat())
-		chart.moveViewToX(newestIndex - VISIBLE_SAMPLES.toFloat() + 1f)
+		// Not moveViewToX: its scroll is deferred to a later frame and would be converted through
+		// a different transform from the scale just set here (ADFA-5515).
+		chart.moveViewToXNow(newestIndex - VISIBLE_SAMPLES.toFloat() + 1f)
 	}
+
+	/**
+	 * Re-applies the newest window whenever the chart is laid out.
+	 *
+	 * A layout that changes the chart's size resets its transform, which drops the window and shows
+	 * the whole buffer from its oldest end. Nothing put it back until the next sample landed a
+	 * redraw, so every rebind -- and the carousel is rebound on every resume -- opened on an empty
+	 * plot for a second or more (ADFA-5515).
+	 */
+	private val newestWindowOnLayout =
+		View.OnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+			val chart = view as? SafeLineChart ?: return@OnLayoutChangeListener
+			if (chart === this.chart) {
+				showNewestWindow(chart)
+			}
+		}
 
 	/**
 	 * The sample indices currently on screen, for a series of [sampleCount] samples.

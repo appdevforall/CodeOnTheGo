@@ -125,6 +125,27 @@ class SafeLineChart : LineChart {
 		}
 	}
 
+	/**
+	 * Scrolls the plot so that [xValue] is its leftmost value, now rather than on a later frame.
+	 *
+	 * What [moveViewToX] does, minus the deferral. That one queues the scroll as a viewport job
+	 * which MPAndroidChart hands to `View.post`, and by the time it runs the transform it converts
+	 * its x value through is no longer the one the caller set it up against -- a layout in between
+	 * resets the transform to identity, and the clamp afterwards restores the scale around a
+	 * translation computed for a different one. The viewport then lands neither where it was nor
+	 * where it was asked to go (ADFA-5515).
+	 *
+	 * On a chart that is not attached to a window the job is worse than late: `View.post` drops it
+	 * in the view's run queue, which is only flushed on attach, so it never runs at all.
+	 */
+	fun moveViewToXNow(xValue: Float) {
+		// The left axis, as moveViewToX itself uses; only the x component is read back.
+		val transformer = getTransformer(YAxis.AxisDependency.LEFT) ?: return
+		val target = floatArrayOf(xValue, 0f)
+		transformer.pointValuesToPixel(target)
+		viewPortHandler.centerViewPort(target, this)
+	}
+
 	override fun onDraw(canvas: Canvas) {
 		try {
 			super.onDraw(canvas)

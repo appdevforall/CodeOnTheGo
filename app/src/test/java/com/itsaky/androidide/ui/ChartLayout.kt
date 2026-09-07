@@ -29,12 +29,9 @@ const val CHART_HEIGHT = 400
 /**
  * Lays this chart out and draws it once, which is what every assertion about its viewport needs.
  *
- * Two separate reasons, both easy to leave out and neither of which fails loudly. Without the
- * layout the plot area has no extent, so every coordinate lands on its edge and a hit test cannot
- * tell inside from outside. Without the draw the scroll to the newest samples has not run --
- * MPAndroidChart queues `moveViewToX` as a job that only executes during a draw pass -- so the
- * chart still reports the *oldest* samples as visible and a window assertion reads the wrong end
- * of the buffer.
+ * Without the layout the plot area has no extent, so every coordinate lands on its edge, a hit test
+ * cannot tell inside from outside, and the renderer has nothing to place its viewport in. The draw
+ * is what renders the axes and annotations that assertions about them read back.
  *
  * Four test classes had grown their own copy of this, with the comment explaining it in three of
  * them and the draw missing from one.
