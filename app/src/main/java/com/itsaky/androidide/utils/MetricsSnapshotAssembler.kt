@@ -19,7 +19,7 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import android.os.SystemClock
-import androidx.annotation.UiThread
+import androidx.annotation.AnyThread
 
 /**
  * Reads the watchers' buffers into a [MetricsCsv.Snapshot].
@@ -29,7 +29,9 @@ import androidx.annotation.UiThread
  * the file: the feedback FAB can be tapped with the strip closed (ADFA-5534), and a crash report is
  * assembled with no UI at all (ADFA-5526).
  *
- * All of it must be read on the UI thread; formatting and writing must not be.
+ * Every read here takes the watcher's own history lock, so this is safe from any thread -- which it
+ * has to be, because a crash arrives on whatever thread threw (ADFA-5526). Formatting and writing
+ * are a different matter and must stay off the main thread.
  */
 object MetricsSnapshotAssembler {
 	/**
@@ -44,21 +46,72 @@ object MetricsSnapshotAssembler {
 	 * @param context resolves an annotation's label, which a build outcome carries as a string id
 	 *   so its marker follows the system language.
 	 */
-	@UiThread
+	@AnyThread
 	fun assemble(
 		context: Context,
 		memory: MemoryUsageWatcher,
 		network: NetworkUsageWatcher,
 		power: PowerUsageWatcher,
 		annotations: MetricsAnnotationStore?,
+	): MetricsCsv.Snapshot = assemble(context, memory, network, power, annotations, scratch = null)
+
+	/**
+	 * Assembles a snapshot, hands it to [block], and only then gives the scratch back.
+	 *
+	 * The snapshot points *into* the scratch, so the scratch cannot be released when this returns --
+	 * it has to outlive whatever reads the snapshot, which is a file write. Scoping it to a block is
+	 * how that is made hard to get wrong.
+	 *
+	 * Falls back to allocating when the scratch is already taken. A crash must not wait on an export,
+	 * and two writers into one array is a scrambled file.
+	 */
+	@AnyThread
+	fun <T> withSnapshot(
+		context: Context,
+		memory: MemoryUsageWatcher,
+		network: NetworkUsageWatcher,
+		power: PowerUsageWatcher,
+		annotations: MetricsAnnotationStore?,
+		block: (MetricsCsv.Snapshot) -> T,
+	): T {
+		val scratch = MetricsScratch.instance?.takeIf { it.claim() }
+		return try {
+			block(assemble(context, memory, network, power, annotations, scratch))
+		} finally {
+			scratch?.release()
+		}
+	}
+
+	private fun assemble(
+		context: Context,
+		memory: MemoryUsageWatcher,
+		network: NetworkUsageWatcher,
+		power: PowerUsageWatcher,
+		annotations: MetricsAnnotationStore?,
+		scratch: MetricsScratch?,
 	): MetricsCsv.Snapshot {
 		// One call per watcher, not one per array. Each hands back its times and its values from a
 		// single critical section, which is what keeps a row of the file a single moment: asking
 		// separately let a sample land between the two calls, and every value came out one row off
-		// its own timestamp.
-		val memoryHistory = memory.history()
-		val networkUsage = network.getUsage()
-		val powerUsage = power.getUsage()
+		// its own timestamp (ADFA-5531).
+		val memoryHistory =
+			if (scratch == null) {
+				memory.history()
+			} else {
+				memory.copyHistoryInto(scratch.memoryTimes, scratch.memoryValues)
+			}
+		val networkUsage =
+			if (scratch == null) {
+				network.getUsage()
+			} else {
+				network.copyUsageInto(scratch.networkReceived, scratch.networkTransmitted, scratch.networkTimes)
+			}
+		val powerUsage =
+			if (scratch == null) {
+				power.getUsage()
+			} else {
+				power.copyUsageInto(scratch.temperature, scratch.power, scratch.thermal, scratch.powerTimes)
+			}
 
 		return MetricsCsv.Snapshot(
 			rowTimes = memoryHistory.times,

@@ -22,6 +22,7 @@ import androidx.lifecycle.AndroidViewModel
 import com.itsaky.androidide.utils.DevicePowerSource
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.MetricsSource
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.PowerUsageWatcher
 
@@ -39,22 +40,29 @@ import com.itsaky.androidide.utils.PowerUsageWatcher
  */
 class MetricsViewModel(
 	application: Application,
-) : AndroidViewModel(application) {
-	val memoryUsageWatcher = MemoryUsageWatcher()
+) : AndroidViewModel(application),
+	MetricsSource.Metrics {
+	override val memoryUsageWatcher = MemoryUsageWatcher()
 
-	val networkUsageWatcher = NetworkUsageWatcher()
+	override val networkUsageWatcher = NetworkUsageWatcher()
 
 	/**
 	 * Temperature and power (ADFA-5499). Needs a Context for the battery broadcast, which is why
 	 * this is an AndroidViewModel.
 	 */
-	val powerUsageWatcher = PowerUsageWatcher(source = DevicePowerSource(application))
+	override val powerUsageWatcher = PowerUsageWatcher(source = DevicePowerSource(application))
 
 	/** Significant events for the charts to annotate (ADFA-5486). */
-	val annotations = MetricsAnnotationStore()
+	override val annotations = MetricsAnnotationStore()
+
+	init {
+		// So a crash handler can reach the history (ADFA-5526). It has no activity to ask.
+		MetricsSource.register(this)
+	}
 
 	override fun onCleared() {
 		super.onCleared()
+		MetricsSource.unregister(this)
 		// close(), not stopWatching(): this is the terminal teardown, and each watcher holds a
 		// dedicated sampling thread that newSingleThreadContext keeps alive until it is closed.
 		memoryUsageWatcher.close()
