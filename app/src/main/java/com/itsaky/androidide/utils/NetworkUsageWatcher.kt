@@ -68,6 +68,7 @@ class NetworkUsageWatcher
 		// touching Dispatchers.Main at construction throws in a plain JVM test, and most of these
 		// tests never start the sampling loop at all.
 		private val mainDispatcher: CoroutineContext? = null,
+		private val nowMillis: () -> Long = System::currentTimeMillis,
 	) {
 		private val coroutineScope = CoroutineScope(SupervisorJob() + coroutineDispatcher)
 		private val watching = AtomicBoolean(false)
@@ -102,6 +103,21 @@ class NetworkUsageWatcher
 
 		/** Guards the two ring buffers: the sampler writes them, the UI thread snapshots them. */
 		private val historyLock = Any()
+
+		/**
+		 * When each sample was taken, in the same order and at the same indices as the values.
+		 *
+		 * Recorded rather than reconstructed. The chart infers a sample's age from its position,
+		 * which is close enough for placing a marker on a plot, but the exported metrics file states
+		 * a time per row (ADFA-5531) and inference would be wrong three ways: the newest sample was
+		 * taken up to an interval before the export, the loop delays *after* doing its work so the
+		 * true period drifts past the nominal one, and sampling can stop and restart without the
+		 * buffer being cleared.
+		 *
+		 * A zero means no sample was ever recorded at that index, which is what tells a blank cell
+		 * apart from a measured zero.
+		 */
+		private val sampleTimes = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
 
 		private val received = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
 		private val transmitted = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
@@ -144,6 +160,17 @@ class NetworkUsageWatcher
 			}
 
 		/**
+		 * When each retained sample was taken, oldest first, as milliseconds since the epoch.
+		 *
+		 * A zero at an index means nothing was ever sampled there -- the buffer is fixed-length and
+		 * starts, and is cleared, full of them. A copy, for the same reason the values are copied.
+		 */
+		fun sampleTimes(): LongArray =
+			synchronized(historyLock) {
+				sampleTimes.toLongArray()
+			}
+
+		/**
 		 * Discards every recorded sample and drops the cumulative baseline, so the next sample
 		 * re-establishes it rather than reporting everything since the last one as one huge delta.
 		 */
@@ -151,6 +178,7 @@ class NetworkUsageWatcher
 			synchronized(historyLock) {
 				received.clear()
 				transmitted.clear()
+				sampleTimes.clear()
 				lastRx = null
 				lastTx = null
 			}
@@ -265,6 +293,8 @@ class NetworkUsageWatcher
 			// and the second block then put the pre-reset values straight back, so the next
 			// sample counted traffic from before the change.
 			synchronized(historyLock) {
+				sampleTimes[0] = nowMillis()
+				sampleTimes.shift(1)
 				record(received, previous = lastRx, current = rx)
 				record(transmitted, previous = lastTx, current = tx)
 				lastRx = rx

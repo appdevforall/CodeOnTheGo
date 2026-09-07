@@ -181,6 +181,16 @@ class MetricsAnnotationStore(
 		return annotations.filter { it.atMillis >= cutoff }
 	}
 
+	/**
+	 * Every annotation the store holds, oldest first.
+	 *
+	 * The exported metrics file carries the whole retained history rather than a window of it, so
+	 * it cannot go through [recentAnnotations] -- there is no "within" that means "all of it"
+	 * without the cutoff arithmetic overflowing (ADFA-5531).
+	 */
+	@Synchronized
+	fun allAnnotations(): List<Annotation> = annotations.toList()
+
 	@Synchronized
 	fun clear() {
 		annotations.clear()

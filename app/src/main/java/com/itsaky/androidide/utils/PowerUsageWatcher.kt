@@ -58,6 +58,7 @@ class PowerUsageWatcher
 		private val source: PowerSource,
 		private val coroutineDispatcher: CoroutineContext = newSingleThreadContext("PowerUsageWatcher"),
 		private val mainDispatcher: CoroutineContext = Dispatchers.Main.immediate,
+		private val nowMillis: () -> Long = System::currentTimeMillis,
 	) {
 		private val coroutineScope = CoroutineScope(SupervisorJob() + coroutineDispatcher)
 		private val watching = AtomicBoolean(false)
@@ -74,6 +75,21 @@ class PowerUsageWatcher
 
 		/** Guards the ring buffers: the sampler writes them, the UI thread snapshots them. */
 		private val historyLock = Any()
+
+		/**
+		 * When each sample was taken, in the same order and at the same indices as the values.
+		 *
+		 * Recorded rather than reconstructed. The chart infers a sample's age from its position,
+		 * which is close enough for placing a marker on a plot, but the exported metrics file states
+		 * a time per row (ADFA-5531) and inference would be wrong three ways: the newest sample was
+		 * taken up to an interval before the export, the loop delays *after* doing its work so the
+		 * true period drifts past the nominal one, and sampling can stop and restart without the
+		 * buffer being cleared.
+		 *
+		 * A zero means no sample was ever recorded at that index, which is what tells a blank cell
+		 * apart from a measured zero.
+		 */
+		private val sampleTimes = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
 
 		private val temperature = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
 		private val power = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
@@ -128,8 +144,20 @@ class PowerUsageWatcher
 				PowerUsage(temperature.toLongArray(), power.toLongArray(), thermal.toLongArray())
 			}
 
+		/**
+		 * When each retained sample was taken, oldest first, as milliseconds since the epoch.
+		 *
+		 * A zero at an index means nothing was ever sampled there -- the buffer is fixed-length and
+		 * starts, and is cleared, full of them. A copy, for the same reason the values are copied.
+		 */
+		fun sampleTimes(): LongArray =
+			synchronized(historyLock) {
+				sampleTimes.toLongArray()
+			}
+
 		fun clearHistory() {
 			synchronized(historyLock) {
+				sampleTimes.clear()
 				temperature.clear()
 				power.clear()
 				thermal.clear()
@@ -195,6 +223,7 @@ class PowerUsageWatcher
 			latestBattery = reading.battery
 
 			synchronized(historyLock) {
+				append(sampleTimes, nowMillis())
 				append(temperature, reading.temperatureMilliCelsius)
 				append(power, reading.powerMicroWatts)
 				append(thermal, reading.thermalStatus.toLong())

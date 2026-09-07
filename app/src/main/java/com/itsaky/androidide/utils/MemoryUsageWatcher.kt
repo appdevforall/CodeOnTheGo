@@ -58,6 +58,7 @@ class MemoryUsageWatcher
 		updateInterval: Long = DEFAULT_UPDATE_INTERVAL,
 		private val coroutineDispatcher: CoroutineContext = newSingleThreadContext("MemoryUsageWatcher"),
 		private val mainDispatcher: CoroutineContext = Dispatchers.Main.immediate,
+		private val nowMillis: () -> Long = System::currentTimeMillis,
 	) {
 		/**
 		 * Milliseconds between samples. Changing it clears the history: the chart reads a sample's
@@ -83,6 +84,21 @@ class MemoryUsageWatcher
 		/** The running sampling loop, so [stopWatching] can actually stop it. */
 		private var samplingJob: Job? = null
 		private val memoryUsage = ConcurrentHashMap<Int, ProcessMemoryInfo>()
+
+		/**
+		 * When each sample was taken, in the same order and at the same indices as the values.
+		 *
+		 * Recorded rather than reconstructed. The chart infers a sample's age from its position,
+		 * which is close enough for placing a marker on a plot, but the exported metrics file states
+		 * a time per row (ADFA-5531) and inference would be wrong three ways: the newest sample was
+		 * taken up to an interval before the export, the loop delays *after* doing its work so the
+		 * true period drifts past the nominal one, and sampling can stop and restart without the
+		 * buffer being cleared.
+		 *
+		 * A zero means no sample was ever recorded at that index, which is what tells a blank cell
+		 * apart from a measured zero.
+		 */
+		private val sampleTimes = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
 
 		/**
 		 * Guards the per-process ring buffers, matching [NetworkUsageWatcher] and
@@ -196,6 +212,13 @@ class MemoryUsageWatcher
 				return
 			}
 
+			// Once per sample, not once per process: every process is read in this one pass, so
+			// they share a time, and that is what makes a row of the exported file a single moment.
+			synchronized(historyLock) {
+				sampleTimes[0] = nowMillis()
+				sampleTimes.shift(1)
+			}
+
 			val pids = memoryUsage.keys.toIntArray()
 			pids.forEach { pid ->
 
@@ -263,6 +286,11 @@ class MemoryUsageWatcher
 					pid,
 					pname,
 					MutableShiftedLongArray(MAX_USAGE_ENTRIES),
+					// A process can start being watched long after the others -- the Gradle daemon
+					// appears when a build does -- and its buffer is zero-filled back to the start
+					// of the session. Without this, the exported file could not tell those zeros
+					// from a process that really was using no memory (ADFA-5531).
+					watchedSinceMillis = nowMillis(),
 				)
 		}
 
@@ -277,8 +305,20 @@ class MemoryUsageWatcher
 			// so this is reachable, not theoretical.
 			synchronized(historyLock) {
 				memoryUsage.values.forEach { it._history.clear() }
+				sampleTimes.clear()
 			}
 		}
+
+		/**
+		 * When each retained sample was taken, oldest first, as milliseconds since the epoch.
+		 *
+		 * A zero at an index means nothing was ever sampled there -- the buffer is fixed-length and
+		 * starts, and is cleared, full of them. A copy, for the same reason the values are copied.
+		 */
+		fun sampleTimes(): LongArray =
+			synchronized(historyLock) {
+				sampleTimes.toLongArray()
+			}
 
 		/**
 		 * Returns the memory usage of all the registered processes.
@@ -377,6 +417,8 @@ class MemoryUsageWatcher
 			val pid: Int,
 			val pname: String,
 			internal val _history: MutableShiftedLongArray,
+			/** When this process started being watched, as milliseconds since the epoch. */
+			val watchedSinceMillis: Long = 0L,
 		) {
 			internal val memInfo: MemoryInfo = MemoryInfo()
 
