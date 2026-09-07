@@ -312,7 +312,9 @@ final class PayloadStore {
 					? current.classLoader
 					: new InMemoryDexClassLoader(ByteBuffer.wrap(loaded.dex), apkLoader);
 			current = new Payload(loaded.generation, loader);
-			pendingBootResources = loaded;
+			// Only a generation with something to swap is pending: a dex-only one has no
+			// restore to run, and running one anyway recreated the first activity for it.
+			pendingBootResources = loaded.hasResources() ? loaded : null;
 			// The crash guard's only handle on a startup crash: this generation arrived from a
 			// restart deploy, so nothing in this process is pending to pin the blame on.
 			bootedPersistedGeneration = loaded.generation;
