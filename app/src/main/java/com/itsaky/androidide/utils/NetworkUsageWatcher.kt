@@ -260,12 +260,13 @@ class NetworkUsageWatcher
 				return
 			}
 
+			// One block, not two. Between them clearHistory() could null the baselines -- it runs
+			// when the sampling rate changes, precisely so that no delta straddles the change --
+			// and the second block then put the pre-reset values straight back, so the next
+			// sample counted traffic from before the change.
 			synchronized(historyLock) {
 				record(received, previous = lastRx, current = rx)
 				record(transmitted, previous = lastTx, current = tx)
-			}
-
-			synchronized(historyLock) {
 				lastRx = rx
 				lastTx = tx
 			}

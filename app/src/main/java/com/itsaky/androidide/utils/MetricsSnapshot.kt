@@ -19,6 +19,7 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.annotation.VisibleForTesting
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -37,6 +38,15 @@ object MetricsSnapshot {
 
 	private const val DIRECTORY = "metrics-snapshots"
 	private const val QUALITY = 100
+
+	/**
+	 * How many snapshots to keep.
+	 *
+	 * Enough that a share still has its file when the recipient gets round to reading it, few
+	 * enough that a long session cannot fill the cache. These are a few hundred kilobytes each.
+	 */
+	@VisibleForTesting
+	internal const val KEEP_RECENT = 5
 	private const val TIMESTAMP_PATTERN = "yyyyMMdd-HHmmss"
 
 	/** Media type for the written file, for the sharing intent. */
@@ -45,10 +55,11 @@ object MetricsSnapshot {
 	/**
 	 * Writes [bitmap] as a PNG named after [label] and the current time.
 	 *
-	 * Old snapshots are cleared afterwards, not first: this is a scratch directory for handing one
-	 * image to another app, not a gallery, and an IDE session could otherwise leave a pile of them
-	 * behind. Clearing first meant a second export could delete the file a first was still about
-	 * to hand over, so the receiving app was given a URI with nothing behind it.
+	 * A few recent snapshots are kept rather than only the newest. This is a scratch directory for
+	 * handing an image to another app, not a gallery, so it stays bounded -- but a share hands the
+	 * recipient a FileProvider URI and the chooser returns long before the recipient opens it.
+	 * Deleting the previous file on the next export therefore pulled an image out from under an
+	 * app that had not read it yet. [KEEP_RECENT] is the slack that buys.
 	 *
 	 * @return the file, or `null` if it could not be written.
 	 */
@@ -71,7 +82,7 @@ object MetricsSnapshot {
 					return null
 				}
 			}
-			deleteAllExcept(directory, file)
+			pruneTo(directory, KEEP_RECENT, file)
 			file
 		} catch (io: IOException) {
 			log.error("Could not write the chart snapshot", io)
@@ -79,13 +90,24 @@ object MetricsSnapshot {
 		}
 	}
 
-	/** Removes every other snapshot, leaving only the one just written. */
-	private fun deleteAllExcept(
+	/**
+	 * Trims [directory] to the [limit] most recent snapshots, always keeping [newest].
+	 *
+	 * Oldest first, by last-modified. The file just written is protected explicitly rather than
+	 * trusted to sort newest: two exports in the same second share a timestamp, and the filename
+	 * carries only whole seconds.
+	 */
+	private fun pruneTo(
 		directory: File,
-		keep: File,
+		limit: Int,
+		newest: File,
 	) {
-		directory.listFiles()?.forEach { file ->
-			if (file != keep && !file.delete()) {
+		val files = directory.listFiles()?.sortedBy { it.lastModified() } ?: return
+		if (files.size <= limit) {
+			return
+		}
+		files.take(files.size - limit).forEach { file ->
+			if (file != newest && !file.delete()) {
 				log.warn("Could not delete the stale chart snapshot at {}", file)
 			}
 		}
