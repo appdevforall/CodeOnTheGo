@@ -700,12 +700,15 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * rotation plotting the IDE alone, which is the smallest of the three.
 	 */
 	private fun readoptWatchedProcesses(service: GradleBuildService) {
-		service.toolingServerPid?.let { pid ->
-			memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_TOOLING)
+		val tooling = service.toolingServerPid
+		val daemon = service.gradleDaemonPid
+		if (tooling == null && daemon == null) {
+			return
 		}
-		service.gradleDaemonPid?.let { pid ->
-			memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_DAEMON)
-		}
+
+		logger.info("Re-adopting watched processes: tooling server {}, Gradle daemon {}", tooling, daemon)
+		tooling?.let { memoryUsageWatcher.watchProcess(it, PROC_GRADLE_TOOLING) }
+		daemon?.let { memoryUsageWatcher.watchProcess(it, PROC_GRADLE_DAEMON) }
 		resetMemUsageChart()
 	}
 
