@@ -157,8 +157,17 @@ abstract class MetricsChartRenderer(
 	@UiThread
 	fun attach(chart: SafeLineChart) {
 		// A rebind can attach the replacement before the view it replaced is recycled, so the
-		// outgoing chart is let go of here rather than waiting for a [detach] that names it.
-		this.chart?.removeOnLayoutChangeListener(newestWindowOnLayout)
+		// outgoing chart is let go of here rather than waiting for a [detachIfAttached] that, by
+		// then, no longer names it.
+		//
+		// The whole teardown, not just the listener. [detach] also clears [userHasZoomed], and
+		// releasing only the listener leaked it onto the replacement: a user who had panned once
+		// got a chart whose follow-window was disabled for good, because showNewestWindow returns
+		// early on the flag and every later redraw takes the same early return. That is the
+		// oldest-samples symptom this ticket was filed for -- reachable only after a pan, which is
+		// why the resume paths reproduce it and a fresh chart never does. Subclasses clear their own
+		// per-chart state through the same override.
+		this.chart?.let { outgoing -> if (outgoing !== chart) detach() }
 		this.chart = chart
 		configure(chart)
 		chart.addOnLayoutChangeListener(newestWindowOnLayout)

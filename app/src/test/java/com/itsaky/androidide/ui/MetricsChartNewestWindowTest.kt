@@ -111,6 +111,28 @@ class MetricsChartNewestWindowTest {
 		assertThat(chart.lowestVisibleX).isWithin(TOLERANCE).of(0f)
 	}
 
+	@Test
+	fun `a rebind onto a new page forgets a pan on the old one`() {
+		val renderer = renderer()
+		val first = SafeLineChart(context)
+		renderer.attach(first)
+		first.layOutAndDraw()
+
+		// The user pans. From here the viewport on *this* chart is theirs, not the renderer's.
+		checkNotNull(first.onChartGestureListener).onChartTranslate(null, -20f, 0f)
+
+		// A resume rebinds the carousel, which attaches the replacement page before the outgoing
+		// one is recycled -- so the detach naming the old chart arrives afterwards and finds a
+		// different one bound. The pan belonged to the page the user left; the fresh page must
+		// still open on the newest samples.
+		val second = SafeLineChart(context)
+		renderer.attach(second)
+		renderer.detachIfAttached(first)
+		second.layOutAndDraw()
+
+		assertShowsNewestSamples(second)
+	}
+
 	private companion object {
 		/** Longer than the visible window, so there is a wrong end of the buffer to park in. */
 		const val SAMPLES = 200
