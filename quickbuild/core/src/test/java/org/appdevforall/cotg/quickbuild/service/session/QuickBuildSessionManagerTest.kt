@@ -3987,6 +3987,64 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 
+	/**
+	 * A stop during a rebaseline used to take the first-provision path and tear the live
+	 * session down. The Gradle build is cancelled, its outcome parks the session for retry
+	 * like any other rebuild failure, and the next tap retries the rebuild rather than paying
+	 * a cold provision.
+	 */
+	@Test
+	fun `stopping during a rebaseline cancels the Gradle build and parks the session for retry`() =
+		runTest {
+			val rebuildGate = CompletableDeferred<Unit>()
+			proxyAppRebuildGate = rebuildGate
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+			val liveWatcher = watcher!!
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Provisioning(rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED),
+				)
+
+			manager.onCancelRequested()
+			advanceUntilIdle()
+
+			assertThat(proxyAppBuildCancelCount).isEqualTo(1)
+			assertThat(notices).containsExactly(QuickBuildNotice.BUILD_CANCELLED)
+			// Still the same live session: nothing was torn down.
+			assertThat(liveWatcher.started).isTrue()
+
+			// The cancelled Gradle build reports itself as a failure, which parks for retry.
+			proxyAppRebuildOutcome = { ProxyAppRebuildOutcome.Failure(QuickBuildMessage.Literal("Build cancelled")) }
+			rebuildGate.complete(Unit)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Invalidated(
+						InvalidationReason.GRADLE_CONFIG_CHANGED,
+						0,
+						awaitingRetry = true,
+					),
+				)
+			// The user asked for the stop; Gradle's account of it is not an error to show.
+			assertThat(userMessages).doesNotContain(QuickBuildMessage.Literal("Build cancelled"))
+			assertThat(liveWatcher.started).isTrue()
+
+			proxyAppRebuildOutcome = { defaultProxyAppRebuildSuccess() }
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			assertThat(provisionCount).isEqualTo(1)
+			assertThat(proxyAppRebuildCount).isEqualTo(2)
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+		}
+
 	@Test
 	fun `stopping during provisioning cancels the proxy app build and tears the session down`() =
 		runTest {
