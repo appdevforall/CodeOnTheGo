@@ -793,6 +793,17 @@ final class PayloadPersistence {
 			this.arscFile = arscFile;
 			this.assetsFile = assetsFile;
 		}
+
+		/**
+		 * Whether this generation has anything for the boot-time resource restore to apply.
+		 *
+		 * A dex-only generation - the usual one, and the one a restart deploy persists - has nothing to swap, and treating it as pending used to start a restore thread that landed nothing and then recreated the first activity for it.
+		 *
+		 * @return true when a resource apk or an assets zip was persisted
+		 */
+		boolean hasResources() {
+			return arscFile != null || assetsFile != null;
+		}
 	}
 
 	/** The payload files currently in the store (post-persist view). */
