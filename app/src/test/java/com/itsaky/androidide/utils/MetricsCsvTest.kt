@@ -292,7 +292,34 @@ class MetricsCsvTest {
 		return cells
 	}
 
+	@Test
+	fun `a reading the device does not provide is an empty cell, not a sentinel`() {
+		val times = longArrayOf(T0, T0 + 1_000L)
+		val lines =
+			render(
+				snapshot(
+					rowTimes = times,
+					temperature =
+						MetricsCsv.Series(
+							times,
+							longArrayOf(Long.MIN_VALUE, 31_500L),
+							absent = Long.MIN_VALUE,
+						),
+				),
+			)
+
+		// PowerUsageWatcher stores Long.MIN_VALUE for a reading the platform will not give. Written
+		// straight out, a numeric column gets -9223372036854775808, and anything that averages or
+		// plots it -- ADFA-5494 reads this format back -- gets an answer that is not merely wrong
+		// but spectacular. Empty is what the format already means by "nothing to say here".
+		assertThat(cellsIn(lines[1])[TEMPERATURE_COLUMN]).isEmpty()
+		assertThat(cellsIn(lines[2])[TEMPERATURE_COLUMN]).isEqualTo("31500")
+	}
+
 	private companion object {
+		/** Index of `battery_temp_millicelsius`, from the header contract above. */
+		val TEMPERATURE_COLUMN = EXPECTED_HEADER.split(",").indexOf("\"battery_temp_millicelsius\"")
+
 		/**
 		 * The header line, spelled out rather than derived from [MetricsCsv.HEADER].
 		 *

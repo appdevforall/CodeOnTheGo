@@ -737,9 +737,26 @@ class MetricsCarouselController(
 				},
 			networkReceived = MetricsCsv.Series(network.sampleTimes, network.received),
 			networkTransmitted = MetricsCsv.Series(network.sampleTimes, network.transmitted),
-			temperature = MetricsCsv.Series(power.sampleTimes, power.temperatureMilliCelsius),
-			power = MetricsCsv.Series(power.sampleTimes, power.powerMicroWatts),
-			thermal = MetricsCsv.Series(power.sampleTimes, power.thermalStatus),
+			// The power series carry in-band sentinels for a reading the device does not provide.
+			// Named here rather than in MetricsCsv, which has no Android types in it.
+			temperature =
+				MetricsCsv.Series(
+					power.sampleTimes,
+					power.temperatureMilliCelsius,
+					absent = PowerUsageWatcher.UNAVAILABLE,
+				),
+			power =
+				MetricsCsv.Series(
+					power.sampleTimes,
+					power.powerMicroWatts,
+					absent = PowerUsageWatcher.UNAVAILABLE,
+				),
+			thermal =
+				MetricsCsv.Series(
+					power.sampleTimes,
+					power.thermalStatus,
+					absent = PowerUsageWatcher.THERMAL_UNKNOWN.toLong(),
+				),
 			annotations = markers(),
 		)
 	}

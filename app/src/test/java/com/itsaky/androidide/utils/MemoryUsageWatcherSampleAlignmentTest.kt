@@ -110,6 +110,21 @@ class MemoryUsageWatcherSampleAlignmentTest {
 		).isEqualTo(PSS_KB * 1024L)
 	}
 
+	@Test
+	fun `a copied process still says when it started being watched`() {
+		val watcher = watcher()
+		watcher.watchProcess(PID, "Gradle Daemon")
+		watcher.readUsages()
+
+		// getMemoryUsages hands out copies, and the copy used to drop watchedSinceMillis -- which
+		// defaults to 0, i.e. "watched since the epoch". The export's guard for a process's
+		// zero-filled past then never fired, so the daemon's buffer from before the daemon existed
+		// came out as measured zeros rather than empty cells (ADFA-5531).
+		val copied = watcher.getMemoryUsages().single()
+		assertThat(copied.watchedSinceMillis).isNotEqualTo(0L)
+		assertThat(copied.watchedSinceMillis).isEqualTo(watcher.getMemoryUsage(PID)!!.watchedSinceMillis)
+	}
+
 	private companion object {
 		const val PID = 4242
 
