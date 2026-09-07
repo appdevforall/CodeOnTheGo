@@ -89,7 +89,7 @@ class TreeSitterOutlineProvider(
 			appContext.assets
 				.open("$BASE_PATH/$type/outline.scm")
 				.reader()
-				.readText()
+				.use { it.readText() }
 		val language = languageFor(type)
 		val query = TSQuery.create(language, scm)
 		if (query.errorType != TSQueryError.None) {

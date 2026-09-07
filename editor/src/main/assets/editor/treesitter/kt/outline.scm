@@ -24,4 +24,5 @@
     (simple_identifier) @name)) @symbol.property
 
 (class_parameter
+  ["val" "var"]
   (simple_identifier) @name) @symbol.property

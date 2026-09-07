@@ -19,7 +19,6 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentSelectedEvent
 import com.itsaky.androidide.models.Position
-import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.ui.models.OutlineUiEffect
 import com.itsaky.androidide.ui.outline.OutlinePanel
 import com.itsaky.androidide.viewmodel.OutlineViewModel
@@ -78,10 +77,13 @@ class OutlineFragment : Fragment() {
 
 	@Subscribe(threadMode = MAIN)
 	fun onDocumentChanged(event: DocumentChangeEvent) {
+		val editor = currentEditor() ?: return
+		val file = editor.file ?: return
+		if (normalized(file.toPath()) != normalized(event.changedFile)) return
 		viewModel.onSnapshot(
-			fileName = event.changedFile.fileName.toString(),
-			extension = extensionOf(event.changedFile),
-			text = event.newText ?: FileManager.getDocumentContents(event.changedFile),
+			path = normalized(event.changedFile),
+			extension = file.extension,
+			text = event.newText ?: editor.text.toString(),
 			immediate = false,
 		)
 	}
@@ -89,7 +91,7 @@ class OutlineFragment : Fragment() {
 	@Subscribe(threadMode = MAIN)
 	fun onDocumentOpened(event: DocumentOpenEvent) {
 		viewModel.onSnapshot(
-			fileName = event.openedFile.fileName.toString(),
+			path = normalized(event.openedFile),
 			extension = extensionOf(event.openedFile),
 			text = event.text,
 			immediate = true,
@@ -107,19 +109,23 @@ class OutlineFragment : Fragment() {
 	}
 
 	private fun seedFromCurrentEditor() {
-		val editor = (activity as? EditorHandlerActivity)?.getCurrentEditor()?.editor
+		val editor = currentEditor()
 		val file = editor?.file
 		if (editor == null || file == null) {
 			viewModel.onNoEditor()
 			return
 		}
 		viewModel.onSnapshot(
-			fileName = file.name,
+			path = normalized(file.toPath()),
 			extension = file.extension,
 			text = editor.text.toString(),
 			immediate = true,
 		)
 	}
+
+	private fun currentEditor() = (activity as? EditorHandlerActivity)?.getCurrentEditor()?.editor
+
+	private fun normalized(path: Path): String = path.toAbsolutePath().normalize().toString()
 
 	private fun navigateTo(position: Position) {
 		val editorActivity = activity as? EditorHandlerActivity ?: return

@@ -25,11 +25,13 @@ class OutlineViewModel(
 	private val computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 	private data class Snapshot(
-		val fileName: String,
+		val path: String,
 		val extension: String,
 		val text: String,
 		val immediate: Boolean,
-	)
+	) {
+		val fileName: String get() = path.substringAfterLast('/')
+	}
 
 	private val snapshots = MutableStateFlow<Snapshot?>(null)
 
@@ -40,7 +42,7 @@ class OutlineViewModel(
 	val effects = _effects.asSharedFlow()
 
 	private var collapsedPaths = emptySet<String>()
-	private var collapsedForFile: String? = null
+	private var collapsedForPath: String? = null
 
 	companion object {
 		private const val DEBOUNCE_MILLIS = 250L
@@ -53,17 +55,25 @@ class OutlineViewModel(
 			snapshots
 				.debounce { snapshot ->
 					if (snapshot == null || snapshot.immediate) 0L else DEBOUNCE_MILLIS
-				}.collectLatest { snapshot -> compute(snapshot) }
+				}.collectLatest { snapshot ->
+					try {
+						compute(snapshot)
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						log.error("Failed to refresh outline for {}", snapshot?.fileName, e)
+					}
+				}
 		}
 	}
 
 	fun onSnapshot(
-		fileName: String,
+		path: String,
 		extension: String,
 		text: String,
 		immediate: Boolean,
 	) {
-		snapshots.value = Snapshot(fileName, extension, text, immediate)
+		snapshots.value = Snapshot(path, extension, text, immediate)
 	}
 
 	fun onNoEditor() {
@@ -93,8 +103,8 @@ class OutlineViewModel(
 			_uiState.value = OutlineUiState.Unsupported(snapshot.fileName)
 			return
 		}
-		if (collapsedForFile != snapshot.fileName) {
-			collapsedForFile = snapshot.fileName
+		if (collapsedForPath != snapshot.path) {
+			collapsedForPath = snapshot.path
 			collapsedPaths = emptySet()
 			_uiState.value = OutlineUiState.Loading(snapshot.fileName)
 		}

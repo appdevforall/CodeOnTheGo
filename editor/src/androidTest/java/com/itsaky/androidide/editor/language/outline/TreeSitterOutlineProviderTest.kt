@@ -31,7 +31,7 @@ class TreeSitterOutlineProviderTest {
 
 	private val kotlinSource =
 		"""
-		class Repo(val name: String) {
+		class Repo(val name: String, tag: String) {
 			companion object {
 				val EMPTY = Repo("")
 			}

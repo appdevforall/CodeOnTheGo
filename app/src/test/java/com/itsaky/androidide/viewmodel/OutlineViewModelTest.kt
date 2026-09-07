@@ -29,8 +29,15 @@ class OutlineViewModelTest {
 		var symbols: List<OutlineSymbol> = emptyList()
 		var callCount = 0
 		var gate: CompletableDeferred<Unit>? = null
+		var supportsFailsOnce = false
 
-		override fun supports(fileExtension: String) = fileExtension == "java"
+		override fun supports(fileExtension: String): Boolean {
+			if (supportsFailsOnce) {
+				supportsFailsOnce = false
+				throw IllegalStateException("grammar unavailable")
+			}
+			return fileExtension == "java"
+		}
 
 		override suspend fun outlineOf(
 			fileExtension: String,
@@ -60,6 +67,41 @@ class OutlineViewModelTest {
 	)
 
 	private fun TestScope.viewModel(provider: FakeOutlineProvider) = OutlineViewModel(provider, UnconfinedTestDispatcher(testScheduler))
+
+	@Test
+	fun `collapse state is keyed by path, not basename`() =
+		runTest {
+			val provider = FakeOutlineProvider().apply { symbols = listOf(symbol("Main")) }
+			val vm = viewModel(provider)
+			vm.onSnapshot("/a/Main.java", "java", "class Main {}", immediate = true)
+			advanceTimeBy(1)
+			vm.onEvent(OutlineUiEvent.ToggleCollapsed("Main"))
+			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths).containsExactly("Main")
+
+			vm.onSnapshot("/b/Main.java", "java", "class Main {}", immediate = true)
+			advanceTimeBy(1)
+
+			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths).isEmpty()
+		}
+
+	@Test
+	fun `a failing supports check does not stop later snapshots from refreshing`() =
+		runTest {
+			val provider =
+				FakeOutlineProvider().apply {
+					symbols = listOf(symbol("Main"))
+					supportsFailsOnce = true
+				}
+			val vm = viewModel(provider)
+			vm.onSnapshot("/a/Broken.java", "java", "class Broken {}", immediate = true)
+			advanceTimeBy(1)
+
+			vm.onSnapshot("/a/Main.java", "java", "class Main {}", immediate = true)
+			advanceTimeBy(1)
+
+			assertThat(vm.uiState.value).isInstanceOf(OutlineUiState.Content::class.java)
+			assertThat((vm.uiState.value as OutlineUiState.Content).fileName).isEqualTo("Main.java")
+		}
 
 	@Test
 	fun `initial state is NoFileOpen`() =

@@ -45,7 +45,7 @@ class TreeSitterOutlineQueryTest {
 			context.assets
 				.open("editor/treesitter/$type/outline.scm")
 				.reader()
-				.readText()
+				.use { it.readText() }
 		val query = TSQuery.create(language, scm)
 		try {
 			assertThat(query.errorType).isEqualTo(TSQueryError.None)
