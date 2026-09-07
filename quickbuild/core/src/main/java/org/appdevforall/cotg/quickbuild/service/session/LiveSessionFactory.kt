@@ -85,11 +85,6 @@ internal class LiveSessionFactory(
 		tracker: GenerationTracker,
 	): LiveSession {
 		val layout = outcome.layout
-		// Both accessors walk the project root, and both used to walk it twice over - once
-		// for the filter and once for the watcher. Hopped off the session dispatcher and
-		// read once, so session start does two walks off-thread instead of four on it.
-		val (watchedRoots, watchedFiles) =
-			withContext(ioDispatcher) { layout.watchedRoots() to layout.watchedFiles() }
 		val proxyApp = outcome.proxyApp
 		val executor = SwitchableExecutor(executorFor(proxyApp, layout, tracker, outcome.baselineGeneration))
 		val annotationImpact = SwitchableAnnotationImpact(annotationImpactFor(proxyApp, layout))
@@ -106,20 +101,54 @@ internal class LiveSessionFactory(
 				now = nowMillis,
 				onEvent = onOrchestratorEvent,
 			)
-		val filter = WatchFilter(watchedRoots, watchedFiles)
+		// Last, as before: the executor's entry-activity check throws first, and a watcher
+		// created ahead of it would be orphaned by that throw.
+		val watch = watchFor(layout)
 		return LiveSession(
 			proxyApp = outcome.proxyApp,
 			layout = layout,
 			tracker = tracker,
-			filter = filter,
+			watch = watch,
 			orchestrator = orchestrator,
-			watcher = watcherFactory.create(watchedRoots, watchedFiles, filter, scope),
 			executor = executor,
 			annotationImpact = annotationImpact,
 			// The same location executorFor's executor writes into, so the manager's
 			// reconnect re-send reads what the deploys retained.
 			retainedPayloads = RetainedPayloadStore.forWorkDir(scratch.workDirFor(layout.projectRoot)),
 			provisionedVariant = outcome.variantName,
+		)
+	}
+
+	/**
+	 * Derives the watch set for [layout] and builds a watcher over it, unless [current]
+	 * already observes the same set.
+	 *
+	 * Called for the first provision and again on every proxy app rebuild, because the
+	 * roots and files come from the layout's module walk and a rebuild that added a module
+	 * changes them. Returning [current] when nothing changed keeps the running watcher and
+	 * its inotify registrations, which is the common rebaseline.
+	 *
+	 * @param layout the baseline's layout, whose module walk supplies the set
+	 * @param current the session's watch as it stands, or null for a first provision
+	 * @return [current] when it observes the derived set, otherwise a new watch whose watcher
+	 *   is created but not started
+	 */
+	suspend fun watchFor(
+		layout: QuickBuildProjectLayout,
+		current: SessionWatch? = null,
+	): SessionWatch {
+		// Both accessors walk the project root, and both used to walk it twice over - once
+		// for the filter and once for the watcher. Hopped off the session dispatcher and
+		// read once, so session start does two walks off-thread instead of four on it.
+		val (watchedRoots, watchedFiles) =
+			withContext(ioDispatcher) { layout.watchedRoots() to layout.watchedFiles() }
+		if (current != null && current.observes(watchedRoots, watchedFiles)) return current
+		val filter = WatchFilter(watchedRoots, watchedFiles)
+		return SessionWatch(
+			roots = watchedRoots,
+			files = watchedFiles,
+			filter = filter,
+			watcher = watcherFactory.create(watchedRoots, watchedFiles, filter, scope),
 		)
 	}
 
