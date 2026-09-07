@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.models.ApkMetadata
+import com.itsaky.androidide.models.installTaskRequestsIn
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
@@ -46,37 +47,14 @@ class BuildViewModel : ViewModel() {
 		gradleArgs: List<String> = emptyList(),
 		onTerminalState: ((BuildState) -> Unit)? = null,
 	) {
-		// Claim the slot before the coroutine is scheduled, and in one step: a check here and a set
-		// inside the launched block let two callers both read a free state and both reach
-		// executeTasks, running duplicate build-and-install flows.
-		while (true) {
-			val current = _buildState.value
-			if (current is BuildState.InProgress) {
-				log.warn("Build is already in progress. Ignoring new request.")
-				onTerminalState?.invoke(BuildState.Error("A build is already in progress."))
-				return
-			}
-			if (_buildState.compareAndSet(current, BuildState.InProgress)) {
-				break
-			}
-		}
+		if (!claimBuildSlot(onTerminalState)) return
 
 		viewModelScope.launch {
-			var reported = false
-
-			// Publishes a terminal state and notifies the caller once, from the one place that
-			// knows the run is over. Called only on the main dispatcher, so the flag needs no lock.
-			fun finish(state: BuildState) {
-				_buildState.value = state
-				if (!reported) {
-					reported = true
-					onTerminalState?.invoke(state)
-				}
-			}
+			val reporter = RunReporter(onTerminalState)
 
 			val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 			if (buildService == null) {
-				finish(BuildState.Error("Build service not found."))
+				reporter.finish(BuildState.Error("Build service not found."))
 				return@launch
 			}
 
@@ -118,10 +96,10 @@ class BuildViewModel : ViewModel() {
 					val cgpFile =
 						withContext(Dispatchers.IO) { findPluginCgpFile(projectRoot, variant) }
 					if (cgpFile != null) {
-						finish(BuildState.AwaitingPluginInstall(cgpFile))
+						reporter.finish(BuildState.AwaitingPluginInstall(cgpFile))
 					} else {
 						log.warn("Plugin built successfully but .cgp file not found")
-						finish(
+						reporter.finish(
 							BuildState.Error("Plugin built but output file (.cgp) not found in build/plugin"),
 						)
 					}
@@ -140,7 +118,7 @@ class BuildViewModel : ViewModel() {
 					throw RuntimeException("APK file specified does not exist: $apkFile")
 				}
 
-				finish(
+				reporter.finish(
 					BuildState.AwaitingInstall(
 						apkFile,
 						launchInDebugMode,
@@ -150,13 +128,101 @@ class BuildViewModel : ViewModel() {
 			} catch (e: Exception) {
 				if (e is CancellationException) {
 					log.info("Build was cancelled by the user.")
-					finish(BuildState.Idle)
+					reporter.finish(BuildState.Idle)
 				} else {
 					log.error("Quick Run failed.", e)
-					finish(BuildState.Error(e.message ?: "An unknown error occurred."))
+					reporter.finish(BuildState.Error(e.message ?: "An unknown error occurred."))
 				}
 			}
 		}
+	}
+
+	private inner class RunReporter(
+		private val onTerminalState: ((BuildState) -> Unit)?,
+	) {
+		private var reported = false
+
+		fun finish(state: BuildState) {
+			_buildState.value = state
+			if (!reported) {
+				reported = true
+				onTerminalState?.invoke(state)
+			}
+		}
+	}
+
+	private fun claimBuildSlot(onTerminalState: ((BuildState) -> Unit)?): Boolean {
+		while (true) {
+			val current = _buildState.value
+			if (current is BuildState.InProgress) {
+				log.warn("Build is already in progress. Ignoring new request.")
+				onTerminalState?.invoke(BuildState.Error("A build is already in progress."))
+				return false
+			}
+			if (_buildState.compareAndSet(current, BuildState.InProgress)) return true
+		}
+	}
+
+	fun runTasks(
+		tasks: List<String>,
+		onTerminalState: ((BuildState) -> Unit)? = null,
+	) {
+		if (!claimBuildSlot(onTerminalState)) return
+		viewModelScope.launch {
+			val reporter = RunReporter(onTerminalState)
+			val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+			if (buildService == null) {
+				reporter.finish(BuildState.Error("Build service not found."))
+				return@launch
+			}
+			try {
+				val result = withContext(Dispatchers.IO) { buildService.executeTasks(tasks) }.await()
+				if (!result.isSuccessful) {
+					throw RuntimeException("Task execution failed: ${result.failure}")
+				}
+				val apkFile = withContext(Dispatchers.IO) { apkForInstallRequests(tasks) }
+				if (apkFile == null) {
+					reporter.finish(BuildState.Idle)
+				} else {
+					reporter.finish(BuildState.AwaitingInstall(apkFile, launchInDebugMode = false))
+				}
+			} catch (e: Exception) {
+				if (e is CancellationException) {
+					log.info("Build was cancelled by the user.")
+					reporter.finish(BuildState.Idle)
+				} else {
+					log.error("Task run failed.", e)
+					reporter.finish(BuildState.Error(e.message ?: "An unknown error occurred."))
+				}
+			}
+		}
+	}
+
+	private fun apkForInstallRequests(tasks: List<String>): File? {
+		val requests = installTaskRequestsIn(tasks)
+		if (requests.isEmpty()) return null
+		if (requests.size > 1) {
+			log.warn("Several install tasks were requested; only {} is installed.", requests.first())
+		}
+		val request = requests.first()
+		val variant =
+			IProjectManager
+				.getInstance()
+				.getAndroidAppModules()
+				.filter { request.modulePath == null || it.path == request.modulePath }
+				.firstNotNullOfOrNull { module ->
+					module.variantList.firstOrNull { it.mainArtifact.assembleTaskName == request.assembleTaskName }
+				}
+				?: throw RuntimeException(
+					"No Android application variant is assembled by '${request.assembleTaskName}' in ${request.modulePath ?: "the project"}.",
+				)
+		val apkFile =
+			ApkMetadata.findApkFile(variant.mainArtifact.assembleTaskOutputListingFile)
+				?: throw RuntimeException("No APK found in output listing file.")
+		if (!apkFile.exists()) {
+			throw RuntimeException("APK file specified does not exist: $apkFile")
+		}
+		return apkFile
 	}
 
 	/** Call this after the installation attempt to reset the state. */
