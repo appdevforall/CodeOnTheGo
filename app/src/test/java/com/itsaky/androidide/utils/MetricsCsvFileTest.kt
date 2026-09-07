@@ -26,6 +26,7 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.time.ZoneId
 import java.util.zip.GZIPInputStream
+import kotlin.random.Random
 
 /**
  * The two files the metrics format is written to: the user's export, and the compressed copy that
@@ -51,6 +52,35 @@ class MetricsCsvFileTest {
 		)
 	}
 
+	/**
+	 * A session whose columns move the way a device's do, rather than climbing by one per row.
+	 *
+	 * Seeded, so the sizes above are the same on every run and in CI.
+	 */
+	private fun noisySnapshot(rows: Int): MetricsCsv.Snapshot {
+		val random = Random(20260907L)
+		val times = LongArray(rows) { AT + it * 1_000L + random.nextInt(80) }
+
+		fun series(next: () -> Long) = MetricsCsv.Series(times, LongArray(rows) { next() })
+		var ide = 600_000_000L
+		var daemon = 780_000_000L
+		var celsius = 32_000L
+		return MetricsCsv.Snapshot(
+			rowTimes = times,
+			memory =
+				mapOf(
+					"IDE" to series { (ide + random.nextInt(-6_000_000, 6_000_000)).also { ide = it } },
+					"Gradle Daemon" to series { (daemon + random.nextInt(-40_000_000, 40_000_000)).also { daemon = it } },
+				),
+			// Bursty: mostly idle, occasionally a download.
+			networkReceived = series { if (random.nextInt(6) == 0) random.nextLong(2_000_000) else random.nextLong(4_000) },
+			networkTransmitted = series { if (random.nextInt(8) == 0) random.nextLong(300_000) else random.nextLong(1_500) },
+			temperature = series { (celsius + random.nextInt(-300, 300)).also { celsius = it } },
+			power = series { 1_200_000L + random.nextLong(3_500_000) },
+			thermal = series { if (random.nextInt(10) == 0) random.nextLong(4) else 0L },
+		)
+	}
+
 	@Test
 	fun `an export is plain csv the user can open`() {
 		val file = MetricsCsvFile.write(context, snapshot(3), AT, zone)!!
@@ -70,14 +100,22 @@ class MetricsCsvFileTest {
 	}
 
 	@Test
-	fun `compressing is worth doing`() {
-		// The rows are near-identical by nature -- the timestamp advances by a constant and the
-		// magnitudes barely move -- so this travels far smaller than it reads. If that ever stops
-		// being true, the compression is buying nothing and the extra step should go.
-		val plain = MetricsCsvFile.write(context, snapshot(500), AT, zone)!!.length()
-		val compressed = MetricsCsvFile.writeForReport(context, snapshot(500), AT, zone)!!.length()
+	fun `compressing is worth doing on a session that is not a straight line`() {
+		// Against noise, not against [snapshot]'s ramp. A file whose every column advances by a
+		// constant compresses about fifty-fold, so a bound met by that says nothing about a real
+		// session -- and this test exists to notice if the extra step ever stops earning its place.
+		// Every column here moves the way its metric does on a device: memory in steps of megabytes,
+		// network in bursts, temperature and power drifting, thermal status flipping.
+		//
+		// This session is deliberately noisier than a real one -- uniformly random power draw and
+		// network bursts, where a device gives smooth drifts -- so what it achieves is a floor, not
+		// an estimate: 40896 -> 14722 bytes, 2.8x, against 4.6x measured on a real 86-row
+		// attachment on a Pixel 6 Pro. Halving is the bound, which compression bypassed fails and
+		// a shift in gzip's tuning does not.
+		val plain = MetricsCsvFile.write(context, noisySnapshot(500), AT, zone)!!.length()
+		val compressed = MetricsCsvFile.writeForReport(context, noisySnapshot(500), AT, zone)!!.length()
 
-		assertThat(compressed).isLessThan(plain / 4)
+		assertThat(compressed).isLessThan(plain / 2)
 	}
 
 	@Test
