@@ -1038,6 +1038,29 @@ abstract class BaseEditorActivity :
 		resetMemUsageChart()
 	}
 
+	/**
+	 * Plots the Gradle daemon, reported by the tooling server once a build has spawned it.
+	 *
+	 * The daemon is the largest of the three watched processes -- larger than the IDE and the
+	 * tooling server together on a Compose project -- and it is the likeliest reason a build is slow
+	 * or is killed on a small device. Until ADFA-5514 it was the one process the chart did not show.
+	 */
+	fun watchGradleDaemon(pid: Int) {
+		memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_DAEMON)
+		resetMemUsageChart()
+	}
+
+	/**
+	 * Stops plotting the Gradle daemon, which has exited.
+	 *
+	 * Not on build finish: a daemon outlives the build that spawned it and goes on holding its heap
+	 * while idle, which is the number worth showing on a device that is short of memory.
+	 */
+	fun unwatchGradleDaemon() {
+		memoryUsageWatcher.unwatchProcess(PROC_GRADLE_DAEMON)
+		resetMemUsageChart()
+	}
+
 	protected fun resetMemUsageChart() {
 		val processes = memoryUsageWatcher.getMemoryUsages()
 		val datasets =

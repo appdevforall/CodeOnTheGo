@@ -420,6 +420,16 @@ class GradleBuildService :
 			)
 		}
 
+	override fun onGradleDaemonStarted(pid: Int) {
+		log.info("Gradle daemon started: pid {}", pid)
+		eventListener?.onGradleDaemonStarted(pid)
+	}
+
+	override fun onGradleDaemonExited(pid: Int) {
+		log.info("Gradle daemon exited: pid {}", pid)
+		eventListener?.onGradleDaemonExited(pid)
+	}
+
 	override fun onBuildSuccessful(result: BuildResult) {
 		updateNotification(getString(R.string.build_status_sucess), false)
 
@@ -760,6 +770,14 @@ class GradleBuildService :
 					runOnUiThread { listener.onBuildSuccessful(tasks) }
 				}
 
+				override fun onGradleDaemonStarted(pid: Int) {
+					runOnUiThread { listener.onGradleDaemonStarted(pid) }
+				}
+
+				override fun onGradleDaemonExited(pid: Int) {
+					runOnUiThread { listener.onGradleDaemonExited(pid) }
+				}
+
 				override fun onProgressEvent(event: ProgressEvent) {
 					runOnUiThread { listener.onProgressEvent(event) }
 				}
@@ -822,6 +840,25 @@ class GradleBuildService :
 		 * @see IToolingApiClient.onBuildSuccessful
 		 */
 		fun onBuildSuccessful(tasks: List<String?>)
+
+		/**
+		 * Called when the Gradle daemon has been identified by the tooling server.
+		 *
+		 * Defaulted, because a daemon is only of interest to a listener that plots it and every
+		 * other implementer would otherwise gain two empty methods.
+		 *
+		 * @param pid The process id of the Gradle daemon.
+		 * @see IToolingApiClient.onGradleDaemonStarted
+		 */
+		fun onGradleDaemonStarted(pid: Int) = Unit
+
+		/**
+		 * Called when the Gradle daemon has exited.
+		 *
+		 * @param pid The process id of the daemon that exited.
+		 * @see IToolingApiClient.onGradleDaemonExited
+		 */
+		fun onGradleDaemonExited(pid: Int) = Unit
 
 		/**
 		 * Called when a progress event is received from the Tooling API server.
