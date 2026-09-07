@@ -124,6 +124,7 @@ import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.mainThreadHandler
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
+import com.itsaky.androidide.ui.MemoryChartAxis
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
@@ -1021,14 +1022,7 @@ abstract class BaseEditorActivity :
 			setScaleEnabled(true)
 
 			axisLeft.isEnabled = false
-			axisRight.valueFormatter =
-				object :
-					IAxisValueFormatter {
-					override fun getFormattedValue(
-						value: Float,
-						axis: AxisBase?,
-					): String = "%dMB".format(value.roundToLong())
-				}
+			MemoryChartAxis.configure(axisRight)
 		}
 	}
 
