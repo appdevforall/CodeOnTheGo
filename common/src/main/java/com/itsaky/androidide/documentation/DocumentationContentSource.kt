@@ -18,13 +18,12 @@
 package com.itsaky.androidide.documentation
 
 import android.database.sqlite.SQLiteDatabase
-import com.aayushatharva.brotli4j.Brotli4jLoader
-import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
-import com.itsaky.androidide.utils.DatabaseVersionResolver
+import com.itsaky.androidide.utils.BrotliDictionaryCodec
+import com.itsaky.androidide.utils.loadCompressionDictionary
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.loader.StringLoader
 import io.pebbletemplates.pebble.template.PebbleTemplate
@@ -32,12 +31,10 @@ import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.Closeable
 import java.io.File
-import java.io.IOException
 import java.io.InputStream
 import java.io.SequenceInputStream
 import java.io.StringWriter
 import java.net.URLDecoder
-import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Collections
 import java.util.Date
@@ -50,25 +47,7 @@ import kotlin.concurrent.read
 import kotlin.concurrent.write
 
 /**
- * Copies [bytes] into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
- * buffer, a heap-backed one throws `IllegalArgumentException`.
- *
- * The capacity must be exactly [bytes]`.size`: `attachDictionary` reads the whole capacity and
- * ignores position/limit, so trailing slack from an over-allocated buffer is treated as dictionary
- * content and every decode then fails with `IOException: corrupted input`.
- *
- * @param bytes The bytes to copy.
- * @return A direct byte buffer containing the copied bytes, positioned at the beginning.
- */
-fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
-	ByteBuffer.allocateDirect(bytes.size).apply {
-		put(bytes)
-		flip()
-	}
-
-/**
  * Reads [chunks] back to back as one stream, without concatenating them into a new array.
- * Cheap to build twice, which the no-dictionary retry in [DocumentationContentSource] relies on.
  */
 fun chunksAsStream(chunks: List<ByteArray>): InputStream =
 	SequenceInputStream(Collections.enumeration(chunks.map { ByteArrayInputStream(it) }))
@@ -136,8 +115,10 @@ data class RequestLookup(
 
 /**
  * Reads documentation content out of `documentation.db`: the row lookup, reassembly of chunked
- * rows, the shared-dictionary Brotli decode (ADFA-5153), and the swap to a newer database dropped
- * on the sdcard.
+ * rows, the shared-dictionary Brotli decode (ADFA-5153) -- one pass through
+ * [BrotliDictionaryCodec], with no plain-decode retry, since every brotli row in a
+ * dictionary-declaring database is compressed against that dictionary, plugin-contributed rows
+ * included (ADFA-5240) -- and the swap to a newer database dropped on the sdcard.
  *
  * One pipeline with two callers (ADFA-5176): `WebServer`, which wraps it in HTTP, and
  * [DocumentationRequestInterceptor], which answers a WebView in-process with no socket at all. A row
@@ -197,11 +178,13 @@ class DocumentationContentSource(
 	@Volatile
 	private var failedInstalledSwapTimestamp: Long = -1
 
-	// The dictionary the Content rows are compressed against. Loaded on the first decode that
-	// needs it after a swap rather than eagerly, and then cached for that database. Null when the
-	// active database predates the dictionary migration -- CompressionDictionary won't exist.
-	private var compressionDictionary: ByteBuffer? = null
-	private var compressionDictionaryStale = true
+	// Decodes Content's brotli rows against the shared dictionary they were compressed with (see
+	// ADFA-5153). Built on the first read that needs it after a swap rather than eagerly, then
+	// cached for that database. Holds no dictionary -- and so decodes plain brotli -- when the
+	// active database declares a version below the dictionary migration. Access only through
+	// [codec], which rebuilds it when stale.
+	private var codec: BrotliDictionaryCodec? = null
+	private var codecStale = true
 
 	private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
 
@@ -253,7 +236,7 @@ class DocumentationContentSource(
 			try {
 				readContent(database, path)
 			} catch (e: Exception) {
-				log.error("Cannot read '{}': {}", path, e.message)
+				log.error("Cannot read '{}'", path, e)
 				DocumentationLookup.Failed(e)
 			}
 		}
@@ -364,7 +347,7 @@ class DocumentationContentSource(
 			try {
 				database?.close()
 			} catch (e: Exception) {
-				log.error("Cannot close the documentation database: {}", e.message)
+				log.error("Cannot close the documentation database", e)
 			}
 			database = null
 		}
@@ -383,7 +366,7 @@ class DocumentationContentSource(
 			open()
 			database != null
 		} catch (e: Exception) {
-			log.error("Cannot open the documentation database '{}': {}", databaseFile, e.message)
+			log.error("Cannot open the documentation database '{}'", databaseFile, e)
 			false
 		}
 	}
@@ -408,7 +391,7 @@ class DocumentationContentSource(
 		// the next read retries, and a brotli row that genuinely cannot resolve its dictionary still
 		// fails loudly from decompressBrotli.
 		try {
-			compressionDictionary(database)
+			codec(database)
 		} catch (e: Exception) {
 			log.warn("Could not prime the compression dictionary; will retry on the next read: {}", e.message)
 		}
@@ -519,20 +502,11 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Ensures Brotli native support is available for content decoding.
-	 *
-	 * @throws IOException If the Brotli native library cannot be loaded.
-	 */
-	private fun ensureBrotliAvailable() {
-		try {
-			Brotli4jLoader.ensureAvailability()
-		} catch (e: UnsatisfiedLinkError) {
-			throw IOException("brotli4j's native library is unavailable, so brotli content cannot be decoded", e)
-		}
-	}
-
-	/**
-	 * Decompresses Brotli-compressed content, retrying without the database dictionary when dictionary-based decoding fails.
+	 * Decompresses one Brotli-compressed Content row, attaching the shared dictionary when the
+	 * active database declares one. Every brotli row in such a database is compressed against it,
+	 * whether built offline or contributed by a plugin (ADFA-5240), so a single decode is enough
+	 * and a failure is a real failure -- not, as it once was, a row that might simply have been
+	 * written the other way.
 	 *
 	 * @param database The database used to obtain the Brotli dictionary.
 	 * @param chunks The compressed content chunks.
@@ -541,96 +515,29 @@ class DocumentationContentSource(
 	private fun decompressBrotli(
 		database: SQLiteDatabase,
 		chunks: List<ByteArray>,
-	): ByteArray {
-		ensureBrotliAvailable()
-		val dictionary = compressionDictionary(database)
-		if (dictionary != null) {
-			try {
-				return BrotliInputStream(chunksAsStream(chunks)).use { stream ->
-					stream.attachDictionary(dictionary)
-					stream.readBytes()
-				}
-			} catch (e: IOException) {
-				log.debug(
-					"Dictionary decode failed for a brotli row (likely dictionary-free plugin content); retrying without a dictionary: {}",
-					e.message,
-				)
-			}
-		}
-
-		return BrotliInputStream(chunksAsStream(chunks)).use { it.readBytes() }
-	}
+	): ByteArray = codec(database).decompress(chunksAsStream(chunks))
 
 	/**
-	 * Loads the active database's shared compression dictionary when needed.
+	 * The codec for the active database, (re)built on the first use after a swap.
+	 *
+	 * Only clears the staleness flag on a clean build -- a definitive dictionary or a definitive
+	 * absence, per [loadCompressionDictionary]'s contract -- so an unexpected exception leaves it
+	 * set and the next read retries, rather than caching a transient failure as "no dictionary"
+	 * for the rest of this database's lifetime.
 	 *
 	 * @param database The active documentation database.
-	 * @return The dictionary as a direct byte buffer, or `null` when the database has no usable dictionary.
+	 * @return The codec holding that database's dictionary, dictionary-free when it declares none.
 	 */
-	private fun compressionDictionary(database: SQLiteDatabase): ByteBuffer? =
+	private fun codec(database: SQLiteDatabase): BrotliDictionaryCodec =
 		synchronized(this) {
-			if (compressionDictionaryStale) {
-				compressionDictionary = dictionaryBytes(database)?.let { toDirectByteBuffer(it) }
-				compressionDictionaryStale = false
+			var current = codec
+			if (codecStale || current == null) {
+				current = BrotliDictionaryCodec(loadCompressionDictionary(database))
+				codec = current
+				codecStale = false
 			}
-			compressionDictionary
+			current
 		}
-
-	/**
-	 * Loads the Brotli compression dictionary declared by the database.
-	 *
-	 * @return The dictionary bytes, or `null` when the database does not support a dictionary or has no usable dictionary row.
-	 */
-	private fun dictionaryBytes(database: SQLiteDatabase): ByteArray? {
-		val majorVersion = DatabaseVersionResolver.resolveMajorVersion(database)
-		if (majorVersion == null ||
-			majorVersion < DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY
-		) {
-			log.warn(
-				"Database declares documentation version {}, below {}; decoding brotli content without a dictionary.",
-				majorVersion ?: "none",
-				DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY,
-			)
-			return null
-		}
-
-		val tableExists =
-			database
-				.rawQuery(
-					"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
-					null,
-				).use { it.moveToFirst() }
-		if (!tableExists) {
-			log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
-			return null
-		}
-
-		return database.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
-			if (!cursor.moveToFirst()) {
-				log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
-				return null
-			}
-
-			val bytes = cursor.getBlob(0)
-			when {
-				bytes == null -> {
-					log.warn("CompressionDictionary row has a NULL data column; decoding brotli content without a dictionary.")
-					null
-				}
-
-				// An empty blob yields a 0-capacity buffer, which attachDictionary rejects -- every
-				// decode would then fail with nothing above DEBUG to say why.
-				bytes.isEmpty() -> {
-					log.warn("CompressionDictionary row has an empty data column; decoding brotli content without a dictionary.")
-					null
-				}
-
-				else -> {
-					bytes
-				}
-			}
-		}
-	}
 
 	/**
 	 * Applies a pending database replacement when the active database file is stale.
@@ -738,14 +645,19 @@ class DocumentationContentSource(
 		database = opened
 		activeDatabasePath = path
 		databaseTimestamp = timestamp
-		compressionDictionaryStale = true
+		// Nulled as well as marked stale: a different database can carry a different dictionary
+		// (or none), and decoding its rows against the previous one can succeed with wrong bytes
+		// rather than fail (see BrotliDictionaryCodec). A null codec can only be rebuilt, never
+		// reused.
+		codec = null
+		codecStale = true
 		templateCache.clear()
 		generation++
 
 		try {
 			previous?.close()
 		} catch (e: Exception) {
-			log.error("Cannot close previous database: {}", e.message)
+			log.error("Cannot close previous database", e)
 		}
 	}
 
