@@ -387,6 +387,10 @@ internal class ProxyAppBuildRunner(
 			}
 
 			is ProxyAppRebuildOutcome.Success -> {
+				// Re-keyed on the reinstalled app before anything can connect: the registry is
+				// the host service's whole trust boundary, and a uid that changed under the
+				// reinstall would otherwise refuse the rebuilt app's every connect.
+				connections.beginSession(outcome.proxyApp.proxyAppPackage, outcome.proxyAppUid)
 				// Restart the daemon torn down above, against the new proxy app's config.
 				daemonController.markIntentionalTransition()
 				when (val started = daemonController.start(outcome.layout, outcome.proxyApp)) {
