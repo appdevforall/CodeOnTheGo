@@ -307,6 +307,10 @@ final class QuickBuildRuntime {
 			String metadataJson) {
 		long startUptime = SystemClock.uptimeMillis();
 		PayloadStore.Payload previous = null;
+		// False until the acceptance check below passes. A failure before it - a dex read
+		// that throws, a malformed metadata document - has adopted nothing and posted no
+		// swap, so it owes a report and nothing else; see the catch.
+		boolean accepted = false;
 		InputStream arscIn = null;
 		InputStream assetsIn = null;
 		try {
@@ -330,6 +334,7 @@ final class QuickBuildRuntime {
 						+ (previous == null ? "no baseline" : "gen " + previous.generation) + ")");
 				return;
 			}
+			accepted = true;
 			if (metadata.restart && dexBytes == null) {
 				// Without a dex, the relaunch would boot old classes under a new
 				// generation label. A CoGo bug if it ever happens.
@@ -430,6 +435,17 @@ final class QuickBuildRuntime {
 			RuntimeLog.w("dropping payload gen " + generation + ": " + overtaken.getMessage());
 		} catch (Throwable error) {
 			RuntimeLog.e("payload gen " + generation + " failed to apply", error);
+			Streams.closeQuietly(dexPayload);
+			Streams.closeQuietly(resourcesPayload);
+			Streams.closeQuietly(assetsPayload);
+			if (!accepted) {
+				// `previous` is still null here, and failReload would restore that null
+				// whenever the store's live generation equals this one - a replayed
+				// generation whose dex read failed went inert and quarantined the live
+				// generation. Nothing was adopted or posted, so there is nothing to undo.
+				reportUnadoptedFailure(generation, error);
+				return;
+			}
 			// A step that already ran may have queued a swap that will still commit on main:
 			// applyTable posts before applyAssets can throw. Nothing cancels that swap, so
 			// the recreate must not run - it would render this generation's table over the
@@ -441,9 +457,6 @@ final class QuickBuildRuntime {
 			// The posted swap is refused rather than committed: the store cannot undo a
 			// swap that took, so the only place to stop it is before it commits.
 			ResourceStore.INSTANCE.abandon(generation);
-			Streams.closeQuietly(dexPayload);
-			Streams.closeQuietly(resourcesPayload);
-			Streams.closeQuietly(assetsPayload);
 			failReload(generation, previous, error);
 		} finally {
 			// Also covers the early returns: an overtaken or restart deploy leaves here
@@ -780,6 +793,21 @@ final class QuickBuildRuntime {
 		setOverlayState(mixed ? OverlayState.mixed() : OverlayState.crashed());
 		client.reportCrash(generation,
 				mixed ? CrashSummary.forMixedReport(error) : CrashSummary.forReport(error));
+	}
+
+	/**
+	 * Reports a payload that failed before {@link #handlePayload}'s acceptance check, where the store was never consulted and nothing was posted.
+	 *
+	 * Deliberately not {@link #failReload}: that path restores the pre-apply snapshot whenever the store's live generation equals the failed one, and before the acceptance check the snapshot has not been taken - so a replayed generation whose dex read failed restored null and went inert, quarantining the generation the app was happily running. The report and banner still fire, or the host's only signal is its deploy timeout. Safe on the binder thread: the report is oneway and the banner re-posts to main.
+	 *
+	 * @param generation
+	 *            the generation that failed, which CoGo marks bad
+	 * @param error
+	 *            the failure, summarized into both the report and the banner
+	 */
+	private void reportUnadoptedFailure(long generation, Throwable error) {
+		setOverlayState(OverlayState.crashed());
+		client.reportCrash(generation, CrashSummary.forReport(error));
 	}
 
 	/**
