@@ -39,7 +39,7 @@ final class ActivityTracker implements Application.ActivityLifecycleCallbacks {
 	/**
 	 * Records the activity, lets the runtime do its first-activity Context work, then attaches swapped resources.
 	 *
-	 * The runtime call comes first because it is what creates the resource loader when a cold start adopts a persisted generation; attaching before it would be a no-op, leaving this activity resolving against the baseline table for its whole lifetime.
+	 * The runtime call comes first so the boot restore is started before anything inflates. The first activity still attaches nothing: that restore runs on its own thread and the resource loader is created by the swap it posts, after this callback has returned - so {@code attachTo} finds no loader here, and {@code QuickBuildRuntime.onBootRestoreLanded}'s recreate is what delivers the restored table to this activity. Every later activity attaches the live loader on creation.
 	 *
 	 * @param activity
 	 *            the activity being created

@@ -231,12 +231,10 @@ final class PayloadStore {
 	}
 
 	/**
-	 * Rolls back to a {@link #snapshot} after a failed reload.
-	 *
-	 * The app then visibly runs the old generation, and the host hears about it via reportCrash, rather than claiming a generation whose classes never rendered.
+	 * Test seam: seeds the store with a payload without a real dex. Production rollback goes through {@link #restoreIfCurrent}, which decides and restores under one lock.
 	 *
 	 * @param payload
-	 *            the value {@link #snapshot} returned before the failed apply; restored verbatim, null included
+	 *            the payload to make live; stored verbatim, null included
 	 */
 	synchronized void restore(Payload payload) {
 		current = payload;
