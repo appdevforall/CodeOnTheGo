@@ -826,9 +826,9 @@ open class EditorHandlerActivity :
 	 * what every notice naming it as the remedy needs (see
 	 * [org.appdevforall.cotg.quickbuild.service.session.QuickBuildSessionManager.restartSessionAndReprovision]).
 	 * "Help" looks up the Quick Build entry in `documentation.db`. That database is a prebuilt
-	 * asset owned by the documentation repository, not written here, so the item shows nothing
-	 * until a row for [com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_TOOLBAR_QUICK_BUILD]
-	 * ships in it.
+	 * asset owned by the documentation repository, not written here, so the item opens the
+	 * no-tooltip fallback until a row for
+	 * [com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_TOOLBAR_QUICK_BUILD] ships in it.
 	 */
 	private fun showQuickBuildDropdownMenu(
 		anchor: View,
@@ -1349,10 +1349,13 @@ open class EditorHandlerActivity :
 		withContext(Dispatchers.IO) {
 			performFileSave {
 				val result = SaveResult()
+				var wrote = false
 				for (i in 0 until editorViewModel.getOpenedFileCount()) {
-					saveResultInternal(i, result)
+					if (saveResultInternal(i, result)) wrote = true
 					progressConsumer?.invoke(i + 1, editorViewModel.getOpenedFileCount())
 				}
+				// Once per save-all, not per editor - see [notifyQuickBuildOfSave].
+				if (wrote) notifyQuickBuildOfSave()
 
 				return@performFileSave result
 			}
@@ -1367,9 +1370,19 @@ open class EditorHandlerActivity :
 		// dispatcher.
 		withContext(Dispatchers.IO) {
 			performFileSave {
-				saveResultInternal(index, result)
+				if (saveResultInternal(index, result)) notifyQuickBuildOfSave()
 			}
 		}
+	}
+
+	/**
+	 * Tells the Quick Build session a save wrote something, which clears a failed-start error
+	 * tone on the bolt. A no-op in every other session state, and it never starts a build - a
+	 * live session learns about the writes from its own watcher. Called once per save
+	 * operation rather than per editor, so a save-all posts one event, not N identical ones.
+	 */
+	private fun notifyQuickBuildOfSave() {
+		quickBuildSessionManager()?.onFileSaved()
 	}
 
 	/**
@@ -1431,6 +1444,7 @@ open class EditorHandlerActivity :
 					if (saved.reachedDisk && !file.exists()) FileSaveOutcome.FAILED else saved,
 				)
 				if (outcome.get() != FileSaveOutcome.WRITTEN) return@withContext
+				notifyQuickBuildOfSave()
 
 				// The same follow-ups the UI save paths run (see [saveAll] and
 				// SaveFileAction.postExec). Without them a plugin that edits a Gradle script
@@ -1550,11 +1564,6 @@ open class EditorHandlerActivity :
 					ProjectManagerImpl.getInstance().isAndroidResource(file)
 				} == true
 			}
-
-			// A save also clears a failed-start error tone on the Quick Build bolt. A no-op in
-			// every other session state, and it never starts a build - a live session learns
-			// about this write from its own watcher.
-			quickBuildSessionManager()?.onFileSaved()
 
 			withContext(Dispatchers.Main) {
 				val content = contentOrNull ?: return@withContext
