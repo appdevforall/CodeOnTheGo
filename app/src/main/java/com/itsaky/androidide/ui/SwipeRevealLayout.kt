@@ -69,17 +69,15 @@ open class SwipeRevealLayout
 
 		private var isVerticalDragEnabled = true
 
-		private var isDownInDragHandle = false
-
 		/**
 		 * Whether the most recent touch-down landed within the configured drag handle. The vertical
 		 * drag-to-reveal gesture is only captured when this is `true`, so that scroll gestures starting
 		 * in the middle of the overlapping content (e.g. the editor) are not stolen.
 		 */
-		private val dragHandleLocation = IntArray(2)
+		private var isDownInDragHandle = false
 
-		init {
-		}
+		/** Scratch for [View.getLocationOnScreen] while testing a touch against the handle's bounds. */
+		private val dragHandleLocation = IntArray(2)
 
 		private val dragHelperCallback =
 			object : ViewDragHelper.Callback() {
