@@ -44,10 +44,13 @@ class NetworkUsageChartRendererTest {
 
 	private val context = ApplicationProvider.getApplicationContext<Context>()
 
+	// No sample times: these tests are about what the chart draws, and the chart asks only how long
+	// ago a sample was. Stated rather than defaulted, because the same emptiness in production
+	// silently blanks the CSV's network columns.
 	private fun usage(
 		received: LongArray,
 		transmitted: LongArray = received,
-	) = NetworkUsageWatcher.NetworkUsage(received, transmitted)
+	) = NetworkUsageWatcher.NetworkUsage(received, transmitted, LongArray(received.size))
 
 	private fun rendererFor(usage: NetworkUsageWatcher.NetworkUsage): Pair<NetworkUsageChartRenderer, SafeLineChart> {
 		val chart = SafeLineChart(context)

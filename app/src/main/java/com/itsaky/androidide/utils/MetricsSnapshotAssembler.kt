@@ -62,6 +62,8 @@ object MetricsSnapshotAssembler {
 
 		return MetricsCsv.Snapshot(
 			rowTimes = memoryHistory.times,
+			// The memory watcher's, because its times are the rows.
+			sampleIntervalMillis = memory.updateInterval,
 			memory =
 				memoryHistory.processes.associate { process ->
 					process.pname to

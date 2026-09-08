@@ -39,6 +39,7 @@ class MemUsageLineColorTest {
 			pid = 1234,
 			pname = name,
 			_history = MutableShiftedLongArray(4),
+			watchedSinceMillis = 0L,
 		)
 
 	@Test
