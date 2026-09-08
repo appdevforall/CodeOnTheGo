@@ -176,11 +176,15 @@ final class AssetExtractor {
 	/**
 	 * Writes to a temp file and renames, so a failure mid-copy never leaves a half-written asset.
 	 *
+	 * The temp is deleted on every failure, not only a failed rename: it sits in the tree {@link DirectoryAssetsProvider} serves, so a partial file left there is one the app can open by name.
+	 *
 	 * @param in
 	 *            the current zip entry's bytes; read to the end of the entry, never closed
 	 * @param target
-	 *            the final path, already checked to sit inside the destination directory The temp is deleted on every failure, not only a failed rename: it sits in the tree {@link DirectoryAssetsProvider} serves, so a partial file left there is one the app can open by name.
-	 *
+	 *            the final path, already checked to sit inside the destination directory
+	 * @param remaining
+	 *            the cumulative byte budget left for the whole zip; exceeding it fails the copy
+	 * @return the bytes written, for the caller to subtract from {@code remaining}
 	 * @throws IOException
 	 *             when a parent directory cannot be created, the copy fails, or the rename into place fails twice
 	 */
