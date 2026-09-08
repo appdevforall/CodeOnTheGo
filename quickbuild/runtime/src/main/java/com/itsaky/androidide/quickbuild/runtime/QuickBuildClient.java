@@ -327,7 +327,7 @@ final class QuickBuildClient implements ServiceConnection {
 			// outlives its session, so repeating an EXPECTED rejection at W buries the real
 			// entries around it - an orphaned app produced 14 of these in one restart window.
 			if (connectRejectionReported) {
-				RuntimeLog.d("CoGo rejected connect() again; still standalone: " + error);
+				RuntimeLog.d("CoGo rejected connect() again; still standalone", error);
 			} else {
 				connectRejectionReported = true;
 				RuntimeLog.w("CoGo rejected connect(); continuing standalone", error);
