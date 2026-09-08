@@ -53,8 +53,13 @@ class MetricsChartLegendFormTest {
 		MemoryUsageChartRenderer(
 			usagesProvider = {
 				arrayOf(
-					MemoryUsageWatcher.ProcessMemoryInfo(1, "IDE", MutableShiftedLongArray(SAMPLES)),
-					MemoryUsageWatcher.ProcessMemoryInfo(2, "Gradle Tooling", MutableShiftedLongArray(SAMPLES)),
+					MemoryUsageWatcher.ProcessMemoryInfo(1, "IDE", MutableShiftedLongArray(SAMPLES), watchedSinceMillis = 0L),
+					MemoryUsageWatcher.ProcessMemoryInfo(
+						2,
+						"Gradle Tooling",
+						MutableShiftedLongArray(SAMPLES),
+						watchedSinceMillis = 0L,
+					),
 				)
 			},
 			lineColorFor = { android.graphics.Color.BLUE },
@@ -66,7 +71,11 @@ class MetricsChartLegendFormTest {
 		val chart = SafeLineChart(context)
 		NetworkUsageChartRenderer(
 			usageProvider = {
-				NetworkUsageWatcher.NetworkUsage(LongArray(SAMPLES) { 1L }, LongArray(SAMPLES) { 1L })
+				NetworkUsageWatcher.NetworkUsage(
+					LongArray(SAMPLES) { 1L },
+					LongArray(SAMPLES) { 1L },
+					LongArray(SAMPLES),
+				)
 			},
 		).attach(chart)
 		return chart
@@ -80,6 +89,7 @@ class MetricsChartLegendFormTest {
 					LongArray(SAMPLES) { 30_000L },
 					LongArray(SAMPLES) { 1_000L },
 					LongArray(SAMPLES) { 0L },
+					LongArray(SAMPLES),
 				)
 			},
 			batteryProvider = { PowerUsageWatcher.BatteryState.UNKNOWN },
@@ -139,11 +149,9 @@ class MetricsChartLegendFormTest {
 			assertWithMessage("$name formToTextSpace").that(legend.formToTextSpace).isWithin(TOLERANCE).of(7.5f)
 			assertWithMessage("$name xEntrySpace").that(legend.xEntrySpace).isWithin(TOLERANCE).of(9f)
 
-			// 15dp and 4.5dp, in pixels. yOffset is the one with a consequence beyond looks:
-			// isOnAxisBand measures the sampling-rate tap band as
-			// `height - (legend.mNeededHeight + legend.yOffset)`, so an unscaled offset walks the
-			// band back over the legend as the text grows -- the ADFA-5510 defect this stack has
-			// already fixed once.
+			// 15dp and 4.5dp, in pixels. Both are looks only. An earlier version of this comment
+			// claimed the offset also moved the sampling-rate tap band, which it cannot: the
+			// legend adds yOffset into mNeededHeight itself, and the band is measured from that.
 			assertWithMessage("$name textSize").that(legend.textSize).isWithin(TOLERANCE).of(30f)
 			assertWithMessage("$name yOffset").that(legend.yOffset).isWithin(TOLERANCE).of(9f)
 		}
@@ -154,7 +162,11 @@ class MetricsChartLegendFormTest {
 		// The per-tick path applies the scale only when it has moved, so this is the case that
 		// guards the saving: EditorActivityKt handles fontScale itself, so no activity is
 		// recreated and a redraw is the only thing a running chart does.
-		val usage = NetworkUsageWatcher.NetworkUsage(LongArray(SAMPLES) { 1L }, LongArray(SAMPLES) { 1L })
+		val usage = NetworkUsageWatcher.NetworkUsage(
+					LongArray(SAMPLES) { 1L },
+					LongArray(SAMPLES) { 1L },
+					LongArray(SAMPLES),
+				)
 		val chart = SafeLineChart(context)
 		val renderer = NetworkUsageChartRenderer(usageProvider = { usage })
 		renderer.attach(chart)

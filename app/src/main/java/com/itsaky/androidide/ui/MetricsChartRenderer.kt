@@ -119,9 +119,12 @@ abstract class MetricsChartRenderer(
 		val chart = this.chart ?: return false
 		val top = chart.viewPortHandler.contentBottom()
 		val legend = chart.legend
-		// What the chart reserves for the legend at the bottom: its measured height plus the
-		// offset it keeps above itself. Both are pixels, as MPAndroidChart stores them.
-		val reservedForLegend = if (legend.isEnabled) legend.mNeededHeight + legend.yOffset else 0f
+		// What the chart reserves for the legend at the bottom, in pixels. mNeededHeight already
+		// includes yOffset: the last thing Legend.calculateDimensions does, on both of its
+		// orientation branches, is `mNeededHeight += mYOffset` (3.1.0.21, offsets 879-887, reached
+		// from the horizontal branch by `366: goto 877`). Adding the offset again reserved it twice
+		// and took a strip the height of yOffset off the bottom of the tap target.
+		val reservedForLegend = if (legend.isEnabled) legend.mNeededHeight else 0f
 		val bottom = maxOf(chart.height - reservedForLegend, top + chart.xAxis.textSize)
 		return y >= top && y < bottom
 	}
@@ -141,8 +144,11 @@ abstract class MetricsChartRenderer(
 	 *
 	 * [redraw] runs once per sampling tick per attached page, and re-applying the scale there
 	 * rewrites nine chart properties and re-measures four text sizes to catch a change that
-	 * happens at most a handful of times in a session. Per chart, so a rebind re-applies: [detach]
-	 * clears it.
+	 * happens at most a handful of times in a session.
+	 *
+	 * [detach] resets it, but nothing depends on that: [attach] ends in `rebuild`, which reaches
+	 * `setData`, which applies the scale unconditionally. The reset keeps a detached renderer from
+	 * holding a claim about a chart it no longer has, and is not what makes a rebind re-apply.
 	 */
 	private var appliedTextScale = Float.NaN
 
@@ -162,6 +168,14 @@ abstract class MetricsChartRenderer(
 	@VisibleForTesting
 	internal var showHelp: (Context, SafeLineChart, String) -> Unit =
 		{ context, anchor, tag -> showIdeCategoryTooltipIfPresent(context, anchor, tag) }
+
+	/**
+	 * The top inset last reserved, so an unchanged value costs nothing.
+	 *
+	 * [reserveTopSpace] is called from the power listener on every sample, and the height it
+	 * reserves changes only when the readout appears or disappears or the font scale moves.
+	 */
+	private var reservedTopPixels = Float.NaN
 
 	/**
 	 * The attached chart, or `null` when no carousel page is bound to this renderer.
@@ -190,10 +204,18 @@ abstract class MetricsChartRenderer(
 	@UiThread
 	fun reserveTopSpace(pixels: Float) {
 		val chart = this.chart ?: return
+		if (pixels == reservedTopPixels) {
+			return
+		}
+		reservedTopPixels = pixels
 		chart.setExtraTopOffset(pixels / chart.resources.displayMetrics.density)
-		// setExtraTopOffset only stores the value; the viewport is recomputed by calculateOffsets,
-		// which is protected and otherwise runs only when the chart's size changes.
-		chart.notifyDataSetChanged()
+		// setExtraTopOffset only stores the value; calculateOffsets is what turns it into a
+		// viewport. It is public in AndroidChart 3.1.0.21 -- an earlier comment here called it
+		// protected, which is why this used to go the long way round through
+		// notifyDataSetChanged(). That did far more work (initBuffers, calcMinMax, three
+		// computeAxis calls, computeLegend) and, worse, returns early when the chart has no data
+		// yet -- which is exactly the state at bind time, when this is first called.
+		chart.calculateOffsets()
 		chart.invalidate()
 	}
 
@@ -342,8 +364,10 @@ abstract class MetricsChartRenderer(
 			// form only for an entry left at DEFAULT -- so a dataset that sets either one wins
 			// silently. The size itself is set in [applyTextScale], which has to re-apply it.
 			legend.form = Legend.LegendForm.CIRCLE
-			// Kept at the 1f the renderers used to ask for. Inert while the form is a circle, but
-			// leaving it NaN would silently adopt the library's 3f the day anyone chooses LINE.
+			// Kept at the 1f the renderers used to ask for, down from the 3f a Legend defaults to.
+			// NaN is a dataset entry's "defer to the legend" marker and is not a state the legend's
+			// own field can be in, so this is a real change rather than a guard against one -- inert
+			// while the form is a circle, and load-bearing only if anyone chooses LINE.
 			legend.formLineWidth = 1f
 
 			onChartGestureListener = XAxisTapListener(this).also { axisTapListener = it }
@@ -704,12 +728,18 @@ abstract class MetricsChartRenderer(
 		chart.legend.formSize = BASE_LEGEND_FORM_DP * scale
 		// The gaps go with them. Left fixed they close up as the text grows -- the same argument
 		// as the dot, applied to the space around it.
+		//
+		// Which means the legend's furniture is no longer a fixed budget. Three entries' dots and
+		// gaps came to 3*(15+5) + 2*6 = 72dp before this ticket, at every scale; they now come to
+		// 51dp times the scale. That is narrower up to 1.41 and wider above it -- 76.5dp at the 1.5
+		// ceiling. The smaller dot buys width at the sizes most people run and gives 4.5dp of it
+		// back at the extreme. Whether that clips on the narrowest screen we support has not been
+		// measured; if it does, the answer is a ceiling on the scale used here, not a smaller dot.
 		chart.legend.formToTextSpace = BASE_LEGEND_FORM_TO_TEXT_DP * scale
 		chart.legend.xEntrySpace = BASE_LEGEND_ENTRY_SPACE_DP * scale
-		// yOffset is not only cosmetic: [isOnAxisBand] measures the band the sampling-rate tap
-		// lives in as `height - (legend.mNeededHeight + legend.yOffset)`. Left unscaled, the band
-		// creeps over the legend again as the text grows -- which is the ADFA-5510 defect this
-		// stack already fixed once.
+		// The gap above the legend, scaled for the same reason as the gaps beside the dot. It has
+		// no bearing on where [isOnAxisBand] puts the band: the legend folds yOffset into
+		// mNeededHeight itself, so the band already accounts for it at whatever size it is.
 		chart.legend.yOffset = BASE_LEGEND_Y_OFFSET_DP * scale
 		chart.xAxis.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisLeft.textSize = BASE_TEXT_SIZE_DP * scale

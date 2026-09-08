@@ -57,6 +57,7 @@ class MetricsChartAxisTapTest {
 					NetworkUsageWatcher.NetworkUsage(
 						LongArray(SAMPLES) { 1_000L },
 						LongArray(SAMPLES) { 500L },
+						LongArray(SAMPLES),
 					)
 				},
 			)
@@ -175,6 +176,25 @@ class MetricsChartAxisTapTest {
 		// The other half of the bound: narrowing the band must not put the rate chooser out of
 		// reach. One axis label's height below the plot always stays in it.
 		tapAt(chart, chart.viewPortHandler.contentBottom() + chart.xAxis.textSize / 2f)
+
+		assertThat(taps).isEqualTo(1)
+	}
+
+	@Test
+	fun `the gap the legend keeps above itself still opens the chooser`() {
+		val chart = laidOutChart()
+		val legend = chart.legend
+
+		// Guards the assertion below: with no legend, or no gap, there is no strip to test.
+		assertThat(legend.isEnabled).isTrue()
+		assertThat(legend.mNeededHeight).isGreaterThan(0f)
+		assertThat(legend.yOffset).isGreaterThan(0f)
+
+		// Legend.calculateDimensions ends with `mNeededHeight += mYOffset`, so the offset is
+		// already inside the measured height. Reserving `mNeededHeight + yOffset` counted it twice
+		// and handed the legend a strip yOffset tall that nothing draws in -- taken off the bottom
+		// of the one target that opens the sampling-rate chooser.
+		tapAt(chart, CHART_HEIGHT - legend.mNeededHeight - legend.yOffset / 2f)
 
 		assertThat(taps).isEqualTo(1)
 	}

@@ -58,6 +58,7 @@ class MemoryUsageChartRendererTest {
 				PID_IDE,
 				"IDE",
 				MutableShiftedLongArray(LongArray(history.size) { history[it] }),
+				watchedSinceMillis = 0L,
 			)
 		renderer { arrayOf(process) }.attach(chart)
 		chart.layOutAndDraw()
@@ -73,6 +74,7 @@ class MemoryUsageChartRendererTest {
 		pid,
 		pname,
 		MutableShiftedLongArray(MemoryUsageWatcher.MAX_USAGE_ENTRIES) { (firstMegabytes + it) * BYTES_PER_MB },
+		watchedSinceMillis = 0L,
 	)
 
 	private fun datasetFor(

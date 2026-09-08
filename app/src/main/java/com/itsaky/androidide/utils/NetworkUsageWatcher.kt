@@ -342,13 +342,16 @@ class NetworkUsageWatcher
 		 * epoch, parallel to the values. Read in the same critical section as them, because reading
 		 * the two separately let the sampler append between the calls and shifted every value one
 		 * index against its timestamp (ADFA-5531). A zero means nothing was ever sampled at that
-		 * index -- the buffers are fixed-length and start, and are cleared, full of them. Defaulted
-		 * empty for the chart, which asks only how long ago a sample was and never when.
+		 * index -- the buffers are fixed-length and start, and are cleared, full of them.
+		 *
+		 * Required, with no empty default. A caller that omitted it produced a history whose every
+		 * sample read as never-taken, which the chart cannot see -- it asks only how long ago a
+		 * sample was -- but which silently emptied both of this watcher's columns in the CSV.
 		 */
 		data class NetworkUsage(
 			val received: LongArray,
 			val transmitted: LongArray,
-			val sampleTimes: LongArray = LongArray(0),
+			val sampleTimes: LongArray,
 		) {
 			override fun equals(other: Any?): Boolean =
 				this === other ||
