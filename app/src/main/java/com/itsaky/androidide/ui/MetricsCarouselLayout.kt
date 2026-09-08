@@ -61,15 +61,31 @@ class MetricsCarouselLayout
 		var onTouchDown: (() -> Unit)? = null
 
 		/**
+		 * Whether the carousel has been moved out to a floating window.
+		 *
+		 * Read by the controller: a control whose visibility depends on something else as well --
+		 * the battery readout, which only belongs on the page that has one -- cannot be restored by
+		 * [setUndocked] alone, so it has to be able to ask.
+		 */
+		var isUndocked = false
+			private set
+
+		/**
 		 * Shows either the carousel or the "it is in a floating window" message, never a mix.
 		 *
-		 * The whole strip switches, not just the pager. The arrows and the snapshot button are
-		 * chrome for a chart that is not here: left behind they sit over the message, and the
-		 * camera is inert anyway because undocking unbinds the controller that listens to it.
-		 * Keeping the set here rather than at the call site is what stops a control added later
-		 * from being forgotten again.
+		 * The whole strip switches, not just the pager. The arrows, the snapshot button and the
+		 * export button are chrome for a chart that is not here: left behind they sit over the
+		 * message, and each is inert anyway because undocking unbinds the controller that listens
+		 * to them.
+		 *
+		 * Keeping the set here was supposed to stop a control added later from being forgotten.
+		 * It did not: the battery readout arrived afterwards and was missed, so the readout sat
+		 * over the message. A list in one place is still easier to extend than a list at every
+		 * call site, but nothing about it is self-maintaining -- what actually guards this is the
+		 * test, which enumerates the strip's children rather than naming them.
 		 */
 		fun setUndocked(undocked: Boolean) {
+			isUndocked = undocked
 			val carouselIds =
 				intArrayOf(
 					R.id.metrics_pager,
@@ -77,9 +93,16 @@ class MetricsCarouselLayout
 					R.id.metrics_previous,
 					R.id.metrics_next,
 					R.id.metrics_snapshot,
+					R.id.metrics_export,
 				)
 			carouselIds.forEach { id ->
 				findViewById<View>(id)?.isVisible = !undocked
+			}
+			// One way only. Undocking hides the battery readout like everything else, but docking
+			// must not show it: it belongs to the power page alone, and which page is showing is
+			// the controller's to say. It restores the readout on the rebind that follows.
+			if (undocked) {
+				findViewById<View>(R.id.metrics_battery)?.isVisible = false
 			}
 			findViewById<View>(R.id.metrics_undocked_message)?.isVisible = undocked
 		}
