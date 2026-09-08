@@ -682,8 +682,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * [observeStates] therefore does the one resolve that may build the graph, off the main
 	 * thread, through [QuickBuildGraphWarmUp]. This accessor never resolves: it returns the
 	 * built manager or null, so none of its main-thread callers - onTrimMemory,
-	 * onBuildServiceConnected, preDestroy (restartSession and the narrator reset),
-	 * onExternalGradleBuildFinished, onHostForegrounded, the clobber and won't-stay-up dialogs,
+	 * onBuildServiceConnected, onPause (restartSession and the narrator reset),
+	 * onExternalGradleBuildFinished, onResume (onHostForegrounded), the clobber and won't-stay-up dialogs,
 	 * the prebuild stagger's sessionIsLive, EditorHandlerActivity's dropdown and onFileSaved,
 	 * QuickBuildAction.prepare() - can be the one that builds it, however early they run. A null
 	 * before the warm-up finishes means "no session yet", which is true for every one of them.
@@ -885,15 +885,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			}
 
 			QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
-				confirmUnknownOccupantSwitch(onConfirmed)
+				if (confirmUnknownOccupantSwitch()) onConfirmed()
 			}
 
 			is QuickBuildClobberConfirmation.Needed -> {
-				confirmBuildTypeSwitch(
-					getString(string.quick_build_switch_to_quick_title),
-					getString(string.quick_build_switch_to_quick_message, decision.applicationId),
-					onConfirmed,
-				)
+				val confirmed =
+					awaitBuildTypeSwitchConfirmation(
+						getString(string.quick_build_switch_to_quick_title),
+						getString(string.quick_build_switch_to_quick_message, decision.applicationId),
+					)
+				if (confirmed) onConfirmed()
 			}
 		}
 	}
@@ -942,14 +943,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			}
 
 			QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
-				confirmUnknownOccupantSwitch { onConfirmed(decision) }
+				if (confirmUnknownOccupantSwitch()) onConfirmed(decision)
 			}
 
 			is QuickBuildClobberConfirmation.Needed -> {
-				confirmBuildTypeSwitch(
-					getString(string.quick_build_switch_to_standard_title),
-					getString(string.quick_build_switch_to_standard_message, decision.applicationId),
-				) { onConfirmed(decision) }
+				val confirmed =
+					awaitBuildTypeSwitchConfirmation(
+						getString(string.quick_build_switch_to_standard_title),
+						getString(string.quick_build_switch_to_standard_message, decision.applicationId),
+					)
+				if (confirmed) onConfirmed(decision)
 			}
 		}
 	}
@@ -959,14 +962,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * resolve, so neither dialog's wording (each of which names the id and asserts what holds
 	 * it) is true. Asks anyway rather than proceeding - see
 	 * [QuickBuildClobberConfirmation.NeededForUnknownAppId].
+	 *
+	 * @return whether the user confirmed; see [awaitBuildTypeSwitchConfirmation]
 	 */
-	private fun confirmUnknownOccupantSwitch(onConfirmed: () -> Unit) {
-		confirmBuildTypeSwitch(
+	private suspend fun confirmUnknownOccupantSwitch(): Boolean =
+		awaitBuildTypeSwitchConfirmation(
 			getString(string.quick_build_switch_unknown_app_title),
 			getString(string.quick_build_switch_unknown_app_message),
-			onConfirmed,
 		)
-	}
 
 	private fun projectRealApplicationId(): String? {
 		val projectManager = IProjectManager.getInstance()
@@ -982,26 +985,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	/**
-	 * The confirm-on-switch dialog (ADFA-4128): switching build type overwrites whatever
-	 * currently occupies the project's real applicationId, so the confirm is destructive-styled
-	 * and nothing installs before accept. Decline (button, back, or outside touch) leaves the
-	 * installed app untouched.
-	 */
-	private fun confirmBuildTypeSwitch(
-		title: String,
-		message: String,
-		onConfirm: () -> Unit,
-	) {
-		showBuildTypeSwitchDialog(title, message) { confirmed -> if (confirmed) onConfirm() }
-	}
-
-	/**
-	 * [confirmBuildTypeSwitch] as a suspending call, for a caller that must stay alive while the
-	 * dialog is up.
+	 * The confirm-on-switch dialog (ADFA-4128), awaited: switching build type overwrites
+	 * whatever currently occupies the project's real applicationId, so the confirm is
+	 * destructive-styled and nothing installs before accept. Decline (button, back, or outside
+	 * touch) leaves the installed app untouched.
 	 *
-	 * The callback form returns immediately, so a caller's own cleanup runs before the user has
-	 * answered; awaiting instead means a destroyed activity cancels the caller at the dialog
-	 * rather than after it.
+	 * Awaited rather than callback-shaped so the caller stays alive while the dialog is up: a
+	 * destroyed activity cancels the caller at the dialog rather than after it, and the
+	 * cancellation takes the dialog down with it.
 	 *
 	 * @return whether the user confirmed. A dismissal - back, outside touch, or the activity
 	 *   taking the window down - reads as a decline, and a cancelled await leaves it to the
