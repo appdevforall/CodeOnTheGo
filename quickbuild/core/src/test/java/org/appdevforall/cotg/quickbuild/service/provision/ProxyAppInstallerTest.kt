@@ -363,7 +363,7 @@ class ProxyAppInstallerTest {
 	@Test
 	fun `a prompt nobody was ever shown is re-issued once inside the same budget`() =
 		runTest {
-			// Defect T12: after a CoGo process death the first install's confirm dialog can
+			// After a CoGo process death the first install's confirm dialog can
 			// be lost - the OS asks, the lifecycle-bound dialog owner is not there to launch
 			// it, and nothing distinguishes that from a user reading the dialog. The install
 			// must re-prompt rather than spend the whole budget in silence.

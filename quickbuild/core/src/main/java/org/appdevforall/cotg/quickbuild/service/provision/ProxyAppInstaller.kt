@@ -155,7 +155,7 @@ sealed interface InstallOutcome {
  * free of reinstalls across rebaselines and CoGo restarts. Failures arrive as PackageInstaller
  * broadcasts with real messages, and a lastUpdateTime change backstops the MIUI intent
  * fallback, which never broadcasts through our receiver. A broadcast with no package name is
- * accepted as ours, erring toward a retryable failure rather than a false success.
+ * accepted as ours, erring toward a reported failure rather than a false success.
  *
  * Blocking work - the APK hashing and every [InstalledPackages] read (binder calls into
  * PackageManager) - runs under [ioDispatcher], so [ensureInstalled] is safe to call from the
@@ -168,7 +168,10 @@ class ProxyAppInstaller(
 	private val launchInstall: suspend (File) -> Boolean,
 	/** InstallationResultReceiver broadcasts, adapted app-side. */
 	private val broadcasts: Flow<InstallBroadcast>,
-	/** Whole-install budget, including the time the user spends tapping through dialogs. */
+	/**
+	 * Budget for the install verdict, dialogs included. The bounded uid read that follows a
+	 * verdict (up to UID_RETRIES * DEFAULT_POLL_MILLIS) is outside it.
+	 */
 	private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
 	/**
 	 * How long one committed install may sit without any verdict before the prompt is
