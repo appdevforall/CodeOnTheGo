@@ -74,6 +74,7 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
 import com.itsaky.androidide.quickbuild.AutostartBuild
+import com.itsaky.androidide.quickbuild.GenerateSourcesDeferral
 import com.itsaky.androidide.quickbuild.GradleQuickBuildProvisioner
 import com.itsaky.androidide.quickbuild.QuickBuildBenchHooks
 import com.itsaky.androidide.quickbuild.QuickBuildFlash
@@ -1060,8 +1061,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	 * session refreshes its baseline from current disk either way. Over-refreshing is safe: it only
 	 * marks the baseline untrusted. The session's own proxy app builds also land here, but
 	 * the reducer drops the event in Provisioning/Prebuilding.
+	 *
+	 * Except the resource-save `generateSources` build: it regenerates nothing the session
+	 * compiles against (see [GenerateSourcesDeferral.claimOwnFinishedBuild]), and handing it
+	 * back would cost a full recompile for a build the deferral parked to keep out of the
+	 * session's way.
 	 */
 	fun onExternalGradleBuildFinished() {
+		if (GenerateSourcesDeferral.finishedBuildWasOwn()) {
+			return
+		}
 		quickBuildSessionManager()?.onStandardRunCompleted()
 	}
 
