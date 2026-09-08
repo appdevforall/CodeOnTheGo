@@ -67,4 +67,26 @@ class QuickBuildClobberCheckTest {
 			assertThat(check(installed = true, factory = null).standardRunNeedsConfirm(realAppId)).isFalse()
 			assertThat(check(installed = false, factory = null).standardRunNeedsConfirm(realAppId)).isFalse()
 		}
+
+	@Test
+	fun `a PackageManager read that throws asks for confirmation rather than skipping it`() =
+		runTest {
+			// Binder can fail mid-call (package state changing, system server pressure); an
+			// unanswerable check must not read as "empty slot" and let the tap clobber a build.
+			val check = QuickBuildClobberCheck(ThrowingPackages(), Dispatchers.Unconfined)
+			assertThat(check.quickBuildNeedsConfirm(realAppId)).isTrue()
+			assertThat(check.standardRunNeedsConfirm(realAppId)).isTrue()
+		}
+
+	private class ThrowingPackages : InstalledPackages {
+		override fun uid(packageName: String): Int? = throw IllegalStateException("binder gone")
+
+		override fun lastUpdateTime(packageName: String): Long? = null
+
+		override fun apkFile(packageName: String): File? = null
+
+		override fun signingCertSha256(packageName: String): String? = null
+
+		override fun appComponentFactory(packageName: String): String? = throw IllegalStateException("binder gone")
+	}
 }
