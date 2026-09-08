@@ -87,12 +87,17 @@ class PowerUsageWatcher
 		 * buffer being cleared.
 		 *
 		 * A zero means no sample was ever recorded at that index, which is what tells a blank cell
-		 * apart from a measured zero.
+		 * apart from a measured zero. Zero is safe as the sentinel here, unlike the value series
+		 * below: no real sample was taken at the epoch.
 		 */
 		private val sampleTimes = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
 
-		private val temperature = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
-		private val power = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
+		// Filled with UNAVAILABLE, not zero. A slot that has never been sampled is an absence, and
+		// zero is a reading: a zero-filled prefix plotted a flat 0 C and 0 W line and presented it
+		// as measurement, which then forced applyAxisRanges to special-case `!= 0L` -- discarding
+		// a genuine freezing-battery sample along with the fake ones (ADFA-5499).
+		private val temperature = MutableShiftedLongArray(MAX_USAGE_ENTRIES) { UNAVAILABLE }
+		private val power = MutableShiftedLongArray(MAX_USAGE_ENTRIES) { UNAVAILABLE }
 
 		/**
 		 * The thermal throttling level at each sample, or [THERMAL_UNKNOWN].
@@ -100,7 +105,7 @@ class PowerUsageWatcher
 		 * Kept per sample rather than as a separate timestamped log so the chart's shading lines up
 		 * with the sample grid exactly: a shaded span is just a run of equal values here.
 		 */
-		private val thermal = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
+		private val thermal = MutableShiftedLongArray(MAX_USAGE_ENTRIES) { UNAVAILABLE }
 
 		/**
 		 * Milliseconds between samples. Changing it clears the history, for the reason given on
@@ -172,9 +177,9 @@ class PowerUsageWatcher
 		fun clearHistory() {
 			synchronized(historyLock) {
 				sampleTimes.clear()
-				temperature.clear()
-				power.clear()
-				thermal.clear()
+				temperature.clear(UNAVAILABLE)
+				power.clear(UNAVAILABLE)
+				thermal.clear(UNAVAILABLE)
 			}
 		}
 
@@ -303,14 +308,17 @@ class PowerUsageWatcher
 		 * epoch, parallel to the values. Read in the same critical section as them, because reading
 		 * the two separately let the sampler append between the calls and shifted every value one
 		 * index against its timestamp (ADFA-5531). A zero means nothing was ever sampled at that
-		 * index -- the buffers are fixed-length and start, and are cleared, full of them. Defaulted
-		 * empty for the chart, which asks only how long ago a sample was and never when.
+		 * index -- the buffers are fixed-length and start, and are cleared, full of them.
+		 *
+		 * Required, with no empty default. A caller that omitted it produced a history whose every
+		 * sample read as never-taken, which the chart cannot see -- it asks only how long ago a
+		 * sample was -- but which silently emptied every one of this watcher's columns in the CSV.
 		 */
 		data class PowerUsage(
 			val temperatureMilliCelsius: LongArray,
 			val powerMicroWatts: LongArray,
 			val thermalStatus: LongArray,
-			val sampleTimes: LongArray = LongArray(0),
+			val sampleTimes: LongArray,
 		) {
 			override fun equals(other: Any?): Boolean =
 				this === other ||

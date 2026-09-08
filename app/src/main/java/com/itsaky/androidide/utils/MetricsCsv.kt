@@ -32,10 +32,16 @@ import kotlin.math.abs
  *
  * A row is a sampling tick, and its columns come from three watchers that each keep their own ring
  * buffer and their own coroutine. They are started together and share one interval, and every one
- * of them is cleared when that interval changes, so the tick at index *i* is the same tick in all
- * three -- but they do not read their sources at the same instant. The row's stated time is the
- * memory watcher's, recorded when it sampled; the network and power values on that row were taken
- * within one interval of it. Nothing here reconstructs a time from an index.
+ * of them is cleared when that interval changes. The row's stated time is the memory watcher's,
+ * recorded when it sampled, and nothing here reconstructs a time from an index.
+ *
+ * The other series are paired to that row by array index rather than by time, which is not the same
+ * thing. Each watcher runs its own loop and does its own per-tick work, so their ticks drift apart,
+ * and because the buffers are filled oldest-first the drift accumulates backwards: the further back
+ * a row is, the further its network and power values can sit from its stated time. Every column is
+ * a real reading with a real time behind it, so nothing in the file is invented -- but a consumer
+ * must not read one row as three simultaneous measurements. Merging the series on time instead is
+ * the subject of its own change; this comment says what is true until then.
  *
  * Formatting only, with no Android types, so the whole format can be tested without a device.
  */
@@ -146,9 +152,13 @@ object MetricsCsv {
 	 *
 	 * @property rowTimes The memory watcher's sample times, oldest first. They are the rows, because
 	 * memory is the one series always being recorded.
+	 * @property sampleIntervalMillis How often the watchers sample. Required rather than defaulted,
+	 * because it decides which annotations are near enough to a row to be written on it and a
+	 * default would pick that bound for a caller who never considered it.
 	 */
 	class Snapshot(
 		val rowTimes: LongArray,
+		val sampleIntervalMillis: Long,
 		val memory: Map<String, Series>,
 		val networkReceived: Series = Series.EMPTY,
 		val networkTransmitted: Series = Series.EMPTY,
@@ -241,6 +251,16 @@ object MetricsCsv {
 	 * almost all of them; and doing this per row rather than once would walk every marker against
 	 * every row, which at ten thousand of each is not a cost worth paying for a button.
 	 *
+	 * A marker further than one sampling interval from its nearest row is dropped rather than
+	 * pulled onto it. Sampling at a fixed interval leaves every marker that happened while the
+	 * buffer was filling within half an interval of some sample, so a greater distance means the
+	 * marker falls outside the sampled window -- an annotation older than the buffer reaches, which
+	 * is the ordinary case in a long session. Without the cap every one of those lands on row 0,
+	 * where [MutableMap.putIfAbsent] keeps the first and drops the rest: the file would carry one
+	 * arbitrary ancient marker on its oldest row and lose the others silently. The chart has both
+	 * guards already -- it asks the store only for the annotations in the visible span, and drops
+	 * any whose x falls before the first sample.
+	 *
 	 * Where two markers land on one row the earlier wins, and the later is dropped rather than
 	 * silently overwriting it -- the file has one annotation column per row by definition.
 	 */
@@ -257,6 +277,9 @@ object MetricsCsv {
 		val rows = mutableMapOf<Int, Marker>()
 		snapshot.annotations.sortedBy { it.atMillis }.forEach { marker ->
 			val nearest = sampled.minByOrNull { abs(it.value - marker.atMillis) } ?: return@forEach
+			if (abs(nearest.value - marker.atMillis) > snapshot.sampleIntervalMillis) {
+				return@forEach
+			}
 			rows.putIfAbsent(nearest.index, marker)
 		}
 		return rows
@@ -265,10 +288,30 @@ object MetricsCsv {
 	private fun number(value: Long?): String = value?.toString() ?: ""
 
 	/**
+	 * The characters that make a spreadsheet read a cell as a formula rather than as text.
+	 *
+	 * Tab and carriage return are here because a leading one of either is stripped on import, which
+	 * exposes whatever follows it: a cell of "\t=cmd" is a formula too.
+	 */
+	private val FORMULA_LEAD = charArrayOf('=', '+', '-', '@', '\t', '\r')
+
+	/**
 	 * A CSV string cell.
 	 *
 	 * Quoted per the format's rule (b), with any quote inside it doubled -- a task name is text the
 	 * IDE was given, and nothing guarantees it has no quotes in it.
+	 *
+	 * A cell beginning with one of [FORMULA_LEAD] additionally gets a leading apostrophe. Quoting
+	 * alone does not stop a spreadsheet evaluating the cell on import, and the annotation columns
+	 * carry Gradle task names taken from the user's own build script -- into a file ADFA-5526 and
+	 * ADFA-5534 attach to crash reports and to feedback, which a support engineer then opens. The
+	 * apostrophe is part of the cell as written, so a reader parsing this file back has to strip it.
+	 *
+	 * The numeric columns do not come through here. They are written by [number], where a negative
+	 * value has to stay a number rather than become text with a quote in front of it.
 	 */
-	private fun quote(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
+	private fun quote(value: String): String {
+		val guarded = if (value.isNotEmpty() && value[0] in FORMULA_LEAD) "'" + value else value
+		return "\"" + guarded.replace("\"", "\"\"") + "\""
+	}
 }

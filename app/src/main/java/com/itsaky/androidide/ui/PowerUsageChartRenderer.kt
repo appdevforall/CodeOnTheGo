@@ -182,7 +182,7 @@ class PowerUsageChartRenderer(
 			val milliCelsius = usage.temperatureMilliCelsius[index]
 			// Skip the unsampled prefix and anything the device does not report: both plot at
 			// zero, and letting zero into the range is what flattened the real readings.
-			if (milliCelsius != PowerUsageWatcher.UNAVAILABLE && milliCelsius != 0L) {
+			if (milliCelsius != PowerUsageWatcher.UNAVAILABLE) {
 				val celsius = milliCelsiusToCelsius(milliCelsius)
 				hottest = max(hottest, celsius)
 				coldest = min(coldest, celsius)

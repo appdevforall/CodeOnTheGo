@@ -613,6 +613,11 @@ abstract class BaseEditorActivity :
 			// recreation, so it must not be torn down whenever this activity goes away.
 			memoryUsageWatcher.listener = null
 			networkUsageWatcher.listener = null
+			// The third one too. It was missed when the power page was added, and only
+			// metricsCarousel.unbind() a few lines above was releasing it -- under an identity
+			// check, and skipped entirely for an undocked carousel. Asymmetry here is what hides
+			// which watcher is holding a dead controller.
+			powerUsageWatcher.listener = null
 			editorActivityScope.cancelIfActive("Activity is being destroyed")
 
 			unbindDebuggerService()
