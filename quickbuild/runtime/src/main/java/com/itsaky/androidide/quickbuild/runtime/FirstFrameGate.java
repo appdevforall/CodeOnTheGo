@@ -9,7 +9,7 @@ package com.itsaky.androidide.quickbuild.runtime;
  *
  * A generation that never draws is released by the runtime's own fallbacks instead: an activity with no live view tree, and the branch where the resumed activity is gone by the time the recreate runs, both complete without a frame. That is the deliberate looser case - waiting for a frame that will never arrive would strand the deploy unacked.
  *
- * One case is deliberately not released: a recreate that succeeds but never resumes, because the user backgrounded the app mid-relaunch and the task was then swiped away. No draw callback is ever installed, so the deploy ends only in CoGo's timeout, and until the next save {@link #pending} still names this generation, so an unrelated crash in the process would be reported against it. Releasing from onActivityDestroyed is not the fix, since recreate() itself destroys the armed activity on every normal reload; a destroy-based release would need to know a relaunch is still pending, which nothing here tracks yet.
+ * One case is deliberately not released: a recreate that succeeds but never resumes, because the user backgrounded the app mid-relaunch and the task was then swiped away. No draw callback is ever installed, so the deploy ends only in CoGo's timeout, and until the next save {@link #pending} still names this generation, so an unrelated crash in the process would be reported against it. Releasing from onActivityDestroyed is not the fix, since recreate() itself destroys the armed activity on every normal reload; a destroy-based release would need to know a relaunch is still pending, which nothing here tracks yet. Tracked as ADFA-5524.
  */
 final class FirstFrameGate {
 
