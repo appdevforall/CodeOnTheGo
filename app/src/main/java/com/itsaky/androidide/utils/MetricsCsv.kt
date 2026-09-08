@@ -71,6 +71,26 @@ object MetricsCsv {
 		DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.ROOT)
 
 	/**
+	 * The names the memory watcher is given for the three processes the IDE plots.
+	 *
+	 * Here rather than beside the watcher because this file is the one that cannot move: a column
+	 * name is the file's published contract, read back by ADFA-5494 and by whoever opens the copy
+	 * ADFA-5526 and ADFA-5534 attach to a report. Everything else looks these up.
+	 *
+	 * They were literals in two places -- these and `BaseEditorActivity.PROC_*` -- joined by
+	 * nothing but string equality. Renaming a process there would have gone on writing the old
+	 * header here and quietly emptied the column, because a name that matches nothing in the
+	 * snapshot is written as an absent value rather than as an error.
+	 */
+	const val PROC_IDE = "IDE"
+
+	/** @see PROC_IDE */
+	const val PROC_GRADLE_TOOLING = "Gradle Tooling"
+
+	/** @see PROC_IDE */
+	const val PROC_GRADLE_DAEMON = "Gradle Daemon"
+
+	/**
 	 * The memory series, in column order.
 	 *
 	 * Fixed rather than taken from whatever is being watched at export time. The set changes during
@@ -78,7 +98,7 @@ object MetricsCsv {
 	 * -- and a header that depended on it would describe a different file each time. A process that
 	 * is not being watched leaves its column empty.
 	 */
-	val MEMORY_COLUMNS = listOf("IDE", "Gradle Tooling", "Gradle Daemon")
+	val MEMORY_COLUMNS = listOf(PROC_IDE, PROC_GRADLE_TOOLING, PROC_GRADLE_DAEMON)
 
 	@JvmStatic
 	val HEADER: List<String> =
