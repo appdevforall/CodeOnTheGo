@@ -796,21 +796,6 @@ final class QuickBuildRuntime {
 	}
 
 	/**
-	 * Reports a payload that failed before {@link #handlePayload}'s acceptance check, where the store was never consulted and nothing was posted.
-	 *
-	 * Deliberately not {@link #failReload}: that path restores the pre-apply snapshot whenever the store's live generation equals the failed one, and before the acceptance check the snapshot has not been taken - so a replayed generation whose dex read failed restored null and went inert, quarantining the generation the app was happily running. The report and banner still fire, or the host's only signal is its deploy timeout. Safe on the binder thread: the report is oneway and the banner re-posts to main.
-	 *
-	 * @param generation
-	 *            the generation that failed, which CoGo marks bad
-	 * @param error
-	 *            the failure, summarized into both the report and the banner
-	 */
-	private void reportUnadoptedFailure(long generation, Throwable error) {
-		setOverlayState(OverlayState.crashed());
-		client.reportCrash(generation, CrashSummary.forReport(error));
-	}
-
-	/**
 	 * Chains a handler that quarantines and reports the generation a crash belongs to, before the app dies.
 	 *
 	 * A payload crash during render happens outside our call stack - the recreated activity throws in its own lifecycle - so the default uncaught handler is the only interception point. It delegates afterwards, so the process still dies; on relaunch the app reconnects with whatever the store then serves and CoGo decides what to redeploy.
@@ -1056,6 +1041,21 @@ final class QuickBuildRuntime {
 			RuntimeLog.e("reload for gen " + generation + " failed", error);
 			failReload(generation, rollback, error);
 		}
+	}
+
+	/**
+	 * Reports a payload that failed before {@link #handlePayload}'s acceptance check, where the store was never consulted and nothing was posted.
+	 *
+	 * Deliberately not {@link #failReload}: that path restores the pre-apply snapshot whenever the store's live generation equals the failed one, and before the acceptance check the snapshot has not been taken - so a replayed generation whose dex read failed restored null and went inert, quarantining the generation the app was happily running. The report and banner still fire, or the host's only signal is its deploy timeout. Safe on the binder thread: the report is oneway and the banner re-posts to main.
+	 *
+	 * @param generation
+	 *            the generation that failed, which CoGo marks bad
+	 * @param error
+	 *            the failure, summarized into both the report and the banner
+	 */
+	private void reportUnadoptedFailure(long generation, Throwable error) {
+		setOverlayState(OverlayState.crashed());
+		client.reportCrash(generation, CrashSummary.forReport(error));
 	}
 
 	/**
