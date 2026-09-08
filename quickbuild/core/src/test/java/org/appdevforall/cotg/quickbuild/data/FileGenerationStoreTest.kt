@@ -113,7 +113,12 @@ class FileGenerationStoreTest {
 		}
 
 	/** @return every staged `.tmp` a save could have left beside the counter. */
-	private fun stagingFiles(): List<File> = tempDir.listFiles { f -> f.name.startsWith("generation.") && f.name.endsWith(".tmp") }.orEmpty().toList()
+	private fun stagingFiles(): List<File> =
+		tempDir
+			.listFiles { f ->
+				f.name.startsWith("generation.") && f.name.endsWith(".tmp")
+			}.orEmpty()
+			.toList()
 
 	@Test
 	fun `forProject uses the canonical androidide state path`() =
