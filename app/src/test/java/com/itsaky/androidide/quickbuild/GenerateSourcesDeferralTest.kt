@@ -189,6 +189,27 @@ class GenerateSourcesDeferralTest {
 		}
 
 	@Test
+	fun `a dispatched build is claimed by the hand-back once, and only a dispatched one`() =
+		runTest {
+			val deferral = deferral()
+
+			// Nothing dispatched yet: the next finished build is somebody else's.
+			assertThat(deferral.claimOwnFinishedBuild()).isFalse()
+
+			deferral.onResourceSaved()
+			assertThat(builds).isEqualTo(1)
+			assertThat(deferral.claimOwnFinishedBuild()).isTrue()
+			// Consumed: a Standard Run finishing after it is handed back as usual.
+			assertThat(deferral.claimOwnFinishedBuild()).isFalse()
+
+			// A refusal dispatched nothing, so there is no build of ours to claim.
+			dispatch = false
+			deferral.onResourceSaved()
+			assertThat(builds).isEqualTo(1)
+			assertThat(deferral.claimOwnFinishedBuild()).isFalse()
+		}
+
+	@Test
 	fun `a refused build stays parked and retries until it dispatches`() =
 		runTest {
 			val deferral = deferral()
