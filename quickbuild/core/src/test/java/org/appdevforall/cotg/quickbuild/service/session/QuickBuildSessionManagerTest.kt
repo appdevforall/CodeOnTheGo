@@ -286,7 +286,11 @@ class QuickBuildSessionManagerTest {
 
 	private fun defaultProxyAppRebuildSuccess(): ProxyAppRebuildOutcome.Success {
 		val provision = defaultProvisionOutcome() as ProvisionOutcome.Success
-		return ProxyAppRebuildOutcome.Success(proxyApp = provision.proxyApp, layout = provision.layout)
+		return ProxyAppRebuildOutcome.Success(
+			proxyApp = provision.proxyApp,
+			proxyAppUid = provision.proxyAppUid,
+			layout = provision.layout,
+		)
 	}
 
 	/**
