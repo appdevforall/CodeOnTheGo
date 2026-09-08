@@ -597,7 +597,7 @@ class QuickBuildOutputLinesTest {
 		val summary = quickBuildProxyAppFailureSummary(output)
 
 		assertThat(summary!!.length).isAtMost(160)
-		assertThat(summary).endsWith("…")
+		assertThat(summary).endsWith("...")
 	}
 
 	@Test
