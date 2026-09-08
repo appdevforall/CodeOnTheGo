@@ -86,6 +86,20 @@ class PersistedSelectionTest {
 	}
 
 	@Test
+	void aRejectedPersistedPayloadIsClearedFromDisk() throws Exception {
+		// Skipping the superseded epoch's files is not enough: the store is keyed on the
+		// baseline dex alone, so the next persist would read them as its own history and
+		// inherit the old epoch's meta.
+		PayloadPersistence store = store();
+		persist(store, 7);
+
+		PersistedSelection.selectPersisted(8, store, fingerprint());
+
+		assertThat(store.load(fingerprint())).isNull();
+		assertThat(store.dir().exists()).isFalse();
+	}
+
+	@Test
 	void aStoreKeyedToAnotherBaselineIsNotAdopted() throws Exception {
 		PayloadPersistence store = store();
 		persist(store, 9);
