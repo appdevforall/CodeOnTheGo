@@ -76,16 +76,6 @@ class PersistedSelectionTest {
 	}
 
 	@Test
-	void aStampedRebaselineRejectsThePreviousEpochsPersistedPayload() throws Exception {
-		// A manifest-only rebaseline leaves the baseline dex byte-identical, so the
-		// fingerprint matches; only the stamp says gen 7 is from the superseded epoch.
-		PayloadPersistence store = store();
-		persist(store, 7);
-
-		assertThat(PersistedSelection.selectPersisted(8, store, fingerprint())).isNull();
-	}
-
-	@Test
 	void aRejectedPersistedPayloadIsClearedFromDisk() throws Exception {
 		// Skipping the superseded epoch's files is not enough: the store is keyed on the
 		// baseline dex alone, so the next persist would read them as its own history and
@@ -97,6 +87,16 @@ class PersistedSelectionTest {
 
 		assertThat(store.load(fingerprint())).isNull();
 		assertThat(store.dir().exists()).isFalse();
+	}
+
+	@Test
+	void aStampedRebaselineRejectsThePreviousEpochsPersistedPayload() throws Exception {
+		// A manifest-only rebaseline leaves the baseline dex byte-identical, so the
+		// fingerprint matches; only the stamp says gen 7 is from the superseded epoch.
+		PayloadPersistence store = store();
+		persist(store, 7);
+
+		assertThat(PersistedSelection.selectPersisted(8, store, fingerprint())).isNull();
 	}
 
 	@Test
