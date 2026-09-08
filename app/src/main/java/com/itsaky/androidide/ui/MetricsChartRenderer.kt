@@ -77,6 +77,14 @@ abstract class MetricsChartRenderer(
 	private var userHasZoomed = false
 
 	/**
+	 * The top inset last reserved, so an unchanged value costs nothing.
+	 *
+	 * [reserveTopSpace] is called from the power listener on every sample, and the height it
+	 * reserves changes only when the readout appears or disappears or the font scale moves.
+	 */
+	private var reservedTopPixels = Float.NaN
+
+	/**
 	 * The attached chart, or `null` when no carousel page is bound to this renderer.
 	 */
 	protected var chart: SafeLineChart? = null
@@ -103,10 +111,18 @@ abstract class MetricsChartRenderer(
 	@UiThread
 	fun reserveTopSpace(pixels: Float) {
 		val chart = this.chart ?: return
+		if (pixels == reservedTopPixels) {
+			return
+		}
+		reservedTopPixels = pixels
 		chart.setExtraTopOffset(pixels / chart.resources.displayMetrics.density)
-		// setExtraTopOffset only stores the value; the viewport is recomputed by calculateOffsets,
-		// which is protected and otherwise runs only when the chart's size changes.
-		chart.notifyDataSetChanged()
+		// setExtraTopOffset only stores the value; calculateOffsets is what turns it into a
+		// viewport. It is public in AndroidChart 3.1.0.21 -- an earlier comment here called it
+		// protected, which is why this used to go the long way round through
+		// notifyDataSetChanged(). That did far more work (initBuffers, calcMinMax, three
+		// computeAxis calls, computeLegend) and, worse, returns early when the chart has no data
+		// yet -- which is exactly the state at bind time, when this is first called.
+		chart.calculateOffsets()
 		chart.invalidate()
 	}
 

@@ -61,6 +61,7 @@ class SafeLineChart : LineChart {
 	 * Drawn here rather than by the caller because the chart owns the transformer that maps an
 	 * x value to a pixel, and that mapping changes with every zoom, pan and layout.
 	 */
+	@Volatile
 	var backgroundSpans: List<Span> = emptyList()
 		set(value) {
 			field = value
@@ -80,11 +81,6 @@ class SafeLineChart : LineChart {
 		val color: Int,
 	)
 
-	private val spanPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-	/** Reused by [drawBackgroundSpans]: two (x, y) pairs, transformed in place. */
-	private val spanPoints = FloatArray(4)
-
 	/**
 	 * Draws the spans immediately after the grid background, which is an opaque fill of the plot: a
 	 * span painted before [onDraw] delegates upwards is covered by it and never reaches the screen.
@@ -96,24 +92,33 @@ class SafeLineChart : LineChart {
 	}
 
 	private fun drawBackgroundSpans(canvas: Canvas) {
-		if (backgroundSpans.isEmpty()) {
+		val spans = backgroundSpans
+		if (spans.isEmpty()) {
 			return
 		}
 
 		val content = viewPortHandler.contentRect
 		val transformer = getTransformer(YAxis.AxisDependency.LEFT) ?: return
 
-		backgroundSpans.forEach { span ->
-			// A reused buffer through pointValuesToPixel, not two getPixelForValues calls: those
-			// hand back pooled MPPointD instances that have to be recycled, and this runs inside
-			// onDraw for every span on every frame of every pan and zoom.
-			spanPoints[0] = span.startX
-			spanPoints[1] = 0f
-			spanPoints[2] = span.endX
-			spanPoints[3] = 0f
-			transformer.pointValuesToPixel(spanPoints)
-			val left = spanPoints[0]
-			val right = spanPoints[2]
+		// Locals, not fields. This runs inside [onDraw], and the whole reason this class exists is
+		// that onDraw is entered from two threads at once -- Sentry Session Replay draws the
+		// hierarchy off the main thread. A scratch buffer and a Paint held as fields are a data
+		// race on exactly the hazard the class guards: the replay thread can overwrite all four
+		// slots, or the colour, between the main thread's write and its read, and the band is then
+		// painted at another span's coordinates or in another span's hue. One array and one Paint
+		// per draw is still far less churn than the pooled MPPointD instances this replaced, and
+		// it cannot be raced.
+		val points = FloatArray(4)
+		val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+		spans.forEach { span ->
+			points[0] = span.startX
+			points[1] = 0f
+			points[2] = span.endX
+			points[3] = 0f
+			transformer.pointValuesToPixel(points)
+			val left = points[0]
+			val right = points[2]
 			// A span scrolled out of view still maps to a pixel, so clip to the plot.
 			val clippedLeft = left.coerceAtLeast(content.left)
 			val clippedRight = right.coerceAtMost(content.right)
@@ -121,8 +126,8 @@ class SafeLineChart : LineChart {
 				return@forEach
 			}
 
-			spanPaint.color = span.color
-			canvas.drawRect(clippedLeft, content.top, clippedRight, content.bottom, spanPaint)
+			paint.color = span.color
+			canvas.drawRect(clippedLeft, content.top, clippedRight, content.bottom, paint)
 		}
 	}
 
