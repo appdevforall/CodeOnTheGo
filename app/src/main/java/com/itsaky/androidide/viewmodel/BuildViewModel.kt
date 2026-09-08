@@ -203,6 +203,8 @@ class BuildViewModel(
 		onTerminalState: ((BuildState) -> Unit)? = null,
 	): Boolean {
 		if (!claimBuildSlot(onTerminalState)) return false
+		// Run Tasks never asked, so the install must ask: see clobberAnswerAtTap.
+		clobberAnswerAtTap = null
 		viewModelScope.launch {
 			val reporter = RunReporter(onTerminalState)
 			val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
