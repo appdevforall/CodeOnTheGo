@@ -191,11 +191,11 @@ class DaemonProcessClientEdgeTest {
 			}
 
 			val pid = pidFile.readText().trim()
-			// The shutdown is asynchronous to the cancel only in the pid's exit bookkeeping, so
-			// give the kill a moment before declaring the child leaked.
-			var alive = isProcessAlive(pid)
-			repeat(50) { if (alive) { Thread.sleep(100); alive = isProcessAlive(pid) } }
-			assertThat(alive).isFalse()
+			// The kill is complete when cancelAndJoin returns, but the OS reaps the child a
+			// beat later, so give it a moment before declaring the child leaked.
+			var attempts = 0
+			while (isProcessAlive(pid) && attempts++ < 50) Thread.sleep(100)
+			assertThat(isProcessAlive(pid)).isFalse()
 		} finally {
 			runBlocking { client.shutdown() }
 			scope.cancel()
