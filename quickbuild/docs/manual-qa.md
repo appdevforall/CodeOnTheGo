@@ -370,6 +370,21 @@ Expected:
 2. It respawns and re-seeds with no tap from you.
 3. The edit then builds and deploys.
 
+### T24 - Run while Quick Build is still setting up
+
+Automated coverage: none - the refusal window only exists on a device with the eager proxy-app build in flight.
+
+Steps:
+
+1. Open a project with Quick Build enabled and wait for the bolt to show it is provisioning. The eager proxy-app build owns the single Gradle slot while the editor's own build UI stays idle.
+2. Press Run before it finishes.
+
+Expected:
+
+1. A flash reads "Quick Build is setting up the app. Run will work once that finishes." (`msg_build_slot_busy`).
+2. No second build starts: Build Output shows only the proxy-app build, and the Run button never turns into a stop button.
+3. Once the proxy-app build lands, Run works as usual.
+
 ## Block C - templates and real apps (optional tail)
 
 Each case here needs its own project, so each pays its own cold provisioning cost.
