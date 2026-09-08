@@ -40,7 +40,6 @@ import org.appdevforall.cotg.quickbuild.domain.reload.LiveReloadRequestOutcome
 import org.appdevforall.cotg.quickbuild.domain.reload.OrchestratorEvent
 import org.appdevforall.cotg.quickbuild.domain.reload.isRestartSensitive
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
-import org.appdevforall.cotg.quickbuild.service.session.QuickBuildDaemonController.DeathReporter
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildSessionState
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
@@ -58,6 +57,7 @@ import org.appdevforall.cotg.quickbuild.service.deploy.TargetReport
 import org.appdevforall.cotg.quickbuild.service.provision.ProxyAppBuildRunner
 import org.appdevforall.cotg.quickbuild.service.provision.ProxyAppLauncher
 import org.appdevforall.cotg.quickbuild.service.provision.QuickBuildProvisioner
+import org.appdevforall.cotg.quickbuild.service.session.QuickBuildDaemonController.DeathReporter
 import org.appdevforall.cotg.quickbuild.service.telemetry.report
 import org.slf4j.LoggerFactory
 import java.io.File
