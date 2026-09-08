@@ -225,6 +225,7 @@ class GradleQuickBuildProvisioner(
 			is InstallOutcome.Installed -> {
 				ProxyAppRebuildOutcome.Success(
 					proxyApp = buildResult.proxyApp,
+					proxyAppUid = installed.uid,
 					baselineGeneration = buildResult.baselineGeneration,
 					layout =
 						QuickBuildProjectLayout(
