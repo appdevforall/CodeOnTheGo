@@ -48,6 +48,7 @@ class MetricsCsvFileTest {
 		val times = LongArray(rows) { AT + it * 1_000L }
 		return MetricsCsv.Snapshot(
 			rowTimes = times,
+			sampleIntervalMillis = INTERVAL_MS,
 			memory = mapOf("IDE" to MetricsCsv.Series(times, LongArray(rows) { 600_000_000L + it })),
 		)
 	}
@@ -67,6 +68,7 @@ class MetricsCsvFileTest {
 		var celsius = 32_000L
 		return MetricsCsv.Snapshot(
 			rowTimes = times,
+			sampleIntervalMillis = INTERVAL_MS,
 			memory =
 				mapOf(
 					"IDE" to series { (ide + random.nextInt(-6_000_000, 6_000_000)).also { ide = it } },
@@ -175,5 +177,8 @@ class MetricsCsvFileTest {
 	private companion object {
 		/** 2026-09-06T22:33:40.123 local. */
 		const val AT = 1_788_759_220_123L
+
+		/** The gap between the rows these fixtures build. */
+		const val INTERVAL_MS = 1_000L
 	}
 }

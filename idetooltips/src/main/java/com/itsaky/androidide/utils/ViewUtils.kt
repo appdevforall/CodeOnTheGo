@@ -7,6 +7,7 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewGroup
 import com.itsaky.androidide.idetooltips.R
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
@@ -28,12 +29,16 @@ fun showTooltipIfPresent(
 	tag: String,
 	playHapticFeedback: Boolean = true,
 ) {
-	if (tag.isNotBlank()) {
-		if (playHapticFeedback) {
-			anchor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-		}
-		TooltipManager.showTooltip(context, anchor, category, tag)
+	if (tag.isBlank() || !TooltipManager.canShowPopup(context, anchor)) {
+		// Asked before the haptic, not after. The buzz is what tells the user help has arrived, and
+		// showTooltip declines silently for a detached anchor -- so a hold completing after its
+		// window has gone used to buzz for a tooltip that never appeared.
+		return
 	}
+	if (playHapticFeedback) {
+		anchor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+	}
+	TooltipManager.showTooltip(context, anchor, category, tag)
 }
 
 /** Shows [tag]'s IDE-category tooltip anchored to [anchor]. See [showTooltipIfPresent]. */
@@ -151,9 +156,11 @@ fun View.clearLongPressHelp() {
  * caller that installed only a hold should be able to undo only a hold.
  *
  * The touch listener is removed only when [performOnHold] is the one that installed it, which the
- * tag says. Five of the six views [clearLongPressHelp] is called on are wired through the
- * framework's long click and never had one, and a blanket `setOnTouchListener(null)` there would
- * silently take away an unrelated listener the next contributor adds.
+ * tag says. Most views [clearLongPressHelp] is called on are wired through the framework's long
+ * click and never had one, and a blanket `setOnTouchListener(null)` there would silently take away
+ * an unrelated listener the next contributor adds. (An earlier version of this line counted them --
+ * "five of the six" -- which stopped being true in the same PR that wrote it, when the bottom
+ * sheet's buttons were converted.)
  */
 fun View.clearOnHold() {
 	val hold = getTag(R.id.tooltip_hold_listener) as? HoldTouchListener ?: return
@@ -195,25 +202,59 @@ private class HoldTouchListener(
 
 	private var holding = false
 
+	/**
+	 * The pressed state waiting out [ViewConfiguration.getTapTimeout], or `null` when there is none.
+	 *
+	 * `View.onTouchEvent` does not light a control up the instant a finger lands on it when the
+	 * control sits in a scrolling container: it waits a tap timeout first, so that a flick which
+	 * happens to start on a button scrolls without flashing it. Taking the touch over means taking
+	 * that over too. The bottom sheet's output-action buttons, which ADFA-5554 wired for help, sit
+	 * in a HorizontalScrollView, so this is a real case here and not a hypothetical one.
+	 */
+	private var pendingPress: Runnable? = null
+
 	/** The click waiting for the next turn of the looper, so a teardown can still take it back. */
 	private var pendingClick: Runnable? = null
 
 	private val fire =
 		Runnable {
 			held = true
-			view.isPressed = false
+			releasePress()
 			onHold()
 		}
 
 	fun cancel() {
 		holding = false
 		handler.removeCallbacks(fire)
+		releasePress()
 		// The click too. It is posted rather than run inline, so a teardown landing between the
 		// finger lifting and the looper's next turn would otherwise still click a control it has
 		// just unwired -- the same defect the hold timer has, one method along.
 		pendingClick?.let(handler::removeCallbacks)
 		pendingClick = null
+	}
+
+	/** Drops a press that has not been drawn yet, and any that has. */
+	private fun releasePress() {
+		pendingPress?.let(handler::removeCallbacks)
+		pendingPress = null
 		view.isPressed = false
+	}
+
+	/**
+	 * Whether any ancestor delays the pressed state of its children, which is what
+	 * `View.isInScrollingContainer` asks. That method is not in the public SDK; the question it
+	 * answers is, one `ViewGroup` at a time.
+	 */
+	private fun isInScrollingContainer(): Boolean {
+		var parent = view.parent
+		while (parent is ViewGroup) {
+			if (parent.shouldDelayChildPressedState()) {
+				return true
+			}
+			parent = parent.parent
+		}
+		return false
 	}
 
 	/**
@@ -238,10 +279,22 @@ private class HoldTouchListener(
 			MotionEvent.ACTION_DOWN -> {
 				held = false
 				holding = true
-				v.isPressed = true
 				// The framework starts the ripple from the touch point. Without this every ripple
 				// on these controls begins at the centre of the drawable instead.
-				v.drawableHotspotChanged(event.x, event.y)
+				val x = event.x
+				val y = event.y
+				val press =
+					Runnable {
+						pendingPress = null
+						v.isPressed = true
+						v.drawableHotspotChanged(x, y)
+					}
+				if (isInScrollingContainer()) {
+					pendingPress = press
+					handler.postDelayed(press, ViewConfiguration.getTapTimeout().toLong())
+				} else {
+					press.run()
+				}
 				handler.postDelayed(fire, holdMillis)
 			}
 
@@ -252,7 +305,7 @@ private class HoldTouchListener(
 				// enough to open that button's help over a strip that was undocking.
 				holding = false
 				handler.removeCallbacks(fire)
-				v.isPressed = false
+				releasePress()
 			}
 
 			MotionEvent.ACTION_MOVE -> {
@@ -261,20 +314,24 @@ private class HoldTouchListener(
 					// treats a drag out of a view. Taking the touch over means saying so.
 					holding = false
 					handler.removeCallbacks(fire)
-					v.isPressed = false
+					releasePress()
 				}
 			}
 
 			MotionEvent.ACTION_UP -> {
 				handler.removeCallbacks(fire)
-				v.isPressed = false
+				releasePress()
 				// The click belongs to a press that stayed put, did not become a hold, and landed
-				// on something that answers taps. That last test is View.onTouchEvent's, and
-				// taking the touch over means taking it over too: the carousel dims the arrow at
-				// either end by clearing isClickable rather than isEnabled, precisely so it still
-				// answers a hold, and without this it went back to answering taps -- playing the
-				// click sound and announcing a click for a control a screen reader is being told
-				// is unavailable.
+				// on something that answers taps.
+				//
+				// That last test is stricter than the framework's, deliberately. View.onTouchEvent
+				// reads `clickable` once at the top, as CLICKABLE || LONG_CLICKABLE ||
+				// CONTEXT_CLICKABLE, and never re-tests isClickable before performing the click --
+				// so a long-clickable view still clicks there. The carousel dims the arrow at
+				// either end by clearing isClickable rather than isEnabled, precisely so it keeps
+				// answering a hold, and matching the framework here would have it answer taps too:
+				// playing the click sound and announcing a click for a control a screen reader is
+				// being told is unavailable.
 				if (holding && !held && v.isClickable) {
 					// Posted rather than called here, as View.onTouchEvent does, so the pressed
 					// state is drawn before the action runs -- these open dialogs and re-page the
@@ -297,7 +354,7 @@ private class HoldTouchListener(
 			MotionEvent.ACTION_CANCEL -> {
 				holding = false
 				handler.removeCallbacks(fire)
-				v.isPressed = false
+				releasePress()
 			}
 		}
 		return true

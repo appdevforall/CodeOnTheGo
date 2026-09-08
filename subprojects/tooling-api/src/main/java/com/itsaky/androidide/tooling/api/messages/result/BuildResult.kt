@@ -29,7 +29,13 @@ data class BuildResult(
 	val tasks: List<String>,
 	val durationMs: Long,
 	/**
-	 * Why the build failed, or `null` if it succeeded.
+	 * Why the build failed.
+	 *
+	 * `null` on a successful build, which this type also carries. On a failed one this server
+	 * always fills it in -- `notifyBuildFailure` classifies the throwable and returns a
+	 * non-null [TaskExecutionResult.Failure], and both catch paths go through it -- so a client
+	 * seeing `null` here alongside a failure is talking to a server that does not classify, not
+	 * to this one. Nullable on the wire for exactly that case.
 	 *
 	 * The server is the only party that can answer this: Gradle raises a
 	 * `BuildCancelledException` for a build the user stopped, and the same throwable that decides

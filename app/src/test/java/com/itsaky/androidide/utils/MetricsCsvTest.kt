@@ -43,6 +43,7 @@ class MetricsCsvTest {
 
 	private fun snapshot(
 		rowTimes: LongArray = longArrayOf(T0, T0 + 1_000L),
+		sampleIntervalMillis: Long = INTERVAL_MS,
 		memory: Map<String, MetricsCsv.Series> = emptyMap(),
 		networkReceived: MetricsCsv.Series = MetricsCsv.Series.EMPTY,
 		networkTransmitted: MetricsCsv.Series = MetricsCsv.Series.EMPTY,
@@ -52,6 +53,7 @@ class MetricsCsvTest {
 		annotations: List<MetricsCsv.Marker> = emptyList(),
 	) = MetricsCsv.Snapshot(
 		rowTimes = rowTimes,
+		sampleIntervalMillis = sampleIntervalMillis,
 		memory = memory,
 		networkReceived = networkReceived,
 		networkTransmitted = networkTransmitted,
@@ -180,6 +182,78 @@ class MetricsCsvTest {
 	}
 
 	@Test
+	fun `a cell a spreadsheet would run as a formula is prefixed`() {
+		// The annotation columns carry Gradle task names read from the user's own build script, and
+		// this file is attached to crash reports (ADFA-5526) and feedback (ADFA-5534) that someone
+		// opens. Quoting alone does not stop the evaluation; the apostrophe does.
+		val column = MetricsCsv.HEADER.indexOf("annotation")
+		listOf("=1+1", "+1", "-1", "@SUM(A1)", "\tlater", "\rlater").forEach { label ->
+			val lines =
+				render(
+					snapshot(
+						rowTimes = longArrayOf(T0),
+						annotations = listOf(MetricsCsv.Marker(T0, label, "TASK")),
+					),
+				)
+
+			assertThat(cellsIn(lines[1])[column]).isEqualTo("\"'" + label + "\"")
+		}
+	}
+
+	@Test
+	fun `an ordinary label is not prefixed`() {
+		// The guard has to be narrow: prefixing every cell would put an apostrophe in front of every
+		// task name a reader sees.
+		val lines =
+			render(
+				snapshot(
+					rowTimes = longArrayOf(T0),
+					annotations = listOf(MetricsCsv.Marker(T0, ":app:assembleV8Debug", "TASK")),
+				),
+			)
+
+		assertThat(cellsIn(lines[1])[MetricsCsv.HEADER.indexOf("annotation")])
+			.isEqualTo("\":app:assembleV8Debug\"")
+	}
+
+	@Test
+	fun `an annotation further than one interval from every row is dropped`() {
+		// An annotation older than the buffer reaches is the ordinary case in a long session: the
+		// store keeps its own history and the ring buffer has already rolled past it.
+		val lines =
+			render(
+				snapshot(
+					rowTimes = longArrayOf(T0, T0 + INTERVAL_MS),
+					annotations = listOf(MetricsCsv.Marker(T0 - 60_000L, "Build started", "BUILD_STARTED")),
+				),
+			)
+
+		val column = MetricsCsv.HEADER.indexOf("annotation")
+		assertThat(lines.drop(1).map { cellsIn(it)[column] }).containsExactly("", "")
+	}
+
+	@Test
+	fun `a stale annotation does not take the first row from a real one`() {
+		// Both markers' nearest row is the first one. Sorted by time the stale one comes first, so
+		// without the cap it took the row and putIfAbsent then dropped the marker that actually
+		// belongs there -- the file gained an ancient annotation on its oldest row and lost a real
+		// one, with nothing to say either had happened.
+		val lines =
+			render(
+				snapshot(
+					rowTimes = longArrayOf(T0, T0 + INTERVAL_MS),
+					annotations =
+						listOf(
+							MetricsCsv.Marker(T0 - 60 * 60 * 1000L, "stale", "TASK"),
+							MetricsCsv.Marker(T0 + 10L, "real", "TASK"),
+						),
+				),
+			)
+
+		assertThat(cellsIn(lines[1])[MetricsCsv.HEADER.indexOf("annotation")]).isEqualTo("\"real\"")
+	}
+
+	@Test
 	fun `an annotation lands on the sample nearest in time, not only an exact match`() {
 		val times = longArrayOf(T0, T0 + 1_000L, T0 + 2_000L)
 		val lines =
@@ -240,10 +314,13 @@ class MetricsCsvTest {
 	}
 
 	@Test
-	fun `an unconverted monotonic time would land on the oldest row`() {
-		// What the mix-up looked like on a device: a monotonic time is a few hours and an epoch time
-		// is decades, so every row is about equally far away and the nearest-row search picks
-		// whichever number is smallest -- the oldest sample, whenever the event really happened.
+	fun `an unconverted monotonic time reaches no row at all`() {
+		// What the mix-up looks like on a device: a monotonic time is a few hours and an epoch time
+		// is decades, so every row is about equally far away. Before the distance cap the
+		// nearest-row search picked whichever number was smallest -- the oldest sample, whenever
+		// the event really happened -- and wrote the marker there. Now it is further from every row
+		// than a sampling interval, so it is dropped, and the file loses it rather than lying about
+		// when it happened. Either way [MetricsCsv.epochFor] is what makes it land correctly.
 		val times = longArrayOf(T0, T0 + 1_000L, T0 + 2_000L)
 		val lines =
 			render(
@@ -254,8 +331,7 @@ class MetricsCsvTest {
 			)
 
 		val column = MetricsCsv.HEADER.indexOf("annotation")
-		assertThat(cellsIn(lines[1])[column]).isEqualTo("\"Build started\"")
-		assertThat(cellsIn(lines[3])[column]).isEmpty()
+		assertThat(lines.drop(1).map { cellsIn(it)[column] }).containsExactly("", "", "")
 	}
 
 	@Test
@@ -343,5 +419,8 @@ class MetricsCsvTest {
 
 		/** 2026-09-06T22:33:40.123 in America/Los_Angeles, which is UTC-7 at that date. */
 		const val T0 = 1_788_759_220_123L
+
+		/** The gap between the default rows, and so the distance a marker may sit from one. */
+		const val INTERVAL_MS = 1_000L
 	}
 }

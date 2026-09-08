@@ -459,16 +459,26 @@ class GradleBuildService :
 		eventListener?.onBuildSuccessful(result.tasks)
 	}
 
+	/**
+	 * What the notification in the shade says about a build that did not succeed.
+	 *
+	 * Extracted so it can be asserted: [onBuildFailed] needs a live service before it reaches this
+	 * point, which is the same reason [EditorBuildEventListener] separates its own two decisions.
+	 * Without a test here, deleting the cancelled arm left every test green while a build the user
+	 * stopped went back to saying "Build failed" in the shade.
+	 */
+	@VisibleForTesting
+	internal fun notificationStatusFor(failure: TaskExecutionResult.Failure?): Int =
+		if (failure == TaskExecutionResult.Failure.BUILD_CANCELLED) {
+			R.string.info_build_cancelled
+		} else {
+			R.string.build_status_failed
+		}
+
 	override fun onBuildFailed(result: BuildResult) {
 		// The notification too, not only what reaches the listener: a build the user stopped left
 		// "Build failed" in the shade whatever the chart said (ADFA-5542).
-		val status =
-			if (result.failure == TaskExecutionResult.Failure.BUILD_CANCELLED) {
-				R.string.info_build_cancelled
-			} else {
-				R.string.build_status_failed
-			}
-		updateNotification(getString(status), false)
+		updateNotification(getString(notificationStatusFor(result.failure)), false)
 
 		dispatchBuildResult(result, false)
 		eventListener?.onBuildFailed(result.tasks, result.failure)
@@ -851,7 +861,10 @@ class GradleBuildService :
 		 * the answer is known rather than inferred (ADFA-5542).
 		 *
 		 * @param tasks The tasks that were run.
-		 * @param failure Why the build failed, or null if the server did not say.
+		 * @param failure Why the build failed. Never null from this server, which classifies every
+		 *    failure before reporting it; nullable because the wire type allows a server that does
+		 *    not. A null is treated as an ordinary failure, which is the safe reading -- reporting
+		 *    a real failure as a cancel would hide it.
 		 * @see IToolingApiClient.onBuildFailed
 		 */
 		fun onBuildFailed(

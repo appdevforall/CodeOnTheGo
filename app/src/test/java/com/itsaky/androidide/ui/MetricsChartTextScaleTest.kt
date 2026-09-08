@@ -49,7 +49,11 @@ class MetricsChartTextScaleTest {
 		val chart = SafeLineChart(context)
 		NetworkUsageChartRenderer(
 			usageProvider = {
-				NetworkUsageWatcher.NetworkUsage(LongArray(SAMPLES) { 1_000L }, LongArray(SAMPLES) { 500L })
+				NetworkUsageWatcher.NetworkUsage(
+					LongArray(SAMPLES) { 1_000L },
+					LongArray(SAMPLES) { 500L },
+					LongArray(SAMPLES),
+				)
 			},
 		).attach(chart)
 		return chart
@@ -114,7 +118,11 @@ class MetricsChartTextScaleTest {
 		val chart = SafeLineChart(context)
 		NetworkUsageChartRenderer(
 			usageProvider = {
-				NetworkUsageWatcher.NetworkUsage(LongArray(SAMPLES) { 1_000L }, LongArray(SAMPLES) { 500L })
+				NetworkUsageWatcher.NetworkUsage(
+					LongArray(SAMPLES) { 1_000L },
+					LongArray(SAMPLES) { 500L },
+					LongArray(SAMPLES),
+				)
 			},
 			annotations = store,
 			sampleInterval = { 1_000L },
@@ -176,7 +184,11 @@ class MetricsChartTextScaleTest {
 				.inflate(R.layout.item_metrics_chart, strip.metricsPager, false) as SafeLineChart
 		NetworkUsageChartRenderer(
 			usageProvider = {
-				NetworkUsageWatcher.NetworkUsage(LongArray(SAMPLES) { 1_000L }, LongArray(SAMPLES) { 500L })
+				NetworkUsageWatcher.NetworkUsage(
+					LongArray(SAMPLES) { 1_000L },
+					LongArray(SAMPLES) { 500L },
+					LongArray(SAMPLES),
+				)
 			},
 		).attach(page)
 		page.layOutAndDraw(width = strip.metricsPager.width, height = strip.metricsPager.height)

@@ -93,14 +93,7 @@ subprojects {
 		// Gradle's default test-worker heap is 512m, too small for the Robolectric +
 		// Kotlin Analysis API suites (:lsp:kotlin peaks near 240m and keeps growing).
 		// Keep it explicit so the suites fail on a real regression, not on the default.
-		//
-		// 1g -> 2g (ADFA-5554): Robolectric builds a separate sandbox per distinct @Config, each
-		// loading the framework again, and :app now has enough of them that 1g died mid-run --
-		// exit code 3, no failure recorded, and whichever tests had not run yet reported zeroes
-		// that look like assertion failures. Raising it here rather than in :app because this is
-		// the block that wins: a maxHeapSize set in a module's own testOptions is overwritten by
-		// this one, which is why an experiment that appeared to rule heap out did not.
-		maxHeapSize = "2g"
+		maxHeapSize = "1g"
 
 		// Backstop: kill any individual Test task that runs longer than 10 minutes.
 		// Prevents a single hung test JVM (e.g. the Tooling API child) from burning

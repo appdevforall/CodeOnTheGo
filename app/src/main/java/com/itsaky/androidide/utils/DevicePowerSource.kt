@@ -23,6 +23,7 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.getSystemService
 import com.itsaky.androidide.services.builder.ThermalInfo
 import com.itsaky.androidide.services.builder.ThermalState
@@ -93,12 +94,36 @@ class DevicePowerSource(
 			return PowerUsageWatcher.UNAVAILABLE
 		}
 
+		return microWattsOrUnavailable(microAmps, milliVolts)
+	}
+
+	/**
+	 * Turns a current and a voltage into microwatts, or [PowerUsageWatcher.UNAVAILABLE].
+	 *
+	 * Separated so the envelope can be asserted: [readPower] needs a BatteryManager and a sticky
+	 * intent, and the part worth testing is arithmetic.
+	 */
+	@VisibleForTesting
+	internal fun microWattsOrUnavailable(
+		microAmps: Int,
+		milliVolts: Int,
+	): Long {
 		val microWatts = microAmps.toLong() * milliVolts.toLong() / NANOWATTS_PER_MICROWATT
 
 		// The sign of CURRENT_NOW is documented and not always honoured; the unit is the same
-		// story. Several OEM kernels report milliamps, which makes a five-watt build read as five
-		// milliwatts -- indistinguishable from an idle device, with no error path at all. Outside
-		// a plausible envelope, report the reading as unavailable rather than as a believable lie.
+		// story. Several OEM kernels report milliamps, which divides the reading by a thousand:
+		// a five-watt build then reads as five milliwatts, with no error path at all.
+		//
+		// A single sample cannot tell that apart from a genuinely tiny draw -- both are 5,000
+		// microwatts -- so this is a plausibility floor, not a detector. It is set to reject the
+		// range a misreported build actually lands in: a real draw of 0.01W to 100W misreported as
+		// milliwatts gives 10 to 100,000 microwatts, and a phone running a Gradle build draws
+		// watts, not milliwatts. The residual gaps are stated rather than papered over: a real
+		// draw below MIN_PLAUSIBLE_MICROWATTS is rejected as implausible, and a misreport of a
+		// draw above 10W would pass -- neither happens on a phone.
+		//
+		// The earlier comment here claimed the envelope caught the milliamp case at a 1,000
+		// microwatt floor. It did not: five watts misreported is 5,000, comfortably inside it.
 		val magnitude = abs(microWatts)
 		return if (magnitude == 0L || magnitude in MIN_PLAUSIBLE_MICROWATTS..MAX_PLAUSIBLE_MICROWATTS) {
 			microWatts
@@ -162,8 +187,16 @@ class DevicePowerSource(
 		/** Microamps times millivolts gives nanowatts; this scales the product to microwatts. */
 		const val NANOWATTS_PER_MICROWATT = 1_000L
 
-		/** A milliwatt: below this a non-zero reading is likelier a unit mismatch than a real draw. */
-		const val MIN_PLAUSIBLE_MICROWATTS = 1_000L
+		/**
+		 * Ten milliwatts.
+		 *
+		 * Below this, a non-zero reading is likelier a milliamp-for-microamp kernel than a real
+		 * draw: it is a thousandth of the 10W ceiling a phone can actually reach, so any build
+		 * misreported this way lands under it. A device deep in doze can draw single-digit
+		 * milliwatts, which this would reject -- acceptable, because the chart exists to show what
+		 * a build costs and a dozing device is not running one.
+		 */
+		const val MIN_PLAUSIBLE_MICROWATTS = 10_000L
 
 		/** A hundred watts: no phone draws this, so that is a unit mismatch the other way. */
 		const val MAX_PLAUSIBLE_MICROWATTS = 100_000_000L

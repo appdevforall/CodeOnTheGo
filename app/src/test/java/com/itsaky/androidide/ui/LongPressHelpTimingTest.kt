@@ -23,6 +23,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.widget.Button
+import android.widget.HorizontalScrollView
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.utils.clearLongPressHelp
@@ -69,6 +70,21 @@ class LongPressHelpTimingTest {
 			performOnHold { holds++ }
 		}
 
+	/**
+	 * The same control inside a container that delays its children's pressed state.
+	 *
+	 * A `HorizontalScrollView` because that is the real case: the bottom sheet's output-action
+	 * buttons, which this ticket wired for help, sit in one. Not any container -- `ViewGroup`
+	 * defaults to true but `FrameLayout` and `LinearLayout` both override it to false, so the
+	 * choice here has to be a container that actually scrolls.
+	 */
+	private fun targetInScrollingContainer(): Button {
+		val button = target()
+		HorizontalScrollView(context).addView(button)
+		button.layout(0, 0, WIDTH, HEIGHT)
+		return button
+	}
+
 	private fun send(
 		view: View,
 		action: Int,
@@ -90,6 +106,42 @@ class LongPressHelpTimingTest {
 	 * it, so nothing has clicked until the looper turns.
 	 */
 	private fun drain() = shadowOf(Looper.getMainLooper()).idle()
+
+	@Test
+	fun `a control with no scrolling ancestor lights up the moment the finger lands`() {
+		val view = target()
+
+		send(view, MotionEvent.ACTION_DOWN)
+
+		assertThat(view.isPressed).isTrue()
+	}
+
+	@Test
+	fun `a control inside a scrolling container waits out the tap timeout first`() {
+		val view = targetInScrollingContainer()
+
+		send(view, MotionEvent.ACTION_DOWN)
+
+		// View.onTouchEvent does not light a control up straight away when it can be scrolled:
+		// it waits a tap timeout, so a flick that happens to start on a button scrolls without
+		// flashing it. Taking the touch over means taking that over too, and this listener did
+		// not -- every drag off one of these controls blinked it first.
+		assertThat(view.isPressed).isFalse()
+	}
+
+	@Test
+	fun `a flick off a control in a scrolling container never lights it up`() {
+		val view = targetInScrollingContainer()
+
+		send(view, MotionEvent.ACTION_DOWN)
+		send(view, MotionEvent.ACTION_MOVE, x = WIDTH * 4f, y = HEIGHT * 4f)
+		elapse(ViewConfiguration.getTapTimeout().toLong())
+
+		// The pressed state is on the queue when the finger leaves, so dropping the hold is not
+		// enough: the flash arrives after the gesture that cancelled it.
+		assertThat(view.isPressed).isFalse()
+		assertThat(holds).isEqualTo(0)
+	}
 
 	@Test
 	fun `a press past the platform timeout but short of the hold still clicks`() {

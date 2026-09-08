@@ -214,7 +214,17 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 					clientConfig = clientConfig,
 				)
 
-			RootModelBuilder.build(params, modelBuilderParams)
+			try {
+				RootModelBuilder.build(params, modelBuilderParams)
+			} finally {
+				// The sync path never cleared this on any outcome -- only shutdown() and an actual
+				// Stop did. So after every sync a token for a finished build sat here: the next
+				// Stop cancelled that dead source and answered wasEnqueued = true with no build
+				// running, and the check at the top of this method cancelled it again on the next
+				// initialize. The sibling of the same omission in executeTasks.
+				buildCancellationToken = null
+			}
+
 			notifyBuildSuccess(
 				BuildResult(
 					tasks = emptyList(),
@@ -301,23 +311,30 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 
 			try {
 				builder.run()
-				this.buildCancellationToken = null
-				notifyBuildSuccess(
-					result =
-						BuildResult(
-							tasks = message.tasks,
-							buildId = message.buildId,
-							durationMs = System.currentTimeMillis() - start,
-						),
-				)
-				return@runBuild TaskExecutionResult.SUCCESS
 			} catch (error: Throwable) {
 				log.error("Failed to run tasks: {}", message.tasks, error)
 				return@runBuild TaskExecutionResult(
 					false,
 					notifyBuildFailure(message.buildId, message.tasks, start, error),
 				)
+			} finally {
+				// On both paths. Only the success path cleared it, so every failed build left a
+				// token behind for a source that was already finished. The next Stop then
+				// cancelled that dead source and answered wasEnqueued = true while the live build
+				// ran on, and [initialize] -- which cancels first whenever one is set -- paid for
+				// a build that had ended long before.
+				this.buildCancellationToken = null
 			}
+
+			notifyBuildSuccess(
+				result =
+					BuildResult(
+						tasks = message.tasks,
+						buildId = message.buildId,
+						durationMs = System.currentTimeMillis() - start,
+					),
+			)
+			return@runBuild TaskExecutionResult.SUCCESS
 		}
 	}
 
