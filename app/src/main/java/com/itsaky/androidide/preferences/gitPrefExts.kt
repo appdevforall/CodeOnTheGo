@@ -117,12 +117,12 @@ class GitUserEmail(
 
 @Parcelize
 private class AddGitCommitWatermark(
-	override val key: String = GitPreferences.ADD_GIT_COMMIT_WATERMARK,
+	override val key: String = GitPreferences.ADD_GLOBAL_COMMIT_WATERMARK,
 	override val title: Int = string.idepref_git_add_commit_watermark,
 	override val summary: Int? = string.idepref_git_add_commit_watermark_summary,
 	override val icon: Int? = drawable.ic_watermark,
 	override val tooltipTag: String = TooltipTag.PREFS_GIT_WATERMARK,
 ) : SwitchPreference(
-	setValue = GitPreferences::shouldAddCommitWatermark::set,
-	getValue = GitPreferences::shouldAddCommitWatermark::get
+	setValue = GitPreferences::shouldAddGlobalCommitWatermark::set,
+	getValue = GitPreferences::shouldAddGlobalCommitWatermark::get
 )

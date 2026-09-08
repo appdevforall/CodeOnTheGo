@@ -206,6 +206,15 @@
 				android:text="@string/made_with_code_on_the_go"
 				android:visibility="visible" />
 
+			<TextView
+				android:id="@+id/tv_watermark_global_disabled"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/git_watermark_disabled_globally"
+				android:textAppearance="?attr/textAppearanceCaption"
+				android:textColor="?attr/colorOnSurfaceVariant"
+				android:visibility="gone" />
+
 		</LinearLayout>
 
 		<TextView
