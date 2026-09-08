@@ -40,6 +40,7 @@ import org.appdevforall.cotg.quickbuild.domain.reload.LiveReloadRequestOutcome
 import org.appdevforall.cotg.quickbuild.domain.reload.OrchestratorEvent
 import org.appdevforall.cotg.quickbuild.domain.reload.isRestartSensitive
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
+import org.appdevforall.cotg.quickbuild.service.session.QuickBuildDaemonController.DeathReporter
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildSessionState
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
@@ -208,25 +209,6 @@ class QuickBuildSessionManager(
 	private val scope = CoroutineScope(SupervisorJob() + dispatcher + effectExceptionHandler)
 	private val reducer = SessionReducer()
 
-	/** Who told the session a daemon had died. See [reportDaemonDeath]. */
-	private enum class DeathReporter {
-		/** The daemon's own process-exit watcher; fires exactly once per physical death. */
-		WATCHER,
-
-		/** The build in flight, which fails with `daemonDied`; at most one build runs at a time. */
-		BUILD,
-	}
-
-	/**
-	 * Who reported this daemon's death, or null once a daemon is back up.
-	 *
-	 * One physical death has two independent reporters that cannot see each other, and each
-	 * reports any given death at most once - so a second report from the OTHER reporter is
-	 * that same death, while a second report from the SAME one is a new death. Only touched on
-	 * the session dispatcher.
-	 */
-	private var lastDeathReporter: DeathReporter? = null
-
 	/**
 	 * The most recent Build Variants selection a sync reported, or null when none has.
 	 *
@@ -354,24 +336,14 @@ class QuickBuildSessionManager(
 	 * When ([nowMillis]) a request to bring the proxy app forward arrived while a full Gradle
 	 * build held the screen; null when no ask is waiting. The ask waits for that build instead
 	 * of stranding the user in a stale app. A re-defer behind a chained build preserves the
-	 * stamp, so the expiry ages the ask from the original request.
+	 * stamp.
 	 *
 	 * See [switchToProxyApp] for why leaving mid-build is worse than making the user wait, and
-	 * [settleDeferredForegroundAsk] for when it is answered, expired or dropped. A rebaseline
+	 * [settleDeferredForegroundAsk] for when it is answered or dropped. A rebaseline
 	 * whose own relaunch answered it clears it first (see [rebuildProxyApp]), so one tap is
 	 * one launch. Only touched on [dispatcher].
 	 */
 	private var foregroundAskDeferredAtMillis: Long? = null
-
-	/**
-	 * Whether the build the deferred ask is waiting on is a rebaseline (a proxy app rebuild),
-	 * captured when the ask is first deferred. A rebaseline ask is exempt from the
-	 * [DEFERRED_FOREGROUND_ASK_MAX_AGE_MILLIS] expiry: the user clicked Quick Build, so the
-	 * switch happens once enough building has happened for their changes to be in the app -
-	 * however long the Gradle rebuild takes on a phone. Meaningless while
-	 * [foregroundAskDeferredAtMillis] is null; cleared with it. Only touched on [dispatcher].
-	 */
-	private var foregroundAskAwaitsRebaseline = false
 
 	/** Owns the daemon lifecycle protocol; see [QuickBuildDaemonController]. */
 	private val daemonController = QuickBuildDaemonController(daemon, scratch, paths)
@@ -478,14 +450,16 @@ class QuickBuildSessionManager(
 				daemonController.shrinkIfPending(buildInFlight = it is QuickBuildSessionState.Building)
 			}
 		}
-		scope.launch {
-			// Stale-tree sweep. Nothing can be live yet - this manager is the process's
-			// only session owner and no tap has dispatched - so every tree under the
-			// scratch root belongs to a dead session or a deleted project. Runs on
-			// dispatcher, strictly before any tap.
-			scratch.sweep()
-		}
 	}
+
+	/**
+	 * The stale-tree sweep. Nothing is live at construction - this manager is the process's
+	 * only session owner - so every tree under the scratch root belongs to a dead session or
+	 * a deleted project. Launched before any tap can dispatch, but sweep() hops to IO and
+	 * frees the dispatcher, so [provision] joins it rather than trusting the launch order: a
+	 * prepare that overtook it would have its fresh tree swept as stale.
+	 */
+	private val sweepJob = scope.launch { scratch.sweep() }
 
 	/**
 	 * Handles the Quick Build tap: starts a session from Idle, triggers a build when live,
@@ -511,6 +485,8 @@ class QuickBuildSessionManager(
 				if (!historyStore.hasUsedQuickBuild()) {
 					historyStore.setHasUsedQuickBuild(true)
 				}
+			} catch (e: kotlinx.coroutines.CancellationException) {
+				throw e
 			} catch (e: Throwable) {
 				log.warn("Could not record Quick Build history for this project", e)
 			}
@@ -677,13 +653,16 @@ class QuickBuildSessionManager(
 		}
 		if (split.buildable.isEmpty) return
 		val buildable = split.buildable
-		log.debug(
-			"Watcher batch: {} modified [{}], {} removed [{}]",
-			buildable.files.size,
-			describePaths(buildable.files),
-			buildable.removed.size,
-			describePaths(buildable.removed),
-		)
+		// Guarded: describePaths walks and joins every path, and this runs per batch.
+		if (log.isDebugEnabled) {
+			log.debug(
+				"Watcher batch: {} modified [{}], {} removed [{}]",
+				buildable.files.size,
+				describePaths(buildable.files),
+				buildable.removed.size,
+				describePaths(buildable.removed),
+			)
+		}
 		scope.launch {
 			live?.orchestrator?.onFilesChanged(buildable)
 		}
@@ -930,25 +909,14 @@ class QuickBuildSessionManager(
 			// backgrounded app. The ask is answered when the rebaseline lands - however long
 			// that takes - and dropped if it does not land.
 			log.info("Quick Build asked for the proxy app mid-full-build; deferring until it lands")
-			// A re-defer keeps the original stamp: the expiry ages the ask from the user's
-			// tap, and re-stamping here would let N chained sub-bound builds keep an
-			// arbitrarily old ask alive. Only a genuinely new ask starts a fresh clock.
+			// A re-defer keeps the original stamp, so the settle log reports how long the
+			// user's own tap waited, not the last chained build.
 			if (foregroundAskDeferredAtMillis == null) {
 				foregroundAskDeferredAtMillis = nowMillis()
-				// Captured once, with the stamp: is the build being waited on a rebaseline?
-				// (A parked rebuild's retry shows as Invalidated with the retry under way; a
-				// running one as Provisioning with a rebaseline reason.)
-				foregroundAskAwaitsRebaseline =
-					when (val state = _state.value) {
-						is QuickBuildSessionState.Invalidated -> !state.awaitingRetry
-						is QuickBuildSessionState.Provisioning -> state.rebaselineReason != null
-						else -> false
-					}
 			}
 			return
 		}
 		foregroundAskDeferredAtMillis = null
-		foregroundAskAwaitsRebaseline = false
 		// Same target every launch path uses; see [ProxyAppInfo.launcherProxyClass].
 		if (!launcher.launch(session.proxyApp.proxyAppPackage, session.proxyApp.launcherProxyClass)) {
 			log.warn("Could not bring the proxy app {} to the foreground", session.proxyApp.proxyAppPackage)
@@ -974,17 +942,16 @@ class QuickBuildSessionManager(
 		}
 
 	/**
-	 * Answers, expires or drops a foreground request that waited for a full Gradle build.
+	 * Answers or drops a foreground request that waited for a full Gradle build.
 	 *
 	 * Answered the moment the session is live again, which is what "not until the rebaseline is
 	 * done" means - unless the rebaseline's own relaunch already answered it, in which case
 	 * [rebuildProxyApp] cleared the ask before landing and there is nothing left to do here.
-	 * A rebaseline ask is answered however old it is - the user clicked Quick Build,
-	 * so the switch happens once their changes are in the app, and a Gradle rebuild on a phone
-	 * routinely outlives any reasonable bound. Only a non-rebaseline ask still expires past
-	 * [DEFERRED_FOREGROUND_ASK_MAX_AGE_MILLIS]. Dropped when the build did not get there - a
-	 * dead session or a park - because the app the user would land in is the stale one they
-	 * asked to be taken away from, and showing it would read as the rebuild having worked.
+	 * Answered however old it is: the user clicked Quick Build, so the switch happens once
+	 * their changes are in the app, and a Gradle build on a phone routinely takes minutes.
+	 * Dropped when the build did not get there - a dead session or a park - because the app
+	 * the user would land in is the stale one they asked to be taken away from, and showing
+	 * it would read as the rebuild having worked.
 	 *
 	 * @param state the state just adopted.
 	 */
@@ -992,21 +959,10 @@ class QuickBuildSessionManager(
 		val askedAtMillis = foregroundAskDeferredAtMillis ?: return
 		when {
 			state is QuickBuildSessionState.Ready || state is QuickBuildSessionState.Deployed -> {
-				val ageMillis = nowMillis() - askedAtMillis
-				if (!foregroundAskAwaitsRebaseline && ageMillis > DEFERRED_FOREGROUND_ASK_MAX_AGE_MILLIS) {
-					log.info(
-						"Quick Build's deferred proxy app switch expired after {} ms: " +
-							"the user has moved on since asking",
-						ageMillis,
-					)
-					foregroundAskDeferredAtMillis = null
-					foregroundAskAwaitsRebaseline = false
-					return
-				}
+				log.info("Quick Build's deferred proxy app switch answered after {} ms", nowMillis() - askedAtMillis)
 				// switchToProxyApp clears the ask itself, and re-checks the guard - a
-				// rebaseline that lands straight into another full build has to keep the
-				// ask waiting on its ORIGINAL stamp, so chained builds cannot keep an
-				// aging ask alive past the bound.
+				// rebaseline that lands straight into another full build keeps the ask
+				// waiting, on its original stamp.
 				switchToProxyApp()
 			}
 
@@ -1014,7 +970,6 @@ class QuickBuildSessionManager(
 				(state is QuickBuildSessionState.Invalidated && state.awaitingRetry) -> {
 				log.info("Quick Build's deferred proxy app switch dropped: the full build did not land")
 				foregroundAskDeferredAtMillis = null
-				foregroundAskAwaitsRebaseline = false
 			}
 
 			else -> {
@@ -1042,6 +997,7 @@ class QuickBuildSessionManager(
 	 *   what tells a completing provision that the user already restarted the session
 	 */
 	private suspend fun provision(startEpoch: Long) {
+		sweepJob.join()
 		when (val result = buildRunner.provision(superseded = { startEpoch != sessionEpoch })) {
 			is ProxyAppBuildRunner.ProvisionResult.DiskSpaceShort -> {
 				dispatch(SessionEvent.ProvisioningFailed(result.message))
@@ -1086,8 +1042,6 @@ class QuickBuildSessionManager(
 					// The reload path is change-driven, not save-driven: any source of a
 					// file change triggers it, including Termux, plugins and git.
 					result.session.watcher.start(::onWatcherBatch)
-					// A daemon is up for this session, so the next death is a new one.
-					lastDeathReporter = null
 					dispatch(SessionEvent.ProvisioningSucceeded(result.baselineGeneration))
 					checkProvisionedVariant()
 				} catch (e: kotlinx.coroutines.CancellationException) {
@@ -1298,7 +1252,6 @@ class QuickBuildSessionManager(
 					// Cleared before the landing dispatches, so settleDeferredForegroundAsk
 					// does not launch it a second time for the same tap.
 					foregroundAskDeferredAtMillis = null
-					foregroundAskAwaitsRebaseline = false
 				}
 				try {
 					// Both delegates are built before adoptBaseline moves anything:
@@ -1330,10 +1283,6 @@ class QuickBuildSessionManager(
 						result.baselineGeneration,
 						::onWatcherBatch,
 					)
-					// The rebuild restarted the daemon, so the next death is a new one; the same
-					// reset as the provision's, without which a death first seen by a build
-					// after a rebuild is dropped as a re-report of the one before it.
-					lastDeathReporter = null
 					// A rebuild that skipped the reinstall (bytes already matched, e.g. the
 					// deferred confirm completed while parked) leaves the old process - and
 					// any reinstall-pending banner - running; clear it explicitly. After a
@@ -1502,8 +1451,6 @@ class QuickBuildSessionManager(
 		val session = live ?: return
 		when (val outcome = daemonController.respawn(session.layout, session.proxyApp, startEpoch)) {
 			is QuickBuildDaemonController.RespawnOutcome.Respawned -> {
-				// A daemon is back, so the next death is a new one to report.
-				lastDeathReporter = null
 				dispatch(SessionEvent.DaemonRespawned)
 				// A fresh daemon has no trustworthy incremental state. With nothing
 				// pending this re-warms via a deploy-nothing warm compile, leaving the
@@ -1524,13 +1471,9 @@ class QuickBuildSessionManager(
 				// Stay Degraded and let the next explicit tap or session restart retry;
 				// auto-retrying a hard-broken daemon would just spin. The event schedules
 				// nothing either - it stops the status claiming a restart is still under way,
-				// which is the half the snackbar cannot fix.
-				//
-				// No daemon is up and the death that got here is fully reported, so the next one is
-				// new whichever reporter sees it first. Left set, the save that recovers from here
-				// builds against the dead daemon, that death arrives from the build side only, and
-				// it is dropped as a re-report - leaving the session in Building for good.
-				lastDeathReporter = null
+				// which is the half the snackbar cannot fix. The controller has forgotten the
+				// death that got here, so the save that recovers from Degraded builds against
+				// the dead daemon and that build's own report goes through as a new death.
 				dispatch(SessionEvent.DaemonRestartFailed)
 				surfaceUserMessage(QuickBuildMessage.DaemonRestartFailed(outcome.message))
 			}
@@ -1567,7 +1510,6 @@ class QuickBuildSessionManager(
 		val abandonedOrchestrator = live?.orchestrator
 		live = null
 		connections.endSession()
-		lastDeathReporter = null
 		teardownWork =
 			scope.launch {
 				// Before the shutdown, so no compile is left running against a daemon this
@@ -1613,22 +1555,16 @@ class QuickBuildSessionManager(
 	/**
 	 * Dispatches [SessionEvent.DaemonDied], unless the other reporter already reported it.
 	 *
-	 * A second report from the OTHER reporter is the same death seen twice, and dispatching it
-	 * lands a DaemonDied in Degraded, which sets `restartFailed` - so the respawn that then
-	 * succeeds is refused and the session sits behind "restart failed" with a live compiler
-	 * until some later save recovers it. A second report from the SAME reporter is a new death
-	 * (each reports a given death once), which is the respawned child dying during its own
-	 * start, and that one must go through.
+	 * A second report of one death, dispatched, lands a DaemonDied in Degraded, which sets
+	 * `restartFailed` - so the respawn that then succeeds is refused and the session sits
+	 * behind "restart failed" with a live compiler until some later save recovers it. The
+	 * controller decides which reports are news ([QuickBuildDaemonController.noteDeath]),
+	 * since it is the one that knows when a daemon came back.
 	 *
 	 * @param reporter which of the two saw it
 	 */
 	private suspend fun reportDaemonDeath(reporter: DeathReporter) {
-		val previous = lastDeathReporter
-		if (previous != null && previous != reporter) {
-			log.debug("Quick Build: {} re-reported a death {} already reported; ignored", reporter, previous)
-			return
-		}
-		lastDeathReporter = reporter
+		if (!daemonController.noteDeath(reporter)) return
 		dispatch(SessionEvent.DaemonDied)
 	}
 
@@ -1674,14 +1610,6 @@ class QuickBuildSessionManager(
 
 	private companion object {
 		private val log = LoggerFactory.getLogger("QB-SessionManager")
-
-		/**
-		 * Oldest a NON-rebaseline deferred foreground ask may be and still be answered when
-		 * the build lands. Rebaseline asks are exempt (see [foregroundAskAwaitsRebaseline]):
-		 * a Gradle rebuild on a phone routinely takes minutes, so an age bound there would
-		 * expire every real ask.
-		 */
-		private const val DEFERRED_FOREGROUND_ASK_MAX_AGE_MILLIS = 10_000L
 
 		/**
 		 * How long a tap armed on its save-all's watcher batch waits before switching anyway.
