@@ -105,6 +105,29 @@ class MetricsChartAxisTapTest {
 			.isLessThan(SAMPLES - 1)
 	}
 
+	@Test
+	fun `re-attaching the same chart keeps the viewport the user drove`() {
+		val chart = laidOutChart()
+		drawOnce(chart)
+		chart.setVisibleXRangeMaximum(VISIBLE_WINDOW.toFloat())
+		chart.moveViewToXNow(0f)
+		drawOnce(chart)
+
+		val event = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_MOVE, 10f, 10f, 0)
+		chart.onChartGestureListener.onChartTranslate(event, -50f, 0f)
+		event.recycle()
+		assertThat(attachedRenderer.visibleSampleRange(chart, SAMPLES).last).isLessThan(SAMPLES - 1)
+
+		// A rebind of an already-bound holder. The teardown it runs is what stops a second gesture
+		// listener being installed, so it has to happen -- but it also cleared the flag that says
+		// the user has driven the viewport, and the next tick then scrolled the chart back to the
+		// newest samples underneath them.
+		attachedRenderer.attach(chart)
+		drawOnce(chart)
+
+		assertThat(attachedRenderer.visibleSampleRange(chart, SAMPLES).last).isLessThan(SAMPLES - 1)
+	}
+
 	/** MPAndroidChart runs its viewport jobs during a draw, so a pan is not real until one. */
 	private fun drawOnce(chart: SafeLineChart) {
 		chart.draw(Canvas(Bitmap.createBitmap(CHART_WIDTH, CHART_HEIGHT, Bitmap.Config.ARGB_8888)))

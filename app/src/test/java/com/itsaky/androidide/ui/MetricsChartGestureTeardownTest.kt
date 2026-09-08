@@ -119,6 +119,26 @@ class MetricsChartGestureTeardownTest {
 		event.recycle()
 	}
 
+	/**
+	 * The end of a gesture an ancestor took away.
+	 *
+	 * ChartTouchListener.endAction is reached from ACTION_CANCEL as well as ACTION_UP, with the
+	 * original event and with mLastGesture untouched, so this is what the listener actually sees
+	 * when the reveal layout, the bottom sheet or the pager claims the stream mid-press.
+	 */
+	private fun cancelGesture(
+		chart: SafeLineChart,
+		gesture: ChartTouchListener.ChartGesture,
+	) {
+		val now = SystemClock.uptimeMillis()
+		val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 10f, 0f, 0)
+		chart.onChartGestureListener.onChartGestureEnd(event, gesture)
+		event.recycle()
+	}
+
+	/** A y on the axis band, where a tap opens the sampling-rate chooser. */
+	private fun onAxisBand(chart: SafeLineChart) = chart.viewPortHandler.contentBottom() + 1f
+
 	/** Runs the main looper forward by [millis] of virtual time. */
 	private fun elapse(millis: Long) = shadowOf(Looper.getMainLooper()).idleFor(millis, TimeUnit.MILLISECONDS)
 
@@ -137,9 +157,46 @@ class MetricsChartGestureTeardownTest {
 	private fun insidePlot(chart: SafeLineChart) = (chart.viewPortHandler.contentTop() + chart.viewPortHandler.contentBottom()) / 2f
 
 	@Test
+	fun `a gesture an ancestor cancels does not stand in for a tap`() {
+		val chart = laidOutChart()
+
+		longPressAt(chart, onAxisBand(chart))
+		cancelGesture(chart, ChartTouchListener.ChartGesture.LONG_PRESS)
+		drain()
+
+		// A cancel is not a lift. The chooser this would open clears every sample buffer, so a
+		// press the sheet or the pager steals mid-gesture must not be read as a finger lifting
+		// early -- which is exactly what it looked like, because endAction reports the same
+		// LONG_PRESS for both.
+		assertThat(taps).isEqualTo(0)
+	}
+
+	@Test
+	fun `detaching takes back a stand-in tap that has been posted`() {
+		val chart = laidOutChart()
+
+		longPressAt(chart, onAxisBand(chart))
+		endGesture(chart, ChartTouchListener.ChartGesture.LONG_PRESS)
+		// The tap is on the looper now, not yet run. Letting the chart go in that window used to
+		// leave it there: it opened the chooser, and cleared every buffer, for a chart this
+		// renderer no longer had.
+		renderer.detach()
+		drain()
+
+		assertThat(taps).isEqualTo(0)
+	}
+
+	@Test
 	fun `a second finger gives up the gesture, even without a move`() {
 		val chart = laidOutChart()
 
+		// This tests what the renderer does when the second pointer is reported, by calling the
+		// callback directly. It does NOT test that the callback fires for the gesture that matters,
+		// and it cannot: a ViewGroup rewrites ACTION_POINTER_DOWN to ACTION_MOVE for the child
+		// already holding the first pointer, so on the realistic undock -- one finger on an arrow,
+		// one on the strip -- SafeLineChart.onTouchEvent never sees a pointer-down at all. Driving
+		// this from MetricsCarouselLayout.dispatchTouchEvent, which does see it, is its own change.
+		//
 		// The carousel undocks on a two-finger tap, and that starts as a press like any other.
 		// MPAndroidChart cannot report it -- ACTION_POINTER_DOWN never touches its mLastGesture --
 		// so the gesture still ends labelled LONG_PRESS and the stand-in tap fired, opening the

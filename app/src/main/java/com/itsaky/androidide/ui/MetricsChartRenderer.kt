@@ -218,7 +218,16 @@ abstract class MetricsChartRenderer(
 		// there let [configure] install a second gesture listener while the first stayed queued on
 		// the main thread with a hold nothing could reach, and added a second layout listener that
 		// one removeOnLayoutChangeListener cannot undo.
+		//
+		// The one thing that must survive it is the user's own viewport. detach() clears
+		// userHasZoomed, which is what turns the auto-follow window back on, so a rebind of an
+		// already-bound holder would snap a chart the user had panned back to the newest samples.
+		val sameChart = this.chart === chart
+		val hadZoomed = userHasZoomed
 		detach()
+		if (sameChart) {
+			userHasZoomed = hadZoomed
+		}
 		this.chart = chart
 		configure(chart)
 		chart.addOnLayoutChangeListener(newestWindowOnLayout)
@@ -455,6 +464,16 @@ abstract class MetricsChartRenderer(
 		/** The deferred half of a long press, waiting out the rest of the hold. */
 		private var pendingHelp: Runnable? = null
 
+		/**
+		 * The stand-in tap waiting for the next turn of the looper.
+		 *
+		 * Held for the same reason [performOnHold] holds its click: posted rather than run inline,
+		 * it outlives the dispatch that queued it, so a [detach] landing in between would otherwise
+		 * still open the sampling-rate chooser for a chart the renderer no longer has -- and that
+		 * chooser clears every sample buffer.
+		 */
+		private var pendingTap: Runnable? = null
+
 		/** Whether this gesture already showed help, so its lift must not also count as a tap. */
 		private var helpShown = false
 
@@ -486,12 +505,29 @@ abstract class MetricsChartRenderer(
 			// history loss [isOnAxisBand] was narrowed to prevent. [onChartTranslate] and
 			// [onChartScale] give up the stand-in as the gesture escalates; this is the check for
 			// an escalation neither of them reports.
-			if (!helpShown && pendingTapOnAxis && lastPerformedGesture == ChartTouchListener.ChartGesture.LONG_PRESS) {
+			// A cancel is not a lift. ChartTouchListener.endAction runs for ACTION_CANCEL as well
+			// as ACTION_UP -- case 3 and case 1 of the same tableswitch, both reaching it with the
+			// original event -- and it reports mLastGesture untouched, because startAction never
+			// resets it. So a press an ancestor steals mid-gesture (the reveal layout, the bottom
+			// sheet, the pager) arrived here looking exactly like a finger lifted early, and stood
+			// in for a tap the user never completed. The chooser it opens clears every buffer.
+			val lifted = me?.actionMasked != MotionEvent.ACTION_CANCEL
+			if (lifted &&
+				!helpShown &&
+				pendingTapOnAxis &&
+				lastPerformedGesture == ChartTouchListener.ChartGesture.LONG_PRESS
+			) {
 				// Posted, not called here. This runs inside the chart's onTouchEvent, and the tap
 				// opens a dialog; showing one mid-dispatch leaves the chart's touch state and its
 				// velocity tracker part-way through a gesture. performOnHold posts its click for
 				// the same reason, and the two paths should not disagree.
-				handler.post { onXAxisTap?.invoke() }
+				val tap =
+					Runnable {
+						pendingTap = null
+						onXAxisTap?.invoke()
+					}
+				pendingTap = tap
+				handler.post(tap)
 			}
 			helpShown = false
 			pendingTapOnAxis = false
@@ -506,6 +542,8 @@ abstract class MetricsChartRenderer(
 		fun cancelPendingHelp() {
 			pendingHelp?.let(handler::removeCallbacks)
 			pendingHelp = null
+			pendingTap?.let(handler::removeCallbacks)
+			pendingTap = null
 		}
 
 		override fun onChartLongPressed(me: MotionEvent?) {
