@@ -1,9 +1,11 @@
 package org.appdevforall.cotg.quickbuild.service.provision
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.domain.reload.RealIdInstall
+import org.slf4j.LoggerFactory
 
 /**
  * Decides whether tapping Quick Build or Standard Run should ask the user to confirm a
@@ -32,7 +34,7 @@ class QuickBuildClobberCheck(
 	 *   empty slot needs no confirmation
 	 */
 	suspend fun quickBuildNeedsConfirm(realApplicationId: String): Boolean =
-		withContext(ioDispatcher) {
+		failingClosed {
 			RealIdInstall.quickBuildNeedsClobberConfirm(
 				realAppInstalled = packages.uid(realApplicationId) != null,
 				installedFactory = packages.appComponentFactory(realApplicationId),
@@ -46,9 +48,30 @@ class QuickBuildClobberCheck(
 	 * @return true only when the installed app carries the Quick Build runtime factory
 	 */
 	suspend fun standardRunNeedsConfirm(realApplicationId: String): Boolean =
-		withContext(ioDispatcher) {
+		failingClosed {
 			RealIdInstall.standardRunNeedsClobberConfirm(
 				packages.appComponentFactory(realApplicationId),
 			)
 		}
+
+	/**
+	 * Runs [read] on [ioDispatcher], answering true when it throws: a PackageManager read that
+	 * fails (binder dead, package state mid-change) says nothing about the slot, and an
+	 * unneeded confirmation costs one tap where a skipped one costs the user's installed build.
+	 */
+	private suspend fun failingClosed(read: () -> Boolean): Boolean =
+		withContext(ioDispatcher) {
+			try {
+				read()
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.warn("Clobber check could not read the installed app; asking to be safe", e)
+				true
+			}
+		}
+
+	private companion object {
+		private val log = LoggerFactory.getLogger(QuickBuildClobberCheck::class.java)
+	}
 }
