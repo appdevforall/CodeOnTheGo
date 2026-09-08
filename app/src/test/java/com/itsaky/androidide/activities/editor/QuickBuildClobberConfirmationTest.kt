@@ -102,6 +102,33 @@ class QuickBuildClobberConfirmationTest {
 	}
 
 	@Test
+	fun `an unknown-id consent at tap time covers the id the install resolved`() {
+		// The tap asked because the applicationId had not resolved, and the user agreed to
+		// replace whatever was there. The install resolving the id names the occupant the user
+		// already agreed to replace; asking again makes one Run cost two dialogs.
+		val decision =
+			installTimeClobberConfirmation(
+				atTap = QuickBuildClobberConfirmation.NeededForUnknownAppId,
+				now = QuickBuildClobberConfirmation.Needed("com.example.app"),
+			)
+
+		assertThat(decision).isEqualTo(QuickBuildClobberConfirmation.NotNeeded)
+	}
+
+	@Test
+	fun `a resolved consent does not cover an install whose id went unknown`() {
+		// The other direction is a real change: the tap named a package and the install cannot,
+		// so what this install replaces is not what the user was asked about.
+		val decision =
+			installTimeClobberConfirmation(
+				atTap = QuickBuildClobberConfirmation.Needed("com.example.app"),
+				now = QuickBuildClobberConfirmation.NeededForUnknownAppId,
+			)
+
+		assertThat(decision).isEqualTo(QuickBuildClobberConfirmation.NeededForUnknownAppId)
+	}
+
+	@Test
 	fun `an install with nothing to overwrite stays silent whatever the tap said`() {
 		listOf(
 			null,

@@ -55,10 +55,23 @@ internal suspend fun quickBuildClobberConfirmation(
  *   button) - which asks again rather than assuming consent nobody gave.
  * @param now the confirmation the APK being installed calls for, re-checked against the live
  *   package state.
- * @return [QuickBuildClobberConfirmation.NotNeeded] when the tap already answered exactly this,
+ * @return [QuickBuildClobberConfirmation.NotNeeded] when the tap already answered this - the
+ *   same confirmation, or an unknown-id confirmation the install has since resolved -
  *   otherwise [now].
  */
 internal fun installTimeClobberConfirmation(
 	atTap: QuickBuildClobberConfirmation?,
 	now: QuickBuildClobberConfirmation,
-): QuickBuildClobberConfirmation = if (now == atTap) QuickBuildClobberConfirmation.NotNeeded else now
+): QuickBuildClobberConfirmation =
+	when {
+		now == atTap -> QuickBuildClobberConfirmation.NotNeeded
+
+		// The tap could not name the package and asked anyway: "whatever is installed under
+		// this app's id, this replaces it", and the user said yes. The install resolving the id
+		// and finding the other build type there is that answer with the name filled in, not a
+		// second question - so one Run does not cost two dialogs.
+		atTap == QuickBuildClobberConfirmation.NeededForUnknownAppId &&
+			now is QuickBuildClobberConfirmation.Needed -> QuickBuildClobberConfirmation.NotNeeded
+
+		else -> now
+	}
