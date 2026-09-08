@@ -13,6 +13,15 @@ dependencies {
 	// POM stays dependency-free: forcing it as a transitive would make the coordinate
 	// unresolvable offline whenever the harvested AGP differs from a pinned version.
 	compileOnly("com.android.tools.build:gradle:8.11.0")
+
+	// Test-only, so it never reaches the published POM the on-device build resolves.
+	testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+	testImplementation("com.google.truth:truth:1.4.1")
+	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.withType<Test>().configureEach {
+	useJUnitPlatform()
 }
 
 gradlePlugin {
