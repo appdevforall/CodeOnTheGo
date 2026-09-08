@@ -45,7 +45,7 @@ final class BaselineGeneration {
 		try {
 			return parse(new String(Streams.readFully(in), "UTF-8"));
 		} catch (Throwable error) {
-			RuntimeLog.w("unreadable baseline-generation stamp: " + error);
+			RuntimeLog.w("unreadable baseline-generation stamp", error);
 			return UNSTAMPED;
 		} finally {
 			Streams.closeQuietly(in);
