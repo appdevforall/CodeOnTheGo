@@ -4,6 +4,7 @@ import com.itsaky.androidide.repositories.TemplateRepository
 import com.itsaky.androidide.repositories.TemplateRepositoryImpl
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.viewmodels.TemplateManagerViewModel
+import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
 
@@ -16,6 +17,7 @@ val templateModule =
 		// Repository
 		single<TemplateRepository> {
 			TemplateRepositoryImpl(
+				context = androidContext(),
 				templatesDir = Environment.TEMPLATES_DIR,
 				downloadDir = Environment.DOWNLOAD_DIR,
 			)

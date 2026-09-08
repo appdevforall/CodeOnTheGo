@@ -50,6 +50,10 @@ sealed class TemplateManagerUiEffect {
 		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()
 
+	data class ShowOverwriteDownloadConfirmation(
+		val item: CgtFileItem,
+	) : TemplateManagerUiEffect()
+
 	data class ShowTemplateDetails(
 		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()

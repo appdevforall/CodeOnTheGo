@@ -3,6 +3,7 @@ package com.itsaky.androidide.viewmodels
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.repositories.DownloadFileConflictException
 import com.itsaky.androidide.repositories.TemplateRepository
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
@@ -101,26 +102,42 @@ class TemplateManagerViewModel(
 		}
 	}
 
-	private fun uninstallTemplate(item: CgtFileItem) {
+	private fun uninstallTemplate(
+		item: CgtFileItem,
+		overwrite: Boolean = false,
+	) {
 		viewModelScope.launch {
 			_uiState.update { it.copy(isLoading = true) }
 			templateRepository
-				.uninstallTemplate(item)
+				.uninstallTemplate(item, overwrite)
 				.onSuccess {
 					Log.d(TAG, "Template uninstalled successfully: ${item.name}")
 					_uiEffect.send(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_uninstalled))
 					loadTemplates()
 				}.onFailure { exception ->
-					Log.e(TAG, "Failed to uninstall template: ${item.name}", exception)
 					_uiState.update { it.copy(isLoading = false) }
-					_uiEffect.send(
-						TemplateManagerUiEffect.ShowError(
-							R.string.msg_template_uninstall_failed,
-							listOf(exception.message ?: ""),
-						),
-					)
+					if (exception is DownloadFileConflictException) {
+						// overwrite = true never reaches this branch (uninstallTemplate never throws
+						// it in that case), so this can only be the user's first attempt - ask before
+						// clobbering the file already in Downloads.
+						Log.d(TAG, "Uninstall needs an overwrite confirmation: ${item.name}")
+						_uiEffect.send(TemplateManagerUiEffect.ShowOverwriteDownloadConfirmation(item))
+					} else {
+						Log.e(TAG, "Failed to uninstall template: ${item.name}", exception)
+						_uiEffect.send(
+							TemplateManagerUiEffect.ShowError(
+								R.string.msg_template_uninstall_failed,
+								listOf(exception.message ?: ""),
+							),
+						)
+					}
 				}
 		}
+	}
+
+	/** Retries an uninstall the user just confirmed should overwrite the existing Downloads file. */
+	fun confirmUninstallOverwritingDownload(item: CgtFileItem) {
+		uninstallTemplate(item, overwrite = true)
 	}
 
 	private fun showDeleteConfirmation(item: CgtFileItem) {

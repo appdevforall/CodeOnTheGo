@@ -68,6 +68,11 @@ private sealed interface TemplateManagerDialogState : Parcelable {
 	) : TemplateManagerDialogState
 
 	@Parcelize
+	data class OverwriteDownloadConfirm(
+		val path: String,
+	) : TemplateManagerDialogState
+
+	@Parcelize
 	data class FileDetails(
 		val path: String,
 	) : TemplateManagerDialogState
@@ -153,6 +158,10 @@ fun TemplateManagerScreen(
 						dialogState = TemplateManagerDialogState.DeleteConfirm(effect.item.file.absolutePath)
 					}
 
+					is TemplateManagerUiEffect.ShowOverwriteDownloadConfirmation -> {
+						dialogState = TemplateManagerDialogState.OverwriteDownloadConfirm(effect.item.file.absolutePath)
+					}
+
 					is TemplateManagerUiEffect.ShowTemplateDetails -> {
 						dialogState = TemplateManagerDialogState.FileDetails(effect.item.file.absolutePath)
 					}
@@ -208,6 +217,20 @@ fun TemplateManagerScreen(
 					item = item,
 					onConfirm = {
 						viewModel.confirmDeleteDownloadFile(item)
+						dialogState = TemplateManagerDialogState.None
+					},
+					onDismiss = { dialogState = TemplateManagerDialogState.None },
+				)
+			}
+		}
+
+		is TemplateManagerDialogState.OverwriteDownloadConfirm -> {
+			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
+			if (item != null) {
+				OverwriteDownloadConfirmationDialog(
+					item = item,
+					onConfirm = {
+						viewModel.confirmUninstallOverwritingDownload(item)
 						dialogState = TemplateManagerDialogState.None
 					},
 					onDismiss = { dialogState = TemplateManagerDialogState.None },

@@ -1,5 +1,7 @@
 package com.itsaky.androidide.repositories
 
+import android.content.Context
+import android.media.MediaScannerConnection
 import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
 import com.itsaky.androidide.templates.manager.models.TemplateProvenance
@@ -22,6 +24,7 @@ import java.io.IOException
  * plugin-facing permission gate.
  */
 class TemplateRepositoryImpl(
+	private val context: Context,
 	private val templatesDir: File,
 	private val downloadDir: File,
 ) : TemplateRepository {
@@ -29,6 +32,19 @@ class TemplateRepositoryImpl(
 		private val logger = LoggerFactory.getLogger(TemplateRepositoryImpl::class.java)
 		private const val CGT_EXTENSION = "cgt"
 		private const val PLUGIN_CGT_PREFIX = "plugin_"
+	}
+
+	/**
+	 * A plain `File` write into the public Downloads directory doesn't reach MediaStore's index on
+	 * its own, so without this, [file] can be genuinely present on disk yet invisible in the
+	 * system Files app / any other MediaStore-backed browser until a reboot or an unrelated scan
+	 * (part of ADFA-5446: "uninstalled successfully" but nothing visibly appeared in Downloads).
+	 * Best-effort: a scan failure here doesn't change the fact that the uninstall itself already
+	 * succeeded.
+	 */
+	private fun notifyFileAdded(file: File) {
+		runCatching { MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), null, null) }
+			.onFailure { logger.warn("Failed to notify the media scanner about {}", file.absolutePath, it) }
 	}
 
 	override suspend fun listTemplateFiles(): Result<List<CgtFileItem>> =
@@ -137,7 +153,10 @@ class TemplateRepositoryImpl(
 			}
 		}
 
-	override suspend fun uninstallTemplate(item: CgtFileItem): Result<Unit> =
+	override suspend fun uninstallTemplate(
+		item: CgtFileItem,
+		overwrite: Boolean,
+	): Result<Unit> =
 		withContext(Dispatchers.IO) {
 			try {
 				check(item.installed) { "'${item.name}' is not installed" }
@@ -145,13 +164,28 @@ class TemplateRepositoryImpl(
 
 				// Restore a copy to Downloads BEFORE removing it from the store: if the restore
 				// throws, the store copy below is never touched, so the user's only copy survives.
+				//
+				// Downloads can already have a same-named file here without the user ever seeing a
+				// duplicate row (see scanTemplates' kdoc): installTemplate always deletes its
+				// source, but the "open a .cgt from outside the app" path
+				// (TemplateCollectionRepository.installCollection) deliberately never touches the
+				// file the user opened, since that could be an email attachment or similar the user
+				// still wants (ADFA-5446). Refuse to silently clobber that file - the caller decides
+				// whether to overwrite (after asking the user) via [overwrite].
 				val restored = File(downloadDir, item.file.name)
-				check(!restored.exists()) { "A download named '${restored.name}' already exists in $downloadDir" }
-				item.file.copyTo(restored, overwrite = false)
+				val restoredAlreadyExisted = restored.exists()
+				if (restoredAlreadyExisted && !overwrite) {
+					throw DownloadFileConflictException("A download named '${restored.name}' already exists in $downloadDir")
+				}
+				item.file.copyTo(restored, overwrite = true)
 				if (!item.file.delete()) {
-					restored.delete()
+					// Only roll back a copy we created ourselves - restored already existed (with
+					// content the caller explicitly chose to overwrite) is not ours to delete on a
+					// failure that has nothing to do with it.
+					if (!restoredAlreadyExisted) restored.delete()
 					throw IOException("Failed to delete source file after copying: ${item.file.absolutePath}")
 				}
+				notifyFileAdded(restored)
 				ITemplateProvider.getInstance(reload = true)
 				Result.success(Unit)
 			} catch (e: CancellationException) {

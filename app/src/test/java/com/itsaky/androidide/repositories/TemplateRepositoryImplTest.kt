@@ -1,9 +1,11 @@
 package com.itsaky.androidide.repositories
 
+import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
 import com.itsaky.androidide.templates.manager.models.TemplateMetadata
 import com.itsaky.androidide.templates.manager.models.TemplateProvenance
+import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -18,17 +20,20 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Pins the two riskiest branches in [TemplateRepositoryImpl.installTemplate]/
- * [TemplateRepositoryImpl.uninstallTemplate]: a name collision must fail without touching either
- * copy, and a failed delete after a successful copy must roll back to leave exactly one copy
- * behind. Both are reachable without [com.itsaky.androidide.templates.ITemplateProvider], which is
- * only touched on the success path (`ITemplateProvider.getInstance(reload = true)`, a
- * ServiceLoader-backed singleton not wired up on the unit test classpath) - so a happy-path
- * install/uninstall test is intentionally not included here.
+ * Pins the riskiest branches in [TemplateRepositoryImpl.installTemplate]/
+ * [TemplateRepositoryImpl.uninstallTemplate]: a name collision on install must fail without
+ * touching either copy, a failed delete after a successful copy must roll back to leave exactly
+ * one copy behind, and (ADFA-5446) uninstall must surface a [DownloadFileConflictException] -
+ * without touching either copy - when Downloads already has a same-named file and the caller
+ * hasn't opted into overwriting it.
  *
- * Runs under Robolectric rather than plain JUnit4 because the `listTemplateFiles` cases build
- * real `.cgt` archives, and parsing one reaches `org.json.JSONObject` - a "not mocked" stub
- * under plain `android.jar`.
+ * Runs under Robolectric rather than plain JUnit4 for two reasons: the `listTemplateFiles` cases
+ * build real `.cgt` archives, and parsing one reaches `org.json.JSONObject` - a "not mocked" stub
+ * under plain `android.jar`; and any test that reaches a success path touches
+ * `ITemplateProvider.getInstance(reload = true)`, a ServiceLoader-backed singleton whose default
+ * implementation ([com.itsaky.androidide.templates.impl.TemplateProviderImpl]) reads
+ * [Environment.TEMPLATES_DIR] directly - `setup()` points that at [templatesDir] so it resolves
+ * instead of NPEing.
  */
 @RunWith(RobolectricTestRunner::class)
 class TemplateRepositoryImplTest {
@@ -38,12 +43,18 @@ class TemplateRepositoryImplTest {
 	private lateinit var templatesDir: File
 	private lateinit var downloadDir: File
 	private lateinit var repository: TemplateRepositoryImpl
+	private val previousTemplatesDir: File? = Environment.TEMPLATES_DIR
 
 	@Before
 	fun setup() {
 		templatesDir = tempFolder.newFolder("templates")
 		downloadDir = tempFolder.newFolder("downloads")
-		repository = TemplateRepositoryImpl(templatesDir, downloadDir)
+		repository = TemplateRepositoryImpl(ApplicationProvider.getApplicationContext(), templatesDir, downloadDir)
+		// ITemplateProvider.getInstance(reload = true) - hit on every install/uninstall success
+		// path - resolves the real TemplateProviderImpl via ServiceLoader, which reads this
+		// directly rather than taking it as a constructor argument; leaving it null NPEs inside
+		// TemplateProviderImpl.initializeTemplates().
+		Environment.TEMPLATES_DIR = templatesDir
 	}
 
 	@After
@@ -51,6 +62,7 @@ class TemplateRepositoryImplTest {
 		// Undo any permission changes a test made, or TemporaryFolder can't clean up after itself.
 		templatesDir.setWritable(true)
 		downloadDir.setWritable(true)
+		Environment.TEMPLATES_DIR = previousTemplatesDir
 	}
 
 	private fun item(
@@ -97,8 +109,17 @@ class TemplateRepositoryImplTest {
 			assertThat(dest.exists()).isFalse()
 		}
 
+	/**
+	 * ADFA-5446: a same-named file can already be sitting in Downloads without the user ever
+	 * installing anything through this repository - e.g. TemplateCollectionRepository's "open a
+	 * .cgt from outside the app" path deliberately never deletes the file the user opened. Uninstall
+	 * used to hard-fail here ("already exists in Downloads") with no way to proceed, which was
+	 * doubly confusing since scanTemplates' dedup means the user never even saw that Downloads copy
+	 * in the list to explain the error. It must now surface a [DownloadFileConflictException]
+	 * instead - without touching either copy - so the caller can ask the user before overwriting.
+	 */
 	@Test
-	fun uninstallTemplate_nameCollision_failsWithoutTouchingEitherCopy() =
+	fun uninstallTemplate_downloadsAlreadyHasACopy_failsWithConflictWithoutOverwrite() =
 		runTest {
 			val source = File(templatesDir, "dup.cgt").apply { writeText("installed") }
 			val existingDownload = File(downloadDir, "dup.cgt").apply { writeText("already in downloads") }
@@ -106,9 +127,23 @@ class TemplateRepositoryImplTest {
 			val result = repository.uninstallTemplate(item(source, installed = true))
 
 			assertThat(result.isFailure).isTrue()
+			assertThat(result.exceptionOrNull()).isInstanceOf(DownloadFileConflictException::class.java)
 			assertThat(source.exists()).isTrue()
-			assertThat(source.readText()).isEqualTo("installed")
 			assertThat(existingDownload.readText()).isEqualTo("already in downloads")
+		}
+
+	/** The user-confirmed retry: overwrite = true clobbers the Downloads twin and completes the uninstall. */
+	@Test
+	fun uninstallTemplate_overwriteTrue_replacesTheExistingDownload() =
+		runTest {
+			val source = File(templatesDir, "dup.cgt").apply { writeText("installed") }
+			val existingDownload = File(downloadDir, "dup.cgt").apply { writeText("stale copy") }
+
+			val result = repository.uninstallTemplate(item(source, installed = true), overwrite = true)
+
+			assertThat(result.isSuccess).isTrue()
+			assertThat(source.exists()).isFalse()
+			assertThat(existingDownload.readText()).isEqualTo("installed")
 		}
 
 	@Test

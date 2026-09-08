@@ -2,6 +2,7 @@ package com.itsaky.androidide.viewmodels
 
 import android.util.Log
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.repositories.DownloadFileConflictException
 import com.itsaky.androidide.repositories.TemplateRepository
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
 import com.itsaky.androidide.templates.manager.models.TemplateMetadata
@@ -112,5 +113,61 @@ class TemplateManagerViewModelTest {
 			// Only the init{} load - a failed install must not trigger a reload.
 			coVerify(exactly = 1) { repository.listTemplateFiles() }
 			assertThat(viewModel.uiEffect.first() is TemplateManagerUiEffect.ShowError).isTrue()
+		}
+
+	@Test
+	fun uninstallTemplate_onSuccess_reloadsAndSendsShowSuccessEffect() =
+		runTest {
+			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
+			coEvery { repository.uninstallTemplate(item, false) } returns Result.success(Unit)
+
+			val viewModel = TemplateManagerViewModel(repository)
+			advanceUntilIdle()
+
+			viewModel.onEvent(TemplateManagerUiEvent.UninstallTemplate(item))
+			advanceUntilIdle()
+
+			coVerify(exactly = 1) { repository.uninstallTemplate(item, false) }
+			assertThat(viewModel.uiEffect.first() is TemplateManagerUiEffect.ShowSuccess).isTrue()
+		}
+
+	/**
+	 * ADFA-5446: a DownloadFileConflictException means Downloads already has a same-named file
+	 * (e.g. left behind by the "open a .cgt from outside the app" path) - the ViewModel must ask
+	 * before overwriting it, not surface this as a generic error.
+	 */
+	@Test
+	fun uninstallTemplate_onDownloadConflict_showsOverwriteConfirmation_notGenericError() =
+		runTest {
+			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
+			coEvery { repository.uninstallTemplate(item, false) } returns
+				Result.failure(DownloadFileConflictException("already exists"))
+
+			val viewModel = TemplateManagerViewModel(repository)
+			advanceUntilIdle()
+
+			viewModel.onEvent(TemplateManagerUiEvent.UninstallTemplate(item))
+			advanceUntilIdle()
+
+			val effect = viewModel.uiEffect.first()
+			assertThat(effect).isInstanceOf(TemplateManagerUiEffect.ShowOverwriteDownloadConfirmation::class.java)
+			assertThat((effect as TemplateManagerUiEffect.ShowOverwriteDownloadConfirmation).item).isEqualTo(item)
+		}
+
+	/** The dialog's confirm action: retries with overwrite = true and completes normally on success. */
+	@Test
+	fun confirmUninstallOverwritingDownload_retriesWithOverwriteTrue() =
+		runTest {
+			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
+			coEvery { repository.uninstallTemplate(item, true) } returns Result.success(Unit)
+
+			val viewModel = TemplateManagerViewModel(repository)
+			advanceUntilIdle()
+
+			viewModel.confirmUninstallOverwritingDownload(item)
+			advanceUntilIdle()
+
+			coVerify(exactly = 1) { repository.uninstallTemplate(item, true) }
+			assertThat(viewModel.uiEffect.first() is TemplateManagerUiEffect.ShowSuccess).isTrue()
 		}
 }
