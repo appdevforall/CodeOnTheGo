@@ -57,6 +57,7 @@ class MetricsChartAxisTapTest {
 					NetworkUsageWatcher.NetworkUsage(
 						LongArray(SAMPLES) { 1_000L },
 						LongArray(SAMPLES) { 500L },
+						LongArray(SAMPLES),
 					)
 				},
 			)
@@ -103,6 +104,29 @@ class MetricsChartAxisTapTest {
 		// and showNewestWindow scrolled the chart back on the next tick.
 		assertThat(attachedRenderer.visibleSampleRange(chart, SAMPLES).last)
 			.isLessThan(SAMPLES - 1)
+	}
+
+	@Test
+	fun `re-attaching the same chart keeps the viewport the user drove`() {
+		val chart = laidOutChart()
+		drawOnce(chart)
+		chart.setVisibleXRangeMaximum(VISIBLE_WINDOW.toFloat())
+		chart.moveViewToXNow(0f)
+		drawOnce(chart)
+
+		val event = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_MOVE, 10f, 10f, 0)
+		chart.onChartGestureListener.onChartTranslate(event, -50f, 0f)
+		event.recycle()
+		assertThat(attachedRenderer.visibleSampleRange(chart, SAMPLES).last).isLessThan(SAMPLES - 1)
+
+		// A rebind of an already-bound holder. The teardown it runs is what stops a second gesture
+		// listener being installed, so it has to happen -- but it also cleared the flag that says
+		// the user has driven the viewport, and the next tick then scrolled the chart back to the
+		// newest samples underneath them.
+		attachedRenderer.attach(chart)
+		drawOnce(chart)
+
+		assertThat(attachedRenderer.visibleSampleRange(chart, SAMPLES).last).isLessThan(SAMPLES - 1)
 	}
 
 	/** MPAndroidChart runs its viewport jobs during a draw, so a pan is not real until one. */
@@ -152,6 +176,25 @@ class MetricsChartAxisTapTest {
 		// The other half of the bound: narrowing the band must not put the rate chooser out of
 		// reach. One axis label's height below the plot always stays in it.
 		tapAt(chart, chart.viewPortHandler.contentBottom() + chart.xAxis.textSize / 2f)
+
+		assertThat(taps).isEqualTo(1)
+	}
+
+	@Test
+	fun `the gap the legend keeps above itself still opens the chooser`() {
+		val chart = laidOutChart()
+		val legend = chart.legend
+
+		// Guards the assertion below: with no legend, or no gap, there is no strip to test.
+		assertThat(legend.isEnabled).isTrue()
+		assertThat(legend.mNeededHeight).isGreaterThan(0f)
+		assertThat(legend.yOffset).isGreaterThan(0f)
+
+		// Legend.calculateDimensions ends with `mNeededHeight += mYOffset`, so the offset is
+		// already inside the measured height. Reserving `mNeededHeight + yOffset` counted it twice
+		// and handed the legend a strip yOffset tall that nothing draws in -- taken off the bottom
+		// of the one target that opens the sampling-rate chooser.
+		tapAt(chart, CHART_HEIGHT - legend.mNeededHeight - legend.yOffset / 2f)
 
 		assertThat(taps).isEqualTo(1)
 	}

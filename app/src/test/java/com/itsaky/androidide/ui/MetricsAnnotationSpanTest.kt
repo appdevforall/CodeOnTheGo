@@ -54,6 +54,7 @@ class MetricsAnnotationSpanTest {
 					NetworkUsageWatcher.NetworkUsage(
 						LongArray(SAMPLES) { 1_000L },
 						LongArray(SAMPLES) { 500L },
+						LongArray(SAMPLES),
 					)
 				},
 				annotations = store,
