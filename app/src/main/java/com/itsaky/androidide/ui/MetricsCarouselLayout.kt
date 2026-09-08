@@ -73,9 +73,10 @@ class MetricsCarouselLayout
 		/**
 		 * Shows either the carousel or the "it is in a floating window" message, never a mix.
 		 *
-		 * The whole strip switches, not just the pager. The arrows and the snapshot button are
-		 * chrome for a chart that is not here: left behind they sit over the message, and the
-		 * camera is inert anyway because undocking unbinds the controller that listens to it.
+		 * The whole strip switches, not just the pager. The arrows, the snapshot button and the
+		 * export button are chrome for a chart that is not here: left behind they sit over the
+		 * message, and each is inert anyway because undocking unbinds the controller that listens
+		 * to them.
 		 *
 		 * Keeping the set here was supposed to stop a control added later from being forgotten.
 		 * It did not: the battery readout arrived afterwards and was missed, so the readout sat
@@ -92,6 +93,7 @@ class MetricsCarouselLayout
 					R.id.metrics_previous,
 					R.id.metrics_next,
 					R.id.metrics_snapshot,
+					R.id.metrics_export,
 				)
 			carouselIds.forEach { id ->
 				findViewById<View>(id)?.isVisible = !undocked
