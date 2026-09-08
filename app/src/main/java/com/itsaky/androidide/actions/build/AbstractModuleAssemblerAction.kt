@@ -107,11 +107,11 @@ abstract class AbstractModuleAssemblerAction(
 				gradleArgs = gradleArgs,
 				clobberAnswerAtTap = clobberAnswerAtTap,
 				beforeBuild = {
-					// The activity can go away during the save; saving through a dead one is
-					// pointless and its editors are already released.
-					if (!activity.isDestroyed && !activity.isFinishing) {
-						activity.saveAllResult()
-					}
+					// A dead activity has released its editors, so nothing can be saved; a build
+					// that went ahead anyway would build whatever was last on disk. The throw
+					// lands in runQuickBuild's catch, which finishes the run as an Error.
+					check(!activity.isDestroyed && !activity.isFinishing) { "Editor closed before the pre-build save" }
+					activity.saveAllResult()
 				},
 			)
 		}
