@@ -63,11 +63,16 @@ class MutableShiftedLongArray(
 	fun copy(): MutableShiftedLongArray = MutableShiftedLongArray(LongArray(size) { this[it] })
 
 	/**
-	 * Resets every element to zero and returns the shift to its starting position, so the array reads
-	 * as though nothing had ever been recorded.
+	 * Fills every element with [fillWith] and returns the shift to its starting position, so the
+	 * array reads as though nothing had ever been recorded.
+	 *
+	 * The fill value is a parameter because zero is a measurement for some series and an absence
+	 * for others: a memory buffer of zeros means "no memory used", while a temperature buffer of
+	 * zeros would plot a flat 0 C line and present it as a reading (ADFA-5499).
 	 */
-	fun clear() {
-		array.fill(0L)
+	@JvmOverloads
+	fun clear(fillWith: Long = 0L) {
+		array.fill(fillWith)
 		shift = 0
 	}
 
