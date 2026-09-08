@@ -21,7 +21,14 @@ final class PersistedSelection {
 	static PayloadPersistence.Loaded selectPersisted(long stampedBaselineGeneration,
 			PayloadPersistence store, String baselineFingerprint) {
 		PayloadPersistence.Loaded loaded = store.load(baselineFingerprint);
-		if (loaded == null || !Generations.accepts(stampedBaselineGeneration, loaded.generation)) {
+		if (loaded == null) {
+			return null;
+		}
+		if (!Generations.accepts(stampedBaselineGeneration, loaded.generation)) {
+			// Cleared, not merely skipped: the store is keyed on the baseline dex alone, so
+			// a dex-identical rebaseline keeps the superseded epoch's files on disk, and the
+			// next deploy's persist would inherit that epoch's meta as its own history.
+			store.clear();
 			return null;
 		}
 		return loaded;
