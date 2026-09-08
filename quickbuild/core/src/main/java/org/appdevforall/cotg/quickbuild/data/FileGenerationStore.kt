@@ -22,7 +22,7 @@ import java.io.IOException
  * must not block.
  *
  * @property file the counter file; it need not exist yet, its parent directory is created on
- *   first [save], and a sibling `.tmp` is the write staging path.
+ *   first [save], and each save stages through its own uniquely named sibling `.tmp`.
  * @property ioDispatcher where the file I/O runs; injectable so tests can pin the hop.
  */
 class FileGenerationStore(
@@ -32,13 +32,15 @@ class FileGenerationStore(
 	/**
 	 * Reads the persisted counter.
 	 *
-	 * @return the stored generation, or null when the file is missing, unreadable, or does not
-	 *   parse as a Long - all of which the caller treats as a fresh session.
+	 * @return the stored generation, or null when the file is missing, unreadable, or its
+	 *   first line does not parse as a Long - all of which the caller treats as a fresh
+	 *   session. Only the first line is read, so a torn or appended-to file still yields the
+	 *   counter it starts with rather than nothing.
 	 */
 	override suspend fun load(): Long? =
 		withContext(ioDispatcher) {
 			try {
-				if (file.isFile) file.readText().trim().toLongOrNull() else null
+				if (file.isFile) file.useLines { it.firstOrNull() }?.trim()?.toLongOrNull() else null
 			} catch (e: IOException) {
 				log.warn("Failed to read generation from {}; starting fresh", file, e)
 				null
@@ -58,7 +60,9 @@ class FileGenerationStore(
 	override suspend fun save(generation: Long) =
 		withContext(ioDispatcher) {
 			file.parentFile?.mkdirs()
-			val tmp = File(file.parentFile, file.name + ".tmp")
+			// A unique staging name per save: two stores on the same path (or two saves racing on
+			// one) would otherwise stage into a single file and rename each other's bytes.
+			val tmp = File.createTempFile(file.name + ".", ".tmp", file.parentFile)
 			tmp.writeText(generation.toString())
 			if (!tmp.renameTo(file)) {
 				// Windows-style rename-over-existing failure path; harmless on device but

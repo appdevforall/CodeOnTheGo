@@ -76,7 +76,8 @@ class FileGenerationStoreEdgeTest {
 			val target =
 				object : File(path.absolutePath) {
 					override fun delete(): Boolean {
-						File(parentFile, "$name.tmp").delete()
+						// The staged temp carries a random middle segment, so sweep the pattern.
+						parentFile.listFiles { f -> f.name.startsWith("$name.") && f.name.endsWith(".tmp") }?.forEach { it.delete() }
 						return super.delete()
 					}
 				}
