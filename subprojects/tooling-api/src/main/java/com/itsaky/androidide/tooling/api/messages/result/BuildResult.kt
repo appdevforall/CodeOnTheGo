@@ -28,4 +28,14 @@ data class BuildResult(
 	val buildId: BuildId,
 	val tasks: List<String>,
 	val durationMs: Long,
+	/**
+	 * Why the build failed, or `null` if it succeeded.
+	 *
+	 * The server is the only party that can answer this: Gradle raises a
+	 * `BuildCancelledException` for a build the user stopped, and the same throwable that decides
+	 * the [TaskExecutionResult] decides this. Without it a client had to reconstruct "was that a
+	 * cancel?" from the order its own callbacks happened to arrive in, and got it wrong
+	 * (ADFA-5542).
+	 */
+	val failure: TaskExecutionResult.Failure? = null,
 )

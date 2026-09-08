@@ -19,7 +19,7 @@ package com.itsaky.androidide.services.builder
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.services.builder.GradleBuildService.EventListener
-import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -28,12 +28,16 @@ import java.lang.reflect.Proxy
 /**
  * Pins that the build service's listener wrapper forwards every callback it is given.
  *
- * It did not. `onBuildCancelRequested` was declared with a `= Unit` default so that only listeners
- * that cared had to implement it; the wrapper then inherited that no-op rather than passing the
- * call on, so the cancel never reached the real listener and a build the user had stopped went on
- * being annotated as a failure -- which is what BUILD_CANCELLED exists to prevent. The feature was
- * unreachable, and the store-level test for it passed the whole time, because it called the store
- * directly and nothing exercised the path to it.
+ * It did not. A now-removed `onBuildCancelRequested` was declared with a `= Unit` default so that
+ * only listeners that cared had to implement it; the wrapper then inherited that no-op rather than
+ * passing the call on, so the cancel never reached the real listener and a build the user had
+ * stopped went on being annotated as a failure -- which is what BUILD_CANCELLED exists to prevent.
+ * The feature was unreachable, and the store-level test for it passed the whole time, because it
+ * called the store directly and nothing exercised the path to it.
+ *
+ * That callback is gone: the server classifies the throwable Gradle raised and says so on the
+ * BuildResult, so nothing on this side has to be told separately (ADFA-5542). The invariant it
+ * left behind outlives it and still guards every remaining member.
  */
 @RunWith(RobolectricTestRunner::class)
 class GradleBuildServiceListenerWrapperTest {
@@ -75,30 +79,21 @@ class GradleBuildServiceListenerWrapperTest {
 	}
 
 	@Test
-	fun `a cancel request reaches the listener, naming its build`() {
+	fun `a failure reaches the listener with the server's reason for it`() {
 		val recorder = Recorder()
 		val wrapped = GradleBuildService.wrap(recorder.listener)!!
 
-		wrapped.onBuildCancelRequested(BuildId.Unknown)
-
-		// The one this went wrong on, kept as its own case so the reason is legible in a report.
-		assertThat(recorder.calls).containsExactly("onBuildCancelRequested")
-
-		// The id is the whole of what makes a cancel attributable (ADFA-5542). A wrapper that
-		// forwarded the call and dropped the argument would be the same defect one layer in, and
-		// no signature would complain about it.
-		assertThat(recorder.lastArgs).containsExactly(BuildId.Unknown)
-	}
-
-	@Test
-	fun `an outcome reaches the listener with the build it belongs to`() {
-		val recorder = Recorder()
-		val wrapped = GradleBuildService.wrap(recorder.listener)!!
-
-		wrapped.onBuildFailed(BuildId.Unknown, listOf(":app:assembleDebug"))
+		wrapped.onBuildFailed(listOf(":app:assembleDebug"), TaskExecutionResult.Failure.BUILD_CANCELLED)
 
 		assertThat(recorder.calls).containsExactly("onBuildFailed")
-		assertThat(recorder.lastArgs).containsExactly(BuildId.Unknown, listOf(":app:assembleDebug")).inOrder()
+
+		// The reason is the whole of what tells a cancel from a failure (ADFA-5542), and it is the
+		// server's answer rather than one this side worked out. A wrapper that forwarded the call
+		// and dropped the argument would be the earlier defect one layer in, with no signature to
+		// complain about it.
+		assertThat(recorder.lastArgs)
+			.containsExactly(listOf(":app:assembleDebug"), TaskExecutionResult.Failure.BUILD_CANCELLED)
+			.inOrder()
 	}
 
 	@Test

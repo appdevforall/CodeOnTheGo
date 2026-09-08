@@ -143,14 +143,18 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				return@runBuild doInitialize(params, start)
 			} catch (err: Throwable) {
 				log.error("Failed to initialize project", err)
+				// One classification, used twice. Told only through the return value, the client
+				// had no way to tell a sync the user stopped from one that broke (ADFA-5542).
+				val failure = getTaskFailureType(err)
 				notifyBuildFailure(
 					BuildResult(
 						tasks = emptyList(),
 						buildId = params.buildId,
 						durationMs = System.currentTimeMillis() - start,
+						failure = failure,
 					),
 				)
-				return@runBuild InitializeResult.Failure(getTaskFailureType(err))
+				return@runBuild InitializeResult.Failure(failure)
 			}
 		}
 	}
@@ -317,15 +321,17 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				return@runBuild TaskExecutionResult.SUCCESS
 			} catch (error: Throwable) {
 				log.error("Failed to run tasks: {}", message.tasks, error)
+				val failure = getTaskFailureType(error)
 				notifyBuildFailure(
 					result =
 						BuildResult(
 							tasks = message.tasks,
 							buildId = message.buildId,
 							durationMs = System.currentTimeMillis() - start,
+							failure = failure,
 						),
 				)
-				return@runBuild TaskExecutionResult(false, getTaskFailureType(error))
+				return@runBuild TaskExecutionResult(false, failure)
 			}
 		}
 	}
