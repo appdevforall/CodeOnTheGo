@@ -21,6 +21,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.util.AttributeSet
+import android.view.MotionEvent
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.YAxis
 import org.slf4j.LoggerFactory
@@ -83,6 +84,24 @@ class SafeLineChart : LineChart {
 
 	/** Reused by [drawBackgroundSpans]: two (x, y) pairs, transformed in place. */
 	private val spanPoints = FloatArray(4)
+
+	/**
+	 * Called when a second finger lands, which ends whatever one-finger gesture was in progress.
+	 *
+	 * MPAndroidChart's gesture listener cannot report this. `ChartTouchListener` assigns its
+	 * `mLastGesture` only from a drag, a zoom, a long press, a tap or a fling -- never from
+	 * ACTION_POINTER_DOWN -- so a second finger that lands and lifts without moving leaves the
+	 * gesture still labelled LONG_PRESS, and the listener cannot tell that from a finger simply
+	 * being lifted (ADFA-5554).
+	 */
+	var onSecondPointerDown: (() -> Unit)? = null
+
+	override fun onTouchEvent(event: MotionEvent): Boolean {
+		if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+			onSecondPointerDown?.invoke()
+		}
+		return super.onTouchEvent(event)
+	}
 
 	/**
 	 * Draws the spans immediately after the grid background, which is an opaque fill of the plot: a

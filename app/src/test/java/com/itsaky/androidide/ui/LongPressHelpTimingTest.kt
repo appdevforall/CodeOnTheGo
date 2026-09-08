@@ -273,6 +273,74 @@ class LongPressHelpTimingTest {
 		assertThat(view.isLongClickable).isFalse()
 	}
 
+	@Test
+	fun `a control that does not answer taps is not clicked`() {
+		// View.onTouchEvent performs a click only for a clickable view, and taking the touch over
+		// means taking that test over too. The carousel dims the arrow at either end by clearing
+		// isClickable rather than isEnabled -- deliberately, so it still answers a hold -- so
+		// without this a tap on the dimmed arrow played the click sound and announced a click for
+		// a control the screen reader is being told is unavailable.
+		val view = target()
+		view.isClickable = false
+
+		send(view, MotionEvent.ACTION_DOWN)
+		elapse(50L)
+		send(view, MotionEvent.ACTION_UP)
+		drain()
+
+		assertThat(clicks).isEqualTo(0)
+		assertThat(holds).isEqualTo(0)
+	}
+
+	@Test
+	fun `a control that does not answer taps still answers a hold`() {
+		// The other half, and the reason isClickable was chosen over isEnabled in the first place.
+		val view = target()
+		view.isClickable = false
+
+		send(view, MotionEvent.ACTION_DOWN)
+		elapse(longPressHelpTimeoutMillis() + 50L)
+		send(view, MotionEvent.ACTION_UP)
+		drain()
+
+		assertThat(holds).isEqualTo(1)
+		assertThat(clicks).isEqualTo(0)
+	}
+
+	@Test
+	fun `a second finger gives up the press`() {
+		// The carousel undocks on a two-finger tap anywhere in the strip, and one of those fingers
+		// lands on a control. Counting it as a press meant the gesture both undocked the strip and
+		// paged it, or held long enough to open that button's help over a strip on its way out.
+		val view = target()
+
+		send(view, MotionEvent.ACTION_DOWN)
+		elapse(50L)
+		send(view, MotionEvent.ACTION_POINTER_DOWN)
+		elapse(longPressHelpTimeoutMillis())
+		send(view, MotionEvent.ACTION_UP)
+		drain()
+
+		assertThat(clicks).isEqualTo(0)
+		assertThat(holds).isEqualTo(0)
+	}
+
+	@Test
+	fun `clearing the help takes back a click that has not run yet`() {
+		// The click is posted, so there is a turn of the looper between the finger lifting and the
+		// action running. A teardown landing in it -- the sheet detaching, the carousel unbinding
+		// -- would otherwise still click a control it has just unwired.
+		val view = target()
+
+		send(view, MotionEvent.ACTION_DOWN)
+		elapse(50L)
+		send(view, MotionEvent.ACTION_UP)
+		view.clearLongPressHelp()
+		drain()
+
+		assertThat(clicks).isEqualTo(0)
+	}
+
 	private companion object {
 		/** Big enough that a roll of one touch slop is still well inside it. */
 		const val WIDTH = 400
