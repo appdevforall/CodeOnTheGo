@@ -7,9 +7,9 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import com.itsaky.androidide.idetooltips.R
 import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
-import kotlin.math.abs
 
 /**
  * Shows [tag]'s tooltip (under [category]) anchored to [anchor], or does nothing if [tag] is
@@ -52,8 +52,19 @@ fun showIdeCategoryTooltipIfPresent(
  *
  * Never *shorter* than the platform's value: that setting is exposed as an accessibility
  * "touch and hold delay", and someone who has lengthened it did so deliberately.
+ *
+ * [platformTimeoutMillis] is a parameter only so a test can name one. Asserted against the live
+ * value, both the doubling and the floor are implied by the expression itself and a test of them
+ * pins nothing.
  */
-fun longPressHelpTimeoutMillis(): Long = maxOf(ViewConfiguration.getLongPressTimeout() * 2L, 800L)
+fun longPressHelpTimeoutMillis(platformTimeoutMillis: Long = ViewConfiguration.getLongPressTimeout().toLong()): Long =
+	maxOf(platformTimeoutMillis * PLATFORM_TIMEOUT_MULTIPLE, MIN_HOLD_MILLIS)
+
+/** The shortest hold that will ever be asked for, whatever the platform's own timeout. */
+private const val MIN_HOLD_MILLIS = 800L
+
+/** How much longer than the platform's long press a hold is, above the floor. */
+private const val PLATFORM_TIMEOUT_MULTIPLE = 2L
 
 /**
  * Shows [tooltipTag]'s tooltip (under [tooltipCategory]) when this view is held for
@@ -81,6 +92,10 @@ fun View.displayTooltipOnLongPress(
 	holdMillis: Long = longPressHelpTimeoutMillis(),
 ) {
 	if (tooltipTag.isBlank()) {
+		// Not a no-op. This call replaces whatever help was wired here before, and a blank tag
+		// says there is none now; returning early would leave the previous tag's listeners
+		// answering holds -- and swallowing every touch -- for help this view no longer offers.
+		clearLongPressHelp()
 		return
 	}
 
@@ -106,48 +121,136 @@ fun View.performOnHold(
 	holdMillis: Long = longPressHelpTimeoutMillis(),
 	onHold: () -> Unit,
 ) {
-	val slop = ViewConfiguration.get(context).scaledTouchSlop
+	// The hold only. [displayTooltipOnLongPress] installs its long-click listener first and this
+	// second, so clearing that here would take away what the caller had just wired.
+	clearOnHold()
+	val listener = HoldTouchListener(this, holdMillis, onHold)
+	// Tagged so [clearLongPressHelp] can tell that the listener it is about to remove is this one.
+	setTag(R.id.tooltip_hold_listener, listener)
+	setOnTouchListener(listener)
+}
+
+/**
+ * Stops this view answering a hold or a long press with help, and cancels one already timing.
+ *
+ * `setOnLongClickListener(null)` alone is not enough: [View.setOnLongClickListener] sets
+ * `isLongClickable` when it installs a listener but does not unset it when the listener is
+ * removed, so the view goes on consuming long presses -- and showing the system's own
+ * "performLongClick" feedback -- for help it no longer offers. The hold half is [clearOnHold].
+ */
+fun View.clearLongPressHelp() {
+	setOnLongClickListener(null)
+	isLongClickable = false
+	clearOnHold()
+}
+
+/**
+ * Stops this view timing a hold, and cancels one already counting down.
+ *
+ * The half of [clearLongPressHelp] that undoes [performOnHold], separately callable because a
+ * caller that installed only a hold should be able to undo only a hold.
+ *
+ * The touch listener is removed only when [performOnHold] is the one that installed it, which the
+ * tag says. Five of the six views [clearLongPressHelp] is called on are wired through the
+ * framework's long click and never had one, and a blanket `setOnTouchListener(null)` there would
+ * silently take away an unrelated listener the next contributor adds.
+ */
+fun View.clearOnHold() {
+	val hold = getTag(R.id.tooltip_hold_listener) as? HoldTouchListener ?: return
+	// A hold already counting down outlives its listener: the timer is on the main thread's
+	// queue, not on the view. Left running it fires against a control that has just been unwired
+	// -- or a carousel page that has just been replaced (ADFA-5554).
+	hold.cancel()
+	setTag(R.id.tooltip_hold_listener, null)
+	setOnTouchListener(null)
+}
+
+/**
+ * Times a hold on [view] and stands in for the framework's own press handling while it does.
+ *
+ * A class rather than a lambda so the pending hold can be cancelled from outside the touch stream;
+ * captured in a closure it was unreachable, and a teardown could only stop the *next* hold.
+ */
+private class HoldTouchListener(
+	private val view: View,
+	private val holdMillis: Long,
+	private val onHold: () -> Unit,
+) : View.OnTouchListener {
 	// An explicit handler, not View.postDelayed: a view not attached to a window parks posted work
 	// in its HandlerActionQueue and only runs it on attach, so the hold would never time out.
-	val handler = Handler(Looper.getMainLooper())
-	var held = false
-	var holding = false
-	var downX = 0f
-	var downY = 0f
-	val fire =
+	private val handler = Handler(Looper.getMainLooper())
+
+	private val slop = ViewConfiguration.get(view.context).scaledTouchSlop
+
+	private var held = false
+
+	private var holding = false
+
+	private val fire =
 		Runnable {
 			held = true
-			isPressed = false
+			view.isPressed = false
 			onHold()
 		}
 
-	setOnTouchListener { view, event ->
+	fun cancel() {
+		holding = false
+		handler.removeCallbacks(fire)
+		view.isPressed = false
+	}
+
+	/**
+	 * Whether a touch at ([x], [y]) is still on the view, by the framework's rule.
+	 *
+	 * `View.onTouchEvent` gives up on a press when `!pointInView(x, y, mTouchSlop)` -- when the
+	 * finger leaves the view's bounds grown by the slop, not when it has travelled slop from
+	 * where it went down. Measured from the down point instead, an ordinary thumb tap on a large
+	 * target rolls far enough to cancel its own click without ever leaving the control, and the
+	 * carousel strip is the full width of the editor.
+	 */
+	private fun isInside(
+		x: Float,
+		y: Float,
+	): Boolean = x >= -slop && y >= -slop && x < view.width + slop && y < view.height + slop
+
+	override fun onTouch(
+		v: View,
+		event: MotionEvent,
+	): Boolean {
 		when (event.actionMasked) {
 			MotionEvent.ACTION_DOWN -> {
 				held = false
 				holding = true
-				downX = event.x
-				downY = event.y
-				view.isPressed = true
+				v.isPressed = true
+				// The framework starts the ripple from the touch point. Without this every ripple
+				// on these controls begins at the centre of the drawable instead.
+				v.drawableHotspotChanged(event.x, event.y)
 				handler.postDelayed(fire, holdMillis)
 			}
 
 			MotionEvent.ACTION_MOVE -> {
-				if (holding && (abs(event.x - downX) > slop || abs(event.y - downY) > slop)) {
-					// Wandered off the control: neither a click nor help, which is how the
-					// framework treats a drag out of a view. Taking the touch over means saying so.
+				if (holding && !isInside(event.x, event.y)) {
+					// Left the control: neither a click nor help, which is how the framework
+					// treats a drag out of a view. Taking the touch over means saying so.
 					holding = false
 					handler.removeCallbacks(fire)
-					view.isPressed = false
+					v.isPressed = false
 				}
 			}
 
 			MotionEvent.ACTION_UP -> {
 				handler.removeCallbacks(fire)
-				view.isPressed = false
+				v.isPressed = false
 				// The click belongs to a press that stayed put and did not become a hold.
 				if (holding && !held) {
-					view.performClick()
+					// Posted rather than called here, as View.onTouchEvent does, so the pressed
+					// state is drawn before the action runs -- these open dialogs and re-page the
+					// carousel from inside the dispatch of the event that triggered them.
+					//
+					// Through this handler and not View.post, which parks work on an unattached
+					// view's HandlerActionQueue and returns true having run nothing. Same trap as
+					// the hold timer, one method along.
+					handler.post { v.performClick() }
 				}
 				holding = false
 			}
@@ -155,9 +258,9 @@ fun View.performOnHold(
 			MotionEvent.ACTION_CANCEL -> {
 				holding = false
 				handler.removeCallbacks(fire)
-				view.isPressed = false
+				v.isPressed = false
 			}
 		}
-		true
+		return true
 	}
 }

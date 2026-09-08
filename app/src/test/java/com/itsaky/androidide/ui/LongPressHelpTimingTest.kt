@@ -26,6 +26,7 @@ import android.widget.Button
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.utils.clearLongPressHelp
+import com.itsaky.androidide.utils.displayTooltipOnLongPress
 import com.itsaky.androidide.utils.longPressHelpTimeoutMillis
 import com.itsaky.androidide.utils.performOnHold
 import org.junit.Test
@@ -56,8 +57,14 @@ class LongPressHelpTimingTest {
 
 	private var clicks = 0
 
+	/**
+	 * A control with a real size, which the move cases need: whether a touch is still on the view
+	 * is measured against the view's bounds, so an unmeasured one collapses every position onto
+	 * the same answer.
+	 */
 	private fun target(): Button =
 		Button(context).apply {
+			layout(0, 0, WIDTH, HEIGHT)
 			setOnClickListener { clicks++ }
 			performOnHold { holds++ }
 		}
@@ -65,15 +72,24 @@ class LongPressHelpTimingTest {
 	private fun send(
 		view: View,
 		action: Int,
-		x: Float = 0f,
+		x: Float = CENTRE_X,
+		y: Float = CENTRE_Y,
 	) {
-		val event = MotionEvent.obtain(0L, 0L, action, x, 0f, 0)
+		val event = MotionEvent.obtain(0L, 0L, action, x, y, 0)
 		view.dispatchTouchEvent(event)
 		event.recycle()
 	}
 
 	/** Runs the main looper forward by [millis] of virtual time. */
 	private fun elapse(millis: Long) = shadowOf(Looper.getMainLooper()).idleFor(millis, TimeUnit.MILLISECONDS)
+
+	/**
+	 * Runs whatever is already due on the main looper without advancing the clock.
+	 *
+	 * The click is posted rather than performed inside the touch dispatch, as the framework does
+	 * it, so nothing has clicked until the looper turns.
+	 */
+	private fun drain() = shadowOf(Looper.getMainLooper()).idle()
 
 	@Test
 	fun `a press past the platform timeout but short of the hold still clicks`() {
@@ -85,6 +101,7 @@ class LongPressHelpTimingTest {
 		send(view, MotionEvent.ACTION_DOWN)
 		elapse(ViewConfiguration.getLongPressTimeout() + 100L)
 		send(view, MotionEvent.ACTION_UP)
+		drain()
 
 		assertThat(clicks).isEqualTo(1)
 		assertThat(holds).isEqualTo(0)
@@ -97,6 +114,7 @@ class LongPressHelpTimingTest {
 		send(view, MotionEvent.ACTION_DOWN)
 		elapse(50L)
 		send(view, MotionEvent.ACTION_UP)
+		drain()
 
 		assertThat(clicks).isEqualTo(1)
 		assertThat(holds).isEqualTo(0)
@@ -109,21 +127,59 @@ class LongPressHelpTimingTest {
 		send(view, MotionEvent.ACTION_DOWN)
 		elapse(longPressHelpTimeoutMillis() + 50L)
 		send(view, MotionEvent.ACTION_UP)
+		drain()
 
 		assertThat(holds).isEqualTo(1)
 		assertThat(clicks).isEqualTo(0)
 	}
 
 	@Test
-	fun `a press that wanders off the control does neither`() {
+	fun `the click is posted, not run inside the touch that ended it`() {
+		// View.onTouchEvent posts its click so the pressed state is drawn before the action runs,
+		// and these actions open dialogs and re-page the carousel from inside the dispatch of the
+		// event that triggered them. Taking the touch over means taking that over too.
+		val view = target()
+
+		send(view, MotionEvent.ACTION_DOWN)
+		elapse(50L)
+		send(view, MotionEvent.ACTION_UP)
+
+		assertThat(clicks).isEqualTo(0)
+		drain()
+		assertThat(clicks).isEqualTo(1)
+	}
+
+	@Test
+	fun `a press that rolls but stays on the control still clicks`() {
+		// The framework gives up on a press when the finger leaves the view grown by the slop --
+		// not when it has travelled slop from where it went down. Measured from the down point
+		// instead, an ordinary thumb tap on a large target rolls far enough to cancel its own
+		// click without ever leaving the control, and every one of these targets is large: the
+		// carousel strip is the full width of the editor.
+		val view = target()
+		val slop = ViewConfiguration.get(context).scaledTouchSlop
+
+		send(view, MotionEvent.ACTION_DOWN)
+		elapse(50L)
+		send(view, MotionEvent.ACTION_MOVE, x = CENTRE_X + slop + 10f)
+		send(view, MotionEvent.ACTION_UP)
+		drain()
+
+		assertThat(clicks).isEqualTo(1)
+		assertThat(holds).isEqualTo(0)
+	}
+
+	@Test
+	fun `a press that leaves the control does neither`() {
 		val view = target()
 		val slop = ViewConfiguration.get(context).scaledTouchSlop
 
 		send(view, MotionEvent.ACTION_DOWN)
 		elapse(100L)
-		send(view, MotionEvent.ACTION_MOVE, x = slop + 10f)
+		send(view, MotionEvent.ACTION_MOVE, x = WIDTH + slop + 10f)
 		elapse(longPressHelpTimeoutMillis())
 		send(view, MotionEvent.ACTION_UP)
+		drain()
 
 		// The framework treats a drag out of a view as neither, so taking the touch over means
 		// saying so rather than inventing a third behaviour.
@@ -145,11 +201,28 @@ class LongPressHelpTimingTest {
 	}
 
 	@Test
-	fun `the hold is longer than the platform's, and never shorter`() {
-		// The floor matters: the platform value is exposed as an accessibility "touch and hold
-		// delay", and someone who lengthened it meant to.
-		assertThat(longPressHelpTimeoutMillis()).isAtLeast(800L)
-		assertThat(longPressHelpTimeoutMillis()).isAtLeast(ViewConfiguration.getLongPressTimeout().toLong())
+	fun `a lengthened touch-and-hold delay is doubled, not ignored`() {
+		// Asserting isAtLeast against the live platform value pins nothing: maxOf(x * 2, 800) is
+		// at least 800 and at least x for every x by construction, so the whole rule could be
+		// deleted and such a test would still pass. Named values, and each of the two terms
+		// decides one of them.
+		//
+		// The delay is exposed as an accessibility setting, and someone who lengthened it meant
+		// to -- so the hold has to grow with it rather than staying at the floor.
+		assertThat(longPressHelpTimeoutMillis(platformTimeoutMillis = 1_000L)).isEqualTo(2_000L)
+	}
+
+	@Test
+	fun `a shortened touch-and-hold delay still gets the floor`() {
+		// Doubling alone would put help back inside a brisk tap, which is the defect.
+		assertThat(longPressHelpTimeoutMillis(platformTimeoutMillis = 100L)).isEqualTo(800L)
+	}
+
+	@Test
+	fun `the platform default lands on the floor`() {
+		// 400ms doubled is exactly the floor, so the two terms agree at the value almost every
+		// device reports -- which is why neither can be tested at it.
+		assertThat(longPressHelpTimeoutMillis(platformTimeoutMillis = 400L)).isEqualTo(800L)
 	}
 
 	@Test
@@ -165,5 +238,49 @@ class LongPressHelpTimingTest {
 		// for help the view no longer offers.
 		assertThat(holds).isEqualTo(0)
 		assertThat(view.isLongClickable).isFalse()
+	}
+
+	@Test
+	fun `clearing the help cancels a hold already counting down`() {
+		// The teardown runs while a finger is down -- the carousel unbinds, the strip is replaced,
+		// the sheet is torn down. The timer is on the main thread's queue rather than on the view,
+		// so clearing the listeners does not reach it: held in a closure it was unreachable
+		// altogether, and the tooltip appeared over a control that had just been unwired.
+		val view = target()
+
+		send(view, MotionEvent.ACTION_DOWN)
+		elapse(100L)
+		view.clearLongPressHelp()
+		elapse(longPressHelpTimeoutMillis())
+
+		assertThat(holds).isEqualTo(0)
+	}
+
+	@Test
+	fun `re-wiring with a blank tag takes the previous tag's help away`() {
+		// A blank tag says this view offers no help, which has to replace whatever was wired here
+		// before. Returning early instead left the previous listeners in place, still timing holds
+		// and still swallowing every touch.
+		val view = target()
+		view.displayTooltipOnLongPress(context, tooltipTag = "")
+
+		send(view, MotionEvent.ACTION_DOWN)
+		elapse(longPressHelpTimeoutMillis() + 50L)
+		send(view, MotionEvent.ACTION_UP)
+		drain()
+
+		assertThat(holds).isEqualTo(0)
+		assertThat(view.isLongClickable).isFalse()
+	}
+
+	private companion object {
+		/** Big enough that a roll of one touch slop is still well inside it. */
+		const val WIDTH = 400
+
+		const val HEIGHT = 200
+
+		const val CENTRE_X = WIDTH / 2f
+
+		const val CENTRE_Y = HEIGHT / 2f
 	}
 }
