@@ -104,6 +104,12 @@ sealed interface ProxyAppRebuildOutcome {
 	data class Success(
 		/** The re-read report, which may declare components the old baseline did not. */
 		val proxyApp: ProxyAppInfo,
+		/**
+		 * The reinstalled app's uid, re-read from PackageManager after the install. A
+		 * reinstall keeps the uid unless the app was removed in between, and the host
+		 * service trusts callers by uid alone, so the session re-keys on it either way.
+		 */
+		val proxyAppUid: Int,
 		/** Derived from the same re-read setup.json as [proxyApp]. */
 		val layout: QuickBuildProjectLayout,
 		/**
