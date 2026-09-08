@@ -101,20 +101,27 @@ class DaemonProcessClient(
 		 * requests. Assigned by [startReaders] before the watcher can observe an exit.
 		 */
 		@Volatile var pump: Job? = null
+
+		/**
+		 * Set once this child's `configure` reply was accepted. Lives on the Spawn so that a
+		 * replaced child's late death watcher can never clear it for its successor; dropping the
+		 * Spawn is what ends "running".
+		 */
+		@Volatile var configured = false
+
+		/** The filesystem type this child reported for its scratch directory, if any. */
+		@Volatile var scratchFsType: String? = null
 	}
 
 	@Volatile private var spawn: Spawn? = null
 
 	@Volatile private var deathListener: ((Int) -> Unit)? = null
 
-	@Volatile private var configured = false
-
-	@Volatile
-	override var scratchFsType: String? = null
-		private set
+	override val scratchFsType: String?
+		get() = spawn?.scratchFsType
 
 	override val isRunning: Boolean
-		get() = configured && spawn?.process?.isAlive == true
+		get() = spawn?.let { it.configured && it.process.isAlive } == true
 
 	/**
 	 * Installs the unexpected-exit callback, replacing any previous one.
@@ -131,9 +138,10 @@ class DaemonProcessClient(
 	 * Shuts down any running daemon, spawns a fresh child JVM, and sends `configure`.
 	 *
 	 * @param config the session-fixed settings sent in the `configure` request.
-	 * @return [DaemonReply.Ok] once configure succeeded and the protocol version matched, else
-	 *   [DaemonReply.Failed] (spawn failure, protocol mismatch, or a rejected configuration) with
-	 *   the child shut down first, so a failed start never leaves a daemon behind.
+	 * @return [DaemonReply.Ok] once configure succeeded and the protocol version matched;
+	 *   [DaemonReply.BuildFailed] when the daemon rejected the configuration, its diagnostics
+	 *   saying why; else [DaemonReply.Failed] (spawn failure or protocol mismatch). Either
+	 *   failure has the child shut down first, so a failed start never leaves a daemon behind.
 	 */
 	override suspend fun start(config: DaemonConfig): DaemonReply<Unit> = startMutex.withLock { startLocked(config) }
 
@@ -144,9 +152,9 @@ class DaemonProcessClient(
 	 * @return what [start] returns.
 	 */
 	private suspend fun startLocked(config: DaemonConfig): DaemonReply<Unit> {
-		// Also clears scratchFsType and marks the old child's stop on its own Spawn - the
-		// fresh Spawn below starts with a clean marker of its own. The unlocked body, because
-		// [startMutex] is already held here and is not reentrant.
+		// Marks the old child's stop on its own Spawn and drops it, which is also what ends
+		// isRunning and scratchFsType - the fresh Spawn below starts clean. The unlocked body,
+		// because [startMutex] is already held here and is not reentrant.
 		shutdownLocked()
 
 		val proc =
@@ -180,6 +188,12 @@ class DaemonProcessClient(
 		startReaders(spawn)
 		try {
 			return configureLocked(spawn, config)
+		} catch (e: CancellationException) {
+			// configureLocked only shuts the child down on a reply it saw; a cancel mid round
+			// trip leaves it alive with nothing else ever stopping it. The kill inside is
+			// NonCancellable, so it completes under the cancelled job.
+			shutdownLocked()
+			throw e
 		} finally {
 			// No-op after a configured start; every other way out, cancellation included, tells
 			// the watcher this child was never the session's.
@@ -226,12 +240,12 @@ class DaemonProcessClient(
 								"$EXPECTED_PROTOCOL_VERSION",
 						)
 					} else {
-						scratchFsType =
+						spawn.scratchFsType =
 							configureReply.value
 								.get(ResponseKeys.SCRATCH_FS_TYPE)
 								?.takeIf { it.isJsonPrimitive }
 								?.asString
-						configured = true
+						spawn.configured = true
 						// Only now is an exit a death: from here the session owns this child.
 						spawn.owned.complete(true)
 						DaemonReply.Ok(Unit)
@@ -239,13 +253,13 @@ class DaemonProcessClient(
 				}
 
 				is DaemonReply.BuildFailed -> {
-					// The diagnostics say WHY it was rejected and nothing else reads them on this
-					// path, so the first one travels in the message rather than being dropped.
-					val why = configureReply.diagnostics.firstOrNull()?.message
-					DaemonReply.Failed(
-						"Daemon rejected configuration" + (why?.let { ": $it" } ?: ""),
-						daemonDied = false,
+					// Returned as is: the diagnostics say WHY it was rejected, and the caller
+					// maps a BuildFailed start to its own user-facing message.
+					log.warn(
+						"Quick-build daemon rejected configuration: {}",
+						configureReply.diagnostics.firstOrNull()?.message ?: "no diagnostics",
 					)
+					configureReply
 				}
 
 				is DaemonReply.Failed -> {
@@ -382,10 +396,6 @@ class DaemonProcessClient(
 		// Marked before anything can kill it, so every exit from here on is deliberate to the
 		// watcher no matter how late it observes it.
 		spawn.deliberateStop.set(true)
-		configured = false
-		// Belongs to the child being stopped: left in place it would stamp the previous
-		// daemon's filesystem on the next session's timings.
-		scratchFsType = null
 		val proc = spawn.process
 		val out = spawn.writer
 		// NonCancellable because this is the only thing that kills the child: a teardown
@@ -570,7 +580,6 @@ class DaemonProcessClient(
 				log.debug("Replaced quick-build daemon exited with code {}", exitCode)
 				return@launch
 			}
-			configured = false
 			// Settled by the start, not by which coroutine woke first - see [Spawn.owned]. Safe
 			// to wait on: this child's pending requests were failed above, which is what lets
 			// a start still inside its configure round trip finish and settle it.
