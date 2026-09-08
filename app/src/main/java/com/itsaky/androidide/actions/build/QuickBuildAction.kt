@@ -54,9 +54,6 @@ class QuickBuildAction(
 
 	override suspend fun execAction(data: ActionData): Any {
 		val sessionManager = currentSessionManager() ?: return false
-		// Best-effort: analytics must never block or fail the build action (REVIEW.md section 11).
-		runCatching { GlobalContext.get().get<IAnalyticsManager>().trackFeatureUsed(FEATURE_NAME) }
-			.onFailure { log.warn("Quick Build analytics unavailable", it) }
 
 		// Behaviour 5: while the button shows the stop icon, a tap stops. Keyed off exactly the
 		// tone that drew that icon, so the two cannot drift apart.
@@ -64,6 +61,11 @@ class QuickBuildAction(
 			sessionManager.onCancelRequested()
 			return true
 		}
+
+		// Below the stop branch, so a stop tap is not counted as a use. Best-effort: analytics
+		// must never block or fail the build action (REVIEW.md section 11).
+		runCatching { GlobalContext.get().get<IAnalyticsManager>().trackFeatureUsed(FEATURE_NAME) }
+			.onFailure { log.warn("Quick Build analytics unavailable", it) }
 
 		// No activity, no tap: the rest of this needs one to flush the editor buffers and to
 		// ask about a clobber, and a tap that skipped both would build stale content into a slot
