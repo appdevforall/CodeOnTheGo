@@ -34,6 +34,7 @@ import com.itsaky.androidide.tooling.events.task.TaskFinishEvent
 import com.itsaky.androidide.tooling.events.task.TaskStartEvent
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import org.slf4j.LoggerFactory
@@ -136,6 +137,24 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	}
 
 	/**
+	 * What a failed build is reported as, to the plugins and in the result the editor posts.
+	 *
+	 * [cancelledText] is passed in rather than resolved here so this can be asserted without an
+	 * activity, for the same reason [outcomeKind] is separate: [onBuildFailed] returns early
+	 * without one, so anything decided inside it is unreachable from a test.
+	 */
+	@VisibleForTesting
+	internal fun failureMessage(
+		failure: TaskExecutionResult.Failure?,
+		cancelledText: String,
+	): String =
+		when {
+			failure == TaskExecutionResult.Failure.BUILD_CANCELLED -> cancelledText
+			lastStatusLine.contains("BUILD FAILED") -> lastStatusLine
+			else -> "Build failed. Check build output for details."
+		}
+
+	/**
 	 * Which marker a failed build gets: the user's own cancel, or a real failure (ADFA-5542).
 	 *
 	 * [failure] is the server's own classification of the throwable Gradle raised. The listener
@@ -226,6 +245,8 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	) {
 		val act = checkActivity("onBuildFailed") ?: return
 
+		val cancelled = failure == TaskExecutionResult.Failure.BUILD_CANCELLED
+
 		if (annotatedBuild) {
 			// A build the user stopped arrives through this same callback. Marking it as a failure
 			// would report their own deliberate action back to them in the error colour.
@@ -236,11 +257,20 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		analyzeCurrentFile()
 		GeneralPreferences.isFirstBuild = false
 		act.editorViewModel.isBuildInProgress = false
-		act.flashError(R.string.build_status_failed)
+		// Everything this method says, not only the chart marker. The annotation was fixed first
+		// and the three reports beside it were not, so a user who pressed Stop still got a red
+		// "Build failed" bar, a "Build failed" notification and an isSuccess=false result -- their
+		// own action read back to them as an error in every place but one.
+		if (cancelled) {
+			act.flashInfo(R.string.info_build_cancelled)
+		} else {
+			act.flashError(R.string.build_status_failed)
+		}
 
-		val message =
-			if (lastStatusLine.contains("BUILD FAILED")) lastStatusLine else "Build failed. Check build output for details."
+		val message = failureMessage(failure, act.getString(R.string.info_build_cancelled))
 
+		// The plugin API has no way to say "cancelled" -- IdeServices.onBuildFailed takes an error
+		// string and nothing else -- so the message is the whole of what a plugin can be told.
 		pluginBuildService?.notifyBuildFailed(message)
 
 		act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))

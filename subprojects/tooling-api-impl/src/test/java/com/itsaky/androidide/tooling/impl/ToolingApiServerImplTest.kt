@@ -116,8 +116,13 @@ class ToolingApiServerImplTest {
 		// The same verdict has to reach the client, not only the caller of initialize. It did not,
 		// and the editor was left reconstructing "was that a cancel?" from the order its own
 		// callbacks happened to arrive in -- which it got wrong, annotating a build the user had
-		// stopped as a failure (ADFA-5542). This is the one place the answer is known rather than
-		// inferred, and it is one classification of one throwable, used for both.
+		// stopped as a failure (ADFA-5542).
+		//
+		// This drives the sync path. The task-run path is the one the ticket is really about, and
+		// standing it up needs a live ProjectConnection; instead of testing the two separately,
+		// notifyBuildFailure now classifies and notifies in one call and hands the answer back, so
+		// neither site can report a failure without saying which, or tell the client one thing and
+		// its caller another. There is one place left to get this wrong and this covers it.
 		val reported = slot<BuildResult>()
 		verify { client.onBuildFailed(capture(reported)) }
 		assertThat(reported.captured.failure).isEqualTo(TaskExecutionResult.Failure.BUILD_CANCELLED)

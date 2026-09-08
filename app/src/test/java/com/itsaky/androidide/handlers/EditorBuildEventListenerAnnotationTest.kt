@@ -111,6 +111,23 @@ class EditorBuildEventListenerAnnotationTest {
 	}
 
 	@Test
+	fun `a build the user stopped is not reported as an error anywhere`() {
+		// The annotation was fixed first and the reports beside it were not, so a user who pressed
+		// Stop still got a red "Build failed" bar, a "Build failed" notification and an
+		// isSuccess=false result carrying failure text -- their own action read back to them as an
+		// error in every place but the chart.
+		assertThat(listener.failureMessage(TaskExecutionResult.Failure.BUILD_CANCELLED, CANCELLED_TEXT))
+			.isEqualTo(CANCELLED_TEXT)
+	}
+
+	@Test
+	fun `a build that really failed still says so`() {
+		assertThat(listener.failureMessage(TaskExecutionResult.Failure.BUILD_FAILED, CANCELLED_TEXT))
+			.isNotEqualTo(CANCELLED_TEXT)
+		assertThat(listener.failureMessage(null, CANCELLED_TEXT)).isNotEqualTo(CANCELLED_TEXT)
+	}
+
+	@Test
 	fun `preparing a build clears a stale pairing, even with no activity attached`() {
 		listener.annotatedBuild = true
 
@@ -139,5 +156,10 @@ class EditorBuildEventListenerAnnotationTest {
 		// Gradle emits far more than task events. Annotating everything would bury the markers
 		// that matter under configuration noise.
 		assertThat(listener.isAnnotated(plainEvent())).isFalse()
+	}
+
+	private companion object {
+		/** Stands in for the string the activity would resolve, which a test has no activity for. */
+		const val CANCELLED_TEXT = "Build was cancelled by the user."
 	}
 }

@@ -19,6 +19,7 @@ package com.itsaky.androidide.tooling.impl
 
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionType
@@ -143,18 +144,9 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				return@runBuild doInitialize(params, start)
 			} catch (err: Throwable) {
 				log.error("Failed to initialize project", err)
-				// One classification, used twice. Told only through the return value, the client
-				// had no way to tell a sync the user stopped from one that broke (ADFA-5542).
-				val failure = getTaskFailureType(err)
-				notifyBuildFailure(
-					BuildResult(
-						tasks = emptyList(),
-						buildId = params.buildId,
-						durationMs = System.currentTimeMillis() - start,
-						failure = failure,
-					),
+				return@runBuild InitializeResult.Failure(
+					notifyBuildFailure(params.buildId, emptyList(), start, err),
 				)
-				return@runBuild InitializeResult.Failure(failure)
 			}
 		}
 	}
@@ -321,17 +313,10 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				return@runBuild TaskExecutionResult.SUCCESS
 			} catch (error: Throwable) {
 				log.error("Failed to run tasks: {}", message.tasks, error)
-				val failure = getTaskFailureType(error)
-				notifyBuildFailure(
-					result =
-						BuildResult(
-							tasks = message.tasks,
-							buildId = message.buildId,
-							durationMs = System.currentTimeMillis() - start,
-							failure = failure,
-						),
+				return@runBuild TaskExecutionResult(
+					false,
+					notifyBuildFailure(message.buildId, message.tasks, start, error),
 				)
-				return@runBuild TaskExecutionResult(false, failure)
 			}
 		}
 	}
@@ -363,8 +348,31 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		}
 	}
 
-	private fun notifyBuildFailure(result: BuildResult) {
-		client?.onBuildFailed(result)
+	/**
+	 * Tells the client a build failed, and answers with why.
+	 *
+	 * Both in one call on purpose. The classification and the notification used to be written
+	 * separately at each failure site, which is how the notified [BuildResult] came to carry
+	 * everything except the answer while the caller of the request got it (ADFA-5542). A site
+	 * cannot now report a failure without saying which, or say one thing to the client and another
+	 * to its caller.
+	 */
+	private fun notifyBuildFailure(
+		buildId: BuildId,
+		tasks: List<String>,
+		startedAtMillis: Long,
+		error: Throwable,
+	): Failure {
+		val failure = getTaskFailureType(error)
+		client?.onBuildFailed(
+			BuildResult(
+				buildId = buildId,
+				tasks = tasks,
+				durationMs = System.currentTimeMillis() - startedAtMillis,
+				failure = failure,
+			),
+		)
+		return failure
 	}
 
 	private fun notifyBuildSuccess(result: BuildResult) {

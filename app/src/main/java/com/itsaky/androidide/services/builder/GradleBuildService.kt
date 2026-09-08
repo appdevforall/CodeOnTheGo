@@ -460,7 +460,15 @@ class GradleBuildService :
 	}
 
 	override fun onBuildFailed(result: BuildResult) {
-		updateNotification(getString(R.string.build_status_failed), false)
+		// The notification too, not only what reaches the listener: a build the user stopped left
+		// "Build failed" in the shade whatever the chart said (ADFA-5542).
+		val status =
+			if (result.failure == TaskExecutionResult.Failure.BUILD_CANCELLED) {
+				R.string.info_build_cancelled
+			} else {
+				R.string.build_status_failed
+			}
+		updateNotification(getString(status), false)
 
 		dispatchBuildResult(result, false)
 		eventListener?.onBuildFailed(result.tasks, result.failure)
