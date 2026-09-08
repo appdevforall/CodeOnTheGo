@@ -246,7 +246,7 @@ fun quickBuildProxyAppFailureSummary(output: List<String>): String? {
 	return if (cause.length <= MAX_SUMMARY_CHARS) {
 		cause
 	} else {
-		cause.take(MAX_SUMMARY_CHARS - 1).trimEnd() + "…"
+		cause.take(MAX_SUMMARY_CHARS - 3).trimEnd() + "..."
 	}
 }
 
