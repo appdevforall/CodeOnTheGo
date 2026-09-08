@@ -170,6 +170,10 @@ final class StatusOverlay {
 	private TextView createBanner(Activity activity) {
 		TextView banner = new TextView(activity);
 		banner.setTag(VIEW_TAG);
+		// The banner is the only in-app trace of a failed deploy, and it is drawn over the
+		// user's own screen with no focus of its own; without a live region a screen reader
+		// never announces it.
+		banner.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
 		banner.setTextColor(Color.WHITE);
 		banner.setTextSize(12f);
 		// The text is sp, so it grows with the system font scale: measured on an A56, the
