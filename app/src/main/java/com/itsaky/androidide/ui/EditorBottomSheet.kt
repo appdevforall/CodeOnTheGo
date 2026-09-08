@@ -133,9 +133,19 @@ class EditorBottomSheet
 		 * wrap to three lines and the swipe hint sits below them, and both were clipped against a
 		 * 100dp box - the remedy the line names being the half that went missing. The dimen is
 		 * kept as a floor so ordinary text keeps the familiar height; larger text raises it.
+		 *
+		 * The height goes onto the header's ViewFlipper, so it counts the status block only while
+		 * that is the child on show: the symbol input and the install-progress row wrap their own
+		 * content and keep the floor, whatever the status line last measured at.
 		 */
 		private val collapsedHeight: Float
-			get() = collapsedHeaderHeightPx(minCollapsedHeight, measuredStatusHeight, chromeAboveHeader)
+			get() =
+				collapsedHeaderHeightPx(
+					minCollapsedHeight,
+					measuredStatusHeight,
+					chromeAboveHeader,
+					statusShown = binding.headerContainer.displayedChild == CHILD_HEADER,
+				)
 		private val behavior: BottomSheetBehavior<EditorBottomSheet> by lazy {
 			BottomSheetBehavior.from(this).apply {
 				isFitToContents = false
@@ -514,11 +524,19 @@ class EditorBottomSheet
 			measuredStatusHeight = measured
 			// The measure above ran outside a layout pass, so ask for a real one to replace it.
 			header.requestLayout()
+			applyCollapsedHeaderHeight()
+		}
+
+		/**
+		 * Puts the current [collapsedHeight] onto the header and the peek. Only while collapsed:
+		 * mid-slide the height belongs to [onSlide], which reads [collapsedHeight] every frame.
+		 */
+		private fun applyCollapsedHeaderHeight() {
 			if (behavior.state != BottomSheetBehavior.STATE_COLLAPSED) {
 				return
 			}
 			applyPeekHeight()
-			header.updateLayoutParams<LayoutParams> {
+			binding.headerContainer.updateLayoutParams<LayoutParams> {
 				height = (collapsedHeight + insetBottom).roundToInt()
 			}
 		}
@@ -589,6 +607,10 @@ class EditorBottomSheet
 
 		fun showChild(index: Int) {
 			binding.headerContainer.displayedChild = index
+			// collapsedHeight depends on which child is on show, so the header is re-sized with
+			// it: the status block's extra rows must not come along to the symbol input or the
+			// install-progress row, and must be back when the status returns.
+			applyCollapsedHeaderHeight()
 		}
 
 		fun setActionText(text: CharSequence) {
@@ -689,11 +711,7 @@ class EditorBottomSheet
 			)
 
 			val activity = context as Activity
-			if (activity.isSoftInputVisible()) {
-				binding.headerContainer.displayedChild = CHILD_SYMBOL_INPUT
-			} else {
-				binding.headerContainer.displayedChild = CHILD_HEADER
-			}
+			showChild(if (activity.isSoftInputVisible()) CHILD_SYMBOL_INPUT else CHILD_HEADER)
 		}
 
 		fun setStatus(
@@ -876,9 +894,14 @@ class EditorBottomSheet
  * [chromePx] of the header hang below the window while the sheet is collapsed (see
  * `chromeAboveHeader`), so a block of [statusPx] needs a header of `statusPx + chromePx` to be
  * fully on screen. A block that has not been measured yet ([statusPx] <= 0) keeps the floor.
+ *
+ * [statusShown] is whether the status block is the header child on show. The header is a
+ * ViewFlipper whose other children (the symbol input, the install-progress row) wrap their own
+ * content, so while one of those is showing the status block's height keeps the floor too.
  */
 internal fun collapsedHeaderHeightPx(
 	floorPx: Float,
 	statusPx: Float,
 	chromePx: Int,
-): Float = if (statusPx <= 0f) floorPx else maxOf(floorPx, statusPx + chromePx)
+	statusShown: Boolean,
+): Float = if (!statusShown || statusPx <= 0f) floorPx else maxOf(floorPx, statusPx + chromePx)
