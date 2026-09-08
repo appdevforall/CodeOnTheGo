@@ -9,18 +9,18 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.common.compose.IdeTheme
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
-import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
-import com.itsaky.androidide.eventbus.events.editor.DocumentSelectedEvent
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.ui.models.OutlineUiEffect
 import com.itsaky.androidide.ui.outline.OutlinePanel
+import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.OutlineViewModel
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
@@ -31,6 +31,7 @@ import java.nio.file.Path
 
 class OutlineFragment : Fragment() {
 	private val viewModel: OutlineViewModel by activityViewModel()
+	private val editorViewModel: EditorViewModel by activityViewModels()
 
 	override fun onCreateView(
 		inflater: LayoutInflater,
@@ -51,6 +52,7 @@ class OutlineFragment : Fragment() {
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
+		editorViewModel.currentFile.observe(viewLifecycleOwner) { view.post { seedFromCurrentEditor() } }
 		viewLifecycleOwner.lifecycleScope.launch {
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
 				viewModel.effects.collect { effect ->
@@ -67,7 +69,6 @@ class OutlineFragment : Fragment() {
 		if (!EventBus.getDefault().isRegistered(this)) {
 			EventBus.getDefault().register(this)
 		}
-		seedFromCurrentEditor()
 	}
 
 	override fun onStop() {
@@ -90,22 +91,14 @@ class OutlineFragment : Fragment() {
 
 	@Subscribe(threadMode = MAIN)
 	fun onDocumentOpened(event: DocumentOpenEvent) {
+		val file = currentEditor()?.file ?: return
+		if (normalized(file.toPath()) != normalized(event.openedFile)) return
 		viewModel.onSnapshot(
 			path = normalized(event.openedFile),
 			extension = extensionOf(event.openedFile),
 			text = event.text,
 			immediate = true,
 		)
-	}
-
-	@Subscribe(threadMode = MAIN)
-	fun onDocumentSelected(event: DocumentSelectedEvent) {
-		seedFromCurrentEditor()
-	}
-
-	@Subscribe(threadMode = MAIN)
-	fun onDocumentClosed(event: DocumentCloseEvent) {
-		seedFromCurrentEditor()
 	}
 
 	private fun seedFromCurrentEditor() {

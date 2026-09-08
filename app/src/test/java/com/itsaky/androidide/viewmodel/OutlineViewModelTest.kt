@@ -75,8 +75,8 @@ class OutlineViewModelTest {
 			val vm = viewModel(provider)
 			vm.onSnapshot("/a/Main.java", "java", "class Main {}", immediate = true)
 			advanceTimeBy(1)
-			vm.onEvent(OutlineUiEvent.ToggleCollapsed("Main"))
-			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths).containsExactly("Main")
+			vm.onEvent(OutlineUiEvent.ToggleCollapsed("Main#0"))
+			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths).containsExactly("Main#0")
 
 			vm.onSnapshot("/b/Main.java", "java", "class Main {}", immediate = true)
 			advanceTimeBy(1)
@@ -165,13 +165,13 @@ class OutlineViewModelTest {
 			val vm = viewModel(provider)
 			vm.onSnapshot("Main.java", "java", "v1", immediate = true)
 			advanceUntilIdle()
-			vm.onEvent(OutlineUiEvent.ToggleCollapsed("Main"))
+			vm.onEvent(OutlineUiEvent.ToggleCollapsed("Main#0"))
 			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths)
-				.containsExactly("Main")
+				.containsExactly("Main#0")
 			vm.onSnapshot("Main.java", "java", "v2", immediate = false)
 			advanceUntilIdle()
 			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths)
-				.containsExactly("Main")
+				.containsExactly("Main#0")
 		}
 
 	@Test
@@ -181,7 +181,7 @@ class OutlineViewModelTest {
 			val vm = viewModel(provider)
 			vm.onSnapshot("Main.java", "java", "v1", immediate = true)
 			advanceUntilIdle()
-			vm.onEvent(OutlineUiEvent.ToggleCollapsed("Main"))
+			vm.onEvent(OutlineUiEvent.ToggleCollapsed("Main#0"))
 			provider.gate = CompletableDeferred()
 			vm.onSnapshot("Other.java", "java", "v1", immediate = true)
 			advanceUntilIdle()

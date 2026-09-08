@@ -26,4 +26,4 @@
 
 (field_declaration
   declarator: (variable_declarator
-    name: (identifier) @name)) @symbol.field
+    name: (identifier) @name) @symbol.field)

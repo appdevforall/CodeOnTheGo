@@ -78,10 +78,11 @@ jobs:
         run: |
           ./gradlew :app:assembleV8DebugAndroidTest --no-daemon
           ./gradlew :app:assembleV8Debug --no-daemon
+          ./gradlew :editor:assembleV8DebugAndroidTest --no-daemon
 
       - name: Run Firebase Test Lab and Wait for Results
         run: |
-          mkdir -p test-results/kotlin test-results/groovy
+          mkdir -p test-results/kotlin test-results/groovy test-results/editor
           
           # Run Kotlin DSL tests
           echo "Running Kotlin DSL tests..."
@@ -141,6 +142,25 @@ jobs:
                             grep -o 'gs://[^[:space:]]*/video\.mp4' test-results/groovy/test_output.txt | sed 's|gs://|https://storage.cloud.google.com/|' | head -1 || echo "")
           echo "GROOVY_VIDEO_URL=$GROOVY_VIDEO_URL" >> $GITHUB_ENV
 
+          # Run editor module instrumentation tests (self-instrumenting library test APK)
+          echo "Running editor tests..."
+          EDITOR_TEST_APK=$(ls editor/build/outputs/apk/androidTest/v8/debug/*-androidTest.apk | head -1)
+          gcloud firebase test android run \
+            --type instrumentation \
+            --app "$EDITOR_TEST_APK" \
+            --test "$EDITOR_TEST_APK" \
+            --device model=oriole,version=33,locale=en,orientation=portrait \
+            --timeout 15m \
+            --num-flaky-test-attempts=1 \
+            --results-dir=test-results/editor \
+            --results-bucket=gs://firebase-test-results-${RANDOM} \
+            --project=codeonthego-64a92 > test-results/editor/test_output.txt 2>&1
+
+          EDITOR_EXIT_CODE=$?
+          echo "Editor tests exit code: $EDITOR_EXIT_CODE"
+          EDITOR_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/editor/test_output.txt | head -1 || echo "")
+          echo "EDITOR_TEST_URL=$EDITOR_TEST_URL" >> $GITHUB_ENV
+
       - name: Notify Slack with parsed test results
         if: always()  # Run even if tests fail
         run: |
@@ -179,6 +199,7 @@ jobs:
           echo "Parsing test results..."
           KOTLIN_RESULTS=$(parse_results test-results/kotlin/test_output.txt "Kotlin DSL")
           GROOVY_RESULTS=$(parse_results test-results/groovy/test_output.txt "Groovy DSL")
+          EDITOR_RESULTS=$(parse_results test-results/editor/test_output.txt "Editor module")
           
           # Also capture the actual output for debugging
           echo "Kotlin output file contents:"
@@ -199,6 +220,7 @@ jobs:
           SLACK_MESSAGE="*🔥 Firebase Test Lab Results*\\n\\n"
           SLACK_MESSAGE="$SLACK_MESSAGE*${KOTLIN_RESULTS}*\\n"
           SLACK_MESSAGE="$SLACK_MESSAGE*${GROOVY_RESULTS}*\\n"
+          SLACK_MESSAGE="$SLACK_MESSAGE*${EDITOR_RESULTS}*\\n"
           
           # Add Kotlin URLs
           if [[ -n "$KOTLIN_TEST_URL" ]]; then
@@ -218,6 +240,9 @@ jobs:
             SLACK_MESSAGE="$SLACK_MESSAGE\\n🎥 Groovy Test Video: $GROOVY_VIDEO_URL"
           fi
           
+          if [[ -n "$EDITOR_TEST_URL" ]]; then
+            SLACK_MESSAGE="$SLACK_MESSAGE\\n\\n🔗 Editor Test Results: $EDITOR_TEST_URL"
+          fi
           # Add debugging info to see what URLs were found
           echo "Debug - Kotlin Video URL: '$KOTLIN_VIDEO_URL'"
           echo "Debug - Groovy Video URL: '$GROOVY_VIDEO_URL'"

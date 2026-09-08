@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +43,7 @@ import com.itsaky.androidide.viewmodel.OutlineViewModel
 
 private const val MAX_INDENT_DEPTH = 6
 private val INDENT_STEP = 14.dp
+private val TOGGLE_TARGET = 48.dp
 
 private val TYPE_BADGE_LIGHT = Color(0xFF6650C4)
 private val TYPE_BADGE_DARK = Color(0xFFB9A8FF)
@@ -158,7 +160,7 @@ private fun OutlineRow(
 	val indent = INDENT_STEP * cappedDepth
 	val guideColor = MaterialTheme.colorScheme.outlineVariant
 	Row(
-		verticalAlignment = Alignment.Top,
+		verticalAlignment = Alignment.CenterVertically,
 		modifier =
 			modifier
 				.fillMaxWidth()
@@ -176,7 +178,7 @@ private fun OutlineRow(
 							strokeWidth = stroke,
 						)
 					}
-				}.padding(start = 4.dp + indent, top = 5.dp, bottom = 5.dp, end = 12.dp)
+				}.padding(start = 4.dp + indent, end = 12.dp)
 				.semantics { contentDescription = rowDescription },
 	) {
 		if (row.hasChildren) {
@@ -184,17 +186,18 @@ private fun OutlineRow(
 				stringResource(
 					if (row.collapsed) R.string.cd_outline_expand else R.string.cd_outline_collapse,
 				)
-			Icon(
-				imageVector = Icons.Filled.ArrowDropDown,
-				contentDescription = toggleDescription,
-				modifier =
-					Modifier
-						.size(22.dp)
-						.rotate(if (row.collapsed) -90f else 0f)
-						.clickable { onEvent(OutlineUiEvent.ToggleCollapsed(row.path)) },
-			)
+			IconButton(
+				onClick = { onEvent(OutlineUiEvent.ToggleCollapsed(row.path)) },
+				modifier = Modifier.size(TOGGLE_TARGET),
+			) {
+				Icon(
+					imageVector = Icons.Filled.ArrowDropDown,
+					contentDescription = toggleDescription,
+					modifier = Modifier.rotate(if (row.collapsed) -90f else 0f),
+				)
+			}
 		} else {
-			Spacer(modifier = Modifier.size(22.dp))
+			Spacer(modifier = Modifier.size(TOGGLE_TARGET))
 		}
 		Text(
 			text = symbol.kind.badge,
@@ -204,22 +207,20 @@ private fun OutlineRow(
 			color = badgeColorFor(symbol.kind),
 			modifier = Modifier.padding(start = 2.dp, end = 8.dp),
 		)
-		Text(
-			text = symbol.name,
-			style = MaterialTheme.typography.bodyMedium,
-		)
-		symbol.detail?.let { detail ->
+		Column(modifier = Modifier.weight(1f).padding(vertical = 4.dp)) {
 			Text(
-				text = detail,
-				style = MaterialTheme.typography.bodySmall,
-				color = MaterialTheme.colorScheme.onSurfaceVariant,
-				maxLines = 1,
-				overflow = TextOverflow.Ellipsis,
-				modifier =
-					Modifier
-						.weight(1f, fill = false)
-						.padding(start = 8.dp, top = 2.dp),
+				text = symbol.name,
+				style = MaterialTheme.typography.bodyMedium,
 			)
+			symbol.detail?.let { detail ->
+				Text(
+					text = detail,
+					style = MaterialTheme.typography.bodySmall,
+					color = MaterialTheme.colorScheme.onSurfaceVariant,
+					maxLines = 1,
+					overflow = TextOverflow.Ellipsis,
+				)
+			}
 		}
 	}
 }

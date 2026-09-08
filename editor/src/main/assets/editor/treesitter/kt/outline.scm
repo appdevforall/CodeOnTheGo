@@ -1,4 +1,12 @@
 (class_declaration
+  "interface"
+  (type_identifier) @name) @symbol.interface
+
+(class_declaration
+  (type_identifier) @name
+  (enum_class_body)) @symbol.enum
+
+(class_declaration
   (type_identifier) @name) @symbol.class
 
 (object_declaration
@@ -19,9 +27,20 @@
 (secondary_constructor
   (function_value_parameters) @detail) @symbol.constructor
 
-(property_declaration
-  (variable_declaration
-    (simple_identifier) @name)) @symbol.property
+(class_body
+  (property_declaration
+    (variable_declaration
+      (simple_identifier) @name)) @symbol.property)
+
+(enum_class_body
+  (property_declaration
+    (variable_declaration
+      (simple_identifier) @name)) @symbol.property)
+
+(source_file
+  (property_declaration
+    (variable_declaration
+      (simple_identifier) @name)) @symbol.property)
 
 (class_parameter
   ["val" "var"]

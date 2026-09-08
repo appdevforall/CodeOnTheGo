@@ -12,10 +12,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -33,16 +36,22 @@ class OutlineViewModel(
 		val fileName: String get() = path.substringAfterLast('/')
 	}
 
-	private val snapshots = MutableStateFlow<Snapshot?>(null)
+	private data class Collapsed(
+		val path: String?,
+		val paths: Set<String>,
+	)
 
-	private val _uiState = MutableStateFlow<OutlineUiState>(OutlineUiState.NoFileOpen)
-	val uiState = _uiState.asStateFlow()
+	private val snapshots = MutableStateFlow<Snapshot?>(null)
+	private val computed = MutableStateFlow<OutlineUiState>(OutlineUiState.NoFileOpen)
+	private val collapsed = MutableStateFlow(Collapsed(path = null, paths = emptySet()))
+
+	val uiState: StateFlow<OutlineUiState> =
+		combine(computed, collapsed) { state, collapse ->
+			if (state is OutlineUiState.Content) state.copy(collapsedPaths = collapse.paths) else state
+		}.stateIn(viewModelScope, SharingStarted.Eagerly, OutlineUiState.NoFileOpen)
 
 	private val _effects = MutableSharedFlow<OutlineUiEffect>()
 	val effects = _effects.asSharedFlow()
-
-	private var collapsedPaths = emptySet<String>()
-	private var collapsedForPath: String? = null
 
 	companion object {
 		private const val DEBOUNCE_MILLIS = 250L
@@ -89,24 +98,23 @@ class OutlineViewModel(
 			}
 
 			is OutlineUiEvent.ToggleCollapsed -> {
-				toggleCollapsed(event.path)
+				collapsed.update { it.copy(paths = if (event.path in it.paths) it.paths - event.path else it.paths + event.path) }
 			}
 		}
 	}
 
 	private suspend fun compute(snapshot: Snapshot?) {
 		if (snapshot == null) {
-			_uiState.value = OutlineUiState.NoFileOpen
+			computed.value = OutlineUiState.NoFileOpen
 			return
 		}
 		if (!outlineProvider.supports(snapshot.extension)) {
-			_uiState.value = OutlineUiState.Unsupported(snapshot.fileName)
+			computed.value = OutlineUiState.Unsupported(snapshot.fileName)
 			return
 		}
-		if (collapsedForPath != snapshot.path) {
-			collapsedForPath = snapshot.path
-			collapsedPaths = emptySet()
-			_uiState.value = OutlineUiState.Loading(snapshot.fileName)
+		if (collapsed.value.path != snapshot.path) {
+			collapsed.value = Collapsed(snapshot.path, emptySet())
+			computed.value = OutlineUiState.Loading(snapshot.fileName)
 		}
 		val symbols =
 			try {
@@ -117,18 +125,11 @@ class OutlineViewModel(
 				log.error("Failed to compute outline for {}", snapshot.fileName, e)
 				emptyList()
 			}
-		_uiState.value =
+		computed.value =
 			if (symbols.isEmpty()) {
 				OutlineUiState.Empty(snapshot.fileName)
 			} else {
-				OutlineUiState.Content(snapshot.fileName, symbols, collapsedPaths)
+				OutlineUiState.Content(snapshot.fileName, symbols, emptySet())
 			}
-	}
-
-	private fun toggleCollapsed(path: String) {
-		collapsedPaths = if (path in collapsedPaths) collapsedPaths - path else collapsedPaths + path
-		_uiState.update { state ->
-			if (state is OutlineUiState.Content) state.copy(collapsedPaths = collapsedPaths) else state
-		}
 	}
 }

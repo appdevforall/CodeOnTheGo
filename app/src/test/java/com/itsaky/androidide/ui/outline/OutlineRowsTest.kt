@@ -31,7 +31,7 @@ class OutlineRowsTest {
 	@Test
 	fun `collapsed path hides descendants but keeps the row`() {
 		val tree = listOf(symbol("a", listOf(symbol("b", listOf(symbol("c"))))))
-		val rows = flattenOutline(tree, setOf("a/b"))
+		val rows = flattenOutline(tree, setOf("a#0/b#0"))
 		assertThat(rows.map { it.symbol.name }).containsExactly("a", "b").inOrder()
 		assertThat(rows[1].collapsed).isTrue()
 		assertThat(rows[1].hasChildren).isTrue()
@@ -42,7 +42,7 @@ class OutlineRowsTest {
 		val tree = listOf(symbol("cls", listOf(symbol("bind"), symbol("bind"), symbol("other"))))
 		val rows = flattenOutline(tree, emptySet())
 		assertThat(rows.map { it.path })
-			.containsExactly("cls", "cls/bind", "cls/bind#2", "cls/other")
+			.containsExactly("cls#0", "cls#0/bind#0", "cls#0/bind#1", "cls#0/other#2")
 			.inOrder()
 	}
 

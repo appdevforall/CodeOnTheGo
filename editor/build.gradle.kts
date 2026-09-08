@@ -60,6 +60,7 @@ dependencies {
 
 	testImplementation(projects.testing.unit)
 	androidTestImplementation(projects.testing.android) {
+		// kt-android.jar (kotlin-analysis-api) bundles kotlin.reflect.full; a second copy fails packaging with duplicate classes
 		exclude(group = "org.jetbrains.kotlin", module = "kotlin-reflect")
 	}
 }

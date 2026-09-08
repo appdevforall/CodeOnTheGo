@@ -16,6 +16,7 @@ class TreeSitterOutlineProviderTest {
 		"""
 		public class Main {
 			private int count;
+			private int x, y;
 			public Main() {
 			}
 			public void run(String[] args) {
@@ -37,13 +38,23 @@ class TreeSitterOutlineProviderTest {
 			}
 			var count = 0
 			fun add(item: String): Boolean {
-				return true
+				val tmp = item.length
+				return tmp > 0
 			}
 			constructor(name: String, count: Int) : this(name) {
 				this.count = count
 			}
 		}
+
+		interface Greeter {
+			fun greet()
+		}
+
+		enum class Kind {
+			LOCAL, REMOTE
+		}
 		fun topLevel() {
+			val local = 1
 		}
 		""".trimIndent()
 
@@ -87,21 +98,23 @@ class TreeSitterOutlineProviderTest {
 			assertThat(main.name).isEqualTo("Main")
 			assertThat(main.kind).isEqualTo(OutlineSymbolKind.CLASS)
 			assertThat(main.children.map { it.name })
-				.containsExactly("count", "Main", "run", "Inner", "Kind")
+				.containsExactly("count", "x", "y", "Main", "run", "Inner", "Kind")
 				.inOrder()
 			assertThat(main.children.map { it.kind })
 				.containsExactly(
+					OutlineSymbolKind.FIELD,
+					OutlineSymbolKind.FIELD,
 					OutlineSymbolKind.FIELD,
 					OutlineSymbolKind.CONSTRUCTOR,
 					OutlineSymbolKind.METHOD,
 					OutlineSymbolKind.INTERFACE,
 					OutlineSymbolKind.ENUM,
 				).inOrder()
-			val run = main.children[2]
+			val run = main.children[4]
 			assertThat(run.detail).isEqualTo("(String[] args)")
-			val inner = main.children[3]
+			val inner = main.children[5]
 			assertThat(inner.children.map { it.name }).containsExactly("call")
-			val kind = main.children[4]
+			val kind = main.children[6]
 			assertThat(kind.children.map { it.name }).containsExactly("LOCAL", "REMOTE").inOrder()
 			assertThat(kind.children.map { it.kind }.toSet())
 				.containsExactly(OutlineSymbolKind.ENUM_MEMBER)
@@ -112,7 +125,7 @@ class TreeSitterOutlineProviderTest {
 		runBlocking<Unit> {
 			val roots = provider.outlineOf("java", javaSource)
 			val run = roots[0].children.first { it.name == "run" }
-			assertThat(run.selectionRange.start.line).isEqualTo(4)
+			assertThat(run.selectionRange.start.line).isEqualTo(5)
 			assertThat(run.selectionRange.start.column).isEqualTo(13)
 		}
 
@@ -120,7 +133,7 @@ class TreeSitterOutlineProviderTest {
 	fun kotlinOutlineHasExpectedStructure() =
 		runBlocking<Unit> {
 			val roots = provider.outlineOf("kt", kotlinSource)
-			assertThat(roots.map { it.name }).containsExactly("Repo", "topLevel").inOrder()
+			assertThat(roots.map { it.name }).containsExactly("Repo", "Greeter", "Kind", "topLevel").inOrder()
 			val repo = roots[0]
 			assertThat(repo.kind).isEqualTo(OutlineSymbolKind.CLASS)
 			val childNames = repo.children.map { it.name }
@@ -135,6 +148,14 @@ class TreeSitterOutlineProviderTest {
 			assertThat(add.detail).isEqualTo("(item: String)")
 			val ctor = repo.children[4]
 			assertThat(ctor.kind).isEqualTo(OutlineSymbolKind.CONSTRUCTOR)
+			assertThat(add.children).isEmpty()
+			val greeter = roots[1]
+			assertThat(greeter.kind).isEqualTo(OutlineSymbolKind.INTERFACE)
+			assertThat(greeter.children.map { it.name }).containsExactly("greet")
+			val kind = roots[2]
+			assertThat(kind.kind).isEqualTo(OutlineSymbolKind.ENUM)
+			assertThat(kind.children.map { it.name }).containsExactly("LOCAL", "REMOTE").inOrder()
+			assertThat(roots[3].children).isEmpty()
 		}
 
 	@Test

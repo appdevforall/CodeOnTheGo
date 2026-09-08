@@ -21,6 +21,8 @@ import com.itsaky.androidide.treesitter.java.TSLanguageJava
 import com.itsaky.androidide.treesitter.kotlin.TSLanguageKotlin
 import com.itsaky.androidide.treesitter.xml.TSLanguageXml
 import io.github.rosemoe.sora.editor.ts.predicate.Predicator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 class TreeSitterOutlineProvider(
@@ -70,19 +72,20 @@ class TreeSitterOutlineProvider(
 	override suspend fun outlineOf(
 		fileExtension: String,
 		text: CharSequence,
-	): List<OutlineSymbol> {
-		val type =
-			TYPE_BY_EXTENSION[fileExtension.lowercase()]
-				?: throw IllegalArgumentException("No outline support for file extension '$fileExtension'")
-		val queries = queriesByType.computeIfAbsent(type) { loadQueries(it) }
-		val source = text.toString()
-		return TSParser.create().use { parser ->
-			parser.language = queries.language
-			parser.parseString(source).use { tree ->
-				extract(queries, tree, source)
+	): List<OutlineSymbol> =
+		withContext(Dispatchers.Default) {
+			val type =
+				TYPE_BY_EXTENSION[fileExtension.lowercase()]
+					?: throw IllegalArgumentException("No outline support for file extension '$fileExtension'")
+			val queries = queriesByType.computeIfAbsent(type) { loadQueries(it) }
+			val source = text.toString()
+			TSParser.create().use { parser ->
+				parser.language = queries.language
+				parser.parseString(source).use { tree ->
+					extract(queries, tree, source)
+				}
 			}
 		}
-	}
 
 	private fun loadQueries(type: String): LanguageQueries {
 		val scm =
@@ -113,7 +116,8 @@ class TreeSitterOutlineProvider(
 		tree: TSTree,
 		source: String,
 	): List<OutlineSymbol> {
-		val rawByNode = LinkedHashMap<Pair<Int, Int>, RawOutlineSymbol>()
+		val rawByName = LinkedHashMap<Pair<Int, Int>, RawOutlineSymbol>()
+		val patternByName = HashMap<Pair<Int, Int>, Int>()
 		TSQueryCursor.create().use { cursor ->
 			cursor.safeExecQueryCursor(
 				query = queries.query,
@@ -126,9 +130,10 @@ class TreeSitterOutlineProvider(
 				}
 				var kind: OutlineSymbolKind? = null
 				var symbolStartByte = 0
-				var symbolEndByte = 0
 				var symbolRange: Range? = null
 				var name: String? = null
+				var nameStartByte = -1
+				var nameEndByte = -1
 				var selectionRange: Range? = null
 				var detail: String? = null
 				match.captures.forEach { capture ->
@@ -138,12 +143,13 @@ class TreeSitterOutlineProvider(
 						captureName.startsWith(SYMBOL_CAPTURE_PREFIX) -> {
 							kind = kindOf(captureName.removePrefix(SYMBOL_CAPTURE_PREFIX))
 							symbolStartByte = node.startByte
-							symbolEndByte = node.endByte
 							symbolRange = rangeOf(node)
 						}
 
 						captureName == NAME_CAPTURE -> {
 							name = textOf(node, source)
+							nameStartByte = node.startByte
+							nameEndByte = node.endByte
 							selectionRange = rangeOf(node)
 						}
 
@@ -163,14 +169,23 @@ class TreeSitterOutlineProvider(
 						range = range,
 						selectionRange = selectionRange ?: Range(range.start, range.start),
 					)
-				val key = symbolStartByte to symbolEndByte
-				val existing = rawByNode[key]
-				if (existing == null || (existing.detail == null && raw.detail != null)) {
-					rawByNode[key] = raw
+				val key = if (nameStartByte >= 0) nameStartByte to nameEndByte else symbolStartByte to symbolStartByte
+				val existing = rawByName[key]
+				val existingPattern = patternByName[key]
+				val preferred =
+					when {
+						existing == null -> true
+						existing.detail == null && raw.detail != null -> true
+						existing.detail != null && raw.detail == null -> false
+						else -> match.patternIndex < existingPattern!!
+					}
+				if (preferred) {
+					rawByName[key] = raw
+					patternByName[key] = match.patternIndex
 				}
 			}
 		}
-		return OutlineTreeBuilder.build(rawByNode.values.toList())
+		return OutlineTreeBuilder.build(rawByName.values.toList())
 	}
 
 	private fun kindOf(suffix: String): OutlineSymbolKind {
