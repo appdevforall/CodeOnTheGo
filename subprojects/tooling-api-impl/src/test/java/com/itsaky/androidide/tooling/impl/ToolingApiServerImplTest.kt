@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
+import com.itsaky.androidide.tooling.api.messages.result.BuildCancellationRequestResult
 import com.itsaky.androidide.tooling.api.messages.result.BuildResult
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
@@ -126,6 +127,44 @@ class ToolingApiServerImplTest {
 		val reported = slot<BuildResult>()
 		verify { client.onBuildFailed(capture(reported)) }
 		assertThat(reported.captured.failure).isEqualTo(TaskExecutionResult.Failure.BUILD_CANCELLED)
+	}
+
+	@Test
+	fun `GIVEN a sync that finished WHEN a Stop arrives THEN there is no build to cancel`() {
+		mockkObject(RootModelBuilder)
+		every { RootModelBuilder.build(any(), any()) } returns File("/does/not/exist/cache")
+
+		val (server) = mockkToolingServer()
+		every { server.validateProjectDirectory(any()) } returns null
+		server.connect(mockk<IToolingApiClient>(relaxed = true))
+
+		server.initialize(testInitParams()).get(5, TimeUnit.SECONDS)
+
+		// The token for the sync's own build was never cleared on any outcome, so it outlived the
+		// build it belonged to. A Stop pressed afterwards cancelled that dead source and answered
+		// "enqueued" -- telling the user a build was being stopped when none was running, and, once
+		// a real build had started, leaving it running while claiming otherwise.
+		val result = server.cancelCurrentBuild().get(5, TimeUnit.SECONDS)
+
+		assertThat(result.wasEnqueued).isFalse()
+		assertThat(result.failureReason).isEqualTo(BuildCancellationRequestResult.Reason.NO_RUNNING_BUILD)
+	}
+
+	@Test
+	fun `GIVEN a sync that failed WHEN a Stop arrives THEN there is no build to cancel`() {
+		mockkObject(RootModelBuilder)
+		every { RootModelBuilder.build(any(), any()) } throws RuntimeException("intentional failure")
+
+		val (server) = mockkToolingServer()
+		every { server.validateProjectDirectory(any()) } returns null
+		server.connect(mockk<IToolingApiClient>(relaxed = true))
+
+		server.initialize(testInitParams()).get(5, TimeUnit.SECONDS)
+
+		// The failing path leaked it the same way the succeeding one did.
+		val result = server.cancelCurrentBuild().get(5, TimeUnit.SECONDS)
+
+		assertThat(result.wasEnqueued).isFalse()
 	}
 
 	@Test

@@ -111,11 +111,15 @@ class EditorBuildEventListenerAnnotationTest {
 	}
 
 	@Test
-	fun `a build the user stopped is not reported as an error anywhere`() {
-		// The annotation was fixed first and the reports beside it were not, so a user who pressed
-		// Stop still got a red "Build failed" bar, a "Build failed" notification and an
-		// isSuccess=false result carrying failure text -- their own action read back to them as an
-		// error in every place but the chart.
+	fun `the message for a build the user stopped is the cancelled text`() {
+		// One of the four places a cancel used to be reported as an error. The others are pinned
+		// separately -- the notification by GradleBuildServiceNotificationStatusTest, the chart
+		// marker by the outcomeKind cases above. The bar itself (flashInfo rather than flashError)
+		// and the cancelled-sync branch in ProjectHandlerActivity are not pinned: both need a live
+		// activity, which is what onBuildFailed returns early without.
+		//
+		// This test was previously named for all four and asserted only this one, so deleting the
+		// flashInfo branch or the notification branch left it green.
 		assertThat(listener.failureMessage(TaskExecutionResult.Failure.BUILD_CANCELLED, CANCELLED_TEXT))
 			.isEqualTo(CANCELLED_TEXT)
 	}

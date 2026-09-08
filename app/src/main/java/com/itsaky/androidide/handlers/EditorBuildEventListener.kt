@@ -137,6 +137,16 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	}
 
 	/**
+	 * Whether [failure] is the user's own Stop rather than something going wrong.
+	 *
+	 * One definition, because this callback used to ask the same question three times -- once in
+	 * [failureMessage], once in [outcomeKind] and once inline -- which is how the chart and the
+	 * messages beside it came to disagree in the first place.
+	 */
+	@VisibleForTesting
+	internal fun isCancelled(failure: TaskExecutionResult.Failure?): Boolean = failure == TaskExecutionResult.Failure.BUILD_CANCELLED
+
+	/**
 	 * What a failed build is reported as, to the plugins and in the result the editor posts.
 	 *
 	 * [cancelledText] is passed in rather than resolved here so this can be asserted without an
@@ -149,7 +159,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		cancelledText: String,
 	): String =
 		when {
-			failure == TaskExecutionResult.Failure.BUILD_CANCELLED -> cancelledText
+			isCancelled(failure) -> cancelledText
 			lastStatusLine.contains("BUILD FAILED") -> lastStatusLine
 			else -> "Build failed. Check build output for details."
 		}
@@ -168,7 +178,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	 */
 	@VisibleForTesting
 	internal fun outcomeKind(failure: TaskExecutionResult.Failure?): MetricsAnnotationStore.Kind =
-		if (failure == TaskExecutionResult.Failure.BUILD_CANCELLED) {
+		if (isCancelled(failure)) {
 			MetricsAnnotationStore.Kind.BUILD_CANCELLED
 		} else {
 			MetricsAnnotationStore.Kind.BUILD_FAILED
@@ -245,7 +255,7 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	) {
 		val act = checkActivity("onBuildFailed") ?: return
 
-		val cancelled = failure == TaskExecutionResult.Failure.BUILD_CANCELLED
+		val cancelled = isCancelled(failure)
 
 		if (annotatedBuild) {
 			// A build the user stopped arrives through this same callback. Marking it as a failure
@@ -261,13 +271,19 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		// and the three reports beside it were not, so a user who pressed Stop still got a red
 		// "Build failed" bar, a "Build failed" notification and an isSuccess=false result -- their
 		// own action read back to them as an error in every place but one.
+		val cancelledText = act.getString(R.string.info_build_cancelled)
 		if (cancelled) {
 			act.flashInfo(R.string.info_build_cancelled)
+			// The status line under the output too. Gradle prints "BUILD FAILED" for a cancelled
+			// build like any other, and [onOutput] copies that line into the label, so the label
+			// sat there contradicting the bar that had just said the build was stopped. This runs
+			// after onOutput, so it has the last word.
+			act.setStatus(cancelledText)
 		} else {
 			act.flashError(R.string.build_status_failed)
 		}
 
-		val message = failureMessage(failure, act.getString(R.string.info_build_cancelled))
+		val message = failureMessage(failure, cancelledText)
 
 		// The plugin API has no way to say "cancelled" -- IdeServices.onBuildFailed takes an error
 		// string and nothing else -- so the message is the whole of what a plugin can be told.

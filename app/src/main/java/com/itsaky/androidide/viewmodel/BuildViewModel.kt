@@ -13,6 +13,7 @@ import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
 import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -110,7 +111,17 @@ class BuildViewModel : ViewModel() {
 					}.await()
 
 				if (result == null || !result.isSuccessful) {
-					throw RuntimeException("Task execution failed: ${result.failure}")
+					// A build the user stopped is not a failure, and it does not arrive as a
+					// CancellationException -- the catch below only recognises the coroutine kind.
+					// It comes back as a result carrying BUILD_CANCELLED, so without this the
+					// user's own Stop finished as BuildState.Error("Task execution failed:
+					// BUILD_CANCELLED"), with the enum name shown to them.
+					if (result?.failure == TaskExecutionResult.Failure.BUILD_CANCELLED) {
+						log.info("Build was cancelled by the user.")
+						finish(BuildState.Idle)
+						return@launch
+					}
+					throw RuntimeException("Task execution failed: ${result?.failure}")
 				}
 
 				if (isPluginProject) {

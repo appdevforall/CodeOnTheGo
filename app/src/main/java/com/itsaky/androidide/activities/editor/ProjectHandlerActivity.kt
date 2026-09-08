@@ -80,6 +80,7 @@ import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_CANCELLED
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.CACHE_READ_ERROR
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_DIRECTORY_INACCESSIBLE
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_DIRECTORY
@@ -95,6 +96,7 @@ import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.onLongPress
@@ -796,6 +798,18 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				} catch (th: Throwable) {
 					manager.projectDir.name
 				}
+
+			// A sync the user stopped is not a failure, and arrives here through the same callback
+			// as one. ADFA-5542 fixed that for builds and missed this path, which is the one a
+			// cancelled *sync* takes: the user pressed Stop and got an indefinite red "Project
+			// initialization failed" for doing so.
+			if (failure == BUILD_CANCELLED) {
+				val cancelled = getString(string.info_build_cancelled)
+				setStatus(cancelled)
+				flashInfo(cancelled)
+				editorViewModel.isInitializing = false
+				return
+			}
 
 			val initFailed =
 				if (projectName.isNotEmpty()) {
