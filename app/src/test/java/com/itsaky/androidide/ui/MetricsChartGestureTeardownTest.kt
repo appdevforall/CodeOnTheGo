@@ -34,19 +34,21 @@ import org.robolectric.Shadows.shadowOf
 import java.util.concurrent.TimeUnit
 
 /**
- * When the chart answers a hold with help, and when it gives that help up (ADFA-5554).
+ * What happens to a hold in progress when the gesture or the chart under it goes away (ADFA-5554).
  *
- * The platform reports its long press at 400ms, which is a brisk tap, so the chart waits out the
- * rest of the hold before showing anything. Two things have to be true of that wait: it happens,
- * and it is abandoned when the gesture turns into something a hold is not -- a pan, a pinch, or a
- * page being unbound underneath it.
+ * A hold is a timer on the main thread's queue, not state on the view, so it outlives whatever
+ * started it: a second finger landing, the page being rebound, the renderer letting the chart go.
+ * Each of those has to reach the timer, and none of them can once the listener holding it has been
+ * replaced.
  *
- * The help itself is a seam rather than a real tooltip. `TooltipManager` reads the docs database
- * from device storage in its static initialiser and cannot be loaded off-device, which is the same
- * reason the renderer separates deciding a help tag from showing one.
+ * Split from [MetricsChartHoldHelpTest] only because these three are about teardown rather than
+ * timing. An earlier version of this comment blamed a Robolectric interaction: the suite was
+ * killing the test JVM as cases were added, and splitting appeared to help. It was heap --
+ * Robolectric builds a sandbox per distinct `@Config` and `:app` had outgrown the 1g in the root
+ * build file. The split is kept because it reads better, not because it fixes anything.
  */
 @RunWith(RobolectricTestRunner::class)
-class MetricsChartHoldHelpTest {
+class MetricsChartGestureTeardownTest {
 	private val context = ApplicationProvider.getApplicationContext<Context>()
 
 	private var taps = 0
@@ -135,113 +137,54 @@ class MetricsChartHoldHelpTest {
 	private fun insidePlot(chart: SafeLineChart) = (chart.viewPortHandler.contentTop() + chart.viewPortHandler.contentBottom()) / 2f
 
 	@Test
-	fun `a press held past the hold shows help`() {
+	fun `a second finger gives up the gesture, even without a move`() {
 		val chart = laidOutChart()
 
-		longPressAt(chart, insidePlot(chart))
-		elapse(remainderOfHold())
-
-		// The deferral is the point of ADFA-5554: the platform reports its long press at 400ms,
-		// which is a brisk tap, and help at that speed is what the ticket is about.
-		assertThat(helps).isEqualTo(1)
-	}
-
-	@Test
-	fun `a press lifted before the hold completes shows no help`() {
-		val chart = laidOutChart()
-
-		longPressAt(chart, insidePlot(chart))
+		// The carousel undocks on a two-finger tap, and that starts as a press like any other.
+		// MPAndroidChart cannot report it -- ACTION_POINTER_DOWN never touches its mLastGesture --
+		// so the gesture still ends labelled LONG_PRESS and the stand-in tap fired, opening the
+		// sampling-rate chooser. Picking a rate there clears every buffer, so one gesture both
+		// undocked the strip and threw away the history it was showing.
+		longPressAt(chart, chart.viewPortHandler.contentBottom() + 1f)
+		chart.onSecondPointerDown?.invoke()
 		endGesture(chart, ChartTouchListener.ChartGesture.LONG_PRESS)
 		elapse(remainderOfHold())
-
-		assertThat(helps).isEqualTo(0)
-	}
-
-	@Test
-	fun `a press on the axis lifted before the hold still opens the chooser`() {
-		val chart = laidOutChart()
-
-		// The detector has already called this a long press, so it will not report the tap. The
-		// stand-in is what keeps a brisk press on the axis doing what it always did.
-		longPressAt(chart, chart.viewPortHandler.contentBottom() + 1f)
-		endGesture(chart, ChartTouchListener.ChartGesture.LONG_PRESS)
-
-		// Nothing has been tapped inside the dispatch itself: the tap opens a dialog, and doing
-		// that mid-gesture leaves the chart's touch state part-way through one.
-		assertThat(taps).isEqualTo(0)
-		drain()
-
-		assertThat(taps).isEqualTo(1)
-		assertThat(helps).isEqualTo(0)
-	}
-
-	@Test
-	fun `a press on the axis that becomes a pan does not open the chooser`() {
-		val chart = laidOutChart()
-
-		// A drag begins from a press the detector has already called a long press, so the
-		// stand-in fired for it: panning the chart opened the sampling-rate chooser, and picking
-		// a rate there clears every buffer -- the history loss the band's lower bound exists to
-		// prevent, reached by another route.
-		longPressAt(chart, chart.viewPortHandler.contentBottom() + 1f)
-		panBy(chart, -50f)
-		endGesture(chart, ChartTouchListener.ChartGesture.DRAG)
 		drain()
 
 		assertThat(taps).isEqualTo(0)
+		assertThat(helps).isEqualTo(0)
 	}
 
 	@Test
-	fun `a press that becomes a pan shows no help either`() {
+	fun `re-attaching the same chart leaves no second listener behind`() {
 		val chart = laidOutChart()
 
-		// The finger is still down and still dragging when the hold would come due, so the
-		// tooltip opened over a chart the user was in the middle of panning.
+		// attach() used to skip the teardown when handed the chart it already had, so configure()
+		// installed a second gesture listener while the first stayed queued with a hold nothing
+		// could reach. A rebind of a bound holder does exactly that.
 		longPressAt(chart, insidePlot(chart))
-		panBy(chart, -50f)
+		renderer.attach(chart)
 		elapse(remainderOfHold())
 
 		assertThat(helps).isEqualTo(0)
 	}
 
 	@Test
-	fun `a press that becomes a pinch shows no help`() {
+	fun `detaching cancels a hold already counting down`() {
 		val chart = laidOutChart()
 
+		// The timer is on the main thread's queue, not on the chart, so unbinding the page does
+		// not reach it. Worse, the rebind installs a fresh listener whose own pending hold is
+		// null -- so nobody could have cancelled the old one, and it fired the outgoing page's
+		// help over whatever replaced it.
 		longPressAt(chart, insidePlot(chart))
-		val event = eventAt(0f)
-		chart.onChartGestureListener.onChartScale(event, 1.2f, 1.2f)
-		event.recycle()
+		renderer.detach()
 		elapse(remainderOfHold())
 
 		assertThat(helps).isEqualTo(0)
-	}
-
-	@Test
-	fun `the hold is measured from the finger landing, not from when the press was reported`() {
-		val chart = laidOutChart()
-
-		// GestureDetector does not report a long press exactly getLongPressTimeout() after the
-		// finger lands: below Q it adds TAP_TIMEOUT, and it caches the timeout in a static read at
-		// class-load, so a lengthened accessibility touch-and-hold delay moves the buttons' hold
-		// and not the detector's. Subtracting the platform timeout from the total assumed
-		// otherwise, and stretched the chart's hold by however far the detector was late.
-		longPressAt(chart, insidePlot(chart), sincePressMillis = LATE_REPORT_MILLIS)
-		elapse(longPressHelpTimeoutMillis() - LATE_REPORT_MILLIS + 50L)
-
-		assertThat(helps).isEqualTo(1)
 	}
 
 	private companion object {
-		/** Longer than the chart's visible window, matching the axis-tap tests' fixture. */
 		const val SAMPLES = 200
-
-		/**
-		 * A long press reported well after the finger landed.
-		 *
-		 * Comfortably past the platform timeout, so the two ways of computing the remaining hold
-		 * give different answers and the test can tell them apart.
-		 */
-		const val LATE_REPORT_MILLIS = 700L
 	}
 }

@@ -25,7 +25,6 @@ import android.os.SystemClock
 import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewConfiguration
 import androidx.annotation.CallSuper
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
@@ -214,7 +213,12 @@ abstract class MetricsChartRenderer(
 		// oldest-samples symptom this ticket was filed for -- reachable only after a pan, which is
 		// why the resume paths reproduce it and a fresh chart never does. Subclasses clear their own
 		// per-chart state through the same override.
-		this.chart?.let { outgoing -> if (outgoing !== chart) detach() }
+		//
+		// Unconditionally, including when the same chart is handed back. Skipping the teardown
+		// there let [configure] install a second gesture listener while the first stayed queued on
+		// the main thread with a hold nothing could reach, and added a second layout listener that
+		// one removeOnLayoutChangeListener cannot undo.
+		detach()
 		this.chart = chart
 		configure(chart)
 		chart.addOnLayoutChangeListener(newestWindowOnLayout)
@@ -235,6 +239,11 @@ abstract class MetricsChartRenderer(
 		// could never have cancelled it.
 		axisTapListener?.cancelPendingHelp()
 		axisTapListener = null
+		// The chart holds the listener, and the listener is an inner class holding this renderer,
+		// so a detached chart left with it keeps the whole renderer alive -- and answers a later
+		// press through a listener whose own chart reference is now null.
+		chart?.onChartGestureListener = null
+		chart?.onSecondPointerDown = null
 		chart?.removeOnLayoutChangeListener(newestWindowOnLayout)
 		chart = null
 	}
@@ -329,6 +338,10 @@ abstract class MetricsChartRenderer(
 			legend.formLineWidth = 1f
 
 			onChartGestureListener = XAxisTapListener(this).also { axisTapListener = it }
+			// A two-finger tap is the carousel's undock gesture, and it starts as a press like any
+			// other. Without this the stand-in tap fired for it and opened the sampling-rate
+			// chooser -- so one gesture both undocked the strip and cleared every buffer.
+			onSecondPointerDown = { axisTapListener?.abandonGesture() }
 
 			xAxis.valueFormatter = ElapsedTimeFormatter(sampleIntervalMillis)
 			// One label per 15 samples keeps the window readable without crowding.
@@ -474,7 +487,11 @@ abstract class MetricsChartRenderer(
 			// [onChartScale] give up the stand-in as the gesture escalates; this is the check for
 			// an escalation neither of them reports.
 			if (!helpShown && pendingTapOnAxis && lastPerformedGesture == ChartTouchListener.ChartGesture.LONG_PRESS) {
-				onXAxisTap?.invoke()
+				// Posted, not called here. This runs inside the chart's onTouchEvent, and the tap
+				// opens a dialog; showing one mid-dispatch leaves the chart's touch state and its
+				// velocity tracker part-way through a gesture. performOnHold posts its click for
+				// the same reason, and the two paths should not disagree.
+				handler.post { onXAxisTap?.invoke() }
 			}
 			helpShown = false
 			pendingTapOnAxis = false
@@ -492,7 +509,8 @@ abstract class MetricsChartRenderer(
 		}
 
 		override fun onChartLongPressed(me: MotionEvent?) {
-			val y = me?.y ?: return
+			val event = me ?: return
+			val y = event.y
 			val tag = helpTagAt(y) ?: return
 
 			// This arrives at the platform's own timeout -- 400ms by default, a brisk tap -- and
@@ -500,6 +518,13 @@ abstract class MetricsChartRenderer(
 			// show it only if the finger is still down; [onChartGestureEnd] cancels otherwise.
 			cancelPendingHelp()
 			val onAxisBand = isOnAxisBand(y)
+			// From the event's own downTime, not by subtracting the platform timeout from the hold.
+			// GestureDetector does not report a long press exactly getLongPressTimeout() after the
+			// finger landed: below Android Q it adds TAP_TIMEOUT, and it caches LONGPRESS_TIMEOUT
+			// in a static read once at class-load, so a user who lengthens the accessibility
+			// touch-and-hold delay moves the buttons' hold and not this one. minSdk here is 28.
+			val elapsed = SystemClock.uptimeMillis() - event.downTime
+			val remaining = (longPressHelpTimeoutMillis() - elapsed).coerceAtLeast(0L)
 			pendingHelp =
 				Runnable {
 					pendingHelp = null
@@ -510,7 +535,7 @@ abstract class MetricsChartRenderer(
 					// press -- and its feedback -- never runs here and this is the only thing
 					// that provides it.
 					showHelp(chart.context, chart, tag)
-				}.also { handler.postDelayed(it, longPressHelpTimeoutMillis() - ViewConfiguration.getLongPressTimeout()) }
+				}.also { handler.postDelayed(it, remaining) }
 
 			// GestureDetector has already decided this gesture is a long press, so it will not
 			// report the tap that would have opened the sampling-rate chooser. Remember whether
@@ -557,7 +582,7 @@ abstract class MetricsChartRenderer(
 		 * the finger is then still down: the hold would go on to open a tooltip over a chart the
 		 * user is in the middle of panning, and the lift would open the sampling-rate chooser.
 		 */
-		private fun abandonGesture() {
+		fun abandonGesture() {
 			cancelPendingHelp()
 			pendingTapOnAxis = false
 		}

@@ -180,11 +180,23 @@ private class HoldTouchListener(
 	// in its HandlerActionQueue and only runs it on attach, so the hold would never time out.
 	private val handler = Handler(Looper.getMainLooper())
 
+	// Deliberately without View.CheckForLongPress's window-attach test. The framework refuses to
+	// fire a long press for a view whose window has gone, and reproducing that here was tried and
+	// backed out: a Robolectric view is never window-attached, so the guard turned every timing
+	// test into a no-op, and attaching one needs the activity harness that takes this JVM down.
+	// The exposure it covers is already covered where it matters -- TooltipManager re-checks
+	// isAttachedToWindow before showing, and [clearLongPressHelp] is called from every teardown
+	// this module has. A caller of [performOnHold] doing something else with the callback would
+	// not be covered, and there is no such caller today.
+
 	private val slop = ViewConfiguration.get(view.context).scaledTouchSlop
 
 	private var held = false
 
 	private var holding = false
+
+	/** The click waiting for the next turn of the looper, so a teardown can still take it back. */
+	private var pendingClick: Runnable? = null
 
 	private val fire =
 		Runnable {
@@ -196,6 +208,11 @@ private class HoldTouchListener(
 	fun cancel() {
 		holding = false
 		handler.removeCallbacks(fire)
+		// The click too. It is posted rather than run inline, so a teardown landing between the
+		// finger lifting and the looper's next turn would otherwise still click a control it has
+		// just unwired -- the same defect the hold timer has, one method along.
+		pendingClick?.let(handler::removeCallbacks)
+		pendingClick = null
 		view.isPressed = false
 	}
 
@@ -228,6 +245,16 @@ private class HoldTouchListener(
 				handler.postDelayed(fire, holdMillis)
 			}
 
+			MotionEvent.ACTION_POINTER_DOWN -> {
+				// A second finger means this is no longer the single-finger press this listener
+				// times. The carousel undocks on a two-finger tap anywhere in the strip, and
+				// without this the finger that started on a button also clicked it, or held long
+				// enough to open that button's help over a strip that was undocking.
+				holding = false
+				handler.removeCallbacks(fire)
+				v.isPressed = false
+			}
+
 			MotionEvent.ACTION_MOVE -> {
 				if (holding && !isInside(event.x, event.y)) {
 					// Left the control: neither a click nor help, which is how the framework
@@ -241,8 +268,14 @@ private class HoldTouchListener(
 			MotionEvent.ACTION_UP -> {
 				handler.removeCallbacks(fire)
 				v.isPressed = false
-				// The click belongs to a press that stayed put and did not become a hold.
-				if (holding && !held) {
+				// The click belongs to a press that stayed put, did not become a hold, and landed
+				// on something that answers taps. That last test is View.onTouchEvent's, and
+				// taking the touch over means taking it over too: the carousel dims the arrow at
+				// either end by clearing isClickable rather than isEnabled, precisely so it still
+				// answers a hold, and without this it went back to answering taps -- playing the
+				// click sound and announcing a click for a control a screen reader is being told
+				// is unavailable.
+				if (holding && !held && v.isClickable) {
 					// Posted rather than called here, as View.onTouchEvent does, so the pressed
 					// state is drawn before the action runs -- these open dialogs and re-page the
 					// carousel from inside the dispatch of the event that triggered them.
@@ -250,7 +283,13 @@ private class HoldTouchListener(
 					// Through this handler and not View.post, which parks work on an unattached
 					// view's HandlerActionQueue and returns true having run nothing. Same trap as
 					// the hold timer, one method along.
-					handler.post { v.performClick() }
+					val click =
+						Runnable {
+							pendingClick = null
+							v.performClick()
+						}
+					pendingClick = click
+					handler.post(click)
 				}
 				holding = false
 			}
