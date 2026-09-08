@@ -130,6 +130,7 @@ import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
 import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.MetricsCsv
 import com.itsaky.androidide.utils.StringsInjectionException
 import com.itsaky.androidide.utils.StringsXmlInjector
 import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
@@ -487,13 +488,16 @@ abstract class BaseEditorActivity :
 				else -> Color.GRAY
 			}
 
-		protected val PROC_IDE = "IDE"
+		// Aliases, not copies. The names belong to the CSV, whose header is a published contract;
+		// see MetricsCsv.PROC_IDE for why they live there. Kept as protected members because
+		// subclasses use them.
+		protected val PROC_IDE = MetricsCsv.PROC_IDE
 
 		@JvmStatic
-		protected val PROC_GRADLE_TOOLING = "Gradle Tooling"
+		protected val PROC_GRADLE_TOOLING = MetricsCsv.PROC_GRADLE_TOOLING
 
 		@JvmStatic
-		protected val PROC_GRADLE_DAEMON = "Gradle Daemon"
+		protected val PROC_GRADLE_DAEMON = MetricsCsv.PROC_GRADLE_DAEMON
 
 		@JvmStatic
 		protected val log: Logger = LoggerFactory.getLogger(BaseEditorActivity::class.java)
