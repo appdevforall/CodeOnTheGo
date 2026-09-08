@@ -75,8 +75,12 @@ class PowerUsageWatcher
 		/** Guards the ring buffers: the sampler writes them, the UI thread snapshots them. */
 		private val historyLock = Any()
 
-		private val temperature = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
-		private val power = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
+		// Filled with UNAVAILABLE, not zero. A slot that has never been sampled is an absence, and
+		// zero is a reading: a zero-filled prefix plotted a flat 0 C and 0 W line and presented it
+		// as measurement, which then forced applyAxisRanges to special-case `!= 0L` -- discarding
+		// a genuine freezing-battery sample along with the fake ones.
+		private val temperature = MutableShiftedLongArray(MAX_USAGE_ENTRIES) { UNAVAILABLE }
+		private val power = MutableShiftedLongArray(MAX_USAGE_ENTRIES) { UNAVAILABLE }
 
 		/**
 		 * The thermal throttling level at each sample, or [THERMAL_UNKNOWN].
@@ -84,7 +88,7 @@ class PowerUsageWatcher
 		 * Kept per sample rather than as a separate timestamped log so the chart's shading lines up
 		 * with the sample grid exactly: a shaded span is just a run of equal values here.
 		 */
-		private val thermal = MutableShiftedLongArray(MAX_USAGE_ENTRIES)
+		private val thermal = MutableShiftedLongArray(MAX_USAGE_ENTRIES) { UNAVAILABLE }
 
 		/**
 		 * Milliseconds between samples. Changing it clears the history, for the reason given on
@@ -130,9 +134,9 @@ class PowerUsageWatcher
 
 		fun clearHistory() {
 			synchronized(historyLock) {
-				temperature.clear()
-				power.clear()
-				thermal.clear()
+				temperature.clear(UNAVAILABLE)
+				power.clear(UNAVAILABLE)
+				thermal.clear(UNAVAILABLE)
 			}
 		}
 
