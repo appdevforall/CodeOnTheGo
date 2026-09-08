@@ -47,7 +47,7 @@ stateDiagram-v2
     Ready --> Ready: ProxyAppCrashed (record failure)
     Ready --> Ready: ExternalBuildCompleted (RefreshBaseline)
 
-    Building --> Deployed: BuildSucceeded
+    Building --> Deployed: BuildSucceeded (SwitchToProxyApp if userInitiated)
     Building --> Ready: BuildFailed
     Building --> Ready: CancelRequested (not warming)
     Building --> Ready: WarmCompileFinished
@@ -70,7 +70,7 @@ stateDiagram-v2
     Invalidated --> Invalidated: HostForegrounded retry (RunProxyAppRebuild)
     Invalidated --> Invalidated: InvalidationDetected (awaiting retry - re-park + RunProxyAppRebuild)
     Invalidated --> Building: BuildStarted (awaiting retry)
-    Invalidated --> Deployed: BuildSucceeded (awaiting retry)
+    Invalidated --> Deployed: BuildSucceeded (awaiting retry; SwitchToProxyApp if userInitiated)
     Invalidated --> Ready: BuildFailed (awaiting retry)
     Invalidated --> Invalidated: DaemonDied (awaiting retry, RespawnDaemon)
 
@@ -81,12 +81,14 @@ stateDiagram-v2
     Degraded --> Degraded: ExternalBuildCompleted (RefreshBaseline)
     Degraded --> Degraded: QuickBuildTapped (restartFailed - SurfaceMessage + RespawnDaemon; else ack only)
     Degraded --> Building: BuildStarted
-    Degraded --> Deployed: BuildSucceeded
+    Degraded --> Deployed: BuildSucceeded (SwitchToProxyApp if userInitiated)
     Degraded --> Ready: BuildFailed
+
+    Idle --> Idle: SessionRestartRequested (lastStartFailed - clears the failed-start tone)
 
     note right of Idle
         SessionRestartRequested from any
-        non-Idle state -> Idle (TeardownSession).
+        state -> Idle (TeardownSession).
         SessionRestartAndReprovisionRequested from any
         state -> Provisioning (TeardownAndProvision;
         StartProvisioning from Idle) with userInitiated
