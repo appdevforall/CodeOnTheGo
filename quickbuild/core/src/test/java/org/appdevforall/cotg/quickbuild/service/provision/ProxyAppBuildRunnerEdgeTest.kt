@@ -33,6 +33,9 @@ class ProxyAppBuildRunnerEdgeTest {
 	private val daemon = FakeDaemon()
 	private val connections = ProxyAppConnections()
 
+	/** The uid every scripted rebuild reports for the reinstalled app. */
+	private val REBUILT_UID = 10123
+
 	// Lazy: @TempDir injects projectRoot after construction.
 	private val scratch by lazy { QuickBuildScratch(FakePaths(projectRoot).projectScratchRoot, minFreeBytes = 0L) }
 
@@ -202,7 +205,7 @@ class ProxyAppBuildRunnerEdgeTest {
 	fun `a rebuild outlived by a session restart is Superseded after booking its metric`() =
 		runTest {
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(), REBUILT_UID, QuickBuildProjectLayout(projectRoot))
 			}
 
 			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { true }, userAskOutstanding = { true })
@@ -244,7 +247,7 @@ class ProxyAppBuildRunnerEdgeTest {
 	fun `a daemon that rejects the restart configure reports DaemonRestartFailed with the fallback text`() =
 		runTest {
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(), QuickBuildProjectLayout(projectRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(), REBUILT_UID, QuickBuildProjectLayout(projectRoot))
 			}
 			daemon.startReply = DaemonReply.BuildFailed(emptyList())
 
