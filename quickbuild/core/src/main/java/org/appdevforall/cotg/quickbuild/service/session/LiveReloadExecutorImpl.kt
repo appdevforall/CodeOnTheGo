@@ -220,6 +220,8 @@ class LiveReloadExecutorImpl(
 		log.info(timeline.format())
 		try {
 			metrics.onReloadTimeline(timeline)
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Throwable) {
 			log.warn("Quick Build reload-timing metric failed", e)
 		}

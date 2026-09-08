@@ -11,9 +11,11 @@ import org.appdevforall.cotg.quickbuild.data.DaemonReply
 import org.appdevforall.cotg.quickbuild.data.ProxyAppInfo
 import org.appdevforall.cotg.quickbuild.data.QuickBuildProjectLayout
 import org.appdevforall.cotg.quickbuild.data.QuickBuildScratch
+import org.appdevforall.cotg.quickbuild.domain.reload.BuildDiagnostic
 import org.appdevforall.cotg.quickbuild.protocol.ConfigureRequest
 import org.appdevforall.cotg.quickbuild.service.FakeDaemon
 import org.appdevforall.cotg.quickbuild.service.FakePaths
+import org.appdevforall.cotg.quickbuild.service.session.QuickBuildDaemonController.DeathReporter
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -142,16 +144,84 @@ class QuickBuildDaemonControllerTest {
 		}
 
 	@Test
-	fun `respawn names a generic failure when the reply carries no operator message`() =
+	fun `respawn names the daemon's first diagnostic when it rejects its configuration`() =
 		runTest {
 			val controller = controller()
-			// Anything but Ok means "no daemon", and only Failed carries a message. The
-			// outcome still has to name something: the manager renders it as the reason the
-			// session went degraded.
+			// A rejected configure is the daemon's BuildFailed; the manager renders the
+			// outcome's text as the reason the session went degraded, so the why travels.
+			daemon.startReply =
+				DaemonReply.BuildFailed(
+					listOf(BuildDiagnostic(BuildDiagnostic.Severity.ERROR, "unsupported minApi 19")),
+				)
+			val outcome = controller.respawn(layout(), proxyApp(), controller.epochSnapshot())
+			assertThat(outcome)
+				.isEqualTo(QuickBuildDaemonController.RespawnOutcome.Failed("unsupported minApi 19"))
+		}
+
+	@Test
+	fun `respawn names a generic rejection when the daemon gave no diagnostic`() =
+		runTest {
+			val controller = controller()
 			daemon.startReply = DaemonReply.BuildFailed(emptyList())
 			val outcome = controller.respawn(layout(), proxyApp(), controller.epochSnapshot())
 			assertThat(outcome)
-				.isEqualTo(QuickBuildDaemonController.RespawnOutcome.Failed("unknown failure"))
+				.isEqualTo(QuickBuildDaemonController.RespawnOutcome.Failed("Daemon rejected configuration"))
+		}
+
+	@Test
+	fun `a death re-reported by the other reporter is not news`() =
+		runTest {
+			val controller = controller()
+			assertThat(controller.noteDeath(DeathReporter.WATCHER)).isTrue()
+			assertThat(controller.noteDeath(DeathReporter.BUILD)).isFalse()
+		}
+
+	@Test
+	fun `a second report from the same reporter is a new death`() =
+		runTest {
+			val controller = controller()
+			assertThat(controller.noteDeath(DeathReporter.WATCHER)).isTrue()
+			// Each reporter reports a given death once, so this is the respawned child dying.
+			assertThat(controller.noteDeath(DeathReporter.WATCHER)).isTrue()
+		}
+
+	@Test
+	fun `any start outcome makes the next report from either side a new death`() =
+		runTest {
+			val controller = controller()
+			controller.noteDeath(DeathReporter.WATCHER)
+			daemon.startReply = DaemonReply.Failed("daemon JVM would not start")
+			controller.start(layout(), proxyApp())
+			// The save that recovers from a failed start builds against the dead daemon, and
+			// that death arrives from the build side alone; dropped, the session parks.
+			assertThat(controller.noteDeath(DeathReporter.BUILD)).isTrue()
+		}
+
+	@Test
+	fun `a report landing while the respawn is still starting is the same death`() =
+		runTest {
+			val controller = controller()
+			controller.noteDeath(DeathReporter.WATCHER)
+			val gate = CompletableDeferred<Unit>()
+			daemon.startGate = gate
+			launch { controller.respawn(layout(), proxyApp(), controller.epochSnapshot()) }
+			runCurrent()
+
+			// The build in flight fails with daemonDied mid-respawn: the death being respawned for.
+			assertThat(controller.noteDeath(DeathReporter.BUILD)).isFalse()
+
+			gate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(controller.noteDeath(DeathReporter.BUILD)).isTrue()
+		}
+
+	@Test
+	fun `a shutdown forgets the death before it`() =
+		runTest {
+			val controller = controller()
+			controller.noteDeath(DeathReporter.WATCHER)
+			controller.shutdown()
+			assertThat(controller.noteDeath(DeathReporter.BUILD)).isTrue()
 		}
 
 	@Test
