@@ -162,11 +162,12 @@ class MetricsChartLegendFormTest {
 		// The per-tick path applies the scale only when it has moved, so this is the case that
 		// guards the saving: EditorActivityKt handles fontScale itself, so no activity is
 		// recreated and a redraw is the only thing a running chart does.
-		val usage = NetworkUsageWatcher.NetworkUsage(
-					LongArray(SAMPLES) { 1L },
-					LongArray(SAMPLES) { 1L },
-					LongArray(SAMPLES),
-				)
+		val usage =
+			NetworkUsageWatcher.NetworkUsage(
+				LongArray(SAMPLES) { 1L },
+				LongArray(SAMPLES) { 1L },
+				LongArray(SAMPLES),
+			)
 		val chart = SafeLineChart(context)
 		val renderer = NetworkUsageChartRenderer(usageProvider = { usage })
 		renderer.attach(chart)
