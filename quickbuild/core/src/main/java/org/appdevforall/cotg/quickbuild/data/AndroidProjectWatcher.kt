@@ -1,9 +1,11 @@
 package org.appdevforall.cotg.quickbuild.data
 
 import android.os.FileObserver
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.DisposableHandle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -54,11 +56,15 @@ class AndroidProjectWatcher(
 	private val pollDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ProjectWatcher {
 	// Unlimited so a burst of inotify events never blocks or drops on a slow drain - coalescing
-	// downstream collapses the flood into one batch per burst.
-	private val rawEvents = Channel<WatchEvent>(Channel.UNLIMITED)
+	// downstream collapses the flood into one batch per burst. Recreated by every [start]:
+	// [stop] closes it, and a restarted watcher would otherwise send into a closed channel.
+	private var rawEvents = Channel<WatchEvent>(Channel.UNLIMITED)
 	private val observers = mutableListOf<FileObserver>()
 	private var pipelineJob: Job? = null
 	private var pollJob: Job? = null
+
+	/** Releases the observers when [scope] is cancelled without [stop]; disposed by [stop]. */
+	private var scopeCompletion: DisposableHandle? = null
 
 	/**
 	 * Guarded by [observers]. A directory-CREATE callback already inside [newObserver]'s
@@ -84,38 +90,51 @@ class AndroidProjectWatcher(
 	 * launches the poll sweep.
 	 *
 	 * @param onBatch invoked once per settled burst on [scope], after restamping; must not block,
-	 *   since it runs inline on the collecting coroutine.
+	 *   since it runs inline on the collecting coroutine. A throw is logged and the watcher keeps
+	 *   collecting; it does not end the session's watch.
 	 */
 	override fun start(onBatch: (ChangedFiles.Known) -> Unit) {
 		// Restart after stop is supported, so clear the latch before anything registers.
 		synchronized(observers) { stopped = false }
+		val events = Channel<WatchEvent>(Channel.UNLIMITED)
+		rawEvents = events
+		scopeCompletion = scope.coroutineContext[Job]?.invokeOnCompletion { stop() }
 		pipelineJob =
 			scope.launch {
-				rawEvents
+				events
 					.consumeAsFlow()
 					.filter { filter.isRelevant(it.file) }
 					.coalesceChanges(quietMillis, maxMillis)
 					.collect { batch ->
 						restampSettled(batch)
-						onBatch(batch)
+						try {
+							onBatch(batch)
+						} catch (e: CancellationException) {
+							throw e
+						} catch (e: Exception) {
+							// The collector is the only consumer of rawEvents: letting the throw
+							// end it leaves the observers and the poll feeding an unlimited
+							// channel nobody drains, for the rest of the session.
+							log.error("Batch handler failed; the watcher keeps collecting", e)
+						}
 					}
 			}
 
 		watchedRoots.filter(File::isDirectory).forEach { root ->
 			root.walkTopDown().filter(File::isDirectory).forEach(::observe)
 		}
-		// Snapshot before starting: an already-started observer's CREATE handler can
-		// append to [observers] concurrently, which would throw
-		// ConcurrentModificationException in a live iteration.
-		val initial = synchronized(observers) { observers.toList() }
-		initial.forEach(FileObserver::startWatching)
-
+		// The observers are started by the poll job, after it has primed the fingerprints:
+		// a deletion delivered before its path is in the map is dropped by reportDeletion and
+		// then never enters the baseline. The priming is a stat walk, so it stays off the
+		// caller's thread - start() runs on the session dispatcher, which must not block.
 		pollJob = scope.launch(pollDispatcher) { pollLoop() }
 		log.info("Project watcher started: {} inotify dirs + {}ms poll", observers.size, pollIntervalMillis)
 	}
 
 	/** Cancels both jobs, stops and drops every observer, and closes the raw-event channel. */
 	override fun stop() {
+		scopeCompletion?.dispose()
+		scopeCompletion = null
 		pollJob?.cancel()
 		pollJob = null
 		pipelineJob?.cancel()
@@ -205,6 +224,12 @@ class AndroidProjectWatcher(
 	 */
 	private suspend fun pollLoop() {
 		initFingerprints() // prime without firing: current on-disk state is the baseline
+		synchronized(observers) {
+			// Started only now, so every path an observer can report a deletion for is
+			// already fingerprinted. The latch covers a stop() that got the lock first: its
+			// clear has already run, and there is nothing left to start.
+			if (!stopped) observers.forEach(FileObserver::startWatching)
+		}
 		while (scope.isActive) {
 			delay(pollIntervalMillis)
 			sweep()
