@@ -18,6 +18,7 @@
 package com.itsaky.androidide.viewmodel
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.activities.editor.QuickBuildClobberConfirmation
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.IProjectManager
@@ -95,6 +96,22 @@ class BuildViewModelTest {
 
 		assertThat(accepted).isTrue()
 		assertThat(viewModel.buildState.value).isEqualTo(BuildState.InProgress)
+	}
+
+	@Test
+	fun `givenARunTapsClobberAnswer_whenTasksRunNext_thenTheInstallDoesNotInheritIt`() {
+		val viewModel = BuildViewModel()
+		viewModel.runQuickBuild(
+			module,
+			variant,
+			launchInDebugMode = false,
+			clobberAnswerAtTap = QuickBuildClobberConfirmation.Needed("com.example"),
+		)
+		mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+
+		assertThat(viewModel.runTasks(listOf(":app:installDebug"))).isTrue()
+
+		assertThat(viewModel.consumeClobberAnswerAtTap()).isNull()
 	}
 
 	@Test
