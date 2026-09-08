@@ -173,14 +173,26 @@ class MetricsCarouselController(
 	private var currentPage = 0
 
 	/**
-	 * Whether an export is already running.
+	 * Whether a PNG snapshot is already being written.
 	 *
 	 * One at a time. The camera button is not debounced and each tap launched its own coroutine,
 	 * so two quick taps raced over the same scratch directory -- and, within the same second, over
 	 * the same filename, since the name is the chart label and a whole-second timestamp. Touched
 	 * only on the main thread, which is where both the tap and the coroutine's continuations run.
+	 *
+	 * A rapid second tap of the same button is refused silently: it is the double tap this exists
+	 * to swallow, and a message for it would be noise on the gesture a user did not mean to make.
 	 */
-	private var exportInFlight = false
+	private var snapshotInFlight = false
+
+	/**
+	 * Whether a CSV export is already being written, tracked apart from [snapshotInFlight].
+	 *
+	 * The two write different files into different directories and cannot race each other, so one
+	 * flag for both only meant that starting a ten-thousand-row export refused the camera button
+	 * for as long as it ran -- and refused it silently, which reads as a dead control.
+	 */
+	private var csvExportInFlight = false
 
 	/**
 	 * The pager of the bound carousel, or `null` when nothing is bound. Exposed so a host can apply
@@ -589,7 +601,7 @@ class MetricsCarouselController(
 	@UiThread
 	fun exportSnapshot(): Boolean {
 		val binding = this.binding ?: return false
-		if (exportInFlight) {
+		if (snapshotInFlight) {
 			log.debug("Ignoring a snapshot request while one is already being written")
 			return false
 		}
@@ -613,7 +625,7 @@ class MetricsCarouselController(
 		// it ends in startActivity, which throws from a context with no task of its own unless it is
 		// given FLAG_ACTIVITY_NEW_TASK, so it keeps the context the carousel is hosted in.
 		val appContext = context.applicationContext
-		exportInFlight = true
+		snapshotInFlight = true
 		scope.launch {
 			// Everything here is guarded: the scope has no exception handler, so anything escaping
 			// reaches the global crash reporter and is filed as a crash. MetricsSnapshot.write
@@ -649,13 +661,13 @@ class MetricsCarouselController(
 					// Cleared before rethrowing: a cancelled export is finished either way, and
 					// leaving the flag set would refuse every later one for the life of the
 					// carousel.
-					exportInFlight = false
+					snapshotInFlight = false
 					throw failure
 				}
 				log.error("Could not share the chart snapshot", failure)
 				Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
 			}
-			exportInFlight = false
+			snapshotInFlight = false
 		}
 		return true
 	}
@@ -673,7 +685,7 @@ class MetricsCarouselController(
 	@UiThread
 	fun exportCsv(): Boolean {
 		val binding = this.binding ?: return false
-		if (exportInFlight) {
+		if (csvExportInFlight) {
 			log.debug("Ignoring an export request while one is already being written")
 			return false
 		}
@@ -681,7 +693,7 @@ class MetricsCarouselController(
 		val context = binding.root.context
 		val appContext = context.applicationContext
 		val snapshot = snapshot()
-		exportInFlight = true
+		csvExportInFlight = true
 		scope.launch {
 			// Guarded for the same reason exportSnapshot is: the scope has no exception handler, so
 			// anything escaping here is filed as a crash.
@@ -697,13 +709,13 @@ class MetricsCarouselController(
 				IntentUtils.shareFile(host, file, MetricsCsv.MIME_TYPE, extraFlags)
 			}.onFailure { failure ->
 				if (failure is CancellationException) {
-					exportInFlight = false
+					csvExportInFlight = false
 					throw failure
 				}
 				log.error("Could not share the metrics export", failure)
 				Toast.makeText(appContext, string.msg_metrics_export_failed, Toast.LENGTH_SHORT).show()
 			}
-			exportInFlight = false
+			csvExportInFlight = false
 		}
 		return true
 	}
@@ -729,6 +741,8 @@ class MetricsCarouselController(
 
 		return MetricsCsv.Snapshot(
 			rowTimes = memory.times,
+			// The memory watcher's, because its times are the rows.
+			sampleIntervalMillis = memoryUsageWatcher.updateInterval,
 			memory =
 				memory.processes.associate { process ->
 					process.pname to

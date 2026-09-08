@@ -129,6 +129,31 @@ class MetricsCarouselRebindTest {
 	}
 
 	@Test
+	fun `a running CSV export does not refuse the camera button`() {
+		val controller = controller()
+		val binding = strip()
+		controller.bind(binding)
+		laidOut(binding)
+
+		// The two write different files into different directories and cannot race each other. One
+		// flag for both meant that starting an export of ten thousand rows made the camera button
+		// dead for as long as it ran, and dead silently -- the tap returned false and said nothing.
+		assertThat(controller.exportCsv()).isTrue()
+		assertThat(controller.exportSnapshot()).isTrue()
+	}
+
+	@Test
+	fun `a second CSV export is refused while the first is still being written`() {
+		val controller = controller()
+		val binding = strip()
+		controller.bind(binding)
+		laidOut(binding)
+
+		assertThat(controller.exportCsv()).isTrue()
+		assertThat(controller.exportCsv()).isFalse()
+	}
+
+	@Test
 	fun `both arrows are tinted, whatever inflated them`() {
 		val binding = strip()
 		controller().bind(binding)

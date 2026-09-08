@@ -40,11 +40,13 @@ import org.robolectric.RobolectricTestRunner
 class PowerUsageChartRendererTest {
 	private val context = ApplicationProvider.getApplicationContext<Context>()
 
+	// No sample times, for the reason NetworkUsageChartRendererTest gives: a chart test says so
+	// rather than letting a default say it.
 	private fun usage(
 		temperature: LongArray,
 		power: LongArray = LongArray(temperature.size),
 		thermal: LongArray = LongArray(temperature.size),
-	) = PowerUsageWatcher.PowerUsage(temperature, power, thermal)
+	) = PowerUsageWatcher.PowerUsage(temperature, power, thermal, LongArray(temperature.size))
 
 	private fun rendererFor(
 		usage: PowerUsageWatcher.PowerUsage,
