@@ -18,9 +18,12 @@ package com.itsaky.androidide.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -40,7 +43,11 @@ import kotlin.math.max
  * content is read from file on demand for share/API. Memory is bounded by not holding the full
  * log in RAM.
  *
- * Append/clear are intended to be called from the main thread (from [BuildOutputFragment]).
+ * [appendAsync] is the write path and is safe to call from any thread; it does not depend on the
+ * Build Output tab existing. That matters because the tab lives in a pager that destroys its
+ * fragment whenever another tab is shown -- the AI agent's chat tab included -- and while the
+ * fragment was the only caller of [append], a build started from the chat wrote no log at all and
+ * the agent's `read_build_output` had nothing to read.
  */
 class BuildOutputViewModel(
 	application: Application,
@@ -87,13 +94,97 @@ class BuildOutputViewModel(
 		get() = File(getApplication<Application>().cacheDir, SESSION_FILE_NAME)
 
 	/**
+	 * Output waiting to be written. Unbounded and non-blocking to send: [appendAsync] is called from
+	 * the Gradle tooling thread for every line of a build, which must never wait on disk.
+	 */
+	private val pendingOutput = Channel<PendingOutput>(Channel.UNLIMITED)
+
+	/**
+	 * Bumped by [clear]. A batch already drained when a new build starts belongs to the old session,
+	 * and writing it would put the previous build's errors in front of the current build's.
+	 */
+	@Volatile
+	private var sessionGeneration = 0
+
+	init {
+		viewModelScope.launch(Dispatchers.Default) { writePendingOutput() }
+	}
+
+	/**
+	 * Queues [text] for the session file. Returns immediately; safe from any thread.
+	 *
+	 * @param text one line, or several, of build output; a missing trailing newline is added.
+	 */
+	fun appendAsync(text: String) {
+		if (text.isEmpty()) return
+		// Stamped here, not at drain time: a clear() between the queue handing an item to the writer
+		// and the writer reading the counter would file the finished build's output under the new
+		// session. The producer's moment is the one that decides which build the text belongs to.
+		pendingOutput.trySend(
+			PendingOutput(sessionGeneration, if (text.endsWith('\n')) text else text + "\n"),
+		)
+	}
+
+	/**
+	 * Drains [pendingOutput] for as long as the view model lives, batching whatever has piled up
+	 * into one write: a large build emits thousands of lines, and one file open per line is the
+	 * difference between a background write and a stutter.
+	 */
+	private suspend fun writePendingOutput() {
+		val batch = StringBuilder()
+		for (first in pendingOutput) {
+			var generation = first.generation
+			batch.append(first.text)
+			while (true) {
+				val next = pendingOutput.tryReceive().getOrNull() ?: break
+				// A batch spans one session only, so a clear() mid-drain flushes what came before it.
+				if (next.generation != generation) {
+					appendForSession(batch.toString(), generation)
+					batch.setLength(0)
+					generation = next.generation
+				}
+				batch.append(next.text)
+			}
+			appendForSession(batch.toString(), generation)
+			batch.setLength(0)
+		}
+	}
+
+	/**
+	 * One queued piece of build output.
+	 *
+	 * @property generation the session it was produced in; see [sessionGeneration].
+	 * @property text the output, newline-terminated.
+	 */
+	private data class PendingOutput(
+		val generation: Int,
+		val text: String,
+	)
+
+	/**
 	 * Appends text to the session file. File I/O is performed on a background dispatcher; call from
 	 * any thread. Prefer calling before switching to Main so disk write does not block the UI.
 	 */
-	suspend fun append(text: String) {
+	suspend fun append(text: String) = appendForSession(text, sessionGeneration)
+
+	/**
+	 * Appends [text] only while [generation] is still the current session.
+	 *
+	 * The check lives inside the lock, with the write: checked outside, a batch that had already
+	 * passed it could still reach the disk after [clear] had deleted the file, seeding the new
+	 * build's log with the finished build's errors.
+	 *
+	 * @param text the output to write.
+	 * @param generation the session the text was produced in.
+	 */
+	private suspend fun appendForSession(
+		text: String,
+		generation: Int,
+	) {
 		if (text.isEmpty()) return
 		withContext(Dispatchers.IO) {
 			lock.withLock {
+				if (generation != sessionGeneration) return@withLock
 				try {
 					FileOutputStream(sessionFile, true).use {
 						it.write(text.toByteArray(StandardCharsets.UTF_8))
@@ -159,6 +250,12 @@ class BuildOutputViewModel(
 	 */
 	fun clear() {
 		lock.withLock {
+			// Queued text is the finished build's; dropping it here, and bumping the generation for
+			// the batch that may already be in flight, keeps the two sessions out of one file.
+			sessionGeneration++
+			while (pendingOutput.tryReceive().isSuccess) {
+				// Discarded: this text belongs to the session being cleared.
+			}
 			cachedContentSnapshot = ""
 			try {
 				if (sessionFile.exists()) {
@@ -167,29 +264,6 @@ class BuildOutputViewModel(
 			} catch (e: Exception) {
 				log.error("Failed to delete build output session file", e)
 			}
-		}
-	}
-
-	private fun readTailFromFile(
-		file: File,
-		maxChars: Int,
-	): String {
-		if (!file.exists()) return ""
-		try {
-			RandomAccessFile(file, "r").use { raf ->
-				val len = raf.length()
-				if (len == 0L) return ""
-				// UTF-8: up to 4 bytes per char; read enough bytes for maxChars, then decode and take last maxChars
-				val maxBytes = minOf(len, maxChars * 4L)
-				raf.seek(max(0, len - maxBytes))
-				val bytes = ByteArray(maxBytes.toInt())
-				raf.readFully(bytes)
-				val decoded = String(bytes, Charsets.UTF_8)
-				return if (decoded.length <= maxChars) decoded else decoded.takeLast(maxChars)
-			}
-		} catch (e: Exception) {
-			log.error("Failed to read tail from build output session file", e)
-			return ""
 		}
 	}
 
@@ -260,7 +334,54 @@ class BuildOutputViewModel(
 			}
 		}
 
-		private const val SESSION_FILE_NAME = "build_output_session.txt"
+		/**
+		 * The last [maxChars] characters of [text], started at a line boundary.
+		 *
+		 * A tail sliced at a character offset begins part-way through a line, and [PREFIX_REGEX] is
+		 * anchored to the start of one, so that fragment keeps the timestamp every other line has
+		 * stripped. Text short enough to survive whole keeps its real first line; a tail holding no
+		 * newline at all is returned as it is, being better than nothing.
+		 */
+		internal fun tailFromLineStart(
+			text: String,
+			maxChars: Int,
+		): String {
+			if (text.length <= maxChars) return text
+			val tail = text.takeLast(maxChars)
+			val newline = tail.indexOf('\n')
+			return if (newline == -1) tail else tail.substring(newline + 1)
+		}
+
+		/**
+		 * Reads the last [maxChars] characters of [file], or `""` when it is missing or unreadable.
+		 * Shared with [com.itsaky.androidide.api.BuildOutputProvider], which reads the same session
+		 * file for consumers outside the editor UI.
+		 */
+		internal fun readTailFromFile(
+			file: File,
+			maxChars: Int,
+		): String {
+			if (!file.exists()) return ""
+			try {
+				RandomAccessFile(file, "r").use { raf ->
+					val len = raf.length()
+					if (len == 0L) return ""
+					// UTF-8: up to 4 bytes per char; read enough bytes for maxChars, then decode and take last maxChars
+					val maxBytes = minOf(len, maxChars * 4L)
+					raf.seek(max(0, len - maxBytes))
+					val bytes = ByteArray(maxBytes.toInt())
+					raf.readFully(bytes)
+					val decoded = String(bytes, Charsets.UTF_8)
+					return tailFromLineStart(decoded, maxChars)
+				}
+			} catch (e: Exception) {
+				log.error("Failed to read tail from build output session file", e)
+				return ""
+			}
+		}
+
+		/** Name of the on-disk build output session file, shared with [com.itsaky.androidide.api.BuildOutputProvider]. */
+		internal const val SESSION_FILE_NAME = "build_output_session.txt"
 		private const val WINDOW_SIZE_CHARS = 512 * 1024
 
 		/** Max length of [cachedContentSnapshot] to bound memory. */

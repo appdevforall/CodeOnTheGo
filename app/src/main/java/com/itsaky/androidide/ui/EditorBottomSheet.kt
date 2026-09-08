@@ -512,8 +512,17 @@ class EditorBottomSheet
 			pagerAdapter.logFragment?.appendLog(line)
 		}
 
+		/**
+		 * Records a line of build output and shows it if the Build Output tab is on screen.
+		 *
+		 * The view model is written first and unconditionally: the pager destroys
+		 * [com.itsaky.androidide.fragments.output.BuildOutputFragment] whenever another tab is
+		 * shown, so while the fragment was the only writer, a build started from the AI agent's tab
+		 * -- the one place the user necessarily is when the agent builds -- left no log behind.
+		 */
 		fun appendBuildOut(str: String?) {
-			if (str != null && shouldFilter(str)) return
+			if (str == null || shouldFilter(str)) return
+			buildOutputViewModel.appendAsync(str)
 			pagerAdapter.buildOutputFragment?.appendOutput(str)
 		}
 
@@ -532,7 +541,13 @@ class EditorBottomSheet
 
 		private fun shouldFilter(msg: String): Boolean = suppressedGradleWarnings.any { msg.contains(it) }
 
+		/**
+		 * Starts a new build output session. Clears the view model whether or not the tab exists --
+		 * otherwise a build run from another tab appends to the previous build's log, and the agent
+		 * reads an error the current build never produced.
+		 */
 		fun clearBuildOutput() {
+			buildOutputViewModel.clear()
 			pagerAdapter.buildOutputFragment?.takeIf { it.isAdded }?.clearOutput()
 		}
 

@@ -3,18 +3,25 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.renderName
+import com.itsaky.androidide.lsp.refactor.BlockPlacement
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.blockPlacementFor
+import com.itsaky.androidide.lsp.refactor.excludeUnsoundOccurrences
+import com.itsaky.androidide.lsp.refactor.hoistSkipsWrite
+import com.itsaky.androidide.lsp.refactor.hoistsOverLoopWrite
+import com.itsaky.androidide.lsp.refactor.servableOccurrences
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
 import org.jetbrains.kotlin.analysis.api.types.KaType
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.psi.KtCallableDeclaration
 import org.jetbrains.kotlin.psi.KtDeclarationWithBody
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtLoopExpression
 import org.jetbrains.kotlin.psi.KtPropertyAccessor
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -23,9 +30,6 @@ private val logger = LoggerFactory.getLogger("ExtractVariablePlanner")
 
 /**
  * Computes the whole [ExtractionPlan] in one background analysis pass.
- *
- * The current [KtFile] is fetched *before* entering [read] -- blocking on
- * `getCurrentKtFile(...).get()` inside `project.read` deadlocks.
  *
  * Returns an empty plan both when there is genuinely nothing to extract and whenever anything in
  * this pipeline throws: the action framework only catches [IllegalArgumentException] and this runs on
@@ -37,26 +41,38 @@ internal fun buildExtractionPlan(
 	nioPath: Path,
 	selectionStart: Int,
 	selectionEnd: Int,
-	documentVersion: Int,
+	documentVersion: Int?,
 	cancelChecker: ScheduledCancelChecker,
 ): ExtractionPlan =
 	runCatching {
-		val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return ExtractionPlan.empty()
-		env.project.read {
-			val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
-			if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
-
-			/* PsiFileImpl.getText() allocates a fresh String each call, so the plan pass reads it once and
-			 * threads it down to every candidate and rung. */
-			val fileText = ktFile.text
-			analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
-				ExtractionPlan(
-					fileText = fileText,
-					documentVersion = documentVersion,
-					candidates = syntax.expressions.mapNotNull { candidateFor(it, fileText) },
-				)
+		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+			if (live.isStale) {
+				/*
+				 * Joining another feature's scope hands over its text, which can be older than the buffer.
+				 * The caller stamps `documentVersion` from the live buffer, so the apply-time version guard
+				 * would compare an honest stamp against text one edit behind and pass - and offsets computed
+				 * here would replace the wrong span. Refusing is the only safe answer.
+				 */
+				logger.debug("refusing extract-variable plan for {}: pinned text is behind the buffer", nioPath)
+				return@withLiveKtFile ExtractionPlan.empty()
 			}
-		}
+
+			live.read { ktFile ->
+				val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
+				if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
+
+				/* PsiFileImpl.getText() allocates a fresh String each call, so the plan pass reads it once and
+				 * threads it down to every candidate and rung. */
+				val fileText = ktFile.text
+				live.analyzing(AnalysisPriority.INTERACTIVE, cancelChecker) {
+					ExtractionPlan(
+						fileText = fileText,
+						documentVersion = documentVersion,
+						candidates = syntax.expressions.mapNotNull { candidateFor(it, fileText) },
+					)
+				}
+			}
+		} ?: ExtractionPlan.empty()
 	}.getOrElse { error ->
 		logger.warn("Failed to build extract-variable plan for {}", nioPath, error)
 		ExtractionPlan.empty()
@@ -120,7 +136,7 @@ private fun KaSession.scopeOptionFor(
 				 * tested here; servableOccurrences is what makes the first served target placeable when
 				 * replace-all is on.
 				 */
-				if (blockPlacementFor(fileText, form, span) is BlockPlacement.Refused) return null
+				if (blockPlacementFor(fileText, form.block, span) is BlockPlacement.Refused) return null
 				form
 			}
 
@@ -135,11 +151,31 @@ private fun KaSession.scopeOptionFor(
 
 	val matches = findOccurrences(expression, frame.scopeElement, frame.searchRange)
 	val writes = writeOffsetsFor(expression, frame.scopeElement)
-	val sound = excludeUnsoundOccurrences(matches, span, writes)
-	val occurrences = servableOccurrences(fileText, anchorForm, sound, span)
+	// A loop outside this rung's subtree necessarily contains the rung, which hoistsOverLoopWrite reads
+	// as sound anyway, so the scan is bounded to the rung.
+	val loops = if (writes.isEmpty()) emptyList() else loopSpansWithin(frame.scopeElement)
+	val scopeSpan = spanOf(frame.scopeElement)
+	val block = (anchorForm as? AnchorForm.ExistingBlock)?.block
+	if (hoistSkipsWrite(span, scopeSpan, block, loops, writes)) return null
+
+	val sound =
+		excludeUnsoundOccurrences(matches, span, writes)
+			.filterNot { it != span && hoistsOverLoopWrite(it, scopeSpan, loops, writes) }
+	val occurrences = servableOccurrences(fileText, block, sound, span)
 
 	return ScopeOption(label = frame.label, anchorForm = anchorForm, occurrences = occurrences)
 }
+
+/**
+ * The spans of the loops inside [scope], for the shared hoist guards.
+ *
+ * The Java planner answers null when javac has no position for a loop, leaving containment
+ * unanswerable; PSI always carries a text range, so there is no such case here.
+ */
+private fun loopSpansWithin(scope: PsiElement): List<TextSpan> =
+	PsiTreeUtil.collectElementsOfType(scope, KtLoopExpression::class.java).map { spanOf(it) }
+
+private fun spanOf(element: PsiElement): TextSpan = TextSpan(element.textRange.startOffset, element.textRange.endOffset)
 
 /**
  * Fills in the `return` and written-type details of an expression-body rung, or null to decline it.

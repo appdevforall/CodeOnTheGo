@@ -178,6 +178,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_UNUSED_IMPORTS = "editor.codeactions.unusedimports"
 	const val EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS = "editor.codeactions.organizeimports"
 	const val EDITOR_CODE_ACTIONS_TRY_CATCH = "editor.codeactions.trycatch"
+	const val EDITOR_CODE_ACTIONS_EXTRACT_VARIABLE = "editor.codeactions.extractvariable"
 
 	// Kotlin code actions. Tags are per-language even where the action exists in both languages,
 	// so the tooltip can describe the Kotlin behaviour (see ADFA-4730).

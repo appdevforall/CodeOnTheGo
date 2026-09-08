@@ -58,6 +58,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
+import com.itsaky.androidide.models.EditorIntentExtras
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
@@ -188,6 +189,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private val buildServiceConnection = GradleBuildServiceConnnection()
 
+	// True once onCreate() has completed past its isFinishing check -- mirrors
+	// EditorHandlerActivity.didCompleteLiveOnCreate. super.onCreate() (BaseEditorActivity) may
+	// already have called finish() for a doomed instance spun up by a stale deep-link liveness
+	// check; finish() doesn't stop execution, so without this flag preDestroy() would unregister
+	// the process-wide build-service Lookup entry and shut down the LSP singleton that an
+	// actually-live sibling instance still depends on.
+	private var didCompleteLiveOnCreate = false
+
 	companion object {
 		private val logger = LoggerFactory.getLogger(ProjectHandlerActivity::class.java)
 
@@ -214,6 +223,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
+		// super.onCreate() may have already called finish() for a doomed instance (see
+		// EditorHandlerActivity.onCreate's own isFinishing guard for the fuller explanation);
+		// finish() doesn't stop execution here, so without this check startServices() below would
+		// unconditionally bind a build service and register a listener that preDestroy() will
+		// later tear down, corrupting the actually-live sibling instance's state.
+		if (isFinishing) {
+			return
+		}
+		didCompleteLiveOnCreate = true
+
 		editorViewModel._isSyncNeeded.observe(this) { isSyncNeeded ->
 			if (!isSyncNeeded) {
 				// dismiss if already showing
@@ -232,7 +251,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		observeStates()
 		startServices()
 
-		if (intent.getBooleanExtra("HAS_TEMPLATE_ISSUES", false)) {
+		if (intent.getBooleanExtra(EditorIntentExtras.EXTRA_HAS_TEMPLATE_ISSUES, false)) {
 			flashError(getString(string.msg_template_warnings))
 		}
 	}
@@ -373,7 +392,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		syncNotificationFlashbar?.dismiss()
 		syncNotificationFlashbar = null
 
-		if (isDestroying) {
+		if (didCompleteLiveOnCreate && isDestroying) {
 			releaseServerListener()
 			this.initializingFuture?.cancel(true)
 			this.initializingFuture = null
@@ -381,13 +400,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			doCloseAll()
 		}
 
-		if (IDELanguageClientImpl.isInitialized()) {
+		if (didCompleteLiveOnCreate && IDELanguageClientImpl.isInitialized()) {
 			IDELanguageClientImpl.shutdown()
 		}
 
 		super.preDestroy()
 
-		if (isDestroying) {
+		if (didCompleteLiveOnCreate && isDestroying) {
 			try {
 				stopLanguageServers()
 			} catch (_: Exception) {
@@ -589,11 +608,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 		if (buildService == null) {
 			log.error("No build service found. Cannot initialize project.")
+			// This init failed before postProjectInit could ever run, so its regardless-of-outcome
+			// drain never happens here -- without this, a deep link's pending file navigation stays
+			// armed on the intent and fires on the next unrelated successful sync or variant
+			// switch, the stale jump that drain exists to prevent. Same for the tooling-server
+			// check below. (The handleMissingProjectDirectory returns above don't need it: they
+			// finish() this instance, and the request dies with it.)
+			withContext(Dispatchers.Main.immediate) { drainPendingFileRequest() }
 			return@launch
 		}
 
 		if (!buildService.isToolingServerStarted()) {
 			flashError(string.msg_tooling_server_unavailable)
+			withContext(Dispatchers.Main.immediate) { drainPendingFileRequest() }
 			return@launch
 		}
 
@@ -674,6 +701,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		if (service.isToolingServerStarted()) {
 			if (service.isBuildInProgress) {
 				log.info("Skipping project initialization while build is in progress")
+				// The third early return that never reaches postProjectInit, and so never reaches its
+				// drain -- the same reason initializeProject's two failure returns drain. Cold-opening a
+				// project by deep link while a Gradle build is already running otherwise left the
+				// PendingFileRequest armed on the intent: the editor never navigated (only a log line),
+				// and the request then fired on the first unrelated later sync, yanking the editor to
+				// that stale file and line.
+				lifecycleScope.launch(Dispatchers.Main.immediate) { drainPendingFileRequest() }
 				return
 			}
 			initializeProject()

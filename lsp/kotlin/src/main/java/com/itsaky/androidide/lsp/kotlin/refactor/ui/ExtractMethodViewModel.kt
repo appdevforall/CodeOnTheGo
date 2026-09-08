@@ -3,8 +3,9 @@ package com.itsaky.androidide.lsp.kotlin.refactor.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractMethodPlan
+import com.itsaky.androidide.lsp.kotlin.utils.refactor.HARD_KEYWORDS
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.signatureText
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.validateVariableName
+import com.itsaky.androidide.lsp.ui.validateVariableName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,7 +65,7 @@ class ExtractMethodViewModel(
 			selectedCandidate = bounded,
 			showCandidatePicker = plan.candidates.size > 1,
 			name = resolvedName,
-			nameProblem = validateVariableName(resolvedName, candidate.takenNames),
+			nameProblem = validateVariableName(resolvedName, candidate.takenNames, HARD_KEYWORDS),
 			// The same call the edit builder makes, so the preview cannot drift from the declaration.
 			signaturePreview = candidate.signatureText(resolvedName),
 		)

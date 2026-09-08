@@ -1,5 +1,12 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.BlockAnchor
+import com.itsaky.androidide.lsp.refactor.BlockPlacement
+import com.itsaky.androidide.lsp.refactor.BracelessBody
+import com.itsaky.androidide.lsp.refactor.RewriteSpan
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.blockPlacementFor
+import com.itsaky.androidide.lsp.refactor.positionAt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -53,8 +60,10 @@ class ExtractVariableEditTest {
 		text: String,
 		vararg statements: String,
 	) = AnchorForm.ExistingBlock(
-		contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
-		statementSpans = statements.map { spanOf(text, it) },
+		BlockAnchor(
+			contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
+			statementSpans = statements.map { spanOf(text, it) },
+		),
 	)
 
 	private fun rewrite(
@@ -214,8 +223,10 @@ class ExtractVariableEditTest {
 		// grab the class's braces instead of `fun f`'s -- built by hand for the inner pair instead.
 		val form =
 			AnchorForm.ExistingBlock(
-				contentSpan = spanOf(text, "\n\t\tprintln(items.size * 2)\n\t"),
-				statementSpans = listOf(spanOf(text, "println(items.size * 2)")),
+				BlockAnchor(
+					contentSpan = spanOf(text, "\n\t\tprintln(items.size * 2)\n\t"),
+					statementSpans = listOf(spanOf(text, "println(items.size * 2)")),
+				),
 			)
 
 		val result =
@@ -246,10 +257,12 @@ class ExtractVariableEditTest {
 		val body = spanOf(text, "log(a.b)")
 		val form =
 			AnchorForm.WrapInBraces(
-				bodyStart = body.start,
-				bodyEnd = body.end,
-				indent = "\t",
-				innerIndent = "\t\t",
+				BracelessBody(
+					bodyStart = body.start,
+					bodyEnd = body.end,
+					indent = "\t",
+					innerIndent = "\t\t",
+				),
 			)
 
 		val result = rewrite(text, candidate, form, listOf(candidate), "b", replaceAll = false)!!
@@ -348,7 +361,7 @@ class ExtractVariableEditTest {
 			buildExtractVariableRewrite(
 				fileText = text,
 				candidateSpan = TextSpan(0, 3),
-				scope = ScopeOption("scope", AnchorForm.ExistingBlock(TextSpan(9, 9), emptyList()), emptyList()),
+				scope = ScopeOption("scope", AnchorForm.ExistingBlock(BlockAnchor(TextSpan(9, 9), emptyList())), emptyList()),
 				name = "value",
 				replaceAll = true,
 			),
@@ -365,7 +378,7 @@ class ExtractVariableEditTest {
 				scope =
 					ScopeOption(
 						"scope",
-						AnchorForm.ExistingBlock(TextSpan(9, 9), emptyList()),
+						AnchorForm.ExistingBlock(BlockAnchor(TextSpan(9, 9), emptyList())),
 						listOf(TextSpan(0, text.length + 5)),
 					),
 				name = "value",
@@ -386,8 +399,10 @@ class ExtractVariableEditTest {
 		val candidate = spanOf(text, "a + b * 2")
 		val form =
 			AnchorForm.ExistingBlock(
-				contentSpan = spanOf(text, "\n\t\treturn a + b * 2\n\t"),
-				statementSpans = listOf(spanOf(text, "return a + b * 2")),
+				BlockAnchor(
+					contentSpan = spanOf(text, "\n\t\treturn a + b * 2\n\t"),
+					statementSpans = listOf(spanOf(text, "return a + b * 2")),
+				),
 			)
 
 		val result = rewrite(text, candidate, form, listOf(candidate), "total", replaceAll = false)!!
@@ -417,12 +432,14 @@ class ExtractVariableEditTest {
 		// The function block's rung: its statements are the whole `if` and the trailing `return 0`.
 		val form =
 			AnchorForm.ExistingBlock(
-				contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
-				statementSpans =
-					listOf(
-						spanOf(text, "if (flag) {\n\t\treturn a + b * 2\n\t}"),
-						spanOf(text, "return 0"),
-					),
+				BlockAnchor(
+					contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
+					statementSpans =
+						listOf(
+							spanOf(text, "if (flag) {\n\t\treturn a + b * 2\n\t}"),
+							spanOf(text, "return 0"),
+						),
+				),
 			)
 
 		val result = rewrite(text, candidate, form, listOf(candidate), "total", replaceAll = false)!!
@@ -454,8 +471,10 @@ class ExtractVariableEditTest {
 		val candidate = spanOf(text, "it.length + 1")
 		val form =
 			AnchorForm.ExistingBlock(
-				contentSpan = spanOf(text, " it.length + 1 "),
-				statementSpans = listOf(candidate),
+				BlockAnchor(
+					contentSpan = spanOf(text, " it.length + 1 "),
+					statementSpans = listOf(candidate),
+				),
 			)
 
 		val result = rewrite(text, candidate, form, listOf(candidate), "length", replaceAll = false)!!
@@ -478,8 +497,10 @@ class ExtractVariableEditTest {
 		// A lambda body block excludes the `item ->` header, so the header is outside the content span.
 		val form =
 			AnchorForm.ExistingBlock(
-				contentSpan = spanOf(text, " item.length + 1 "),
-				statementSpans = listOf(candidate),
+				BlockAnchor(
+					contentSpan = spanOf(text, " item.length + 1 "),
+					statementSpans = listOf(candidate),
+				),
 			)
 
 		val result = rewrite(text, candidate, form, listOf(candidate), "length", replaceAll = false)!!
@@ -501,8 +522,10 @@ class ExtractVariableEditTest {
 		val candidate = spanOf(text, "n * 2")
 		val form =
 			AnchorForm.ExistingBlock(
-				contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
-				statementSpans = listOf(spanOf(text, "return n * 2")),
+				BlockAnchor(
+					contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
+					statementSpans = listOf(spanOf(text, "return n * 2")),
+				),
 			)
 
 		val result = rewrite(text, candidate, form, listOf(candidate), "doubled", replaceAll = false)!!
@@ -522,8 +545,10 @@ class ExtractVariableEditTest {
 		val candidate = spanOf(text, "it + 1")
 		val form =
 			AnchorForm.ExistingBlock(
-				contentSpan = candidate,
-				statementSpans = listOf(candidate),
+				BlockAnchor(
+					contentSpan = candidate,
+					statementSpans = listOf(candidate),
+				),
 			)
 
 		val result = rewrite(text, candidate, form, listOf(candidate), "value", replaceAll = false)!!
@@ -545,8 +570,10 @@ class ExtractVariableEditTest {
 		val candidate = spanOf(text, "n * 2")
 		val form =
 			AnchorForm.ExistingBlock(
-				contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
-				statementSpans = listOf(spanOf(text, "return n * 2")),
+				BlockAnchor(
+					contentSpan = TextSpan(text.indexOf('{') + 1, text.lastIndexOf('}')),
+					statementSpans = listOf(spanOf(text, "return n * 2")),
+				),
 			)
 
 		val result = rewrite(text, candidate, form, listOf(candidate), "doubled", replaceAll = false)!!
@@ -570,7 +597,7 @@ class ExtractVariableEditTest {
 			BlockPlacement.ExpandOneLine,
 			blockPlacementFor(
 				fileText = text,
-				form = AnchorForm.ExistingBlock(contentSpan = content, statementSpans = listOf(statement)),
+				block = BlockAnchor(contentSpan = content, statementSpans = listOf(statement)),
 				firstTarget = statement,
 			),
 		)
@@ -586,7 +613,7 @@ class ExtractVariableEditTest {
 			BlockPlacement.LineAbove(statement),
 			blockPlacementFor(
 				fileText = text,
-				form = AnchorForm.ExistingBlock(contentSpan = content, statementSpans = listOf(statement)),
+				block = BlockAnchor(contentSpan = content, statementSpans = listOf(statement)),
 				firstTarget = statement,
 			),
 		)
@@ -604,7 +631,7 @@ class ExtractVariableEditTest {
 			BlockPlacement.Refused,
 			blockPlacementFor(
 				fileText = text,
-				form = AnchorForm.ExistingBlock(contentSpan = content, statementSpans = listOf(first, second)),
+				block = BlockAnchor(contentSpan = content, statementSpans = listOf(first, second)),
 				firstTarget = first,
 			),
 		)
@@ -618,7 +645,7 @@ class ExtractVariableEditTest {
 			BlockPlacement.Refused,
 			blockPlacementFor(
 				fileText = text,
-				form = AnchorForm.ExistingBlock(contentSpan = TextSpan(8, text.length), statementSpans = emptyList()),
+				block = BlockAnchor(contentSpan = TextSpan(8, text.length), statementSpans = emptyList()),
 				firstTarget = TextSpan(0, 3),
 			),
 		)

@@ -157,6 +157,11 @@ class IDEApplication :
 		val cachedFilesDir: File by lazy { instance.filesDir }
 	}
 
+	/**
+	 * Only a *finishing* activity releases the reference here. A plain pause leaves the activity
+	 * alive - backgrounded, or something drawn on top of it - and callers like FlashbarUtils'
+	 * `withActivity` still need it; [onActivityDestroyed] covers the rest.
+	 */
 	override fun onActivityPostPaused(activity: Activity) {
 		super.onActivityPostPaused(activity)
 		if (foregroundActivity == activity && activity.isFinishing) {
@@ -169,6 +174,17 @@ class IDEApplication :
 		super.onActivityPreResumed(activity)
 		logger.debug("foregroundActivity = {}", activity.javaClass)
 		_foregroundActivity.update { activity }
+	}
+
+	/**
+	 * [onActivityPostPaused] only clears the reference for *finishing* activities, so a rotation
+	 * or a system kill would leave the destroyed activity retained by this global [StateFlow].
+	 * The compare-and-set keeps an already-resumed successor (e.g. A finishes into B) in place.
+	 */
+	override fun onActivityDestroyed(activity: Activity) {
+		if (_foregroundActivity.compareAndSet(activity, null)) {
+			logger.debug("foregroundActivity = null (destroyed {})", activity.javaClass)
+		}
 	}
 
 	@OptIn(DelicateCoroutinesApi::class)

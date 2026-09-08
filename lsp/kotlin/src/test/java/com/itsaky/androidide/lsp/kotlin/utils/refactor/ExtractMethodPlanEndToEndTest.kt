@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
+import com.itsaky.androidide.lsp.refactor.RewriteSpan
 import com.itsaky.androidide.progress.ICancelChecker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

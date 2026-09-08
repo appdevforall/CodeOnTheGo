@@ -121,6 +121,41 @@ class EditorViewModel : ViewModel() {
 			_filesSaving.value = value
 		}
 
+	/**
+	 * Saves in flight, paired with [areFilesSaving].
+	 *
+	 * Lives here rather than in the editor activity because this ViewModel is retained across
+	 * activity recreation while the activity is not: a save started before a dark-mode, locale
+	 * or display-size change keeps running under `NonCancellable` against the old instance, and
+	 * a per-instance counter would let that completion clear the flag for a save the new
+	 * instance had already started.
+	 *
+	 * Main-thread confined - callers hop to Main before touching it, as the flag itself
+	 * requires.
+	 */
+	private var activeSaveCount = 0
+
+	/** Raises [areFilesSaving] for the first of any number of overlapping saves. */
+	fun beginFileSave() {
+		if (++activeSaveCount == 1) {
+			areFilesSaving = true
+		}
+	}
+
+	/**
+	 * Lowers [areFilesSaving] once the last in-flight save finishes.
+	 *
+	 * Floored at zero: an unbalanced call must not drive the count negative, or the "reached
+	 * zero" test never matches again and SaveFileAction stays disabled
+	 * (`enabled = areFilesModified && !areFilesSaving`) for the life of this ViewModel.
+	 */
+	fun endFileSave() {
+		activeSaveCount = (activeSaveCount - 1).coerceAtLeast(0)
+		if (activeSaveCount == 0) {
+			areFilesSaving = false
+		}
+	}
+
 	var openedFilesCache: OpenedFilesCache?
 		get() = _openedFiles.value
 		set(value) {
