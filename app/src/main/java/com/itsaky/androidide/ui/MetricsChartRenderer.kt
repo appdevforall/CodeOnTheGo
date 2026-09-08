@@ -19,6 +19,8 @@ package com.itsaky.androidide.ui
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.TypedValue
 import android.view.MotionEvent
@@ -136,6 +138,33 @@ abstract class MetricsChartRenderer(
 	private var userHasZoomed = false
 
 	/**
+	 * The font scale [applyTextScale] last wrote to the attached chart, or NaN if none.
+	 *
+	 * [redraw] runs once per sampling tick per attached page, and re-applying the scale there
+	 * rewrites nine chart properties and re-measures four text sizes to catch a change that
+	 * happens at most a handful of times in a session. Per chart, so a rebind re-applies: [detach]
+	 * clears it.
+	 */
+	private var appliedTextScale = Float.NaN
+
+	/**
+	 * The gesture listener installed on the attached chart, kept so [detach] can reach its
+	 * pending hold. Nothing else can: it lives on the chart, and a rebind installs a new one.
+	 */
+	private var axisTapListener: XAxisTapListener? = null
+
+	/**
+	 * How the chart's hold shows its help.
+	 *
+	 * A seam, not a setting: `TooltipManager` reads the docs database from device storage in its
+	 * static initialiser and cannot be loaded off-device, so without this the whole deferred-help
+	 * path -- when it fires, when it is given up -- could not be tested at all.
+	 */
+	@VisibleForTesting
+	internal var showHelp: (Context, SafeLineChart, String) -> Unit =
+		{ context, anchor, tag -> showIdeCategoryTooltipIfPresent(context, anchor, tag) }
+
+	/**
 	 * The attached chart, or `null` when no carousel page is bound to this renderer.
 	 */
 	protected var chart: SafeLineChart? = null
@@ -199,6 +228,13 @@ abstract class MetricsChartRenderer(
 	@CallSuper
 	open fun detach() {
 		userHasZoomed = false
+		appliedTextScale = Float.NaN
+		// A hold counting down survives the chart it was started on: the timer is on the main
+		// thread's queue. Left running it shows the outgoing page's help over whatever replaced
+		// it, and the replacement's listener -- a new object with its own null pendingHelp --
+		// could never have cancelled it.
+		axisTapListener?.cancelPendingHelp()
+		axisTapListener = null
 		chart?.removeOnLayoutChangeListener(newestWindowOnLayout)
 		chart = null
 	}
@@ -292,7 +328,7 @@ abstract class MetricsChartRenderer(
 			// leaving it NaN would silently adopt the library's 3f the day anyone chooses LINE.
 			legend.formLineWidth = 1f
 
-			onChartGestureListener = XAxisTapListener(this)
+			onChartGestureListener = XAxisTapListener(this).also { axisTapListener = it }
 
 			xAxis.valueFormatter = ElapsedTimeFormatter(sampleIntervalMillis)
 			// One label per 15 samples keeps the window readable without crowding.
@@ -397,6 +433,12 @@ abstract class MetricsChartRenderer(
 	private inner class XAxisTapListener(
 		private val chart: SafeLineChart,
 	) : OnChartGestureListener {
+		// An explicit handler, not View.postDelayed, which parks work on an unattached view's
+		// HandlerActionQueue until it attaches. The chart that receives a long press is attached,
+		// so that would happen to work -- but only by accident, and it puts the hold out of reach
+		// of a test. The same handler [performOnHold] uses, for the same reason.
+		private val handler = Handler(Looper.getMainLooper())
+
 		/** The deferred half of a long press, waiting out the rest of the hold. */
 		private var pendingHelp: Runnable? = null
 
@@ -422,14 +464,31 @@ abstract class MetricsChartRenderer(
 			me: MotionEvent?,
 			lastPerformedGesture: ChartTouchListener.ChartGesture?,
 		) {
-			pendingHelp?.let(chart::removeCallbacks)
-			pendingHelp = null
+			cancelPendingHelp()
 			// Lifted before the hold completed: the detector ate the tap, so stand in for it.
-			if (!helpShown && pendingTapOnAxis) {
+			//
+			// Only for a gesture that was still a long press when it ended. A press that became a
+			// pan or a pinch is not a tap by any reading, and standing in for one there opened the
+			// sampling-rate chooser from a drag -- which clears every sample buffer, the exact
+			// history loss [isOnAxisBand] was narrowed to prevent. [onChartTranslate] and
+			// [onChartScale] give up the stand-in as the gesture escalates; this is the check for
+			// an escalation neither of them reports.
+			if (!helpShown && pendingTapOnAxis && lastPerformedGesture == ChartTouchListener.ChartGesture.LONG_PRESS) {
 				onXAxisTap?.invoke()
 			}
 			helpShown = false
 			pendingTapOnAxis = false
+		}
+
+		/**
+		 * Drops a hold that has not fired and the tap it was standing in for.
+		 *
+		 * For the end of a gesture, for a gesture that turns into something else, and for
+		 * [detach], which is the one caller outside the touch stream.
+		 */
+		fun cancelPendingHelp() {
+			pendingHelp?.let(handler::removeCallbacks)
+			pendingHelp = null
 		}
 
 		override fun onChartLongPressed(me: MotionEvent?) {
@@ -439,7 +498,7 @@ abstract class MetricsChartRenderer(
 			// This arrives at the platform's own timeout -- 400ms by default, a brisk tap -- and
 			// help at that speed is what ADFA-5554 is about. Wait out the rest of the hold and
 			// show it only if the finger is still down; [onChartGestureEnd] cancels otherwise.
-			pendingHelp?.let(chart::removeCallbacks)
+			cancelPendingHelp()
 			val onAxisBand = isOnAxisBand(y)
 			pendingHelp =
 				Runnable {
@@ -450,8 +509,8 @@ abstract class MetricsChartRenderer(
 					// BarLineChartBase.onTouchEvent never calls super, so the framework's long
 					// press -- and its feedback -- never runs here and this is the only thing
 					// that provides it.
-					showIdeCategoryTooltipIfPresent(chart.context, chart, tag)
-				}.also { chart.postDelayed(it, longPressHelpTimeoutMillis() - ViewConfiguration.getLongPressTimeout()) }
+					showHelp(chart.context, chart, tag)
+				}.also { handler.postDelayed(it, longPressHelpTimeoutMillis() - ViewConfiguration.getLongPressTimeout()) }
 
 			// GestureDetector has already decided this gesture is a long press, so it will not
 			// report the tap that would have opened the sampling-rate chooser. Remember whether
@@ -475,6 +534,7 @@ abstract class MetricsChartRenderer(
 			scaleY: Float,
 		) {
 			userHasZoomed = true
+			abandonGesture()
 		}
 
 		override fun onChartTranslate(
@@ -486,6 +546,20 @@ abstract class MetricsChartRenderer(
 			// showNewestWindow dragged them back to the newest samples on the next tick -- once a
 			// second -- so panning a zoomed chart appeared not to work at all.
 			userHasZoomed = true
+			abandonGesture()
+		}
+
+		/**
+		 * Gives up the deferred help and the stand-in tap, because this gesture has become
+		 * something neither is meant for.
+		 *
+		 * A drag or a pinch can begin from a press the detector already called a long press, and
+		 * the finger is then still down: the hold would go on to open a tooltip over a chart the
+		 * user is in the middle of panning, and the lift would open the sampling-rate chooser.
+		 */
+		private fun abandonGesture() {
+			cancelPendingHelp()
+			pendingTapOnAxis = false
 		}
 	}
 
@@ -560,6 +634,7 @@ abstract class MetricsChartRenderer(
 	@UiThread
 	private fun applyTextScale(chart: SafeLineChart) {
 		val scale = textScaleFor(chart.context)
+		appliedTextScale = scale
 		chart.legend.textSize = BASE_TEXT_SIZE_DP * scale
 		// Scaled with its label: a fixed dot beside text at 1.5 reads as though it were shrinking.
 		// See [configure] for why the size is the legend's business and not a dataset's.
@@ -585,6 +660,19 @@ abstract class MetricsChartRenderer(
 		val labels = (BASE_LABEL_COUNT / scale).roundToInt().coerceAtLeast(MIN_LABEL_COUNT)
 		chart.axisLeft.setLabelCount(labels, false)
 		chart.axisRight.setLabelCount(labels, false)
+	}
+
+	/**
+	 * Applies the font scale only if it has moved since the last time it was applied.
+	 *
+	 * For [redraw], which runs per sample. [setData] applies unconditionally: it installs fresh
+	 * [LineData], and the value text size is a property of the data rather than of the chart.
+	 */
+	@UiThread
+	private fun applyTextScaleIfChanged(chart: SafeLineChart) {
+		if (textScaleFor(chart.context) != appliedTextScale) {
+			applyTextScale(chart)
+		}
 	}
 
 	/**
@@ -734,8 +822,10 @@ abstract class MetricsChartRenderer(
 		// fontScale in configChanges, so the activity is never recreated for one -- and this is
 		// the only path a running chart takes per sample. Left out, a live scale change moved the
 		// annotation rows, which [applyAnnotations] re-reads below, while none of the text or the
-		// legend dot it spaces them for ever grew.
-		applyTextScale(chart)
+		// legend dot it spaces them for ever grew. Only when it has actually moved, though: this
+		// runs on every tick of every attached page and the answer changes a handful of times a
+		// session.
+		applyTextScaleIfChanged(chart)
 		chart.apply {
 			data.notifyDataChanged()
 			notifyDataSetChanged()
