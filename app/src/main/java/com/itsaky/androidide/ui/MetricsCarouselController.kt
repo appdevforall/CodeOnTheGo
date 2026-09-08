@@ -349,7 +349,10 @@ class MetricsCarouselController(
 		val readout = renderer?.readout()
 
 		binding.metricsBattery.text = readout.orEmpty()
-		binding.metricsBattery.isVisible = readout != null
+		// Not on a page that has no readout, and not while the carousel is undocked: this runs on
+		// every page change and every refresh, so without the second test the next battery tick
+		// put the readout back over the "tap to bring them back" message.
+		binding.metricsBattery.isVisible = readout != null && !binding.root.isUndocked
 
 		// lineHeight rather than the measured height: this runs on bind, before the readout has
 		// been laid out, and it is the text's own size that grows with the font scale.
