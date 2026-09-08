@@ -40,11 +40,13 @@ import org.robolectric.RobolectricTestRunner
 class PowerUsageChartRendererTest {
 	private val context = ApplicationProvider.getApplicationContext<Context>()
 
+	// No sample times, for the reason NetworkUsageChartRendererTest gives: a chart test says so
+	// rather than letting a default say it.
 	private fun usage(
 		temperature: LongArray,
 		power: LongArray = LongArray(temperature.size),
 		thermal: LongArray = LongArray(temperature.size),
-	) = PowerUsageWatcher.PowerUsage(temperature, power, thermal)
+	) = PowerUsageWatcher.PowerUsage(temperature, power, thermal, LongArray(temperature.size))
 
 	private fun rendererFor(
 		usage: PowerUsageWatcher.PowerUsage,
@@ -318,19 +320,36 @@ class PowerUsageChartRendererTest {
 	}
 
 	@Test
-	fun `the temperature axis ignores the buffer's unsampled zeros`() {
+	fun `the temperature axis ignores the buffer's unsampled slots`() {
 		// A real reading only in the newest slots; the rest of the buffer has never been written.
-		val temperature = LongArray(SAMPLES)
+		// Unsampled now means UNAVAILABLE rather than zero -- the watcher fills its buffers with
+		// it, because a zero-filled prefix plotted a flat 0 C line and presented it as a reading.
+		val temperature = LongArray(SAMPLES) { PowerUsageWatcher.UNAVAILABLE }
 		for (index in SAMPLES - 10 until SAMPLES) {
 			temperature[index] = 30_000L
 		}
 		val (_, chart) = rendererFor(usage(temperature = temperature))
 		laidOut(chart)
 
-		// Ranged over the zeros the 30C band is squeezed into the top tenth of the plot, with a
-		// negative gridline below it.
+		// Ranged over the unsampled slots the 30C band is squeezed into a corner of the plot.
 		assertThat(chart.axisLeft.axisMinimum).isGreaterThan(20f)
 		assertThat(chart.axisLeft.axisMaximum).isLessThan(40f)
+	}
+
+	@Test
+	fun `a genuine zero degrees is a reading and is ranged over`() {
+		// The half the old workaround got wrong. Ignoring the unsampled prefix used to be done by
+		// discarding every zero, which also discarded a real freezing-battery sample -- so a phone
+		// left in a car overnight charted its own temperature as absent.
+		val temperature = LongArray(SAMPLES) { PowerUsageWatcher.UNAVAILABLE }
+		for (index in SAMPLES - 10 until SAMPLES) {
+			temperature[index] = 0L
+		}
+		val (_, chart) = rendererFor(usage(temperature = temperature))
+		laidOut(chart)
+
+		// The axis has to include it rather than falling back to its default band.
+		assertThat(chart.axisLeft.axisMinimum).isAtMost(0f)
 	}
 
 	@Test

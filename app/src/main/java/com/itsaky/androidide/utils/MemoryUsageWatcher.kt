@@ -495,7 +495,7 @@ class MemoryUsageWatcher
 			val pname: String,
 			internal val _history: MutableShiftedLongArray,
 			/** When this process started being watched, as milliseconds since the epoch. */
-			val watchedSinceMillis: Long = 0L,
+			val watchedSinceMillis: Long,
 		) {
 			internal val memInfo: MemoryInfo = MemoryInfo()
 
