@@ -123,6 +123,7 @@ import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ImageUtils
 import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
+import com.itsaky.androidide.utils.capHeightToSpaceBelow
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.forEachViewRecursively
@@ -2241,7 +2242,9 @@ open class EditorHandlerActivity :
 				).root
 
 		closeItem.apply {
-			text = "Close Tab"
+			// A string resource, like the "Undock" item eleven lines below: this label sat
+			// untranslated next to a translated one in the same two-item popup.
+			text = getString(string.action_close_tab)
 			setOnClickListener {
 				val position = tab.position
 				if (isPluginTab(position)) {
@@ -2251,7 +2254,7 @@ open class EditorHandlerActivity :
 			}
 		}
 
-		binding.root.addView(closeItem)
+		binding.actionItems.addView(closeItem)
 
 		val undockItem =
 			FileActionPopupWindowItemBinding
@@ -2280,8 +2283,10 @@ open class EditorHandlerActivity :
 				popupWindow.dismiss()
 			}
 		}
-		binding.root.addView(undockItem)
+		binding.actionItems.addView(undockItem)
 
+		// Shares FileActionPopupWindowBinding with the file-tab popup, so it shares the sizing bug.
+		popupWindow.capHeightToSpaceBelow(anchorView, binding.root)
 		popupWindow.showAsDropDown(anchorView, 0, 0)
 	}
 
@@ -2712,8 +2717,13 @@ open class EditorHandlerActivity :
 		// branch reads the carried-forward extra itself -- they only apply whatever fileRequest THIS
 		// intent carries, which is often none. Comparing the deep link's project name against the
 		// currently-loading project's directory name (mirroring BaseEditorActivity.onCreate's own
-		// deepLinkTargetsAnotherProject check) is a synchronous, disk-free way to tell same from
-		// different without waiting on the deep-link path's own async resolve.
+		// deepLinkTargetsAnotherProject check) is a synchronous way to tell same from
+		// different without waiting on the deep-link path's own async resolve. It is not free, though:
+		// this comment used to claim "disk-free", and isDeepLinkTargetOfOpenProject falls through to
+		// two File.canonicalPath calls whenever the paths differ as text. Deep-link arrival is a rare,
+		// user-initiated event so the stall is bounded, but it is a main-thread read on this path and
+		// on BaseEditorActivity.onCreate's -- see deepLinkTargetOfOpenProjectWithoutIo for the half
+		// that needs no disk, which CreateLinkAction uses because it is called on every menu open.
 		// EditorIntentExtras.EXTRA_PREVIOUS_PROJECT_PATH, when present, is what IProjectManager.projectDirPath held before
 		// MainActivity.openProject's bookkeeping call overwrote it to the NEW path -- by the time this
 		// intent arrives here, the global itself already reads as the new path regardless of whether
