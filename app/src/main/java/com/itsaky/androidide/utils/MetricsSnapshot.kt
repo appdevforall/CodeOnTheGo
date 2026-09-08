@@ -102,12 +102,17 @@ object MetricsSnapshot {
 		limit: Int,
 		newest: File,
 	) {
-		val files = directory.listFiles()?.sortedBy { it.lastModified() } ?: return
-		if (files.size <= limit) {
+		// [newest] is excluded from the candidates rather than skipped among them. Skipping it after
+		// choosing "the oldest n" left one file too many whenever it sorted into that set, and the
+		// directory then crept one over the limit per collision. Two writes inside one filesystem
+		// timestamp are enough to sort it there.
+		val candidates = directory.listFiles()?.filter { it != newest }?.sortedBy { it.lastModified() } ?: return
+		val excess = candidates.size - (limit - 1)
+		if (excess <= 0) {
 			return
 		}
-		files.take(files.size - limit).forEach { file ->
-			if (file != newest && !file.delete()) {
+		candidates.take(excess).forEach { file ->
+			if (!file.delete()) {
 				log.warn("Could not delete the stale chart snapshot at {}", file)
 			}
 		}
