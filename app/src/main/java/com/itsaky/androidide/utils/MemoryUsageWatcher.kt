@@ -17,16 +17,11 @@
 
 package com.itsaky.androidide.utils
 
-import android.app.ActivityManager
-import android.os.Debug
 import android.os.Debug.MemoryInfo
 import androidx.annotation.VisibleForTesting
 import androidx.collection.IntObjectMap
 import androidx.collection.MutableIntObjectMap
-import androidx.core.content.getSystemService
-import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.tasks.cancelIfActive
-import com.termux.shared.reflection.ReflectionUtils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -61,16 +56,9 @@ class MemoryUsageWatcher
 		private val mainDispatcher: CoroutineContext = Dispatchers.Main.immediate,
 		private val nowMillis: () -> Long = System::currentTimeMillis,
 		// Injectable for the same reason the other watchers' readers are: it is the one part of a
-		// sample that needs a device. ActivityManager.getProcessMemoryInfo is rate-limited and
-		// internally uses Debug.getMemoryInfo, so the reflective call goes around the limit.
-		private val readTotalPssKb: (Int, MemoryInfo) -> Int = { pid, into ->
-			ReflectionUtils.invokeMethod(android_os_Debug_getMemoryInfo, null, pid, into)
-
-			// From https://developer.android.com/tools/dumpsys#meminfo
-			// "PSS is a good measure for the actual RAM weight of a process and for comparison
-			// against the RAM use of other processes and the total available RAM."
-			into.totalPss
-		},
+		// sample that needs a device. A factory rather than a reader, because which read is correct
+		// depends on the process -- see [ProcessMemoryReaders] (ADFA-5574).
+		private val readerFor: (Int) -> ProcessMemoryReader = ProcessMemoryReaders::chooseReader,
 	) {
 		/**
 		 * Milliseconds between samples. Changing it clears the history: the chart reads a sample's
@@ -143,19 +131,6 @@ class MemoryUsageWatcher
 		var listener: MemoryUsageListener? = null
 
 		companion object {
-			private val android_os_Debug_getMemoryInfo by lazy {
-				checkNotNull(
-					ReflectionUtils.getDeclaredMethod(
-						Debug::class.java,
-						"getMemoryInfo",
-						Int::class.javaPrimitiveType,
-						MemoryInfo::class.java,
-					),
-				) {
-					"Unable to find getMemoryInfo method in android.os.Debug class"
-				}
-			}
-
 			/**
 			 * Samples retained per series.
 			 *
@@ -221,14 +196,6 @@ class MemoryUsageWatcher
 		@VisibleForTesting
 		internal fun readUsages() {
 			if (memoryUsage.isEmpty()) {
-				// Nothing to sample. Returning before the service lookup keeps an idle watcher off
-				// BaseApplication, which a unit test does not have.
-				return
-			}
-
-			val activityManager = BaseApplication.baseInstance.getSystemService<ActivityManager>()
-			if (activityManager == null) {
-				log.error("ActivityManager is null")
 				return
 			}
 
@@ -248,7 +215,7 @@ class MemoryUsageWatcher
 					}
 
 				// values are in kB, convert to bytes
-				sampled += proc to readTotalPssKb(pid, proc.memInfo) * 1024L
+				sampled += proc to readKb(proc) * 1024L
 			}
 
 			synchronized(historyLock) {
@@ -263,6 +230,27 @@ class MemoryUsageWatcher
 					proc._history.shift(1)
 				}
 			}
+		}
+
+		/**
+		 * This process's footprint in kB, falling back to the reflective read if the cheap one
+		 * fails.
+		 *
+		 * The fallback latches on the process, so a rollup that cannot be read -- the process gone,
+		 * a permission this build does not have -- costs one failed attempt rather than one every
+		 * second for the rest of the session.
+		 */
+		private fun readKb(proc: ProcessMemoryInfo): Int {
+			val kb = proc.reader.totalKb(proc.pid, proc.memInfo)
+			if (kb != ProcessMemoryReaders.UNAVAILABLE) {
+				return kb
+			}
+			if (proc.reader !== DebugMemoryInfoReader) {
+				ProcessMemoryReaders.logFallback(proc.pid)
+				proc.reader = DebugMemoryInfoReader
+				return proc.reader.totalKb(proc.pid, proc.memInfo)
+			}
+			return 0
 		}
 
 		/**
@@ -297,7 +285,7 @@ class MemoryUsageWatcher
 					// of the session. Without this, the exported file could not tell those zeros
 					// from a process that really was using no memory (ADFA-5531).
 					watchedSinceMillis = nowMillis(),
-				)
+				).also { it.reader = readerFor(pid) }
 		}
 
 		/**
@@ -498,6 +486,14 @@ class MemoryUsageWatcher
 			val watchedSinceMillis: Long = 0L,
 		) {
 			internal val memInfo: MemoryInfo = MemoryInfo()
+
+			/**
+			 * How this process's footprint is read, chosen once when it starts being watched.
+			 *
+			 * Per process rather than per sample: the choice needs a file-existence check, and a
+			 * read that fails at runtime latches here so it is not retried every second.
+			 */
+			internal var reader: ProcessMemoryReader = DebugMemoryInfoReader
 
 			val usageHistory: ShiftedLongArray
 				get() = _history

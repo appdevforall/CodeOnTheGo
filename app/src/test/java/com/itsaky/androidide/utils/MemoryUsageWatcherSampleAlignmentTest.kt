@@ -39,7 +39,10 @@ class MemoryUsageWatcherSampleAlignmentTest {
 				clock += TICK_MILLIS
 				clock
 			},
-			readTotalPssKb = readPssKb,
+			// The seam is a factory now (ADFA-5574): which read is correct depends on the process.
+			// These cases are about when values are appended, not how they are obtained, so every
+			// process gets the same stub.
+			readerFor = { ProcessMemoryReader { pid, scratch -> readPssKb(pid, scratch) } },
 		)
 
 	@Test
