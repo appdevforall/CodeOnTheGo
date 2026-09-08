@@ -63,10 +63,10 @@ class MetricsChartHoldHelpTest {
 			NetworkUsageChartRenderer(
 				usageProvider = {
 					NetworkUsageWatcher.NetworkUsage(
-					LongArray(SAMPLES) { 1_000L },
-					LongArray(SAMPLES) { 500L },
-					LongArray(SAMPLES),
-				)
+						LongArray(SAMPLES) { 1_000L },
+						LongArray(SAMPLES) { 500L },
+						LongArray(SAMPLES),
+					)
 				},
 			)
 		renderer.attach(chart)
