@@ -23,6 +23,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import androidx.appcompat.view.ContextThemeWrapper
+import androidx.core.view.children
 import androidx.core.view.isVisible
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
@@ -116,24 +117,37 @@ class MetricsCarouselLayoutTest {
 		}
 	}
 
+	/** Every control in the strip except the message that replaces them, named for a failure. */
+	private fun MetricsCarouselLayout.stillShowing(): List<String> =
+		children
+			.filter { it.id != R.id.metrics_undocked_message && it.isVisible }
+			.map { resources.getResourceEntryName(it.id) }
+			.toList()
+
 	@Test
-	fun `undocking hides every carousel control, not just the chart`() {
+	fun `undocking hides every control in the strip, whatever it is`() {
 		val binding = inflatedStrip()
+		// The readout starts `gone` in the layout and is shown by the controller on the power page.
+		// It has to be showing before this, or the assertion runs against a strip where it never
+		// was -- which is how the defect survived a test already named for it, and how the first
+		// version of this one passed with the fix removed.
+		binding.metricsBattery.isVisible = true
 
 		binding.root.setUndocked(true)
 
 		// The arrows and the camera are chrome for a chart that is not here. Left visible they sit
 		// over the message, and the camera is inert anyway because undocking unbinds its listener.
-		assertThat(binding.metricsPager.isVisible).isFalse()
-		assertThat(binding.metricsTitle.isVisible).isFalse()
-		assertThat(binding.metricsPrevious.isVisible).isFalse()
-		assertThat(binding.metricsNext.isVisible).isFalse()
-		assertThat(binding.metricsSnapshot.isVisible).isFalse()
+		//
+		// Enumerated from the layout rather than listed by hand. The hand-list this replaces was
+		// named for the invariant it did not check: it named five ids and missed the battery
+		// readout, which had been added to the strip after setUndocked was written, so the readout
+		// sat over the message. A list that reads the layout cannot be out of date.
+		assertThat(binding.root.stillShowing()).isEmpty()
 		assertThat(binding.metricsUndockedMessage.isVisible).isTrue()
 	}
 
 	@Test
-	fun `re-docking brings every control back`() {
+	fun `re-docking brings the carousel back`() {
 		val binding = inflatedStrip()
 
 		binding.root.setUndocked(true)
@@ -145,6 +159,20 @@ class MetricsCarouselLayoutTest {
 		assertThat(binding.metricsNext.isVisible).isTrue()
 		assertThat(binding.metricsSnapshot.isVisible).isTrue()
 		assertThat(binding.metricsUndockedMessage.isVisible).isFalse()
+	}
+
+	@Test
+	fun `re-docking does not put the battery readout back by itself`() {
+		val binding = inflatedStrip()
+
+		// It belongs to the power page alone, and which page is showing is not this view's to
+		// know. Restoring it here would show a battery level over every other chart; the
+		// controller puts it back on the rebind that follows a dock.
+		binding.metricsBattery.isVisible = true
+		binding.root.setUndocked(true)
+		binding.root.setUndocked(false)
+
+		assertThat(binding.metricsBattery.isVisible).isFalse()
 	}
 
 	@Test
