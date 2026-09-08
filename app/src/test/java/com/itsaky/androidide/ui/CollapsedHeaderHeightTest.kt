@@ -28,29 +28,37 @@ class CollapsedHeaderHeightTest {
 	@Test
 	fun `a block that fits in the visible part of the floor keeps the floor`() {
 		// Font scale 2.0, one-line status (57px) plus the hint (51px): 108 + 48 < 187.5.
-		assertEquals(187.5f, collapsedHeaderHeightPx(floor, 108f, chrome))
+		assertEquals(187.5f, collapsedHeaderHeightPx(floor, 108f, chrome, statusShown = true))
 	}
 
 	@Test
 	fun `a block taller than the visible part grows the header by the hidden strip`() {
 		// Font scale 2.0, three-line status (171px) plus the hint (51px).
-		assertEquals(270f, collapsedHeaderHeightPx(floor, 222f, chrome))
+		assertEquals(270f, collapsedHeaderHeightPx(floor, 222f, chrome, statusShown = true))
 	}
 
 	@Test
 	fun `a block that just fits the visible part stays at the floor`() {
-		assertEquals(floor, collapsedHeaderHeightPx(floor, floor - chrome, chrome))
-		assertEquals(floor + 1f, collapsedHeaderHeightPx(floor, floor - chrome + 1f, chrome))
+		assertEquals(floor, collapsedHeaderHeightPx(floor, floor - chrome, chrome, statusShown = true))
+		assertEquals(floor + 1f, collapsedHeaderHeightPx(floor, floor - chrome + 1f, chrome, statusShown = true))
 	}
 
 	@Test
 	fun `no chrome above the header leaves the block height alone`() {
-		assertEquals(219f, collapsedHeaderHeightPx(floor, 219f, 0))
+		assertEquals(219f, collapsedHeaderHeightPx(floor, 219f, 0, statusShown = true))
+	}
+
+	@Test
+	fun `a tall status block does not size the header while another child is on show`() {
+		// Keyboard up: the symbol input replaces the status block in the flipper. The three-line
+		// status that grew the header to 270px is off screen, and the symbol input must not
+		// inherit its rows.
+		assertEquals(floor, collapsedHeaderHeightPx(floor, 222f, chrome, statusShown = false))
 	}
 
 	@Test
 	fun `an unmeasured block keeps the floor whatever the chrome`() {
-		assertEquals(floor, collapsedHeaderHeightPx(floor, 0f, chrome))
-		assertEquals(floor, collapsedHeaderHeightPx(floor, -1f, chrome))
+		assertEquals(floor, collapsedHeaderHeightPx(floor, 0f, chrome, statusShown = true))
+		assertEquals(floor, collapsedHeaderHeightPx(floor, -1f, chrome, statusShown = true))
 	}
 }
