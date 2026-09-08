@@ -44,7 +44,7 @@ final class QuickBuildClient implements ServiceConnection {
 	/**
 	 * The live host proxy, or null while disconnected.
 	 *
-	 * Volatile for the binder-thread reads in the report methods; every WRITE takes the monitor, so that {@link #abandonHandshake}'s test-and-teardown is one step against the four framework callbacks as well as against the other synchronized methods.
+	 * Volatile for the binder-thread reads in the report methods; every WRITE takes the monitor, so that {@link #abandonHandshake}'s test-and-null-write is one step against the four framework callbacks as well as against the other synchronized methods.
 	 */
 	private volatile IQuickBuildHost host;
 
@@ -151,7 +151,10 @@ final class QuickBuildClient implements ServiceConnection {
 			// here. bindService against a connection the framework still holds a live
 			// binding for is answered from the existing record rather than by a fresh
 			// connect, so a rebind stacked on top of one we never released can be dropped
-			// on the floor - and this branch has no other way back.
+			// on the floor - and this branch has no other way back. The host is dropped
+			// first, like the other failure paths: the rebind runnable returns early while
+			// a host is set, so a stale one left here would strand the rebind.
+			dropHost();
 			unbindQuietly();
 			scheduleRebind();
 			return;
@@ -248,17 +251,19 @@ final class QuickBuildClient implements ServiceConnection {
 	 *
 	 * The handshake runs on its own thread, so a slow one outlives its binding: CoGo's service dies, {@link #onServiceDisconnected} nulls the host, the framework reconnects, and a second handshake succeeds against a new proxy. Unguarded, the first thread's failure then nulls that live host, unbinds a healthy channel and schedules a rebind - and until the rebind lands every {@code reportReloaded} and {@code reportCrash} only logs "not connected", so each deploy in the window can end only in the host's own timeout.
 	 *
-	 * Under the monitor, because the test and the teardown have to be one step: {@code host} is written from the framework's callback thread as well as from here, and those writes take the monitor too ({@link #dropHost}, {@link #onServiceConnected}). Without that the exclusion held only against other callers of the synchronized methods, and a disconnect-then-reconnect on the main thread could still slip between this method's read of {@code host} and its write.
+	 * The test and the null write are one step under the monitor: {@code host} is written from the framework's callback thread as well as from here, and those writes take the monitor too ({@link #dropHost}, {@link #onServiceConnected}). Without that the exclusion held only against other callers of the synchronized methods, and a disconnect-then-reconnect on the main thread could still slip between this method's read of {@code host} and its write. The unbind and the rebind run outside it, for the reason {@link #dropHost} gives: unbindService is a synchronous binder transaction, and holding the monitor across it would stall the main-thread callbacks behind this handshake thread.
 	 *
 	 * @param connected
 	 *            the proxy whose handshake failed
 	 */
-	private synchronized void abandonHandshake(IQuickBuildHost connected) {
-		if (host != connected) {
-			RuntimeLog.w("stale handshake failure; a newer binding is live, leaving it alone");
-			return;
+	private void abandonHandshake(IQuickBuildHost connected) {
+		synchronized (this) {
+			if (host != connected) {
+				RuntimeLog.w("stale handshake failure; a newer binding is live, leaving it alone");
+				return;
+			}
+			host = null;
 		}
-		host = null;
 		unbindQuietly();
 		scheduleRebind();
 	}
