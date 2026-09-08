@@ -34,9 +34,9 @@ interface QuickBuildDaemon {
 	 *
 	 * @param config the session-fixed settings; the implementation may retain it for the
 	 *   lifetime of the process, so callers must not mutate the files it names mid-session.
-	 * @return [DaemonReply.Ok] once the daemon is configured and ready for ops, else
-	 *   [DaemonReply.Failed] - a spawn or configure problem is infrastructure, never a
-	 *   [DaemonReply.BuildFailed].
+	 * @return [DaemonReply.Ok] once the daemon is configured and ready for ops;
+	 *   [DaemonReply.BuildFailed] when the daemon rejected the configuration, with its
+	 *   diagnostics saying why; else [DaemonReply.Failed] for a spawn or transport problem.
 	 */
 	suspend fun start(config: DaemonConfig): DaemonReply<Unit>
 

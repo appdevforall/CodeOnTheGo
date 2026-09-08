@@ -5,9 +5,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
@@ -144,12 +146,12 @@ class DaemonProcessClientEdgeTest {
 	}
 
 	@Test
-	fun `a daemon that rejects configure fails without claiming death`() {
+	fun `a daemon that rejects configure hands back its diagnostics without claiming death`() {
 		val paths =
 			scriptedPaths(
 				"""
 				read line
-				printf '%s\n' '{"id":1,"ok":false,"diagnostics":[]}'
+				printf '%s\n' '{"id":1,"ok":false,"diagnostics":[{"severity":"ERROR","message":"unsupported minApi 19"}]}'
 				read line
 				printf '%s\n' '{"id":2,"ok":true}'
 				""".trimIndent(),
@@ -157,10 +159,47 @@ class DaemonProcessClientEdgeTest {
 
 		val reply = withClient(paths) { it.start(config()) }
 
-		assertThat(reply).isInstanceOf(DaemonReply.Failed::class.java)
-		val failed = reply as DaemonReply.Failed
-		assertThat(failed.message).contains("Daemon rejected configuration")
-		assertThat(failed.daemonDied).isFalse()
+		// A BuildFailed, not a Failed: the daemon is healthy and said why, and the session
+		// manager needs the why to tell the user - and must not respawn for it.
+		assertThat(reply).isInstanceOf(DaemonReply.BuildFailed::class.java)
+		val rejected = reply as DaemonReply.BuildFailed
+		assertThat(rejected.diagnostics.map { it.message }).containsExactly("unsupported minApi 19")
+	}
+
+	@Test
+	fun `a start cancelled mid configure kills the child it spawned`() {
+		val paths =
+			scriptedPaths(
+				"""
+				printf '%s' "${'$'}${'$'}" > '$tmp/daemon.pid'
+				read line
+				sleep 30
+				""".trimIndent(),
+			)
+		val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+		val client = DaemonProcessClient(paths, scope)
+		val pidFile = File(tmp, "daemon.pid")
+
+		try {
+			runBlocking {
+				val startJob = scope.launch { client.start(config()) }
+				withTimeout(30_000) { while (!pidFile.exists()) delay(20) }
+				// The child has read nothing back yet, so the start is parked in its configure
+				// round trip - the window where nothing but the start itself can stop the child.
+				delay(200)
+				startJob.cancelAndJoin()
+			}
+
+			val pid = pidFile.readText().trim()
+			// The shutdown is asynchronous to the cancel only in the pid's exit bookkeeping, so
+			// give the kill a moment before declaring the child leaked.
+			var alive = isProcessAlive(pid)
+			repeat(50) { if (alive) { Thread.sleep(100); alive = isProcessAlive(pid) } }
+			assertThat(alive).isFalse()
+		} finally {
+			runBlocking { client.shutdown() }
+			scope.cancel()
+		}
 	}
 
 	@Test
@@ -1095,7 +1134,7 @@ class DaemonProcessClientEdgeTest {
 		val client = DaemonProcessClient(paths, scope, requestTimeoutMillis = 2_000)
 		try {
 			val reply = runBlocking { client.start(config()) }
-			assertThat(reply).isInstanceOf(DaemonReply.Failed::class.java)
+			assertThat(reply).isInstanceOf(DaemonReply.BuildFailed::class.java)
 			assertThat(isProcessAlive(File(tmp, "daemon.pid").readText().trim())).isFalse()
 		} finally {
 			runBlocking { client.shutdown() }
