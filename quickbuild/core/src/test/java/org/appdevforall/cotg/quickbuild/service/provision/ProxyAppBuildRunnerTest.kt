@@ -99,7 +99,7 @@ class ProxyAppBuildRunnerTest {
 	private val connections = ProxyAppConnections()
 
 	/** The uid every scripted rebuild reports for the reinstalled app. */
-	private val REBUILT_UID = 10123
+	private val rebuiltUid = 10123
 	private val deploy = FakeDeploy()
 
 	/** Every rebuild relaunch, as (package, launcherActivity) - the deployRestart shape. */
@@ -184,7 +184,7 @@ class ProxyAppBuildRunnerTest {
 			daemon.isRunning = true
 			val newRoot = File(projectRoot, "moved-project").apply { mkdirs() }
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(newRoot), REBUILT_UID, QuickBuildProjectLayout(newRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(newRoot), rebuiltUid, QuickBuildProjectLayout(newRoot))
 			}
 
 			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
@@ -234,7 +234,7 @@ class ProxyAppBuildRunnerTest {
 								),
 							),
 					),
-					REBUILT_UID,
+					rebuiltUid,
 					QuickBuildProjectLayout(projectRoot),
 				)
 			}
@@ -259,7 +259,7 @@ class ProxyAppBuildRunnerTest {
 		runTest {
 			// No proxied activity carries MAIN/LAUNCHER - the <activity-alias> case.
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(), REBUILT_UID, QuickBuildProjectLayout(projectRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(), rebuiltUid, QuickBuildProjectLayout(projectRoot))
 			}
 			deploy.reconnectGeneration = { 7L }
 
@@ -275,7 +275,7 @@ class ProxyAppBuildRunnerTest {
 			// reinstalled app stays in the background. The deploy channel's reconnect
 			// catch-up keeps it current for whenever the user opens it themselves.
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(), REBUILT_UID, QuickBuildProjectLayout(projectRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(), rebuiltUid, QuickBuildProjectLayout(projectRoot))
 			}
 
 			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { false })
@@ -308,7 +308,7 @@ class ProxyAppBuildRunnerTest {
 	fun `a daemon restart failure never relaunches - a live app next to the failure would lie`() =
 		runTest {
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(), REBUILT_UID, QuickBuildProjectLayout(projectRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(), rebuiltUid, QuickBuildProjectLayout(projectRoot))
 			}
 			daemon.startReply = DaemonReply.Failed("no memory")
 
@@ -325,7 +325,7 @@ class ProxyAppBuildRunnerTest {
 	fun `a refused relaunch start leaves the rebuild Succeeded but books relaunchOk false`() =
 		runTest {
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(), REBUILT_UID, QuickBuildProjectLayout(projectRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(), rebuiltUid, QuickBuildProjectLayout(projectRoot))
 			}
 			launchResult = false
 
@@ -344,7 +344,7 @@ class ProxyAppBuildRunnerTest {
 	fun `a swallowed first start gets exactly one more launch, and a reconnect then counts`() =
 		runTest {
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(), REBUILT_UID, QuickBuildProjectLayout(projectRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(), rebuiltUid, QuickBuildProjectLayout(projectRoot))
 			}
 			val reconnects = ArrayDeque(listOf<Long?>(null, 7L))
 			deploy.reconnectGeneration = { reconnects.removeFirst() }
@@ -363,7 +363,7 @@ class ProxyAppBuildRunnerTest {
 	fun `a relaunch that never reconnects books relaunchOk false with no toRunningMillis`() =
 		runTest {
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(), REBUILT_UID, QuickBuildProjectLayout(projectRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(), rebuiltUid, QuickBuildProjectLayout(projectRoot))
 			}
 			deploy.reconnectGeneration = { null }
 
@@ -395,7 +395,7 @@ class ProxyAppBuildRunnerTest {
 	fun `a superseded rebuild books its metric with relaunchOk false and never launches`() =
 		runTest {
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(), REBUILT_UID, QuickBuildProjectLayout(projectRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(), rebuiltUid, QuickBuildProjectLayout(projectRoot))
 			}
 
 			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { true }, userAskOutstanding = { true })
@@ -410,7 +410,7 @@ class ProxyAppBuildRunnerTest {
 	fun `a daemon that refuses the restart yields DaemonRestartFailed`() =
 		runTest {
 			provisioner.rebuildOutcome = {
-				ProxyAppRebuildOutcome.Success(proxyApp(), REBUILT_UID, QuickBuildProjectLayout(projectRoot))
+				ProxyAppRebuildOutcome.Success(proxyApp(), rebuiltUid, QuickBuildProjectLayout(projectRoot))
 			}
 			daemon.startReply = DaemonReply.Failed("no memory")
 			val result = runner().rebuildProxyApp(parkedRetry = false, superseded = { false }, userAskOutstanding = { true })
