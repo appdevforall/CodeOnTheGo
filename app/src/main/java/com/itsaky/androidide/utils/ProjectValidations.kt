@@ -147,10 +147,77 @@ internal fun isDeepLinkTargetOfOpenProject(
 	projectName: String,
 	projectsRoot: File,
 ): Boolean {
+	deepLinkTargetOfOpenProjectWithoutIo(openProjectPath, projectName, projectsRoot)?.let { return it }
+
+	// Deliberately NOT `deepLinkTargetOfOpenProjectOrNull(...) ?: false`, which was tried on the
+	// grounds that it could not change behaviour. It can: this compares per side, so when exactly one
+	// side's canonicalPath fails it still compares that side's absolutePath against the other's
+	// canonical path -- and those can match, e.g. a projectsRoot given as /sdcard/CodeOnTheGoProjects
+	// against an open project under /storage/emulated/0/CodeOnTheGoProjects whose parent has just
+	// become unreadable. The nullable variant returns null on the first failure, which collapses to
+	// false, and at this function's two callers a false means a same-project deep link is treated as
+	// a project switch: the project is closed and reopened instead of the file simply being shown.
+	//
+	// So the two functions differ on purpose. This one stays lenient for callers that must answer
+	// now; the nullable one is strict for a caller that will REMEMBER the answer, where a wrong false
+	// outlives the condition that caused it.
+	val parent = File(openProjectPath).parentFile ?: return false
+	return canonicalOrAbsolute(parent) == canonicalOrAbsolute(projectsRoot)
+}
+
+/**
+ * [isDeepLinkTargetOfOpenProject] with "could not tell" kept apart from "no", for a caller that
+ * remembers the answer.
+ *
+ * The Boolean version cannot express the difference: [canonicalOrAbsolute] turns a failed
+ * `canonicalPath` into the plain `absolutePath` and the comparison then yields `false`, which is
+ * indistinguishable from a genuine mismatch. A caller that caches that `false` latches "not
+ * linkable" for the rest of the process over what may have been a momentary EACCES after a
+ * permission change, or an EIO on a flaky external volume. Same reasoning, and same shape, as
+ * [ProjectNameLookup.Unverifiable].
+ */
+internal fun deepLinkTargetOfOpenProjectOrNull(
+	openProjectPath: String,
+	projectName: String,
+	projectsRoot: File,
+): Boolean? {
+	deepLinkTargetOfOpenProjectWithoutIo(openProjectPath, projectName, projectsRoot)?.let { return it }
+
+	// Non-null by construction: the shortcut returns false, not null, when there is no parent, so
+	// deferring to here already established one.
+	val parent = File(openProjectPath).parentFile ?: return false
+	val parentPath = runCatching { parent.canonicalPath }.getOrNull() ?: return null
+	val rootPath = runCatching { projectsRoot.canonicalPath }.getOrNull() ?: return null
+	return parentPath == rootPath
+}
+
+/**
+ * The part of [isDeepLinkTargetOfOpenProject] decidable without any filesystem call, for callers
+ * that must answer on a thread where I/O is not allowed -- `null` means "only canonicalisation can
+ * tell", so the caller has to go off-thread for the rest.
+ *
+ * Lives here, beside the full rule, rather than being reimplemented at the call site: a writer with
+ * its own private copy of "is this project linkable" would keep answering the old question if this
+ * rule were ever tightened.
+ */
+internal fun deepLinkTargetOfOpenProjectWithoutIo(
+	openProjectPath: String,
+	projectName: String,
+	projectsRoot: File,
+): Boolean? {
 	if (openProjectPath.isBlank()) return false
 	val open = File(openProjectPath)
 	if (!projectNamesMatch(open.name, projectName)) return false
-	return canonicalOrAbsolute(open.parentFile ?: return false) == canonicalOrAbsolute(projectsRoot)
+	val parent = open.parentFile ?: return false
+
+	// Equal path strings name the same directory, so canonicalising both sides could only agree.
+	// This is the case for every project reached through the projects list or a deep link, since
+	// both are resolved against projectsRoot to begin with.
+	if (parent.absolutePath == projectsRoot.absolutePath) return true
+
+	// They differ as text, so a symlink on either side may still make them one directory -- and only
+	// canonicalPath can say, which is exactly the call this function exists to avoid.
+	return null
 }
 
 private fun canonicalOrAbsolute(file: File): String = runCatching { file.canonicalPath }.getOrElse { file.absolutePath }
