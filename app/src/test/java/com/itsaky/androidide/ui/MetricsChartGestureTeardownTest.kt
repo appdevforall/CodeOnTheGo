@@ -17,21 +17,13 @@
 
 package com.itsaky.androidide.ui
 
-import android.content.Context
-import android.os.Looper
-import android.os.SystemClock
-import android.view.MotionEvent
 import android.view.ViewConfiguration
 import androidx.test.core.app.ApplicationProvider
 import com.github.mikephil.charting.listener.ChartTouchListener
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.utils.NetworkUsageWatcher
-import com.itsaky.androidide.utils.longPressHelpTimeoutMillis
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
-import java.util.concurrent.TimeUnit
 
 /**
  * What happens to a hold in progress when the gesture or the chart under it goes away (ADFA-5554).
@@ -49,116 +41,40 @@ import java.util.concurrent.TimeUnit
  */
 @RunWith(RobolectricTestRunner::class)
 class MetricsChartGestureTeardownTest {
-	private val context = ApplicationProvider.getApplicationContext<Context>()
+	private val harness = ChartGestureHarness(ApplicationProvider.getApplicationContext())
 
-	private var taps = 0
+	private val taps get() = harness.taps
 
-	private var helps = 0
+	private val helps get() = harness.helps
 
-	private lateinit var renderer: NetworkUsageChartRenderer
+	private val renderer get() = harness.renderer
 
-	private fun laidOutChart(): SafeLineChart {
-		val chart = SafeLineChart(context)
-		// Any concrete renderer will do -- the hold is the base class's, and every page wires it
-		// the same way.
-		renderer =
-			NetworkUsageChartRenderer(
-				usageProvider = {
-					NetworkUsageWatcher.NetworkUsage(
-						LongArray(SAMPLES) { 1_000L },
-						LongArray(SAMPLES) { 500L },
-						LongArray(SAMPLES),
-					)
-				},
-			)
-		renderer.attach(chart)
-		renderer.onXAxisTap = { taps++ }
-		renderer.showHelp = { _, _, _ -> helps++ }
+	private fun laidOutChart() = harness.laidOutChart()
 
-		chart.layOutAndDraw()
-		return chart
-	}
-
-	/**
-	 * An event whose finger landed [sincePressMillis] ago.
-	 *
-	 * The down time is what the chart measures its remaining hold from, so it has to be real here.
-	 * Defaults to the platform's long-press timeout, which is when a detector on a current device
-	 * reports one.
-	 */
-	private fun eventAt(
-		y: Float,
-		sincePressMillis: Long = ViewConfiguration.getLongPressTimeout().toLong(),
-	): MotionEvent {
-		val now = SystemClock.uptimeMillis()
-		return MotionEvent.obtain(now - sincePressMillis, now, MotionEvent.ACTION_MOVE, 10f, y, 0)
-	}
-
-	/** The platform's own long press, which is where the chart's hold started counting from. */
 	private fun longPressAt(
 		chart: SafeLineChart,
 		y: Float,
 		sincePressMillis: Long = ViewConfiguration.getLongPressTimeout().toLong(),
-	) {
-		val event = eventAt(y, sincePressMillis)
-		chart.onChartGestureListener.onChartLongPressed(event)
-		event.recycle()
-	}
+	) = harness.longPressAt(chart, y, sincePressMillis)
 
 	private fun panBy(
 		chart: SafeLineChart,
 		dx: Float,
-	) {
-		val event = eventAt(0f)
-		chart.onChartGestureListener.onChartTranslate(event, dx, 0f)
-		event.recycle()
-	}
+	) = harness.panBy(chart, dx)
 
 	private fun endGesture(
 		chart: SafeLineChart,
 		gesture: ChartTouchListener.ChartGesture,
-	) {
-		val event = eventAt(0f)
-		chart.onChartGestureListener.onChartGestureEnd(event, gesture)
-		event.recycle()
-	}
+	) = harness.endGesture(chart, gesture)
 
-	/**
-	 * The end of a gesture an ancestor took away.
-	 *
-	 * ChartTouchListener.endAction is reached from ACTION_CANCEL as well as ACTION_UP, with the
-	 * original event and with mLastGesture untouched, so this is what the listener actually sees
-	 * when the reveal layout, the bottom sheet or the pager claims the stream mid-press.
-	 */
 	private fun cancelGesture(
 		chart: SafeLineChart,
 		gesture: ChartTouchListener.ChartGesture,
-	) {
-		val now = SystemClock.uptimeMillis()
-		val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 10f, 0f, 0)
-		chart.onChartGestureListener.onChartGestureEnd(event, gesture)
-		event.recycle()
-	}
+	) = harness.cancelGesture(chart, gesture)
 
-	/** A y on the axis band, where a tap opens the sampling-rate chooser. */
-	private fun onAxisBand(chart: SafeLineChart) = chart.viewPortHandler.contentBottom() + 1f
+	private fun onAxisBand(chart: SafeLineChart) = harness.onAxisBand(chart)
 
-	/** Runs the main looper forward by [millis] of virtual time. */
-	private fun elapse(millis: Long) = shadowOf(Looper.getMainLooper()).idleFor(millis, TimeUnit.MILLISECONDS)
-
-	/**
-	 * Runs what is already due on the main looper without advancing the clock.
-	 *
-	 * The stand-in tap is posted rather than invoked inside the chart's touch dispatch, so nothing
-	 * has been tapped until the looper turns.
-	 */
-	private fun drain() = shadowOf(Looper.getMainLooper()).idle()
-
-	/** The rest of the hold, after a long press reported at the platform's own timeout. */
-	private fun remainderOfHold() = longPressHelpTimeoutMillis() - ViewConfiguration.getLongPressTimeout() + 50L
-
-	/** A y inside the plot, where a hold means help for the page rather than for the axis. */
-	private fun insidePlot(chart: SafeLineChart) = (chart.viewPortHandler.contentTop() + chart.viewPortHandler.contentBottom()) / 2f
+	private fun insidePlot(chart: SafeLineChart) = harness.insidePlot(chart)
 
 	@Test
 	fun `a gesture an ancestor cancels does not stand in for a tap`() {
