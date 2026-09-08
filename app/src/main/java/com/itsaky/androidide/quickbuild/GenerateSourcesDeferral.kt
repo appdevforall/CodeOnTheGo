@@ -60,6 +60,7 @@ class GenerateSourcesDeferral(
 	private var pending = false
 	private var graceJob: Job? = null
 	private var refusals = 0
+	private var ownBuildOutstanding = false
 
 	/**
 	 * Starts keying the deferral off a session manager's state stream.
@@ -144,6 +145,7 @@ class GenerateSourcesDeferral(
 			}
 		synchronized(lock) {
 			if (dispatched) {
+				ownBuildOutstanding = true
 				pending = false
 				refusals = 0
 				graceJob?.cancel()
@@ -165,6 +167,33 @@ class GenerateSourcesDeferral(
 			if (state == null) arm() else reschedule(state)
 		}
 	}
+
+	/**
+	 * Claims the Gradle build that just finished as the one this deferral dispatched.
+	 *
+	 * The hand-back ([com.itsaky.androidide.activities.editor.ProjectHandlerActivity]) marks a
+	 * live session's baseline untrusted after every finished build, because a Standard Run
+	 * rewrites outputs the session reads. This deferral's own `generateSources` build does not:
+	 * it regenerates the intermediates R.jar and resource outputs for the language server, while
+	 * the session compiles against the payload jars the proxy app build diverted at provisioning
+	 * (resource-updates.md). Handing that build back cost the session the full recompile it had
+	 * just parked the build to avoid, so the hand-back asks here first.
+	 *
+	 * The next build to finish after a dispatch is that build: the tooling server runs one build
+	 * at a time, and `generateSources` refuses while another is in progress. A dispatch the
+	 * tooling server accepted and then never ran leaves the claim armed for the next external
+	 * build, which then goes unhanded-back once; that server is the same one the session's own
+	 * rebuilds need, so the session is not long for this world either way.
+	 *
+	 * @return true once per dispatched build; the claim is consumed, so the build after it is
+	 *   external again.
+	 */
+	fun claimOwnFinishedBuild(): Boolean =
+		synchronized(lock) {
+			val own = ownBuildOutstanding
+			ownBuildOutstanding = false
+			own
+		}
 
 	/** Callers hold [lock]. */
 	private fun reschedule(state: QuickBuildSessionState) {
@@ -230,6 +259,15 @@ class GenerateSourcesDeferral(
 		fun notifyResourceSaved() {
 			notifyResourceSaved { ProjectManagerImpl.getInstance().generateSources() }
 		}
+
+		/**
+		 * The hand-back's entry point: whether the build that just finished was this deferral's
+		 * own. False when the graph is down - with no deferral there was no dispatch to claim.
+		 */
+		fun finishedBuildWasOwn(): Boolean =
+			runCatching { GlobalContext.get().get<GenerateSourcesDeferral>() }
+				.getOrNull()
+				?.claimOwnFinishedBuild() == true
 
 		/**
 		 * [notifyResourceSaved] with the direct call injectable, so both directions are
