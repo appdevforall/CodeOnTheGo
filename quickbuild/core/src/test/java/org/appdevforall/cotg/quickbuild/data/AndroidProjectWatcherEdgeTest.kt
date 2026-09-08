@@ -1,6 +1,9 @@
 package org.appdevforall.cotg.quickbuild.data
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -157,13 +160,87 @@ class AndroidProjectWatcherEdgeTest {
 
 			// Same instance, restarted: the latch stop() set has to clear, or a reopened
 			// project silently never picks up a directory created during the session.
-			watcher.start {}
+			val batches = mutableListOf<ChangedFiles.Known>()
+			watcher.start(batches::add)
+			runCurrent()
 			val before = watcher.watchCount()
 			File(root, "main/java").apply { mkdirs() }
 			watcher.registerCreatedTree(File(root, "main"))
 
 			// main + main/java.
 			assertThat(watcher.watchCount() - before).isEqualTo(2)
+
+			// A change after the restart has to reach the pipeline: stop() closed the raw
+			// channel, so a restart that kept it would drop every event on the floor.
+			val source = File(root, "main/java/A.kt").apply { writeText("class A") }
+			watcher.report(source, fromPoll = false)
+			settle()
+			assertThat(batches.single().files).containsExactly(source)
+		}
+
+	@Test
+	fun `a batch handler that throws does not end the watch`() =
+		runTest {
+			val root = File(tempDir, "proj").apply { mkdirs() }
+			val batches = mutableListOf<ChangedFiles.Known>()
+			val watcher =
+				AndroidProjectWatcher(
+					watchedRoots = listOf(root),
+					watchedFiles = emptyList(),
+					filter = WatchFilter(listOf(root)),
+					scope = backgroundScope,
+					pollIntervalMillis = 3_600_000L,
+					quietMillis = QUIET_MILLIS,
+					maxMillis = MAX_MILLIS,
+					pollDispatcher = StandardTestDispatcher(testScheduler),
+				)
+			var calls = 0
+			watcher.start { batch ->
+				calls++
+				if (calls == 1) throw IllegalStateException("handler failed on the first batch")
+				batches += batch
+			}
+			runCurrent()
+
+			val first = File(root, "A.kt").apply { writeText("class A") }
+			watcher.report(first, fromPoll = false)
+			settle()
+			// The collector is the channel's only consumer; a throw that ended it would
+			// leave every later save feeding a channel nobody drains.
+			val second = File(root, "B.kt").apply { writeText("class B") }
+			watcher.report(second, fromPoll = false)
+			settle()
+
+			assertThat(calls).isEqualTo(2)
+			assertThat(batches.single().files).containsExactly(second)
+		}
+
+	@Test
+	fun `cancelling the scope releases the observers like stop does`() =
+		runTest {
+			val root = File(tempDir, "proj").apply { mkdirs() }
+			val scope = CoroutineScope(Job() + StandardTestDispatcher(testScheduler))
+			val watcher =
+				AndroidProjectWatcher(
+					watchedRoots = listOf(root),
+					watchedFiles = emptyList(),
+					filter = WatchFilter(listOf(root)),
+					scope = scope,
+					pollIntervalMillis = 3_600_000L,
+					quietMillis = QUIET_MILLIS,
+					maxMillis = MAX_MILLIS,
+					pollDispatcher = StandardTestDispatcher(testScheduler),
+				)
+			watcher.start {}
+			runCurrent()
+			assertThat(watcher.watchCount()).isEqualTo(1)
+
+			// The scope's Job completes once its cancelled children have run their
+			// cancellation on the dispatcher, which is when the completion handler fires.
+			scope.cancel()
+			runCurrent()
+
+			assertThat(watcher.watchCount()).isEqualTo(0)
 		}
 
 	private companion object {
