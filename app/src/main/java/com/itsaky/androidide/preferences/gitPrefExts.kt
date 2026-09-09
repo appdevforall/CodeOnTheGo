@@ -42,14 +42,14 @@ class GitAuthorConfig(
 
 @Parcelize
 class CommitWatermarkConfig(
-    override val key: String = "idepref_git_commit_watermark",
-    override val title: Int = R.string.idepref_git_commit_watermark_title,
-    override val children: List<IPreference> = mutableListOf(),
+	override val key: String = "idepref_git_commit_watermark",
+	override val title: Int = R.string.idepref_git_commit_watermark_title,
+	override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceGroup() {
 
-    init {
-        addPreference(AddGitCommitWatermark())
-    }
+	init {
+		addPreference(AddGitCommitWatermark())
+	}
 }
 
 @Parcelize
