@@ -1010,7 +1010,14 @@ abstract class MetricsChartRenderer(
 		/** Never fewer than this, or the axis stops conveying a scale at all. */
 		const val MIN_LABEL_COUNT = 3
 
-		/** The font scale the charts follow: the system's, held to [MAX_TEXT_SCALE]. */
+		/**
+		 * The font scale the charts follow: the system's, held to [MAX_TEXT_SCALE].
+		 *
+		 * Both bounds are deliberate. The ceiling is the fixed-height strip's trade-off
+		 * (ADFA-5634); the floor is legibility -- this text is already the smallest on the screen,
+		 * so following a reduction below 1.0 makes it unreadable rather than merely small. Pinned
+		 * by `a font scale below one does not shrink the chart further`.
+		 */
 		@JvmStatic
 		fun textScaleFor(context: Context): Float =
 			context.resources.configuration.fontScale

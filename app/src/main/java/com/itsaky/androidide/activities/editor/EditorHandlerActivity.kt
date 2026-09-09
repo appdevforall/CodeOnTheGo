@@ -918,6 +918,10 @@ open class EditorHandlerActivity :
 
 	override fun isMetricsCarouselUndocked(): Boolean = DockingManager.isFloating(MetricsCarouselDockableContent.ID)
 
+	override fun closeFloatingMetricsCarousel() {
+		DockingManager.close(MetricsCarouselDockableContent.ID)
+	}
+
 	/** The floating carousel has closed or re-docked; put the editor's own carousel back. */
 	fun onFloatingMetricsCarouselGone() {
 		setMetricsCarouselUndocked(false)

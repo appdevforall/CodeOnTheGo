@@ -610,7 +610,13 @@ abstract class BaseEditorActivity :
 
 		// Same reasoning as onPause: a floating carousel is bound to the window, not to these
 		// views. On a real teardown the window goes with the editor, so releasing the controller
-		// then is correct.
+		// then is correct -- but the window has to be told, first. Closing the controller under a
+		// window that is still on screen left frozen charts and dead camera and CSV buttons, with
+		// nothing saying the data source had gone; the watchers stop with MetricsViewModel anyway,
+		// so there is no version of this where the floating carousel outlives the editor usefully.
+		if (isDestroying) {
+			closeFloatingMetricsCarousel()
+		}
 		if (!isMetricsCarouselUndocked() || isDestroying) {
 			metricsCarousel.unbind()
 		}
@@ -1100,6 +1106,9 @@ abstract class BaseEditorActivity :
 	/** Whether the carousel is currently floating rather than docked here. */
 	protected open fun isMetricsCarouselUndocked(): Boolean = false
 
+	/** Dismisses the floating carousel window, if one is up. Overridden where docking is wired. */
+	protected open fun closeFloatingMetricsCarousel() = Unit
+
 	/** A tap on the "tap to bring them back" message asks for the floating carousel to re-dock. */
 	protected open fun onMetricsCarouselRedockRequested() = Unit
 
@@ -1198,7 +1207,10 @@ abstract class BaseEditorActivity :
 		if (!memoryUsageWatcher.isWatching) {
 			memoryUsageWatcher.startWatching()
 		}
-		if (!networkUsageWatcher.isWatching) {
+		// isSupported too: where TrafficStats has no per-UID counters the loop clears `watching`
+		// and breaks, so this gate alone relaunched a coroutine that sampled once, repainted a
+		// permanently-zero chart and died -- on every single resume, for the life of the session.
+		if (!networkUsageWatcher.isWatching && networkUsageWatcher.isSupported) {
 			networkUsageWatcher.startWatching()
 		}
 		if (!powerUsageWatcher.isWatching) {

@@ -808,6 +808,22 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	) {
 		val manager = ProjectManagerImpl.getInstance()
 		if (!isSuccessful) {
+			// Before the project name is resolved, which the cancel path does not use: that lookup
+			// walks the workspace model and has a catch-Throwable around it, and a user who pressed
+			// Stop should not be waiting on it -- or be affected by it failing.
+			//
+			// A sync the user stopped is not a failure, and arrives here through the same callback
+			// as one. ADFA-5542 fixed that for builds and missed this path, which is the one a
+			// cancelled *sync* takes: the user pressed Stop and got an indefinite red "Project
+			// initialization failed" for doing so.
+			if (failure == BUILD_CANCELLED) {
+				val cancelled = getString(string.info_build_cancelled)
+				setStatus(cancelled)
+				flashInfo(cancelled)
+				editorViewModel.isInitializing = false
+				return
+			}
+
 			// Get project name for error message
 			val projectName =
 				try {
@@ -821,18 +837,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				} catch (th: Throwable) {
 					manager.projectDir.name
 				}
-
-			// A sync the user stopped is not a failure, and arrives here through the same callback
-			// as one. ADFA-5542 fixed that for builds and missed this path, which is the one a
-			// cancelled *sync* takes: the user pressed Stop and got an indefinite red "Project
-			// initialization failed" for doing so.
-			if (failure == BUILD_CANCELLED) {
-				val cancelled = getString(string.info_build_cancelled)
-				setStatus(cancelled)
-				flashInfo(cancelled)
-				editorViewModel.isInitializing = false
-				return
-			}
 
 			val initFailed =
 				if (projectName.isNotEmpty()) {
