@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -201,6 +202,13 @@ final class PayloadPersistence {
 	}
 
 	private final File dir;
+
+	/**
+	 * Payload file names a boot restore still holds {@link File} references to, which {@link #collectOrphans} must not delete.
+	 *
+	 * On a cold boot the adopted generation has not drawn a frame, so good.json does not name it, and the restore opens its files one at a time - on API 28/29 the whole relinked apk is copied before the assets zip is opened. A catch-up deploy persisting in that window would otherwise sweep the not-yet-opened file away, and a deploy that succeeded would raise the mixed banner. Replaced whole rather than mutated, so the sweep reads it without taking a lock that the main-thread release would then contend with persist for.
+	 */
+	private volatile Set<String> retainedBootNames = Collections.emptySet();
 
 	/**
 	 * Highest generation this process has published, or 0 before the first publish.
@@ -440,6 +448,28 @@ final class PayloadPersistence {
 		}
 	}
 
+	/** Ends a {@link #retainBootResources} hold: the restore has opened its files or given up, so the sweep may have them. */
+	void releaseBootResources() {
+		retainedBootNames = Collections.emptySet();
+	}
+
+	/**
+	 * Keeps {@code loaded}'s payload files out of the orphan sweep until {@link #releaseBootResources} is called.
+	 *
+	 * @param loaded
+	 *            the boot-pending generation whose resource files a restore is about to open
+	 */
+	void retainBootResources(Loaded loaded) {
+		Set<String> names = new HashSet<>();
+		if (loaded.arscFile != null) {
+			names.add(loaded.arscFile.getName());
+		}
+		if (loaded.assetsFile != null) {
+			names.add(loaded.assetsFile.getName());
+		}
+		retainedBootNames = Collections.unmodifiableSet(names);
+	}
+
 	/**
 	 * Appends one {@code "kind":"file"} member to a meta document under construction.
 	 *
@@ -459,7 +489,7 @@ final class PayloadPersistence {
 	/**
 	 * Deletes payload files and temp leftovers no live meta references.
 	 *
-	 * "Live" is the just-published generation plus the last-good set, whose files a quarantine boots from and which the published meta therefore does not name. Everything else goes whatever generation stamps it: {@link #persist} holds the monitor from its first write to here, so no other deploy has a write in flight, and a stamp newer than the published generation can only be a torn write or a leftover from a generation sequence that restarted. Runs after the publish, so a failure here leaks a file rather than removing a live one.
+	 * "Live" is the just-published generation plus the last-good set, whose files a quarantine boots from and which the published meta therefore does not name, plus whatever an in-flight boot restore has retained. Everything else goes whatever generation stamps it: {@link #persist} holds the monitor from its first write to here, so no other deploy has a write in flight, and a stamp newer than the published generation can only be a torn write or a leftover from a generation sequence that restarted. Runs after the publish, so a failure here leaks a file rather than removing a live one.
 	 *
 	 * @param names
 	 *            the file names the published generation references; nulls are ignored
@@ -470,6 +500,7 @@ final class PayloadPersistence {
 			return;
 		}
 		Set<String> referenced = payloadNamesIn(new File(dir, GOOD_FILE));
+		referenced.addAll(retainedBootNames);
 		for (String name : names) {
 			if (name != null) {
 				referenced.add(name);
