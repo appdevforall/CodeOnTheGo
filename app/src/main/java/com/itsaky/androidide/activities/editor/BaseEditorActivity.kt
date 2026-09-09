@@ -382,6 +382,7 @@ abstract class BaseEditorActivity :
 				service: IBinder,
 			) {
 				debuggerService = (service as DebuggerService.Binder).getService()
+				debuggerService!!.targetPackage = debuggerViewModel.debugeePackageFlow.value
 				debuggerService!!.showOverlay()
 
 				isDebuggerStarting = false
@@ -412,6 +413,8 @@ abstract class BaseEditorActivity :
 			if (e !is IllegalArgumentException) {
 				log.error("Failed to stop debugger service", e)
 			}
+		} finally {
+			debuggerService = null
 		}
 	}
 
@@ -674,6 +677,7 @@ abstract class BaseEditorActivity :
 			return
 		}
 
+		debuggerViewModel.debugeePackage = packageName
 		startDebuggerAndDo {
 			withContext(Dispatchers.Main.immediate) {
 				doLaunchApp(
@@ -1035,6 +1039,34 @@ abstract class BaseEditorActivity :
 	private fun watchMemory() {
 		memoryUsageWatcher.listener = memoryUsageListener
 		memoryUsageWatcher.watchProcess(Process.myPid(), PROC_IDE)
+		resetMemUsageChart()
+	}
+
+	/**
+	 * Plots the Gradle daemon, reported by the tooling server once a build has spawned it.
+	 *
+	 * The daemon is the largest of the three watched processes -- larger than the IDE and the
+	 * tooling server together on a Compose project -- and it is the likeliest reason a build is slow
+	 * or is killed on a small device. Until ADFA-5514 it was the one process the chart did not show.
+	 */
+	fun watchGradleDaemon(pid: Int) {
+		memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_DAEMON)
+		resetMemUsageChart()
+	}
+
+	/**
+	 * Stops plotting the Gradle daemon [pid], which has exited.
+	 *
+	 * Not on build finish: a daemon outlives the build that spawned it and goes on holding its heap
+	 * while idle, which is the number worth showing on a device that is short of memory.
+	 *
+	 * By pid rather than by name, so a late exit cannot take out its successor's line. Removing "the
+	 * Gradle daemon" would: a daemon that dies as the next build starts one is two reports racing
+	 * over one row, and [watchProcess]'s `unique` has already dropped the old pid by then, so this
+	 * is a no-op in exactly the case where the name would have been wrong.
+	 */
+	fun unwatchGradleDaemon(pid: Int) {
+		memoryUsageWatcher.unwatchProcess(pid)
 		resetMemUsageChart()
 	}
 

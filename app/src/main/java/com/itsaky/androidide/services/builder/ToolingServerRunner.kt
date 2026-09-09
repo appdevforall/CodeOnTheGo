@@ -48,6 +48,14 @@ internal class ToolingServerRunner(
 	private var listener: OnServerStartListener?,
 	private var observer: Observer?,
 ) {
+	/**
+	 * The server process's pid, or `null` before it has started.
+	 *
+	 * Volatile for the same reason as [GradleBuildService.gradleDaemonPid]: [startAsync] writes it
+	 * from a coroutine on [runnerScope], and the editor reads it on the main thread when it
+	 * re-adopts the watched processes after being recreated.
+	 */
+	@Volatile
 	internal var pid: Int? = null
 	private var job: Job? = null
 	private var _isStarted = AtomicBoolean(false)
