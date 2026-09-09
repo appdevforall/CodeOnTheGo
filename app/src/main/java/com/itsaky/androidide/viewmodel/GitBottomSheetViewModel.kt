@@ -21,8 +21,11 @@ import com.itsaky.androidide.utils.isNetworkConnected
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.eclipse.jgit.api.MergeResult.MergeStatus
@@ -80,9 +83,13 @@ class GitBottomSheetViewModel(
 	private val _isProjectWatermarkEnabled = MutableStateFlow(true)
 	val isProjectWatermarkEnabled: StateFlow<Boolean> = _isProjectWatermarkEnabled.asStateFlow()
 
+	private val _watermarkError = MutableSharedFlow<Throwable>(extraBufferCapacity = 1)
+	val watermarkError: SharedFlow<Throwable> = _watermarkError.asSharedFlow()
+
 	private var initJob: Job? = null
 	private var pullResetJob: Job? = null
 	private var pushResetJob: Job? = null
+	private var watermarkWriteJob: Job? = null
 
 	var currentRepository: GitRepository? = repository
 		private set
@@ -735,10 +742,25 @@ class GitBottomSheetViewModel(
 		}
 	}
 
-	fun setProjectWatermarkEnabled(enabled: Boolean) {
+	fun setProjectWatermarkEnabled(
+		enabled: Boolean,
+		onError: ((Throwable) -> Unit)? = null,
+	) {
+		val previous = _isProjectWatermarkEnabled.value
 		_isProjectWatermarkEnabled.value = enabled
-		viewModelScope.launch {
-			currentRepository?.setCommitWatermarkEnabled(enabled)
-		}
+		watermarkWriteJob?.cancel()
+		watermarkWriteJob =
+			viewModelScope.launch {
+				try {
+					currentRepository?.setCommitWatermarkEnabled(enabled)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to save commit watermark preference to git config", e)
+					_isProjectWatermarkEnabled.value = previous
+					_watermarkError.tryEmit(e)
+					onError?.invoke(e)
+				}
+			}
 	}
 }

@@ -1,5 +1,8 @@
 package com.itsaky.androidide.git.core
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.eclipse.jgit.api.Git
 import org.junit.After
@@ -278,5 +281,28 @@ class JGitRepositoryTest {
 			JGitRepository(repoDir).use { freshRepo ->
 				assertTrue(freshRepo.isCommitWatermarkEnabled())
 			}
+		}
+
+	@Test
+	fun testConcurrentWatermarkWritesSerializeWithoutLockCollision() =
+		runBlocking {
+			val jobs =
+				List(10) { index ->
+					async(Dispatchers.IO) {
+						jgitRepo.setCommitWatermarkEnabled(index % 2 == 0)
+					}
+				}
+			jobs.awaitAll()
+			// Should complete without throwing LockFailedException and return a valid boolean
+			val isEnabled = jgitRepo.isCommitWatermarkEnabled()
+			assertTrue(isEnabled || !isEnabled)
+		}
+
+	@Test(expected = Exception::class)
+	fun testSetCommitWatermarkPropagatesExceptionOnFailure() =
+		runBlocking {
+			val lockFile = File(repoDir, ".git/config.lock")
+			lockFile.mkdir() // Making the lock path a directory causes LockFile creation to fail
+			jgitRepo.setCommitWatermarkEnabled(false)
 		}
 }

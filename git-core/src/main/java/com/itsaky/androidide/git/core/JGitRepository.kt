@@ -6,6 +6,8 @@ import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.git.core.models.GitCommit
 import com.itsaky.androidide.git.core.models.GitStatus
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.CheckoutCommand
 import org.eclipse.jgit.api.CreateBranchCommand
@@ -48,6 +50,7 @@ class JGitRepository(
 	}
 
 	private val log = LoggerFactory.getLogger(JGitRepository::class.java)
+	private val configMutex = Mutex()
 
 	private val repository: Repository =
 		FileRepositoryBuilder()
@@ -222,18 +225,20 @@ class JGitRepository(
 
 	override suspend fun isCommitWatermarkEnabled(): Boolean =
 		withContext(Dispatchers.IO) {
-			try {
-				repository.config.load()
-				repository.config.getBoolean(CONFIG_SECTION_COTG, null, CONFIG_KEY_WATERMARK, true)
-			} catch (e: Exception) {
-				log.error("Error reading commit watermark config", e)
-				true
+			configMutex.withLock {
+				try {
+					repository.config.load()
+					repository.config.getBoolean(CONFIG_SECTION_COTG, null, CONFIG_KEY_WATERMARK, true)
+				} catch (e: Exception) {
+					log.error("Error reading commit watermark config", e)
+					true
+				}
 			}
 		}
 
-	override suspend fun setCommitWatermarkEnabled(enabled: Boolean) {
-		try {
-			withContext(Dispatchers.IO) {
+	override suspend fun setCommitWatermarkEnabled(enabled: Boolean) =
+		withContext(Dispatchers.IO) {
+			configMutex.withLock {
 				repository.config.load()
 				repository.config.setBoolean(
 					CONFIG_SECTION_COTG,
@@ -243,10 +248,7 @@ class JGitRepository(
 				)
 				repository.config.save()
 			}
-		} catch (e: Exception) {
-			log.error("Error saving commit watermark config", e)
 		}
-	}
 
 	override suspend fun commit(
 		message: String,

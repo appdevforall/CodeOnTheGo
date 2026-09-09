@@ -10,18 +10,21 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.eclipse.jgit.api.MergeResult.MergeStatus
 import org.eclipse.jgit.api.errors.CheckoutConflictException
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.io.IOException
 
 @RunWith(JUnit4::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -272,5 +275,40 @@ class GitBottomSheetViewModelTest {
 
 			advanceUntilIdle()
 			coVerify { repository.setCommitWatermarkEnabled(true) }
+		}
+
+	@Test
+	fun `setProjectWatermarkEnabled rolls back state flow and invokes onError when repository write fails`() =
+		runTest {
+			coEvery { repository.setCommitWatermarkEnabled(false) } throws IOException("Disk write failed")
+
+			var errorInvoked: Throwable? = null
+			viewModel.setProjectWatermarkEnabled(false) { error ->
+				errorInvoked = error
+			}
+			assertEquals(false, viewModel.isProjectWatermarkEnabled.value)
+
+			advanceUntilIdle()
+
+			// State flow should have rolled back to previous value (true)
+			assertEquals(true, viewModel.isProjectWatermarkEnabled.value)
+			assertNotNull(errorInvoked)
+			assertEquals("Disk write failed", errorInvoked?.message)
+		}
+
+	@Test
+	fun `rapid setProjectWatermarkEnabled calls cancel prior in-flight write and commit latest value`() =
+		runTest {
+			coEvery { repository.setCommitWatermarkEnabled(any()) } coAnswers {
+				delay(100)
+			}
+
+			viewModel.setProjectWatermarkEnabled(false)
+			viewModel.setProjectWatermarkEnabled(true)
+
+			advanceUntilIdle()
+
+			assertEquals(true, viewModel.isProjectWatermarkEnabled.value)
+			coVerify(exactly = 1) { repository.setCommitWatermarkEnabled(true) }
 		}
 }
