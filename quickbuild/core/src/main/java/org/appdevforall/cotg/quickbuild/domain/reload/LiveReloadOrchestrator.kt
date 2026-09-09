@@ -410,7 +410,17 @@ class LiveReloadOrchestrator(
 		mutex.withLock {
 			val superseded = inFlight
 			absorptionStartedAtMillis = wallClock()
-			awaitingAbsorption = unionPendingLocked(superseded?.batch ?: ChangedFiles.Known.EMPTY, pending)
+			// Unioned onto whatever is already held, not assigned over it: a retry after an
+			// unconfirmed reinstall starts here again while the first rebuild's set is still
+			// held (the manager skips onProxyAppRebuildFailed on that path). Replacing the held
+			// set kept only the park-period saves, so a failed retry returned only those to
+			// pending and the next code-only save exited the park with the gradle or manifest
+			// change never installed.
+			awaitingAbsorption =
+				unionPendingLocked(
+					unionPendingLocked(awaitingAbsorption ?: ChangedFiles.Known.EMPTY, superseded?.batch ?: ChangedFiles.Known.EMPTY),
+					pending,
+				)
 			pending = ChangedFiles.Known.EMPTY
 			// Gradle owns this batch now, and a rebuild runs for minutes. Keeping the clock would
 			// charge all of it to whichever build picked the batch back up if the rebuild failed.
