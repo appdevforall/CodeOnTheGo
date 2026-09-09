@@ -240,4 +240,43 @@ class JGitRepositoryTest {
 				jgitRepo.getBranches().any { it.name == "origin-release" },
 			)
 		}
+
+	@Test
+	fun testCommitWatermarkDefaultsToTrue() =
+		runBlocking {
+			assertTrue(jgitRepo.isCommitWatermarkEnabled())
+		}
+
+	@Test
+	fun testSetCommitWatermarkPersistsInGitConfig() =
+		runBlocking {
+			jgitRepo.setCommitWatermarkEnabled(false)
+			assertFalse(jgitRepo.isCommitWatermarkEnabled())
+
+			val configFile = File(repoDir, ".git/config")
+			assertTrue("config file must exist", configFile.exists())
+			val configContent = configFile.readText()
+			assertTrue("config must contain cotg section", configContent.contains("[cotg]"))
+			assertTrue("config must set commit-watermark to false", configContent.contains("commit-watermark = false"))
+
+			// Verify a new repository instance reading from disk also sees false
+			JGitRepository(repoDir).use { freshRepo ->
+				assertFalse(freshRepo.isCommitWatermarkEnabled())
+			}
+		}
+
+	@Test
+	fun testToggleCommitWatermarkBackToTrue() =
+		runBlocking {
+			jgitRepo.setCommitWatermarkEnabled(false)
+			assertFalse(jgitRepo.isCommitWatermarkEnabled())
+
+			jgitRepo.setCommitWatermarkEnabled(true)
+			assertTrue(jgitRepo.isCommitWatermarkEnabled())
+
+			// Verify a new repository instance reading from disk also sees true
+			JGitRepository(repoDir).use { freshRepo ->
+				assertTrue(freshRepo.isCommitWatermarkEnabled())
+			}
+		}
 }

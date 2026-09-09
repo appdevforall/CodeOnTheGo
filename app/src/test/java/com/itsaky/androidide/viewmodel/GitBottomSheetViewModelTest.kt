@@ -245,4 +245,32 @@ class GitBottomSheetViewModelTest {
 			assertEquals(null, viewModel.currentBranch.value)
 			assertEquals(GitBottomSheetViewModel.BranchesUiState.None, viewModel.branches.value)
 		}
+
+	@Test
+	fun `isProjectWatermarkEnabled reflects repository setting on refreshStatus`() =
+		runTest {
+			coEvery { repository.isCommitWatermarkEnabled() } returns false
+			coEvery { repository.getStatus() } returns mockk(relaxed = true)
+
+			viewModel.refreshStatus()
+			advanceUntilIdle()
+
+			assertEquals(false, viewModel.isProjectWatermarkEnabled.value)
+		}
+
+	@Test
+	fun `setProjectWatermarkEnabled updates state flow and delegates to repository`() =
+		runTest {
+			viewModel.setProjectWatermarkEnabled(false)
+			assertEquals(false, viewModel.isProjectWatermarkEnabled.value)
+
+			advanceUntilIdle()
+			coVerify { repository.setCommitWatermarkEnabled(false) }
+
+			viewModel.setProjectWatermarkEnabled(true)
+			assertEquals(true, viewModel.isProjectWatermarkEnabled.value)
+
+			advanceUntilIdle()
+			coVerify { repository.setCommitWatermarkEnabled(true) }
+		}
 }
