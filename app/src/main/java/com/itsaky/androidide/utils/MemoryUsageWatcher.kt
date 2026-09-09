@@ -174,9 +174,18 @@ class MemoryUsageWatcher
 
 							// don't bother to update if no listeners are set
 							listener?.also { listener ->
+								// Snapshots, not the live objects. Handing the renderer the live
+								// ProcessMemoryInfo hands it the live ring buffer: it reads all
+								// 3600 slots on the main thread while the sampler is mid-append,
+								// so it can see the advanced shift against the not-yet-written
+								// value and plot every point one slot out of place. That is the
+								// failure getMemoryUsages() snapshots to prevent (ADFA-5531); the
+								// listener path was bypassing it.
 								val usages = MutableIntObjectMap<ProcessMemoryInfo>(memoryUsage.size)
-								for ((pid, usage) in this@MemoryUsageWatcher.memoryUsage) {
-									usages[pid] = usage
+								synchronized(historyLock) {
+									for ((pid, usage) in this@MemoryUsageWatcher.memoryUsage) {
+										usages[pid] = usage.snapshot()
+									}
 								}
 								withContext(mainDispatcher) {
 									listener.onMemoryUsageChanged(usages)
@@ -523,8 +532,10 @@ class MemoryUsageWatcher
 			/**
 			 * A copy of this process's history, safe to read while the sampler keeps appending.
 			 *
-			 * The MemoryInfo instance is shared deliberately: it is the sampler's scratch buffer
-			 * for the next reading and no reader looks at it.
+			 * The copy gets a fresh [MemoryInfo] and the default [reader]: neither is part of what
+			 * a reader of a snapshot looks at, which is the history and the process's identity. An
+			 * earlier version of this comment claimed the MemoryInfo was shared with the original;
+			 * it never was, because it is a property initialiser.
 			 */
 			internal fun snapshot(): ProcessMemoryInfo =
 				// Every field, including watchedSinceMillis. Dropping it let it default to 0, which

@@ -224,8 +224,12 @@ abstract class BaseEditorActivity :
 	 * would happily produce a header-only file, and sending one is the caller's decision, not its.
 	 */
 	private suspend fun metricsAttachmentForFeedback(): File? {
+		// Off the main thread. MetricsSnapshotAssembler is @AnyThread precisely because a crash
+		// arrives on whatever thread threw -- every read inside takes the watcher's own history
+		// lock. Forcing it onto the UI thread allocated eleven LongArray(3600) and copied 39,600
+		// longs there, while contending for three locks the samplers hold.
 		val snapshot =
-			withContext(Dispatchers.Main.immediate) {
+			withContext(Dispatchers.IO) {
 				MetricsSnapshotAssembler.assemble(
 					context = this@BaseEditorActivity,
 					memory = memoryUsageWatcher,

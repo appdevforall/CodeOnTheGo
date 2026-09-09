@@ -23,10 +23,16 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Destinations for one metrics snapshot, allocated once so that taking one needs no memory.
  *
- * A crash handler is the wrong place to ask for memory: the crash being reported may be the heap
+ * A crash handler is a poor place to ask for memory: the crash being reported may be the heap
  * running out, and a handler that throws replaces a useful report with a useless one. Snapshotting
  * the watchers otherwise takes eleven fresh arrays -- around 300KB at the retained length -- so the
  * arrays are taken at startup instead, when failing to get them is survivable and obvious.
+ *
+ * This removes the largest single allocation on that path, not all of it: writing the file still
+ * takes a Deflater and its buffer, an 8KB writer buffer and a String per cell. So it improves the
+ * odds of getting a report out under memory pressure rather than guaranteeing one, and under a
+ * genuine OutOfMemoryError the write can still fail and the attachment still be dropped. Removing
+ * the rest means streaming the CSV without per-cell Strings, which is a bigger change than this.
  *
  * Held for the life of the process, which is the trade: this is memory reserved against a crash that
  * may never come, in a process that is already a fat target for the low-memory killer. It is paid

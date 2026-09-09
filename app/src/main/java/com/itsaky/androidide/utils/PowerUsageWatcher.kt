@@ -104,15 +104,18 @@ class PowerUsageWatcher
 		 *
 		 * Kept per sample rather than as a separate timestamped log so the chart's shading lines up
 		 * with the sample grid exactly: a shaded span is just a run of equal values here.
+		 *
+		 * Filled with [THERMAL_UNKNOWN], not [UNAVAILABLE]: this series has its own sentinel, and
+		 * every consumer and [MetricsSnapshotAssembler]'s `absent` already use it. Filled with
+		 * UNAVAILABLE instead, `Long.MIN_VALUE.toInt()` is 0 -- THERMAL_STATUS_NONE, "measured and
+		 * not throttled" -- and the CSV would not recognise it as absent, writing the raw
+		 * MIN_VALUE into the column.
 		 */
-		private val thermal = MutableShiftedLongArray(MAX_USAGE_ENTRIES) { UNAVAILABLE }
+		private val thermal = MutableShiftedLongArray(MAX_USAGE_ENTRIES) { THERMAL_UNKNOWN.toLong() }
 
 		/**
 		 * Milliseconds between samples. Changing it clears the history, for the reason given on
 		 * [MemoryUsageWatcher.updateInterval].
-		 *
-		 * Volatile: written on the UI thread and read on the watcher's own sampling thread.
-		 * Without it the reader can go on seeing a stale value indefinitely.
 		 *
 		 * Volatile: written on the UI thread and read on the watcher's own sampling thread.
 		 * Without it the reader can go on seeing a stale value indefinitely.
@@ -179,7 +182,7 @@ class PowerUsageWatcher
 				sampleTimes.clear()
 				temperature.clear(UNAVAILABLE)
 				power.clear(UNAVAILABLE)
-				thermal.clear(UNAVAILABLE)
+				thermal.clear(THERMAL_UNKNOWN.toLong())
 			}
 		}
 

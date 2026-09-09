@@ -898,8 +898,9 @@ class GradleBuildService :
 		/**
 		 * Called when the Gradle daemon has been identified by the tooling server.
 		 *
-		 * Defaulted, because a daemon is only of interest to a listener that plots it and every
-		 * other implementer would otherwise gain two empty methods.
+		 * Deliberately not defaulted. An interface default here let the wrapper satisfy the
+		 * interface without forwarding, so the daemon callbacks were silently swallowed;
+		 * GradleBuildServiceListenerWrapperTest asserts no callback on this interface has one.
 		 *
 		 * @param pid The process id of the Gradle daemon.
 		 * @see IToolingApiClient.onGradleDaemonStarted

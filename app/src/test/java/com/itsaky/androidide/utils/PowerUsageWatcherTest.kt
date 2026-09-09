@@ -73,14 +73,20 @@ class PowerUsageWatcherTest {
 	private fun LongArray.recent(count: Int): List<Long> = takeLast(count)
 
 	@Test
-	fun `history is all zeros before the first sample`() {
+	fun `every slot reads as absent before the first sample`() {
 		val fixture = Fixture(listOf(reading()))
 
 		val usage = fixture.watcher.getUsage()
 
+		// Asserted per slot, not as a sum. This test used to check `sum() == 0`, which passed for
+		// a reason that had nothing to do with absence: 3600 * Long.MIN_VALUE wraps to exactly 0,
+		// so the assertion held whether the buffers were filled with the sentinel or with zeros --
+		// and went on holding when the thermal series was filled with the wrong sentinel entirely.
 		assertThat(usage.temperatureMilliCelsius).hasLength(PowerUsageWatcher.MAX_USAGE_ENTRIES)
-		assertThat(usage.powerMicroWatts.sum()).isEqualTo(0L)
-		assertThat(usage.thermalStatus.sum()).isEqualTo(0L)
+		assertThat(usage.temperatureMilliCelsius.toSet()).containsExactly(PowerUsageWatcher.UNAVAILABLE)
+		assertThat(usage.powerMicroWatts.toSet()).containsExactly(PowerUsageWatcher.UNAVAILABLE)
+		// Its own sentinel, which is what every consumer and the CSV's `absent` use.
+		assertThat(usage.thermalStatus.toSet()).containsExactly(PowerUsageWatcher.THERMAL_UNKNOWN.toLong())
 	}
 
 	@Test

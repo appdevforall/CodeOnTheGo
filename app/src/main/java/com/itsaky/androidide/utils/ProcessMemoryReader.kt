@@ -23,6 +23,10 @@ import android.os.Process
 import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.BuildConfig
 import com.termux.shared.reflection.ReflectionUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -84,9 +88,17 @@ object ProcessMemoryReaders {
 	fun chooseReader(pid: Int): ProcessMemoryReader =
 		chooseReader(pid, Process.myPid(), isRollupSupported).also { chosen ->
 			if (BuildConfig.DEBUG && chosen === SmapsRollupReader) {
-				warnIfProcessHasGraphicsMemory(pid)
+				// Off the caller's thread. The only caller is watchProcess, and for the Gradle
+				// daemon it reaches there from a main-dispatched build callback -- so this
+				// sequential scan of a JVM's maps file (93,120 lines for the IDE's own) ran on the
+				// UI thread, in exactly the build a developer is watching. A StrictMode
+				// DiskReadViolation, and visible jank, for a debug-only warning.
+				diagnosticsScope.launch { warnIfProcessHasGraphicsMemory(pid) }
 			}
 		}
+
+	/** Debug-only diagnostics, off whatever thread started watching a process. */
+	private val diagnosticsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 	/**
 	 * Complains if a process given the cheap read turns out to be an Android runtime process.

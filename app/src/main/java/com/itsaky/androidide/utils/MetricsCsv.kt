@@ -289,20 +289,52 @@ object MetricsCsv {
 			return emptyMap()
 		}
 
-		val sampled = snapshot.rowTimes.withIndex().filter { it.value != NO_SAMPLE }
-		if (sampled.isEmpty()) {
+		// Two parallel arrays rather than a list of IndexedValue: this used to build a 3600-element
+		// boxed list per call, on the crashing thread.
+		val sampledTimes = LongArray(snapshot.rowTimes.size)
+		val sampledRows = IntArray(snapshot.rowTimes.size)
+		var sampledCount = 0
+		snapshot.rowTimes.forEachIndexed { row, time ->
+			if (time != NO_SAMPLE) {
+				sampledTimes[sampledCount] = time
+				sampledRows[sampledCount] = row
+				sampledCount++
+			}
+		}
+		if (sampledCount == 0) {
 			return emptyMap()
 		}
 
 		val rows = mutableMapOf<Int, Marker>()
 		snapshot.annotations.sortedBy { it.atMillis }.forEach { marker ->
-			val nearest = sampled.minByOrNull { abs(it.value - marker.atMillis) } ?: return@forEach
-			if (abs(nearest.value - marker.atMillis) > snapshot.sampleIntervalMillis) {
+			// A binary search, not a scan. rowTimes is ascending among sampled entries, and the
+			// scan this replaced was the O(markers x rows) walk the KDoc above claims to avoid --
+			// ~2.6M compares at a full buffer and MAX_ANNOTATIONS, on the thread that just threw.
+			val nearest = nearestSampleTo(marker.atMillis, sampledTimes, sampledCount)
+			if (abs(sampledTimes[nearest] - marker.atMillis) > snapshot.sampleIntervalMillis) {
 				return@forEach
 			}
-			rows.putIfAbsent(nearest.index, marker)
+			rows.putIfAbsent(sampledRows[nearest], marker)
 		}
 		return rows
+	}
+
+	/** The index in [times]`[0, count)` whose value is closest to [target]. */
+	private fun nearestSampleTo(
+		target: Long,
+		times: LongArray,
+		count: Int,
+	): Int {
+		var low = 0
+		var high = count - 1
+		while (low < high) {
+			val mid = (low + high) / 2
+			if (times[mid] < target) low = mid + 1 else high = mid
+		}
+		// binarySearch lands on the first entry at or after the target; the one before it can be
+		// closer, and is when the target falls between two samples.
+		val previous = (low - 1).coerceAtLeast(0)
+		return if (abs(times[previous] - target) <= abs(times[low] - target)) previous else low
 	}
 
 	private fun number(value: Long?): String = value?.toString() ?: ""

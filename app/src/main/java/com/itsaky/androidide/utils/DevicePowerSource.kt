@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.utils
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -29,15 +30,19 @@ import com.itsaky.androidide.services.builder.ThermalInfo
 import com.itsaky.androidide.services.builder.ThermalState
 import com.itsaky.androidide.utils.PowerUsageWatcher.BatteryState
 import com.itsaky.androidide.utils.PowerUsageWatcher.PowerReading
+import org.slf4j.LoggerFactory
 import kotlin.math.abs
 
 /**
  * Reads temperature and power from the battery, which is all a normally-installed app can see
  * (ADFA-5499).
  *
- * `ACTION_BATTERY_CHANGED` is a sticky broadcast, so the current values can be read on demand with a
- * null receiver rather than by registering one and waiting -- which suits being polled on the
- * sampling tick.
+ * `ACTION_BATTERY_CHANGED` is a broadcast, and this registers one receiver for it and keeps the
+ * last Intent. Re-fetching the sticky Intent per sample with `registerReceiver(null, ...)` is a
+ * synchronous binder round trip to the system server, and at the fastest offered rate that was ten
+ * of them a second, for the life of the process, to re-read values that move on the order of
+ * seconds. Registering costs one call and the broadcast then pushes every change (ADFA-5172 is the
+ * repo's precedent: eliminate the operation rather than make it cheaper).
  *
  * Not read here, deliberately: the per-zone CPU, GPU and skin temperatures from
  * `HardwarePropertiesManager`. Those need `android.permission.DEVICE_POWER`, which is signature
@@ -50,8 +55,34 @@ class DevicePowerSource(
 	private val batteryManager = context.getSystemService<BatteryManager>()
 	private val powerManager = context.getSystemService<PowerManager>()
 
+	@Volatile
+	private var lastBattery: Intent? = null
+
+	private val batteryReceiver =
+		object : BroadcastReceiver() {
+			override fun onReceive(
+				context: Context?,
+				intent: Intent?,
+			) {
+				lastBattery = intent
+			}
+		}
+
+	init {
+		// The registration returns the sticky Intent, so the first sample has a value without
+		// waiting for a change. Registered on the main looper: the receiver only stores a
+		// reference, and the field it stores into is volatile for the sampling thread.
+		lastBattery = context.registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+	}
+
+	/** Stops listening. The source is unusable afterwards; [read] would go on reporting the last Intent. */
+	fun close() {
+		runCatching { context.unregisterReceiver(batteryReceiver) }
+			.onFailure { log.warn("Could not unregister the battery receiver", it) }
+	}
+
 	override fun read(): PowerReading {
-		val battery = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+		val battery = lastBattery
 
 		return PowerReading(
 			temperatureMilliCelsius = readTemperature(battery),
@@ -184,6 +215,8 @@ class DevicePowerSource(
 	}
 
 	private companion object {
+		private val log = LoggerFactory.getLogger(DevicePowerSource::class.java)
+
 		/** Microamps times millivolts gives nanowatts; this scales the product to microwatts. */
 		const val NANOWATTS_PER_MICROWATT = 1_000L
 
