@@ -404,9 +404,10 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	}
 
 	private fun showGlobalWatermarkDisabled() {
+		val projectEnabled = GitPreferences.isProjectWatermarkEnabled(getProjectPath())
 		binding.apply {
 			switchCommitWatermark.isEnabled = false
-			switchCommitWatermark.isChecked = false
+			switchCommitWatermark.isChecked = projectEnabled
 			tvCommitWatermark.isGone = true
 			tvWatermarkGlobalDisabled.isVisible = true
 		}

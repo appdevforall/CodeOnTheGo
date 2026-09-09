@@ -196,15 +196,13 @@
 				android:id="@+id/switch_commit_watermark"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:checked="true"
 				android:text="@string/add_commit_watermark" />
 
 			<TextView
 				android:id="@+id/tv_commit_watermark"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:text="@string/made_with_code_on_the_go"
-				android:visibility="visible" />
+				android:text="@string/made_with_code_on_the_go" />
 
 			<TextView
 				android:id="@+id/tv_watermark_global_disabled"
@@ -212,8 +210,7 @@
 				android:layout_height="wrap_content"
 				android:text="@string/git_watermark_disabled_globally"
 				android:textAppearance="?attr/textAppearanceCaption"
-				android:textColor="?attr/colorOnSurfaceVariant"
-				android:visibility="gone" />
+				android:textColor="?attr/colorOnSurfaceVariant" />
 
 		</LinearLayout>
 
