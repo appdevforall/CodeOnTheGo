@@ -478,8 +478,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					val watermark =
 						getString(R.string.made_with_code_on_the_go)
 							.takeIf {
-								binding.layoutWatermark.isVisible &&
-									binding.switchCommitWatermark.isChecked
+								GitPreferences.shouldAddGlobalCommitWatermark && binding.switchCommitWatermark.isChecked
 							}
 
 					val message =
