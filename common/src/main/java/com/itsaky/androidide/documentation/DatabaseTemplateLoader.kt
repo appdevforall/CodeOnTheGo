@@ -20,6 +20,7 @@ package com.itsaky.androidide.documentation
 import android.database.sqlite.SQLiteDatabase
 import io.pebbletemplates.pebble.error.LoaderException
 import io.pebbletemplates.pebble.loader.Loader
+import org.slf4j.LoggerFactory
 import java.io.Reader
 import java.io.StringReader
 
@@ -92,13 +93,21 @@ internal class DatabaseTemplateLoader(
 		// boolean. Pebble reaches this only through the delegating and servlet loaders, neither of
 		// which is wired here, so the cost would be invisible -- which is the reason to get it right.
 		//
-		// Wrapped like getReader, and for the same reason: a SQLiteException carries SQL text, and
-		// this returns a Boolean so a raw throw would not even be classifiable as a template
-		// failure. Which loaders reach this today is a fact about the wiring, not the contract.
+		// False rather than a throw, on both a database error and a duplicated name. This is
+		// Pebble's existence predicate, which a DelegatingLoader uses to decide whether to fall
+		// through to the next loader; a throw aborts resolution where a miss would fall back. An
+		// earlier version threw here to keep SQL text out of the response, which kept the SQL out
+		// but broke the contract to do it -- logging keeps both.
+		//
+		// A duplicated name answers false because [getReader] refuses to load one: a predicate that
+		// said yes to something the reader then rejects is worse than one that says no.
 		return try {
-			database.rawQuery(EXISTS_QUERY, arrayOf(name)).use { it.moveToFirst() }
+			database.rawQuery(COUNT_QUERY, arrayOf(name)).use { cursor ->
+				cursor.moveToFirst() && cursor.getInt(0) == 1
+			}
 		} catch (e: RuntimeException) {
-			throw LoaderException(e, "Cannot look up template '$name' in the database")
+			log.warn("Cannot look up template '{}' in the database", name, e)
+			false
 		}
 	}
 
@@ -119,7 +128,11 @@ internal class DatabaseTemplateLoader(
 	override fun setSuffix(suffix: String) = Unit
 
 	private companion object {
+		private val log = LoggerFactory.getLogger(DatabaseTemplateLoader::class.java)
+
 		private const val TEMPLATE_QUERY = "SELECT content FROM Templates WHERE name = ?"
-		private const val EXISTS_QUERY = "SELECT 1 FROM Templates WHERE name = ? LIMIT 1"
+
+		/** Counts rather than existence-checks, so a duplicated name can be told from a single one. */
+		private const val COUNT_QUERY = "SELECT COUNT(*) FROM Templates WHERE name = ?"
 	}
 }

@@ -773,7 +773,7 @@ class WebServer(
 		var outputStarted = false
 
 		try {
-			outputStarted = realHandleBsEndpoint(writer, output) { outputStarted = true }
+			realHandleBsEndpoint(writer, output) { outputStarted = true }
 		} catch (e: Exception) {
 			log.error("Error handling /pr/bs endpoint: {}", e.message)
 			// The message is echoed ONLY for a template failure. That one names a template -- the
@@ -851,13 +851,17 @@ class WebServer(
 	/**
 	 * Generates the bookshelf page and sends it to the client.
 	 *
-	 * @return `true` if a response was produced, `false` if processing failed or no response was produced.
+	 * Returns nothing: [markOutputStarted] is how the caller learns the response has begun, and it
+	 * fires at the moment it actually does. Returning the same fact as well meant two mechanisms
+	 * for one piece of state -- and once the only early return went, the returned value was a
+	 * constant. A later early return that updated one and not the other would leave the caller
+	 * sending response headers onto a socket that already carries a body.
 	 */
 	private fun realHandleBsEndpoint(
 		writer: PrintWriter,
 		output: java.io.OutputStream,
 		markOutputStarted: () -> Unit,
-	): Boolean {
+	) {
 		if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
 		// The payload and the template are built under one database acquisition, so a swap cannot
@@ -877,8 +881,6 @@ class WebServer(
 		writeNormalToClient(writer, output, String(result))
 
 		if (debugEnabled) log.debug("Leaving realHandleBsEndpoint().")
-
-		return true
 	}
 
 	/**

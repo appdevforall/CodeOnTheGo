@@ -22,8 +22,13 @@ class DatabaseTemplateLoaderTest {
 				{
 					val name = (secondArg<Array<String>>())[0]
 					val body = templates.toMap()[name]
+					// The two queries answer differently: a count always has a row, a template
+					// lookup has one only when the template is there.
+					val counting = firstArg<String>().contains("COUNT")
 					mockk<Cursor>(relaxed = true) {
-						every { moveToFirst() } returns (body != null)
+						every { moveToFirst() } returns (counting || body != null)
+						every { getInt(0) } returns if (body != null) 1 else 0
+						every { count } returns if (body != null) 1 else 0
 						if (body != null) every { getBlob(0) } returns body.toByteArray()
 					}
 				}
@@ -133,18 +138,33 @@ class DatabaseTemplateLoaderTest {
 	}
 
 	@Test
-	fun `an existence check that fails arrives as a loader failure, without the SQL`() {
-		// getReader's guarantee applies here too: this answers a Boolean, so a raw SQLiteException
-		// would not even be classifiable as a template failure by the caller above it.
+	fun `an existence check that fails answers false rather than throwing`() {
+		// Pebble's existence predicate, which a DelegatingLoader uses to decide whether to fall
+		// through to the next loader: a throw aborts resolution where a miss would fall back. An
+		// earlier version threw to keep SQL text out of the response, which broke the contract to
+		// do it.
 		val database =
 			mockk<SQLiteDatabase>(relaxed = true) {
 				every { rawQuery(any(), any()) } throws
 					SQLiteException("no such table: Templates (code 1): , while compiling: SELECT 1 FROM Templates")
 			}
 
-		val thrown = assertThrows(LoaderException::class.java) { loader(database).resourceExists("nav.peb") }
+		assertThat(loader(database).resourceExists("nav.peb")).isFalse()
+	}
 
-		assertThat(thrown).hasMessageThat().contains("nav.peb")
-		assertThat(thrown).hasMessageThat().doesNotContain("SELECT")
+	@Test
+	fun `a duplicated name does not exist, since it cannot be loaded`() {
+		// getReader refuses a name with more than one row, so a predicate that said yes to it would
+		// promise something the reader then rejects.
+		val database =
+			mockk<SQLiteDatabase>(relaxed = true) {
+				every { rawQuery(any(), any()) } returns
+					mockk<Cursor>(relaxed = true) {
+						every { moveToFirst() } returns true
+						every { getInt(0) } returns 2
+					}
+			}
+
+		assertThat(loader(database).resourceExists("nav.peb")).isFalse()
 	}
 }
