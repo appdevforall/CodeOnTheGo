@@ -1,8 +1,21 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:background="@drawable/find_dialog_bg"
-    android:orientation="vertical"
-    android:paddingHorizontal="24dp">
-</LinearLayout>
+<?xml version="1.0" encoding="utf-8"?><!-- The items are added in code (ActionMenuUtils), so this list grows with the number
+	of visible file tab actions and any plugin contributions. A PopupWindow clips rather than scrolls what it cannot fit, which
+	at large font scales puts the last entries out of reach with no sign they exist, so the growth is wrapped in a scroll container
+	(CLAUDE.md: every screen must survive 2x font scale). The scrollbar and fading edge are the other half of that: a clipped
+	list with neither looks pixel-identical to a complete one. -->
+<ScrollView
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="wrap_content"
+	android:layout_height="wrap_content"
+	android:background="@drawable/find_dialog_bg"
+	android:fadeScrollbars="false"
+	android:requiresFadingEdge="vertical"
+	android:scrollbars="vertical">
+
+	<LinearLayout
+		android:id="@+id/action_items"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:orientation="vertical"
+		android:paddingHorizontal="24dp" />
+</ScrollView>
