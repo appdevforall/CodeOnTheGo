@@ -42,7 +42,7 @@ class ProxyAppBuildRunnerTest {
 		val rebuilds = mutableListOf<Boolean>()
 
 		/** The relaunch fields of each booked rebuild, parallel to [rebuilds]. */
-		val relaunches = mutableListOf<Pair<Boolean, Long?>>()
+		val relaunches = mutableListOf<Pair<Boolean?, Long?>>()
 
 		override fun onSessionStarted() = Unit
 
@@ -62,7 +62,7 @@ class ProxyAppBuildRunnerTest {
 		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
-			relaunchOk: Boolean,
+			relaunchOk: Boolean?,
 			toRunningMillis: Long?,
 		) {
 			rebuilds += isSuccess
@@ -284,9 +284,11 @@ class ProxyAppBuildRunnerTest {
 				.isInstanceOf(ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded::class.java)
 			assertThat((result as ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded).answeredUserAsk).isFalse()
 			assertThat(launches).isEmpty()
-			// The rebuild still books as a success; only the relaunch fields stay empty.
+			// The rebuild still books as a success, and the relaunch as not attempted - not as
+			// a failed one, or the metric's relaunch rate counts every save-triggered
+			// rebaseline as a failure.
 			assertThat(metrics.rebuilds).containsExactly(true)
-			assertThat(metrics.relaunches).containsExactly(false to null)
+			assertThat(metrics.relaunches).containsExactly(null to null)
 		}
 
 	@Test

@@ -351,7 +351,7 @@ internal class ProxyAppBuildRunner(
 		// outcome is known: a failed or skipped relaunch must never share field values
 		// with a relaunch that came back running.
 		fun bookRebuildMetric(
-			relaunchOk: Boolean,
+			relaunchOk: Boolean?,
 			toRunningMillis: Long?,
 		) {
 			if (!bookMetric) return
@@ -407,7 +407,9 @@ internal class ProxyAppBuildRunner(
 								null
 							}
 						bookRebuildMetric(
-							relaunchOk = toRunningMillis != null,
+							// A skipped relaunch is booked as neither success nor failure, so the
+							// metric's relaunch rate counts attempts only.
+							relaunchOk = if (askOutstanding) toRunningMillis != null else null,
 							toRunningMillis = toRunningMillis,
 						)
 						ProxyAppRebuildResult.Succeeded(
