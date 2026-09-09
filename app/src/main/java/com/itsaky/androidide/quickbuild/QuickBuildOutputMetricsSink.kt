@@ -39,7 +39,7 @@ class QuickBuildOutputMetricsSink(
 	override fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
-		relaunchOk: Boolean,
+		relaunchOk: Boolean?,
 		toRunningMillis: Long?,
 	) = Unit
 }

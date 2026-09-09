@@ -146,7 +146,7 @@ class AnalyticsQuickBuildMetricsSink(
 	override fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
-		relaunchOk: Boolean,
+		relaunchOk: Boolean?,
 		toRunningMillis: Long?,
 	) {
 		analytics.trackMetric(
