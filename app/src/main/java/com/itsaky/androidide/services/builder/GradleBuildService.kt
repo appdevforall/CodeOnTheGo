@@ -160,44 +160,27 @@ class GradleBuildService :
 		get() = isBuildInProgress && !internalBuild.isHeld
 
 	/**
-	 * Notified of every Gradle output line while the editor's listener is suppressed, or null when
-	 * nobody is watching.
+	 * Runs [block] as an INTERNAL build: the editor's build listener is suppressed for its duration
+	 * and [progressListener] gets the output lines instead.
 	 *
 	 * Suppression exists to keep the proxy app's build out of the EDITOR's build UI - the modal
 	 * first-build notice, the auto-opened output sheet, the Run button relabelled to "Cancel
-	 * build" - not to make a 90-second build look like a hang. A listener here gets the lines
+	 * build" - not to make a 90-second build look like a hang. The listener gets the lines
 	 * without any of that UI coming with them.
-	 *
-	 * Volatile: written from the main thread, read on the tooling API's thread.
-	 */
-	@Volatile
-	private var internalBuildProgress: ((String) -> Unit)? = null
-
-	/**
-	 * Runs [block] as an INTERNAL build: the editor's build listener is suppressed for its duration
-	 * and [progressListener] gets the output lines instead.
 	 *
 	 * There is no separate begin/end pair on purpose - a caller cannot separate the acquire from
 	 * its release, so no early return, throw or cancellation can strand the editor's build UI with
 	 * the Run button reading "Cancel build".
 	 *
 	 * @param progressListener called per output line on the tooling API's thread, so it must be
-	 *   cheap and non-blocking; a throwing listener is logged and dropped, and it is cleared
-	 *   however [block] returns.
+	 *   cheap and non-blocking; a throwing listener is logged and dropped, and the previous
+	 *   listener is restored however [block] returns.
 	 * @return whatever [block] returns.
 	 */
 	suspend fun <T> withInternalBuild(
 		progressListener: ((String) -> Unit)? = null,
 		block: suspend () -> T,
-	): T =
-		internalBuild.hold {
-			internalBuildProgress = progressListener
-			try {
-				block()
-			} finally {
-				internalBuildProgress = null
-			}
-		}
+	): T = internalBuild.hold(progressListener, block)
 
 	/**
 	 * The editor's build listener, or null while an internal build is running. Every dispatch
@@ -500,7 +483,7 @@ class GradleBuildService :
 		// When the editor's listener is suppressed (an internal build is running), a bounded
 		// tail is kept anyway: if that build FAILS it is the only copy of Gradle's reason,
 		// since the tooling API's own failure is a bare enum. See takeInternalBuildOutput.
-		internalBuildOutput.onLine(line, editorListener(), internalBuildProgress)
+		internalBuildOutput.onLine(line, editorListener(), internalBuild.progressListener)
 	}
 
 	/**
