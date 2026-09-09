@@ -972,7 +972,7 @@ class LiveReloadExecutorImplTest {
 		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
-			relaunchOk: Boolean,
+			relaunchOk: Boolean?,
 			toRunningMillis: Long?,
 		) = Unit
 
@@ -1048,7 +1048,7 @@ class LiveReloadExecutorImplTest {
 					override fun onProxyAppRebuild(
 						isSuccess: Boolean,
 						durationMillis: Long,
-						relaunchOk: Boolean,
+						relaunchOk: Boolean?,
 						toRunningMillis: Long?,
 					) = Unit
 

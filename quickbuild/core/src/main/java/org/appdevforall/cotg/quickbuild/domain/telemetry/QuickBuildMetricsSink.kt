@@ -77,15 +77,17 @@ interface QuickBuildMetricsSink {
 	 *   as the build cost.
 	 * @param relaunchOk true only when the reinstalled app was relaunched and its runtime
 	 *   reconnected; false on every failure, including a rebuild that never got as far as
-	 *   a relaunch.
+	 *   a relaunch; null when no relaunch was attempted because no user ask was outstanding
+	 *   - a save-triggered rebaseline leaves the app in the background by design, and
+	 *   counting that as a failed relaunch put the relaunch-success rate near zero.
 	 * @param toRunningMillis rebuild start to the relaunched runtime's reconnect, in
 	 *   milliseconds - the same "app loaded and starting to run" endpoint the deploy paths
-	 *   measure to. Null whenever [relaunchOk] is false, never a measured zero.
+	 *   measure to. Null whenever [relaunchOk] is not true, never a measured zero.
 	 */
 	fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
-		relaunchOk: Boolean,
+		relaunchOk: Boolean?,
 		toRunningMillis: Long?,
 	)
 
@@ -109,7 +111,7 @@ interface QuickBuildMetricsSink {
 		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
-			relaunchOk: Boolean,
+			relaunchOk: Boolean?,
 			toRunningMillis: Long?,
 		) = Unit
 	}

@@ -92,7 +92,7 @@ class QuickBuildSessionManagerTest {
 	private var metricsThrow = false
 
 	/** relaunchOk of each booked proxy app rebuild, in order. */
-	private val rebuildRelaunches = mutableListOf<Boolean>()
+	private val rebuildRelaunches = mutableListOf<Boolean?>()
 
 	private val recordingMetrics =
 		object : QuickBuildMetricsSink {
@@ -125,7 +125,7 @@ class QuickBuildSessionManagerTest {
 			override fun onProxyAppRebuild(
 				isSuccess: Boolean,
 				durationMillis: Long,
-				relaunchOk: Boolean,
+				relaunchOk: Boolean?,
 				toRunningMillis: Long?,
 			) {
 				record { "proxyAppRebuild:$isSuccess" }
