@@ -400,6 +400,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			object : DefaultLifecycleObserver {
 				override fun onDestroy(owner: LifecycleOwner) {
 					narrator.unbind(sink)
+					// After the unbind, not beside restartSession() in onPause: the narrator
+					// delivers in order on its own scope, so a reset before the unbind cleared an
+					// empty queue while the pane was still bound, and the teardown's lines then
+					// queued for the next project. Only when the project is closing - a recreated
+					// activity binds again and wants the lines produced in between.
+					if (isDestroying) {
+						narrator.reset()
+					}
 				}
 			},
 		)
@@ -1134,10 +1142,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			// verified no-op when nothing is live (SessionReducerTest: "idle plus
 			// SessionRestartRequested is a no-op").
 			quickBuildSessionManager()?.restartSession()
-			// The narrator is a process-wide singleton and its queue is per-project narration.
-			// Held lines belong to the project being closed, so without this they flush into the
-			// NEXT project's Build Output as that project's progress.
-			quickBuildOutputNarrator()?.reset()
 
 			editorViewModel.isInitializing = false
 			editorViewModel.isBuildInProgress = false
