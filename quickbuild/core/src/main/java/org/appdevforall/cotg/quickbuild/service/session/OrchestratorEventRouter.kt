@@ -131,7 +131,7 @@ internal class OrchestratorEventRouter(
 				// live on the orchestrator's pending set, which this router never sees.
 				log.info("Quick build invalidated: {}", event.reason)
 				report { metrics.onInvalidation(event.reason) }
-				Routing(sessionEvents = listOf(SessionEvent.InvalidationDetected(event.reason)))
+				Routing(sessionEvents = listOf(SessionEvent.InvalidationDetected(event.reason, event.userInitiated)))
 			}
 		}
 

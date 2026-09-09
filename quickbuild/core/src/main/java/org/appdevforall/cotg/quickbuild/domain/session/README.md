@@ -42,7 +42,7 @@ stateDiagram-v2
     Ready --> Ready: QuickBuildTapped (TriggerLiveReload)
     Ready --> Building: BuildStarted
     Ready --> Building: WarmCompileStarted
-    Ready --> Invalidated: InvalidationDetected
+    Ready --> Invalidated: InvalidationDetected (carries userInitiated)
     Ready --> Degraded: DaemonDied
     Ready --> Ready: ProxyAppCrashed (record failure)
     Ready --> Ready: ExternalBuildCompleted (RefreshBaseline)
@@ -65,7 +65,7 @@ stateDiagram-v2
     Deployed --> Ready: ProxyAppCrashed (record failure)
     Deployed --> Deployed: ExternalBuildCompleted (RefreshBaseline)
 
-    Invalidated --> Provisioning: ProxyAppRebuildStarted (carries the reason as rebaselineReason)
+    Invalidated --> Provisioning: ProxyAppRebuildStarted (carries the reason as rebaselineReason and userInitiated)
     Invalidated --> Invalidated: QuickBuildTapped (awaiting retry - RunProxyAppRebuild + SwitchToProxyApp)
     Invalidated --> Invalidated: HostForegrounded retry (RunProxyAppRebuild)
     Invalidated --> Invalidated: InvalidationDetected (awaiting retry - re-park + RunProxyAppRebuild)
