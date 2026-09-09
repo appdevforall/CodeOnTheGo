@@ -21,6 +21,11 @@ on:
           - site
           - candidate
           - release
+      notify_slack:
+        description: Post the download links to Slack
+        required: false
+        type: boolean
+        default: false
       candidate_path:
         description: 'GreenGeeks candidate staging path (asset_source: candidate), e.g. tmp/assets/candidates/42'
         required: false
@@ -354,6 +359,12 @@ jobs:
           echo "ASSETS_PATH=$zip_path" >> $GITHUB_OUTPUT
           echo "$(du -h "$zip_path" | cut -f1) $zip_path"
 
+      - name: Checkout this workflow's tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          path: .workflow-tools
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
@@ -366,10 +377,11 @@ jobs:
           R2_BUCKET: ${{ vars.R2_ASSETS_BUCKET || 'apk-repo' }}
           R2_KEY_PREFIX: assets/${{ steps.toolchain.outputs.GRADLE_VERSION }}/
         run: |
-          uv run --with boto3 scripts/cloudflare-r2-upload.py "${{ steps.assets_zip.outputs.ASSETS_PATH }}"
+          uv run --with boto3 .workflow-tools/scripts/cloudflare-r2-upload.py "${{ steps.assets_zip.outputs.ASSETS_PATH }}"
           echo "DOWNLOAD_URL=https://download.appdevforall.org/assets/${{ steps.toolchain.outputs.GRADLE_VERSION }}/assets-${{ matrix.arch }}.zip" >> $GITHUB_OUTPUT
 
       - name: Send Slack notification
+        if: inputs.notify_slack
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
           ASSET_LABEL: ${{ matrix.label }}
