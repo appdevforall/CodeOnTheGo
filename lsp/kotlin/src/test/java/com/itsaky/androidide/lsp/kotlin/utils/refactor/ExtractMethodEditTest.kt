@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.RewriteSpan
+import com.itsaky.androidide.lsp.refactor.TextSpan
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull

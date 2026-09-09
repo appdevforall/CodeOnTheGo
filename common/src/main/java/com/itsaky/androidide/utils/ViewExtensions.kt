@@ -59,16 +59,32 @@ fun View.applyLongPressRecursively(
 	}
 }
 
-fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
+private fun View.longPressGestureDetector(listener: (MotionEvent) -> Unit): GestureDetector =
+	GestureDetector(
+		context,
+		object : GestureDetector.SimpleOnGestureListener() {
+			override fun onLongPress(e: MotionEvent) {
+				listener(e)
+			}
+		},
+	)
+
+/**
+ * [suppressClickAfterLongPress] defaults to `false` to preserve this function's original
+ * behavior for existing callers (e.g. a Git file row, where a long-press-then-release is meant
+ * to still open the diff). Pass `true` where the row's own click must NOT also fire alongside
+ * the tooltip (e.g. a long-pressed Preferences switch shouldn't also toggle).
+ */
+fun RecyclerView.onLongPress(
+	suppressClickAfterLongPress: Boolean = false,
+	listener: (MotionEvent) -> Unit,
+) {
+	var longPressHandled = false
 	val gestureDetector =
-		GestureDetector(
-			context,
-			object : GestureDetector.SimpleOnGestureListener() {
-				override fun onLongPress(e: MotionEvent) {
-					listener(e)
-				}
-			},
-		)
+		longPressGestureDetector {
+			longPressHandled = true
+			listener(it)
+		}
 
 	addOnItemTouchListener(
 		object : RecyclerView.SimpleOnItemTouchListener() {
@@ -76,11 +92,49 @@ fun RecyclerView.onLongPress(listener: (MotionEvent) -> Unit) {
 				rv: RecyclerView,
 				e: MotionEvent,
 			): Boolean {
+				if (e.actionMasked == MotionEvent.ACTION_DOWN) {
+					longPressHandled = false
+				}
 				gestureDetector.onTouchEvent(e)
-				return false
+				// Only swallow the terminal ACTION_UP - intercepting any earlier event (e.g. the
+				// MOVE the long-press timer happens to fire during) would hijack the rest of the
+				// gesture from RecyclerView's own scroll handling too, since once an
+				// OnItemTouchListener starts intercepting, RecyclerView routes every remaining
+				// event in the gesture to it, bypassing its own scroll/fling processing entirely
+				// until the next ACTION_DOWN. Suppressing just the row's click only needs the
+				// single terminal event intercepted.
+				return suppressClickAfterLongPress && longPressHandled &&
+					e.actionMasked == MotionEvent.ACTION_UP
+			}
+
+			override fun onTouchEvent(
+				rv: RecyclerView,
+				e: MotionEvent,
+			) {
+				gestureDetector.onTouchEvent(e)
 			}
 		},
 	)
+}
+
+/**
+ * Detects a long press on this view via a [GestureDetector], invoking [listener] with the
+ * triggering [MotionEvent] on the UI thread the touch event is dispatched on.
+ *
+ * Views like NestedScrollView/ScrollView override `onTouchEvent()` for their own drag/fling
+ * handling, so a plain `setOnLongClickListener` never arms the base View's long-press timer -
+ * same root cause as [RecyclerView.onLongPress] above. A GestureDetector forwarded through
+ * [setOnTouchListener] (always returning `false`, so scrolling still works) sidesteps that -
+ * but this replaces this view's existing touch listener, if it had one.
+ */
+@SuppressLint("ClickableViewAccessibility")
+fun View.onLongPress(listener: (MotionEvent) -> Unit) {
+	val gestureDetector = longPressGestureDetector(listener)
+
+	setOnTouchListener { _, event ->
+		gestureDetector.onTouchEvent(event)
+		false
+	}
 }
 
 @SuppressLint("ClickableViewAccessibility")

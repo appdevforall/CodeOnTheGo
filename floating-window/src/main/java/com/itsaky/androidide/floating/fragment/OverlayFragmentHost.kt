@@ -5,10 +5,13 @@ package com.itsaky.androidide.floating.fragment
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.AttributeSet
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.OnBackPressedDispatcherOwner
+import androidx.core.view.LayoutInflaterCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentController
 import androidx.fragment.app.FragmentFactory
@@ -20,6 +23,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryOwner
+import com.google.android.material.theme.MaterialComponentsViewInflater
 import com.itsaky.androidide.floating.window.FloatingWindowHost
 
 /**
@@ -41,6 +45,8 @@ class OverlayFragmentHost(
 ) {
 	private val handler = Handler(Looper.getMainLooper())
 
+	private val viewFactory = MaterialViewFactory()
+
 	private val container: FrameLayout =
 		FrameLayout(context).apply { id = View.generateViewId() }
 
@@ -56,6 +62,12 @@ class OverlayFragmentHost(
 			override fun onFindViewById(id: Int): View? = container.findViewById(id)
 
 			override fun onHasView(): Boolean = true
+
+			override fun onGetLayoutInflater(): LayoutInflater {
+				val themed = LayoutInflater.from(context).cloneInContext(context)
+				LayoutInflaterCompat.setFactory2(themed, viewFactory)
+				return themed.cloneInContext(context)
+			}
 
 			override val viewModelStore: ViewModelStore
 				get() = owner.viewModelStore
@@ -112,4 +124,33 @@ class OverlayFragmentHost(
 		controller.dispatchDestroy()
 		started = false
 	}
+}
+
+/**
+ * Restores the AppCompat/Material widget substitution that a window without an activity loses.
+ *
+ * An activity installs AppCompat's view factory on its [LayoutInflater], and that is what turns an
+ * unqualified `<Button>` in a layout into a `MaterialButton`. [OverlayFragmentHost] drives a
+ * FragmentManager with no activity, so without this the same layout inflates plain framework
+ * widgets and a plugin's UI visibly changes the moment it is undocked.
+ *
+ * The inflater handed to a Fragment must still accept the child FragmentManager's own factory, and
+ * [LayoutInflater] refuses a second `setFactory2`. Cloning after installing this one carries the
+ * factory across with that flag cleared, so the two are merged instead of colliding.
+ */
+private class MaterialViewFactory : LayoutInflater.Factory2 {
+	private val inflater = MaterialComponentsViewInflater()
+
+	override fun onCreateView(
+		parent: View?,
+		name: String,
+		context: Context,
+		attrs: AttributeSet,
+	): View? = inflater.createView(parent, name, context, attrs, false, false, true, false)
+
+	override fun onCreateView(
+		name: String,
+		context: Context,
+		attrs: AttributeSet,
+	): View? = onCreateView(null, name, context, attrs)
 }

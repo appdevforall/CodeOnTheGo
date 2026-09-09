@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.services
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
+import com.itsaky.androidide.lsp.kotlin.compiler.index.ResolutionSideKtFileAccess
 import com.itsaky.androidide.lsp.kotlin.compiler.index.filesForPackage
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.read
@@ -33,8 +34,9 @@ import org.jetbrains.kotlin.psi.KtTypeAlias
 import org.jetbrains.kotlin.psi.psiUtil.isTopLevelKtOrJavaMember
 import java.nio.file.Paths
 
-internal class DeclarationProviderFactory : KtLspService, KotlinDeclarationProviderFactory {
-
+internal class DeclarationProviderFactory :
+	KtLspService,
+	KotlinDeclarationProviderFactory {
 	private lateinit var project: Project
 	private lateinit var index: KtSymbolIndex
 
@@ -42,7 +44,7 @@ internal class DeclarationProviderFactory : KtLspService, KotlinDeclarationProvi
 		project: MockProject,
 		index: KtSymbolIndex,
 		modules: List<KtModule>,
-		libraryRoots: List<JavaRoot>
+		libraryRoots: List<JavaRoot>,
 	) {
 		this.project = project
 		this.index = index
@@ -50,13 +52,13 @@ internal class DeclarationProviderFactory : KtLspService, KotlinDeclarationProvi
 
 	override fun createDeclarationProvider(
 		scope: GlobalSearchScope,
-		contextualModule: KaModule?
-	): KotlinDeclarationProvider {
-		return DeclarationProvider(scope, project, index)
-	}
+		contextualModule: KaModule?,
+	): KotlinDeclarationProvider = DeclarationProvider(scope, project, index)
 }
 
-class DeclarationProviderMerger(private val project: Project) : KotlinDeclarationProviderMerger {
+class DeclarationProviderMerger(
+	private val project: Project,
+) : KotlinDeclarationProviderMerger {
 	override fun merge(providers: List<KotlinDeclarationProvider>): KotlinDeclarationProvider =
 		providers.mergeSpecificProviders<_, DeclarationProvider>(KotlinCompositeDeclarationProvider.factory) { targetProviders ->
 			val combinedScope = GlobalSearchScope.union(targetProviders.map { it.scope })
@@ -81,13 +83,12 @@ internal abstract class AbstractDeclarationProvider(
 	}
 
 	override fun findInternalFilesForFacade(facadeFqName: FqName): Collection<KtFile> =
-	// We don't deserialize libraries from stubs so we can return empty here safely
-	// We don't take the KaBuiltinsModule into account for simplicity,
+		// We don't deserialize libraries from stubs so we can return empty here safely
+		// We don't take the KaBuiltinsModule into account for simplicity,
 		// that means we expect the kotlin stdlib to be included on the project
 		emptyList()
 
-	override fun findFilesForFacadeByPackage(packageFqName: FqName): Collection<KtFile> =
-		ktFilesForPackage(packageFqName).toList()
+	override fun findFilesForFacadeByPackage(packageFqName: FqName): Collection<KtFile> = ktFilesForPackage(packageFqName).toList()
 
 	override fun findFilesForScript(scriptFqName: FqName): Collection<KtScript> =
 		ktFilesForPackage(scriptFqName).mapNotNull { it.script }.toList()
@@ -98,8 +99,7 @@ internal abstract class AbstractDeclarationProvider(
 				project.read {
 					PsiTreeUtil.collectElementsOfType(it, KtClassOrObject::class.java).asSequence()
 				}
-			}
-			.filter { it.getClassId() == classId }
+			}.filter { it.getClassId() == classId }
 			.toList()
 
 	override fun getAllTypeAliasesByClassId(classId: ClassId): Collection<KtTypeAlias> =
@@ -108,8 +108,7 @@ internal abstract class AbstractDeclarationProvider(
 				project.read {
 					PsiTreeUtil.collectElementsOfType(it, KtTypeAlias::class.java).asSequence()
 				}
-			}
-			.filter { it.getClassId() == classId }
+			}.filter { it.getClassId() == classId }
 			.toList()
 
 	override fun getClassLikeDeclarationByClassId(classId: ClassId): KtClassLikeDeclaration? =
@@ -126,11 +125,11 @@ internal abstract class AbstractDeclarationProvider(
 		ktFilesForPackage(callableId.packageName)
 			.flatMap {
 				project.read {
-					PsiTreeUtil.collectElementsOfType(it, KtNamedFunction::class.java)
+					PsiTreeUtil
+						.collectElementsOfType(it, KtNamedFunction::class.java)
 						.asSequence()
 				}
-			}
-			.filter { it.isTopLevel }
+			}.filter { it.isTopLevel }
 			.filter { it.nameAsName == callableId.callableName }
 			.toList()
 
@@ -138,11 +137,11 @@ internal abstract class AbstractDeclarationProvider(
 		ktFilesForPackage(packageFqName)
 			.flatMap {
 				project.read {
-					PsiTreeUtil.collectElementsOfType(it, KtClassLikeDeclaration::class.java)
+					PsiTreeUtil
+						.collectElementsOfType(it, KtClassLikeDeclaration::class.java)
 						.asSequence()
 				}
-			}
-			.filter { it.isTopLevelKtOrJavaMember() }
+			}.filter { it.isTopLevelKtOrJavaMember() }
 			.mapNotNull { it.nameAsName }
 			.toSet()
 
@@ -150,11 +149,11 @@ internal abstract class AbstractDeclarationProvider(
 		ktFilesForPackage(packageFqName)
 			.flatMap {
 				project.read {
-					PsiTreeUtil.collectElementsOfType(it, KtCallableDeclaration::class.java)
+					PsiTreeUtil
+						.collectElementsOfType(it, KtCallableDeclaration::class.java)
 						.asSequence()
 				}
-			}
-			.filter { it.isTopLevelKtOrJavaMember() }
+			}.filter { it.isTopLevelKtOrJavaMember() }
 			.mapNotNull { it.nameAsName }
 			.toSet()
 
@@ -164,8 +163,7 @@ internal abstract class AbstractDeclarationProvider(
 				project.read {
 					PsiTreeUtil.collectElementsOfType(it, KtProperty::class.java).asSequence()
 				}
-			}
-			.filter { it.isTopLevel }
+			}.filter { it.isTopLevel }
 			.filter { it.nameAsName == callableId.callableName }
 			.toList()
 }
@@ -173,16 +171,16 @@ internal abstract class AbstractDeclarationProvider(
 internal class DeclarationProvider(
 	val scope: GlobalSearchScope,
 	project: Project,
-	private val index: KtSymbolIndex
+	private val index: KtSymbolIndex,
 ) : AbstractDeclarationProvider(project) {
-
 	override val hasSpecificCallablePackageNamesComputation = false
 	override val hasSpecificClassifierPackageNamesComputation = false
 
-	override fun ktFilesForPackage(fqName: FqName): Sequence<KtFile> {
-		return index.filesForPackage(fqName.asString())
+	@OptIn(ResolutionSideKtFileAccess::class)
+	override fun ktFilesForPackage(fqName: FqName): Sequence<KtFile> =
+		index
+			.filesForPackage(fqName.asString())
 			.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(Paths.get(it.filePath)) }
 			.filter { it in scope }
 			.mapNotNull { index.getKtFile(it) }
-	}
 }

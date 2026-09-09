@@ -119,6 +119,33 @@ class GradleBuildService :
 	 */
 	private var toolingApiClient: ForwardingToolingApiClient? = null
 	private var toolingServerRunner: ToolingServerRunner? = null
+
+	/**
+	 * The Gradle daemon's pid, or `null` when no daemon is known to be running.
+	 *
+	 * Remembered here and not merely forwarded, because the listener is an activity. A daemon is
+	 * reported once, when a build spawns it, and then outlives that build; an activity recreated
+	 * after that -- a rotation, a font-scale change -- gets a listener that hears about new daemons
+	 * only, so its memory chart silently loses the largest of the three processes. It reads this
+	 * instead. See [onGradleDaemonStarted].
+	 *
+	 * Volatile because the two ends are on different threads: the tooling API's client callbacks
+	 * write it on the RPC reader thread, and [ProjectHandlerActivity] reads it on the main thread
+	 * while binding. Without it a recreated activity can read a stale `null` and quietly leave the
+	 * daemon off the chart -- the very failure this field exists to prevent.
+	 */
+	@Volatile
+	var gradleDaemonPid: Int? = null
+		private set
+
+	/**
+	 * The tooling server's pid, or `null` while no started server has one.
+	 *
+	 * Same reason as [gradleDaemonPid]: [startToolingServer] reports the pid to whoever asked for
+	 * the start, so an activity that finds the server already up never hears it.
+	 */
+	val toolingServerPid: Int?
+		get() = toolingServerRunner?.takeIf { it.isStarted }?.pid
 	private var outputReaderJob: Job? = null
 	private var notificationManager: NotificationManager? = null
 	private var server: IToolingApiServer? = null
@@ -420,6 +447,20 @@ class GradleBuildService :
 			)
 		}
 
+	override fun onGradleDaemonStarted(pid: Int) {
+		log.info("Gradle daemon started: pid {}", pid)
+		gradleDaemonPid = pid
+		eventListener?.onGradleDaemonStarted(pid)
+	}
+
+	override fun onGradleDaemonExited(pid: Int) {
+		log.info("Gradle daemon exited: pid {}", pid)
+		if (gradleDaemonPid == pid) {
+			gradleDaemonPid = null
+		}
+		eventListener?.onGradleDaemonExited(pid)
+	}
+
 	override fun onBuildSuccessful(result: BuildResult) {
 		updateNotification(getString(R.string.build_status_sucess), false)
 
@@ -550,10 +591,20 @@ class GradleBuildService :
 		}
 		try {
 			val projectDir = ProjectManagerImpl.getInstance().projectDir
-			val files = ZipUtils.unzipFile(extracted, projectDir)
-			if (files.isNotEmpty()) {
+			val result = ZipUtils.unzipFile(extracted, projectDir)
+			if (result.skipped.isNotEmpty()) {
+				log.warn("Gradle wrapper entries not extracted (existing symlinks left alone): {}", result.skipped)
+			}
+
+			// Success means the wrapper is actually usable, not merely that unzipFile returned: an
+			// entry skipped over a user's own symlink is fine as long as the files it needs exist.
+			val missing =
+				listOf("gradlew", "gradle/wrapper/gradle-wrapper.jar", "gradle/wrapper/gradle-wrapper.properties")
+					.filter { !File(projectDir, it).exists() }
+			if (missing.isEmpty()) {
 				return GradleWrapperCheckResult(true)
 			}
+			log.error("Gradle wrapper installation is incomplete; missing: {}", missing)
 		} catch (e: IOException) {
 			log.error("An error occurred while extracting Gradle wrapper", e)
 		}
@@ -750,6 +801,14 @@ class GradleBuildService :
 					runOnUiThread { listener.onBuildSuccessful(tasks) }
 				}
 
+				override fun onGradleDaemonStarted(pid: Int) {
+					runOnUiThread { listener.onGradleDaemonStarted(pid) }
+				}
+
+				override fun onGradleDaemonExited(pid: Int) {
+					runOnUiThread { listener.onGradleDaemonExited(pid) }
+				}
+
 				override fun onProgressEvent(event: ProgressEvent) {
 					runOnUiThread { listener.onProgressEvent(event) }
 				}
@@ -812,6 +871,25 @@ class GradleBuildService :
 		 * @see IToolingApiClient.onBuildSuccessful
 		 */
 		fun onBuildSuccessful(tasks: List<String?>)
+
+		/**
+		 * Called when the Gradle daemon has been identified by the tooling server.
+		 *
+		 * Defaulted, because a daemon is only of interest to a listener that plots it and every
+		 * other implementer would otherwise gain two empty methods.
+		 *
+		 * @param pid The process id of the Gradle daemon.
+		 * @see IToolingApiClient.onGradleDaemonStarted
+		 */
+		fun onGradleDaemonStarted(pid: Int) = Unit
+
+		/**
+		 * Called when the Gradle daemon has exited.
+		 *
+		 * @param pid The process id of the daemon that exited.
+		 * @see IToolingApiClient.onGradleDaemonExited
+		 */
+		fun onGradleDaemonExited(pid: Int) = Unit
 
 		/**
 		 * Called when a progress event is received from the Tooling API server.

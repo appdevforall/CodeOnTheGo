@@ -1,5 +1,11 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.RewriteSpan
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.detectIndentUnit
+import com.itsaky.androidide.lsp.refactor.detectNewline
+import com.itsaky.androidide.lsp.refactor.leadingIndentAt
+
 /**
  * The two replacements an extraction performs: the new function, and the call that replaces the
  * region.
@@ -93,7 +99,7 @@ fun buildExtractMethodRewrites(
  *
  * A line inside one of [protectedSpans] is emitted byte-for-byte. Those are multi-line string literals,
  * whose interior whitespace is part of their value, and whose closing delimiter sets `trimIndent`'s
- * margin -- moving either edits the interior of the moved code (ADR 0013).
+ * margin -- moving either edits the interior of the moved code (ADR 0014).
  */
 private fun indentedBodyLines(
 	regionText: String,

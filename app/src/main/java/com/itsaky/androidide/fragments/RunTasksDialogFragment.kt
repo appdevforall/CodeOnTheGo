@@ -32,6 +32,7 @@ import androidx.core.view.WindowInsetsCompat.Type.statusBars
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updateMargins
 import androidx.core.view.updatePadding
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.transition.TransitionManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -57,6 +58,7 @@ import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.doOnApplyWindowInsets
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.viewmodel.BuildViewModel
 import com.itsaky.androidide.viewmodel.RunTasksViewModel
 import org.slf4j.LoggerFactory
 
@@ -70,6 +72,7 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 	private lateinit var binding: LayoutRunTaskDialogBinding
 	private lateinit var run: LayoutRunTaskBinding
 	private val viewModel: RunTasksViewModel by viewModels()
+	private val buildViewModel: BuildViewModel by activityViewModels()
 
 	private val searchRunner =
 		Runnable {
@@ -199,8 +202,13 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 						return@setOnClickListener
 					}
 
-					val toRun = viewModel.selected.toTypedArray()
-					buildService.executeTasks(*toRun)
+					val toRun = viewModel.selected.toList()
+					if (!buildViewModel.installsAnAppVariant(toRun)) {
+						buildService.executeTasks(*toRun.toTypedArray())
+					} else if (!buildViewModel.runTasks(toRun)) {
+						flashError(R.string.build_in_progress_warning)
+						return@setOnClickListener
+					}
 					dismiss()
 				}
 			}

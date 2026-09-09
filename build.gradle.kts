@@ -179,9 +179,12 @@ spotless {
 	// Spotless's auto-prune of .git/.gradle/build, so restore them. flox is the
 	// ADFA-4816 fix: its /nix/store symlinks (millions of files) made
 	// spotlessCheck take 12+ minutes.
-	// Bare dir names required: Gradle prunes a subtree only when an exclude
-	// matches the dir node itself; `dir/**` matches contents and forces a
-	// descend-and-filter (no pruning).
+	// The pattern must match the directory node itself, because Gradle prunes a subtree only then;
+	// `dir/**` matches the contents instead and forces a descend-and-filter. Bare names are
+	// root-anchored: "flox" prunes only rootDir/flox, so anything that has to match at depth needs
+	// the `**/` prefix the three entries below carry. Dropping it -- reading "**/.gradle" as
+	// equivalent to ".gradle" -- would stop pruning every per-project cache dir and bring back the
+	// ADFA-4816 12-minute spotlessCheck.
 	val traversalExcludes =
 		arrayOf(
 			"flox",
@@ -459,11 +462,24 @@ tasks.named("sonarqube") {
 tasks.register<JacocoReport>("jacocoAggregateReport") {
 	val excludedProjects = emptySet<String>()
 
-	// Depend only on testV8DebugUnitTest tasks in subprojects
+	// (variant directory, unit-test task) pairs, v8 first so a flavored module keeps using it. Two
+	// entries because the module set is not uniform: every flavored module builds `v8Debug`, but a
+	// flavorless one such as `:plugin-api` only builds `debug`. Collecting the v8 names alone dropped
+	// such a module from this report silently - `mapNotNull` returned nothing for it, so its tests
+	// never ran here and its classes counted for nothing.
+	val coverageVariants =
+		listOf(
+			"v8Debug" to "testV8DebugUnitTest",
+			"debug" to "testDebugUnitTest",
+		)
+
+	// One unit-test task per subproject, not one per variant: a module has only ever one of these.
 	dependsOn(
 		subprojects
 			.filterNot { it.name in excludedProjects }
-			.mapNotNull { it.tasks.findByName("testV8DebugUnitTest") },
+			.mapNotNull { subproj ->
+				coverageVariants.firstNotNullOfOrNull { (_, task) -> subproj.tasks.findByName(task) }
+			},
 	)
 
 	reports {
@@ -480,41 +496,49 @@ tasks.register<JacocoReport>("jacocoAggregateReport") {
 			"**/*Test*.*",
 		)
 
-	// Collect kotlin and java class directories for v8Debug and v8DebugUnitTest variant
+	// Kotlin and java class directories, for each variant a module might have built. Absent
+	// directories contribute nothing, so listing both shapes per module is safe.
 	val classDirs =
 		subprojects
 			.filterNot { it.name in excludedProjects }
 			.flatMap { subproj ->
-				listOf(
-					fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8Debug")) {
-						exclude(fileFilter)
-					},
-					fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/v8DebugUnitTest")) {
-						exclude(fileFilter)
-					},
-					fileTree(subproj.layout.buildDirectory.dir("classes/java/v8Debug")) {
-						exclude(fileFilter)
-					},
-					fileTree(subproj.layout.buildDirectory.dir("intermediates/javac/v8DebugUnitTest/classes")) {
-						exclude(fileFilter)
-					},
-				)
+				coverageVariants.flatMap { (variant, _) ->
+					listOf(
+						fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/$variant")) {
+							exclude(fileFilter)
+						},
+						fileTree(subproj.layout.buildDirectory.dir("tmp/kotlin-classes/${variant}UnitTest")) {
+							exclude(fileFilter)
+						},
+						fileTree(subproj.layout.buildDirectory.dir("classes/java/$variant")) {
+							exclude(fileFilter)
+						},
+						fileTree(subproj.layout.buildDirectory.dir("intermediates/javac/${variant}UnitTest/classes")) {
+							exclude(fileFilter)
+						},
+					)
+				}
 			}
 
-	// Collect source directories
+	// Untouched on purpose, though it names only `src/main/java` while nine modules keep sources under
+	// `src/main/kotlin`: this property is inert for this task. Emptying it outright still renders full
+	// Kotlin source in the HTML and leaves the XML byte-identical, so adding the Kotlin roots here
+	// buys nothing. Measured, not assumed - do not "fix" it without re-measuring.
 	val sourceDirs =
 		subprojects
 			.filterNot { it.name in excludedProjects }
 			.map { it.file("src/main/java") }
 
-	// Collect execution data (.exec files)
+	// Collect execution data (.exec files), for each variant a module might have run.
 	val execFiles =
 		subprojects
 			.filterNot { it.name in excludedProjects }
-			.map { subproj ->
-				subproj.layout.buildDirectory.file(
-					"outputs/unit_test_code_coverage/v8DebugUnitTest/testV8DebugUnitTest.exec",
-				)
+			.flatMap { subproj ->
+				coverageVariants.map { (variant, task) ->
+					subproj.layout.buildDirectory.file(
+						"outputs/unit_test_code_coverage/${variant}UnitTest/$task.exec",
+					)
+				}
 			}
 
 	classDirectories.setFrom(classDirs)

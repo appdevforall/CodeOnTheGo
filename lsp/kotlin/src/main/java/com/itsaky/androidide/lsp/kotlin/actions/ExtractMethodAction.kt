@@ -11,16 +11,16 @@ import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.refactor.ui.ExtractMethodChoice
 import com.itsaky.androidide.lsp.kotlin.refactor.ui.ExtractMethodSheet
-import com.itsaky.androidide.lsp.kotlin.refactor.ui.findFragmentActivity
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractMethodPlan
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionRefusal
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractMethodPlan
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractMethodRewrites
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.toTextEdit
 import com.itsaky.androidide.lsp.models.CodeActionItem
 import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
+import com.itsaky.androidide.lsp.refactor.toTextEdit
+import com.itsaky.androidide.lsp.ui.findFragmentActivity
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.createJobCancelChecker
@@ -34,7 +34,7 @@ import java.nio.file.Path
  * [execAction] runs one background analysis pass and returns a plain-data [ExtractMethodPlan];
  * [postExec] shows the sheet and turns the user's choice into two text edits with pure offset
  * arithmetic. Where the region cannot be moved faithfully the plan carries a typed refusal, which
- * postExec renders as a specific message rather than a generic failure (ADR 0013).
+ * postExec renders as a specific message rather than a generic failure (ADR 0014).
  */
 class ExtractMethodAction : BaseKotlinCodeAction() {
 	companion object {
@@ -133,7 +133,7 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 	) {
 		val file = data.requireFile()
 		val nioPath = file.toPath()
-		if (documentVersionOf(nioPath) != plan.documentVersion) {
+		if (plan.documentVersion == null || documentVersionOf(nioPath) != plan.documentVersion) {
 			flashInfo(R.string.msg_extract_method_file_changed)
 			return
 		}
@@ -234,6 +234,6 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 			}
 		}
 
-	/** -1 when the document is not open, which never matches a real version and so fails the guard. */
-	private fun documentVersionOf(path: Path): Int = FileManager.getActiveDocument(path)?.version ?: -1
+	/** Null when the document is not open, which the guard reads as "unverifiable" and refuses. */
+	private fun documentVersionOf(path: Path): Int? = FileManager.getActiveDocument(path)?.version
 }

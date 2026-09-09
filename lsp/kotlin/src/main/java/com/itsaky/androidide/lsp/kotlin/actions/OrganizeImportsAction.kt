@@ -7,10 +7,8 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.collectImportUsage
 import com.itsaky.androidide.lsp.kotlin.utils.organizedImportBlock
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
@@ -48,11 +46,10 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 
 	/**
 	 * Computes the text edits that organize the imports of the file at [nioPath] within [env].
-	 * The current [org.jetbrains.kotlin.psi.KtFile] is fetched BEFORE entering [read] (deadlock
-	 * rule: never block on `getCurrentKtFile(...).get()` inside `project.read`). Returns an empty
-	 * list when there is nothing to do (no imports, already organized, or no usable range) *and*
-	 * whenever anything in this pipeline (the `.get()`, analysis, or PSI access) throws: the action
-	 * framework only catches [IllegalArgumentException] and this runs on a coroutine scope with no
+	 *
+	 * Returns an empty list when there is nothing to do (no imports, already organized, or no usable
+	 * range) *and* whenever anything in this pipeline (acquisition, analysis, or PSI access) throws: the
+	 * action framework only catches [IllegalArgumentException] and this runs on a coroutine scope with no
 	 * exception handler, so an uncaught throw here would crash the app. Degrading to zero edits is
 	 * always safe -- it just leaves the imports as-is, never produces a partial/incorrect rewrite.
 	 */
@@ -62,20 +59,40 @@ class OrganizeImportsAction : BaseKotlinCodeAction() {
 		cancelChecker: ICancelChecker,
 	): List<TextEdit> =
 		runCatching {
-			// A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
-			// preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and
-			// organize-imports silently did nothing. The file is re-fetched per attempt because the
-			// preemptor also refreshed the live PSI.
+			/*
+			 * A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
+			 * preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and
+			 * organize-imports silently did nothing. The file is re-pinned per attempt because the
+			 * preemptor also refreshed the live PSI.
+			 */
 			retryingOnPreemption(cancelChecker, "Organize imports for $nioPath") { checker ->
-				val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return@retryingOnPreemption emptyList()
-				if (ktFile.importDirectives.isEmpty()) return@retryingOnPreemption emptyList()
-				env.project.read {
-					val usage = analyzeMaybeDangling(ktFile, AnalysisPriority.COMMAND, checker) { collectImportUsage(ktFile) }
-					val newText = organizedImportBlock(ktFile, usage) ?: return@read emptyList()
-					val range = ktFile.importList?.textRange?.toRange(ktFile) ?: return@read emptyList()
-					if (range == Range.NONE) return@read emptyList()
-					listOf(TextEdit(range, newText))
-				}
+				env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+					if (live.isStale) {
+						// Joining another feature's scope hands over text older than the buffer, and the
+						// import-list range computed from it would replace the wrong span.
+						logger.debug("skipping organize-imports for {}: pinned text is behind the buffer", nioPath)
+						return@withLiveKtFile emptyList()
+					}
+
+					val edits =
+						live.read { ktFile ->
+							if (ktFile.importDirectives.isEmpty()) return@read emptyList()
+							val usage = live.analyzing(AnalysisPriority.COMMAND, checker) { collectImportUsage(it) }
+							val newText = organizedImportBlock(ktFile, usage) ?: return@read emptyList()
+							val range = ktFile.importList?.textRange?.toRange(ktFile) ?: return@read emptyList()
+							if (range == Range.NONE) return@read emptyList()
+							listOf(TextEdit(range, newText))
+						}
+
+					if (live.isStale) {
+						// The analysis above is slow enough for the user to type through, and nothing between
+						// here and performCodeAction re-checks the range these edits were measured against.
+						logger.debug("dropping organize-imports edits for {}: buffer moved while computing", nioPath)
+						return@withLiveKtFile emptyList()
+					}
+
+					edits
+				} ?: emptyList()
 			}
 		}.getOrElse { e ->
 			if (e.isAnalysisCancellation()) {

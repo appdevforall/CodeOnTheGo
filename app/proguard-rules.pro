@@ -193,16 +193,25 @@
 -keep class io.sentry.** { *; }
 -dontwarn io.sentry.**
 
-# ADFA-5156: TEMPORARY ROLLBACK of the R8 shrinking re-enabled in ADFA-3604.
-# Plugins load parent-first through a stock DexClassLoader, so they resolve
-# kotlin.** from the app's dex rather than their own bundled stdlib. R8 cannot
-# see plugin call sites, so it strips every stdlib member the IDE itself does
-# not call and plugins die with NoSuchMethodError at runtime (Sketch to UI:
-# ArraysKt.maxOrNull([F)). With -dontobfuscate and -dontoptimize already set,
-# this restores R8 to a pass-through and returns the release build to the
-# configuration shipped before ADFA-3604. Revert once ADFA-5156 lands a
-# targeted fix (keep rules for kotlin.**/kotlinx.coroutines.**).
--dontshrink
+# ADFA-5156: plugins load parent-first through a stock DexClassLoader, so they
+# resolve kotlin.** from the app's dex rather than their own bundled stdlib. R8
+# cannot see plugin call sites, so it strips every stdlib member the IDE itself
+# does not call and plugins die with NoSuchMethodError at runtime (Sketch to UI:
+# ArraysKt.maxOrNull([F)). ADFA-5156 first fixed this with -dontshrink, which
+# made R8 a pass-through over the whole app to protect one library; ADFA-5195
+# replaced it with the targeted keeps below, restoring dead-code removal
+# everywhere else.
+#
+# ADFA-5164 narrows this: freeze the stdlib subset plugins may rely on and have
+# plugins bundle the rest. Until then the whole stdlib is the contract, so these
+# stay broad -- and note the keeps further up cover only kotlin.reflect,
+# kotlin.script and kotlinx.coroutines.internal, not kotlin.collections/text/io/
+# sequences, which is the hole maxOrNull([F) fell through.
+-keep class kotlin.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
 
 ## Plugin SPI
 ## Plugins are loaded dynamically via DexClassLoader, so R8 cannot see their

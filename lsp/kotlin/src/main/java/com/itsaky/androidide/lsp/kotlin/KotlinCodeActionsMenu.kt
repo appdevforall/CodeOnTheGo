@@ -12,6 +12,7 @@ import com.itsaky.androidide.lsp.kotlin.actions.ExtractVariableAction
 import com.itsaky.androidide.lsp.kotlin.actions.FindReferencesAction
 import com.itsaky.androidide.lsp.kotlin.actions.GoToDefinitionAction
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
+import com.itsaky.androidide.lsp.kotlin.actions.InlineVariableAction
 import com.itsaky.androidide.lsp.kotlin.actions.NullSafetyAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 
@@ -52,5 +53,6 @@ object KotlinCodeActionsMenu : IActionsMenuProvider {
 			ImplementMembersAction(),
 			ExtractVariableAction(),
 			ExtractMethodAction(),
+			InlineVariableAction(),
 		)
 }

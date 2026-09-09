@@ -1,5 +1,8 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.lsp.refactor.leadingIndentAt
+import com.itsaky.androidide.lsp.refactor.uniqueName
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaCallableMemberCall
 import org.jetbrains.kotlin.analysis.api.resolution.KaCompoundArrayAccessCall
@@ -542,7 +545,7 @@ private fun KaSession.resolvedPsi(reference: KtSimpleNameExpression): PsiElement
 
 /**
  * A `var` declared inside the enclosing declaration but outside the region, assigned inside it.
- * Kotlin has no `out` parameters, so the faithful emission would shadow a name (R7, ADR 0013).
+ * Kotlin has no `out` parameters, so the faithful emission would shadow a name (R7, ADR 0014).
  */
 private fun KaSession.reassignedOuterVar(
 	enclosing: KtDeclaration,

@@ -1,5 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
+import com.itsaky.androidide.lsp.refactor.TextSpan
+
 /** One derived parameter of the new function. Names are the originals, unchanged (R5). */
 data class MethodParameter(
 	val name: String,
@@ -52,7 +54,7 @@ sealed interface CallSiteForm {
  *
  * [rawStringSpans] are the raw (triple-quoted) string literals inside the region, in file offsets.
  * Their interior is whitespace-sensitive, so re-indentation must leave those lines byte-for-byte
- * (ADR 0013).
+ * (ADR 0014).
  */
 data class ExtractMethodCandidate(
 	val label: String,
@@ -72,7 +74,7 @@ data class ExtractMethodCandidate(
 )
 
 /**
- * Why a region could not be extracted. A refusal is a designed outcome, not an error (ADR 0013):
+ * Why a region could not be extracted. A refusal is a designed outcome, not an error (ADR 0014):
  * each reason gets its own message naming the construct in the way, because a generic one reads as
  * the feature being broken.
  */
@@ -141,7 +143,7 @@ sealed interface ExtractionRefusal {
 	/**
 	 * A captured value the region uses through a smart cast (R5). Its declared type does not compile
 	 * in the new body and its narrowed type does not compile at the call site, so neither emission is
-	 * faithful (ADR 0013).
+	 * faithful (ADR 0014).
 	 */
 	data class SmartCastParameter(
 		val name: String,
@@ -160,12 +162,12 @@ sealed interface ExtractionRefusal {
  * The complete result of the background pass.
  *
  * Unlike extract variable's plan this carries a [refusal] rather than merely being empty, because
- * "why not" is most of what this refactoring has to say (ADR 0013). [candidates] and [refusal] are
+ * "why not" is most of what this refactoring has to say (ADR 0014). [candidates] and [refusal] are
  * mutually exclusive in practice: a non-empty candidate list means at least one region survived.
  */
 data class ExtractMethodPlan(
 	override val fileText: String,
-	override val documentVersion: Int,
+	override val documentVersion: Int?,
 	val candidates: List<ExtractMethodCandidate>,
 	val refusal: ExtractionRefusal?,
 ) : RefactoringPlan {
@@ -175,7 +177,7 @@ data class ExtractMethodPlan(
 		fun refused(
 			refusal: ExtractionRefusal,
 			fileText: String = "",
-			documentVersion: Int = -1,
+			documentVersion: Int? = null,
 		) = ExtractMethodPlan(fileText, documentVersion, emptyList(), refusal = refusal)
 	}
 }

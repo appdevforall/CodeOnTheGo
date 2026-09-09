@@ -1,7 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.refactor.ui
 
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractMethodCandidate
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.NameProblem
+import com.itsaky.androidide.lsp.ui.NameProblem
 
 /**
  * Everything the extract-method sheet renders.

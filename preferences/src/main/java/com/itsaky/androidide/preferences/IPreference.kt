@@ -28,18 +28,20 @@ import kotlinx.parcelize.Parcelize
  * @author Akash Yadav
  */
 abstract class IPreference : Parcelable {
+	/** Icon resource for this preference. */
+	open val icon: Int? = null
 
-  /** Icon resource for this preference. */
-  open val icon: Int? = null
+	/** Key that will be used to store the value of this preference in shared preferences. */
+	abstract val key: String
 
-  /** Key that will be used to store the value of this preference in shared preferences. */
-  abstract val key: String
+	/** The title of the preference. */
+	abstract val title: Int
 
-  /** The title of the preference. */
-  abstract val title: Int
+	/** The summary of the preference. */
+	open val summary: Int? = null
 
-  /** The summary of the preference. */
-  open val summary: Int? = null
+	/** Tag used to look up this preference's tooltip in the documentation database. */
+	open val tooltipTag: String = ""
 
-  abstract fun onCreateView(context: Context): Preference
+	abstract fun onCreateView(context: Context): Preference
 }

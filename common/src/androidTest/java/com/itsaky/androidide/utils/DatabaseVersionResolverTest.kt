@@ -86,22 +86,44 @@ class DatabaseVersionResolverTest {
 		assertEquals(2, DatabaseVersionResolver.resolveMajorVersion(db))
 	}
 
-	// The table is an append-only log, so the row inserted last is the current version...
+	// Both directions, deliberately. Merging these into the downgrade case alone left a suite that
+	// MIN(major) would also have passed -- every expectation happened to be the lowest major present
+	// -- so nothing pinned the ordering the whole design rests on.
 	@Test
-	fun majorVersionIsTheLastRowInserted() {
+	fun majorVersionIsTheRowWrittenLast_whenTheLastRowIsHigher() {
 		createVersionTable()
 		insertVersion(2, 0, 0)
 		insertVersion(3, 1, 4)
 		assertEquals(3, DatabaseVersionResolver.resolveMajorVersion(db))
 	}
 
-	// ...including when that row is a downgrade, which MAX(major) would read as still current.
+	// ...and when it is lower, which MAX(major) would get wrong: a rebuild from an older content set
+	// is a downgrade and has to read as one.
 	@Test
-	fun majorVersionFollowsADowngrade() {
+	fun majorVersionIsTheRowWrittenLast_whenTheLastRowIsADowngrade() {
 		createVersionTable()
 		insertVersion(3, 0, 0)
 		insertVersion(2, 0, 0)
 		assertEquals(2, DatabaseVersionResolver.resolveMajorVersion(db))
+	}
+
+	// Malformed twice over: several rows, and the last one has no major. The shipped DDL forbids that
+	// -- which is the point, since this reader defends against files another producer wrote -- so the
+	// table is created here without the NOT NULL. The count is read before the NULL check, so a file
+	// like this still warns instead of being reported as having no version table at all.
+	@Test
+	fun majorVersionIsNull_whenTheLastRowHasNoMajor() {
+		db.execSQL(
+			"CREATE TABLE DocumentationDatabaseVersion (" +
+				"major INT, minor INT, patch INT, who TEXT, comment TEXT, changeTime TIMESTAMP)",
+		)
+		insertVersion(2, 0, 0)
+		db.execSQL(
+			"INSERT INTO DocumentationDatabaseVersion (major, minor, patch, who, comment) VALUES (?, ?, ?, ?, ?)",
+			arrayOf<Any?>(null, 0, 0, "test", "test"),
+		)
+
+		assertNull(DatabaseVersionResolver.resolveMajorVersion(db))
 	}
 
 	@Test
