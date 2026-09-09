@@ -1564,10 +1564,10 @@ open class EditorHandlerActivity :
 
 			fileTimestamps[savedFile.absolutePath] = savedFile.lastModified()
 
+			// savedFile, not frag.file: the editor's file is read through the view binding,
+			// which a tab closed after the write has already released.
 			accumulateSaveFlags(result, fileName, modified) {
-				frag.file?.let { file ->
-					ProjectManagerImpl.getInstance().isAndroidResource(file)
-				} == true
+				ProjectManagerImpl.getInstance().isAndroidResource(savedFile)
 			}
 
 			withContext(Dispatchers.Main) {
