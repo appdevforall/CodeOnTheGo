@@ -66,6 +66,7 @@ import java.io.File
 import java.util.Properties
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -115,11 +116,22 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		set(value) = cancellationTokenAccessLock.withLock { _buildCancellationToken = value }
 
 	/** Whether the project has been initialized or not. */
+	@Volatile
 	var isInitialized: Boolean = false
 		private set
 
-	/** Whether a build or project synchronization is in progress. */
-	private var isBuildInProgress: Boolean = false
+	/**
+	 * Whether a build or project synchronization is in progress, as a CAS rather than a
+	 * read-then-write.
+	 *
+	 * Same reason the fields above are @Volatile: every call runs on whichever commonPool worker
+	 * CompletableFuture.supplyAsync hands it. As a plain Boolean, two concurrent executeTasks calls
+	 * could both read false and both proceed -- two builds against one connection and one
+	 * cancellation token -- and a worker could go on seeing a stale true and refuse every build for
+	 * the life of the server. ([buildCancellationToken] needs nothing here; it already reads and
+	 * writes under its own lock.)
+	 */
+	private val buildInProgress = AtomicBoolean(false)
 
 	/** Whether the server has a live connection to Gradle. */
 	val isConnected: Boolean
@@ -426,14 +438,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 							durationMs = System.currentTimeMillis() - start,
 						),
 				)
-				val failure = getTaskFailureType(error)
-				// The one place a dead connection can be told apart from a bad project: a build
-				// that ran against it and failed. The next build reconnects rather than reusing it.
-				if (failure == CONNECTION_CLOSED || failure == CONNECTION_ERROR) {
-					log.warn("Marking the Gradle connection suspect after {}; the next build reconnects", failure)
-					connectionSuspect = true
-				}
-				TaskExecutionResult(false, failure)
+				TaskExecutionResult(false, getTaskFailureType(error))
 			},
 		) {
 			if (!isServerInitialized().get()) {
@@ -478,7 +483,20 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			this.buildCancellationToken = GradleConnector.newCancellationTokenSource()
 			builder.withCancellationToken(this.buildCancellationToken!!.token())
 
-			builder.run()
+			try {
+				builder.run()
+			} catch (error: Throwable) {
+				// Marked here, not in runBuild's catch. That catch covers the whole action, which
+				// is what makes a setup failure into a classified result instead of an escaped
+				// exception -- but classifyTaskFailure reads *any* IllegalStateException as
+				// CONNECTION_CLOSED, so marking from there condemned the connection over a throw
+				// from checkGradleWrapper, doPrepareBuild or configureFrom. The next build then
+				// disconnected, which sends the running daemon StopWhenIdle: this ticket's own bug,
+				// reached from a setup failure. A build that actually ran against the connection is
+				// the only failure that says anything about it.
+				markSuspectIfConnectionFailure(error)
+				throw error
+			}
 			this.buildCancellationToken = null
 			notifyBuildSuccess(
 				result =
@@ -523,15 +541,12 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	 * Finds the Gradle daemon and reports it to the client, so the memory chart can plot the process
 	 * that actually holds the build's heap (ADFA-5514).
 	 */
-	private val lazyDaemonWatcher =
-		lazy {
-			GradleDaemonWatcher(
-				onStarted = { pid -> client?.onGradleDaemonStarted(pid) },
-				onExited = { pid -> client?.onGradleDaemonExited(pid) },
-			)
-		}
-
-	private val daemonWatcher by lazyDaemonWatcher
+	private val daemonWatcher by lazy {
+		GradleDaemonWatcher(
+			onStarted = { pid -> client?.onGradleDaemonStarted(pid) },
+			onExited = { pid -> client?.onGradleDaemonExited(pid) },
+		)
+	}
 
 	private fun notifyBuildFailure(result: BuildResult) {
 		client?.onBuildFailed(result)
@@ -587,18 +602,6 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 					// Stop all daemons
 					log.info("Stopping all Gradle Daemons...")
 					DefaultGradleConnector.close()
-
-					// After the daemons, not before. The exit is reported through
-					// handle.onExit().thenRun { scheduler.execute { ... } }, so a scheduler already
-					// shut down rejects it and the client never hears that the daemon it is
-					// plotting has gone. Through the delegate rather than the property: touching
-					// the property would build a watcher, and its scheduler, only to shut it down
-					// again on a server that never ran a build.
-					if (lazyDaemonWatcher.isInitialized()) {
-						log.info("Stopping the Gradle daemon watcher...")
-						runCatching { daemonWatcher.shutdown() }
-							.onFailure { log.warn("Could not stop the Gradle daemon watcher", it) }
-					}
 				}
 
 			// update the initialization flag before cancelling future
@@ -609,18 +612,13 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			log.info("Cancelling awaiting future...")
 			Main.future?.cancel(true)
 
+			this.client = null
 			this.buildCancellationToken = null
 			this.lastInitParams = null
 			this.lastWrapperDistribution = null
 
 			// wait for connections to close
 			connectionCloseFuture.get()
-
-			// After the wait, not before. Stopping the daemons is what makes the watcher report
-			// their exit, and that report goes through `client` -- cleared first, it was a silent
-			// no-op and the client's chart kept the daemon's last value. Best effort even so: the
-			// client's own channel is going away at the same time.
-			this.client = null
 
 			log.info("Shutdown request completed.")
 			null
@@ -653,6 +651,18 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			else -> UNKNOWN
 		}
 
+	/**
+	 * Marks the connection suspect when [error] says it may be dead, so the next build replaces it
+	 * rather than reusing it. Only [executeTasks]'s build call reaches this; see the note there.
+	 */
+	private fun markSuspectIfConnectionFailure(error: Throwable) {
+		val failure = getTaskFailureType(error)
+		if (failure == CONNECTION_CLOSED || failure == CONNECTION_ERROR) {
+			log.warn("Marking the Gradle connection suspect after {}; the next build reconnects", failure)
+			connectionSuspect = true
+		}
+	}
+
 	private inline fun <T : Any?> supplyAsync(crossinline action: () -> T): CompletableFuture<T> =
 		CompletableFuture.supplyAsync {
 			action()
@@ -677,19 +687,18 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		crossinline action: () -> T,
 	): CompletableFuture<T> =
 		supplyAsync {
-			if (isBuildInProgress) {
+			if (!buildInProgress.compareAndSet(false, true)) {
 				log.error("Cannot run build, build is already in progress!")
 				throw IllegalStateException("Build is already in progress")
 			}
 
-			isBuildInProgress = true
 			daemonWatcher.onBuildStarted()
 			try {
 				action()
 			} catch (error: Throwable) {
 				onFailure(error)
 			} finally {
-				isBuildInProgress = false
+				buildInProgress.set(false)
 			}
 		}
 

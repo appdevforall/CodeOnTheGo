@@ -380,7 +380,57 @@ class ToolingApiServerImplTest {
 
 		assertThat(result.isSuccessful).isFalse()
 		assertThat(result.failure).isEqualTo(TaskExecutionResult.Failure.CONNECTION_CLOSED)
-		// And this is the one site that marks the connection suspect.
-		assertThat(server.connectionSuspect).isTrue()
+	}
+
+	@Test
+	fun `GIVEN a failure before the build runs THEN the connection is not condemned for it`() {
+		val (server) = mockkToolingServer()
+		every { server.isServerInitialized() } returns CompletableFuture.completedFuture(true)
+
+		mockkObject(Main)
+		// A setup failure, not a build one. classifyTaskFailure reads any IllegalStateException as
+		// CONNECTION_CLOSED, so marking the connection from runBuild's whole-action catch condemned
+		// it over a throw from here -- and the next build's reconnect sends the running daemon
+		// StopWhenIdle, which is the cold start this ticket exists to prevent.
+		every { Main.checkGradleWrapper() } throws IllegalStateException("no wrapper")
+
+		val result =
+			server
+				.executeTasks(TaskExecutionMessage(tasks = listOf("assembleDebug"), buildId = BuildId.Unknown))
+				.get(5, TimeUnit.SECONDS)
+
+		assertThat(result.isSuccessful).isFalse()
+		assertThat(server.connectionSuspect).isFalse()
+	}
+
+	@Test
+	fun `GIVEN a build already running THEN a second is refused rather than sharing its connection`() {
+		// The refusal, not the atomicity. This passes against a read-then-write too -- the first
+		// build has set the flag long before the second reads it -- so it pins the behaviour and
+		// not the CAS. A genuine interleaving is not reproducible on demand, so the compareAndSet
+		// in runBuild is argued from the threading model rather than pinned here.
+		val (server) = mockkToolingServer()
+		every { server.isServerInitialized() } returns CompletableFuture.completedFuture(true)
+
+		val started = java.util.concurrent.CountDownLatch(1)
+		val release = java.util.concurrent.CountDownLatch(1)
+		mockkObject(Main)
+		every { Main.checkGradleWrapper() } answers {
+			started.countDown()
+			release.await(5, TimeUnit.SECONDS)
+			throw IllegalStateException("done")
+		}
+
+		val first = server.executeTasks(TaskExecutionMessage(tasks = listOf("a"), buildId = BuildId.Unknown))
+		assertThat(started.await(5, TimeUnit.SECONDS)).isTrue()
+
+		val second = server.executeTasks(TaskExecutionMessage(tasks = listOf("b"), buildId = BuildId.Unknown))
+		val refused = runCatching { second.get(5, TimeUnit.SECONDS) }.exceptionOrNull()
+
+		release.countDown()
+		first.get(5, TimeUnit.SECONDS)
+
+		assertThat(refused).isNotNull()
+		assertThat(refused).hasCauseThat().hasMessageThat().contains("already in progress")
 	}
 }
