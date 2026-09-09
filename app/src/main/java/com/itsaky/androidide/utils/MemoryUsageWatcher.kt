@@ -235,8 +235,16 @@ class MemoryUsageWatcher
 				// index, wrapping back to 0 once it passes the end.
 				sampleTimes[0] = at
 				sampleTimes.shift(1)
-				sampled.forEach { (proc, usageBytes) ->
-					proc._history[0] = usageBytes
+
+				val readings = sampled.associate { (proc, usageBytes) -> proc.pid to usageBytes }
+				// Every watched process advances, not only the ones read above. Alignment between
+				// these buffers is by append count, so a process registered after the pid set was
+				// snapshotted -- the Gradle daemon appears when a build does -- would otherwise
+				// miss the append sampleTimes just took and stay one slot out of step with the row
+				// timestamps for the rest of the session. It gets a zero for the sample it was not
+				// present for, which watchedSinceMillis already tells the exporter to blank.
+				memoryUsage.values.forEach { proc ->
+					proc._history[0] = readings[proc.pid] ?: 0L
 					proc._history.shift(1)
 				}
 			}
@@ -295,15 +303,23 @@ class MemoryUsageWatcher
 			pid: Int,
 			pname: String,
 			unique: Boolean = true,
-		) {
+		) = synchronized(historyLock) {
+			// The same lock the sampler appends under. readUsages() snapshots the pid set, spends
+			// 13-31ms per process reading /proc, then appends to sampleTimes and to every process
+			// in that snapshot. A registration landing in that window missed the append that
+			// sampleTimes received, so the new buffer stayed one slot out of step with the row
+			// timestamps for the rest of the session -- the misalignment ADFA-5531's
+			// single-critical-section design exists to prevent. watchProcess also runs off the main
+			// thread (the tooling server's own, and a CompletableFuture completion), so this is not
+			// a UI-thread-only path that could rely on ordering.
 			if (memoryUsage.containsKey(pid)) {
 				log.warn("Process {} is already being watched", pid)
-				return
+				return@synchronized
 			}
 
 			if (unique) {
 				// unwatch the process with the given process name
-				unwatchProcess(pname)
+				removeByName(pname)
 			}
 
 			memoryUsage[pid] =
@@ -397,7 +413,11 @@ class MemoryUsageWatcher
 				// an old value -- plotting a point one slot out of place, which is exactly the
 				// scrambled history the lock's own doc says it prevents. NetworkUsageWatcher and
 				// PowerUsageWatcher already hand out copies for this reason.
-				Array(memoryUsage.size) { index -> memoryUsage.values.elementAt(index).snapshot() }
+				// One walk, no indexing. Reading size and then values.elementAt(index) could throw
+				// IndexOutOfBoundsException on the main thread if a process was unwatched between
+				// the two -- watchProcess(unique = true) removes one, and it runs from the tooling
+				// server's own thread. elementAt on a values view is also O(n).
+				memoryUsage.values.map { it.snapshot() }.toTypedArray()
 			}
 
 		/**
@@ -408,14 +428,19 @@ class MemoryUsageWatcher
 		/**
 		 * Removes the given process from the watch list.
 		 */
-		fun unwatchProcess(processId: Int) {
-			memoryUsage.remove(processId)
-		}
+		fun unwatchProcess(processId: Int) =
+			synchronized(historyLock) {
+				memoryUsage.remove(processId)
+				Unit
+			}
 
 		/**
 		 * Removes the process with the given process name from the watch list.
 		 */
-		fun unwatchProcess(procName: String) {
+		fun unwatchProcess(procName: String) = synchronized(historyLock) { removeByName(procName) }
+
+		/** Removal without taking [historyLock], for callers that already hold it. */
+		private fun removeByName(procName: String) {
 			memoryUsage.values.forEach {
 				if (it.pname == procName) {
 					memoryUsage.remove(it.pid)
@@ -426,9 +451,10 @@ class MemoryUsageWatcher
 		/**
 		 * Unwatches all the registered processes.
 		 */
-		fun unwatchAll() {
-			memoryUsage.clear()
-		}
+		fun unwatchAll() =
+			synchronized(historyLock) {
+				memoryUsage.clear()
+			}
 
 		/**
 		 * Stop watching processes for their memory usage.

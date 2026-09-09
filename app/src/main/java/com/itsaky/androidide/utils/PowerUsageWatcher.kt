@@ -232,6 +232,14 @@ class PowerUsageWatcher
 			closed.set(true)
 			stopWatching()
 			listener = null
+			// The source too, if it holds anything. DevicePowerSource registers a battery receiver
+			// against the application context, so a source left open outlives this watcher and the
+			// editor that created it -- one more receiver per editor session, for the life of the
+			// process. PowerSource stays a fun interface so a test can still pass a lambda.
+			(source as? AutoCloseable)?.let { closeable ->
+				runCatching { closeable.close() }
+					.onFailure { log.warn("Could not close the power source", it) }
+			}
 			coroutineScope.cancelIfActive("Watcher closed")
 			(coroutineDispatcher as? ExecutorCoroutineDispatcher)?.close()
 		}

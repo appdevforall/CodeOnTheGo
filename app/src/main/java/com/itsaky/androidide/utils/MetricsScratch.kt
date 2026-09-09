@@ -84,7 +84,17 @@ class MetricsScratch(
 		 * which is what it did before this existed.
 		 */
 		fun install(
-			entries: Int = MemoryUsageWatcher.MAX_USAGE_ENTRIES,
+			// The largest of the three retentions, not the memory watcher's alone. These arrays are
+			// handed to all three watchers, and ShiftedLongArray.copyInto require()s an exact size
+			// match -- so if the three constants ever stop agreeing, the throw lands inside
+			// MetricsCrashAttachment.writeSnapshot, where runCatching swallows it and every crash
+			// report silently loses its metrics, which is the failure this class exists to prevent.
+			entries: Int =
+				maxOf(
+					MemoryUsageWatcher.MAX_USAGE_ENTRIES,
+					NetworkUsageWatcher.MAX_USAGE_ENTRIES,
+					PowerUsageWatcher.MAX_USAGE_ENTRIES,
+				),
 			memorySeries: Int = MetricsCsv.MEMORY_COLUMNS.size,
 		) {
 			if (instance != null) {

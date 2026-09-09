@@ -333,6 +333,23 @@ class MetricsCarouselController(
 		)
 
 	/**
+	 * Unbinds only if [binding] is still the bound one.
+	 *
+	 * The undock and redock paths are two independent collectors of the same DockingManager
+	 * emission with nothing ordering them, so the editor can rebind this controller to its own
+	 * views before the floating window's onDestroyView runs. An unconditional unbind there stripped
+	 * the editor's freshly bound carousel -- adapter null, listeners cleared, renderers detached --
+	 * leaving a dead strip until the next onResume. Every sibling teardown here is identity-guarded
+	 * for the same reason.
+	 */
+	@UiThread
+	fun unbindIfBoundTo(binding: LayoutMemUsageBinding) {
+		if (this.binding === binding) {
+			unbind()
+		}
+	}
+
+	/**
 	 * Stops feeding the carousel and releases the bound views. Sampling is unaffected -- the
 	 * watchers keep their history, so re-binding shows it in full.
 	 */
@@ -573,13 +590,20 @@ class MetricsCarouselController(
 				intervalMillis,
 				IDEBuildConfigProvider.getInstance().deviceArch,
 			)
+		// Whether anything actually changes, because the clear below must not run when nothing
+		// does: each watcher's setter returns early on an unchanged value, so re-picking the rate
+		// already in effect -- which the dialog allows, and which a user opening it to read the
+		// options does -- cleared every build marker off a chart whose samples were untouched.
+		val changed = memoryUsageWatcher.updateInterval != supported
 		memoryUsageWatcher.updateInterval = supported
 		networkUsageWatcher.updateInterval = supported
 		powerUsageWatcher.updateInterval = supported
-		// The annotations go with the samples they annotate. Left behind, task markers stood over
-		// a flat zero line with nothing to mark -- and this is the only route by which the store's
-		// throttle window is ever reset.
-		annotations?.clear()
+		if (changed) {
+			// The annotations go with the samples they annotate. Left behind, task markers stood
+			// over a flat zero line with nothing to mark -- and this is the only route by which the
+			// store's throttle window is ever reset.
+			annotations?.clear()
+		}
 		refresh()
 	}
 

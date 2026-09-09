@@ -51,7 +51,8 @@ import kotlin.math.abs
  */
 class DevicePowerSource(
 	private val context: Context,
-) : PowerUsageWatcher.PowerSource {
+) : PowerUsageWatcher.PowerSource,
+	AutoCloseable {
 	private val batteryManager = context.getSystemService<BatteryManager>()
 	private val powerManager = context.getSystemService<PowerManager>()
 
@@ -76,7 +77,7 @@ class DevicePowerSource(
 	}
 
 	/** Stops listening. The source is unusable afterwards; [read] would go on reporting the last Intent. */
-	fun close() {
+	override fun close() {
 		runCatching { context.unregisterReceiver(batteryReceiver) }
 			.onFailure { log.warn("Could not unregister the battery receiver", it) }
 	}

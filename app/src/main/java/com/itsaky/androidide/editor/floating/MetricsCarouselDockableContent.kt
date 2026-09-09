@@ -66,6 +66,7 @@ class MetricsCarouselDockableContent(
 		host: FloatingWindowHost,
 	): View {
 		val binding = LayoutMemUsageBinding.inflate(LayoutInflater.from(context))
+		this.binding = binding
 
 		// The editor sizes the carousel to a fixed strip; in a window it should fill whatever the
 		// user has dragged the frame out to.
@@ -95,8 +96,13 @@ class MetricsCarouselDockableContent(
 	}
 
 	override fun onDestroyView() {
-		controller.unbind()
+		// Only if the controller is still bound to this window's views. The redock path rebinds it
+		// to the editor's, and nothing orders the two collectors of the same docking emission.
+		binding?.let(controller::unbindIfBoundTo)
+		binding = null
 	}
+
+	private var binding: LayoutMemUsageBinding? = null
 
 	private fun hideSoftInput(view: View) {
 		val manager = view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
