@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.ui
 
+import android.content.Context
 import android.graphics.Color
 import androidx.annotation.UiThread
 import androidx.core.graphics.ColorUtils
@@ -82,6 +83,7 @@ class PowerUsageChartRenderer(
 		val datasets =
 			arrayOf(
 				series(
+					context = context,
 					values = usage.temperatureMilliCelsius,
 					label = context.getString(R.string.metrics_power_temperature),
 					lineColor = TEMPERATURE_COLOR,
@@ -89,6 +91,7 @@ class PowerUsageChartRenderer(
 					transform = ::milliCelsiusToCelsius,
 				),
 				series(
+					context = context,
 					values = usage.powerMicroWatts,
 					label = context.getString(R.string.metrics_power_draw),
 					lineColor = POWER_COLOR,
@@ -126,6 +129,7 @@ class PowerUsageChartRenderer(
 
 		val context = chart.context
 		update(
+			context = context,
 			dataset = temperature,
 			values = usage.temperatureMilliCelsius,
 			label = context.getString(R.string.metrics_power_temperature),
@@ -133,6 +137,7 @@ class PowerUsageChartRenderer(
 			transform = ::milliCelsiusToCelsius,
 		)
 		update(
+			context = context,
 			dataset = power,
 			values = usage.powerMicroWatts,
 			label = context.getString(R.string.metrics_power_draw),
@@ -146,6 +151,7 @@ class PowerUsageChartRenderer(
 
 	/** Rewrites one series' values in place and refreshes its legend entry. */
 	private fun update(
+		context: Context,
 		dataset: LineDataSet,
 		values: LongArray,
 		label: String,
@@ -155,7 +161,7 @@ class PowerUsageChartRenderer(
 		for (index in values.indices) {
 			dataset.entries[index].y = transform(values[index])
 		}
-		dataset.label = labelFor(label, values.lastOrNull(), axis)
+		dataset.label = labelFor(context, label, values.lastOrNull(), axis)
 		dataset.notifyDataSetChanged()
 	}
 
@@ -259,6 +265,7 @@ class PowerUsageChartRenderer(
 	}
 
 	private fun series(
+		context: Context,
 		values: LongArray,
 		label: String,
 		lineColor: Int,
@@ -276,24 +283,23 @@ class PowerUsageChartRenderer(
 			setDrawCircleHole(false)
 			setDrawValues(false)
 			isHighlightEnabled = false
-			this.label = labelFor(label, values.lastOrNull(), axis)
+			this.label = labelFor(context, label, values.lastOrNull(), axis)
 		}
 
 	private fun labelFor(
+		context: Context,
 		label: String,
 		latest: Long?,
 		axis: YAxis.AxisDependency,
 	): String {
 		val value = latest ?: PowerUsageWatcher.UNAVAILABLE
-		if (value == PowerUsageWatcher.UNAVAILABLE) {
-			return "%s - n/a".format(label)
-		}
-
-		return if (axis == YAxis.AxisDependency.LEFT) {
-			"%s - %.1fC".format(label, milliCelsiusToCelsius(value))
-		} else {
-			"%s - %s".format(label, formatPower(value))
-		}
+		val reading =
+			when {
+				value == PowerUsageWatcher.UNAVAILABLE -> context.getString(R.string.metrics_value_unavailable)
+				axis == YAxis.AxisDependency.LEFT -> "%.1f\u00b0".format(milliCelsiusToCelsius(value))
+				else -> formatPower(value)
+			}
+		return context.getString(R.string.metrics_legend_entry, label, reading)
 	}
 
 	/**
@@ -318,7 +324,7 @@ class PowerUsageChartRenderer(
 
 		// Integer labels need integer grid lines, exactly as the watt axis below does. Now that
 		// the range is tight -- 29 to 33 rather than 0 to 36 -- the axis would otherwise place
-		// lines half a degree apart and "%dC" would print 29C, 30C, 30C, 31C, 31C.
+		// lines half a degree apart and the integer format would print 29, 30, 30, 31, 31.
 		chart.axisLeft.granularity = 1f
 		chart.axisLeft.isGranularityEnabled = true
 
@@ -327,7 +333,7 @@ class PowerUsageChartRenderer(
 				override fun getFormattedValue(
 					value: Float,
 					axis: AxisBase?,
-				): String = "%dC".format(value.roundToLong())
+				): String = "%d\u00b0".format(value.roundToLong())
 			}
 
 		// Watts, not milliwatts: a build peaks in single digit watts, so mW labels spent three

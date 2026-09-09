@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.ui
 
+import android.content.Context
 import android.graphics.Color
 import androidx.annotation.UiThread
 import com.github.mikephil.charting.components.AxisBase
@@ -29,7 +30,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import com.itsaky.androidide.utils.NetworkUsageWatcher.NetworkUsage
-import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.log10
 import kotlin.math.max
@@ -77,8 +77,18 @@ class NetworkUsageChartRenderer(
 
 		val datasets =
 			arrayOf(
-				dataset(usage.received, chart.context.getString(R.string.metrics_network_received), RECEIVED_COLOR),
-				dataset(usage.transmitted, chart.context.getString(R.string.metrics_network_transmitted), TRANSMITTED_COLOR),
+				dataset(
+					chart.context,
+					usage.received,
+					chart.context.getString(R.string.metrics_network_received),
+					RECEIVED_COLOR,
+				),
+				dataset(
+					chart.context,
+					usage.transmitted,
+					chart.context.getString(R.string.metrics_network_transmitted),
+					TRANSMITTED_COLOR,
+				),
 			)
 
 		setData(chart, datasets) { applyAxisRange(it, usage) }
@@ -108,13 +118,19 @@ class NetworkUsageChartRenderer(
 			return
 		}
 
-		update(received, usage.received, chart.context.getString(R.string.metrics_network_received))
-		update(transmitted, usage.transmitted, chart.context.getString(R.string.metrics_network_transmitted))
+		update(chart.context, received, usage.received, chart.context.getString(R.string.metrics_network_received))
+		update(
+			chart.context,
+			transmitted,
+			usage.transmitted,
+			chart.context.getString(R.string.metrics_network_transmitted),
+		)
 
 		redraw(chart) { applyAxisRange(it, usage) }
 	}
 
 	private fun dataset(
+		context: Context,
 		samples: LongArray,
 		label: String,
 		lineColor: Int,
@@ -134,10 +150,11 @@ class NetworkUsageChartRenderer(
 			setDrawCircleHole(false)
 			setDrawValues(false)
 			isHighlightEnabled = false
-			this.label = labelFor(label, samples.lastOrNull() ?: 0L)
+			this.label = labelFor(context, label, samples.lastOrNull() ?: 0L)
 		}
 
 	private fun update(
+		context: Context,
 		dataset: LineDataSet,
 		samples: LongArray,
 		label: String,
@@ -145,7 +162,7 @@ class NetworkUsageChartRenderer(
 		for (index in samples.indices) {
 			dataset.entries[index].y = samples[index].toLogBytes()
 		}
-		dataset.label = labelFor(label, samples.lastOrNull() ?: 0L)
+		dataset.label = labelFor(context, label, samples.lastOrNull() ?: 0L)
 		dataset.notifyDataSetChanged()
 	}
 
@@ -158,9 +175,15 @@ class NetworkUsageChartRenderer(
 	 * throughput fivefold, with the axis agreeing.
 	 */
 	private fun labelFor(
+		context: Context,
 		label: String,
 		bytes: Long,
-	): String = "%s - %s/s".format(label, formatBytes(bytesPerSecond(bytes), decimals = 1))
+	): String =
+		context.getString(
+			R.string.metrics_legend_entry,
+			label,
+			"%s/s".format(formatBytes(bytesPerSecond(bytes), decimals = 1)),
+		)
 
 	/** A per-interval byte count as a per-second rate. */
 	private fun bytesPerSecond(bytes: Long): Double = bytes.toDouble() * MILLIS_PER_SECOND / sampleInterval().coerceAtLeast(1L)
@@ -265,9 +288,9 @@ private fun formatBytes(
 ): String {
 	val clamped = bytes.coerceAtLeast(0.0)
 	return when {
-		clamped < 1_000 -> "%d B".format(Locale.US, clamped.roundToLong())
-		clamped < 1_000_000 -> "%.${decimals}f kB".format(Locale.US, clamped / 1_000)
-		clamped < 1_000_000_000 -> "%.${decimals}f MB".format(Locale.US, clamped / 1_000_000)
-		else -> "%.${decimals}f GB".format(Locale.US, clamped / 1_000_000_000)
+		clamped < 1_000 -> "%d B".format(clamped.roundToLong())
+		clamped < 1_000_000 -> "%.${decimals}f kB".format(clamped / 1_000)
+		clamped < 1_000_000_000 -> "%.${decimals}f MB".format(clamped / 1_000_000)
+		else -> "%.${decimals}f GB".format(clamped / 1_000_000_000)
 	}
 }

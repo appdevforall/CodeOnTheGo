@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.ui
 
+import android.content.Context
 import androidx.annotation.UiThread
 import androidx.collection.IntObjectMap
 import androidx.collection.MutableIntIntMap
@@ -107,7 +108,7 @@ class MemoryUsageChartRenderer(
 					setDrawCircleHole(false)
 					setDrawValues(false)
 					isHighlightEnabled = false
-					label = labelFor(proc.pname, entries.lastOrNull()?.y ?: 0f)
+					label = labelFor(chart.context, proc.pname, entries.lastOrNull()?.y ?: 0f)
 				}
 			}
 
@@ -182,7 +183,7 @@ class MemoryUsageChartRenderer(
 				dataset.entries[index].y = proc.usageHistory.megabytesAt(index)
 			}
 
-			dataset.label = labelFor(proc.pname, dataset.entries.lastOrNull()?.y ?: 0f)
+			dataset.label = labelFor(chart.context, proc.pname, dataset.entries.lastOrNull()?.y ?: 0f)
 			dataset.notifyDataSetChanged()
 			dataChanged = true
 		}
@@ -218,9 +219,10 @@ class MemoryUsageChartRenderer(
 	}
 
 	private fun labelFor(
+		context: Context,
 		pname: String,
 		megabytes: Float,
-	): String = "%s - %.2fMB".format(pname, megabytes)
+	): String = context.getString(R.string.metrics_legend_entry, pname, "%.2fMB".format(megabytes))
 }
 
 internal const val BYTES_PER_MEGABYTE = 1024.0 * 1024.0

@@ -1700,6 +1700,10 @@
 	<string name="msg_metrics_export_failed">Couldn\'t save the metrics data.</string>
 	<string name="metrics_network_received">Received</string>
 	<string name="metrics_network_transmitted">Sent</string>
+	<string name="metrics_axis_now">now</string>
+	<string name="metrics_value_unavailable">n/a</string>
+	<!-- A chart legend entry: the series name, then its latest value. -->
+	<string name="metrics_legend_entry">%1$s - %2$s</string>
 
 </resources>
 

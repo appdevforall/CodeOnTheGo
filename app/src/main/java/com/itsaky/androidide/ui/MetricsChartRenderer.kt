@@ -376,7 +376,8 @@ abstract class MetricsChartRenderer(
 			// chooser -- so one gesture both undocked the strip and cleared every buffer.
 			onSecondPointerDown = { axisTapListener?.abandonGesture() }
 
-			xAxis.valueFormatter = ElapsedTimeFormatter(sampleIntervalMillis)
+			xAxis.valueFormatter =
+				ElapsedTimeFormatter(sampleIntervalMillis, context.getString(R.string.metrics_axis_now))
 			// One label per 15 samples keeps the window readable without crowding.
 			xAxis.granularity = X_LABEL_GRANULARITY_SAMPLES
 			xAxis.isGranularityEnabled = true
@@ -656,6 +657,7 @@ abstract class MetricsChartRenderer(
 	 */
 	private class ElapsedTimeFormatter(
 		private val sampleIntervalMillis: () -> Long,
+		private val nowLabel: String,
 	) : IAxisValueFormatter {
 		override fun getFormattedValue(
 			value: Float,
@@ -663,7 +665,7 @@ abstract class MetricsChartRenderer(
 		): String {
 			val newestIndex = (axis?.mAxisMaximum ?: value)
 			val secondsAgo = ((newestIndex - value) * sampleIntervalMillis() / 1000f).roundToLong()
-			return if (secondsAgo <= 0L) "now" else "-%ds".format(secondsAgo)
+			return if (secondsAgo <= 0L) nowLabel else "-%ds".format(secondsAgo)
 		}
 	}
 
