@@ -554,8 +554,13 @@ class DocumentationContentSource(
 						throw TemplateRenderException("Template ID $templateId not found in the database, for path '$path'")
 					}
 
+					// The same guard the loader applies to getBlob. getString returns a platform
+					// type, so a NULL name column yields null and the implicit null check throws a
+					// bare NPE -- rewrapped below as the generic message, losing both the column
+					// and, unlike the loader's path, the template's identity.
 					else -> {
 						cursor.getString(0)
+							?: throw TemplateRenderException("Template ID $templateId has no name, for path '$path'")
 					}
 				}
 			}
