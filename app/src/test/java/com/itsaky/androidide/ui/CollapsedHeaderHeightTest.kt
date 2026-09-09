@@ -61,4 +61,22 @@ class CollapsedHeaderHeightTest {
 		assertEquals(floor, collapsedHeaderHeightPx(floor, 0f, chrome, statusShown = true))
 		assertEquals(floor, collapsedHeaderHeightPx(floor, -1f, chrome, statusShown = true))
 	}
+
+	@Test
+	fun `while a build narrates a shorter status line does not shrink the header`() {
+		// Font scale 2.0: "Resolve dependencies of :app:v8DebugRuntimeClasspath" wrapped to three
+		// rows (222px) and the next task line takes one (108px). Following the measurement
+		// would move the peek on every task Gradle starts.
+		assertEquals(222f, statusHeightAfterMeasure(previousPx = 222f, measuredPx = 108f, buildNarrating = true))
+	}
+
+	@Test
+	fun `while a build narrates a taller status line still grows the header`() {
+		assertEquals(222f, statusHeightAfterMeasure(previousPx = 108f, measuredPx = 222f, buildNarrating = true))
+	}
+
+	@Test
+	fun `once the build ends the header re-fits the status line`() {
+		assertEquals(108f, statusHeightAfterMeasure(previousPx = 222f, measuredPx = 108f, buildNarrating = false))
+	}
 }
