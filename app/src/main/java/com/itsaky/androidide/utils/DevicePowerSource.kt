@@ -143,24 +143,42 @@ class DevicePowerSource(
 		val microWatts = microAmps.toLong() * milliVolts.toLong() / NANOWATTS_PER_MICROWATT
 
 		// The sign of CURRENT_NOW is documented and not always honoured; the unit is the same
-		// story. Several OEM kernels report milliamps, which divides the reading by a thousand:
-		// a five-watt build then reads as five milliwatts, with no error path at all.
+		// story. Several OEM kernels report milliamps, which divides the reading by a thousand: a
+		// five-watt build then reads as five milliwatts, with no error path at all.
 		//
-		// A single sample cannot tell that apart from a genuinely tiny draw -- both are 5,000
-		// microwatts -- so this is a plausibility floor, not a detector. It is set to reject the
-		// range a misreported build actually lands in: a real draw of 0.01W to 100W misreported as
-		// milliwatts gives 10 to 100,000 microwatts, and a phone running a Gradle build draws
-		// watts, not milliwatts. The residual gaps are stated rather than papered over: a real
-		// draw below MIN_PLAUSIBLE_MICROWATTS is rejected as implausible, and a misreport of a
-		// draw above 10W would pass -- neither happens on a phone.
+		// Corrected, not discarded. Rejecting that band identified the misreport and then threw the
+		// sample away, so on a device with such a kernel every sample was UNAVAILABLE and the power
+		// series read "n/a" for the life of the session -- while temperature, which has no such
+		// filter, plotted normally. Measured on a Galaxy Note 20 Ultra: CURRENT_NOW 318 at 3807mV
+		// gives 1,210 microwatts, which is 1.21W of a phone with an IDE open reported as 1.2mW.
 		//
-		// The earlier comment here claimed the envelope caught the milliamp case at a 1,000
-		// microwatt floor. It did not: five watts misreported is 5,000, comfortably inside it.
+		// A single sample still cannot distinguish a milliamp kernel from a genuinely tiny draw, so
+		// this remains a judgement rather than a detector. It is the same judgement the floor
+		// already made, now acted on instead of used to drop the reading: below 10mW a non-zero
+		// draw is far likelier to be a unit mismatch than a real measurement, because the only
+		// device drawing single-digit milliwatts is one in deep doze -- and a dozing device is not
+		// running the build this chart exists to measure.
 		val magnitude = abs(microWatts)
-		return if (magnitude == 0L || magnitude in MIN_PLAUSIBLE_MICROWATTS..MAX_PLAUSIBLE_MICROWATTS) {
-			microWatts
-		} else {
-			PowerUsageWatcher.UNAVAILABLE
+		return when {
+			magnitude == 0L -> {
+				microWatts
+			}
+
+			magnitude in MIN_PLAUSIBLE_MICROWATTS..MAX_PLAUSIBLE_MICROWATTS -> {
+				microWatts
+			}
+
+			// Recomputed from the scaled current rather than by scaling the product: the product
+			// has already been through an integer division, so multiplying it back up would round
+			// to the nearest milliwatt.
+			magnitude < MIN_PLAUSIBLE_MICROWATTS -> {
+				microAmps.toLong() * MICROAMPS_PER_MILLIAMP * milliVolts.toLong() / NANOWATTS_PER_MICROWATT
+			}
+
+			// Above the ceiling is the mismatch the other way, and scaling up would only widen it.
+			else -> {
+				PowerUsageWatcher.UNAVAILABLE
+			}
 		}
 	}
 
@@ -234,5 +252,8 @@ class DevicePowerSource(
 
 		/** A hundred watts: no phone draws this, so that is a unit mismatch the other way. */
 		const val MAX_PLAUSIBLE_MICROWATTS = 100_000_000L
+
+		/** What a milliamp-reporting kernel's reading must be multiplied by to become microamps. */
+		const val MICROAMPS_PER_MILLIAMP = 1_000L
 	}
 }

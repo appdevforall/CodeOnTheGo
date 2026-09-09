@@ -38,11 +38,31 @@ class DevicePowerEnvelopeTest {
 	private val source = DevicePowerSource(ApplicationProvider.getApplicationContext<Context>())
 
 	@Test
-	fun `a five-watt build misreported in milliamps is rejected`() {
-		// The case the old floor let through. 5W at 4V is 1.25A; a milliamp kernel reports 1250
-		// where microamps would say 1_250_000, so the product comes out a thousand times small.
+	fun `a five-watt build misreported in milliamps is corrected, not dropped`() {
+		// 5W at 4V is 1.25A; a milliamp kernel reports 1250 where microamps would say 1_250_000,
+		// so the product comes out a thousand times small. This used to answer UNAVAILABLE, which
+		// identified the misreport and then discarded the sample.
 		assertThat(source.microWattsOrUnavailable(microAmps = 1_250, milliVolts = 4_000))
-			.isEqualTo(PowerUsageWatcher.UNAVAILABLE)
+			.isEqualTo(5_000_000L)
+	}
+
+	@Test
+	fun `the Galaxy Note 20 Ultra's own reading becomes a number rather than n slash a`() {
+		// Measured on the device: CURRENT_NOW 318 at 3807mV, with the editor open after a build.
+		// Taken at face value that is 1,210 microwatts -- 1.2mW for a phone running an IDE -- and
+		// being below the floor it was dropped, so the Power series read "n/a" on every sample for
+		// the life of the session while temperature plotted normally.
+		val microWatts = source.microWattsOrUnavailable(microAmps = 318, milliVolts = 3_807)
+
+		assertThat(microWatts).isNotEqualTo(PowerUsageWatcher.UNAVAILABLE)
+		assertThat(microWatts).isEqualTo(1_210_626L)
+	}
+
+	@Test
+	fun `a discharging misreport keeps its sign through the correction`() {
+		// The same device discharging: CURRENT_NOW -496 at 3731mV, i.e. 1.85W leaving the battery.
+		assertThat(source.microWattsOrUnavailable(microAmps = -496, milliVolts = 3_731))
+			.isEqualTo(-1_850_576L)
 	}
 
 	@Test
