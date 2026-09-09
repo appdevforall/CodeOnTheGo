@@ -235,6 +235,15 @@ object TooltipTag {
 	const val WINDOW_DOCK = "window-dock"
 	const val WINDOW_UNDOCK = "window-undock"
 
+	/**
+	 * The floating window's close control.
+	 *
+	 * Distinct from [WINDOW_UNDOCK], which names the opposite action and belongs to the editor
+	 * controls that open something in a window. The chrome's close button borrowed that tag, so a
+	 * long press on it answered "Opens the file in a separate window".
+	 */
+	const val WINDOW_CLOSE = "window-close"
+
 	// Delete project
 	const val DELETE_PROJECT = "project.delete"
 	const val DELETE_PROJECT_SELECT = "project.delete.select"
@@ -314,4 +323,20 @@ object TooltipTag {
 	const val GIT_DIALOG_ABORT_MERGE = "git.dialog.abortmerge"
 	const val GIT_PUSH = "git.action.push"
 	const val GIT_PULL = "git.action.pull"
+
+	// Editor metrics carousel (ADFA-5510). Unprefixed like every other tag here: the lookup is by
+	// tag AND category, and the category column already carries "ide".
+	const val CAROUSEL_PANEL = "carousel.panel"
+	const val CAROUSEL_TITLE = "carousel.title"
+	const val CAROUSEL_PREVIOUS = "carousel.previous"
+	const val CAROUSEL_NEXT = "carousel.next"
+	const val CAROUSEL_SNAPSHOT = "carousel.snapshot"
+	const val CAROUSEL_EXPORT = "carousel.export"
+	const val CAROUSEL_CHART_MEMORY = "carousel.chart.memory"
+	const val CAROUSEL_CHART_NETWORK = "carousel.chart.network"
+	const val CAROUSEL_CHART_POWER = "carousel.chart.power"
+	const val CAROUSEL_BATTERY = "carousel.battery"
+	const val CAROUSEL_AXIS_TIME = "carousel.axis.time"
+	const val CAROUSEL_RATE = "carousel.rate"
+	const val CAROUSEL_UNDOCKED = "carousel.undocked"
 }

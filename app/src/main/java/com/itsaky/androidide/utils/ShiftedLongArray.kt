@@ -34,110 +34,123 @@ package com.itsaky.androidide.utils
  * @author Akash Yadav
  */
 open class ShiftedLongArray(
-  protected val array: LongArray,
-  shift: Int = 0
+	protected val array: LongArray,
+	shift: Int = 0,
 ) : Collection<Long> {
+	override val size: Int
+		get() = array.size
 
-  override val size: Int
-    get() = array.size
+	var shift: Int = shift
+		protected set
 
-  var shift: Int = shift
-    protected set
+	val normalizedShift: Int
+		get() = ((shift % size) + size) % size
 
-  val normalizedShift: Int
-    get() = ((shift % size) + size) % size
+	@Suppress("NOTHING_TO_INLINE")
+	protected inline fun checkIdx(idx: Int) {
+		if (idx < 0 || idx >= array.size) {
+			throw IndexOutOfBoundsException("Index $idx is out of bounds for array of size ${array.size}")
+		}
+	}
 
-  @Suppress("NOTHING_TO_INLINE")
-  protected inline fun checkIdx(idx: Int) {
-    if (idx < 0 || idx >= array.size) {
-      throw IndexOutOfBoundsException("Index $idx is out of bounds for array of size ${array.size}")
-    }
-  }
+	/**
+	 * Get the corresponding shifted-index for the given index.
+	 */
+	open fun getShiftedIndex(index: Int): Int {
+		val size = this.size
+		val idx =
+			if (shift < 0) {
+				size - index
+			} else {
+				index
+			}
+		return (idx + normalizedShift) % size
+	}
 
-  /**
-   * Get the corresponding shifted-index for the given index.
-   */
-  open fun getShiftedIndex(index: Int): Int {
-    val size = this.size
-    val idx = if (shift < 0) {
-      size - index
-    } else index
-    return (idx + normalizedShift) % size
-  }
+	/**
+	 * Returns whether the contents of this array are equal to the specified array.
+	 */
+	fun contentEquals(array: ShiftedLongArray): Boolean = contentEquals(array.array)
 
-  /**
-   * Returns whether the contents of this array are equal to the specified array.
-   */
-  fun contentEquals(array: ShiftedLongArray): Boolean {
-    return contentEquals(array.array)
-  }
+	/**
+	 * Returns whether the contents of this array are equal to the specified array.
+	 */
+	fun contentEquals(array: LongArray): Boolean = this.array.contentEquals(array)
 
-  /**
-   * Returns whether the contents of this array are equal to the specified array.
-   */
-  fun contentEquals(array: LongArray): Boolean {
-    return this.array.contentEquals(array)
-  }
+	/**
+	 * Returns the hash code value for the contents of this array.
+	 */
+	fun contentHashCode(): Int = array.contentHashCode()
 
-  /**
-   * Returns the hash code value for the contents of this array.
-   */
-  fun contentHashCode(): Int {
-    return array.contentHashCode()
-  }
+	operator fun get(index: Int): Long {
+		checkIdx(index)
+		return array[getShiftedIndex(index)]
+	}
 
-  operator fun get(index: Int): Long {
-    checkIdx(index)
-    return array[getShiftedIndex(index)]
-  }
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (other !is ShiftedLongArray) return false
 
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (other !is ShiftedLongArray) return false
+		if (!array.contentEquals(other.array)) return false
+		if (shift != other.shift) return false
 
-    if (!array.contentEquals(other.array)) return false
-    if (shift != other.shift) return false
+		return true
+	}
 
-    return true
-  }
+	override fun hashCode(): Int {
+		var result = array.contentHashCode()
+		result = 31 * result + shift
+		return result
+	}
 
-  override fun hashCode(): Int {
-    var result = array.contentHashCode()
-    result = 31 * result + shift
-    return result
-  }
+	override fun isEmpty(): Boolean = array.isEmpty()
 
-  override fun isEmpty(): Boolean {
-    return array.isEmpty()
-  }
+	override fun containsAll(elements: Collection<Long>): Boolean = elements.all { array.contains(it) }
 
-  override fun containsAll(elements: Collection<Long>): Boolean {
-    return elements.all { array.contains(it) }
-  }
+	override fun contains(element: Long): Boolean = array.contains(element)
 
-  override fun contains(element: Long): Boolean {
-    return array.contains(element)
-  }
+	override fun iterator(): Iterator<Long> {
+		return object : Iterator<Long> {
+			var index = 0
 
-  override fun iterator(): Iterator<Long> {
-    return object : Iterator<Long> {
-      var index = 0
+			override fun hasNext(): Boolean = index < array.size
 
-      override fun hasNext(): Boolean {
-        return index < array.size
-      }
+			override fun next(): Long {
+				if (!hasNext()) {
+					throw NoSuchElementException()
+				} else {
+					return this@ShiftedLongArray[index++]
+				}
+			}
+		}
+	}
 
-      override fun next(): Long {
-        if (!hasNext()) {
-          throw NoSuchElementException()
-        } else {
-          return this@ShiftedLongArray[index++]
-        }
-      }
-    }
-  }
+	override fun toString(): String = "ShiftedLongArray(array=${array.contentToString()}, shift=$shift)"
+}
 
-  override fun toString(): String {
-    return "ShiftedLongArray(array=${array.contentToString()}, shift=$shift)"
-  }
+/**
+ * Copies this ring buffer into a plain array in logical order, oldest first.
+ *
+ * Shared so the watchers' snapshots cannot drift from [ShiftedLongArray]'s shift semantics; each
+ * of them had its own private copy of this one line.
+ */
+internal fun ShiftedLongArray.toLongArray(): LongArray = copyInto(LongArray(size))
+
+/**
+ * Copies this ring buffer into [dest] in logical order, oldest first, and returns it.
+ *
+ * For a caller that owns its destination already. A crash handler must not allocate -- the crash it
+ * is reporting may be the heap running out -- so ADFA-5526 pre-allocates one set of destinations at
+ * startup and fills them here instead of taking eleven fresh arrays per snapshot.
+ *
+ * @throws IllegalArgumentException when [dest] is not exactly this buffer's length. A short
+ *   destination would silently truncate the history and a long one would leave a stale tail behind
+ *   it, and both read as data.
+ */
+internal fun ShiftedLongArray.copyInto(dest: LongArray): LongArray {
+	require(dest.size == size) { "Destination is ${dest.size} long, buffer is $size" }
+	for (i in 0 until size) {
+		dest[i] = this[i]
+	}
+	return dest
 }

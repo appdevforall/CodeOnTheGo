@@ -1,0 +1,95 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.itsaky.androidide.utils
+
+import androidx.annotation.VisibleForTesting
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * Destinations for one metrics snapshot, allocated once so that taking one needs no memory.
+ *
+ * A crash handler is the wrong place to ask for memory: the crash being reported may be the heap
+ * running out, and a handler that throws replaces a useful report with a useless one. Snapshotting
+ * the watchers otherwise takes eleven fresh arrays -- around 300KB at the retained length -- so the
+ * arrays are taken at startup instead, when failing to get them is survivable and obvious.
+ *
+ * Held for the life of the process, which is the trade: this is memory reserved against a crash that
+ * may never come, in a process that is already a fat target for the low-memory killer. It is paid
+ * for by [MemoryUsageWatcher.MAX_USAGE_ENTRIES] coming down at the same time -- the live buffers plus
+ * these cost less than the live buffers alone did before (ADFA-5526).
+ *
+ * Not thread-confined but single-use at a time: [claim] hands it to one caller and [release] gives it
+ * back. A caller that cannot claim it allocates for itself rather than waiting or sharing, because
+ * two writers into one array is a scrambled file and a crash must not block on an export.
+ */
+class MetricsScratch(
+	@VisibleForTesting internal val entries: Int,
+	memorySeries: Int,
+) {
+	private val inUse = AtomicBoolean(false)
+
+	val memoryTimes = LongArray(entries)
+	val memoryValues: List<LongArray> = List(memorySeries) { LongArray(entries) }
+	val networkTimes = LongArray(entries)
+	val networkReceived = LongArray(entries)
+	val networkTransmitted = LongArray(entries)
+	val powerTimes = LongArray(entries)
+	val temperature = LongArray(entries)
+	val power = LongArray(entries)
+	val thermal = LongArray(entries)
+
+	/** Takes this scratch, or returns false if something else already has it. */
+	fun claim(): Boolean = inUse.compareAndSet(false, true)
+
+	fun release() {
+		inUse.set(false)
+	}
+
+	companion object {
+		/**
+		 * The process-wide scratch, or `null` before [install] or if it could not be allocated.
+		 *
+		 * A crash arrives on whatever thread threw, from anywhere in the process, so this cannot
+		 * live on an activity-scoped ViewModel the way the watchers do.
+		 */
+		@Volatile
+		var instance: MetricsScratch? = null
+			private set
+
+		/**
+		 * Allocates the process-wide scratch. Call once, from application startup.
+		 *
+		 * Failure is not fatal and not worth retrying: the crash path simply allocates for itself,
+		 * which is what it did before this existed.
+		 */
+		fun install(
+			entries: Int = MemoryUsageWatcher.MAX_USAGE_ENTRIES,
+			memorySeries: Int = MetricsCsv.MEMORY_COLUMNS.size,
+		) {
+			if (instance != null) {
+				return
+			}
+			instance = runCatching { MetricsScratch(entries, memorySeries) }.getOrNull()
+		}
+
+		@VisibleForTesting
+		internal fun resetForTesting() {
+			instance = null
+		}
+	}
+}

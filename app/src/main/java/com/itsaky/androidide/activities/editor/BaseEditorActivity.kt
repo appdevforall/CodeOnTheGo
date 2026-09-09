@@ -52,7 +52,6 @@ import androidx.annotation.GravityInt
 import androidx.annotation.RequiresApi
 import androidx.annotation.UiThread
 import androidx.appcompat.app.ActionBarDrawerToggle
-import androidx.collection.MutableIntIntMap
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
@@ -60,6 +59,7 @@ import androidx.core.os.BundleCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
@@ -67,11 +67,6 @@ import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.github.mikephil.charting.components.AxisBase
-import com.github.mikephil.charting.data.Entry
-import com.github.mikephil.charting.data.LineData
-import com.github.mikephil.charting.data.LineDataSet
-import com.github.mikephil.charting.formatter.IAxisValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_COLLAPSED
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN
@@ -124,6 +119,7 @@ import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.mainThreadHandler
 import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.ui.ContentTranslatingDrawerLayout
+import com.itsaky.androidide.ui.MetricsCarouselController
 import com.itsaky.androidide.ui.SwipeRevealLayout
 import com.itsaky.androidide.uidesigner.UIDesignerActivity
 import com.itsaky.androidide.utils.ActionMenuUtils.showPopupWindow
@@ -133,6 +129,10 @@ import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.InstallationResultHandler.onResult
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.MemoryUsageWatcher
+import com.itsaky.androidide.utils.MetricsAnnotationStore
+import com.itsaky.androidide.utils.MetricsCsv
+import com.itsaky.androidide.utils.MetricsCsvFile
+import com.itsaky.androidide.utils.MetricsSnapshotAssembler
 import com.itsaky.androidide.utils.StringsInjectionException
 import com.itsaky.androidide.utils.StringsXmlInjector
 import com.itsaky.androidide.utils.applyBottomSheetAnchorForOrientation
@@ -145,7 +145,6 @@ import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.getOrStoreInitialPadding
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isDeepLinkTargetOfOpenProject
-import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.AppLogsCoordinator
 import com.itsaky.androidide.viewmodel.AppLogsViewModel
@@ -155,6 +154,7 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.MetricsViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
 import com.itsaky.androidide.xml.resources.ResourceTableRegistry
@@ -173,7 +173,6 @@ import rikka.shizuku.Shizuku
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlin.math.roundToLong
 
 /**
  * Base class for EditorActivity which handles most of the view related things.
@@ -191,8 +190,73 @@ abstract class BaseEditorActivity :
 	protected var editorBottomSheet: BottomSheetBehavior<out View?>? = null
 	private var drawerToggle: ActionBarDrawerToggle? = null
 	private var bottomSheetCallback: BottomSheetBehavior.BottomSheetCallback? = null
-	protected val memoryUsageWatcher = MemoryUsageWatcher()
-	protected val pidToDatasetIdxMap = MutableIntIntMap(initialCapacity = 3)
+	private val metricsViewModel by viewModels<MetricsViewModel>()
+
+	/**
+	 * Sample history lives in [MetricsViewModel] so it survives configuration changes and activity
+	 * recreation rather than depending on this activity's configChanges declaration (ADFA-5486).
+	 */
+	protected val memoryUsageWatcher get() = metricsViewModel.memoryUsageWatcher
+
+	protected val networkUsageWatcher get() = metricsViewModel.networkUsageWatcher
+
+	protected val powerUsageWatcher get() = metricsViewModel.powerUsageWatcher
+
+	protected val metricsCarousel by lazy {
+		MetricsCarouselController(
+			memoryUsageWatcher = memoryUsageWatcher,
+			networkUsageWatcher = networkUsageWatcher,
+			powerUsageWatcher = powerUsageWatcher,
+			lineColorFor = Companion::getMemUsageLineColorFor,
+			annotations = metricsViewModel.annotations,
+		)
+	}
+
+	/**
+	 * The metrics file to attach to feedback, or `null` when there is nothing to say (ADFA-5534).
+	 *
+	 * A report of "it got slow" arrives with no way to correlate it against anything; the session's
+	 * own samples turn that into something diagnosable.
+	 *
+	 * Assembled on the main thread because it reads the watchers' buffers, then written off it: the
+	 * file is up to a megabyte and it is gzipped on the way out. Returns null when nothing has been
+	 * sampled, so feedback sent from a freshly started IDE carries no empty attachment -- the writer
+	 * would happily produce a header-only file, and sending one is the caller's decision, not its.
+	 */
+	private suspend fun metricsAttachmentForFeedback(): File? {
+		val snapshot =
+			withContext(Dispatchers.Main.immediate) {
+				MetricsSnapshotAssembler.assemble(
+					context = this@BaseEditorActivity,
+					memory = memoryUsageWatcher,
+					network = networkUsageWatcher,
+					power = powerUsageWatcher,
+					annotations = metricsViewModel.annotations,
+				)
+			}
+		if (!snapshot.hasRows) {
+			return null
+		}
+		return withContext(Dispatchers.IO) {
+			MetricsCsvFile.writeForReport(applicationContext, snapshot)
+		}
+	}
+
+	/** Records a significant event for the charts to annotate (ADFA-5486). */
+	fun recordMetricsAnnotation(label: String) {
+		metricsViewModel.annotations.record(label)
+	}
+
+	/**
+	 * Marks a build outcome on the charts (ADFA-5509).
+	 *
+	 * Separate from [recordMetricsAnnotation] so a build outcome cannot be recorded as an ordinary
+	 * task marker, which the throttle is allowed to drop -- and so a task name cannot be recorded
+	 * as an outcome, which would give it an unthrottled marker in the error colour.
+	 */
+	fun recordBuildAnnotation(kind: MetricsAnnotationStore.Kind) {
+		metricsViewModel.annotations.recordBuild(kind)
+	}
 
 	private val fileManagerViewModel by viewModels<FileManagerViewModel>()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
@@ -313,49 +377,6 @@ abstract class BaseEditorActivity :
 			}
 		}
 
-	private val memoryUsageListener =
-		MemoryUsageWatcher.MemoryUsageListener { memoryUsage ->
-			var dataChanged = false
-			memoryUsage.forEachValue { proc ->
-				_binding?.memUsageView?.chart?.apply {
-					val dataset =
-						(
-							data.getDataSetByIndex(
-								pidToDatasetIdxMap.getOrDefault(
-									proc.pid,
-									-1,
-								),
-							) as LineDataSet?
-						)
-							?: run {
-								log.error(
-									"No dataset found for process: {}: {}",
-									proc.pid,
-									proc.pname,
-								)
-								return@forEachValue
-							}
-
-					dataset.entries.mapIndexed { index, entry ->
-						entry.y =
-							(proc.usageHistory[index] / (1024.0 * 1024.0)).toFloat()
-					}
-
-					dataset.label = "%s - %.2fMB".format(proc.pname, dataset.entries.last().y)
-					dataset.notifyDataSetChanged()
-					dataChanged = true
-				}
-			}
-
-			if (dataChanged) {
-				_binding?.memUsageView?.chart?.apply {
-					data.notifyDataChanged()
-					notifyDataSetChanged()
-					invalidate()
-				}
-			}
-		}
-
 	private val shizukuBinderReceivedListener =
 		Shizuku.OnBinderReceivedListener {
 			invalidateOptionsMenu()
@@ -363,10 +384,6 @@ abstract class BaseEditorActivity :
 
 	private var isImeVisible = false
 	private var contentCardRealHeight: Int? = null
-	private val editorSurfaceContainerBackground by lazy {
-		resolveAttr(R.attr.colorSurfaceDim)
-	}
-
 	private var isDebuggerStarting = false
 		@UiThread set(value) {
 			field = value
@@ -483,14 +500,39 @@ abstract class BaseEditorActivity :
 	companion object {
 		const val DEBUGGER_SERVICE_STOP_DELAY_MS: Long = 60 * 1000
 
+		/**
+		 * The plot colour for a watched process.
+		 *
+		 * Lives on the companion, not on the activity: a bound reference to an activity method is
+		 * handed to [MetricsCarouselController], which is in turn handed to the floating window and
+		 * outlives an activity recreation. A pure function of the process name has no business
+		 * pinning an activity in memory, and this one is exactly that.
+		 *
+		 * An unrecognised name falls back rather than throwing. This is reached from the
+		 * once-a-second sample listener and from RecyclerView's bind pass, so a name nobody added a
+		 * colour for would take the editor down from a timer callback or mid-layout -- a crash for
+		 * the sake of a line colour. 5d00a796a and 4c65554e5 each established that; this branch
+		 * removed it again, so it is written down here rather than rediscovered a fourth time.
+		 */
 		@JvmStatic
-		protected val PROC_IDE = "IDE"
+		fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
+			when (proc.pname) {
+				PROC_IDE -> Color.BLUE
+				PROC_GRADLE_TOOLING -> Color.RED
+				PROC_GRADLE_DAEMON -> Color.GREEN
+				else -> Color.GRAY
+			}
+
+		// Aliases, not copies. The names belong to the CSV, whose header is a published contract;
+		// see MetricsCsv.PROC_IDE for why they live there. Kept as protected members because
+		// subclasses use them.
+		protected val PROC_IDE = MetricsCsv.PROC_IDE
 
 		@JvmStatic
-		protected val PROC_GRADLE_TOOLING = "Gradle Tooling"
+		protected val PROC_GRADLE_TOOLING = MetricsCsv.PROC_GRADLE_TOOLING
 
 		@JvmStatic
-		protected val PROC_GRADLE_DAEMON = "Gradle Daemon"
+		protected val PROC_GRADLE_DAEMON = MetricsCsv.PROC_GRADLE_DAEMON
 
 		@JvmStatic
 		protected val log: Logger = LoggerFactory.getLogger(BaseEditorActivity::class.java)
@@ -562,11 +604,27 @@ abstract class BaseEditorActivity :
 		fullscreenManager?.destroy()
 		fullscreenManager = null
 
+		// Same reasoning as onPause: a floating carousel is bound to the window, not to these
+		// views. On a real teardown the window goes with the editor, so releasing the controller
+		// then is correct.
+		if (!isMetricsCarouselUndocked() || isDestroying) {
+			metricsCarousel.unbind()
+		}
+		if (isDestroying) {
+			metricsCarousel.close()
+		}
 		_binding = null
 
 		if (isDestroying) {
-			memoryUsageWatcher.stopWatching(true)
+			// Sampling itself is stopped by MetricsViewModel.onCleared; the history has to outlive a
+			// recreation, so it must not be torn down whenever this activity goes away.
 			memoryUsageWatcher.listener = null
+			networkUsageWatcher.listener = null
+			// The third one too. It was missed when the power page was added, and only
+			// metricsCarousel.unbind() a few lines above was releasing it -- under an identity
+			// check, and skipped entirely for an undocked carousel. Asymmetry here is what hides
+			// which watcher is holding a dead controller.
+			powerUsageWatcher.listener = null
 			editorActivityScope.cancelIfActive("Activity is being destroyed")
 
 			unbindDebuggerService()
@@ -900,10 +958,11 @@ abstract class BaseEditorActivity :
 				activity = this,
 				feedbackFab = binding.fabFeedback.root,
 				getLogContent = ::getLogContent,
+				getMetricsAttachment = ::metricsAttachmentForFeedback,
 			)
 		feedbackButtonManager?.setupDraggableFab()
 
-		setupMemUsageChart()
+		setupMetricsCarousel()
 		watchMemory()
 		observeFileOperations()
 
@@ -1004,40 +1063,63 @@ abstract class BaseEditorActivity :
 				content.editorAppBarLayout.updatePadding(top = topInset)
 			}
 
-			memUsageView.chart.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+			metricsCarousel.pager?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 				topMargin = (insetsTop * progress).roundToInt()
 			}
 		}
 	}
 
-	private fun setupMemUsageChart() {
-		binding.memUsageView.chart.apply {
-			val colorAccent = resolveAttr(R.attr.colorAccent)
+	private fun setupMetricsCarousel() {
+		binding.memUsageView.root.onTwoFingerTap = ::onMetricsCarouselUndockRequested
+		binding.memUsageView.metricsUndockedMessage.setOnClickListener {
+			onMetricsCarouselRedockRequested()
+		}
 
-			isDragEnabled = false
-			description.isEnabled = false
-			xAxis.axisLineColor = colorAccent
-			axisRight.axisLineColor = colorAccent
+		// Ask where the carousel is before binding one here. Only one can be live at a time, and
+		// the floating one outlives this activity -- so an activity recreated while it is floating
+		// (a night-mode or locale change, or leaving the editor and coming back) used to bind a
+		// second carousel into the strip and leave the floating one attached to a destroyed
+		// activity's views, frozen, with the strip showing no sign that it had gone anywhere.
+		//
+		// [setMetricsCarouselUndocked] is the same call the undock request makes, so the strip
+		// shows the "tap to bring them back" message and tapping it re-docks onto *this*
+		// activity's controller.
+		setMetricsCarouselUndocked(isMetricsCarouselUndocked())
+	}
 
-			setPinchZoom(false)
-			setBackgroundColor(editorSurfaceContainerBackground)
-			setDrawGridBackground(true)
-			setScaleEnabled(true)
+	/**
+	 * A two-finger tap on the carousel asks for it to be floated. Overridden where the floating
+	 * window machinery lives; a no-op here.
+	 */
+	protected open fun onMetricsCarouselUndockRequested() = Unit
 
-			axisLeft.isEnabled = false
-			axisRight.valueFormatter =
-				object :
-					IAxisValueFormatter {
-					override fun getFormattedValue(
-						value: Float,
-						axis: AxisBase?,
-					): String = "%dMB".format(value.roundToLong())
-				}
+	/** Whether the carousel is currently floating rather than docked here. */
+	protected open fun isMetricsCarouselUndocked(): Boolean = false
+
+	/** A tap on the "tap to bring them back" message asks for the floating carousel to re-dock. */
+	protected open fun onMetricsCarouselRedockRequested() = Unit
+
+	/**
+	 * Swaps the carousel for the message explaining where it has gone, or back again.
+	 *
+	 * Only one carousel can be live at a time, so undocking moves it out of the editor. Without the
+	 * message the reveal would open on an empty strip, and a window dragged off screen would leave
+	 * no way back.
+	 */
+	@UiThread
+	protected fun setMetricsCarouselUndocked(undocked: Boolean) {
+		val view = _binding?.memUsageView ?: return
+		view.root.setUndocked(undocked)
+
+		if (undocked) {
+			metricsCarousel.unbind()
+		} else {
+			metricsCarousel.bind(view)
+			metricsCarousel.refresh()
 		}
 	}
 
 	private fun watchMemory() {
-		memoryUsageWatcher.listener = memoryUsageListener
 		memoryUsageWatcher.watchProcess(Process.myPid(), PROC_IDE)
 		resetMemUsageChart()
 	}
@@ -1070,60 +1152,26 @@ abstract class BaseEditorActivity :
 		resetMemUsageChart()
 	}
 
+	/**
+	 * Rebuilds the memory chart for the currently watched processes. Call after starting or stopping
+	 * watching a process.
+	 */
 	protected fun resetMemUsageChart() {
-		val processes = memoryUsageWatcher.getMemoryUsages()
-		val datasets =
-			Array(processes.size) { index ->
-				LineDataSet(
-					List(MemoryUsageWatcher.MAX_USAGE_ENTRIES) { Entry(it.toFloat(), 0f) },
-					processes[index].pname,
-				)
-			}
-
-		val bgColor = editorSurfaceContainerBackground
-		val textColor = resolveAttr(R.attr.colorOnSurface)
-
-		for ((index, proc) in processes.withIndex()) {
-			val dataset = datasets[index]
-			dataset.color = getMemUsageLineColorFor(proc)
-			dataset.setDrawIcons(false)
-			dataset.setDrawCircles(false)
-			dataset.setDrawCircleHole(false)
-			dataset.setDrawValues(false)
-			dataset.formLineWidth = 1f
-			dataset.formSize = 15f
-			dataset.isHighlightEnabled = false
-			pidToDatasetIdxMap[proc.pid] = index
-		}
-
-		binding.memUsageView.chart.setBackgroundColor(bgColor)
-
-		binding.memUsageView.chart.apply {
-			data = LineData(*datasets)
-			axisRight.textColor = textColor
-			axisLeft.textColor = textColor
-			legend.textColor = textColor
-
-			data.setValueTextColor(textColor)
-			setBackgroundColor(bgColor)
-			setGridBackgroundColor(bgColor)
-			notifyDataSetChanged()
-			invalidate()
-		}
+		metricsCarousel.onWatchedProcessesChanged()
 	}
-
-	private fun getMemUsageLineColorFor(proc: MemoryUsageWatcher.ProcessMemoryInfo): Int =
-		when (proc.pname) {
-			PROC_IDE -> Color.BLUE
-			PROC_GRADLE_TOOLING -> Color.RED
-			PROC_GRADLE_DAEMON -> Color.GREEN
-			else -> throw IllegalArgumentException("Unknown process: $proc")
-		}
 
 	override fun onPause() {
 		super.onPause()
-		memoryUsageWatcher.listener = null
-		memoryUsageWatcher.stopWatching(false)
+		// Sampling continues while backgrounded so the history has no gaps; the x axis assumes
+		// evenly spaced samples and would otherwise misreport their age (ADFA-5486). Only the
+		// carousel goes, so nothing updates a chart nobody is looking at.
+		// Not while it is floating: the controller is then bound to the window's own views, and
+		// unbinding would clear the watcher listeners and detach the renderers -- leaving the
+		// overlay showing a chart that never updates again, which is the one state undocking
+		// exists for. onResume already guards its rebind the same way.
+		if (!isMetricsCarouselUndocked()) {
+			metricsCarousel.unbind()
+		}
 
 		this.isDestroying = isFinishing
 		getFileTreeFragment()?.saveTreeState()
@@ -1140,8 +1188,23 @@ abstract class BaseEditorActivity :
 			log.warn("Unable to move debugger overlay to display {}", displayId, err)
 		}
 
-		memoryUsageWatcher.listener = memoryUsageListener
-		memoryUsageWatcher.startWatching()
+		if (!isMetricsCarouselUndocked()) {
+			_binding?.let { metricsCarousel.bind(it.memUsageView) }
+		}
+		if (!memoryUsageWatcher.isWatching) {
+			memoryUsageWatcher.startWatching()
+		}
+		if (!networkUsageWatcher.isWatching) {
+			networkUsageWatcher.startWatching()
+		}
+		if (!powerUsageWatcher.isWatching) {
+			powerUsageWatcher.startWatching()
+		}
+
+		if (!isMetricsCarouselUndocked()) {
+			// Draw whatever was sampled while away, rather than waiting for the next tick.
+			metricsCarousel.refresh()
+		}
 
 		apkInstallationViewModel.reloadStatus(this)
 
@@ -1917,8 +1980,12 @@ abstract class BaseEditorActivity :
 
 						// Filter out diagonal flings so only an intentional right swipe opens the drawer.
 						// A horizontal fling that started on the bottom-sheet tab strip is the user
-						// scrolling tabs, not asking for the drawer.
-						if (isDrawerOpenFling && !isTouchOnBottomSheetTabs(e1)) {
+						// scrolling tabs, not asking for the drawer; one that started on the metrics
+						// carousel is the user paging it backwards.
+						if (isDrawerOpenFling &&
+							!isTouchOnBottomSheetTabs(e1) &&
+							!isTouchOnMetricsCarousel(e1)
+						) {
 							binding.editorDrawerLayout.openDrawer(GravityCompat.START)
 							return true
 						}
@@ -1940,9 +2007,50 @@ abstract class BaseEditorActivity :
 
 	private fun isTouchOnBottomSheetTabs(ev: MotionEvent): Boolean {
 		val tabs = contentOrNull?.bottomSheet?.binding?.tabs ?: return false
-		val rect = Rect()
-		if (!tabs.getGlobalVisibleRect(rect)) return false
-		return rect.contains(ev.rawX.toInt(), ev.rawY.toInt())
+		return containsTouch(tabs, ev)
+	}
+
+	private fun isTouchOnMetricsCarousel(ev: MotionEvent): Boolean {
+		val binding = _binding ?: return false
+
+		// A left-to-right fling pages the carousel *backwards*, so there is nothing for it to do
+		// on the first page -- which is the page the carousel opens on. Excluding the strip
+		// regardless left the documented right-swipe drawer gesture dead over the whole panel
+		// while doing nothing in its place.
+		if (binding.memUsageView.metricsPager.currentItem <= 0) {
+			return false
+		}
+
+		// The carousel is laid out at the top of the reveal even while the content card covers it,
+		// and siblings do not clip each other, so getGlobalVisibleRect reports it visible either
+		// way. Without this check the drawer gesture would be dead over the top of a closed editor.
+		if (binding.swipeReveal.dragProgress <= 0f) {
+			return false
+		}
+
+		// The pager, not the whole strip: the title and its row are not something the carousel
+		// pages from, and MetricsCarouselLayout has already walled that row off from every
+		// ancestor, so a fling there would otherwise be swallowed twice over.
+		return containsTouch(binding.memUsageView.metricsPager, ev)
+	}
+
+	private fun containsTouch(
+		view: View,
+		ev: MotionEvent,
+	): Boolean {
+		if (!view.isShown) return false
+
+		// getLocationOnScreen, not getGlobalVisibleRect: the latter reports window coordinates --
+		// ViewRootImpl intersects with the window and never offsets by its position on screen --
+		// while rawX/rawY are screen coordinates. In split-screen or freeform the window origin is
+		// not zero, so the two disagree and the hit test lands somewhere else entirely.
+		// SwipeRevealLayout.isTouchInDragHandle already uses this idiom.
+		val location = IntArray(2)
+		view.getLocationOnScreen(location)
+		val x = ev.rawX.toInt()
+		val y = ev.rawY.toInt()
+		return x >= location[0] && x < location[0] + view.width &&
+			y >= location[1] && y < location[1] + view.height
 	}
 
 	private fun showTooltip(tag: String) {

@@ -19,6 +19,7 @@ package com.itsaky.androidide.tooling.impl
 
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionType
@@ -143,14 +144,9 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				return@runBuild doInitialize(params, start)
 			} catch (err: Throwable) {
 				log.error("Failed to initialize project", err)
-				notifyBuildFailure(
-					BuildResult(
-						tasks = emptyList(),
-						buildId = params.buildId,
-						durationMs = System.currentTimeMillis() - start,
-					),
+				return@runBuild InitializeResult.Failure(
+					notifyBuildFailure(params.buildId, emptyList(), start, err),
 				)
-				return@runBuild InitializeResult.Failure(getTaskFailureType(err))
 			}
 		}
 	}
@@ -218,7 +214,17 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 					clientConfig = clientConfig,
 				)
 
-			RootModelBuilder.build(params, modelBuilderParams)
+			try {
+				RootModelBuilder.build(params, modelBuilderParams)
+			} finally {
+				// The sync path never cleared this on any outcome -- only shutdown() and an actual
+				// Stop did. So after every sync a token for a finished build sat here: the next
+				// Stop cancelled that dead source and answered wasEnqueued = true with no build
+				// running, and the check at the top of this method cancelled it again on the next
+				// initialize. The sibling of the same omission in executeTasks.
+				buildCancellationToken = null
+			}
+
 			notifyBuildSuccess(
 				BuildResult(
 					tasks = emptyList(),
@@ -305,28 +311,30 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 
 			try {
 				builder.run()
-				this.buildCancellationToken = null
-				notifyBuildSuccess(
-					result =
-						BuildResult(
-							tasks = message.tasks,
-							buildId = message.buildId,
-							durationMs = System.currentTimeMillis() - start,
-						),
-				)
-				return@runBuild TaskExecutionResult.SUCCESS
 			} catch (error: Throwable) {
 				log.error("Failed to run tasks: {}", message.tasks, error)
-				notifyBuildFailure(
-					result =
-						BuildResult(
-							tasks = message.tasks,
-							buildId = message.buildId,
-							durationMs = System.currentTimeMillis() - start,
-						),
+				return@runBuild TaskExecutionResult(
+					false,
+					notifyBuildFailure(message.buildId, message.tasks, start, error),
 				)
-				return@runBuild TaskExecutionResult(false, getTaskFailureType(error))
+			} finally {
+				// On both paths. Only the success path cleared it, so every failed build left a
+				// token behind for a source that was already finished. The next Stop then
+				// cancelled that dead source and answered wasEnqueued = true while the live build
+				// ran on, and [initialize] -- which cancels first whenever one is set -- paid for
+				// a build that had ended long before.
+				this.buildCancellationToken = null
 			}
+
+			notifyBuildSuccess(
+				result =
+					BuildResult(
+						tasks = message.tasks,
+						buildId = message.buildId,
+						durationMs = System.currentTimeMillis() - start,
+					),
+			)
+			return@runBuild TaskExecutionResult.SUCCESS
 		}
 	}
 
@@ -368,8 +376,31 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		)
 	}
 
-	private fun notifyBuildFailure(result: BuildResult) {
-		client?.onBuildFailed(result)
+	/**
+	 * Tells the client a build failed, and answers with why.
+	 *
+	 * Both in one call on purpose. The classification and the notification used to be written
+	 * separately at each failure site, which is how the notified [BuildResult] came to carry
+	 * everything except the answer while the caller of the request got it (ADFA-5542). A site
+	 * cannot now report a failure without saying which, or say one thing to the client and another
+	 * to its caller.
+	 */
+	private fun notifyBuildFailure(
+		buildId: BuildId,
+		tasks: List<String>,
+		startedAtMillis: Long,
+		error: Throwable,
+	): Failure {
+		val failure = getTaskFailureType(error)
+		client?.onBuildFailed(
+			BuildResult(
+				buildId = buildId,
+				tasks = tasks,
+				durationMs = System.currentTimeMillis() - startedAtMillis,
+				failure = failure,
+			),
+		)
+		return failure
 	}
 
 	private fun notifyBuildSuccess(result: BuildResult) {

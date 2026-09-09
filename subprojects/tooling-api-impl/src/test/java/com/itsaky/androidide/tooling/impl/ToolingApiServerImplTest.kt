@@ -1,8 +1,11 @@
 package com.itsaky.androidide.tooling.impl
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
+import com.itsaky.androidide.tooling.api.messages.result.BuildCancellationRequestResult
+import com.itsaky.androidide.tooling.api.messages.result.BuildResult
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.tooling.api.messages.result.isSuccessful
@@ -11,8 +14,10 @@ import com.itsaky.androidide.tooling.impl.sync.RootModelBuilder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.verify
+import org.gradle.tooling.BuildCancelledException
 import org.gradle.tooling.GradleConnector
 import org.gradle.tooling.ProjectConnection
 import org.junit.Test
@@ -30,9 +35,11 @@ class ToolingApiServerImplTest {
 		directory: String = "/does/not/exist",
 		forceSync: Boolean = false,
 	) = InitializeProjectParams(
+		// Required since ADFA-2784 added it, and never supplied here: this file has not compiled
+		// on stage since, and no workflow runs :subprojects: tests, so nothing said so.
+		buildId = BuildId.Unknown,
 		directory = directory,
 		needsGradleSync = forceSync,
-		buildId = BuildId.Unknown,
 	)
 
 	private data class MockServer(
@@ -84,6 +91,80 @@ class ToolingApiServerImplTest {
 
 		// unknown error because of the mocked runtime exception
 		assertThat((result as InitializeResult.Failure).failure).isEqualTo(TaskExecutionResult.Failure.UNKNOWN)
+	}
+
+	@Test
+	fun `GIVEN a build the user stopped WHEN it fails THEN the client is told it was a cancel`() {
+		mockkObject(RootModelBuilder)
+		every {
+			// Gradle raises this, and only this, for a build that was cancelled.
+			RootModelBuilder.build(any(), any())
+		} throws BuildCancelledException("stopped by the user")
+
+		val (server) = mockkToolingServer()
+
+		every {
+			server.validateProjectDirectory(any())
+		} returns null
+
+		val client = mockk<IToolingApiClient>(relaxed = true)
+		server.connect(client)
+
+		val result = server.initialize(testInitParams()).get(5, TimeUnit.SECONDS)
+		assertThat((result as InitializeResult.Failure).failure)
+			.isEqualTo(TaskExecutionResult.Failure.BUILD_CANCELLED)
+
+		// The same verdict has to reach the client, not only the caller of initialize. It did not,
+		// and the editor was left reconstructing "was that a cancel?" from the order its own
+		// callbacks happened to arrive in -- which it got wrong, annotating a build the user had
+		// stopped as a failure (ADFA-5542).
+		//
+		// This drives the sync path. The task-run path is the one the ticket is really about, and
+		// standing it up needs a live ProjectConnection; instead of testing the two separately,
+		// notifyBuildFailure now classifies and notifies in one call and hands the answer back, so
+		// neither site can report a failure without saying which, or tell the client one thing and
+		// its caller another. There is one place left to get this wrong and this covers it.
+		val reported = slot<BuildResult>()
+		verify { client.onBuildFailed(capture(reported)) }
+		assertThat(reported.captured.failure).isEqualTo(TaskExecutionResult.Failure.BUILD_CANCELLED)
+	}
+
+	@Test
+	fun `GIVEN a sync that finished WHEN a Stop arrives THEN there is no build to cancel`() {
+		mockkObject(RootModelBuilder)
+		every { RootModelBuilder.build(any(), any()) } returns File("/does/not/exist/cache")
+
+		val (server) = mockkToolingServer()
+		every { server.validateProjectDirectory(any()) } returns null
+		server.connect(mockk<IToolingApiClient>(relaxed = true))
+
+		server.initialize(testInitParams()).get(5, TimeUnit.SECONDS)
+
+		// The token for the sync's own build was never cleared on any outcome, so it outlived the
+		// build it belonged to. A Stop pressed afterwards cancelled that dead source and answered
+		// "enqueued" -- telling the user a build was being stopped when none was running, and, once
+		// a real build had started, leaving it running while claiming otherwise.
+		val result = server.cancelCurrentBuild().get(5, TimeUnit.SECONDS)
+
+		assertThat(result.wasEnqueued).isFalse()
+		assertThat(result.failureReason).isEqualTo(BuildCancellationRequestResult.Reason.NO_RUNNING_BUILD)
+	}
+
+	@Test
+	fun `GIVEN a sync that failed WHEN a Stop arrives THEN there is no build to cancel`() {
+		mockkObject(RootModelBuilder)
+		every { RootModelBuilder.build(any(), any()) } throws RuntimeException("intentional failure")
+
+		val (server) = mockkToolingServer()
+		every { server.validateProjectDirectory(any()) } returns null
+		server.connect(mockk<IToolingApiClient>(relaxed = true))
+
+		server.initialize(testInitParams()).get(5, TimeUnit.SECONDS)
+
+		// The failing path leaked it the same way the succeeding one did.
+		val result = server.cancelCurrentBuild().get(5, TimeUnit.SECONDS)
+
+		assertThat(result.wasEnqueued).isFalse()
 	}
 
 	@Test
