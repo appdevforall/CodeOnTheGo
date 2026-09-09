@@ -129,6 +129,21 @@ class QuickBuildClobberConfirmationTest {
 	}
 
 	@Test
+	fun `an empty slot at tap time is not widened by an APK that fails to parse`() {
+		// The tap resolved the id and found nothing to replace. An unknown id at install time
+		// then means our own APK did not parse - not that an occupant appeared - and asking
+		// turns an ordinary Run into a destructive-sounding dialog whose decline drops the
+		// install with no message.
+		val decision =
+			installTimeClobberConfirmation(
+				atTap = QuickBuildClobberConfirmation.NotNeeded,
+				now = QuickBuildClobberConfirmation.NeededForUnknownAppId,
+			)
+
+		assertThat(decision).isEqualTo(QuickBuildClobberConfirmation.NotNeeded)
+	}
+
+	@Test
 	fun `an install with nothing to overwrite stays silent whatever the tap said`() {
 		listOf(
 			null,
