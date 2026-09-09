@@ -27,6 +27,13 @@ class QuickBuildOutputNarrator(
 	private var sink: ((String) -> Unit)? = null
 
 	/**
+	 * Set by [reset], cleared by [bind]: the project is closing, and its session's teardown
+	 * still narrates after the queue was cleared, so those lines are dropped instead of queued
+	 * for the next project's pane.
+	 */
+	private var discardUntilBound = false
+
+	/**
 	 * Starts narrating a session's status changes; call once per session manager.
 	 *
 	 * @param status the session's status stream, collected until [scope] dies.
@@ -89,6 +96,7 @@ class QuickBuildOutputNarrator(
 	fun bind(sink: (String) -> Unit) {
 		scope.launch {
 			this@QuickBuildOutputNarrator.sink = sink
+			discardUntilBound = false
 			while (pending.isNotEmpty()) {
 				sink(pending.removeFirst())
 			}
@@ -116,17 +124,23 @@ class QuickBuildOutputNarrator(
 	 * would flush stale progress into the next project's Build Output. Bound sinks are left
 	 * alone - a currently-visible pane's contents are not this class's to clear.
 	 *
-	 * Only the queue is per-project; anything a still-running session narrates AFTER this will
-	 * queue again, which is why the session is torn down alongside the reset.
+	 * The session torn down alongside the reset narrates its own stop asynchronously, after
+	 * this; with no pane bound those lines are dropped rather than queued, until a pane binds.
 	 */
 	fun reset() {
-		scope.launch { pending.clear() }
+		scope.launch {
+			pending.clear()
+			discardUntilBound = true
+		}
 	}
 
 	private fun write(line: String) {
 		val target = sink
 		if (target != null) {
 			target(line)
+			return
+		}
+		if (discardUntilBound) {
 			return
 		}
 		// A pane that never comes back (the user left the editor) must not grow this forever.

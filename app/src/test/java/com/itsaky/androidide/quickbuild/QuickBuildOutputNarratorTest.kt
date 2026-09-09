@@ -245,4 +245,28 @@ class QuickBuildOutputNarratorTest {
 			narrator.narrateProxyAppProgress("> Task :app:compileV8DebugKotlin")
 			assertThat(written.single()).contains(":app:compileV8DebugKotlin")
 		}
+
+	@Test
+	fun `lines narrated after a reset with no pane are dropped, not queued for the next project`() =
+		narrating { narrator ->
+			// The session torn down alongside the reset narrates its own stop asynchronously,
+			// after the reset ran: with only the queue cleared those lines queued again and
+			// flushed into the next project's Build Output as that project's progress.
+			narrator.reset()
+			narrator.narrateProxyAppProgress("> Task :app:mergeV8DebugResources")
+
+			narrator.bind(sink)
+
+			assertThat(written).isEmpty()
+
+			// Once a pane is bound the narration is live again, and the next unbound stretch
+			// queues as before.
+			narrator.narrateProxyAppProgress("> Task :app:compileV8DebugKotlin")
+			assertThat(written.single()).contains(":app:compileV8DebugKotlin")
+			narrator.unbind(sink)
+			narrator.narrateProxyAppProgress("> Task :app:dexV8Debug")
+			narrator.bind(sink)
+			assertThat(written).hasSize(2)
+			assertThat(written[1]).contains(":app:dexV8Debug")
+		}
 }
