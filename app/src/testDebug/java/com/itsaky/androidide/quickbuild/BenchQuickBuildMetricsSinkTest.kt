@@ -490,6 +490,16 @@ class BenchQuickBuildMetricsSinkTest {
 	}
 
 	@Test
+	fun `a rebuild that attempted no relaunch omits relaunchOk entirely`() {
+		sink.onProxyAppRebuild(isSuccess = true, durationMillis = 7_500, relaunchOk = null, toRunningMillis = null)
+
+		val o = last()
+		assertThat(o.getString("event")).isEqualTo("rebaseline")
+		assertThat(o.has("relaunchOk")).isFalse()
+		assertThat(o.has("toRunningMillis")).isFalse()
+	}
+
+	@Test
 	fun `invalidation carries the reason name`() {
 		sink.onInvalidation(InvalidationReason.MANIFEST_CHANGED)
 

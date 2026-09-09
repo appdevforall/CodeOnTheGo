@@ -50,7 +50,7 @@ class CompositeQuickBuildMetricsSinkTest {
 		override fun onProxyAppRebuild(
 			isSuccess: Boolean,
 			durationMillis: Long,
-			relaunchOk: Boolean,
+			relaunchOk: Boolean?,
 			toRunningMillis: Long?,
 		) {
 			calls += "rebaseline"
@@ -145,7 +145,7 @@ class CompositeQuickBuildMetricsSinkTest {
 				override fun onProxyAppRebuild(
 					isSuccess: Boolean,
 					durationMillis: Long,
-					relaunchOk: Boolean,
+					relaunchOk: Boolean?,
 					toRunningMillis: Long?,
 				) = throw RuntimeException("boom")
 			}
