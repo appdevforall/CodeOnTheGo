@@ -61,6 +61,8 @@ class QuickBuildPrebuildStaggerTest {
 	fun `a live session bypasses the window - the variant reprovision check cannot wait`() =
 		runTest {
 			stagger().onProjectSynced(sessionIsLive = { true }, fire = { fires++ })
+			// Launched, not run inline, but with no delay in front of it.
+			runCurrent()
 			assertThat(fires).isEqualTo(1)
 		}
 
@@ -94,6 +96,7 @@ class QuickBuildPrebuildStaggerTest {
 			// The user tapped during the window: the session is live by the next sync, whose
 			// reprovision check must not wait - and the stale scheduled prebuild is dropped.
 			stagger.onProjectSynced(sessionIsLive = { true }, fire = { fires++ })
+			runCurrent()
 			assertThat(fires).isEqualTo(1)
 
 			advanceTimeBy(STAGGER * 10)
@@ -166,6 +169,25 @@ class QuickBuildPrebuildStaggerTest {
 			// And the scope is still usable, not merely un-cancelled.
 			stagger().onProjectSynced(sessionIsLive = { false }, fire = { fires++ })
 			advanceTimeBy(STAGGER + 1)
+			runCurrent()
+			assertThat(fires).isEqualTo(1)
+		}
+
+	@Test
+	fun `an immediate prebuild that throws does not take the scope down with it`() =
+		runTest {
+			// The live-session arm fires at once, and the activity's fire body awaits the graph
+			// warm-up: that work has to run inside the same catch as the deferred arm's, or a
+			// throw from it cancels the editor activity's scope.
+			stagger().onProjectSynced(
+				sessionIsLive = { true },
+				fire = { throw IllegalStateException("onProjectSynced blew up") },
+			)
+			runCurrent()
+
+			assertThat(backgroundScope.isActive).isTrue()
+
+			stagger().onProjectSynced(sessionIsLive = { true }, fire = { fires++ })
 			runCurrent()
 			assertThat(fires).isEqualTo(1)
 		}

@@ -49,12 +49,12 @@ class QuickBuildPrebuildStagger(
 	 *
 	 * @param sessionIsLive whether a session (or an earlier prebuild) currently exists, sampled
 	 *   under the decision - live fires now, idle waits out the window.
-	 * @param fire forwards to the session manager; called at most once per sync, either
-	 *   immediately or after [staggerMillis].
+	 * @param fire forwards to the session manager; run on [scope] at most once per sync, either
+	 *   immediately or after [staggerMillis]. A throw from it is logged, not propagated.
 	 */
 	fun onProjectSynced(
 		sessionIsLive: () -> Boolean,
-		fire: () -> Unit,
+		fire: suspend () -> Unit,
 	) {
 		val fireNow: Boolean
 		synchronized(lock) {
@@ -67,25 +67,31 @@ class QuickBuildPrebuildStagger(
 					scope.launch {
 						delay(staggerMillis)
 						synchronized(lock) { scheduled = null }
-						try {
-							fire()
-						} catch (e: CancellationException) {
-							// Closing the project cancels this window; teardown has to stay cancellable.
-							throw e
-						} catch (e: Throwable) {
-							// Nothing downstream catches this. The scope is the editor activity's, which
-							// carries a plain Job and no CoroutineExceptionHandler, so a throw here takes
-							// the IDE down half a minute after a project opens - with no action of the
-							// user's in between - and short of that would cancel the scope for the life of
-							// the activity, killing the editor's other launch sites with it. The immediate
-							// fire() below is left alone: it runs on the caller's thread, which can handle it.
-							log.error("Deferred Quick Build prebuild failed", e)
-						}
+						guarded(fire)
 					}
 			}
 		}
 		if (fireNow) {
+			scope.launch { guarded(fire) }
+		}
+	}
+
+	/**
+	 * Nothing downstream catches a throw from [fire]. The scope is the editor activity's, which
+	 * carries a plain Job and no CoroutineExceptionHandler, so a throw takes the IDE down - half a
+	 * minute after a project opens on the deferred arm, with no action of the user's in between -
+	 * and short of that would cancel the scope for the life of the activity, killing the editor's
+	 * other launch sites with it. The catch sits here, where the work runs: a caller-side catch
+	 * around a `launch` sees nothing.
+	 */
+	private suspend fun guarded(fire: suspend () -> Unit) {
+		try {
 			fire()
+		} catch (e: CancellationException) {
+			// Closing the project cancels this scope; teardown has to stay cancellable.
+			throw e
+		} catch (e: Throwable) {
+			log.error("Quick Build prebuild failed", e)
 		}
 	}
 
