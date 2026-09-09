@@ -4076,6 +4076,34 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `a rebaseline stop that finds no Gradle build to cancel reports nothing`() =
+		runTest {
+			// The Gradle build had already finished when the stop landed, so nothing was
+			// cancelled and the rebaseline runs on through install and daemon start. A
+			// BUILD_CANCELLED here told the user the build was stopped while the session was
+			// about to land Ready.
+			proxyAppRebuildGate = CompletableDeferred()
+			proxyAppBuildCancelResult = false
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val notices = recordNotices(manager)
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Provisioning(rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED),
+				)
+
+			manager.onCancelRequested()
+			advanceUntilIdle()
+
+			assertThat(proxyAppBuildCancelCount).isEqualTo(1)
+			assertThat(notices).isEmpty()
+		}
+
+	@Test
 	fun `stopping during provisioning cancels the proxy app build and tears the session down`() =
 		runTest {
 			val gate = CompletableDeferred<Unit>()

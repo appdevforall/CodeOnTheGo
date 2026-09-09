@@ -198,7 +198,13 @@ class SessionReducer {
 					// ProxyAppRebuildFailed and parks at Invalidated for retry, exactly where
 					// a build failure or a lost slot parks. Tearing down here made a
 					// deliberate stop cost the ~97 s cold provision a failure does not.
-					SessionTransition(state, listOf(SessionEffect.CancelProxyAppBuild))
+					//
+					// The stop withdraws the ask, as the orchestrator's onCancelRequested
+					// does for its half: a cancel that loses the race to the build's own
+					// completion lets the rebaseline run on to ProvisioningSucceeded, and a
+					// userInitiated left true there would bring forward the app the user
+					// just asked to stop.
+					SessionTransition(state.copy(userInitiated = false), listOf(SessionEffect.CancelProxyAppRebuild))
 				} else {
 					// No half-provisioned session is worth keeping. A cancel mid-install is
 					// safe because the epoch guard discards a late provisioning success, and
