@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import com.itsaky.androidide.activities.editor.EditorActivityKt
+import com.itsaky.androidide.models.EditorIntentExtras
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.utils.Environment
@@ -119,7 +120,7 @@ class QuickBuildBenchActivity : Activity() {
 		GeneralPreferences.lastOpenedProject = project.path
 		val editor =
 			Intent(this, EditorActivityKt::class.java).apply {
-				putExtra("PROJECT_PATH", project.path)
+				putExtra(EditorIntentExtras.EXTRA_PROJECT_PATH, project.path)
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 			}
 		startActivity(editor)
