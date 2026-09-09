@@ -88,7 +88,8 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	private var connection: ProjectConnection? = null
 
 	@Volatile
-	private var lastInitParams: InitializeProjectParams? = null
+	@VisibleForTesting
+	internal var lastInitParams: InitializeProjectParams? = null
 
 	/** The `distributionUrl` the wrapper named when [connection] was opened; null if not a wrapper. */
 	@Volatile
@@ -213,7 +214,8 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	 *
 	 * @throws IllegalStateException If nothing has been initialized, which is the caller's bug.
 	 */
-	private fun connectionForBuild(): ProjectConnection {
+	@VisibleForTesting
+	internal fun connectionForBuild(): ProjectConnection {
 		val params = lastInitParams
 		if (connectionSuspect && params != null) {
 			log.info("Reconnecting to Gradle: the previous build reported a dead connection")
@@ -250,7 +252,10 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			}
 
 			if (forceConnect) {
-				connector?.disconnect()
+				// The local, not the field. Re-reading it here is what the locals above exist to
+				// avoid: a concurrent reconnect can install a new connector between the two reads,
+				// and this would then disconnect that one and drop the one it meant to close.
+				openConnector?.disconnect()
 			}
 
 			// Dropped before the connect, not after it. A connect that throws -- a bad installation
@@ -285,11 +290,9 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		}
 
 	override fun initialize(params: InitializeProjectParams): CompletableFuture<InitializeResult> {
-		return runBuild {
-			val start = System.currentTimeMillis()
-			try {
-				return@runBuild doInitialize(params, start)
-			} catch (err: Throwable) {
+		val start = System.currentTimeMillis()
+		return runBuild(
+			onFailure = { err ->
 				log.error("Failed to initialize project", err)
 				notifyBuildFailure(
 					BuildResult(
@@ -298,8 +301,12 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 						durationMs = System.currentTimeMillis() - start,
 					),
 				)
-				return@runBuild InitializeResult.Failure(getTaskFailureType(err))
-			}
+				// No suspicion of the connection from here. A sync failure is about the project or
+				// its model, and condemning the connection over one costs a cold daemon start.
+				InitializeResult.Failure(getTaskFailureType(err))
+			},
+		) {
+			doInitialize(params, start)
 		}
 	}
 
@@ -407,8 +414,28 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	override fun isServerInitialized(): CompletableFuture<Boolean> = CompletableFuture.supplyAsync { isInitialized }
 
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
-		return runBuild {
-			val start = System.currentTimeMillis()
+		val start = System.currentTimeMillis()
+		return runBuild(
+			onFailure = { error ->
+				log.error("Failed to run tasks: {}", message.tasks, error)
+				notifyBuildFailure(
+					result =
+						BuildResult(
+							tasks = message.tasks,
+							buildId = message.buildId,
+							durationMs = System.currentTimeMillis() - start,
+						),
+				)
+				val failure = getTaskFailureType(error)
+				// The one place a dead connection can be told apart from a bad project: a build
+				// that ran against it and failed. The next build reconnects rather than reusing it.
+				if (failure == CONNECTION_CLOSED || failure == CONNECTION_ERROR) {
+					log.warn("Marking the Gradle connection suspect after {}; the next build reconnects", failure)
+					connectionSuspect = true
+				}
+				TaskExecutionResult(false, failure)
+			},
+		) {
 			if (!isServerInitialized().get()) {
 				log.error("Cannot execute tasks: {}", PROJECT_NOT_INITIALIZED)
 				return@runBuild TaskExecutionResult(false, PROJECT_NOT_INITIALIZED)
@@ -428,10 +455,10 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 
 			Main.checkGradleWrapper()
 
-			// Reconnects rather than asserting. A previous build that failed with CONNECTION_CLOSED
-			// leaves the pair suspect, and this dereference sits outside the try below -- so
-			// asserting here threw out of the future and every later build failed the same way
-			// until the user re-synced.
+			// Reconnects rather than asserting, when the last build said the connection was dead.
+			// A reconnect can itself throw -- an unreachable distribution, a bad installation dir --
+			// and runBuild's catch is what turns that into a classified failure instead of an
+			// exceptionally-completed future.
 			val connection = connectionForBuild()
 
 			val builder = connection.newBuild()
@@ -451,30 +478,17 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			this.buildCancellationToken = GradleConnector.newCancellationTokenSource()
 			builder.withCancellationToken(this.buildCancellationToken!!.token())
 
-			try {
-				builder.run()
-				this.buildCancellationToken = null
-				notifyBuildSuccess(
-					result =
-						BuildResult(
-							tasks = message.tasks,
-							buildId = message.buildId,
-							durationMs = System.currentTimeMillis() - start,
-						),
-				)
-				return@runBuild TaskExecutionResult.SUCCESS
-			} catch (error: Throwable) {
-				log.error("Failed to run tasks: {}", message.tasks, error)
-				notifyBuildFailure(
-					result =
-						BuildResult(
-							tasks = message.tasks,
-							buildId = message.buildId,
-							durationMs = System.currentTimeMillis() - start,
-						),
-				)
-				return@runBuild TaskExecutionResult(false, getTaskFailureType(error))
-			}
+			builder.run()
+			this.buildCancellationToken = null
+			notifyBuildSuccess(
+				result =
+					BuildResult(
+						tasks = message.tasks,
+						buildId = message.buildId,
+						durationMs = System.currentTimeMillis() - start,
+					),
+			)
+			TaskExecutionResult.SUCCESS
 		}
 	}
 
@@ -558,21 +572,6 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			buildCancellationToken?.cancel()
 			buildCancellationToken = null
 
-			// Before the client goes, so no further poll can report a daemon into an RPC channel
-			// that is being torn down. Through the delegate rather than the property: touching the
-			// property would build a watcher, and its scheduler, only to shut it down again on a
-			// server that never ran a build.
-			//
-			// This was never called at all, so the watcher's thread outlived server shutdown and an
-			// in-flight poll chain went on scanning descendants for up to a minute. It also made
-			// GradleDaemonWatcher.shutdown() dead code, and onBuildStarted's note about the
-			// scheduler rejecting work after shutdown describe a state nothing could reach.
-			if (lazyDaemonWatcher.isInitialized()) {
-				log.info("Stopping the Gradle daemon watcher...")
-				runCatching { daemonWatcher.shutdown() }
-					.onFailure { log.warn("Could not stop the Gradle daemon watcher", it) }
-			}
-
 			val connection = this.connection
 			val connector = this.connector
 			this.connection = null
@@ -588,6 +587,18 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 					// Stop all daemons
 					log.info("Stopping all Gradle Daemons...")
 					DefaultGradleConnector.close()
+
+					// After the daemons, not before. The exit is reported through
+					// handle.onExit().thenRun { scheduler.execute { ... } }, so a scheduler already
+					// shut down rejects it and the client never hears that the daemon it is
+					// plotting has gone. Through the delegate rather than the property: touching
+					// the property would build a watcher, and its scheduler, only to shut it down
+					// again on a server that never ran a build.
+					if (lazyDaemonWatcher.isInitialized()) {
+						log.info("Stopping the Gradle daemon watcher...")
+						runCatching { daemonWatcher.shutdown() }
+							.onFailure { log.warn("Could not stop the Gradle daemon watcher", it) }
+					}
 				}
 
 			// update the initialization flag before cancelling future
@@ -598,7 +609,6 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			log.info("Cancelling awaiting future...")
 			Main.future?.cancel(true)
 
-			this.client = null
 			this.buildCancellationToken = null
 			this.lastInitParams = null
 			this.lastWrapperDistribution = null
@@ -606,34 +616,32 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			// wait for connections to close
 			connectionCloseFuture.get()
 
+			// After the wait, not before. Stopping the daemons is what makes the watcher report
+			// their exit, and that report goes through `client` -- cleared first, it was a silent
+			// no-op and the client's chart kept the daemon's last value. Best effort even so: the
+			// client's own channel is going away at the same time.
+			this.client = null
+
 			log.info("Shutdown request completed.")
 			null
 		}
 
 	/**
-	 * Classifies [error], and marks the connection suspect when the error says it may be dead.
+	 * Classifies [error]. Pure: it reads nothing and changes nothing.
 	 *
-	 * A flag rather than dropping the pair here. Nulling the fields looked equivalent and was not:
-	 * [executeTasks] dereferences `connection` with `checkNotNull` *before* its try, so the next
-	 * build threw out of the future instead of reconnecting, and every build failed until the user
-	 * re-synced. Nulling also skipped the disconnect, stranding the old connection's daemon client
-	 * and threads for the life of the process.
+	 * It briefly marked the connection suspect, which was wrong twice over. The classification is
+	 * deliberately broad -- any [IllegalStateException] reads as CONNECTION_CLOSED -- and
+	 * `initialize`'s catch routes every sync failure through it, so a model builder throwing an
+	 * IllegalStateException condemned a connection that had just been opened successfully. And the
+	 * penalty was never the "one extra reconnect" its comment claimed: reconnecting calls
+	 * `GradleConnector.disconnect()`, which sends the running daemon `StopWhenIdle` -- the cold
+	 * start this whole ticket exists to prevent, on a new trigger.
 	 *
-	 * The classification is deliberately broad -- any [IllegalStateException] reads as
-	 * CONNECTION_CLOSED -- so a false positive has to be cheap. Setting a flag costs one extra
-	 * reconnect; tearing down a healthy connection cost a working server.
+	 * Recovery now lives at the one site that can tell a dead connection from a bad project: a
+	 * build that failed against it. See [executeTasks].
 	 */
 	@VisibleForTesting
 	internal fun getTaskFailureType(error: Throwable): Failure =
-		classifyTaskFailure(error).also { failure ->
-			if (failure == CONNECTION_CLOSED || failure == CONNECTION_ERROR) {
-				log.warn("Marking the Gradle connection suspect after {}; the next build reconnects", failure)
-				connectionSuspect = true
-			}
-		}
-
-	@VisibleForTesting
-	internal fun classifyTaskFailure(error: Throwable): Failure =
 		when (error) {
 			is BuildException -> BUILD_FAILED
 			is BuildCancelledException -> BUILD_CANCELLED
@@ -650,7 +658,24 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			action()
 		}
 
-	private inline fun <T : Any?> runBuild(crossinline action: () -> T): CompletableFuture<T> =
+	/**
+	 * Runs [action] as the one build in progress, turning anything it throws into [onFailure]'s
+	 * result rather than an exceptionally-completed future.
+	 *
+	 * The catch spans the whole action deliberately. Each caller used to guard only the part that
+	 * talks to Gradle, so everything before it -- resolving a connection, checking the wrapper,
+	 * preparing the build -- escaped as a raw exception, and the client got an ExecutionException
+	 * where it expected a classified failure. That is one bug this file has now had twice, in two
+	 * different statements on the same line, because the fix each time moved the throw instead of
+	 * covering it.
+	 *
+	 * "Build already in progress" is left to throw: it is a caller error rather than a build
+	 * outcome, and it is raised before this takes ownership of the flag.
+	 */
+	private inline fun <T : Any?> runBuild(
+		crossinline onFailure: (Throwable) -> T,
+		crossinline action: () -> T,
+	): CompletableFuture<T> =
 		supplyAsync {
 			if (isBuildInProgress) {
 				log.error("Cannot run build, build is already in progress!")
@@ -661,6 +686,8 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			daemonWatcher.onBuildStarted()
 			try {
 				action()
+			} catch (error: Throwable) {
+				onFailure(error)
 			} finally {
 				isBuildInProgress = false
 			}

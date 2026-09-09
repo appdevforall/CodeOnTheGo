@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
+import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.tooling.api.messages.result.isSuccessful
@@ -16,7 +17,6 @@ import io.mockk.mockkStatic
 import io.mockk.spyk
 import io.mockk.unmockkAll
 import io.mockk.verify
-import org.gradle.tooling.BuildException
 import org.gradle.tooling.GradleConnector
 import org.gradle.tooling.ProjectConnection
 import org.junit.After
@@ -25,6 +25,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 /**
@@ -311,7 +312,7 @@ class ToolingApiServerImplTest {
 	}
 
 	@Test
-	fun `GIVEN a build that reports a dead connection THEN the next initialize reconnects`() {
+	fun `GIVEN a connection failure THEN classifying it changes nothing`() {
 		val server = ToolingApiServerImpl()
 		val connector = mockk<GradleConnector>(relaxed = true)
 		every { connector.forProjectDirectory(any()) } returns connector
@@ -321,37 +322,65 @@ class ToolingApiServerImplTest {
 		every { GradleConnector.newConnector() } returns connector
 
 		server.getOrConnectProject(File("/does/not/exist"), forceConnect = true)
-		assertThat(server.isConnected).isTrue()
 
-		// The reuse check made this reachable: before it, every initialize rebuilt the connector, so
-		// a connection broken by anything at all was silently replaced. Reusing a dead one fails
-		// every later build identically until the server process restarts.
+		// Classification is pure. It briefly marked the connection suspect, and initialize's catch
+		// routes every sync failure through it -- so a model builder throwing an
+		// IllegalStateException condemned a connection opened moments earlier, and the next build's
+		// reconnect sent the warm daemon StopWhenIdle. ADFA-5589's own bug, on a new trigger.
 		assertThat(server.getTaskFailureType(IllegalStateException("connection closed")))
 			.isEqualTo(TaskExecutionResult.Failure.CONNECTION_CLOSED)
-
-		// Suspect, not dropped. Dropping it here nulled a field that executeTasks dereferences
-		// outside its try, so the next build threw out of the future rather than reconnecting --
-		// and skipped the disconnect, stranding the old connection for the life of the process.
+		assertThat(server.connectionSuspect).isFalse()
 		assertThat(server.isConnected).isTrue()
-		assertThat(server.connectionSuspect).isTrue()
 	}
 
 	@Test
-	fun `GIVEN a classification that is not a connection failure THEN the connection is left alone`() {
+	fun `GIVEN a build failed on a dead connection THEN the next build reconnects rather than reusing it`() {
 		val server = ToolingApiServerImpl()
 		val connector = mockk<GradleConnector>(relaxed = true)
 		every { connector.forProjectDirectory(any()) } returns connector
-		every { connector.connect() } returns mockk(relaxed = true)
+		val first = mockk<ProjectConnection>(relaxed = true)
+		val second = mockk<ProjectConnection>(relaxed = true)
+		every { connector.connect() } returns first andThen second
 
 		mockkStatic(GradleConnector::class)
 		every { GradleConnector.newConnector() } returns connector
 
 		server.getOrConnectProject(File("/does/not/exist"), forceConnect = true, initParams = testInitParams())
+		// Set directly: only doInitialize writes it, and that needs a real project directory.
+		// connectionForBuild reconnects to the project the last initialize named.
+		server.lastInitParams = testInitParams()
+		assertThat(server.connectionForBuild()).isSameInstanceAs(first)
 
-		// The classifier is deliberately broad, so anything it drives has to be cheap on a false
-		// positive. A build failure is not a reason to reconnect.
-		assertThat(server.getTaskFailureType(BuildException("failed", RuntimeException())))
-			.isEqualTo(TaskExecutionResult.Failure.BUILD_FAILED)
+		// What the flag is for: the connection stays in place and the *next build* replaces it,
+		// which is what reaches connector.disconnect() and releases the old daemon client and its
+		// threads. Nulling the fields at the point of failure skipped that and stranded them.
+		server.connectionSuspect = true
+
+		assertThat(server.connectionForBuild()).isSameInstanceAs(second)
 		assertThat(server.connectionSuspect).isFalse()
+		verify(atLeast = 1) { connector.disconnect() }
+	}
+
+	@Test
+	fun `GIVEN a reconnect that throws THEN the build reports a failure rather than completing exceptionally`() {
+		val (server) = mockkToolingServer()
+		every { server.isServerInitialized() } returns CompletableFuture.completedFuture(true)
+		every { server.connectionForBuild() } throws IllegalStateException("cannot reconnect")
+
+		mockkObject(Main)
+		every { Main.checkGradleWrapper() } returns Unit
+
+		// Everything before the Gradle call used to sit outside the try, so a throw here escaped as
+		// an ExecutionException where the client expected a classified failure -- and the same line
+		// did it twice, first as a checkNotNull and then as the reconnect that replaced it.
+		val result =
+			server
+				.executeTasks(TaskExecutionMessage(tasks = listOf("assembleDebug"), buildId = BuildId.Unknown))
+				.get(5, TimeUnit.SECONDS)
+
+		assertThat(result.isSuccessful).isFalse()
+		assertThat(result.failure).isEqualTo(TaskExecutionResult.Failure.CONNECTION_CLOSED)
+		// And this is the one site that marks the connection suspect.
+		assertThat(server.connectionSuspect).isTrue()
 	}
 }
