@@ -1,7 +1,9 @@
 package com.itsaky.androidide.tooling.impl
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
@@ -57,6 +59,65 @@ class ToolingApiServerImplTest {
 		} returns (connector to connection)
 
 		return MockServer(server, connector, connection)
+	}
+
+	@Test
+	fun `GIVEN the same project twice THEN the connector can be reused`() {
+		val server = ToolingApiServerImpl()
+
+		// Two separately built objects describing the same connection, which is what the client
+		// sends: every initialize request arrives freshly deserialized from JSON-RPC.
+		val first = testInitParams()
+		val second = testInitParams()
+
+		// The guard used to be `params == lastInitParams`. InitializeProjectParams declares no
+		// equals, so that was reference equality between two distinct objects and answered false
+		// every time -- which meant forceConnect on every re-initialize, which disconnects the open
+		// connector, and GradleConnector.disconnect() sends the running daemon StopWhenIdle. The
+		// client re-initializes on every activity recreate outside EditorActivityKt's
+		// configChanges, so a theme, locale or display-size change killed the warm daemon and the
+		// next build paid a cold start (ADFA-5589).
+		assertThat(first == second).isFalse()
+		assertThat(server.describesSameConnection(first, second)).isTrue()
+	}
+
+	@Test
+	fun `GIVEN a different project directory THEN the connector cannot be reused`() {
+		val server = ToolingApiServerImpl()
+
+		// A connector is bound to its project directory, so reusing one across projects would run
+		// the next build against the previous project's connection.
+		assertThat(
+			server.describesSameConnection(
+				testInitParams(directory = "/does/not/exist"),
+				testInitParams(directory = "/somewhere/else"),
+			),
+		).isFalse()
+	}
+
+	@Test
+	fun `GIVEN a different Gradle distribution THEN the connector cannot be reused`() {
+		val server = ToolingApiServerImpl()
+
+		// The other thing a connector is bound to. Reusing one here would silently build with the
+		// distribution the user had just changed away from.
+		val wrapper = testInitParams()
+		val installation =
+			InitializeProjectParams(
+				directory = wrapper.directory,
+				gradleDistribution = GradleDistributionParams.forVersion("8.14.3"),
+				needsGradleSync = false,
+				buildId = BuildId.Unknown,
+			)
+
+		assertThat(server.describesSameConnection(wrapper, installation)).isFalse()
+	}
+
+	@Test
+	fun `GIVEN nothing initialized yet THEN the connector cannot be reused`() {
+		val server = ToolingApiServerImpl()
+
+		assertThat(server.describesSameConnection(null, testInitParams())).isFalse()
 	}
 
 	@Test

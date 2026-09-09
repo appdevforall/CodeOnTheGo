@@ -102,6 +102,46 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		private val log = LoggerFactory.getLogger(ToolingApiServerImpl::class.java)
 	}
 
+	/**
+	 * Whether the connector already open can serve [params].
+	 *
+	 * A connector is bound to a project directory and a Gradle distribution and to nothing else, so
+	 * those are the only fields that can make one unusable. Everything else in
+	 * [InitializeProjectParams] is per-call.
+	 *
+	 * This used to compare the whole object, which made it *always false*:
+	 * [InitializeProjectParams] is a plain class with no `equals`, so `==` is reference equality,
+	 * and `params` arrives freshly deserialized from JSON-RPC on every call. The branch it guards
+	 * -- "Reusing connector instance..." -- had therefore never run.
+	 *
+	 * The cost was not a slow path. A false answer means `forceConnect`, which disconnects the old
+	 * connector, and `GradleConnector.disconnect()` sends the daemon `StopWhenIdle`. So every
+	 * re-initialize stopped the warm daemon, and the client re-initializes on every activity
+	 * recreate outside `EditorActivityKt`'s `configChanges` -- a theme change, a locale change, a
+	 * display-size change. Each one cost the next build a cold daemon start (ADFA-5589).
+	 *
+	 * Making [InitializeProjectParams] a `data class` does not fix it: `buildId` is generated fresh
+	 * per call, so value equality on the whole object stays false every time.
+	 */
+	private fun canReuseConnector(params: InitializeProjectParams): Boolean =
+		connector != null && connection != null && describesSameConnection(lastInitParams, params)
+
+	/**
+	 * Whether [a] and [b] name the same connection: the same project directory, served by the same
+	 * Gradle distribution.
+	 *
+	 * Separate from [canReuseConnector] so it can be asserted. The rest of that check reads private
+	 * state which only a real connect populates, and a test that stubs the connect never sets it.
+	 */
+	@VisibleForTesting
+	internal fun describesSameConnection(
+		a: InitializeProjectParams?,
+		b: InitializeProjectParams,
+	): Boolean =
+		a != null &&
+			a.directory == b.directory &&
+			a.gradleDistribution == b.gradleDistribution
+
 	@VisibleForTesting
 	internal fun getOrConnectProject(
 		projectDir: File,
@@ -179,8 +219,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		}
 
 		val stopWatch = StopWatch("Connection to project")
-		val isReinitializing =
-			connector != null && connection != null && params == lastInitParams
+		val isReinitializing = canReuseConnector(params)
 
 		if (isReinitializing) {
 			log.info("Project is being reinitialized")
