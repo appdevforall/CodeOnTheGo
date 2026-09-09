@@ -303,6 +303,40 @@ class SessionReducerTest {
 	}
 
 	@Test
+	fun `an invalidation that consumed a tap records the ask on Invalidated from every live state`() {
+		// The watcher batch that proved the invalidation was the one the tap's save-all
+		// promised, so the orchestrator has already consumed the tap into it. If the ask is
+		// not recorded here, nothing answers it: the orchestrator forgets the tap when the
+		// rebuild starts, and the user is left in the editor after a multi-minute rebuild.
+		val event = SessionEvent.InvalidationDetected(InvalidationReason.GRADLE_CONFIG_CHANGED, userInitiated = true)
+		val expected =
+			QuickBuildSessionState.Invalidated(InvalidationReason.GRADLE_CONFIG_CHANGED, 1, userInitiated = true)
+
+		assertThat(reducer.reduce(QuickBuildSessionState.Ready(1), event).state).isEqualTo(expected)
+		assertThat(reducer.reduce(QuickBuildSessionState.Building(1), event).state).isEqualTo(expected)
+		assertThat(reducer.reduce(QuickBuildSessionState.Degraded(1), event).state).isEqualTo(expected)
+	}
+
+	@Test
+	fun `invalidated with a recorded ask plus ProxyAppRebuildStarted provisions user-initiated`() {
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1, userInitiated = true),
+				SessionEvent.ProxyAppRebuildStarted,
+			)
+
+		// userInitiated is what makes ProvisioningSucceeded switch to the proxy app, and what
+		// the runner reads to relaunch the reinstalled app for the ask.
+		assertThat(transition.state)
+			.isEqualTo(
+				QuickBuildSessionState.Provisioning(
+					userInitiated = true,
+					rebaselineReason = InvalidationReason.MANIFEST_CHANGED,
+				),
+			)
+	}
+
+	@Test
 	fun `invalidated plus ProxyAppRebuildStarted moves to provisioning carrying the reason`() {
 		val transition =
 			reducer.reduce(

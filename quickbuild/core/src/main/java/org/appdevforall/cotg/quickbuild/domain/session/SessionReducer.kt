@@ -307,8 +307,10 @@ class SessionReducer {
 			}
 
 			is SessionEvent.InvalidationDetected -> {
+				// The ask rides on the event: the batch that proved the invalidation may have
+				// consumed a tap, and the orchestrator forgets it once the rebuild starts.
 				SessionTransition(
-					QuickBuildSessionState.Invalidated(event.reason, generation),
+					QuickBuildSessionState.Invalidated(event.reason, generation, userInitiated = event.userInitiated),
 					listOf(SessionEffect.RunProxyAppRebuild),
 				)
 			}
@@ -398,7 +400,7 @@ class SessionReducer {
 
 			is SessionEvent.InvalidationDetected -> {
 				SessionTransition(
-					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration),
+					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration, userInitiated = event.userInitiated),
 					listOf(SessionEffect.RunProxyAppRebuild),
 				)
 			}
@@ -439,14 +441,16 @@ class SessionReducer {
 	): SessionTransition =
 		when (event) {
 			SessionEvent.ProxyAppRebuildStarted -> {
-				// Deliberately not user-initiated even when a tap triggered the retry: a
-				// rebuild is a full Gradle build a save can also trigger, so finishing one is
-				// not by itself a reason to leave the editor. The auto-retry count is carried
-				// so an unconfirmed reinstall parks back with it intact, and the reason so the
-				// status surfaces can call this a rebaseline without having to have seen the
-				// Invalidated hop.
+				// A rebuild is a full Gradle build a save can also trigger, so finishing one is
+				// not by itself a reason to leave the editor: userInitiated is carried only
+				// when the batch that invalidated the baseline consumed a tap, and a tap that
+				// triggered a retry is answered by the SwitchToProxyApp the shell holds
+				// instead. The auto-retry count is carried so an unconfirmed reinstall parks
+				// back with it intact, and the reason so the status surfaces can call this a
+				// rebaseline without having to have seen the Invalidated hop.
 				SessionTransition(
 					QuickBuildSessionState.Provisioning(
+						userInitiated = state.userInitiated,
 						installAutoRetries = state.installAutoRetries,
 						rebaselineReason = state.reason,
 					),
@@ -714,7 +718,7 @@ class SessionReducer {
 				// the daemon, and the shell's daemonEpoch guard keeps it from racing the
 				// in-flight respawn.
 				SessionTransition(
-					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration),
+					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration, userInitiated = event.userInitiated),
 					listOf(SessionEffect.RunProxyAppRebuild),
 				)
 			}

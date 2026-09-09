@@ -122,12 +122,16 @@ sealed interface QuickBuildSessionState {
 	 *   unconfirmed reinstall has spent; at [SessionReducer.MAX_INSTALL_AUTO_RETRIES] the foreground
 	 *   trigger stops, so a user who keeps declining does not pay a Gradle build on every resume,
 	 *   while an explicit tap still retries and resets the budget.
+	 * @property userInitiated a Quick Build tap was consumed by the batch that invalidated the
+	 *   baseline, so the rebuild owes the switch to the proxy app; carried onto
+	 *   [Provisioning.userInitiated] by [SessionEvent.ProxyAppRebuildStarted].
 	 */
 	data class Invalidated(
 		val reason: InvalidationReason,
 		val deployedGeneration: Long,
 		val awaitingRetry: Boolean = false,
 		val installAutoRetries: Int = 0,
+		val userInitiated: Boolean = false,
 	) : QuickBuildSessionState
 
 	/**
@@ -303,9 +307,12 @@ sealed interface SessionEvent {
 	 *
 	 * @property reason what could not be absorbed; reported once per invalidation, so no state may
 	 *   silently drop this event.
+	 * @property userInitiated the batch that proved the invalidation also consumed a Quick Build
+	 *   tap, so the rebuild it triggers owes the user the switch to the proxy app.
 	 */
 	data class InvalidationDetected(
 		val reason: InvalidationReason,
+		val userInitiated: Boolean = false,
 	) : SessionEvent
 
 	/** The full Gradle proxy app rebuild has been kicked off. */

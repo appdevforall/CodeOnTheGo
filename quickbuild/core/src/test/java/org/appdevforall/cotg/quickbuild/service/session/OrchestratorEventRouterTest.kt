@@ -117,6 +117,17 @@ class OrchestratorEventRouterTest {
 	}
 
 	@Test
+	fun `an InvalidationRequired carrying a consumed tap keeps it on the session event`() {
+		val routing =
+			route(OrchestratorEvent.InvalidationRequired(InvalidationReason.GRADLE_CONFIG_CHANGED, userInitiated = true))
+
+		// The reducer records the ask from this flag; dropping it here leaves the tap
+		// unanswered across the whole rebaseline.
+		assertThat(routing.sessionEvents)
+			.containsExactly(SessionEvent.InvalidationDetected(InvalidationReason.GRADLE_CONFIG_CHANGED, userInitiated = true))
+	}
+
+	@Test
 	fun `notifyBuildingAt prefers the session tally over the connected target's self-report`() {
 		val routing =
 			route(
