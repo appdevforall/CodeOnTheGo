@@ -1274,9 +1274,27 @@ class SessionReducerTest {
 		val transition = reducer.reduce(provisioning, SessionEvent.CancelRequested)
 
 		// Stays parked until the cancelled build reports ProxyAppRebuildFailed, which lands
-		// in Invalidated with the retry count carried; no TeardownSession anywhere.
+		// in Invalidated with the retry count carried; no TeardownSession anywhere. The
+		// rebaseline's own cancel effect, so the handler knows no teardown follows it.
 		assertThat(transition.state).isEqualTo(provisioning)
-		assertThat(transition.effects).containsExactly(SessionEffect.CancelProxyAppBuild)
+		assertThat(transition.effects).containsExactly(SessionEffect.CancelProxyAppRebuild)
+	}
+
+	@Test
+	fun `stopping a rebaseline withdraws the ask so a cancel that lost the race does not relaunch`() {
+		// A cancel can lose the race to the Gradle build's own completion, in which case the
+		// rebaseline runs on to ProvisioningSucceeded. userInitiated left true there would bring
+		// forward the app the user just asked to stop.
+		val provisioning =
+			QuickBuildSessionState.Provisioning(
+				userInitiated = true,
+				rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED,
+			)
+
+		val transition = reducer.reduce(provisioning, SessionEvent.CancelRequested)
+
+		assertThat(transition.state).isEqualTo(provisioning.copy(userInitiated = false))
+		assertThat(transition.effects).containsExactly(SessionEffect.CancelProxyAppRebuild)
 	}
 
 	@Test
