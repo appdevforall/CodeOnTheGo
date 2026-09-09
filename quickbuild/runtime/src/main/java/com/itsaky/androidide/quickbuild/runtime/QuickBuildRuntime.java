@@ -916,6 +916,7 @@ final class QuickBuildRuntime {
 	 */
 	private void onBootRestoreFailed(long generation, Throwable error) {
 		bootRestoreInFlight = false;
+		releaseBootResources();
 		RuntimeLog.e("could not restore persisted resources for gen " + generation, error);
 		setOverlayState(OverlayState.mixed());
 		client.reportCrash(generation, CrashSummary.forBootRestoreReport(error));
@@ -931,6 +932,7 @@ final class QuickBuildRuntime {
 	 */
 	private void onBootRestoreLanded(long generation) {
 		bootRestoreInFlight = false;
+		releaseBootResources();
 		RuntimeLog.i("restored persisted resources for gen " + generation);
 		mainHandler.post(new Runnable() {
 
@@ -1025,6 +1027,14 @@ final class QuickBuildRuntime {
 		PayloadPersistence store = PayloadStore.INSTANCE.persistence();
 		if (store != null) {
 			store.quarantine(generation);
+		}
+	}
+
+	/** Lets the orphan sweep have the boot-pending payload files again; every swap has opened its own by now. */
+	private void releaseBootResources() {
+		PayloadPersistence store = PayloadStore.INSTANCE.persistence();
+		if (store != null) {
+			store.releaseBootResources();
 		}
 	}
 
@@ -1144,8 +1154,12 @@ final class QuickBuildRuntime {
 			// queued would commit over a merge that failed, so refuse it. A swap that already
 			// committed cannot be undone; the process then runs mixed, and the banner says so.
 			ResourceStore.INSTANCE.abandon(generation);
-			gate.failed();
-			onBootRestoreFailed(generation, error);
+			if (gate.failed()) {
+				// Same guard as the listener above: a swap that already failed on main has
+				// reported this boot, and reporting again raises a second banner and a
+				// second crash report for it.
+				onBootRestoreFailed(generation, error);
+			}
 		}
 	}
 
