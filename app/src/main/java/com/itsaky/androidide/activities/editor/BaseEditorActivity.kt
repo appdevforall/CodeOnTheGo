@@ -1538,7 +1538,12 @@ abstract class BaseEditorActivity :
 			}
 		}
 
-		editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
+		editorViewModel._isBuildInProgress.observe(this) { inProgress ->
+			onUpdateProgressBarVisibility()
+			// The bottom sheet's collapsed header follows the status line's height; while the
+			// build narrates one line per task it only grows, or the peek jumps on every task.
+			content.bottomSheet.setBuildNarrating(inProgress == true)
+		}
 		editorViewModel._isInternalBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
 		editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
 		editorViewModel._statusText.observe(this) {
