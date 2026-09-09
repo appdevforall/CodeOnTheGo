@@ -35,6 +35,10 @@ on:
         required: false
         default: adfa-2602-rc
 
+concurrency:
+  group: generate-assets
+  cancel-in-progress: false
+
 env:
   SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
 
@@ -244,11 +248,37 @@ jobs:
             || { echo "ERROR: documentation.db predates the templateId column; docs requests will 500"; exit 1; }
           echo "All ingredients staged"
 
-      - name: Upload staged assets
+      - name: Upload staged assets (ABI-independent)
         uses: actions/upload-artifact@v4
         with:
-          name: debug-assets
-          path: assets/
+          name: debug-assets-common
+          path: |
+            assets/
+            !assets/android-sdk-*.zip
+            !assets/bootstrap-*.zip
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Upload staged assets (v8)
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-assets-v8
+          path: |
+            assets/android-sdk-arm64-v8a.zip
+            assets/bootstrap-arm64-v8a.zip
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Upload staged assets (v7)
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-assets-v7
+          path: |
+            assets/android-sdk-armeabi-v7a.zip
+            assets/bootstrap-armeabi-v7a.zip
+          compression-level: 0
           retention-days: 1
           if-no-files-found: error
 
@@ -317,10 +347,16 @@ jobs:
         run: |
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
 
-      - name: Download staged assets
+      - name: Download staged assets (ABI-independent)
         uses: actions/download-artifact@v4
         with:
-          name: debug-assets
+          name: debug-assets-common
+          path: assets
+
+      - name: Download staged assets (this ABI)
+        uses: actions/download-artifact@v4
+        with:
+          name: debug-assets-${{ matrix.abi }}
           path: assets
 
       - name: Assemble assets zip
@@ -344,6 +380,8 @@ jobs:
 
       - name: Verify assets zip
         id: assets_zip
+        env:
+          GRADLE_VERSION: ${{ steps.toolchain.outputs.GRADLE_VERSION }}
         run: |
           zip_path="app/build/outputs/assets/assets-${{ matrix.arch }}.zip"
           if [ ! -s "$zip_path" ]; then
@@ -352,7 +390,8 @@ jobs:
           fi
           unzip -tq "$zip_path"
           for entry in android-sdk.zip bootstrap.zip localMvnRepository.zip documentation.db \
-                       core.cgt plugin-artifacts.zip plugin-maven-repo.zip; do
+                       core.cgt plugin-artifacts.zip plugin-maven-repo.zip \
+                       "gradle-$GRADLE_VERSION-bin.zip" "gradle-api-$GRADLE_VERSION.jar.zip"; do
             unzip -l "$zip_path" | grep -qE "[[:space:]]$entry$" \
               || { echo "ERROR: $zip_path is missing entry $entry"; exit 1; }
           done
