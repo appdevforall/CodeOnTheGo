@@ -850,6 +850,11 @@ open class EditorHandlerActivity :
 				isEnabled = quickBuild.enabled
 			}
 		}
+		// Same gate as the button: while a standard Gradle build holds the slot, a restart tears
+		// the warm session down and then the reprovision is refused as slot-busy - the user
+		// would lose the session and be told to wait.
+		popup.menu.findItem(R.id.action_quick_build_restart_session)?.isEnabled =
+			!QuickBuildAction.isBlockedByStandardBuild()
 		popup.setOnMenuItemClickListener { item ->
 			when (item.itemId) {
 				R.id.action_quick_build -> {
