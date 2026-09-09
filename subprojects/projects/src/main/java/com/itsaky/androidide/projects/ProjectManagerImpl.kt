@@ -292,6 +292,17 @@ class ProjectManagerImpl :
 	}
 
 	/**
+	 * Where a resource file created or deleted in the file tree sends its `generateSources` run.
+	 *
+	 * The direct call by default. The app swaps in Quick Build's generate-sources deferral so a
+	 * file added from the file tree parks like a save does: an undeferred build landing under a
+	 * live session is handed back as an external build and costs the session a full recompile.
+	 * This module cannot see the deferral (it lives in the app), hence the seam.
+	 */
+	@Volatile
+	var resourceChangeBuild: () -> Unit = { generateSources() }
+
+	/**
 	 * Hands the resource/source generation tasks to the tooling server and returns immediately.
 	 *
 	 * @return whether the tasks were actually dispatched. False means the request did nothing:
@@ -402,13 +413,11 @@ class ProjectManagerImpl :
 	private fun isInitialized() = workspace != null
 
 	private fun generateSourcesIfNecessary(event: FileEvent) {
-		val builder = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) ?: return
-		val file = event.file
-		if (!isAndroidResource(file)) {
+		if (!isAndroidResource(event.file)) {
 			return
 		}
 
-		generateSources(builder)
+		resourceChangeBuild()
 	}
 
 	@Suppress("unused")
