@@ -416,10 +416,11 @@ class LiveReloadOrchestrator(
 			// charge all of it to whichever build picked the batch back up if the rebuild failed.
 			pendingSince = null
 			pendingForced = false
-			// The tap this recorded asked about the very set Gradle is now absorbing, so that
-			// build answers it. Left armed, it would tag some later unrelated save as the user's
-			// ask and pull them out of the editor into the proxy app. Same for a tap still
-			// waiting on its batch: the rebuild reads the tap's saves off disk anyway.
+			// The tap this recorded asked about the very set Gradle is now absorbing, and the
+			// InvalidationRequired that started this rebuild carried it to the session state,
+			// which is what answers it. Left armed, it would tag some later unrelated save as
+			// the user's ask and pull them out of the editor into the proxy app. Same for a tap
+			// still waiting on its batch: the rebuild reads the tap's saves off disk anyway.
 			pendingUserInitiated = false
 			tapAwaitingChanges = false
 			inFlight = null
@@ -634,7 +635,7 @@ class LiveReloadOrchestrator(
 			// Pending is kept: it documents what the proxy app rebuild will absorb.
 			if (!invalidationReported) {
 				invalidationReported = true
-				events += OrchestratorEvent.InvalidationRequired(route.reason)
+				events += OrchestratorEvent.InvalidationRequired(route.reason, userInitiated = pendingUserInitiated)
 			}
 			return
 		}
@@ -821,7 +822,10 @@ class LiveReloadOrchestrator(
 							outcome,
 						)
 						events +=
-							OrchestratorEvent.InvalidationRequired(InvalidationReason.RELOAD_PIPELINE_FAILED)
+							OrchestratorEvent.InvalidationRequired(
+								InvalidationReason.RELOAD_PIPELINE_FAILED,
+								userInitiated = pendingUserInitiated,
+							)
 					} else if (newSavesArrivedMidBuild) {
 						// A mid-build save may be the fix; rebuild from the accumulated set.
 						maybeStartBuildLocked(events, autoFollowUp = true)
@@ -976,8 +980,13 @@ sealed interface OrchestratorEvent {
 	 *
 	 * @property reason why the live reload path cannot absorb it, emitted once per pending set so
 	 *   that a second save of the same kind does not re-report it.
+	 * @property userInitiated whether a Quick Build tap is waiting on this pending set - the batch
+	 *   consumed the tap before it was classified, so the rebuild that absorbs it owes the answer.
+	 *   [onProxyAppRebuildStarted] clears the orchestrator's own record of the tap, so this event
+	 *   is the only place the ask survives the hand-off.
 	 */
 	data class InvalidationRequired(
 		val reason: InvalidationReason,
+		val userInitiated: Boolean = false,
 	) : OrchestratorEvent
 }

@@ -525,6 +525,67 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
+	fun `a tap consumed by the batch that invalidates the baseline rides on the InvalidationRequired`() =
+		runTest {
+			// Ready session, the user edits build.gradle.kts and taps Quick Build. The tap's
+			// save-all wrote the file, so the tap arms on the coming batch; the batch then
+			// consumes it and classifies as a full Gradle build. The orchestrator clears its own
+			// record of the tap when that rebuild starts, so the event is the only carrier.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+
+			val outcome = orchestrator.onLiveReloadRequested(userInitiated = true, expectChanges = true)
+			assertThat(outcome).isEqualTo(LiveReloadRequestOutcome.AWAITS_CHANGES)
+			orchestrator.onFilesChanged(known("app/build.gradle.kts"))
+			runCurrent()
+
+			assertThat(executor.requests).isEmpty()
+			assertThat(events).containsExactly(
+				OrchestratorEvent.InvalidationRequired(InvalidationReason.GRADLE_CONFIG_CHANGED, userInitiated = true),
+			)
+		}
+
+	@Test
+	fun `a parked retry's rebuild start keeps the set the first rebuild was holding`() =
+		runTest {
+			// An unconfirmed reinstall parks WITHOUT onProxyAppRebuildFailed, so the orchestrator
+			// keeps holding the gradle edit for the retry. The retry's own start must union onto
+			// that held set: replacing it kept only the park-period saves, so a failed retry
+			// returned only those to pending and the next code-only save exited the park with
+			// the gradle change never installed.
+			val executor = GatedExecutor()
+			val events = mutableListOf<OrchestratorEvent>()
+			val gradleConfig = "app/build.gradle.kts"
+			val mtimes = mapOf(gradleConfig to 9_900L, srcB to 10_500L)
+			val orchestrator =
+				LiveReloadOrchestrator(
+					executor,
+					ChangeClassifier(),
+					backgroundScope,
+					wallClock = { 10_000L },
+					fileLastModified = { file -> mtimes[file.path] ?: 0L },
+				) { events += it }
+
+			orchestrator.onFilesChanged(known(gradleConfig))
+			runCurrent()
+			orchestrator.onProxyAppRebuildStarted() // holds {gradleConfig}; the reinstall goes unconfirmed
+			orchestrator.onFilesChanged(known(srcB)) // newer than the rebuild start: pending, not absorbed
+			orchestrator.onProxyAppRebuildStarted() // the parked retry
+			orchestrator.onProxyAppRebuildFailed() // the retry's Gradle build fails
+			runCurrent()
+
+			// Everything the two starts held comes back, gradleConfig included, so the next
+			// save still classifies as a full build rather than quick-building srcA and srcB
+			// on a baseline that never took the gradle change.
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+
+			assertThat(executor.requests).isEmpty()
+			assertThat(events.filterIsInstance<OrchestratorEvent.InvalidationRequired>()).hasSize(2)
+		}
+
+	@Test
 	fun `after a baseline reset the session builds normally again`() =
 		runTest {
 			val executor = GatedExecutor()

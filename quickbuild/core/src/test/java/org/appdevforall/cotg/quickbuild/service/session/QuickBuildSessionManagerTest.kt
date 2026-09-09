@@ -3998,6 +3998,32 @@ class QuickBuildSessionManagerTest {
 	 * a cold provision.
 	 */
 	@Test
+	fun `a tap consumed by the gradle save that invalidates the baseline is carried onto the rebaseline`() =
+		runTest {
+			// The user edits build.gradle.kts and taps Quick Build. The tap arms on the batch
+			// the save-all wrote; that batch invalidates the baseline instead of building. The
+			// ask has to survive onto Provisioning, or the rebuild reinstalls the app and leaves
+			// the user in the editor with nothing running.
+			proxyAppRebuildGate = CompletableDeferred()
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.onQuickBuildTapped(wroteSomething = true)
+			runCurrent()
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Provisioning(
+						userInitiated = true,
+						rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED,
+					),
+				)
+		}
+
+	@Test
 	fun `stopping during a rebaseline cancels the Gradle build and parks the session for retry`() =
 		runTest {
 			val rebuildGate = CompletableDeferred<Unit>()
