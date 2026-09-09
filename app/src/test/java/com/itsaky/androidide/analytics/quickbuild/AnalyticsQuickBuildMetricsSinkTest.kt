@@ -405,6 +405,16 @@ class AnalyticsQuickBuildMetricsSinkTest {
 	}
 
 	@Test
+	fun `a rebuild that attempted no relaunch reports relaunchOk as absent, not as failed`() {
+		sink().onProxyAppRebuild(isSuccess = true, durationMillis = 3_000, relaunchOk = null, toRunningMillis = null)
+
+		val metric = tracked.single() as QuickBuildProxyAppRebuildMetric
+		assertThat(metric.isSuccess).isTrue()
+		assertThat(metric.relaunchOk).isNull()
+		assertThat(metric.toRunningMs).isNull()
+	}
+
+	@Test
 	fun `an invalidation carries the reason in lowercase and the project hash`() {
 		sink().onInvalidation(InvalidationReason.GRADLE_CONFIG_CHANGED)
 
