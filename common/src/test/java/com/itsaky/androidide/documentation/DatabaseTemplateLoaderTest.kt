@@ -131,4 +131,20 @@ class DatabaseTemplateLoaderTest {
 		assertThat(thrown).hasMessageThat().contains("nav.peb")
 		assertThat(thrown).hasMessageThat().doesNotContain("SELECT")
 	}
+
+	@Test
+	fun `an existence check that fails arrives as a loader failure, without the SQL`() {
+		// getReader's guarantee applies here too: this answers a Boolean, so a raw SQLiteException
+		// would not even be classifiable as a template failure by the caller above it.
+		val database =
+			mockk<SQLiteDatabase>(relaxed = true) {
+				every { rawQuery(any(), any()) } throws
+					SQLiteException("no such table: Templates (code 1): , while compiling: SELECT 1 FROM Templates")
+			}
+
+		val thrown = assertThrows(LoaderException::class.java) { loader(database).resourceExists("nav.peb") }
+
+		assertThat(thrown).hasMessageThat().contains("nav.peb")
+		assertThat(thrown).hasMessageThat().doesNotContain("SELECT")
+	}
 }

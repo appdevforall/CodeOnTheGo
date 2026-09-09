@@ -759,15 +759,20 @@ class DocumentationContentSource(
 		const val CONTENT_CHUNK_SIZE = 1024 * 1024
 
 		// Bounds a render whose output grows without end -- a runaway {% for %}, say -- which would
-		// otherwise raise OutOfMemoryError, an Error every catch on this path misses. Pebble counts
-		// characters, so this is ~2 MB of char[]; it has to stay well under the 192-256 MB Android
-		// heap or it never fires, which is why 16 MiB (33.5 MB of char[], doubled during growth)
-		// did not. Pebble's own default is unbounded.
+		// otherwise raise OutOfMemoryError, an Error every catch on this path misses. Pebble's own
+		// default is unbounded, so this is a cap where there was none: it has to be high enough
+		// that no real page reaches it and low enough that it fires before the heap does.
 		//
-		// Not calibrated against real page sizes: the shipped documentation.db is fetched, not
-		// checked in, so the largest legitimate rendered page is not measurable from this repo. If
-		// a real page ever trips this, raise it -- the number is a heap guard, not a content limit.
-		private const val MAX_RENDERED_CHARS = 1024 * 1024
+		// Pebble counts characters, so 4 Mi chars is an 8 MB char[], and the doubling step that
+		// reaches it holds the old 8 MB and the new 16 MB at once, then toString() copies another
+		// 8 MB -- ~32 MB transient against a 192-256 MB heap. 16 MiB failed that test, which is
+		// why it never fired. The largest rendered page is not measurable from this repo, so the
+		// margin above it is deliberately wide rather than tight: the only thing this has to
+		// catch is unbounded growth, and unbounded growth passes any finite number.
+		//
+		// Untemplated content is irrelevant to it. render() runs only for templateId > 0, so the
+		// multi-megabyte rows readChunks exists for -- the bundled PDFs -- never reach the writer.
+		private const val MAX_RENDERED_CHARS = 4 * 1024 * 1024
 
 		private const val CONTENT_QUERY = """
 			SELECT C.content, CT.value, CT.compression, C.templateId

@@ -91,7 +91,15 @@ internal class DatabaseTemplateLoader(
 		// Not TEMPLATE_QUERY: that copies the whole template blob into a CursorWindow to answer a
 		// boolean. Pebble reaches this only through the delegating and servlet loaders, neither of
 		// which is wired here, so the cost would be invisible -- which is the reason to get it right.
-		return database.rawQuery(EXISTS_QUERY, arrayOf(name)).use { it.moveToFirst() }
+		//
+		// Wrapped like getReader, and for the same reason: a SQLiteException carries SQL text, and
+		// this returns a Boolean so a raw throw would not even be classifiable as a template
+		// failure. Which loaders reach this today is a fact about the wiring, not the contract.
+		return try {
+			database.rawQuery(EXISTS_QUERY, arrayOf(name)).use { it.moveToFirst() }
+		} catch (e: RuntimeException) {
+			throw LoaderException(e, "Cannot look up template '$name' in the database")
+		}
 	}
 
 	override fun createCacheKey(name: String): String = name
