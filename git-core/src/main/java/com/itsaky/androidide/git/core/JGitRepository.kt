@@ -42,6 +42,11 @@ import java.io.File
 class JGitRepository(
 	override val rootDir: File,
 ) : GitRepository {
+	companion object {
+		private const val CONFIG_SECTION_COTG = "cotg"
+		private const val CONFIG_KEY_WATERMARK = "commit-watermark"
+	}
+
 	private val log = LoggerFactory.getLogger(JGitRepository::class.java)
 
 	private val repository: Repository =
@@ -214,6 +219,34 @@ class JGitRepository(
 			if (hasRms) rmCommand.call()
 			Unit
 		}
+
+	override suspend fun isCommitWatermarkEnabled(): Boolean =
+		withContext(Dispatchers.IO) {
+			try {
+				repository.config.load()
+				repository.config.getBoolean(CONFIG_SECTION_COTG, null, CONFIG_KEY_WATERMARK, true)
+			} catch (e: Exception) {
+				log.error("Error reading commit watermark config", e)
+				true
+			}
+		}
+
+	override suspend fun setCommitWatermarkEnabled(enabled: Boolean) {
+		try {
+			withContext(Dispatchers.IO) {
+				repository.config.load()
+				repository.config.setBoolean(
+					CONFIG_SECTION_COTG,
+					null,
+					CONFIG_KEY_WATERMARK,
+					enabled,
+				)
+				repository.config.save()
+			}
+		} catch (e: Exception) {
+			log.error("Error saving commit watermark config", e)
+		}
+	}
 
 	override suspend fun commit(
 		message: String,

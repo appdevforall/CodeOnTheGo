@@ -2,6 +2,7 @@
 <androidx.core.widget.NestedScrollView
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
 	android:fillViewport="true">
@@ -119,7 +120,6 @@
 			android:clipToPadding="false"
 			android:fadeScrollbars="false"
 			android:paddingVertical="4dp"
-			android:paddingEnd="8dp"
 			android:scrollbarStyle="outsideOverlay"
 			android:scrollbars="vertical"
 			app:layout_constrainedHeight="true"
@@ -189,13 +189,13 @@
 			android:background="@drawable/bg_commit_watermark"
 			android:orientation="vertical"
 			android:padding="8dp"
-			android:visibility="gone"
 			app:layout_constraintTop_toBottomOf="@id/commitDescriptionLayout">
 
 			<com.google.android.material.materialswitch.MaterialSwitch
 				android:id="@+id/switch_commit_watermark"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
+				android:checked="true"
 				android:text="@string/add_commit_watermark" />
 
 			<TextView
@@ -210,7 +210,8 @@
 				android:layout_height="wrap_content"
 				android:text="@string/git_watermark_disabled_globally"
 				android:textAppearance="?attr/textAppearanceCaption"
-				android:textColor="?attr/colorOnSurfaceVariant" />
+				android:textColor="?attr/colorOnSurfaceVariant"
+				android:visibility="gone" />
 
 		</LinearLayout>
 

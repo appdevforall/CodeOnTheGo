@@ -77,6 +77,9 @@ class GitBottomSheetViewModel(
 	private val _mergeState = MutableStateFlow<MergeUiState>(MergeUiState.Idle)
 	val mergeState: StateFlow<MergeUiState> = _mergeState.asStateFlow()
 
+	private val _isProjectWatermarkEnabled = MutableStateFlow(true)
+	val isProjectWatermarkEnabled: StateFlow<Boolean> = _isProjectWatermarkEnabled.asStateFlow()
+
 	private var initJob: Job? = null
 	private var pullResetJob: Job? = null
 	private var pushResetJob: Job? = null
@@ -125,6 +128,7 @@ class GitBottomSheetViewModel(
 						_currentBranch.value = null
 						_branches.value = BranchesUiState.None
 						_localCommitsCount.value = 0
+						_isProjectWatermarkEnabled.value = true
 						return@launch
 					}
 					val projectDir = File(projectDirPath)
@@ -136,6 +140,7 @@ class GitBottomSheetViewModel(
 						currentRepository = GitRepositoryManager.openRepository(projectDir)
 						_isGitRepository.value = currentRepository != null
 					}
+					_isProjectWatermarkEnabled.value = currentRepository?.isCommitWatermarkEnabled() ?: true
 					refreshStatus()
 				} catch (e: CancellationException) {
 					throw e
@@ -147,6 +152,7 @@ class GitBottomSheetViewModel(
 					_currentBranch.value = null
 					_branches.value = BranchesUiState.None
 					_localCommitsCount.value = 0
+					_isProjectWatermarkEnabled.value = true
 				}
 			}
 	}
@@ -163,10 +169,12 @@ class GitBottomSheetViewModel(
 				_currentBranch.value = null
 				_branches.value = BranchesUiState.None
 				_localCommitsCount.value = 0
+				_isProjectWatermarkEnabled.value = true
 				return@launch
 			}
 
 			try {
+				_isProjectWatermarkEnabled.value = repo.isCommitWatermarkEnabled()
 				val status = repo.getStatus()
 				_gitStatus.value = status
 				_currentBranch.value = repo.getCurrentBranch()?.name
@@ -724,6 +732,13 @@ class GitBottomSheetViewModel(
 			} catch (e: Exception) {
 				log.error("Failed to resolve conflict for $path", e)
 			}
+		}
+	}
+
+	fun setProjectWatermarkEnabled(enabled: Boolean) {
+		_isProjectWatermarkEnabled.value = enabled
+		viewModelScope.launch {
+			currentRepository?.setCommitWatermarkEnabled(enabled)
 		}
 	}
 }

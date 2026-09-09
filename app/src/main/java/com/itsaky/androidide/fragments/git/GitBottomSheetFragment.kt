@@ -280,6 +280,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 				}
 			}
 
+			launch {
+				viewModel.isProjectWatermarkEnabled.collectLatest {
+					updateWatermarkUI()
+				}
+			}
+
 			combine(
 				viewModel.isGitRepository,
 				viewModel.gitStatus,
@@ -369,14 +375,6 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		validateCommitButton()
 	}
 
-	private fun getProjectPath(): String? {
-		val rawPath =
-			viewModel.currentRepository?.rootDir?.path
-				?: runCatching { IProjectManager.getInstance().projectDirPath }.getOrNull()?.takeIf { it.isNotBlank() }
-				?: return null
-		return GitPreferences.getCanonicalProjectPath(rawPath)
-	}
-
 	private fun updateWatermarkUI(
 		isRepo: Boolean = viewModel.isGitRepository.value,
 		hasChanges: Boolean =
@@ -404,7 +402,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	}
 
 	private fun showGlobalWatermarkDisabled() {
-		val projectEnabled = GitPreferences.isProjectWatermarkEnabled(getProjectPath())
+		val projectEnabled = viewModel.isProjectWatermarkEnabled.value
 		binding.apply {
 			switchCommitWatermark.isEnabled = false
 			switchCommitWatermark.isChecked = projectEnabled
@@ -414,7 +412,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	}
 
 	private fun showProjectWatermarkState() {
-		val projectEnabled = GitPreferences.isProjectWatermarkEnabled(getProjectPath())
+		val projectEnabled = viewModel.isProjectWatermarkEnabled.value
 
 		binding.apply {
 			switchCommitWatermark.isEnabled = true
@@ -477,13 +475,11 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							?.toString()
 							?.trim()
 
-					val projectPath = getProjectPath()
 					val watermark =
 						getString(R.string.made_with_code_on_the_go)
 							.takeIf {
 								binding.layoutWatermark.isVisible &&
-									binding.switchCommitWatermark.isChecked &&
-									GitPreferences.isWatermarkEnabled(projectPath)
+									binding.switchCommitWatermark.isChecked
 							}
 
 					val message =
@@ -513,9 +509,10 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			if (isUpdatingWatermarkUI) {
 				return@setOnCheckedChangeListener
 			}
-			val projectPath = getProjectPath()
-			GitPreferences.enableProjectWatermark(projectPath, isChecked)
 			binding.tvCommitWatermark.isVisible = isChecked
+			if (viewModel.isProjectWatermarkEnabled.value != isChecked) {
+				viewModel.setProjectWatermarkEnabled(isChecked)
+			}
 		}
 		updateWatermarkUI()
 	}
