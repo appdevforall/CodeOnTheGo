@@ -652,45 +652,50 @@ class MetricsCarouselController(
 		val appContext = context.applicationContext
 		snapshotInFlight = true
 		scope.launch {
-			// Everything here is guarded: the scope has no exception handler, so anything escaping
-			// reaches the global crash reporter and is filed as a crash. MetricsSnapshot.write
-			// converts only IOException, and shareFile ends in startActivity, which throws
-			// ActivityNotFoundException on a device with nothing able to receive an image.
-			runCatching {
-				val file =
-					withContext(Dispatchers.IO) {
-						// Recycled as soon as it has been encoded: getChartBitmap hands back a
-						// fresh full-size ARGB_8888 copy of the plot on every tap, which is
-						// megabytes that would otherwise sit around until the collector noticed.
-						try {
+			// The recycle wraps the whole body, not just the IO block. getChartBitmap hands back a
+			// fresh full-size ARGB_8888 copy of the plot on every tap -- the largest thing this
+			// class allocates -- and it is taken before the launch. Recycling inside
+			// withContext(Dispatchers.IO) meant a cancellation at that suspension point, which
+			// close() causes on undock and on activity destroy, skipped the finally entirely and
+			// left it to the collector.
+			try {
+				// Everything here is guarded: the scope has no exception handler, so anything
+				// escaping reaches the global crash reporter and is filed as a crash.
+				// MetricsSnapshot.write converts only IOException, and shareFile ends in
+				// startActivity, which throws ActivityNotFoundException on a device with nothing
+				// able to receive an image.
+				runCatching {
+					val file =
+						withContext(Dispatchers.IO) {
 							MetricsSnapshot.write(appContext, bitmap)
-						} finally {
-							bitmap.recycle()
 						}
+					// Read through the property, not the local captured above: the export is no longer
+					// instantaneous, and the carousel can be unbound or rebound while the file is
+					// written, which would leave the share pointed at a dead host.
+					val host = this@MetricsCarouselController.binding?.root?.context
+					if (file == null || host == null) {
+						Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
+						return@runCatching
 					}
-				// Read through the property, not the local captured above: the export is no longer
-				// instantaneous, and the carousel can be unbound or rebound while the file is
-				// written, which would leave the share pointed at a dead host.
-				val host = this@MetricsCarouselController.binding?.root?.context
-				if (file == null || host == null) {
+					// A floating window's context has no task, so startActivity needs NEW_TASK
+					// there. Docked, the host is the activity and the flag would change its task
+					// affinity.
+					val extraFlags =
+						if (host.findActivityOrNull() == null) Intent.FLAG_ACTIVITY_NEW_TASK else 0
+					IntentUtils.shareFile(host, file, MetricsSnapshot.MIME_TYPE, extraFlags)
+				}.onFailure { failure ->
+					if (failure is CancellationException) {
+						// Cleared before rethrowing: a cancelled export is finished either way, and
+						// leaving the flag set would refuse every later one for the life of the
+						// carousel.
+						snapshotInFlight = false
+						throw failure
+					}
+					log.error("Could not share the chart snapshot", failure)
 					Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
-					return@runCatching
 				}
-				// A floating window's context has no task, so startActivity needs NEW_TASK there.
-				// Docked, the host is the activity and the flag would change its task affinity.
-				val extraFlags =
-					if (host.findActivityOrNull() == null) Intent.FLAG_ACTIVITY_NEW_TASK else 0
-				IntentUtils.shareFile(host, file, MetricsSnapshot.MIME_TYPE, extraFlags)
-			}.onFailure { failure ->
-				if (failure is CancellationException) {
-					// Cleared before rethrowing: a cancelled export is finished either way, and
-					// leaving the flag set would refuse every later one for the life of the
-					// carousel.
-					snapshotInFlight = false
-					throw failure
-				}
-				log.error("Could not share the chart snapshot", failure)
-				Toast.makeText(appContext, string.msg_metrics_snapshot_failed, Toast.LENGTH_SHORT).show()
+			} finally {
+				bitmap.recycle()
 			}
 			snapshotInFlight = false
 		}
