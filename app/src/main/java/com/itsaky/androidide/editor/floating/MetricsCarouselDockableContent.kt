@@ -22,10 +22,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import androidx.core.view.updateLayoutParams
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
 import com.itsaky.androidide.floating.model.ChromeControl
 import com.itsaky.androidide.floating.model.DockableContent
 import com.itsaky.androidide.floating.window.FloatingWindowHost
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.ui.MetricsCarouselController
 
 /**
@@ -75,6 +77,17 @@ class MetricsCarouselDockableContent(
 				ViewGroup.LayoutParams.MATCH_PARENT,
 				ViewGroup.LayoutParams.MATCH_PARENT,
 			)
+
+		// The next arrow shares the bottom-right corner with the frame's resize grip, whose touch
+		// target is 28dp. Undocked they sat close enough to look like one control and to invite a
+		// mis-hit; the arrow moves in by the grip's own width. Docked there is no grip, so this is
+		// set here rather than in the layout.
+		binding.metricsNext.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+			marginEnd =
+				context.resources.getDimensionPixelSize(
+					com.itsaky.androidide.R.dimen.metrics_carousel_undocked_arrow_margin_end,
+				)
+		}
 
 		// A two-finger tap is what undocked it; inside the window the chrome's dock control is the
 		// way back, so the gesture would only be a second, less discoverable route.

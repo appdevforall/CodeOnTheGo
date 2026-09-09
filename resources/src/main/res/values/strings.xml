@@ -1710,7 +1710,7 @@
 	<string name="metrics_axis_now">now</string>
 	<string name="metrics_value_unavailable">n/a</string>
 	<!-- A chart legend entry: the series name, then its latest value. -->
-	<string name="metrics_legend_entry">%1$s - %2$s</string>
+	<string name="metrics_legend_entry">%1$s %2$s</string>
 
 </resources>
 

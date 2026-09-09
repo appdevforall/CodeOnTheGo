@@ -110,7 +110,7 @@ class MemoryUsageChartRendererTest {
 		assertThat(dataset.entries.map { it.y }).doesNotContain(0f)
 		assertThat(dataset.entries.first().y).isEqualTo(100f)
 		assertThat(dataset.entries.last().y).isEqualTo((100 + MemoryUsageWatcher.MAX_USAGE_ENTRIES - 1).toFloat())
-		assertThat(dataset.label).isEqualTo("IDE - %.2fMB".format(dataset.entries.last().y))
+		assertThat(dataset.label).isEqualTo("IDE %.2fMB".format(dataset.entries.last().y))
 	}
 
 	@Test
@@ -154,7 +154,7 @@ class MemoryUsageChartRendererTest {
 		)
 
 		assertThat(chart.data.dataSetCount).isEqualTo(2)
-		assertThat(datasetFor(chart, 1).label).startsWith("Gradle Tooling - ")
+		assertThat(datasetFor(chart, 1).label).startsWith("Gradle Tooling ")
 		assertThat(datasetFor(chart, 1).entries.first().y).isEqualTo(300f)
 	}
 
@@ -197,7 +197,7 @@ class MemoryUsageChartRendererTest {
 		)
 
 		assertThat(chart.data.dataSetCount).isEqualTo(1)
-		assertThat(datasetFor(chart, 0).label).startsWith("Gradle Tooling - ")
+		assertThat(datasetFor(chart, 0).label).startsWith("Gradle Tooling ")
 		assertThat(datasetFor(chart, 0).entries.first().y).isEqualTo(700f)
 	}
 

@@ -13,6 +13,9 @@
 	<dimen name="metrics_carousel_snapshot_padding">10dp</dimen>
 	<dimen name="metrics_carousel_arrow_touch_target">48dp</dimen>
 	<dimen name="metrics_carousel_arrow_padding">12dp</dimen>
+	<!-- Undocked only: keeps the next arrow clear of the floating window's resize grip, which is a 28dp touch target in
+		the same bottom-right corner. Docked there is no grip and no margin. -->
+	<dimen name="metrics_carousel_undocked_arrow_margin_end">28dp</dimen>
 	<dimen name="editor_container_corners">28dp</dimen>
 
 	<dimen name="snackbar_offset_bottom">28dp</dimen>
