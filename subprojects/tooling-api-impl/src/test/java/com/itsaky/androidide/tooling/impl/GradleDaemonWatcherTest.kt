@@ -215,11 +215,23 @@ class GradleDaemonWatcherTest {
 	}
 
 	@Test
-	fun `shutdown stops the scheduler`() {
-		// It had no caller at all, so the watcher's thread outlived server shutdown and an in-flight
-		// poll chain went on scanning descendants for up to a minute -- and onBuildStarted's note
-		// about the scheduler rejecting work after shutdown described a state nothing could reach.
+	fun `shutdown drains what is queued before it stops waiting`() {
+		// Graceful first: a report queued moments before the server was told to stop still runs.
 		val scheduler = mockk<ScheduledExecutorService>(relaxed = true)
+		every { scheduler.awaitTermination(any(), any()) } returns true
+
+		watcher(scheduler = scheduler).shutdown()
+
+		verify(exactly = 1) { scheduler.shutdown() }
+		verify(exactly = 1) { scheduler.awaitTermination(GradleDaemonWatcher.SHUTDOWN_GRACE_MS, TimeUnit.MILLISECONDS) }
+		verify(exactly = 0) { scheduler.shutdownNow() }
+	}
+
+	@Test
+	fun `shutdown stops waiting on a poll that will not finish`() {
+		// And forcefully after the grace period, so a wedged scan cannot hold the process open.
+		val scheduler = mockk<ScheduledExecutorService>(relaxed = true)
+		every { scheduler.awaitTermination(any(), any()) } returns false
 
 		watcher(scheduler = scheduler).shutdown()
 

@@ -124,4 +124,39 @@ class ToolingApiServerImplTest {
 			RootModelBuilder.build(initParams, any())
 		}
 	}
+
+	@Test
+	fun `shutting the server down stops the daemon watcher`() {
+		// The defect this PR exists to fix, pinned at the caller. The watcher's own shutdown() was
+		// already correct on stage -- what was missing was anything calling it, so a test of
+		// GradleDaemonWatcher.shutdown() in isolation passes against the unfixed server and pins
+		// nothing. Deleting the block in ToolingApiServerImpl.shutdown() has to fail a test.
+		val watcher = mockk<GradleDaemonWatcher>(relaxed = true)
+		val server = ToolingApiServerImpl(newDaemonWatcher = { _, _ -> watcher })
+
+		// A build, to bring the watcher into being the way a session does: runBuild calls
+		// onBuildStarted, which is what initializes the lazy.
+		server.initialize(testInitParams()).get(5, TimeUnit.SECONDS)
+		server.shutdown().get(5, TimeUnit.SECONDS)
+
+		verify(exactly = 1) { watcher.shutdown() }
+	}
+
+	@Test
+	fun `a server that never ran a build does not build a watcher just to stop it`() {
+		// Through the lazy delegate, not the property: touching the property would construct a
+		// watcher, and its scheduler thread, only to shut it down again.
+		var built = 0
+		val server =
+			ToolingApiServerImpl(
+				newDaemonWatcher = { _, _ ->
+					built++
+					mockk(relaxed = true)
+				},
+			)
+
+		server.shutdown().get(5, TimeUnit.SECONDS)
+
+		assertThat(built).isEqualTo(0)
+	}
 }

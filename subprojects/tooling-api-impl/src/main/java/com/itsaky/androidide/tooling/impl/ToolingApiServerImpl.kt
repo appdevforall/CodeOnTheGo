@@ -73,7 +73,10 @@ import kotlin.concurrent.withLock
  *
  * @author Akash Yadav
  */
-internal class ToolingApiServerImpl : IToolingApiServer {
+internal class ToolingApiServerImpl(
+	private val newDaemonWatcher: (onStarted: (Int) -> Unit, onExited: (Int) -> Unit) -> GradleDaemonWatcher =
+		{ onStarted, onExited -> GradleDaemonWatcher(onStarted = onStarted, onExited = onExited) },
+) : IToolingApiServer {
 	private var client: IToolingApiClient? = null
 	private var connector: GradleConnector? = null
 	private var connection: ProjectConnection? = null
@@ -363,9 +366,9 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	 */
 	private val lazyDaemonWatcher =
 		lazy {
-			GradleDaemonWatcher(
-				onStarted = { pid -> client?.onGradleDaemonStarted(pid) },
-				onExited = { pid -> client?.onGradleDaemonExited(pid) },
+			newDaemonWatcher(
+				{ pid -> client?.onGradleDaemonStarted(pid) },
+				{ pid -> client?.onGradleDaemonExited(pid) },
 			)
 		}
 
@@ -410,6 +413,31 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			buildCancellationToken?.cancel()
 			buildCancellationToken = null
 
+			// Early, and deliberately not "late enough to report the daemon's exit".
+			//
+			// The leaked thread is the defect: unstopped, an in-flight poll chain goes on scanning
+			// ProcessHandle.descendants() for up to a minute after the server is gone. Stopping it
+			// here ends that at once, and means no later poll can report a daemon into an RPC
+			// channel that is being torn down.
+			//
+			// Delivering the shutdown-time exit was tried and does not work. That report arrives
+			// through handle.onExit().thenRun { scheduler.execute { ... } }, and onExit completes
+			// on a process-reaper thread only once the OS has reaped the daemon -- strictly after
+			// DefaultGradleConnector.close() returns. There is no point in this sequence where the
+			// scheduler is still accepting work *and* the daemon has already been reaped, so the
+			// report is not deliverable at shutdown whatever the ordering; keeping `client` alive
+			// for it only widens the window in which a half-torn-down channel can be written to.
+			// The client learns the daemon is gone when it reconnects, not from here.
+			//
+			// Through the lazy delegate rather than the property: touching the property would
+			// construct a watcher, and its scheduler, only to shut it down again on a server that
+			// never ran a build.
+			if (lazyDaemonWatcher.isInitialized()) {
+				log.info("Stopping the Gradle daemon watcher...")
+				runCatching { daemonWatcher.shutdown() }
+					.onFailure { log.warn("Could not stop the Gradle daemon watcher", it) }
+			}
+
 			val connection = this.connection
 			val connector = this.connector
 			this.connection = null
@@ -425,19 +453,6 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 					// Stop all daemons
 					log.info("Stopping all Gradle Daemons...")
 					DefaultGradleConnector.close()
-
-					// After the daemons, not before. Stopping them is what produces the exit, and
-					// the exit is reported through handle.onExit().thenRun { scheduler.execute
-					// { ... } } -- a scheduler already shut down rejects it and merely logs, so the
-					// client never hears that the daemon it is plotting has gone. Through the lazy
-					// delegate rather than the property: touching the property would construct a
-					// watcher, and its scheduler, only to shut it down again on a server that never
-					// ran a build.
-					if (lazyDaemonWatcher.isInitialized()) {
-						log.info("Stopping the Gradle daemon watcher...")
-						runCatching { daemonWatcher.shutdown() }
-							.onFailure { log.warn("Could not stop the Gradle daemon watcher", it) }
-					}
 				}
 
 			// update the initialization flag before cancelling future
@@ -448,17 +463,12 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			log.info("Cancelling awaiting future...")
 			Main.future?.cancel(true)
 
+			this.client = null
 			this.buildCancellationToken = null
 			this.lastInitParams = null
 
 			// wait for connections to close
 			connectionCloseFuture.get()
-
-			// After the wait, not before. Stopping the daemons is what makes the watcher report
-			// their exit, and that report goes through `client` -- cleared first, it was a silent
-			// no-op and the client's chart kept the daemon's last value. Best effort even so: the
-			// client's own channel is going away at the same time.
-			this.client = null
 
 			log.info("Shutdown request completed.")
 			null
