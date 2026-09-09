@@ -19,6 +19,7 @@ package com.itsaky.androidide.gradle
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
@@ -52,6 +53,16 @@ class AndroidIDEGradlePlugin : Plugin<Project> {
 			val isProfileableEnabled = findProperty(PROPERTY_PROFILEABLE_ENABLED) == "true"
 			if (isProfileableEnabled) {
 				pluginManager.apply(ProfilerPlugin::class.java)
+			}
+
+			tasks.configureEach { task ->
+				val message = adbTaskReplacementMessage(task) ?: return@configureEach
+				task.setActions(emptyList())
+				if (task.name.endsWith("AndroidTest")) {
+					task.doLast { throw GradleException(ANDROID_TEST_INSTALL_UNSUPPORTED_MESSAGE) }
+				} else {
+					task.doLast { it.logger.lifecycle(message) }
+				}
 			}
 		}
 	}
