@@ -114,6 +114,14 @@ class EditorBottomSheet
 		private var measuredStatusHeight = 0f
 
 		/**
+		 * While true the collapsed header only grows. A Gradle build narrates one status line
+		 * per task, and at a 2x font scale those alternate between one and three rows, so a
+		 * header that followed each measurement made the peek jump on every task; it settles
+		 * back to fit once the build ends.
+		 */
+		private var statusHeightRatchet = false
+
+		/**
 		 * The part of the sheet above the header: its status-bar top padding and the divider row.
 		 *
 		 * The collapsed peek is the header height alone, so while the sheet is collapsed this much
@@ -514,7 +522,8 @@ class EditorBottomSheet
 				MeasureSpec.makeMeasureSpec(header.width, MeasureSpec.EXACTLY),
 				MeasureSpec.makeMeasureSpec(resources.displayMetrics.heightPixels, MeasureSpec.AT_MOST),
 			)
-			val measured = status.measuredHeight.toFloat()
+			val measured =
+				statusHeightAfterMeasure(measuredStatusHeight, status.measuredHeight.toFloat(), statusHeightRatchet)
 			// Only a changed height needs a layout pass. setStatus's own setText already scheduled
 			// one for the text, and this runs on every Gradle task line, so an unconditional
 			// request here would add a second measure/layout round-trip per progress event.
@@ -729,6 +738,21 @@ class EditorBottomSheet
 			}
 		}
 
+		/**
+		 * Whether a user build is narrating into the status line. While it is, the collapsed
+		 * header keeps the tallest height it has needed; when it stops, the header re-fits the
+		 * final status line.
+		 */
+		fun setBuildNarrating(narrating: Boolean) {
+			if (statusHeightRatchet == narrating) {
+				return
+			}
+			statusHeightRatchet = narrating
+			if (!narrating) {
+				post { refreshCollapsedHeight() }
+			}
+		}
+
 		private fun shareFile(file: File) {
 			shareFile(context, file, "text/plain")
 		}
@@ -905,3 +929,20 @@ internal fun collapsedHeaderHeightPx(
 	chromePx: Int,
 	statusShown: Boolean,
 ): Float = if (!statusShown || statusPx <= 0f) floorPx else maxOf(floorPx, statusPx + chromePx)
+
+/**
+ * The status-block height to size the collapsed header from after one measurement.
+ *
+ * [measuredPx] as it is, except while a build is narrating: then the header only grows, because
+ * Gradle's per-task status lines wrap to a different row count from one task to the next and a
+ * header that followed each one made the peek jump through the whole build.
+ *
+ * @param previousPx what the block was last sized from, or 0 before the first measurement.
+ * @param measuredPx what the block measured at just now.
+ * @param buildNarrating whether a user build is writing the status line.
+ */
+internal fun statusHeightAfterMeasure(
+	previousPx: Float,
+	measuredPx: Float,
+	buildNarrating: Boolean,
+): Float = if (buildNarrating) maxOf(previousPx, measuredPx) else measuredPx
