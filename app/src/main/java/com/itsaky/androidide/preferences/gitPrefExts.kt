@@ -23,7 +23,7 @@ class GitPreferencesScreen(
 
 	init {
 		addPreference(GitAuthorConfig())
-		addPreference(AddGitCommitWatermark())
+		addPreference(CommitWatermarkConfig())
 	}
 }
 
@@ -31,7 +31,6 @@ class GitPreferencesScreen(
 class GitAuthorConfig(
 	override val key: String = "idepref_git_author",
 	override val title: Int = R.string.idepref_git_author_title,
-	override val summary: Int? = R.string.idepref_git_author_summary,
 	override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceGroup() {
 
@@ -39,6 +38,18 @@ class GitAuthorConfig(
 		addPreference(GitUserName())
 		addPreference(GitUserEmail())
 	}
+}
+
+@Parcelize
+class CommitWatermarkConfig(
+    override val key: String = "idepref_git_commit_watermark",
+    override val title: Int = R.string.idepref_git_commit_watermark_title,
+    override val children: List<IPreference> = mutableListOf(),
+) : IPreferenceGroup() {
+
+    init {
+        addPreference(AddGitCommitWatermark())
+    }
 }
 
 @Parcelize

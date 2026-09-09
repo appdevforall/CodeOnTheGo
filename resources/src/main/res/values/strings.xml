@@ -1529,7 +1529,6 @@
     <!-- Git Preferences -->
     <string name="idepref_git_summary">Set and update Git configuration</string>
     <string name="idepref_git_author_title">Author identity</string>
-    <string name="idepref_git_author_summary">Set the name and email used for commits</string>
     <string name="idepref_git_user_name_title">User name</string>
     <string name="idepref_git_user_name_summary">Used as author name in commits</string>
     <string name="idepref_git_user_email_title">User email</string>
@@ -1537,6 +1536,7 @@
     <string name="idepref_git_author_missing_warning">Configure Git author in Preferences to enable commits.\nTap the avatar for more info.</string>
     <string name="idepref_git_add_commit_watermark">Add watermark to commits</string>
     <string name="idepref_git_add_commit_watermark_summary">Automatically adds a Code on the Go credit to Git commits. You can disable it for individual projects in the Git tab.</string>
+    <string name="idepref_git_commit_watermark_title">Commit watermark</string>
     <string name="git_committing_as">Committing as %1$s</string>
     <string name="git_committing_email">Email - %1$s</string>
     <string name="git_update_config_in_preferences">You can update your Git configuration in Preferences.</string>
