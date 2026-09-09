@@ -34,7 +34,8 @@ stateDiagram-v2
     Provisioning --> Ready: ProvisioningSucceeded (SwitchToProxyApp if userInitiated and not askAlreadyAnswered)
     Provisioning --> Provisioning: QuickBuildTapped (records the ask; userInitiated = true)
     Provisioning --> Idle: ProvisioningFailed
-    Provisioning --> Idle: CancelRequested
+    Provisioning --> Idle: CancelRequested (no rebaseline)
+    Provisioning --> Provisioning: CancelRequested (rebaseline - CancelProxyAppRebuild; withdraws userInitiated)
     Provisioning --> Invalidated: ProxyAppRebuildFailed (awaitingRetry)
     Provisioning --> Invalidated: ProxyAppRebuildInstallNotConfirmed
     Provisioning --> Invalidated: ProxyAppRebuildDeferred
