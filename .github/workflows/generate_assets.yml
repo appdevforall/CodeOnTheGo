@@ -1,4 +1,4 @@
-name: Generate Assets Zips and Upload to Google Drive
+name: Generate Assets Zips
 
 permissions:
   id-token: write
@@ -7,13 +7,30 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or tag to build the asset zips from
+        required: false
+        default: stage
+      asset_source:
+        description: Where the debug asset ingredients come from
+        required: false
+        default: site
+        type: choice
+        options:
+          - site
+          - release
+      asset_release_tag:
+        description: 'Release tag holding the debug ingredients (asset_source: release)'
+        required: false
+        default: adfa-2602-rc
 
 env:
   SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
 
 jobs:
-  generate_assets:
-    name: Generate Assets Zips
+  prepare:
+    name: Stage debug assets
     runs-on: self-hosted
     timeout-minutes: 90
 
@@ -21,7 +38,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: stage
+          ref: ${{ inputs.ref }}
+
+      - name: Remove stale staged assets
+        run: |
+          rm -f assets/*.zip assets/documentation.db assets/core.cgt
+          ls -la assets/ 2>/dev/null || true
 
       - name: Check if Nix is installed
         id: check_nix
@@ -55,6 +77,7 @@ jobs:
           access_token_scopes: 'https://www.googleapis.com/auth/drive'
 
       - name: Set up SSH key
+        if: inputs.asset_source == 'site'
         env:
           GREENGEEKS_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
           GREENGEEKS_KEY: ${{ secrets.GREENGEEKS_SSH_PRIVATE_KEY }}
@@ -109,7 +132,8 @@ jobs:
           rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null
           ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Download debug assets
+      - name: Download debug assets from the site
+        if: inputs.asset_source == 'site'
         run: |
           flox activate -d flox/base -- ./gradlew :app:assetsDownloadDebug --no-daemon \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
@@ -117,12 +141,28 @@ jobs:
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
 
+      - name: Download debug assets from a release
+        if: inputs.asset_source == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSET_TAG: ${{ inputs.asset_release_tag }}
+        run: |
+          mkdir -p assets
+          gh release download "$ASSET_TAG" --dir assets --clobber \
+            --pattern 'android-sdk-*.zip' \
+            --pattern 'bootstrap-*.zip' \
+            --pattern 'gradle-*-bin.zip' \
+            --pattern 'gradle-api-*.jar.zip' \
+            --pattern 'localMvnRepository.zip' \
+            --pattern 'core.cgt'
+          ls -la assets/
+
       - name: Download latest documentation.db from Google Drive
         run: |
           DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
 
-          if [ -z "DB_FILE_ID" ]; then
+          if [ -z "$DB_FILE_ID" ]; then
             echo "ERROR: DOCUMENTATION_DB_FILE_ID secret not set"
             echo "Please set the DOCUMENTATION_DB_FILE_ID secret in repository settings"
             exit 1
@@ -151,107 +191,40 @@ jobs:
 
           echo "Successfully downloaded documentation.db ($FILE_SIZE_HUMAN)"
 
-      - name: Assemble Assets
+      - name: Verify staged ingredients
         run: |
-          flox activate -d flox/base -- ./gradlew :app:assembleAssets --no-daemon \
-            -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
-            -Dandroid.aapt2.daemonHeapSize=4096M \
-            -Dorg.gradle.workers.max=1 \
-            -Dorg.gradle.parallel=false
-
-      - name: V8 Assets Path
-        id: assets_v8
-        run: |
-          assets_path="app/build/outputs/assets/assets-arm64-v8a.zip"
-          echo "ASSETS_PATH=$assets_path" >> $GITHUB_OUTPUT
-
-      - name: V7 Assets Path
-        id: assets_v7
-        run: |
-          assets_path="app/build/outputs/assets/assets-armeabi-v7a.zip"
-          echo "ASSETS_PATH=$assets_path" >> $GITHUB_OUTPUT
-
-      - name: Upload asset zips to Google Drive
-        run: |
-          echo "Uploading assets v8 and v7 to Google Drive..."
-
-          ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
-          V8_FILE_ID="${{ secrets.ASSETS_V8_FILE_ID }}"
-          V7_FILE_ID="${{ secrets.ASSETS_V7_FILE_ID }}"
-          
-          V8_PATH="${{ steps.assets_v8.outputs.ASSETS_PATH }}"
-          V7_PATH="${{ steps.assets_v7.outputs.ASSETS_PATH }}"         
-          
-          # Upload v8          
-          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "Content-Type: application/zip" \
-            --upload-file "${V8_PATH}" \
-            "https://www.googleapis.com/upload/drive/v3/files/${V8_FILE_ID}?uploadType=media")
-
-          if [[ "$response" -ne 200 ]]; then
-            echo "Upload of ${V8_PATH} failed with HTTP status $response"
-            exit 1
+          missing=0
+          for f in localMvnRepository.zip documentation.db core.cgt \
+                   android-sdk-arm64-v8a.zip android-sdk-armeabi-v7a.zip \
+                   bootstrap-arm64-v8a.zip bootstrap-armeabi-v7a.zip; do
+            if [ ! -s "assets/$f" ]; then
+              echo "ERROR: missing or empty assets/$f"
+              missing=1
+            fi
+          done
+          if ! ls assets/gradle-*-bin.zip >/dev/null 2>&1; then
+            echo "ERROR: no assets/gradle-*-bin.zip staged"
+            missing=1
           fi
-
-          # Upload v7          
-          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "Content-Type: application/zip" \
-            --upload-file "${V7_PATH}" \
-            "https://www.googleapis.com/upload/drive/v3/files/${V7_FILE_ID}?uploadType=media")
-
-          if [[ "$response" -ne 200 ]]; then
-            echo "Upload of ${V7_PATH} failed with HTTP status $response"
-            exit 1
+          if ! ls assets/gradle-api-*.jar.zip >/dev/null 2>&1; then
+            echo "ERROR: no assets/gradle-api-*.jar.zip staged"
+            missing=1
           fi
+          [ "$missing" -eq 0 ] || exit 1
+          command -v sqlite3 >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq sqlite3; }
+          sqlite3 assets/documentation.db \
+            "SELECT 1 FROM pragma_table_info('Content') WHERE name='templateId';" | grep -q 1 \
+            || { echo "ERROR: documentation.db predates the templateId column; docs requests will 500"; exit 1; }
+          echo "All ingredients staged"
 
-          echo "Upload complete."
+      - name: Upload staged assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-assets
+          path: assets/
+          retention-days: 1
+          if-no-files-found: error
 
-      - name: Send Rich Slack Notification
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          
-          V8_FILE_ID="${{ secrets.ASSETS_V8_FILE_ID }}"
-          V7_FILE_ID="${{ secrets.ASSETS_V7_FILE_ID }}"         
-          
-          GDRIVE_V8_LINK="<https://drive.google.com/file/d/${V8_FILE_ID}/view|Download Assets Zip 64-bit ARM>"
-          GDRIVE_V7_LINK="<https://drive.google.com/file/d/${V7_FILE_ID}/view|Download Assets Zip 32-bit ARM>"         
-          
-          jq -n \
-            --arg v8_link "$GDRIVE_V8_LINK" \
-            --arg v7_link "$GDRIVE_V7_LINK" \
-            '{
-              blocks: [
-                {
-                  type: "header",
-                  text: {
-                    type: "plain_text",
-                    text: ":rocket: [Updated] New Assets Zips Available",
-                    emoji: true
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Assets 64-bit ARM Link:* \($v8_link)"
-                  }
-                },
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Assets 32-bit ARM Link:* \($v7_link)"
-                  }
-                }    
-              ]
-            }' > payload.json
-          
-          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
-
-          rm -f payload.json
       - name: Cleanup google-services.json
         if: always()
         run: |
@@ -259,7 +232,7 @@ jobs:
           echo "google-services.json cleaned up successfully"
 
       - name: Cleanup ssh
-        if: always()
+        if: always() && inputs.asset_source == 'site'
         run: |
           # Remove SSH key
           rm -f ~/.ssh/id_rsa
@@ -269,3 +242,147 @@ jobs:
           fi
           # Remove entire .ssh directory if empty
           rmdir ~/.ssh 2>/dev/null || true
+
+  zip:
+    name: Zip assets
+    runs-on: self-hosted
+    timeout-minutes: 60
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: v8
+            arch: arm64-v8a
+            label: 64-bit ARM
+          - abi: v7
+            arch: armeabi-v7a
+            label: 32-bit ARM
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Remove stale staged assets
+        run: |
+          rm -f assets/*.zip assets/documentation.db assets/core.cgt
+
+      - name: Check if Nix is installed
+        id: check_nix
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix is installed"
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix is not installed"
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Flox
+        if: env.nix_installed == 'false'
+        uses: flox/install-flox-action@v2
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+
+      - name: Download staged assets
+        uses: actions/download-artifact@v4
+        with:
+          name: debug-assets
+          path: assets
+
+      - name: Assemble assets zip
+        run: |
+          variant_upper=$(echo "${{ matrix.abi }}" | tr '[:lower:]' '[:upper:]')
+          flox activate -d flox/base -- ./gradlew :app:assemble${variant_upper}Assets --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
+            -Dandroid.aapt2.daemonHeapSize=4096M \
+            -Dorg.gradle.workers.max=1 \
+            -Dorg.gradle.parallel=false
+
+      - name: Verify assets zip
+        id: assets_zip
+        run: |
+          zip_path="app/build/outputs/assets/assets-${{ matrix.arch }}.zip"
+          if [ ! -s "$zip_path" ]; then
+            echo "ERROR: $zip_path was not produced"
+            exit 1
+          fi
+          unzip -tq "$zip_path"
+          for entry in android-sdk.zip bootstrap.zip localMvnRepository.zip documentation.db \
+                       core.cgt plugin-artifacts.zip plugin-maven-repo.zip; do
+            unzip -l "$zip_path" | grep -qE "[[:space:]]$entry$" \
+              || { echo "ERROR: $zip_path is missing entry $entry"; exit 1; }
+          done
+          echo "ASSETS_PATH=$zip_path" >> $GITHUB_OUTPUT
+          echo "$(du -h "$zip_path" | cut -f1) $zip_path"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Upload assets zip to Cloudflare R2
+        id: r2
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_KEY_ID: ${{ vars.CLOUDFLARE_KEY_ID }}
+          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_ASSETS_BUCKET || 'apk-repo' }}
+          R2_KEY_PREFIX: assets/
+        run: |
+          uv run --with boto3 scripts/cloudflare-r2-upload.py "${{ steps.assets_zip.outputs.ASSETS_PATH }}"
+          echo "DOWNLOAD_URL=https://download.appdevforall.org/assets/assets-${{ matrix.arch }}.zip" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ASSET_LABEL: ${{ matrix.label }}
+          DOWNLOAD_URL: ${{ steps.r2.outputs.DOWNLOAD_URL }}
+          BUILD_REF: ${{ inputs.ref }}
+        run: |
+          jq -n \
+            --arg label "$ASSET_LABEL" \
+            --arg url "$DOWNLOAD_URL" \
+            --arg ref "$BUILD_REF" \
+            '{
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: ":rocket: [Updated] New Assets Zip Available",
+                    emoji: true
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*\($label):* <\($url)|Download assets zip>"
+                  }
+                },
+                {
+                  type: "context",
+                  elements: [
+                    {
+                      type: "mrkdwn",
+                      text: "Built from `\($ref)`. Push to `/sdcard/Download/` on the device, then `adb shell touch` it."
+                    }
+                  ]
+                }
+              ]
+            }' > payload.json
+
+          curl -X POST -H "Content-type: application/json" --data @payload.json "$SLACK_WEBHOOK"
+
+          rm -f payload.json
+
+      - name: Clean up outputs
+        if: always()
+        run: |
+          rm -f app/google-services.json
+          rm -rf app/build/outputs/assets/

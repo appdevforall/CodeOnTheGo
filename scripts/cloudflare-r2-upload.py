@@ -19,7 +19,8 @@ for name in REQUIRED_ENV:
 CLOUDFLARE_ACCOUNT_ID = os.environ["CLOUDFLARE_ACCOUNT_ID"]
 CLOUDFLARE_KEY_ID = os.environ["CLOUDFLARE_KEY_ID"]
 CLOUDFLARE_SECRET_ACCESS_KEY = os.environ["CLOUDFLARE_SECRET_ACCESS_KEY"]
-BUCKET_NAME = "apk-repo"
+BUCKET_NAME = os.environ.get("R2_BUCKET") or "apk-repo"
+KEY_PREFIX = os.environ.get("R2_KEY_PREFIX", "")
 
 R2_ENDPOINT_URL = f"https://{CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
@@ -70,6 +71,8 @@ upload_kwargs = {"Callback": progress_callback}
 if extra_args:
     upload_kwargs["ExtraArgs"] = extra_args
 
-print(f"Uploading {file_name} ({file_size / (1024*1024):.1f} MB) to R2...", flush=True)
-s3.upload_file(file_path, BUCKET_NAME, file_name, **upload_kwargs)
+object_key = f"{KEY_PREFIX}{file_name}"
+
+print(f"Uploading {file_name} ({file_size / (1024*1024):.1f} MB) to R2 {BUCKET_NAME}/{object_key}...", flush=True)
+s3.upload_file(file_path, BUCKET_NAME, object_key, **upload_kwargs)
 print("Upload complete.", flush=True)
