@@ -18,9 +18,15 @@
 package com.itsaky.androidide.ui
 
 import android.content.Context
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.TextView
+import androidx.appcompat.view.ContextThemeWrapper
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.LayoutMemUsageBinding
 import com.itsaky.androidide.utils.NetworkUsageWatcher
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,6 +46,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 class MetricsChartLargeTextTest {
 	private val context = ApplicationProvider.getApplicationContext<Context>()
+
+	private val themed: Context =
+		ContextThemeWrapper(ApplicationProvider.getApplicationContext(), R.style.Theme_AndroidIDE)
 
 	private fun laidOutChart(height: Int): SafeLineChart {
 		val chart = SafeLineChart(context)
@@ -125,5 +134,30 @@ class MetricsChartLargeTextTest {
 		 * taken theirs. Robolectric's density is 1.0, so dp and px are the same here.
 		 */
 		const val STRIP_PLOT_HEIGHT = 150
+	}
+
+	@Test
+	@Config(fontScale = 2.0f, qualifiers = "xhdpi")
+	fun `the undocked message fits the strip at 2x text`() {
+		// The strip is a fixed editor_mem_usage_view_height and the message fills it with no room to
+		// scroll, so the only thing keeping it readable at 2x is that it still fits. Measured at the
+		// real height rather than the 400px the other tests use.
+		val binding = LayoutMemUsageBinding.inflate(LayoutInflater.from(themed))
+		val strip = binding.root as MetricsCarouselLayout
+		strip.setUndocked(true)
+
+		val height = themed.resources.getDimensionPixelSize(R.dimen.editor_mem_usage_view_height)
+		strip.measure(
+			View.MeasureSpec.makeMeasureSpec(CHART_WIDTH, View.MeasureSpec.EXACTLY),
+			View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
+		)
+		strip.layout(0, 0, CHART_WIDTH, height)
+
+		val message = strip.findViewById<TextView>(R.id.metrics_undocked_message)
+		val needed = message.layout.height + message.paddingTop + message.paddingBottom
+
+		assertWithMessage("undocked message needs %spx of the %spx it has", needed, message.height)
+			.that(needed)
+			.isAtMost(message.height)
 	}
 }
