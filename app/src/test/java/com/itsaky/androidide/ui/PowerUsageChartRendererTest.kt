@@ -371,6 +371,27 @@ class PowerUsageChartRendererTest {
 	}
 
 	@Test
+	fun `the battery readout gets room again on a replacement chart`() {
+		val (renderer, first) = rendererFor(usage(temperature = LongArray(SAMPLES) { 30_000L }))
+		laidOut(first)
+		renderer.reserveTopSpace(READOUT_HEIGHT_PX)
+		laidOut(first)
+
+		// Undocking recycles the strip, so the same renderer is handed a brand new chart that asks
+		// for the same inset. The reservation is memoised per chart: carried across the detach, the
+		// early return meant the replacement never got setExtraTopOffset at all -- and nothing else
+		// applies it, unlike the text scale, which setData re-applies on every rebuild.
+		val second = SafeLineChart(context)
+		renderer.attach(second)
+		laidOut(second)
+		val unreserved = second.viewPortHandler.contentTop()
+
+		renderer.reserveTopSpace(READOUT_HEIGHT_PX)
+		laidOut(second)
+		assertThat(second.viewPortHandler.contentTop()).isGreaterThan(unreserved)
+	}
+
+	@Test
 	fun `only one axis rules the plot`() {
 		val (_, chart) = rendererFor(usage(temperature = LongArray(SAMPLES) { 30_000L }))
 		laidOut(chart)

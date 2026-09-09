@@ -264,6 +264,12 @@ abstract class MetricsChartRenderer(
 	open fun detach() {
 		userHasZoomed = false
 		appliedTextScale = Float.NaN
+		// Memoised per chart, so it has to go with the chart. Left set, a rebind onto a fresh
+		// SafeLineChart asking for the same inset takes reserveTopSpace's early return and never
+		// calls setExtraTopOffset on it -- and nothing else does, unlike appliedTextScale, which
+		// setData re-applies. The battery readout then covers the right axis's topmost label again,
+		// which is the whole reason the inset exists.
+		reservedTopPixels = Float.NaN
 		// A hold counting down survives the chart it was started on: the timer is on the main
 		// thread's queue. Left running it shows the outgoing page's help over whatever replaced
 		// it, and the replacement's listener -- a new object with its own null pendingHelp --

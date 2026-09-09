@@ -105,9 +105,14 @@ object MetricsCsvFile {
 			// Streamed, not built into a string: a full buffer is ten thousand rows, and holding the
 			// whole file in memory to write it is a megabyte of char array nobody needs. Compressed
 			// on the way out for the same reason -- the uncompressed file never has to exist.
-			val sink = if (compress) GZIPOutputStream(file.outputStream()) else file.outputStream()
-			sink.bufferedWriter().use { writer ->
-				MetricsCsv.write(snapshot, zone, writer)
+			// The raw stream is opened into its own `use`: GZIPOutputStream writes the gzip header in
+			// its constructor and can throw, and wrapping only the outer sink leaked the descriptor it
+			// had already been handed -- once per reported crash on a device whose cache is full.
+			file.outputStream().use { raw ->
+				val sink = if (compress) GZIPOutputStream(raw) else raw
+				sink.bufferedWriter().use { writer ->
+					MetricsCsv.write(snapshot, zone, writer)
+				}
 			}
 			MetricsSnapshot.pruneTo(directory, KEEP_RECENT, file)
 			file
