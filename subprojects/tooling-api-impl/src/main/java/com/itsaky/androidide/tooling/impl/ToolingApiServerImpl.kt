@@ -94,6 +94,17 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	@Volatile
 	private var lastWrapperDistribution: String? = null
 
+	/**
+	 * Whether the open connection has failed a build in a way that suggests it is dead.
+	 *
+	 * Reconnecting is driven from here rather than by dropping the pair at the point of failure,
+	 * so the replacement goes through [getOrConnectProject], which disconnects the old connector
+	 * before it opens a new one.
+	 */
+	@Volatile
+	@VisibleForTesting
+	internal var connectionSuspect: Boolean = false
+
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _buildCancellationToken: CancellationTokenSource? = null
 
@@ -193,8 +204,30 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	internal fun canReuseConnector(params: InitializeProjectParams): Boolean =
 		connector != null &&
 			connection != null &&
+			!connectionSuspect &&
 			describesSameConnection(lastInitParams, params) &&
 			wrapperStillMatches(params, lastWrapperDistribution)
+
+	/**
+	 * The connection to build on, reconnecting first when the last build said it was dead.
+	 *
+	 * @throws IllegalStateException If nothing has been initialized, which is the caller's bug.
+	 */
+	private fun connectionForBuild(): ProjectConnection {
+		val params = lastInitParams
+		if (connectionSuspect && params != null) {
+			log.info("Reconnecting to Gradle: the previous build reported a dead connection")
+			return getOrConnectProject(
+				projectDir = File(params.directory),
+				forceConnect = true,
+				initParams = params,
+			).second
+		}
+
+		return checkNotNull(this.connection) {
+			"ProjectConnection has not been initialized. Cannot execute tasks."
+		}
+	}
 
 	@VisibleForTesting
 	internal fun getOrConnectProject(
@@ -235,6 +268,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 
 			this.connector = connector
 			this.connection = connection
+			this.connectionSuspect = false
 			this.lastWrapperDistribution =
 				if (gradleDist.type == GradleDistributionType.GRADLE_WRAPPER) {
 					wrapperDistributionUrl(projectDir.path)
@@ -394,10 +428,11 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 
 			Main.checkGradleWrapper()
 
-			val connection =
-				checkNotNull(this.connection) {
-					"ProjectConnection has not been initialized. Cannot execute tasks."
-				}
+			// Reconnects rather than asserting. A previous build that failed with CONNECTION_CLOSED
+			// leaves the pair suspect, and this dereference sits outside the try below -- so
+			// asserting here threw out of the future and every later build failed the same way
+			// until the user re-synced.
+			val connection = connectionForBuild()
 
 			val builder = connection.newBuild()
 
@@ -558,27 +593,29 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		}
 
 	/**
-	 * Classifies [error], and drops the cached connection when the error says it is dead.
+	 * Classifies [error], and marks the connection suspect when the error says it may be dead.
 	 *
-	 * The reuse check is what makes this necessary. Before it, every initialize rebuilt the
-	 * connector, so a connection broken by anything -- an external close, a killed daemon, a
-	 * Gradle-side disconnect -- was silently replaced. Now a matching directory and distribution
-	 * reuse it, so a pair that has gone bad would be handed to every later build and fail
-	 * identically until the server process restarted. Guarding only the connect that throws
-	 * covered one of the two ways this happens.
+	 * A flag rather than dropping the pair here. Nulling the fields looked equivalent and was not:
+	 * [executeTasks] dereferences `connection` with `checkNotNull` *before* its try, so the next
+	 * build threw out of the future instead of reconnecting, and every build failed until the user
+	 * re-synced. Nulling also skipped the disconnect, stranding the old connection's daemon client
+	 * and threads for the life of the process.
+	 *
+	 * The classification is deliberately broad -- any [IllegalStateException] reads as
+	 * CONNECTION_CLOSED -- so a false positive has to be cheap. Setting a flag costs one extra
+	 * reconnect; tearing down a healthy connection cost a working server.
 	 */
 	@VisibleForTesting
 	internal fun getTaskFailureType(error: Throwable): Failure =
 		classifyTaskFailure(error).also { failure ->
 			if (failure == CONNECTION_CLOSED || failure == CONNECTION_ERROR) {
-				log.warn("Dropping the Gradle connection after {}; the next build will reconnect", failure)
-				connection = null
-				connector = null
-				lastWrapperDistribution = null
+				log.warn("Marking the Gradle connection suspect after {}; the next build reconnects", failure)
+				connectionSuspect = true
 			}
 		}
 
-	private fun classifyTaskFailure(error: Throwable): Failure =
+	@VisibleForTesting
+	internal fun classifyTaskFailure(error: Throwable): Failure =
 		when (error) {
 			is BuildException -> BUILD_FAILED
 			is BuildCancelledException -> BUILD_CANCELLED

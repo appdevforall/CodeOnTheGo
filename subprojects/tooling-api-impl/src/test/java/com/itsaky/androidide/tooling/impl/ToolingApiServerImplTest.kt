@@ -16,6 +16,7 @@ import io.mockk.mockkStatic
 import io.mockk.spyk
 import io.mockk.unmockkAll
 import io.mockk.verify
+import org.gradle.tooling.BuildException
 import org.gradle.tooling.GradleConnector
 import org.gradle.tooling.ProjectConnection
 import org.junit.After
@@ -327,6 +328,30 @@ class ToolingApiServerImplTest {
 		// every later build identically until the server process restarts.
 		assertThat(server.getTaskFailureType(IllegalStateException("connection closed")))
 			.isEqualTo(TaskExecutionResult.Failure.CONNECTION_CLOSED)
-		assertThat(server.isConnected).isFalse()
+
+		// Suspect, not dropped. Dropping it here nulled a field that executeTasks dereferences
+		// outside its try, so the next build threw out of the future rather than reconnecting --
+		// and skipped the disconnect, stranding the old connection for the life of the process.
+		assertThat(server.isConnected).isTrue()
+		assertThat(server.connectionSuspect).isTrue()
+	}
+
+	@Test
+	fun `GIVEN a classification that is not a connection failure THEN the connection is left alone`() {
+		val server = ToolingApiServerImpl()
+		val connector = mockk<GradleConnector>(relaxed = true)
+		every { connector.forProjectDirectory(any()) } returns connector
+		every { connector.connect() } returns mockk(relaxed = true)
+
+		mockkStatic(GradleConnector::class)
+		every { GradleConnector.newConnector() } returns connector
+
+		server.getOrConnectProject(File("/does/not/exist"), forceConnect = true, initParams = testInitParams())
+
+		// The classifier is deliberately broad, so anything it drives has to be cheap on a false
+		// positive. A build failure is not a reason to reconnect.
+		assertThat(server.getTaskFailureType(BuildException("failed", RuntimeException())))
+			.isEqualTo(TaskExecutionResult.Failure.BUILD_FAILED)
+		assertThat(server.connectionSuspect).isFalse()
 	}
 }
