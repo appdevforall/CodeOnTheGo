@@ -47,12 +47,42 @@ internal class DatabaseTemplateLoader(
 	override fun getReader(name: String): Reader {
 		val database = database() ?: throw LoaderException(null, "No documentation database is open, for template '$name'")
 
-		return database.rawQuery(TEMPLATE_QUERY, arrayOf(name)).use { cursor ->
-			if (!cursor.moveToFirst()) {
-				throw LoaderException(null, "Template '$name' not found in the database")
+		// Every failure leaves here as a LoaderException, including the ones SQLite raises. Pebble
+		// does not wrap what a loader throws -- getTemplate has no catch around its cache's
+		// computeIfAbsent -- so a raw SQLiteException would escape the render's PebbleException
+		// catch carrying SQL text, and reach a caller that classifies it as "not a template
+		// failure" and cannot name the template.
+		val body =
+			try {
+				database.rawQuery(TEMPLATE_QUERY, arrayOf(name)).use { cursor ->
+					when {
+						// The DDL declares UNIQUE('name'), but the database that is open may be a
+						// debug one dropped on the sdcard, which is under no obligation to honour
+						// it. Picking row 0 by scan order would render the wrong partial silently,
+						// which is the failure ADFA-5405 exists to remove, not to relocate.
+						cursor.count > 1 -> {
+							throw LoaderException(null, "Template '$name' is shared by more than one database row")
+						}
+
+						!cursor.moveToFirst() -> {
+							throw LoaderException(null, "Template '$name' not found in the database")
+						}
+
+						// getBlob returns a platform type: a NULL content column yields null and
+						// the decode below would NPE with no message and no template name.
+						else -> {
+							cursor.getBlob(0)
+								?: throw LoaderException(null, "Template '$name' has no body")
+						}
+					}
+				}
+			} catch (e: LoaderException) {
+				throw e
+			} catch (e: RuntimeException) {
+				throw LoaderException(e, "Cannot read template '$name' from the database")
 			}
-			StringReader(cursor.getBlob(0).toString(Charsets.UTF_8))
-		}
+
+		return StringReader(body.toString(Charsets.UTF_8))
 	}
 
 	override fun resourceExists(name: String): Boolean {

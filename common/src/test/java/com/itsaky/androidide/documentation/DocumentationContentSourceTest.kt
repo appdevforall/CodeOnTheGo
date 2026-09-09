@@ -339,7 +339,8 @@ class DocumentationContentSourceTest {
 		val database = templatedDatabase("bookshelf" to "Books for {{ who }}")
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
 
-		val rendered = source().renderNamedTemplate("bookshelf", """{"who": "Kotlin"}""".toByteArray(), "/bookshelf")
+		val rendered =
+			source().renderNamedTemplate("bookshelf", "/bookshelf") { """{"who": "Kotlin"}""".toByteArray() }
 
 		assertThat(rendered.toString(Charsets.UTF_8)).isEqualTo("Books for Kotlin")
 	}
@@ -351,7 +352,7 @@ class DocumentationContentSourceTest {
 		val source = source()
 
 		assertThrows(IllegalStateException::class.java) {
-			source.renderNamedTemplate("bookshelf", "null".toByteArray(), "/bookshelf")
+			source.renderNamedTemplate("bookshelf", "/bookshelf") { "null".toByteArray() }
 		}
 	}
 

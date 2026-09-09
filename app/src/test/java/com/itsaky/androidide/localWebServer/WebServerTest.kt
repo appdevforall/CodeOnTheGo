@@ -424,6 +424,10 @@ class WebServerTest {
 	// so echoing e.message put anything thrown in there into the response body -- a SQLiteException's
 	// SQL, or withDatabase's check() failure naming the database file. Any app on the device can GET
 	// this port. Only a template failure is echoed now; this pins that the rest is not.
+	//
+	// This throw has to reach that catch to pin anything. It did not until the inner try/catch
+	// around the payload build was removed: that one answered and returned, so the classification
+	// under test never ran and this test passed against the unfixed code.
 	@Test
 	fun `a failure that is not a template failure answers 500 without leaking internals`() {
 		val port = freePort()
@@ -451,6 +455,36 @@ class WebServerTest {
 				"Expected the generic text, got:\n$response",
 				response.contains("Error generating bookshelf HTML."),
 			)
+			assertFalse("Leaked a filesystem path:\n$response", response.contains("/data/user/0/"))
+			assertFalse("Leaked a database filename:\n$response", response.contains("documentation.db"))
+			assertFalse("Leaked SQL text:\n$response", response.contains("SELECT C.content"))
+		} finally {
+			server.stop()
+			serverThread.join(2_000)
+		}
+	}
+
+	// The sibling handleBsEndpoint's fix missed: serveRequest answers every documentation URL, and
+	// its Failed branch sent lookup.cause.message verbatim. Same port, same reachable-by-any-app
+	// exposure, and ADFA-5405's loader made database failures reachable from more places.
+	@Test
+	fun `a documentation request that fails answers 500 without leaking internals`() {
+		val port = freePort()
+		val db = mockk<SQLiteDatabase>(relaxed = true)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
+		every { db.rawQuery(match { it.contains("FROM   Content") }, any()) } throws
+			IllegalStateException(
+				"unable to open database file /data/user/0/com.itsaky.androidide/databases/documentation.db " +
+					"(while compiling: SELECT C.content FROM Content C)",
+			)
+
+		val server = WebServer(testConfig(port))
+		val serverThread = Thread { server.start() }.apply { isDaemon = true }
+		serverThread.start()
+		try {
+			awaitPortBound(port)
+			val response = sendRawGetRequest(port, "/k/html/basic-syntax.html")
+			assertTrue("Expected a 500 status line, got:\n$response", response.startsWith("HTTP/1.1 500"))
 			assertFalse("Leaked a filesystem path:\n$response", response.contains("/data/user/0/"))
 			assertFalse("Leaked a database filename:\n$response", response.contains("documentation.db"))
 			assertFalse("Leaked SQL text:\n$response", response.contains("SELECT C.content"))

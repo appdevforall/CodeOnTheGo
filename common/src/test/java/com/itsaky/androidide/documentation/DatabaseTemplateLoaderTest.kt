@@ -2,6 +2,7 @@ package com.itsaky.androidide.documentation
 
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
 import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
@@ -72,5 +73,62 @@ class DatabaseTemplateLoaderTest {
 		assertThat(loader.createCacheKey("nav.peb")).isEqualTo("nav.peb")
 		assertThat(loader.resolveRelativePath("nav.peb", "k/html/page.peb")).isEqualTo("nav.peb")
 		assertThat(loader.getReader("nav.peb").readText()).isEqualTo("[nav]")
+	}
+
+	@Test
+	fun `a duplicated name fails rather than picking a row by scan order`() {
+		// The DDL declares UNIQUE('name'), but the open database may be a debug one dropped on the
+		// sdcard, which is under no obligation to honour it. Taking row 0 would render the wrong
+		// partial with no error and no log line.
+		val database =
+			mockk<SQLiteDatabase>(relaxed = true) {
+				every { rawQuery(any(), any()) } returns
+					mockk<Cursor>(relaxed = true) {
+						every { count } returns 2
+						every { moveToFirst() } returns true
+						every { getBlob(0) } returns "[nav]".toByteArray()
+					}
+			}
+
+		val thrown = assertThrows(LoaderException::class.java) { loader(database).getReader("nav.peb") }
+
+		assertThat(thrown).hasMessageThat().contains("nav.peb")
+		assertThat(thrown).hasMessageThat().contains("more than one")
+	}
+
+	@Test
+	fun `a row with no body fails by name, rather than throwing NullPointerException`() {
+		// getBlob returns a platform type: a NULL content column yields null, and decoding it would
+		// raise an NPE carrying neither a message nor the template name.
+		val database =
+			mockk<SQLiteDatabase>(relaxed = true) {
+				every { rawQuery(any(), any()) } returns
+					mockk<Cursor>(relaxed = true) {
+						every { count } returns 1
+						every { moveToFirst() } returns true
+						every { getBlob(0) } returns null
+					}
+			}
+
+		val thrown = assertThrows(LoaderException::class.java) { loader(database).getReader("nav.peb") }
+
+		assertThat(thrown).hasMessageThat().contains("nav.peb")
+	}
+
+	@Test
+	fun `a database failure arrives as a loader failure, without the SQL`() {
+		// Pebble does not wrap what a loader throws, so a raw SQLiteException would escape the
+		// render's PebbleException catch carrying SQL text -- and one caller puts that message in an
+		// HTTP response body on a port any app on the device can reach.
+		val database =
+			mockk<SQLiteDatabase>(relaxed = true) {
+				every { rawQuery(any(), any()) } throws
+					SQLiteException("no such table: Templates (code 1): , while compiling: SELECT content FROM Templates")
+			}
+
+		val thrown = assertThrows(LoaderException::class.java) { loader(database).getReader("nav.peb") }
+
+		assertThat(thrown).hasMessageThat().contains("nav.peb")
+		assertThat(thrown).hasMessageThat().doesNotContain("SELECT")
 	}
 }

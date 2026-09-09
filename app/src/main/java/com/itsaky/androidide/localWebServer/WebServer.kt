@@ -589,7 +589,13 @@ class WebServer(
 			}
 
 			is DocumentationLookup.Failed -> {
-				sendError(writer, output, httpInternalServerError, "Internal Server Error", lookup.cause.message ?: "")
+				log.error("Cannot serve the documentation request", lookup.cause)
+				// Same rule as /pr/bs, and for the same reason: only a template failure names a
+				// template, and only its message is safe to send. A SQLiteException carries SQL text
+				// and withDatabase's check() carries the database's filesystem path, and any app on
+				// the device can GET this port. This is the sibling the first pass missed.
+				val detail = (lookup.cause as? TemplateRenderException)?.message ?: "Internal Server Error"
+				sendError(writer, output, httpInternalServerError, "Internal Server Error", detail)
 			}
 		}
 	}
@@ -777,11 +783,7 @@ class WebServer(
 			// check(openIfNeeded()) carries the database's filesystem path. Any app on the device can
 			// GET this port, so echoing those was handing out internals for the sake of one
 			// diagnostic.
-			val detail =
-				when (e) {
-					is TemplateRenderException -> e.message ?: "Error generating bookshelf HTML."
-					else -> "Error generating bookshelf HTML."
-				}
+			val detail = (e as? TemplateRenderException)?.message ?: "Error generating bookshelf HTML."
 			sendError(
 				writer,
 				output,
@@ -858,27 +860,16 @@ class WebServer(
 	): Boolean {
 		if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
-		// Null means an error response has already been sent, so there is nothing left to write.
-		val jsonText =
-			contentSource.withDatabase { database ->
-				try {
-					bookshelfJson(database).also {
-						if (debugEnabled) log.debug("json content = '{}'.", String(it, Charsets.UTF_8))
-					}
-				} catch (e: Exception) {
-					log.error("Error building the bookshelf JSON: {}", e.message, e)
-					// The message stays in the log and out of the response. Everything reachable here is
-					// a database failure -- bookshelfJson is the SQL join -- so the message carries SQL
-					// text, or the database's filesystem path when withDatabase's check() is what threw.
-					// Any app on the device can GET this port. Narrowing handleBsEndpoint's own catch is
-					// not enough on its own: this one answers and returns null, so the outer catch never
-					// sees the exception at all.
-					sendError(writer, output, httpInternalServerError, "Internal Server Error", "Error generating bookshelf HTML.")
-					null
+		// The payload and the template are built under one database acquisition, so a swap cannot
+		// land between them. Nothing is caught here: handleBsEndpoint's catch is the single place
+		// that decides what reaches the client, and an inner catch that answered and returned made
+		// that decision unreachable for everything raised inside this block.
+		val result =
+			contentSource.renderNamedTemplate("bookshelf", "/bookshelf") { database ->
+				bookshelfJson(database).also {
+					if (debugEnabled) log.debug("json content = '{}'.", String(it, Charsets.UTF_8))
 				}
-			} ?: return false
-
-		val result = contentSource.renderNamedTemplate("bookshelf", jsonText, "/bookshelf")
+			}
 
 		if (debugEnabled) log.debug("Bookshelf result is '{}'.", String(result))
 

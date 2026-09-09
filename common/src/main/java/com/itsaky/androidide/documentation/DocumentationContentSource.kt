@@ -341,35 +341,35 @@ class DocumentationContentSource(
 	 * For a caller that knows a well-known template by name -- the bookshelf, say -- rather than
 	 * through a `Content` row's `templateId`.
 	 *
+	 * [contextJson] builds the payload from the same database the template is then loaded from,
+	 * under one acquisition. Building it through a separate [withDatabase] and passing the bytes in
+	 * would let a debug-database swap land between the two, rendering the new database's template
+	 * against the old one's payload. Nesting is not the alternative: [withDatabase] takes the write
+	 * lock to check for a swap before it takes the read lock, so a nested call deadlocks.
+	 *
 	 * @param name The template's `Templates.name`.
-	 * @param contextJson The JSON object used as the template context.
 	 * @param path The path associated with the rendering request for diagnostics.
+	 * @param contextJson Builds the JSON object used as the template context.
 	 * @return The rendered content encoded as UTF-8 bytes.
 	 */
 	fun renderNamedTemplate(
 		name: String,
-		contextJson: ByteArray,
 		path: String,
-	): ByteArray = withDatabase { renderNamed(name, contextJson, path) }
+		contextJson: (SQLiteDatabase) -> ByteArray,
+	): ByteArray = withDatabase { database -> renderNamed(name, contextJson(database), path) }
 
 	/**
 	 * Clears all cached templates, compiled and by name.
 	 *
-	 * Takes the write lock, so like [swapDatabaseIfChanged] this must not be called while holding the
-	 * read lock -- which is what [withDatabase] runs its block under. `ReentrantReadWriteLock` does
-	 * not upgrade a read hold to a write hold, so `withDatabase { clearTemplateCache() }` (or the same
-	 * shape through `DocumentationRequestInterceptor.clearTemplateCache()`) deadlocks that thread
-	 * permanently. No caller does this today; the note is here to keep the next one out of it.
+	 * Takes the write lock, which `ReentrantReadWriteLock` will not upgrade to from a read hold, so
+	 * `withDatabase { clearTemplateCache() }` deadlocks that thread permanently.
 	 */
 	fun clearTemplateCache() =
-		// The write lock, which a render's read lock excludes: clearing the three caches piecemeal
-		// under a concurrent render can hand it a template from before the clear and a tag-cache miss
-		// from after it. Reentrant, so switchToDatabase can keep calling this while holding it.
+		// All three under one write lock: clearing them piecemeal under a concurrent render can hand
+		// it a template from before the clear and a tag cache from after it. The engine's two caches
+		// are keyed by name, so a template edited under the same name survives without this.
 		databaseLock.write {
 			templateNames.clear()
-			// Both engine caches are keyed by name, so a template edited under the same name would
-			// otherwise survive here even though its row has changed -- the tag cache included, which
-			// holds whatever a template's {% cache %} blocks rendered from the previous database.
 			pebbleEngine.templateCache.invalidateAll()
 			pebbleEngine.tagCache.invalidateAll()
 		}
@@ -535,27 +535,36 @@ class DocumentationContentSource(
 	 * @param templateId The database identifier of the template.
 	 * @param path The content path associated with the template.
 	 * @return The template's name.
-	 * @throws IllegalStateException If the template is missing or has multiple database rows.
+	 * @throws TemplateRenderException If the template is missing, has multiple database rows, or
+	 * cannot be read.
 	 */
 	private fun templateName(
 		database: SQLiteDatabase,
 		templateId: Int,
 		path: String,
 	): String =
-		database.rawQuery("SELECT name FROM Templates WHERE id = ?", arrayOf(templateId.toString())).use { cursor ->
-			when {
-				cursor.count > 1 -> {
-					throw IllegalStateException("Template ID $templateId is shared by more than one template")
-				}
+		try {
+			database.rawQuery("SELECT name FROM Templates WHERE id = ?", arrayOf(templateId.toString())).use { cursor ->
+				when {
+					cursor.count > 1 -> {
+						throw TemplateRenderException("Template ID $templateId is shared by more than one template")
+					}
 
-				!cursor.moveToFirst() -> {
-					throw IllegalStateException("Template ID $templateId not found in the database, for path '$path'")
-				}
+					!cursor.moveToFirst() -> {
+						throw TemplateRenderException("Template ID $templateId not found in the database, for path '$path'")
+					}
 
-				else -> {
-					cursor.getString(0)
+					else -> {
+						cursor.getString(0)
+					}
 				}
 			}
+		} catch (e: TemplateRenderException) {
+			throw e
+		} catch (e: RuntimeException) {
+			// Not the raw exception: a SQLiteException's message carries SQL text and one caller
+			// puts a TemplateRenderException's message in an HTTP response body.
+			throw TemplateRenderException("Cannot read the template for ID $templateId", e)
 		}
 
 	/**
@@ -749,22 +758,15 @@ class DocumentationContentSource(
 	companion object {
 		const val CONTENT_CHUNK_SIZE = 1024 * 1024
 
-		// Bounds a render whose output grows without end -- a runaway loop, say. The reference-cycle
-		// guard below does not cover that case: a cycle recurses, so it reaches the stack's end first,
-		// while a loop stays at one frame and grows the writer until the heap gives out, and
-		// OutOfMemoryError is an Error every catch on this path misses. Pebble raises a PebbleException
-		// at this limit instead, which the caller turns into a 500.
+		// Bounds a render whose output grows without end -- a runaway {% for %}, say -- which would
+		// otherwise raise OutOfMemoryError, an Error every catch on this path misses. Pebble counts
+		// characters, so this is ~2 MB of char[]; it has to stay well under the 192-256 MB Android
+		// heap or it never fires, which is why 16 MiB (33.5 MB of char[], doubled during growth)
+		// did not. Pebble's own default is unbounded.
 		//
-		// Sized so it actually fires first, which 16 MiB did not. Pebble counts CHARACTERS, in a
-		// LimitedSizeWriter wrapping a StringWriter, so 16 Mi chars means a 33.5 MB char[] -- and the
-		// doubling step that reaches it holds the old 33.5 MB array and the new 67 MB one at once,
-		// then toString() copies another 33.5 MB. Against a 192-256 MB Android heap the runaway loop
-		// OOMs long before the guard trips, which is the one scenario it exists for. The old number
-		// was headroom over the largest CONTEXT in the database (171 KB of compressed JSON) -- an
-		// unrelated quantity, as its own comment admitted.
-		//
-		// 1 MiB of characters is ~2 MB of char[] and still roughly 6x the largest legitimate rendered
-		// page here, so it bounds the runaway without being reachable by real content.
+		// Not calibrated against real page sizes: the shipped documentation.db is fetched, not
+		// checked in, so the largest legitimate rendered page is not measurable from this repo. If
+		// a real page ever trips this, raise it -- the number is a heap guard, not a content limit.
 		private const val MAX_RENDERED_CHARS = 1024 * 1024
 
 		private const val CONTENT_QUERY = """
