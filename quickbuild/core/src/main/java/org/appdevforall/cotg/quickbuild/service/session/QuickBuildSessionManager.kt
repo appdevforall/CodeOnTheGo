@@ -774,10 +774,25 @@ class QuickBuildSessionManager(
 				} else {
 					// The Gradle build had already finished and the session is in its
 					// install or daemon-spawn tail. The TeardownSession effect that
-					// follows still stops the session.
+					// follows still stops the session, so the cancellation is real
+					// either way and the notice is owed.
 					log.info("No Quick Build proxy app build to cancel; tearing the session down instead")
 				}
 				surfaceNotice(QuickBuildNotice.BUILD_CANCELLED)
+			}
+
+			SessionEffect.CancelProxyAppRebuild -> {
+				proxyAppBuildCancelIssued = true
+				if (provisioner.cancelProxyAppBuild()) {
+					log.info("Quick Build rebaseline cancelled by the user")
+					surfaceNotice(QuickBuildNotice.BUILD_CANCELLED)
+				} else {
+					// Nothing follows this effect: the Gradle build had already finished, so
+					// the rebaseline runs on through install and daemon start and lands
+					// Ready. Reporting a cancellation here told the user the build was
+					// stopped while it was not.
+					log.info("No Quick Build rebaseline build to cancel; the rebaseline runs on")
+				}
 			}
 
 			SessionEffect.StartWarmCompile -> {

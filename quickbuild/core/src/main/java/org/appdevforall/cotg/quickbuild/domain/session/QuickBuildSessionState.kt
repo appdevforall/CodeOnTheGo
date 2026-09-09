@@ -496,6 +496,17 @@ sealed interface SessionEffect {
 	data object CancelProxyAppBuild : SessionEffect
 
 	/**
+	 * Stop the Gradle build of a rebaseline, leaving the live session up.
+	 *
+	 * Distinct from [CancelProxyAppBuild] because no teardown follows it: the session stays in
+	 * [QuickBuildSessionState.Provisioning] until the cancelled build reports back. A build that
+	 * had already finished cannot be stopped, and then nothing was cancelled - the rebaseline runs
+	 * on through install and daemon start - so the handler reports a cancellation only when the
+	 * stop reached Gradle.
+	 */
+	data object CancelProxyAppRebuild : SessionEffect
+
+	/**
 	 * Start the background warm compile ([org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute.WarmCompile]) as soon as a session goes live.
 	 *
 	 * Pays the daemon's first-compile warm-up (kotlinc JIT, classpath snapshot, IC-cache build) in
