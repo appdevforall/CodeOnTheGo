@@ -641,6 +641,8 @@ class QuickBuildSessionManager(
 	 *   reconciles to empty is dropped rather than passed on as a no-change build
 	 */
 	private fun onWatcherBatch(batch: ChangedFiles.Known) {
+		// Runs on the session dispatcher: the watcher collects on the manager's own scope
+		// (LiveSessionFactory passes it through), so two batches never interleave here.
 		val reconciled = WatcherBatchReconciler.reconcile(batch, File::isFile)
 		if (reconciled.isEmpty) return
 		// Test sources are watched but never built - see [TestSourceFilter]. Dropped HERE rather
