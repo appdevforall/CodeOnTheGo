@@ -509,12 +509,15 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	 * Finds the Gradle daemon and reports it to the client, so the memory chart can plot the process
 	 * that actually holds the build's heap (ADFA-5514).
 	 */
-	private val daemonWatcher by lazy {
-		GradleDaemonWatcher(
-			onStarted = { pid -> client?.onGradleDaemonStarted(pid) },
-			onExited = { pid -> client?.onGradleDaemonExited(pid) },
-		)
-	}
+	private val lazyDaemonWatcher =
+		lazy {
+			GradleDaemonWatcher(
+				onStarted = { pid -> client?.onGradleDaemonStarted(pid) },
+				onExited = { pid -> client?.onGradleDaemonExited(pid) },
+			)
+		}
+
+	private val daemonWatcher by lazyDaemonWatcher
 
 	private fun notifyBuildFailure(result: BuildResult) {
 		client?.onBuildFailed(result)
@@ -554,6 +557,21 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			log.info("Cancelling running builds...")
 			buildCancellationToken?.cancel()
 			buildCancellationToken = null
+
+			// Before the client goes, so no further poll can report a daemon into an RPC channel
+			// that is being torn down. Through the delegate rather than the property: touching the
+			// property would build a watcher, and its scheduler, only to shut it down again on a
+			// server that never ran a build.
+			//
+			// This was never called at all, so the watcher's thread outlived server shutdown and an
+			// in-flight poll chain went on scanning descendants for up to a minute. It also made
+			// GradleDaemonWatcher.shutdown() dead code, and onBuildStarted's note about the
+			// scheduler rejecting work after shutdown describe a state nothing could reach.
+			if (lazyDaemonWatcher.isInitialized()) {
+				log.info("Stopping the Gradle daemon watcher...")
+				runCatching { daemonWatcher.shutdown() }
+					.onFailure { log.warn("Could not stop the Gradle daemon watcher", it) }
+			}
 
 			val connection = this.connection
 			val connector = this.connector
