@@ -209,6 +209,11 @@ val quickBuildModule =
 				// The resource-save deferral keys off the same state stream the status surfaces
 				// read; attach is idempotent, so re-running this block cannot double-collect.
 				get<GenerateSourcesDeferral>().attach(manager.state)
+				// A resource file created or deleted from the file tree fires generateSources
+				// from the project manager, not from a save call site; without this it lands
+				// an undeferred build under the live session and the hand-back marks the
+				// baseline untrusted.
+				ProjectManagerImpl.getInstance().resourceChangeBuild = { GenerateSourcesDeferral.notifyResourceSaved() }
 				// ADFA-4128 harness (debug + bench flag only): a second, read-only collector
 				// on the existing state stream, writing one JSON line per state change. The
 				// UI's own collector is untouched.
