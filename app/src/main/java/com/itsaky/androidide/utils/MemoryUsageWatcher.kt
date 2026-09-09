@@ -20,6 +20,7 @@ package com.itsaky.androidide.utils
 import android.app.ActivityManager
 import android.os.Debug
 import android.os.Debug.MemoryInfo
+import androidx.annotation.VisibleForTesting
 import androidx.collection.IntObjectMap
 import androidx.collection.MutableIntObjectMap
 import androidx.core.content.getSystemService
@@ -36,6 +37,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -115,7 +117,8 @@ class MemoryUsageWatcher(
 		}
 	}
 
-	private fun readUsages() {
+	@VisibleForTesting
+	internal fun readUsages() {
 		val activityManager = BaseApplication.baseInstance.getSystemService<ActivityManager>()
 		if (activityManager == null) {
 			log.error("ActivityManager is null")
@@ -134,16 +137,28 @@ class MemoryUsageWatcher(
 					return@forEach
 				}
 
-			ReflectionUtils.invokeMethod(android_os_Debug_getMemoryInfo, null, pid, proc.memInfo)
+			// A dead process still has an entry here until whoever is watching it says otherwise, and
+			// Debug.getMemoryInfo leaves memInfo untouched for one -- so sampling it again would
+			// repeat the last reading forever and draw a flat line for a process that no longer
+			// exists. The Gradle daemon made this reachable: unlike the IDE and the tooling server it
+			// comes and goes, and it is the largest of the three (ADFA-5514). Plot a zero instead,
+			// which is both true and visibly the end of that process.
+			val usageBytes =
+				if (!isProcessAlive(pid)) {
+					0L
+				} else {
+					ReflectionUtils.invokeMethod(android_os_Debug_getMemoryInfo, null, pid, proc.memInfo)
 
-			// From https://developer.android.com/tools/dumpsys#meminfo
-			// "PSS is a good measure for the actual RAM weight of a process and for comparison against
-			// the RAM use of other processes and the total available RAM."
-			val usage = proc.memInfo.totalPss
-
-			// values are in kB, convert to bytes
-			val usageBytes = usage * 1024L
-			memoryUsage[pid]!!.apply {
+					// From https://developer.android.com/tools/dumpsys#meminfo
+					// "PSS is a good measure for the actual RAM weight of a process and for comparison against
+					// the RAM use of other processes and the total available RAM."
+					// values are in kB, convert to bytes
+					proc.memInfo.totalPss * 1024L
+				}
+			// [proc], not a second lookup: unwatchProcess runs on the main thread and can drop the
+			// entry between the two, and the Gradle daemon is unwatched from a build event
+			// (ADFA-5514), so the window is real rather than theoretical.
+			proc.apply {
 				// we insert the usage entry at the start of the array, then increment the shift amount by 1
 				// this makes the newly inserted usage entry the last element in the array
 				// and the oldest usage entry the first element in the array
@@ -159,6 +174,15 @@ class MemoryUsageWatcher(
 			}
 		}
 	}
+
+	/**
+	 * Whether [pid] still names a live process.
+	 *
+	 * `/proc` rather than `ProcessHandle`, which Android only gained recently, or a signal probe,
+	 * which needs a permission this does not have.
+	 */
+	@VisibleForTesting
+	internal var isProcessAlive: (Int) -> Boolean = { pid -> File("/proc/$pid").exists() }
 
 	/**
 	 * Watches the memory usage of the given process.
