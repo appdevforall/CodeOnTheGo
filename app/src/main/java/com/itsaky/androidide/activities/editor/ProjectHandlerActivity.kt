@@ -1678,11 +1678,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				},
 				fire = {
 					// Awaited, not read: a fire that skipped because the warm-up was still running
-					// would drop the prebuild for this sync. Same scope as the stagger, so closing
-					// the project drops a fire still waiting on the warm-up.
-					editorActivityScope.launch {
-						QuickBuildGraphWarmUp.INSTANCE.await()?.onProjectSynced(GradleQuickBuildProvisioner.selectedVariantName())
-					}
+					// would drop the prebuild for this sync. The stagger launches this on its own
+					// scope (the editor activity's), so closing the project drops a fire still
+					// waiting on the warm-up, and a throw is caught there rather than cancelling
+					// the scope.
+					QuickBuildGraphWarmUp.INSTANCE.await()?.onProjectSynced(GradleQuickBuildProvisioner.selectedVariantName())
 				},
 			)
 		}
