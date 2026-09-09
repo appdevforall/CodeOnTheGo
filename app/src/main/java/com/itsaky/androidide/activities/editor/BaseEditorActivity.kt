@@ -218,10 +218,11 @@ abstract class BaseEditorActivity :
 	 * A report of "it got slow" arrives with no way to correlate it against anything; the session's
 	 * own samples turn that into something diagnosable.
 	 *
-	 * Assembled on the main thread because it reads the watchers' buffers, then written off it: the
-	 * file is up to a megabyte and it is gzipped on the way out. Returns null when nothing has been
-	 * sampled, so feedback sent from a freshly started IDE carries no empty attachment -- the writer
-	 * would happily produce a header-only file, and sending one is the caller's decision, not its.
+	 * Assembled and written off the main thread: MetricsSnapshotAssembler is @AnyThread and takes
+	 * each watcher's own history lock, and the file is up to a megabyte and gzipped on the way out.
+	 * Returns null when nothing has been sampled, so feedback sent from a freshly started IDE
+	 * carries no empty attachment -- the writer would happily produce a header-only file, and
+	 * sending one is the caller's decision, not its.
 	 */
 	private suspend fun metricsAttachmentForFeedback(): File? {
 		// Off the main thread. MetricsSnapshotAssembler is @AnyThread precisely because a crash

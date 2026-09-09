@@ -19,6 +19,7 @@ package com.itsaky.androidide.utils
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -88,5 +89,24 @@ class MetricsScratchTest {
 		// If these drift apart, copyInto throws at crash time -- exactly when nothing may throw.
 		assertThat(MetricsScratch.instance!!.entries).isEqualTo(MemoryUsageWatcher.MAX_USAGE_ENTRIES)
 		assertThat(MetricsScratch.instance!!.memoryValues).hasSize(MetricsCsv.MEMORY_COLUMNS.size)
+	}
+
+	@Test
+	fun `the shared retention is the one all three watchers keep`() {
+		assertThat(MetricsScratch.sharedRetention(memory = 3600, network = 3600, power = 3600)).isEqualTo(3600)
+	}
+
+	@Test
+	fun `retentions that disagree fail loudly, naming them`() {
+		// maxOf was no guard: one size is handed to all three and copyInto require()s an exact match,
+		// so the two smaller watchers would throw inside MetricsCrashAttachment's runCatching -- and
+		// every crash report would quietly lose its metrics.
+		val thrown =
+			assertThrows(IllegalArgumentException::class.java) {
+				MetricsScratch.sharedRetention(memory = 3600, network = 1800, power = 3600)
+			}
+
+		assertThat(thrown).hasMessageThat().contains("memory=3600")
+		assertThat(thrown).hasMessageThat().contains("network=1800")
 	}
 }

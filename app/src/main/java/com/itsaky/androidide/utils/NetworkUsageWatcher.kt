@@ -35,6 +35,7 @@ import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -82,6 +83,19 @@ class NetworkUsageWatcher
 
 		/** The running sampling loop, so [stopWatching] can actually stop it. */
 		private var samplingJob: Job? = null
+
+		/**
+		 * Which sampling loop is the current one.
+		 *
+		 * `samplingJob` is assigned only after `launch` returns, so a stop landing in that gap
+		 * cancels whatever the field held rather than the loop just started, and a later start can
+		 * overwrite the field with a job nothing then cancels -- leaving two loops appending to the
+		 * same buffers, at twice the sample rate, out of step with the row timestamps. Cancelling
+		 * more carefully cannot fix that; the assignments themselves can land out of order. So each
+		 * loop carries the generation it was started for and stops as soon as it is not the current
+		 * one, whichever assignment won.
+		 */
+		private val samplingGeneration = AtomicInteger(0)
 
 		/**
 		 * Milliseconds between samples. Changing it clears the history, for the reason given on
@@ -201,9 +215,10 @@ class NetworkUsageWatcher
 				return
 			}
 
+			val generation = samplingGeneration.incrementAndGet()
 			samplingJob =
 				coroutineScope.launch {
-					while (isWatching) {
+					while (isWatching && samplingGeneration.get() == generation) {
 						// A throw here used to end the coroutine while `watching` stayed true, so every
 						// later startWatching() was refused as "already watching" and sampling stopped
 						// for good. A sample is worth losing; the loop is not.
@@ -255,6 +270,7 @@ class NetworkUsageWatcher
 				lastRx = null
 				lastTx = null
 			}
+			samplingGeneration.incrementAndGet()
 			samplingJob?.cancel()
 			samplingJob = null
 		}

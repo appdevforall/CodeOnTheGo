@@ -84,23 +84,40 @@ class MetricsScratch(
 		 * which is what it did before this existed.
 		 */
 		fun install(
-			// The largest of the three retentions, not the memory watcher's alone. These arrays are
-			// handed to all three watchers, and ShiftedLongArray.copyInto require()s an exact size
-			// match -- so if the three constants ever stop agreeing, the throw lands inside
-			// MetricsCrashAttachment.writeSnapshot, where runCatching swallows it and every crash
-			// report silently loses its metrics, which is the failure this class exists to prevent.
-			entries: Int =
-				maxOf(
-					MemoryUsageWatcher.MAX_USAGE_ENTRIES,
-					NetworkUsageWatcher.MAX_USAGE_ENTRIES,
-					PowerUsageWatcher.MAX_USAGE_ENTRIES,
-				),
+			entries: Int = sharedRetention(),
 			memorySeries: Int = MetricsCsv.MEMORY_COLUMNS.size,
 		) {
 			if (instance != null) {
 				return
 			}
 			instance = runCatching { MetricsScratch(entries, memorySeries) }.getOrNull()
+		}
+
+		/**
+		 * The one retention all three watchers keep, or a throw naming the ones that disagree.
+		 *
+		 * One buffer size is handed to all three, and `ShiftedLongArray.copyInto` require()s an
+		 * *exact* match -- so `maxOf` of the three was no protection at all: it picks a size two of
+		 * them would reject the moment they stopped agreeing. That throw lands inside
+		 * `MetricsCrashAttachment`'s runCatching, where it is swallowed, and every crash report and
+		 * feedback send silently loses its metrics -- the failure this class exists to prevent.
+		 *
+		 * Failing here instead makes divergence a loud startup failure with the numbers in the
+		 * message, not a quiet hole in diagnostics nobody notices until they need one. The
+		 * alternative, sizing a destination per watcher, is the right answer if these ever
+		 * legitimately differ; today they are one number and this says so.
+		 */
+		@VisibleForTesting
+		internal fun sharedRetention(
+			memory: Int = MemoryUsageWatcher.MAX_USAGE_ENTRIES,
+			network: Int = NetworkUsageWatcher.MAX_USAGE_ENTRIES,
+			power: Int = PowerUsageWatcher.MAX_USAGE_ENTRIES,
+		): Int {
+			require(memory == network && network == power) {
+				"The watchers must retain the same number of samples to share one scratch buffer, " +
+					"but memory=$memory, network=$network, power=$power"
+			}
+			return memory
 		}
 
 		@VisibleForTesting

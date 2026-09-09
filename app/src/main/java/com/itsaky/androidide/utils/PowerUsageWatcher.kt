@@ -33,6 +33,7 @@ import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -72,6 +73,19 @@ class PowerUsageWatcher
 
 		/** The running sampling loop, so [stopWatching] can actually stop it. */
 		private var samplingJob: Job? = null
+
+		/**
+		 * Which sampling loop is the current one.
+		 *
+		 * `samplingJob` is assigned only after `launch` returns, so a stop landing in that gap
+		 * cancels whatever the field held rather than the loop just started, and a later start can
+		 * overwrite the field with a job nothing then cancels -- leaving two loops appending to the
+		 * same buffers, at twice the sample rate, out of step with the row timestamps. Cancelling
+		 * more carefully cannot fix that; the assignments themselves can land out of order. So each
+		 * loop carries the generation it was started for and stops as soon as it is not the current
+		 * one, whichever assignment won.
+		 */
+		private val samplingGeneration = AtomicInteger(0)
 
 		/** Guards the ring buffers: the sampler writes them, the UI thread snapshots them. */
 		private val historyLock = Any()
@@ -197,9 +211,10 @@ class PowerUsageWatcher
 				return
 			}
 
+			val generation = samplingGeneration.incrementAndGet()
 			samplingJob =
 				coroutineScope.launch {
-					while (isWatching) {
+					while (isWatching && samplingGeneration.get() == generation) {
 						runCatching {
 							sampleOnce()
 
@@ -223,6 +238,7 @@ class PowerUsageWatcher
 
 		fun stopWatching() {
 			watching.set(false)
+			samplingGeneration.incrementAndGet()
 			samplingJob?.cancel()
 			samplingJob = null
 		}
