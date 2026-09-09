@@ -56,8 +56,8 @@ internal suspend fun quickBuildClobberConfirmation(
  * @param now the confirmation the APK being installed calls for, re-checked against the live
  *   package state.
  * @return [QuickBuildClobberConfirmation.NotNeeded] when the tap already answered this - the
- *   same confirmation, or an unknown-id confirmation the install has since resolved -
- *   otherwise [now].
+ *   same confirmation, an unknown-id confirmation the install has since resolved, or a slot the
+ *   tap found empty that the install could not re-check - otherwise [now].
  */
 internal fun installTimeClobberConfirmation(
 	atTap: QuickBuildClobberConfirmation?,
@@ -72,6 +72,12 @@ internal fun installTimeClobberConfirmation(
 		// second question - so one Run does not cost two dialogs.
 		atTap == QuickBuildClobberConfirmation.NeededForUnknownAppId &&
 			now is QuickBuildClobberConfirmation.Needed -> QuickBuildClobberConfirmation.NotNeeded
+
+		// The tap resolved the id and found nothing to replace; an unknown id here means our own
+		// APK did not parse, not that an occupant appeared. Asking would turn an ordinary Run
+		// into a "replace the installed app?" dialog whose decline drops the install silently.
+		atTap == QuickBuildClobberConfirmation.NotNeeded &&
+			now == QuickBuildClobberConfirmation.NeededForUnknownAppId -> QuickBuildClobberConfirmation.NotNeeded
 
 		else -> now
 	}
