@@ -327,6 +327,16 @@ jobs:
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
 
+      - name: Read the toolchain version
+        id: toolchain
+        run: |
+          set -euo pipefail
+          CONSTANTS=composite-builds/build-deps-common/constants/src/main/java/org/adfa/constants/constants.kt
+          ver=$(grep 'GRADLE_DISTRIBUTION_VERSION' "$CONSTANTS" | grep -o '"[0-9.]*"' | tr -d '"')
+          [ -n "$ver" ] || { echo "ERROR: could not read GRADLE_DISTRIBUTION_VERSION"; exit 1; }
+          echo "GRADLE_VERSION=$ver" >> $GITHUB_OUTPUT
+          echo "toolchain: gradle $ver"
+
       - name: Verify assets zip
         id: assets_zip
         run: |
@@ -354,10 +364,10 @@ jobs:
           CLOUDFLARE_KEY_ID: ${{ vars.CLOUDFLARE_KEY_ID }}
           CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.R2_ASSETS_BUCKET || 'apk-repo' }}
-          R2_KEY_PREFIX: assets/
+          R2_KEY_PREFIX: assets/${{ steps.toolchain.outputs.GRADLE_VERSION }}/
         run: |
           uv run --with boto3 scripts/cloudflare-r2-upload.py "${{ steps.assets_zip.outputs.ASSETS_PATH }}"
-          echo "DOWNLOAD_URL=https://download.appdevforall.org/assets/assets-${{ matrix.arch }}.zip" >> $GITHUB_OUTPUT
+          echo "DOWNLOAD_URL=https://download.appdevforall.org/assets/${{ steps.toolchain.outputs.GRADLE_VERSION }}/assets-${{ matrix.arch }}.zip" >> $GITHUB_OUTPUT
 
       - name: Send Slack notification
         env:
@@ -365,11 +375,13 @@ jobs:
           ASSET_LABEL: ${{ matrix.label }}
           DOWNLOAD_URL: ${{ steps.r2.outputs.DOWNLOAD_URL }}
           BUILD_REF: ${{ inputs.ref }}
+          GRADLE_VERSION: ${{ steps.toolchain.outputs.GRADLE_VERSION }}
         run: |
           jq -n \
             --arg label "$ASSET_LABEL" \
             --arg url "$DOWNLOAD_URL" \
             --arg ref "$BUILD_REF" \
+            --arg gradle "$GRADLE_VERSION" \
             '{
               blocks: [
                 {
@@ -392,7 +404,7 @@ jobs:
                   elements: [
                     {
                       type: "mrkdwn",
-                      text: "Built from `\($ref)`. Push to `/sdcard/Download/` on the device, then `adb shell touch` it."
+                      text: "Gradle \($gradle), built from `\($ref)`. Push to `/sdcard/Download/` on the device, then `adb shell touch` it."
                     }
                   ]
                 }
