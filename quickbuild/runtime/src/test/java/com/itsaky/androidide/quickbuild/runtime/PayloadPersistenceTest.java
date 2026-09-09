@@ -1,6 +1,7 @@
 package com.itsaky.androidide.quickbuild.runtime;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -45,6 +46,30 @@ class PayloadPersistenceTest {
 		PayloadPersistence.Loaded loaded = store.load(FP);
 		assertThat(loaded.generation).isEqualTo(1);
 		assertThat(loaded.dex).isEqualTo(bytes("dex1"));
+	}
+
+	@Test
+	void aRetainedBootGenerationSurvivesTheNextPersistsSweep() throws IOException {
+		// A cold boot adopts gen 10 and the restore starts opening its files; good.json does
+		// not name gen 10, since it never drew. A catch-up gen 11 carrying both resource
+		// kinds then persists, and without the hold its sweep deletes the gen-10 files the
+		// restore is still about to open.
+		PayloadPersistence store = store();
+		store.persist(10, FP, bytes("dex10"), stream("arsc10"), stream("assets10"));
+		PayloadPersistence.Loaded booted = store.load(FP);
+		store.retainBootResources(booted);
+
+		store.persist(11, FP, null, stream("arsc11"), stream("assets11"));
+
+		assertWithMessage("retained arsc-10 survives gen 11's sweep").that(booted.arscFile.exists()).isTrue();
+		assertWithMessage("retained assets-10 survives gen 11's sweep").that(booted.assetsFile.exists()).isTrue();
+
+		// The restore has opened its files; the next persist may sweep them.
+		store.releaseBootResources();
+		store.persist(12, FP, null, stream("arsc12"), stream("assets12"));
+
+		assertWithMessage("released arsc-10 is swept by gen 12").that(booted.arscFile.exists()).isFalse();
+		assertWithMessage("released assets-10 is swept by gen 12").that(booted.assetsFile.exists()).isFalse();
 	}
 
 	@Test
