@@ -228,6 +228,26 @@ class InternalBuildBracketTest {
 		}
 
 	@Test
+	fun `a nested hold hands the outer build its progress listener back`() =
+		runTest {
+			val bracket = InternalBuildBracket()
+			val outer: (String) -> Unit = {}
+			val inner: (String) -> Unit = {}
+
+			val seen =
+				bracket.hold(outer) {
+					val duringInner = bracket.hold(inner) { bracket.progressListener }
+					duringInner to bracket.progressListener
+				}
+
+			// The depth is counted so nesting is safe; the listener has to be too, or the inner
+			// build's exit leaves the still-running outer build's remaining lines going nowhere.
+			assertThat(seen.first).isSameInstanceAs(inner)
+			assertThat(seen.second).isSameInstanceAs(outer)
+			assertThat(bracket.progressListener).isNull()
+		}
+
+	@Test
 	fun `a listener that throws does not mask the work's own exception`() =
 		runTest {
 			val bracket = InternalBuildBracket(onHeldChanged = { throw IllegalStateException("bad observer") })

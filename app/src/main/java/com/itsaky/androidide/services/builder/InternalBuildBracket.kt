@@ -28,14 +28,30 @@ class InternalBuildBracket(
 		get() = depth.get() > 0
 
 	/**
+	 * The innermost held build's output-line listener, or null when nobody is watching. Volatile:
+	 * written by the holder, read on the tooling API's thread.
+	 */
+	@Volatile
+	var progressListener: ((String) -> Unit)? = null
+		private set
+
+	/**
 	 * Runs [block] with the bracket held, releasing it however [block] leaves - a value, an
 	 * exception, or a cancellation, and however the acquire itself leaves. The increment is the
 	 * last thing before the try, so no callback can throw while the depth is raised.
 	 *
 	 * [hold] is the only acquire, so the depth can never go negative and needs no clamp.
 	 */
-	suspend fun <T> hold(block: suspend () -> T): T {
+	suspend fun <T> hold(
+		progressListener: ((String) -> Unit)? = null,
+		block: suspend () -> T,
+	): T {
 		val outermost = depth.getAndIncrement() == 0
+		// Saved and restored rather than nulled: the depth counts nested holds, so a nested
+		// build that cleared the listener on its way out would leave the still-running outer
+		// build's remaining lines going nowhere.
+		val outerListener = this.progressListener
+		this.progressListener = progressListener
 		try {
 			// Inside the try, because a throw from onFirstAcquire would otherwise leave the depth
 			// incremented with no matching release - the permanent, silent leak described above.
@@ -46,6 +62,7 @@ class InternalBuildBracket(
 			}
 			return block()
 		} finally {
+			this.progressListener = outerListener
 			// The release edge fires from the same finally that drops the depth, so every exit
 			// path - value, throw, cancellation - clears the observer's view of the build.
 			if (depth.decrementAndGet() == 0) {
