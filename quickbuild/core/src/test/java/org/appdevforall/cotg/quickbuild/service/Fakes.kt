@@ -267,8 +267,6 @@ class RecordingIoDispatcher : CoroutineDispatcher() {
 	var dispatches: Int = 0
 		private set
 
-	private val executor = Executors.newSingleThreadExecutor { Thread(it, THREAD_NAME) }
-
 	override fun dispatch(
 		context: CoroutineContext,
 		block: Runnable,
@@ -283,5 +281,14 @@ class RecordingIoDispatcher : CoroutineDispatcher() {
 	companion object {
 		/** The one thread this dispatcher runs on, so a test can name it in an assertion. */
 		const val THREAD_NAME = "qb-test-io"
+
+		// One executor for every instance, and a daemon thread: a per-instance non-daemon
+		// worker that nothing shut down stayed alive for the rest of the Gradle test JVM, one
+		// per dispatcher constructed. Sharing keeps the count at one and the daemon flag keeps
+		// it from delaying the worker's exit. Each instance still counts its own dispatches.
+		private val executor =
+			Executors.newSingleThreadExecutor { runnable ->
+				Thread(runnable, THREAD_NAME).apply { isDaemon = true }
+			}
 	}
 }
