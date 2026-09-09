@@ -171,6 +171,7 @@ object GlitchTipDiagnosticsContext {
 						mapOf(
 							"id" to info.metadata.id,
 							"version" to info.metadata.version,
+							"vcs_revision" to (info.metadata.vcsRevision ?: "unknown"),
 							"min_ide_version" to info.metadata.minIdeVersion,
 							"crash_count" to
 								runCatching {
