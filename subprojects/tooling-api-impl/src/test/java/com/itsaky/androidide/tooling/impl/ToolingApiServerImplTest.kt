@@ -308,4 +308,25 @@ class ToolingApiServerImplTest {
 			RootModelBuilder.build(initParams, any())
 		}
 	}
+
+	@Test
+	fun `GIVEN a build that reports a dead connection THEN the next initialize reconnects`() {
+		val server = ToolingApiServerImpl()
+		val connector = mockk<GradleConnector>(relaxed = true)
+		every { connector.forProjectDirectory(any()) } returns connector
+		every { connector.connect() } returns mockk(relaxed = true)
+
+		mockkStatic(GradleConnector::class)
+		every { GradleConnector.newConnector() } returns connector
+
+		server.getOrConnectProject(File("/does/not/exist"), forceConnect = true)
+		assertThat(server.isConnected).isTrue()
+
+		// The reuse check made this reachable: before it, every initialize rebuilt the connector, so
+		// a connection broken by anything at all was silently replaced. Reusing a dead one fails
+		// every later build identically until the server process restarts.
+		assertThat(server.getTaskFailureType(IllegalStateException("connection closed")))
+			.isEqualTo(TaskExecutionResult.Failure.CONNECTION_CLOSED)
+		assertThat(server.isConnected).isFalse()
+	}
 }

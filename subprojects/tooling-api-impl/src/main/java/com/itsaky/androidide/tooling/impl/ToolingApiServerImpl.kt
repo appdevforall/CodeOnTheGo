@@ -206,8 +206,14 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				?: GradleDistributionParams.WRAPPER,
 	): Pair<GradleConnector, ProjectConnection> =
 		withStopWatch("getOrConnectProject") {
-			if (!forceConnect && connector != null && connection != null) {
-				return@withStopWatch connector!! to connection!!
+			// Each field read once into a local. Four separate reads of two fields could pass the
+			// null checks and then throw on the !!: the reconnect below nulls both before it
+			// connects, so unlike before this fix they are null mid-flight on every reconnect, not
+			// only at shutdown.
+			val openConnector = connector
+			val openConnection = connection
+			if (!forceConnect && openConnector != null && openConnection != null) {
+				return@withStopWatch openConnector to openConnection
 			}
 
 			if (forceConnect) {
@@ -551,7 +557,28 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			null
 		}
 
-	private fun getTaskFailureType(error: Throwable): Failure =
+	/**
+	 * Classifies [error], and drops the cached connection when the error says it is dead.
+	 *
+	 * The reuse check is what makes this necessary. Before it, every initialize rebuilt the
+	 * connector, so a connection broken by anything -- an external close, a killed daemon, a
+	 * Gradle-side disconnect -- was silently replaced. Now a matching directory and distribution
+	 * reuse it, so a pair that has gone bad would be handed to every later build and fail
+	 * identically until the server process restarted. Guarding only the connect that throws
+	 * covered one of the two ways this happens.
+	 */
+	@VisibleForTesting
+	internal fun getTaskFailureType(error: Throwable): Failure =
+		classifyTaskFailure(error).also { failure ->
+			if (failure == CONNECTION_CLOSED || failure == CONNECTION_ERROR) {
+				log.warn("Dropping the Gradle connection after {}; the next build will reconnect", failure)
+				connection = null
+				connector = null
+				lastWrapperDistribution = null
+			}
+		}
+
+	private fun classifyTaskFailure(error: Throwable): Failure =
 		when (error) {
 			is BuildException -> BUILD_FAILED
 			is BuildCancelledException -> BUILD_CANCELLED
