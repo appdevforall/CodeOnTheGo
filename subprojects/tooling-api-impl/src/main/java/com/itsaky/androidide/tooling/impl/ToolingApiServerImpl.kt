@@ -63,6 +63,7 @@ import org.gradle.tooling.internal.consumer.DefaultGradleConnector
 import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.Properties
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
@@ -75,9 +76,23 @@ import kotlin.concurrent.withLock
  */
 internal class ToolingApiServerImpl : IToolingApiServer {
 	private var client: IToolingApiClient? = null
+
+	// Volatile because the reuse decision crosses threads: each initialize() runs on whichever
+	// commonPool worker CompletableFuture.supplyAsync hands it, and nothing else in this class
+	// establishes a happens-before edge between one call's writes and the next call's reads. A
+	// stale null read here reintroduces ADFA-5589 intermittently.
+	@Volatile
 	private var connector: GradleConnector? = null
+
+	@Volatile
 	private var connection: ProjectConnection? = null
+
+	@Volatile
 	private var lastInitParams: InitializeProjectParams? = null
+
+	/** The `distributionUrl` the wrapper named when [connection] was opened; null if not a wrapper. */
+	@Volatile
+	private var lastWrapperDistribution: String? = null
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _buildCancellationToken: CancellationTokenSource? = null
@@ -99,48 +114,87 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		get() = connector != null || connection != null
 
 	companion object {
+		private const val WRAPPER_PROPERTIES = "gradle/wrapper/gradle-wrapper.properties"
+
 		private val log = LoggerFactory.getLogger(ToolingApiServerImpl::class.java)
+
+		/**
+		 * Whether [a] and [b] name the same connection: the same project directory, served by the
+		 * same Gradle distribution. A connector is bound to those two and nothing else; every other
+		 * field of [InitializeProjectParams] is per-call.
+		 *
+		 * `a == b` cannot stand in for this. [InitializeProjectParams] declares no `equals`, so that
+		 * is reference equality between objects that arrive freshly deserialized on every call, and
+		 * it answered false every time (ADFA-5589).
+		 */
+		@VisibleForTesting
+		internal fun describesSameConnection(
+			a: InitializeProjectParams?,
+			b: InitializeProjectParams,
+		): Boolean =
+			a != null &&
+				sameDirectory(a.directory, b.directory) &&
+				a.gradleDistribution == b.gradleDistribution
+
+		/**
+		 * Whether [a] and [b] name the same directory.
+		 *
+		 * As paths, not as strings: `GradleConnector.forProjectDirectory` takes a [File], so a
+		 * trailing separator -- or `/sdcard` against `/storage/emulated/0`, both live on Android --
+		 * is one connector but two strings. Guessing wrong here only costs a needless reconnect.
+		 */
+		private fun sameDirectory(
+			a: String,
+			b: String,
+		): Boolean {
+			val first = File(a)
+			val second = File(b)
+			return first == second ||
+				runCatching { first.canonicalFile == second.canonicalFile }.getOrDefault(false)
+		}
+
+		/**
+		 * Whether a wrapper connection is still bound to the distribution the wrapper names.
+		 *
+		 * [GradleDistributionParams.WRAPPER] carries no version, so two wrapper params compare equal
+		 * across a wrapper upgrade. The distribution is resolved from `gradle-wrapper.properties`
+		 * inside `connect()` and frozen into the connection, and [Main.checkGradleWrapper] can
+		 * rewrite that file earlier in this same initialize -- so without this the initialize that
+		 * installs a new wrapper is exactly the one that reuses the connection bound to the old one.
+		 */
+		@VisibleForTesting
+		internal fun wrapperStillMatches(
+			params: InitializeProjectParams,
+			recorded: String?,
+			current: String? = wrapperDistributionUrl(params.directory),
+		): Boolean =
+			params.gradleDistribution.type != GradleDistributionType.GRADLE_WRAPPER ||
+				recorded == current
+
+		/** The `distributionUrl` named by [directory]'s Gradle wrapper, or null if unreadable. */
+		@VisibleForTesting
+		internal fun wrapperDistributionUrl(directory: String): String? =
+			runCatching {
+				File(directory, WRAPPER_PROPERTIES)
+					.takeIf(File::isFile)
+					?.inputStream()
+					?.use { stream -> Properties().apply { load(stream) } }
+					?.getProperty("distributionUrl")
+			}.getOrNull()
 	}
 
 	/**
-	 * Whether the connector already open can serve [params].
+	 * Whether the connector already open can serve [params] without reconnecting.
 	 *
-	 * A connector is bound to a project directory and a Gradle distribution and to nothing else, so
-	 * those are the only fields that can make one unusable. Everything else in
-	 * [InitializeProjectParams] is per-call.
-	 *
-	 * This used to compare the whole object, which made it *always false*:
-	 * [InitializeProjectParams] is a plain class with no `equals`, so `==` is reference equality,
-	 * and `params` arrives freshly deserialized from JSON-RPC on every call. The branch it guards
-	 * -- "Reusing connector instance..." -- had therefore never run.
-	 *
-	 * The cost was not a slow path. A false answer means `forceConnect`, which disconnects the old
-	 * connector, and `GradleConnector.disconnect()` sends the daemon `StopWhenIdle`. So every
-	 * re-initialize stopped the warm daemon, and the client re-initializes on every activity
-	 * recreate outside `EditorActivityKt`'s `configChanges` -- a theme change, a locale change, a
-	 * display-size change. Each one cost the next build a cold daemon start (ADFA-5589).
-	 *
-	 * Making [InitializeProjectParams] a `data class` does not fix it: `buildId` is generated fresh
-	 * per call, so value equality on the whole object stays false every time.
-	 */
-	private fun canReuseConnector(params: InitializeProjectParams): Boolean =
-		connector != null && connection != null && describesSameConnection(lastInitParams, params)
-
-	/**
-	 * Whether [a] and [b] name the same connection: the same project directory, served by the same
-	 * Gradle distribution.
-	 *
-	 * Separate from [canReuseConnector] so it can be asserted. The rest of that check reads private
-	 * state which only a real connect populates, and a test that stubs the connect never sets it.
+	 * Not merely a slow path when false: reconnecting disconnects the open connector, and
+	 * `GradleConnector.disconnect()` sends the running daemon `StopWhenIdle` (ADFA-5589).
 	 */
 	@VisibleForTesting
-	internal fun describesSameConnection(
-		a: InitializeProjectParams?,
-		b: InitializeProjectParams,
-	): Boolean =
-		a != null &&
-			a.directory == b.directory &&
-			a.gradleDistribution == b.gradleDistribution
+	internal fun canReuseConnector(params: InitializeProjectParams): Boolean =
+		connector != null &&
+			connection != null &&
+			describesSameConnection(lastInitParams, params) &&
+			wrapperStillMatches(params, lastWrapperDistribution)
 
 	@VisibleForTesting
 	internal fun getOrConnectProject(
@@ -160,6 +214,14 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				connector?.disconnect()
 			}
 
+			// Dropped before the connect, not after it. A connect that throws -- a bad installation
+			// directory, an unreachable distribution -- would otherwise leave the disconnected pair in
+			// place, and the next initialize whose params match would reuse a dead connection and fail
+			// every build with CONNECTION_CLOSED until the server process restarts.
+			this.connector = null
+			this.connection = null
+			this.lastWrapperDistribution = null
+
 			val connector = GradleConnector.newConnector().forProjectDirectory(projectDir)
 			setupConnectorForGradleInstallation(connector, gradleDist)
 
@@ -167,6 +229,12 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 
 			this.connector = connector
 			this.connection = connection
+			this.lastWrapperDistribution =
+				if (gradleDist.type == GradleDistributionType.GRADLE_WRAPPER) {
+					wrapperDistributionUrl(projectDir.path)
+				} else {
+					null
+				}
 
 			connector to connection
 		}
@@ -474,6 +542,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			this.client = null
 			this.buildCancellationToken = null
 			this.lastInitParams = null
+			this.lastWrapperDistribution = null
 
 			// wait for connections to close
 			connectionCloseFuture.get()
