@@ -77,6 +77,16 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		this.enabled = false
 	}
 
+	override fun onGradleDaemonStarted(pid: Int) {
+		checkActivity("onGradleDaemonStarted") ?: return
+		activity.watchGradleDaemon(pid)
+	}
+
+	override fun onGradleDaemonExited(pid: Int) {
+		checkActivity("onGradleDaemonExited") ?: return
+		activity.unwatchGradleDaemon(pid)
+	}
+
 	override fun prepareBuild(buildInfo: BuildInfo) {
 		checkActivity("prepareBuild") ?: return
 

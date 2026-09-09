@@ -53,6 +53,14 @@ class ForwardingToolingApiClient(
 		client?.onBuildFailed(result)
 	}
 
+	override fun onGradleDaemonStarted(pid: Int) {
+		client?.onGradleDaemonStarted(pid)
+	}
+
+	override fun onGradleDaemonExited(pid: Int) {
+		client?.onGradleDaemonExited(pid)
+	}
+
 	override fun onProgressEvent(event: ProgressEvent) {
 		client?.onProgressEvent(event)
 	}
