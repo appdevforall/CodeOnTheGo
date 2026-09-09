@@ -46,7 +46,7 @@ class CompositeQuickBuildMetricsSink(
 	override fun onProxyAppRebuild(
 		isSuccess: Boolean,
 		durationMillis: Long,
-		relaunchOk: Boolean,
+		relaunchOk: Boolean?,
 		toRunningMillis: Long?,
 	) = fanOut { it.onProxyAppRebuild(isSuccess, durationMillis, relaunchOk, toRunningMillis) }
 
