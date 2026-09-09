@@ -75,12 +75,14 @@ fun OutlinePanel(
 	modifier: Modifier = Modifier,
 ) {
 	val state by viewModel.uiState.collectAsStateWithLifecycle()
-	OutlinePanelContent(state = state, onEvent = viewModel::onEvent, modifier = modifier)
+	val collapsedPaths by viewModel.collapsedPaths.collectAsStateWithLifecycle()
+	OutlinePanelContent(state = state, collapsedPaths = collapsedPaths, onEvent = viewModel::onEvent, modifier = modifier)
 }
 
 @Composable
 internal fun OutlinePanelContent(
 	state: OutlineUiState,
+	collapsedPaths: Set<String>,
 	onEvent: (OutlineUiEvent) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -102,7 +104,7 @@ internal fun OutlinePanelContent(
 		}
 
 		is OutlineUiState.Content -> {
-			OutlineTree(state, onEvent, modifier)
+			OutlineTree(state, collapsedPaths, onEvent, modifier)
 		}
 	}
 }
@@ -130,12 +132,13 @@ private fun CenteredMessage(
 @Composable
 private fun OutlineTree(
 	state: OutlineUiState.Content,
+	collapsedPaths: Set<String>,
 	onEvent: (OutlineUiEvent) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val rows =
-		remember(state.symbols, state.collapsedPaths) {
-			flattenOutline(state.symbols, state.collapsedPaths)
+		remember(state.symbols, collapsedPaths) {
+			flattenOutline(state.symbols, collapsedPaths)
 		}
 	LazyColumn(modifier = modifier.fillMaxSize()) {
 		items(rows, key = { it.path }) { row ->

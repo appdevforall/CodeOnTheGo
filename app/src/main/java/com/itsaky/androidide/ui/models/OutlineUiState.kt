@@ -21,7 +21,6 @@ sealed interface OutlineUiState {
 	data class Content(
 		val fileName: String,
 		val symbols: List<OutlineSymbol>,
-		val collapsedPaths: Set<String>,
 	) : OutlineUiState
 }
 

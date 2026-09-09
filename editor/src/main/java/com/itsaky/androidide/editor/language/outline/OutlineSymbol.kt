@@ -19,6 +19,16 @@ enum class OutlineSymbolKind(
 	FIELD("Fd"),
 	PROPERTY("Pr"),
 	ELEMENT("El"),
+	;
+
+	companion object {
+		private val CAMEL_BOUNDARY = Regex("([a-z])([A-Z])")
+
+		fun fromCaptureSuffix(suffix: String): OutlineSymbolKind? {
+			val constantName = suffix.replace(CAMEL_BOUNDARY, "$1_$2").uppercase()
+			return entries.find { it.name == constantName }
+		}
+	}
 }
 
 data class OutlineSymbol(

@@ -33,13 +33,14 @@ class TreeSitterOutlineProviderTest {
 	private val kotlinSource =
 		"""
 		class Repo(val name: String, tag: String) {
-			companion object {
+			companion object Factory {
 				val EMPTY = Repo("")
 			}
 			var count = 0
 			fun add(item: String): Boolean {
 				val tmp = item.length
-				return tmp > 0
+				fun helper() = tmp
+				return helper() > 0
 			}
 			constructor(name: String, count: Int) : this(name) {
 				this.count = count
@@ -138,7 +139,7 @@ class TreeSitterOutlineProviderTest {
 			assertThat(repo.kind).isEqualTo(OutlineSymbolKind.CLASS)
 			val childNames = repo.children.map { it.name }
 			assertThat(childNames)
-				.containsExactly("name", "companion object", "count", "add", "constructor")
+				.containsExactly("name", "Factory", "count", "add", "constructor")
 				.inOrder()
 			val companion = repo.children[1]
 			assertThat(companion.kind).isEqualTo(OutlineSymbolKind.COMPANION)

@@ -83,6 +83,9 @@ jobs:
       - name: Run Firebase Test Lab and Wait for Results
         run: |
           mkdir -p test-results/kotlin test-results/groovy test-results/editor
+          KOTLIN_EXIT_CODE=0
+          GROOVY_EXIT_CODE=0
+          EDITOR_EXIT_CODE=0
           
           # Run Kotlin DSL tests
           echo "Running Kotlin DSL tests..."
@@ -98,9 +101,8 @@ jobs:
             --results-dir=test-results/kotlin \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" > test-results/kotlin/test_output.txt 2>&1
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" > test-results/kotlin/test_output.txt 2>&1 || KOTLIN_EXIT_CODE=$?
           
-          KOTLIN_EXIT_CODE=$?
           echo "Kotlin tests exit code: $KOTLIN_EXIT_CODE"
           
           # Extract Firebase Test Lab URL for Kotlin tests
@@ -127,9 +129,8 @@ jobs:
             --results-dir=test-results/groovy \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" > test-results/groovy/test_output.txt 2>&1
+            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" > test-results/groovy/test_output.txt 2>&1 || GROOVY_EXIT_CODE=$?
           
-          GROOVY_EXIT_CODE=$?
           echo "Groovy tests exit code: $GROOVY_EXIT_CODE"
           
           # Extract Firebase Test Lab URL for Groovy tests
@@ -154,12 +155,17 @@ jobs:
             --num-flaky-test-attempts=1 \
             --results-dir=test-results/editor \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
-            --project=codeonthego-64a92 > test-results/editor/test_output.txt 2>&1
+            --project=codeonthego-64a92 > test-results/editor/test_output.txt 2>&1 || EDITOR_EXIT_CODE=$?
 
-          EDITOR_EXIT_CODE=$?
           echo "Editor tests exit code: $EDITOR_EXIT_CODE"
           EDITOR_TEST_URL=$(grep -o 'https://console.firebase.google.com/project/[^[:space:]]*' test-results/editor/test_output.txt | head -1 || echo "")
           echo "EDITOR_TEST_URL=$EDITOR_TEST_URL" >> $GITHUB_ENV
+
+          # Every suite runs even when an earlier one fails, but a failure still fails the step.
+          if [ "$KOTLIN_EXIT_CODE" -ne 0 ] || [ "$GROOVY_EXIT_CODE" -ne 0 ] || [ "$EDITOR_EXIT_CODE" -ne 0 ]; then
+            echo "Instrumentation suites failed (kotlin=$KOTLIN_EXIT_CODE groovy=$GROOVY_EXIT_CODE editor=$EDITOR_EXIT_CODE)"
+            exit 1
+          fi
 
       - name: Notify Slack with parsed test results
         if: always()  # Run even if tests fail

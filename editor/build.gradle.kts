@@ -60,7 +60,9 @@ dependencies {
 
 	testImplementation(projects.testing.unit)
 	androidTestImplementation(projects.testing.android) {
-		// kt-android.jar (kotlin-analysis-api) bundles kotlin.reflect.full; a second copy fails packaging with duplicate classes
+		// kt-android.jar (kotlin-analysis-api) bundles kotlin.reflect.full; a second copy fails packaging with
+		// duplicate classes. Consequence: MockK, which testing:android exposes, cannot be used in this source
+		// set - it needs kotlin-reflect at runtime and will fail on device with NoClassDefFoundError.
 		exclude(group = "org.jetbrains.kotlin", module = "kotlin-reflect")
 	}
 }

@@ -15,9 +15,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.getAndUpdate
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -42,13 +44,12 @@ class OutlineViewModel(
 	)
 
 	private val snapshots = MutableStateFlow<Snapshot?>(null)
-	private val computed = MutableStateFlow<OutlineUiState>(OutlineUiState.NoFileOpen)
+	private val _uiState = MutableStateFlow<OutlineUiState>(OutlineUiState.NoFileOpen)
 	private val collapsed = MutableStateFlow(Collapsed(path = null, paths = emptySet()))
 
-	val uiState: StateFlow<OutlineUiState> =
-		combine(computed, collapsed) { state, collapse ->
-			if (state is OutlineUiState.Content) state.copy(collapsedPaths = collapse.paths) else state
-		}.stateIn(viewModelScope, SharingStarted.Eagerly, OutlineUiState.NoFileOpen)
+	val uiState: StateFlow<OutlineUiState> = _uiState.asStateFlow()
+	val collapsedPaths: StateFlow<Set<String>> =
+		collapsed.map { it.paths }.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
 	private val _effects = MutableSharedFlow<OutlineUiEffect>()
 	val effects = _effects.asSharedFlow()
@@ -105,16 +106,17 @@ class OutlineViewModel(
 
 	private suspend fun compute(snapshot: Snapshot?) {
 		if (snapshot == null) {
-			computed.value = OutlineUiState.NoFileOpen
+			_uiState.value = OutlineUiState.NoFileOpen
 			return
 		}
 		if (!outlineProvider.supports(snapshot.extension)) {
-			computed.value = OutlineUiState.Unsupported(snapshot.fileName)
+			_uiState.value = OutlineUiState.Unsupported(snapshot.fileName)
 			return
 		}
-		if (collapsed.value.path != snapshot.path) {
-			collapsed.value = Collapsed(snapshot.path, emptySet())
-			computed.value = OutlineUiState.Loading(snapshot.fileName)
+		val switchedFile =
+			collapsed.getAndUpdate { if (it.path == snapshot.path) it else Collapsed(snapshot.path, emptySet()) }.path != snapshot.path
+		if (switchedFile) {
+			_uiState.value = OutlineUiState.Loading(snapshot.fileName)
 		}
 		val symbols =
 			try {
@@ -125,11 +127,11 @@ class OutlineViewModel(
 				log.error("Failed to compute outline for {}", snapshot.fileName, e)
 				emptyList()
 			}
-		computed.value =
+		_uiState.value =
 			if (symbols.isEmpty()) {
 				OutlineUiState.Empty(snapshot.fileName)
 			} else {
-				OutlineUiState.Content(snapshot.fileName, symbols, emptySet())
+				OutlineUiState.Content(snapshot.fileName, symbols)
 			}
 	}
 }

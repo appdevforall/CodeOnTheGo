@@ -22,8 +22,11 @@ import com.itsaky.androidide.treesitter.kotlin.TSLanguageKotlin
 import com.itsaky.androidide.treesitter.xml.TSLanguageXml
 import io.github.rosemoe.sora.editor.ts.predicate.Predicator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.CoroutineContext
 
 class TreeSitterOutlineProvider(
 	context: Context,
@@ -79,10 +82,11 @@ class TreeSitterOutlineProvider(
 					?: throw IllegalArgumentException("No outline support for file extension '$fileExtension'")
 			val queries = queriesByType.computeIfAbsent(type) { loadQueries(it) }
 			val source = text.toString()
+			val cancellation = currentCoroutineContext()
 			TSParser.create().use { parser ->
 				parser.language = queries.language
 				parser.parseString(source).use { tree ->
-					extract(queries, tree, source)
+					extract(queries, tree, source, cancellation)
 				}
 			}
 		}
@@ -115,6 +119,7 @@ class TreeSitterOutlineProvider(
 		queries: LanguageQueries,
 		tree: TSTree,
 		source: String,
+		cancellation: CoroutineContext,
 	): List<OutlineSymbol> {
 		val rawByName = LinkedHashMap<Pair<Int, Int>, RawOutlineSymbol>()
 		val patternByName = HashMap<Pair<Int, Int>, Int>()
@@ -125,6 +130,7 @@ class TreeSitterOutlineProvider(
 				recycleNodeAfterUse = true,
 				debugName = "TreeSitterOutlineProvider.extract()",
 			) { match ->
+				cancellation.ensureActive()
 				if (!queries.predicator.doPredicate(predicates, source, match)) {
 					return@safeExecQueryCursor
 				}
@@ -175,9 +181,8 @@ class TreeSitterOutlineProvider(
 				val preferred =
 					when {
 						existing == null -> true
-						existing.detail == null && raw.detail != null -> true
-						existing.detail != null && raw.detail == null -> false
-						else -> match.patternIndex < existingPattern!!
+						match.patternIndex != existingPattern -> match.patternIndex < existingPattern!!
+						else -> existing.detail == null && raw.detail != null
 					}
 				if (preferred) {
 					rawByName[key] = raw
@@ -188,11 +193,9 @@ class TreeSitterOutlineProvider(
 		return OutlineTreeBuilder.build(rawByName.values.toList())
 	}
 
-	private fun kindOf(suffix: String): OutlineSymbolKind {
-		val constantName = suffix.replace(Regex("([a-z])([A-Z])"), "$1_$2").uppercase()
-		return OutlineSymbolKind.entries.find { it.name == constantName }
+	private fun kindOf(suffix: String): OutlineSymbolKind =
+		OutlineSymbolKind.fromCaptureSuffix(suffix)
 			?: throw IllegalArgumentException("Unknown outline symbol kind capture '@symbol.$suffix'")
-	}
 
 	private fun defaultNameFor(kind: OutlineSymbolKind): String? =
 		when (kind) {

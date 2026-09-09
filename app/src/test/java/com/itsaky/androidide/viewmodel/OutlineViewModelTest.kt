@@ -76,12 +76,12 @@ class OutlineViewModelTest {
 			vm.onSnapshot("/a/Main.java", "java", "class Main {}", immediate = true)
 			advanceTimeBy(1)
 			vm.onEvent(OutlineUiEvent.ToggleCollapsed("Main#0"))
-			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths).containsExactly("Main#0")
+			assertThat(vm.collapsedPaths.value).containsExactly("Main#0")
 
 			vm.onSnapshot("/b/Main.java", "java", "class Main {}", immediate = true)
 			advanceTimeBy(1)
 
-			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths).isEmpty()
+			assertThat(vm.collapsedPaths.value).isEmpty()
 		}
 
 	@Test
@@ -166,11 +166,11 @@ class OutlineViewModelTest {
 			vm.onSnapshot("Main.java", "java", "v1", immediate = true)
 			advanceUntilIdle()
 			vm.onEvent(OutlineUiEvent.ToggleCollapsed("Main#0"))
-			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths)
+			assertThat(vm.collapsedPaths.value)
 				.containsExactly("Main#0")
 			vm.onSnapshot("Main.java", "java", "v2", immediate = false)
 			advanceUntilIdle()
-			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths)
+			assertThat(vm.collapsedPaths.value)
 				.containsExactly("Main#0")
 		}
 
@@ -188,7 +188,7 @@ class OutlineViewModelTest {
 			assertThat(vm.uiState.value).isEqualTo(OutlineUiState.Loading("Other.java"))
 			provider.gate!!.complete(Unit)
 			advanceUntilIdle()
-			assertThat((vm.uiState.value as OutlineUiState.Content).collapsedPaths).isEmpty()
+			assertThat(vm.collapsedPaths.value).isEmpty()
 		}
 
 	@Test

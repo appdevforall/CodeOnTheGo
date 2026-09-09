@@ -32,6 +32,14 @@ import java.nio.file.Path
 class OutlineFragment : Fragment() {
 	private val viewModel: OutlineViewModel by activityViewModel()
 	private val editorViewModel: EditorViewModel by activityViewModels()
+	private var drawer: DrawerLayout? = null
+
+	private val drawerListener =
+		object : DrawerLayout.SimpleDrawerListener() {
+			override fun onDrawerOpened(drawerView: View) {
+				seedFromCurrentEditor()
+			}
+		}
 
 	override fun onCreateView(
 		inflater: LayoutInflater,
@@ -52,6 +60,10 @@ class OutlineFragment : Fragment() {
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
+		drawer =
+			(activity as? EditorHandlerActivity)?.binding?.editorDrawerLayout?.also {
+				it.addDrawerListener(drawerListener)
+			}
 		editorViewModel.currentFile.observe(viewLifecycleOwner) { view.post { seedFromCurrentEditor() } }
 		viewLifecycleOwner.lifecycleScope.launch {
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -62,6 +74,13 @@ class OutlineFragment : Fragment() {
 				}
 			}
 		}
+	}
+
+	override fun onDestroyView() {
+		drawer?.removeDrawerListener(drawerListener)
+		drawer = null
+		viewModel.onNoEditor()
+		super.onDestroyView()
 	}
 
 	override fun onStart() {
@@ -78,6 +97,7 @@ class OutlineFragment : Fragment() {
 
 	@Subscribe(threadMode = MAIN)
 	fun onDocumentChanged(event: DocumentChangeEvent) {
+		if (!isPanelVisible()) return
 		val editor = currentEditor() ?: return
 		val file = editor.file ?: return
 		if (normalized(file.toPath()) != normalized(event.changedFile)) return
@@ -91,6 +111,7 @@ class OutlineFragment : Fragment() {
 
 	@Subscribe(threadMode = MAIN)
 	fun onDocumentOpened(event: DocumentOpenEvent) {
+		if (!isPanelVisible()) return
 		val file = currentEditor()?.file ?: return
 		if (normalized(file.toPath()) != normalized(event.openedFile)) return
 		viewModel.onSnapshot(
@@ -102,6 +123,7 @@ class OutlineFragment : Fragment() {
 	}
 
 	private fun seedFromCurrentEditor() {
+		if (!isPanelVisible()) return
 		val editor = currentEditor()
 		val file = editor?.file
 		if (editor == null || file == null) {
@@ -118,12 +140,13 @@ class OutlineFragment : Fragment() {
 
 	private fun currentEditor() = (activity as? EditorHandlerActivity)?.getCurrentEditor()?.editor
 
+	private fun isPanelVisible(): Boolean = drawer?.isDrawerOpen(GravityCompat.START) == true
+
 	private fun normalized(path: Path): String = path.toAbsolutePath().normalize().toString()
 
 	private fun navigateTo(position: Position) {
-		val editorActivity = activity as? EditorHandlerActivity ?: return
-		val drawer = editorActivity.binding.editorDrawerLayout
-		val editor = editorActivity.getCurrentEditor()?.editor
+		val drawer = drawer ?: return
+		val editor = currentEditor()
 		if (editor == null || !editor.isValidPosition(position, true)) {
 			drawer.closeDrawer(GravityCompat.START)
 			return
@@ -137,7 +160,9 @@ class OutlineFragment : Fragment() {
 			object : DrawerLayout.SimpleDrawerListener() {
 				override fun onDrawerClosed(drawerView: View) {
 					drawer.removeDrawerListener(this)
-					centerPositionInView(editor, position)
+					if (editor.isValidPosition(position, true)) {
+						centerPositionInView(editor, position)
+					}
 				}
 			},
 		)

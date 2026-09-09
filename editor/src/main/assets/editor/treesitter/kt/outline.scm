@@ -12,7 +12,8 @@
 (object_declaration
   (type_identifier) @name) @symbol.object
 
-(companion_object) @symbol.companion
+(companion_object
+  (type_identifier)? @name) @symbol.companion
 
 (type_alias
   (type_identifier) @name) @symbol.typeAlias
@@ -20,9 +21,20 @@
 (enum_entry
   (simple_identifier) @name) @symbol.enumMember
 
-(function_declaration
-  (simple_identifier) @name
-  (function_value_parameters) @detail) @symbol.method
+(class_body
+  (function_declaration
+    (simple_identifier) @name
+    (function_value_parameters) @detail) @symbol.method)
+
+(enum_class_body
+  (function_declaration
+    (simple_identifier) @name
+    (function_value_parameters) @detail) @symbol.method)
+
+(source_file
+  (function_declaration
+    (simple_identifier) @name
+    (function_value_parameters) @detail) @symbol.method)
 
 (secondary_constructor
   (function_value_parameters) @detail) @symbol.constructor

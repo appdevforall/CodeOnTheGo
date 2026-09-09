@@ -19,10 +19,7 @@ internal object OutlineTreeBuilder {
 		val roots = mutableListOf<MutableNode>()
 		val stack = ArrayDeque<MutableNode>()
 		for (symbol in sorted) {
-			while (stack.isNotEmpty() && stack
-					.last()
-					.raw.range.end.index <= symbol.range.start.index
-			) {
+			while (stack.isNotEmpty() && !stack.last().raw.strictlyContains(symbol)) {
 				stack.removeLast()
 			}
 			val node = MutableNode(symbol)
@@ -34,6 +31,16 @@ internal object OutlineTreeBuilder {
 			stack.addLast(node)
 		}
 		return roots.map { it.freeze() }
+	}
+
+	private fun RawOutlineSymbol.strictlyContains(other: RawOutlineSymbol): Boolean {
+		val encloses =
+			range.start.index <= other.range.start.index &&
+				other.range.end.index <= range.end.index
+		val sameRange =
+			range.start.index == other.range.start.index &&
+				range.end.index == other.range.end.index
+		return encloses && !sameRange
 	}
 
 	private class MutableNode(
