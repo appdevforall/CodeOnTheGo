@@ -2,8 +2,11 @@ package com.itsaky.androidide.ui.outline
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -147,6 +150,7 @@ private fun OutlineTree(
 	}
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun OutlineRow(
 	row: OutlineRowModel,
@@ -210,7 +214,13 @@ private fun OutlineRow(
 			color = badgeColorFor(symbol.kind),
 			modifier = Modifier.padding(start = 2.dp, end = 8.dp),
 		)
-		Column(modifier = Modifier.weight(1f).padding(vertical = 4.dp)) {
+		FlowRow(
+			horizontalArrangement = Arrangement.spacedBy(6.dp),
+			modifier =
+				Modifier
+					.weight(1f)
+					.padding(vertical = 4.dp),
+		) {
 			Text(
 				text = symbol.name,
 				style = MaterialTheme.typography.bodyMedium,
