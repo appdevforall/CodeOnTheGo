@@ -366,6 +366,7 @@ abstract class BaseEditorActivity :
 				service: IBinder,
 			) {
 				debuggerService = (service as DebuggerService.Binder).getService()
+				debuggerService!!.targetPackage = debuggerViewModel.debugeePackageFlow.value
 				debuggerService!!.showOverlay()
 
 				isDebuggerStarting = false
@@ -396,6 +397,8 @@ abstract class BaseEditorActivity :
 			if (e !is IllegalArgumentException) {
 				log.error("Failed to stop debugger service", e)
 			}
+		} finally {
+			debuggerService = null
 		}
 	}
 
@@ -696,6 +699,7 @@ abstract class BaseEditorActivity :
 			return
 		}
 
+		debuggerViewModel.debugeePackage = packageName
 		startDebuggerAndDo {
 			withContext(Dispatchers.Main.immediate) {
 				doLaunchApp(

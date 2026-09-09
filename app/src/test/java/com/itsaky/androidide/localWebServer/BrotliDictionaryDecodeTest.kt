@@ -1,22 +1,21 @@
 package com.itsaky.androidide.localWebServer
 
-// The decode helpers moved to common with the shared content source (ADFA-5176); these tests stay
+// The codec and chunk helpers under test live in common (ADFA-5176/ADFA-5240); these tests stay
 // here, where the brotli4j host-native test wiring lives.
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
-import com.aayushatharva.brotli4j.encoder.BrotliOutputStream
-import com.aayushatharva.brotli4j.encoder.Encoder
 import com.itsaky.androidide.documentation.chunksAsStream
 import com.itsaky.androidide.documentation.joinChunks
-import com.itsaky.androidide.documentation.toDirectByteBuffer
+import com.itsaky.androidide.utils.BrotliDictionaryCodec
+import com.itsaky.androidide.utils.toDirectByteBuffer
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.BeforeClass
 import org.junit.Test
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
@@ -185,29 +184,138 @@ class BrotliDictionaryDecodeTest {
 	}
 
 	@Test
-	fun `dictionary-free plugin content fails with a dictionary attached but decodes plain`() {
-		// Regression coverage for the WebServer.decompressBrotli fallback: plugin-contributed
-		// Tier 3 docs (PluginDocumentationManager/BrotliCompressor) are compressed with the same
-		// encoder params (quality 11, window 24) but no dictionary, coexisting in the same Content
-		// table as ADFA-5153-migrated, dictionary-compressed rows.
+	fun `plugin content compressed against the dictionary decodes the way WebServer reads it`() {
+		// The ADFA-5240 contract: PluginDocumentationManager encodes Tier 3 rows through
+		// BrotliDictionaryCodec, and WebServer reads every brotli row by attaching the same
+		// dictionary. The dictionary here is the CLI-trained fixture, so this also covers the
+		// cross-tool half -- brotli4j's encoder against a dictionary the Python pipeline produced.
 		val dictionary = decodeBase64ToDirectBuffer(dictionaryBase64)
-		val plaintext = "plugin-contributed Tier 3 content, compressed with no dictionary"
-		val expected = plaintext.toByteArray(StandardCharsets.UTF_8)
-		val compressed =
-			ByteArrayOutputStream()
-				.apply {
-					BrotliOutputStream(this, Encoder.Parameters().setQuality(11).setWindow(24)).use { it.write(expected) }
-				}.toByteArray()
+		val expected = "plugin-contributed Tier 3 content, compressed against the shared dictionary".toByteArray(StandardCharsets.UTF_8)
 
-		assertThrows(IOException::class.java) {
+		val compressed = BrotliDictionaryCodec(dictionary).compress(expected)
+
+		val result =
 			BrotliInputStream(ByteArrayInputStream(compressed)).use { stream ->
 				stream.attachDictionary(dictionary)
 				stream.readBytes()
 			}
+		assertArrayEquals(expected, result)
+	}
+
+	@Test
+	fun `compressing does not drain the caller's dictionary buffer`() {
+		// PreparedDictionaryGenerator.generate consumes its argument, leaving position at limit.
+		// attachDictionary happens to ignore position -- it reads the whole capacity -- so a round
+		// trip alone cannot tell whether the codec drained the caller's buffer. Assert the buffer
+		// state directly, or the defensive duplicate() in BrotliDictionaryCodec is unpinned and a
+		// future brotli4j that honours position breaks silently.
+		val dictionary = decodeBase64ToDirectBuffer(dictionaryBase64)
+		val positionBefore = dictionary.position()
+
+		BrotliDictionaryCodec(dictionary).compress("docs-sidebar toc-element".toByteArray(StandardCharsets.UTF_8))
+
+		assertEquals("compress() consumed the dictionary buffer it was given", positionBefore, dictionary.position())
+	}
+
+	@Test
+	fun `the codec reuses one dictionary buffer across compress and decompress`() {
+		val dictionary = decodeBase64ToDirectBuffer(dictionaryBase64)
+		val codec = BrotliDictionaryCodec(dictionary)
+
+		repeat(3) { round ->
+			val expected = "round $round: docs-sidebar toc-element kotlin interface".toByteArray(StandardCharsets.UTF_8)
+			val result = codec.decompress(ByteArrayInputStream(codec.compress(expected)))
+			assertArrayEquals(expected, result)
 		}
 
-		val plainResult = BrotliInputStream(ByteArrayInputStream(compressed)).use { it.readBytes() }
-		assertArrayEquals(expected, plainResult)
+		// The fixture from the offline pipeline must still decode through the same buffer.
+		assertArrayEquals(
+			Base64.getDecoder().decode(expectedBase64),
+			codec.decompress(ByteArrayInputStream(Base64.getDecoder().decode(compressedBase64))),
+		)
+	}
+
+	@Test
+	fun `dictionary-compressed plugin content is not readable without the dictionary`() {
+		// WebServer decodes a brotli row exactly once, with the dictionary attached or not
+		// according to the database's declared version -- there is no retry to paper over a
+		// mismatch. This is what makes that safe: a row written against the dictionary cannot be
+		// silently misread as a plain one, it fails loudly.
+		val dictionary = decodeBase64ToDirectBuffer(dictionaryBase64)
+		val expected = "plugin-contributed Tier 3 content".toByteArray(StandardCharsets.UTF_8)
+
+		val compressed = BrotliDictionaryCodec(dictionary).compress(expected)
+
+		assertThrows(IOException::class.java) {
+			BrotliDictionaryCodec(null).decompress(ByteArrayInputStream(compressed))
+		}
+	}
+
+	@Test
+	fun `the wrong dictionary can decode without error to the wrong bytes`() {
+		// The reason WebServer.switchToDatabase resets its codec instead of only marking it stale:
+		// if a failed dictionary reload let the previous database's codec serve the new database's
+		// rows, this is what a client could get -- a 200 carrying different bytes than were stored,
+		// with nothing thrown. A dictionary-free codec fails such a row loudly instead, which is
+		// why that is the safe thing to fall back to.
+		//
+		// The two dictionaries here are the same length and differ only in bytes the payload
+		// actually references, which is what makes the failure silent. A wrong dictionary of a
+		// different length, or one whose referenced offsets hold nothing valid, throws instead --
+		// so a throw does not prove the dictionary was right, and a success does not either.
+		val base = "docs-sidebar toc-element kotlin interface companion object page.peb ".repeat(400)
+		val dictionary = toDirectByteBuffer(base.toByteArray(StandardCharsets.UTF_8))
+		val lookalike = toDirectByteBuffer(base.replace("kotlin", "scalax").toByteArray(StandardCharsets.UTF_8))
+		val expected = "docs-sidebar toc-element kotlin interface companion object page.peb ".repeat(6).toByteArray(StandardCharsets.UTF_8)
+
+		val compressed = BrotliDictionaryCodec(dictionary).compress(expected)
+
+		val decoded = BrotliDictionaryCodec(lookalike).decompress(ByteArrayInputStream(compressed))
+		assertEquals("the wrong dictionary still produced a full-length result", expected.size, decoded.size)
+		assertFalse(
+			"decoding with the wrong dictionary must not be assumed detectable by failure",
+			expected.contentEquals(decoded),
+		)
+
+		// ... while no dictionary at all is reliably rejected, which is what the writer relies on.
+		assertThrows(IOException::class.java) {
+			BrotliDictionaryCodec(null).decompress(ByteArrayInputStream(compressed))
+		}
+	}
+
+	@Test
+	fun `a legacy plain row fails when the dictionary is attached, unless it never referenced one`() {
+		// What makes rows left plain by an earlier build fail loudly rather than serve wrong bytes,
+		// now that WebServer decodes once with no retry. The failure is content-dependent, which is
+		// the part worth pinning: a stream only breaks on the dictionary if it matched into it, so
+		// a plugin's HTML 500s while its incompressible assets keep serving. Anyone reading a
+		// half-broken plugin's pages needs to know that is one cause, not two.
+		val dictionary = decodeBase64ToDirectBuffer(dictionaryBase64)
+		val plainCodec = BrotliDictionaryCodec(null)
+
+		val docLike = "docs-sidebar toc-element kotlin interface companion ".repeat(200).toByteArray(StandardCharsets.UTF_8)
+		val asLegacyRow = plainCodec.compress(docLike)
+		assertThrows(IOException::class.java) {
+			BrotliDictionaryCodec(dictionary).decompress(ByteArrayInputStream(asLegacyRow))
+		}
+
+		// Nothing here matches the dictionary, so attaching one changes nothing.
+		val noise = ByteArray(64 * 1024).also { java.util.Random(5240).nextBytes(it) }
+		val noiseRow = plainCodec.compress(noise)
+		assertArrayEquals(noise, BrotliDictionaryCodec(dictionary).decompress(ByteArrayInputStream(noiseRow)))
+	}
+
+	@Test
+	fun `a null dictionary round-trips as plain brotli`() {
+		// A database predating ADFA-5153 declares no dictionary, so both sides fall to plain
+		// brotli -- the writer must not attach one there either.
+		val expected = "content for a database with no CompressionDictionary".toByteArray(StandardCharsets.UTF_8)
+		val codec = BrotliDictionaryCodec(null)
+
+		val compressed = codec.compress(expected)
+
+		assertArrayEquals(expected, codec.decompress(ByteArrayInputStream(compressed)))
+		assertArrayEquals(expected, BrotliInputStream(ByteArrayInputStream(compressed)).use { it.readBytes() })
 	}
 
 	@Test
