@@ -58,7 +58,10 @@ class AndroidProjectWatcher(
 	// Unlimited so a burst of inotify events never blocks or drops on a slow drain - coalescing
 	// downstream collapses the flood into one batch per burst. Recreated by every [start]:
 	// [stop] closes it, and a restarted watcher would otherwise send into a closed channel.
-	private var rawEvents = Channel<WatchEvent>(Channel.UNLIMITED)
+	// Volatile because [start] writes it on the caller's thread while [report] reads it from
+	// the FileObserver thread and [pollDispatcher] with no lock between them; without it a
+	// callback after a restart can still see the closed channel and drop the save.
+	@Volatile private var rawEvents = Channel<WatchEvent>(Channel.UNLIMITED)
 	private val observers = mutableListOf<FileObserver>()
 	private var pipelineJob: Job? = null
 	private var pollJob: Job? = null
