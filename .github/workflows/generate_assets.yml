@@ -19,7 +19,12 @@ on:
         type: choice
         options:
           - site
+          - candidate
           - release
+      candidate_path:
+        description: 'GreenGeeks candidate staging path (asset_source: candidate), e.g. tmp/assets/candidates/42'
+        required: false
+        default: ''
       asset_release_tag:
         description: 'Release tag holding the debug ingredients (asset_source: release)'
         required: false
@@ -77,7 +82,7 @@ jobs:
           access_token_scopes: 'https://www.googleapis.com/auth/drive'
 
       - name: Set up SSH key
-        if: inputs.asset_source == 'site'
+        if: inputs.asset_source == 'site' || inputs.asset_source == 'candidate'
         env:
           GREENGEEKS_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
           GREENGEEKS_KEY: ${{ secrets.GREENGEEKS_SSH_PRIVATE_KEY }}
@@ -140,6 +145,23 @@ jobs:
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
+
+      - name: Download debug assets from the candidate staging area
+        if: inputs.asset_source == 'candidate'
+        env:
+          GREENGEEKS_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
+          CANDIDATE_PATH: ${{ inputs.candidate_path }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CANDIDATE_PATH" ]; then
+            echo "ERROR: asset_source is 'candidate' but candidate_path is empty."
+            echo "       Take the path from the dev-assets asset-set run summary."
+            exit 1
+          fi
+          mkdir -p assets
+          scp "$GREENGEEKS_HOST:$CANDIDATE_PATH/debug/*" assets/
+          rm -f assets/*.md5
+          ls -la assets/
 
       - name: Download debug assets from a release
         if: inputs.asset_source == 'release'
@@ -232,7 +254,7 @@ jobs:
           echo "google-services.json cleaned up successfully"
 
       - name: Cleanup ssh
-        if: always() && inputs.asset_source == 'site'
+        if: always() && (inputs.asset_source == 'site' || inputs.asset_source == 'candidate')
         run: |
           # Remove SSH key
           rm -f ~/.ssh/id_rsa
