@@ -326,6 +326,10 @@ final class QuickBuildRuntime {
 		// that throws, a malformed metadata document - has adopted nothing and posted no
 		// swap, so it owes a report and nothing else; see the catch.
 		boolean accepted = false;
+		// One outcome per apply call, so a backgrounded ack waits for the last of them.
+		// Built outside the try so the catch can ask it whether a swap already failed.
+		final SwapAckGate ackGate = new SwapAckGate(
+				(resourcesPayload == null ? 0 : 1) + (assetsPayload == null ? 0 : 1));
 		InputStream arscIn = null;
 		InputStream assetsIn = null;
 		try {
@@ -379,9 +383,6 @@ final class QuickBuildRuntime {
 			// generation still pending, or the crash guard keeps blaming it for this
 			// generation's crashes - and this generation escapes quarantine.
 			firstFrame.arm(Generations.pendingAfterApply(resumed, generation));
-			// One outcome per apply call, so a backgrounded ack waits for the last of them.
-			final SwapAckGate ackGate = new SwapAckGate(
-					(resourcesPayload == null ? 0 : 1) + (assetsPayload == null ? 0 : 1));
 			final long arrivedUptime = startUptime;
 			ResourceStore.SwapOutcome onSwapOutcome = new ResourceStore.SwapOutcome() {
 
@@ -459,6 +460,12 @@ final class QuickBuildRuntime {
 				// generation whose dex read failed went inert and quarantined the live
 				// generation. Nothing was adopted or posted, so there is nothing to undo.
 				reportUnadoptedFailure(generation, error);
+				return;
+			}
+			if (!ackGate.failed()) {
+				// A swap posted above already failed on main, and onSwapFailed abandoned,
+				// rolled back and reported it; a second report here would be a second
+				// banner and a second crash report for one deploy.
 				return;
 			}
 			// A step that already ran may have queued a swap that will still commit on main:

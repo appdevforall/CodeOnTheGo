@@ -313,6 +313,12 @@ final class PayloadStore {
 			// Only a generation with something to swap is pending: a dex-only one has no
 			// restore to run, and running one anyway recreated the first activity for it.
 			pendingBootResources = loaded.hasResources() ? loaded : null;
+			if (pendingBootResources != null) {
+				// Held until the restore has opened its files: a catch-up deploy persisting
+				// first would otherwise sweep them as orphans, since good.json cannot name a
+				// generation that has never drawn.
+				store.retainBootResources(loaded);
+			}
 			// The crash guard's only handle on a startup crash: this generation arrived from a
 			// restart deploy, so nothing in this process is pending to pin the blame on.
 			bootedPersistedGeneration = loaded.generation;
