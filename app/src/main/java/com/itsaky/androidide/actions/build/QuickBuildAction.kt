@@ -62,11 +62,6 @@ class QuickBuildAction(
 			return true
 		}
 
-		// Below the stop branch, so a stop tap is not counted as a use. Best-effort: analytics
-		// must never block or fail the build action (REVIEW.md section 11).
-		runCatching { GlobalContext.get().get<IAnalyticsManager>().trackFeatureUsed(FEATURE_NAME) }
-			.onFailure { log.warn("Quick Build analytics unavailable", it) }
-
 		// No activity, no tap: the rest of this needs one to flush the editor buffers and to
 		// ask about a clobber, and a tap that skipped both would build stale content into a slot
 		// the user never agreed to give up. No caller reaches this today - getActivity() is
@@ -109,7 +104,14 @@ class QuickBuildAction(
 			// project's real applicationId. If the Standard Run build currently occupies that
 			// id, a tap replaces it, so the activity confirms the clobber first and the build
 			// proceeds only on accept.
-			activity.ensureQuickBuildClobberConfirmed { sessionManager.onQuickBuildTapped(wroteSomething) }
+			activity.ensureQuickBuildClobberConfirmed {
+				// Counted here and nowhere earlier, so the event means a Quick Build ran: a stop
+				// tap, a failed save-all and a declined clobber all end without one. Best-effort:
+				// analytics must never block or fail the build action (REVIEW.md section 11).
+				runCatching { GlobalContext.get().get<IAnalyticsManager>().trackFeatureUsed(FEATURE_NAME) }
+					.onFailure { log.warn("Quick Build analytics unavailable", it) }
+				sessionManager.onQuickBuildTapped(wroteSomething)
+			}
 		}
 		return true
 	}
