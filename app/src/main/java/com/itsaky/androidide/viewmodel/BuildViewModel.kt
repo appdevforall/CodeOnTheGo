@@ -99,7 +99,7 @@ class BuildViewModel(
 					// BUILD_CANCELLED"), with the enum name shown to them.
 					if (result?.failure == TaskExecutionResult.Failure.BUILD_CANCELLED) {
 						log.info("Build was cancelled by the user.")
-						finish(BuildState.Idle)
+						reporter.finish(BuildState.Idle)
 						return@launch
 					}
 					throw RuntimeException("Task execution failed: ${result?.failure}")
