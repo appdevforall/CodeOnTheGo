@@ -213,4 +213,16 @@ class GradleDaemonWatcherTest {
 		/** Every poll attempt, plus the initial schedule. */
 		const val MAX_SCHEDULES = GradleDaemonWatcher.MAX_POLL_ATTEMPTS + 1
 	}
+
+	@Test
+	fun `shutdown stops the scheduler`() {
+		// It had no caller at all, so the watcher's thread outlived server shutdown and an in-flight
+		// poll chain went on scanning descendants for up to a minute -- and onBuildStarted's note
+		// about the scheduler rejecting work after shutdown described a state nothing could reach.
+		val scheduler = mockk<ScheduledExecutorService>(relaxed = true)
+
+		watcher(scheduler = scheduler).shutdown()
+
+		verify(exactly = 1) { scheduler.shutdownNow() }
+	}
 }
