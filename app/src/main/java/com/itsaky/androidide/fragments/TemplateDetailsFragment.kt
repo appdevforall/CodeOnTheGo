@@ -21,7 +21,6 @@ import android.animation.ObjectAnimator
 import android.os.Bundle
 import android.view.View
 import android.view.animation.LinearInterpolator
-import androidx.annotation.VisibleForTesting
 import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -100,10 +99,10 @@ class TemplateDetailsFragment :
 
 	override fun onDestroyView() {
 		/*
-		 * stopBlinkingIndicator touches the binding, and FragmentWithBinding.onDestroyView nulls
-		 * _binding before calling up, so it has to run before super to keep doing anything at all.
-		 * The gatekeeper teardown holds its own view reference and does not care either way; it is
-		 * kept alongside so this fragment's teardown reads as one block.
+		 * [blinkWhileOnScreen] is what guarantees the animator is gone: performDestroyView drives the
+		 * view lifecycle to DESTROYED before calling here, and that backward pass dispatches ON_STOP.
+		 * This call is a no-op belt-and-braces for a teardown that skipped the observer; it still has
+		 * to precede super, since FragmentWithBinding.onDestroyView nulls _binding before calling up.
 		 */
 		stopBlinkingIndicator()
 
@@ -294,7 +293,6 @@ class TemplateDetailsFragment :
  * the form has been scrolled to the bottom, which is a third way for it to be off screen while
  * this screen is the current one.
  */
-@VisibleForTesting
 internal fun shouldBlinkScrollIndicator(
 	isViewStarted: Boolean,
 	currentScreen: Int?,
