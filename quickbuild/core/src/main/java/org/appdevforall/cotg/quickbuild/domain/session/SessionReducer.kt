@@ -308,45 +308,64 @@ class SessionReducer {
 			is SessionEvent.ProxyAppRebuildFailed -> {
 				// The user's build files do not build. The session itself is fine and the proxy app
 				// is still running, so park recoverable rather than die: the next save, a tap, or a
-				// return to CoGo retries. The auto-retry count is CARRIED, not reset - an unfixed
-				// build file must not buy a fresh budget of Gradle builds on every return.
-				// No effect on purpose: SurfaceProvisioningError tears the session down, which is
-				// the very thing being fixed here; the shell surfaces the reason before dispatching.
+				// return to CoGo retries. No effect on purpose: SurfaceProvisioningError tears the
+				// session down, which is the very thing being fixed here; the shell surfaces the
+				// reason before dispatching.
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(
-						event.reason,
-						event.deployedGeneration,
+						// From the event: the invalidation the failed build was answering.
+						reason = event.reason,
+						// From the event: the failed build deployed nothing.
+						deployedGeneration = event.deployedGeneration,
+						// Reset: nothing is in flight now, so the next save, tap or return retries.
 						awaitingRetry = true,
+						// Carried: an unfixed build file must not buy a fresh budget of Gradle
+						// builds on every return to CoGo.
 						installAutoRetries = state.installAutoRetries,
+						// Dropped on purpose: a park needs the user to act, and a carried tap
+						// would let the foreground auto-retry bring the app forward unasked.
+						userInitiated = false,
 					),
 				)
 			}
 
 			is SessionEvent.ProxyAppRebuildDeferred -> {
-				// Park back where the retry came from and refund the attempt: it ran no Gradle
-				// build and prompted no install, which is what the budget bounds. Floored at
-				// zero, since a tap-initiated retry arrives having already reset it.
+				// Park back where the retry came from: it ran no Gradle build and prompted no
+				// install, which is what the budget bounds.
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(
-						InvalidationReason.INSTALL_NOT_CONFIRMED,
-						event.deployedGeneration,
+						// Fixed: a deferred attempt only ever retries an unconfirmed install.
+						reason = InvalidationReason.INSTALL_NOT_CONFIRMED,
+						// From the event: nothing ran, so the proxy app still runs what it did.
+						deployedGeneration = event.deployedGeneration,
+						// Reset: nothing is in flight now, so the next save, tap or return retries.
 						awaitingRetry = true,
+						// Refunded: the attempt cost nothing the budget bounds. Floored at zero,
+						// since a tap-initiated retry arrives having already reset it.
 						installAutoRetries = (state.installAutoRetries - 1).coerceAtLeast(0),
+						// Dropped on purpose: a park needs the user to act, and a carried tap
+						// would let the foreground auto-retry bring the app forward unasked.
+						userInitiated = false,
 					),
 				)
 			}
 
 			is SessionEvent.ProxyAppRebuildInstallNotConfirmed -> {
 				// Only the install confirmation is missing, so park with no effect - retrying
-				// here would re-prompt forever. The next tap or foreground return retries. The
-				// auto-retry count survives so the budget is spent per unconfirmed install,
-				// not per park.
+				// here would re-prompt forever. The next tap or foreground return retries.
 				SessionTransition(
 					QuickBuildSessionState.Invalidated(
-						InvalidationReason.INSTALL_NOT_CONFIRMED,
-						event.deployedGeneration,
+						// Fixed: what the park is waiting on.
+						reason = InvalidationReason.INSTALL_NOT_CONFIRMED,
+						// From the event: the rebuilt app was never installed, so the old one runs on.
+						deployedGeneration = event.deployedGeneration,
+						// Reset: nothing is in flight now, so the next save, tap or return retries.
 						awaitingRetry = true,
+						// Carried: the budget is spent per unconfirmed install, not per park.
 						installAutoRetries = state.installAutoRetries,
+						// Dropped on purpose: a park needs the user to act, and a carried tap
+						// would let the foreground auto-retry bring the app forward unasked.
+						userInitiated = false,
 					),
 				)
 			}
