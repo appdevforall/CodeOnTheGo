@@ -668,7 +668,7 @@ class Flashbar private constructor(private var builder: Builder) {
     fun onDismissed(bar: Flashbar, event: DismissEvent)
   }
 
-  interface OnTapListener {
+  fun interface OnTapListener {
     fun onTap(flashbar: Flashbar)
   }
 

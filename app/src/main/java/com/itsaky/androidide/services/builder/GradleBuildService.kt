@@ -768,7 +768,7 @@ class GradleBuildService :
 	internal fun startToolingServer(listener: OnServerStartListener?) {
 		if (toolingServerRunner?.isStarted != true) {
 			val envs = TermuxShellEnvironment().getEnvironment(this, false)
-			toolingServerRunner = ToolingServerRunner(listener, this).also { it.startAsync(envs) }
+			toolingServerRunner = ToolingServerRunner(listener, this, this).also { it.startAsync(envs) }
 			return
 		}
 
