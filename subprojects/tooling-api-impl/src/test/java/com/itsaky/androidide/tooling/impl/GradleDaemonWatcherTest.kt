@@ -202,6 +202,34 @@ class GradleDaemonWatcherTest {
 		}
 	}
 
+	@Test
+	fun `a wait that fails for another reason does not mark the thread interrupted`() {
+		// shutdown() runs as a teardown step on a shared pool worker, and its caller's next act is
+		// a blocking wait on the connection close. A flag set for a failure that has nothing to do
+		// with cancellation aborts that wait, so the connector teardown is never waited on.
+		val scheduler = mockk<ScheduledExecutorService>(relaxed = true)
+		every { scheduler.awaitTermination(any(), any()) } throws IllegalStateException("not an interrupt")
+
+		watcher(scheduler = scheduler).shutdown()
+
+		// Reads and clears, so a stray flag cannot leak into the tests that follow either.
+		assertThat(Thread.interrupted()).isFalse()
+		// The failure still counts as "not drained", so the forceful stop still runs.
+		verify(exactly = 1) { scheduler.shutdownNow() }
+	}
+
+	@Test
+	fun `an interrupted wait still marks the thread interrupted`() {
+		// The other side of the narrowing: a real interrupt is a cancellation request and is not
+		// this class's to swallow.
+		val scheduler = mockk<ScheduledExecutorService>(relaxed = true)
+		every { scheduler.awaitTermination(any(), any()) } throws InterruptedException()
+
+		watcher(scheduler = scheduler).shutdown()
+
+		assertThat(Thread.interrupted()).isTrue()
+	}
+
 	private companion object {
 		/** What the daemon's command line looks like on device, trimmed to the identifying part. */
 		const val DAEMON_COMMAND_LINE =

@@ -140,10 +140,15 @@ internal class GradleDaemonWatcher(
 		scheduler.shutdown()
 		val drained =
 			runCatching { scheduler.awaitTermination(SHUTDOWN_GRACE_MS, TimeUnit.MILLISECONDS) }
-				.getOrElse {
-					Thread.currentThread().interrupt()
-					false
-				}
+				.onFailure { err ->
+					// Only an interrupt is restored. Anything else out of awaitTermination says
+					// nothing about this thread's cancellation state, and marking it interrupted
+					// would abort the caller's next blocking call -- ToolingApiServerImpl.shutdown's
+					// wait on the connection close -- over a failure unrelated to it.
+					if (err is InterruptedException) {
+						Thread.currentThread().interrupt()
+					}
+				}.getOrDefault(false)
 		if (!drained) {
 			scheduler.shutdownNow()
 		}
