@@ -341,7 +341,8 @@ class QuickBuildSessionManager(
 	 * See [switchToProxyApp] for why leaving mid-build is worse than making the user wait, and
 	 * [settleDeferredForegroundAsk] for when it is answered or dropped. A rebaseline
 	 * whose own relaunch answered it clears it first (see [rebuildProxyApp]), so one tap is
-	 * one launch. Only touched on [dispatcher].
+	 * one launch, and a stop tap during a rebaseline withdraws it
+	 * ([SessionEffect.CancelProxyAppRebuild]). Only touched on [dispatcher].
 	 */
 	private var foregroundAskDeferredAtMillis: Long? = null
 
@@ -785,6 +786,12 @@ class QuickBuildSessionManager(
 
 			SessionEffect.CancelProxyAppRebuild -> {
 				proxyAppBuildCancelIssued = true
+				// The stop withdraws the user's ask to see the app. The reducer already
+				// dropped its half (Provisioning.userInitiated); this is the other half, a
+				// tap deferred behind this very build. Cleared before the cancel is tried
+				// because a cancel that loses the race to Gradle finishing lets the
+				// rebaseline run on, and its relaunch reads this field.
+				foregroundAskDeferredAtMillis = null
 				if (provisioner.cancelProxyAppBuild()) {
 					log.info("Quick Build rebaseline cancelled by the user")
 					surfaceNotice(QuickBuildNotice.BUILD_CANCELLED)
@@ -1223,7 +1230,9 @@ class QuickBuildSessionManager(
 				// rebaseline itself (Provisioning.userInitiated). Anything else - a save,
 				// a foreground return - is not an ask, and the rebuilt app stays in the
 				// background. A relaunch here answers the deferred ask; the Succeeded
-				// branch below clears it so the landing does not launch again.
+				// branch below clears it so the landing does not launch again. A stop
+				// during the build clears both halves, so a cancel that arrived too late
+				// to stop Gradle still keeps the rebuilt app in the background.
 				userAskOutstanding = {
 					foregroundAskDeferredAtMillis != null ||
 						(_state.value as? QuickBuildSessionState.Provisioning)?.userInitiated == true
