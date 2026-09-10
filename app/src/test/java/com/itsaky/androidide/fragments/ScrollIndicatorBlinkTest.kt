@@ -25,11 +25,10 @@ import org.junit.Test
  * The three inputs that decide whether the template scroll indicator's endless blink may run, as
  * documented on [shouldBlinkScrollIndicator].
  *
- * Scope: this pins the decision only, not the wiring that feeds it. The three call sites that
- * re-evaluate it -- the view-lifecycle observer, the `currentScreen` observer and
- * `updateFinishEnabledState` -- are unpinned, so deleting one would leave every case here passing.
- * Pinning them needs a host activity and Koin scaffolding to stand the fragment up, since the
- * module has no `fragment-testing` dependency.
+ * Scope: this pins the decision only. Of the three call sites that re-evaluate it,
+ * [TemplateDetailsBlinkLifecycleTest] pins the view-lifecycle observer and the `currentScreen`
+ * observer; the `updateFinishEnabledState` one, which needs a real scroll to the form's end, is not
+ * pinned.
  */
 class ScrollIndicatorBlinkTest {
 	@Test
