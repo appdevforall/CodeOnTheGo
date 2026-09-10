@@ -2,7 +2,7 @@
 
 Quick Build makes the on-device edit loop much faster. Tap the lightning-bolt button once and **CoGo** (Code On The Go, this IDE) installs a generated **proxy app** - a live-reloading build of the user's project. From then on every compatible save reaches the running app in seconds, with no Gradle build and no reinstall. The whole loop runs on device - edit, watch, compile, dex, deploy, reload.
 
-Measured against a standard incremental Gradle build of the same edit on real devices, Quick Build gives **about a 5x median speedup** on a warm edit. The gain is bigger on slower phones.
+Measured against a standard incremental Gradle build of the same edit on real devices, Quick Build gives a **4-6x speedup** on a warm edit. Measured in the 2026-09-05 to 09-07 benchmarking run, against the initial experimental Quick Build release.
 
 Three things that number does not say:
 
