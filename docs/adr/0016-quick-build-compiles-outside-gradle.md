@@ -31,7 +31,7 @@ The first three cannot be sped up or skipped.
 
 **Positive**
 
-- The edit loop is about 5x faster, and the gain is bigger on slower devices.
+- The edit loop is 4-6x faster, measured in the 2026-09-05 to 09-07 benchmarking run against the initial experimental Quick Build release.
 - The compiler stays warm between edits - the biggest single latency lever, and something Gradle cannot do.
 - A compiler crash kills the daemon, not the IDE, and the daemon can be shut down to give Gradle its memory back.
 
