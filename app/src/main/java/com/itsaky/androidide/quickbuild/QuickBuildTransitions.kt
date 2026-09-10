@@ -25,7 +25,7 @@ internal sealed interface QuickBuildTransition {
 	/**
 	 * A session start failed and nothing is running; the bolt keeps the error tone until the
 	 * user's next tap or save. The Gradle cause is already narrated separately
-	 * ([QuickBuildOutputNarrator.narrateProxyAppBuildFailure]) and flashed via the manager's
+	 * ([QuickBuildOutputNarrator.ProxyAppBuildNarration.failure]) and flashed via the manager's
 	 * message channel, so surfaces only owe the gesture that retries.
 	 */
 	data object StartFailed : QuickBuildTransition

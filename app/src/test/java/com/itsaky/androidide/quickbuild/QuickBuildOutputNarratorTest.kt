@@ -43,6 +43,15 @@ class QuickBuildOutputNarratorTest {
 			}
 		}
 
+	/**
+	 * One progress line of a proxy app build the project on screen started - a handle taken now,
+	 * as the provisioner takes one when it starts a build.
+	 */
+	private fun QuickBuildOutputNarrator.narrateProxyAppProgress(line: String) = proxyAppBuildNarration().progress(line)
+
+	/** [narrateProxyAppProgress]'s counterpart for that build failing. */
+	private fun QuickBuildOutputNarrator.narrateProxyAppBuildFailure(output: List<String>) = proxyAppBuildNarration().failure(output)
+
 	/** One session's worth of transitions: provision, then two builds landing. */
 	private suspend fun runTwoBuilds() {
 		statuses.emit(QuickBuildStatus.Hidden())
@@ -272,25 +281,75 @@ class QuickBuildOutputNarratorTest {
 		}
 
 	@Test
-	fun `the closing project's late lines are dropped even after the next project's pane binds`() =
+	fun `the closing project's build cannot narrate into the next project's pane`() =
 		narrating { narrator ->
 			// The next project's activity binds its pane in onCreate, while the closing
 			// project's proxy app build is still being cancelled - the cancel is
 			// fire-and-forget and the progress listener keeps firing. Dropping only until the
 			// next bind put those lines in the new project's Build Output.
+			val closingBuild = narrator.proxyAppBuildNarration()
 			val teardown = CompletableDeferred<Unit>()
 			narrator.reset(untilQuiet = { teardown.await() })
 
 			narrator.bind(sink)
-			narrator.narrateProxyAppProgress("> Task :app:mergeV8DebugResources")
+			closingBuild.progress("> Task :app:mergeV8DebugResources")
 
 			assertThat(written).isEmpty()
 
-			// Once the old teardown is quiet the pane is live again, and nothing that was
-			// dropped is flushed into it after the fact.
+			// Still dropped once the teardown reports quiet, and dropped whole: it is the
+			// build that belongs to the closed project, not the stretch of time. A cancelled
+			// build reports a failure too, and that quote is the loudest of its late lines.
 			teardown.complete(Unit)
-			narrator.narrateProxyAppProgress("> Task :app:compileV8DebugKotlin")
-			assertThat(written.single()).contains(":app:compileV8DebugKotlin")
+			closingBuild.progress("> Task :app:compileV8DebugKotlin")
+			closingBuild.failure(listOf("FAILURE: Build failed with an exception."))
+			assertThat(written).isEmpty()
+		}
+
+	@Test
+	fun `the opened project's own build narrates while the closed project's teardown drags on`() =
+		narrating { narrator ->
+			// The teardown being awaited is the closed project's, and it can take a daemon
+			// shutdown and a scratch-tree removal to finish. Muting every line until then
+			// muted the project the user is now looking at: its build narrated into nothing.
+			narrator.reset(untilQuiet = { CompletableDeferred<Unit>().await() })
+			narrator.bind(sink)
+
+			val opened = narrator.proxyAppBuildNarration()
+			opened.progress("> Task :app:compileV8DebugKotlin")
+
+			assertThat(written.joinToString("")).contains(":app:compileV8DebugKotlin")
+		}
+
+	@Test
+	fun `a tap in the opened project narrates while the closed project's teardown drags on`() =
+		narrating { narrator ->
+			narrator.reset(untilQuiet = { CompletableDeferred<Unit>().await() })
+			narrator.bind(sink)
+
+			// A session announcing its own full build is the closed project's cue to stop
+			// being narrated for: this stream is ordered, so everything the closed session
+			// had left to say arrived before it.
+			statuses.emit(QuickBuildStatus.Hidden())
+			statuses.emit(QuickBuildStatus.Provisioning())
+			statuses.emit(QuickBuildStatus.UpToDate(1L, buildDurationMillis = null))
+
+			val pane = written.joinToString("")
+			assertThat(pane).contains("running the initial full build")
+			assertThat(pane).contains("session ready, running generation 1")
+		}
+
+	@Test
+	fun `the closed project's own session tail stays out of the next project's pane`() =
+		narrating { narrator ->
+			// The other half of the same rule: until the opened project says something of its
+			// own, the status stream is still the closed session finishing its sentence.
+			statuses.emit(QuickBuildStatus.UpToDate(2L, buildDurationMillis = 500L))
+			narrator.reset(untilQuiet = { CompletableDeferred<Unit>().await() })
+			narrator.bind(sink)
+
+			statuses.emit(QuickBuildStatus.Hidden())
+
+			assertThat(written).isEmpty()
 		}
 
 	@Test
