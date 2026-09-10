@@ -117,7 +117,13 @@ The names are case-sensitive as written — note the lowercase `review` and `mer
 
 **Steps to QA.** The `Steps to QA` field is what QA works from, so it matters. When it's empty, offer to write it for the user as Gherkin — Given / When / Then. When you test a ticket yourself, read `Steps to QA` and cover it *in addition to* whatever the user asked you to check.
 
+**Stay on the ticket you were given.** Comment on, transition, or edit only that ticket. Reading a related ticket for context is fine; writing to one is not - if another ticket needs a comment or a status change, say so and let the user decide.
+
 Only open new tickets when the human tells you to.
+
+### Pull requests
+
+**Open the PR body with the Jira link.** The first line is `[ADFA-####](https://appdevforall.atlassian.net/browse/ADFA-####)` with nothing above it - no heading, no summary - so a reviewer reaches the ticket in one click. Everything else follows below it.
 
 ### SonarQube MCP server
 
