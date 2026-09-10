@@ -62,8 +62,10 @@ tasks.register<JacocoReport>("jacocoTestReport") {
 dependencies {
 	implementation(projects.logger)
 	implementation(projects.eventbusEvents)
-	// Wire DTOs/constants shared with the daemon (single protocol definition).
-	implementation(projects.quickbuild.protocol)
+	// Wire DTOs/constants shared with the daemon (single protocol definition). api, not
+	// implementation: CompileOutput.stats, DexOutput.stats and DaemonReply.BuildFailed.stats
+	// put its types on this module's public surface.
+	api(projects.quickbuild.protocol)
 
 	implementation(libs.common.kotlin.coroutines.android)
 	implementation(libs.google.gson)
