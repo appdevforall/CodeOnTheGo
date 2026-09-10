@@ -4104,6 +4104,65 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `stop during a tap-triggered rebaseline withdraws the deferred foreground ask`() =
+		runTest {
+			// A tap on a parked rebaseline asks to see the app once it is rebuilt; the ask is
+			// deferred behind the Gradle build. A stop during that build has to withdraw the
+			// deferred half too: when the cancel loses the race to Gradle finishing, the
+			// rebaseline runs on, and a deferred ask left standing brought forward the app the
+			// user had just asked to stop.
+			var failProxyAppRebuild = true
+			proxyAppRebuildOutcome = {
+				if (failProxyAppRebuild) {
+					ProxyAppRebuildOutcome.Failure(QuickBuildMessage.Literal("manifest does not build"))
+				} else {
+					defaultProxyAppRebuildSuccess()
+				}
+			}
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Invalidated(
+						InvalidationReason.GRADLE_CONFIG_CHANGED,
+						0,
+						awaitingRetry = true,
+					),
+				)
+			val launchesBefore = launches.size
+
+			failProxyAppRebuild = false
+			val rebGate = CompletableDeferred<Unit>()
+			proxyAppRebuildGate = rebGate
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			assertThat(manager.state.value)
+				.isEqualTo(
+					QuickBuildSessionState.Provisioning(
+						rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED,
+					),
+				)
+
+			// The stop lands after Gradle already finished: nothing to cancel, the
+			// rebaseline runs on.
+			proxyAppBuildCancelResult = false
+			manager.onCancelRequested()
+			advanceUntilIdle()
+			assertThat(proxyAppBuildCancelCount).isEqualTo(1)
+
+			rebGate.complete(Unit)
+			advanceUntilIdle()
+
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
+			// Neither the rebuild's relaunch nor the landing's settle brought the app forward.
+			assertThat(launches).hasSize(launchesBefore)
+		}
+
+	@Test
 	fun `stopping during provisioning cancels the proxy app build and tears the session down`() =
 		runTest {
 			val gate = CompletableDeferred<Unit>()
