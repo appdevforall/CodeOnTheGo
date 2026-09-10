@@ -1,6 +1,7 @@
 package com.itsaky.androidide.quickbuild
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -268,5 +269,39 @@ class QuickBuildOutputNarratorTest {
 			narrator.bind(sink)
 			assertThat(written).hasSize(2)
 			assertThat(written[1]).contains(":app:dexV8Debug")
+		}
+
+	@Test
+	fun `the closing project's late lines are dropped even after the next project's pane binds`() =
+		narrating { narrator ->
+			// The next project's activity binds its pane in onCreate, while the closing
+			// project's proxy app build is still being cancelled - the cancel is
+			// fire-and-forget and the progress listener keeps firing. Dropping only until the
+			// next bind put those lines in the new project's Build Output.
+			val teardown = CompletableDeferred<Unit>()
+			narrator.reset(untilQuiet = { teardown.await() })
+
+			narrator.bind(sink)
+			narrator.narrateProxyAppProgress("> Task :app:mergeV8DebugResources")
+
+			assertThat(written).isEmpty()
+
+			// Once the old teardown is quiet the pane is live again, and nothing that was
+			// dropped is flushed into it after the fact.
+			teardown.complete(Unit)
+			narrator.narrateProxyAppProgress("> Task :app:compileV8DebugKotlin")
+			assertThat(written.single()).contains(":app:compileV8DebugKotlin")
+		}
+
+	@Test
+	fun `a reset with no teardown to await still drops only until the next pane binds`() =
+		narrating { narrator ->
+			// The narrator is also reset when the feature has no session manager to ask, so
+			// the awaitable is optional and its absence must not silence the pane.
+			narrator.reset()
+			narrator.bind(sink)
+			narrator.narrateProxyAppProgress("> Task :app:compileV8DebugKotlin")
+
+			assertThat(written.single()).contains(":app:compileV8DebugKotlin")
 		}
 }

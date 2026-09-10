@@ -3,6 +3,7 @@ package com.itsaky.androidide.quickbuild
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.domain.telemetry.E2eTimeline
 
@@ -32,6 +33,19 @@ class QuickBuildOutputNarrator(
 	 * for the next project's pane.
 	 */
 	private var discardUntilBound = false
+
+	/**
+	 * The closing session's teardown while its narration is still being dropped, null otherwise.
+	 *
+	 * [discardUntilBound] alone cannot hold that narration back: the next project's activity binds
+	 * a pane in `onCreate`, and the closing session's Gradle cancel is fire-and-forget, so its
+	 * progress listener keeps producing lines after that bind and they were written to the new
+	 * project's pane. A line produced before the old teardown fell quiet belongs to the project
+	 * that closed, whatever is bound now.
+	 *
+	 * A token rather than a flag so a second close's [reset] outranks the first one's completion.
+	 */
+	private var discardUntilQuiet: Any? = null
 
 	/**
 	 * Starts narrating a session's status changes; call once per session manager.
@@ -126,15 +140,34 @@ class QuickBuildOutputNarrator(
 	 *
 	 * The session torn down alongside the reset narrates its own stop asynchronously, after
 	 * this; with no pane bound those lines are dropped rather than queued, until a pane binds.
+	 *
+	 * @param untilQuiet suspends until that teardown has finished narrating; while it does, lines
+	 *   are dropped even once a pane binds, since they belong to the project that closed. Null
+	 *   leaves the drop lasting only until the next [bind].
 	 */
-	fun reset() {
+	fun reset(untilQuiet: (suspend () -> Unit)? = null) {
 		scope.launch {
 			pending.clear()
 			discardUntilBound = true
+			if (untilQuiet == null) return@launch
+			val token = Any()
+			discardUntilQuiet = token
+			try {
+				// Capped: a teardown that never reports quiet would otherwise silence the pane
+				// for the rest of the process, which is worse than the stale lines this drops.
+				withTimeoutOrNull(QUIET_TIMEOUT_MS) { untilQuiet() }
+			} finally {
+				if (discardUntilQuiet === token) {
+					discardUntilQuiet = null
+				}
+			}
 		}
 	}
 
 	private fun write(line: String) {
+		if (discardUntilQuiet != null) {
+			return
+		}
 		val target = sink
 		if (target != null) {
 			target(line)
@@ -153,5 +186,11 @@ class QuickBuildOutputNarrator(
 	companion object {
 		/** Deep enough for many generations of narration; a long absence drops the oldest. */
 		private const val MAX_PENDING = 200
+
+		/**
+		 * How long [reset] waits for a teardown to fall quiet before narrating again regardless.
+		 * Well past a daemon shutdown plus a scratch-tree removal on a slow phone.
+		 */
+		private const val QUIET_TIMEOUT_MS = 30_000L
 	}
 }
