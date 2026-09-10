@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+
+        <!-- ADFA-4128 benchmark trampoline: adb-triggerable project open + Quick Build
+             start, so an external harness can drive the edit->hot-reload loop unattended.
+             Debug-only, so a release APK cannot be driven this way at all.
+             Exported by necessity: adb shell holds no START_ANY_ACTIVITY, so a
+             non-exported activity is unreachable from `am start` and the harness could not
+             drive it at all.
+             Reachability is therefore gated on android.permission.DUMP, which adb shell
+             (uid 2000) holds and root bypasses, and which no third-party app can obtain -
+             without it the feature flags were the only gate, and those are files in the
+             public Downloads directory that any app with storage access can create. It then
+             opens only a directory inside the app's own projects dir, and only while the
+             experiments AND qbbench flags are on. -->
+        <activity
+            android:name=".quickbuild.QuickBuildBenchActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:permission="android.permission.DUMP"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="com.itsaky.androidide.quickbuild.action.BENCH_OPEN_PROJECT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

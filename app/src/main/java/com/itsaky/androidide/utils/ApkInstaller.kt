@@ -26,10 +26,27 @@ object ApkInstaller {
 	private const val DEBUG_FALLBACK_INSTALLER = false
 
 	/**
+	 * Boolean extra riding the install callback intent: on STATUS_SUCCESS, do not run the
+	 * launch-after-install behavior for this package.
+	 *
+	 * Set for Quick Build proxy-app installs (ADFA-4128): the session manager owns that
+	 * foregrounding decision, switching to the proxy app on provisioning success. The
+	 * generic post-install launch would otherwise fire a second, unasked launch of the
+	 * same app - the observed double-launch - or, with the launch-after-install preference
+	 * off, pop an "Open application?" dialog for an app the session is about to manage
+	 * anyway.
+	 * Travels the same road as the debug-mode extra: baseIntent -> PendingIntent ->
+	 * InstallationResultReceiver -> InstallationResultHandler.
+	 */
+	const val EXTRA_SUPPRESS_POST_INSTALL_LAUNCH = "ide.installer.suppressPostInstallLaunch"
+
+	/**
 	 * Starts a session-based package installation workflow.
 	 *
 	 * @param context The context.
 	 * @param apk The APK file to install.
+	 * @param suppressPostInstallLaunch tag the install so its success result skips the
+	 *   launch-after-install behavior; see [EXTRA_SUPPRESS_POST_INSTALL_LAUNCH].
 	 */
 	@JvmStatic
 	suspend fun installApk(
@@ -37,6 +54,7 @@ object ApkInstaller {
 		apk: File,
 		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
+		suppressPostInstallLaunch: Boolean = false,
 	): Boolean {
 		val isValidApk =
 			withContext(Dispatchers.IO) {
@@ -54,6 +72,9 @@ object ApkInstaller {
 			// add debug flag to intent, so the installation handler
 			// can launch the app in debug mode after launch
 			baseIntent.putExtra(DebugAction.ID, true)
+		}
+		if (suppressPostInstallLaunch) {
+			baseIntent.putExtra(EXTRA_SUPPRESS_POST_INSTALL_LAUNCH, true)
 		}
 
 		if (DeviceUtils.isMiui() || debugFallbackInstaller) {
