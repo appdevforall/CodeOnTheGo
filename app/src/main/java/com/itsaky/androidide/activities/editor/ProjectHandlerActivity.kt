@@ -41,6 +41,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
+import com.itsaky.androidide.actions.build.QuickBuildAction
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
@@ -442,15 +443,22 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		if (isFinishing || isDestroyed) {
 			return
 		}
-		newMaterialDialogBuilder(this)
-			.setTitle(string.quick_build_wont_stay_up_title)
-			.setMessage(string.quick_build_wont_stay_up_message)
-			.setPositiveButton(string.quick_build_wont_stay_up_restart) { dialog, _ ->
-				dialog.dismiss()
-				quickBuildSessionManager()?.restartSessionAndReprovision()
-			}.setNegativeButton(string.quick_build_wont_stay_up_dismiss) { dialog, _ ->
-				dialog.dismiss()
-			}.show()
+		val shown =
+			newMaterialDialogBuilder(this)
+				.setTitle(string.quick_build_wont_stay_up_title)
+				.setMessage(string.quick_build_wont_stay_up_message)
+				.setPositiveButton(string.quick_build_wont_stay_up_restart) { dialog, _ ->
+					dialog.dismiss()
+					quickBuildSessionManager()?.restartSessionAndReprovision()
+				}.setNegativeButton(string.quick_build_wont_stay_up_dismiss) { dialog, _ ->
+					dialog.dismiss()
+				}.show()
+		// Same gate as the toolbar button and the Restart session row: while a standard Gradle
+		// build holds the slot, the restart tears the warm session down and the reprovision is
+		// then refused as slot-busy, so the user loses the session and is told to wait. Dismiss
+		// stays live, and the notice is raised again if the streak continues past a success.
+		shown.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled =
+			!QuickBuildAction.isBlockedByStandardBuild()
 	}
 
 	/**
