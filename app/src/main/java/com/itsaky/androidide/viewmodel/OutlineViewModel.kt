@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -46,6 +45,7 @@ class OutlineViewModel(
 	private val snapshots = MutableStateFlow<Snapshot?>(null)
 	private val _uiState = MutableStateFlow<OutlineUiState>(OutlineUiState.NoFileOpen)
 	private val collapsed = MutableStateFlow(Collapsed(path = null, paths = emptySet()))
+	private var lastComputedPath: String? = null
 
 	val uiState: StateFlow<OutlineUiState> = _uiState.asStateFlow()
 	val collapsedPaths: StateFlow<Set<String>> =
@@ -106,16 +106,17 @@ class OutlineViewModel(
 
 	private suspend fun compute(snapshot: Snapshot?) {
 		if (snapshot == null) {
+			lastComputedPath = null
 			_uiState.value = OutlineUiState.NoFileOpen
 			return
 		}
 		if (!outlineProvider.supports(snapshot.extension)) {
+			lastComputedPath = snapshot.path
 			_uiState.value = OutlineUiState.Unsupported(snapshot.fileName)
 			return
 		}
-		val switchedFile =
-			collapsed.getAndUpdate { if (it.path == snapshot.path) it else Collapsed(snapshot.path, emptySet()) }.path != snapshot.path
-		if (switchedFile) {
+		collapsed.update { if (it.path == snapshot.path) it else Collapsed(snapshot.path, emptySet()) }
+		if (lastComputedPath != snapshot.path) {
 			_uiState.value = OutlineUiState.Loading(snapshot.fileName)
 		}
 		val symbols =
@@ -127,6 +128,7 @@ class OutlineViewModel(
 				log.error("Failed to compute outline for {}", snapshot.fileName, e)
 				emptyList()
 			}
+		lastComputedPath = snapshot.path
 		_uiState.value =
 			if (symbols.isEmpty()) {
 				OutlineUiState.Empty(snapshot.fileName)

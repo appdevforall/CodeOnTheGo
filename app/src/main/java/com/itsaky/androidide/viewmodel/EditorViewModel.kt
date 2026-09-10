@@ -109,6 +109,8 @@ class EditorViewModel : ViewModel() {
 	 * index of the editor opened. Second value is the file that is opened.
 	 */
 	private val mCurrentFile = MutableLiveData<Pair<Int, File?>?>(null)
+
+	@get:JvmName("currentFileLiveData")
 	val currentFile: LiveData<Pair<Int, File?>?> get() = mCurrentFile
 
 	var areFilesModified: Boolean

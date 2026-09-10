@@ -1,5 +1,6 @@
 package com.itsaky.androidide.ui.outline
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +55,25 @@ private val CALLABLE_BADGE_LIGHT = Color(0xFF0B6E77)
 private val CALLABLE_BADGE_DARK = Color(0xFF7FD8DF)
 private val DATA_BADGE_LIGHT = Color(0xFFA05A00)
 private val DATA_BADGE_DARK = Color(0xFFF0B45C)
+
+@StringRes
+private fun kindLabelRes(kind: OutlineSymbolKind): Int =
+	when (kind) {
+		OutlineSymbolKind.CLASS -> R.string.cd_outline_kind_class
+		OutlineSymbolKind.INTERFACE -> R.string.cd_outline_kind_interface
+		OutlineSymbolKind.ENUM -> R.string.cd_outline_kind_enum
+		OutlineSymbolKind.ENUM_MEMBER -> R.string.cd_outline_kind_enum_member
+		OutlineSymbolKind.RECORD -> R.string.cd_outline_kind_record
+		OutlineSymbolKind.ANNOTATION -> R.string.cd_outline_kind_annotation
+		OutlineSymbolKind.OBJECT -> R.string.cd_outline_kind_object
+		OutlineSymbolKind.COMPANION -> R.string.cd_outline_kind_companion
+		OutlineSymbolKind.TYPE_ALIAS -> R.string.cd_outline_kind_type_alias
+		OutlineSymbolKind.CONSTRUCTOR -> R.string.cd_outline_kind_constructor
+		OutlineSymbolKind.METHOD -> R.string.cd_outline_kind_method
+		OutlineSymbolKind.FIELD -> R.string.cd_outline_kind_field
+		OutlineSymbolKind.PROPERTY -> R.string.cd_outline_kind_property
+		OutlineSymbolKind.ELEMENT -> R.string.cd_outline_kind_element
+	}
 
 @Composable
 private fun badgeColorFor(kind: OutlineSymbolKind): Color {
@@ -158,10 +178,7 @@ private fun OutlineRow(
 	modifier: Modifier = Modifier,
 ) {
 	val symbol = row.symbol
-	val kindLabel =
-		symbol.kind.name
-			.lowercase()
-			.replace('_', ' ')
+	val kindLabel = stringResource(kindLabelRes(symbol.kind))
 	val rowDescription = listOfNotNull(kindLabel, symbol.name, symbol.detail).joinToString(", ")
 	val cappedDepth = minOf(row.depth, MAX_INDENT_DEPTH)
 	val indent = INDENT_STEP * cappedDepth

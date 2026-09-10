@@ -145,7 +145,12 @@ jobs:
 
           # Run editor module instrumentation tests (self-instrumenting library test APK)
           echo "Running editor tests..."
-          EDITOR_TEST_APK=$(ls editor/build/outputs/apk/androidTest/v8/debug/*-androidTest.apk | head -1)
+          EDITOR_TEST_APK=(editor/build/outputs/apk/androidTest/v8/debug/*-androidTest.apk)
+          if [ ${#EDITOR_TEST_APK[@]} -ne 1 ] || [ ! -f "${EDITOR_TEST_APK[0]}" ]; then
+            echo "Expected exactly one editor androidTest APK, found: ${EDITOR_TEST_APK[*]}"
+            exit 1
+          fi
+          EDITOR_TEST_APK="${EDITOR_TEST_APK[0]}"
           gcloud firebase test android run \
             --type instrumentation \
             --app "$EDITOR_TEST_APK" \

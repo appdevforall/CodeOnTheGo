@@ -75,6 +75,22 @@ class OutlineTreeBuilderTest {
 	}
 
 	@Test
+	fun `a partially overlapping symbol becomes a sibling, not a child`() {
+		val tree = OutlineTreeBuilder.build(listOf(raw("a", 0, 50), raw("b", 40, 100)))
+
+		assertThat(tree.map { it.name }).containsExactly("a", "b").inOrder()
+		assertThat(tree[0].children).isEmpty()
+	}
+
+	@Test
+	fun `two symbols with an identical range become siblings`() {
+		val tree = OutlineTreeBuilder.build(listOf(raw("a", 0, 50), raw("b", 0, 50)))
+
+		assertThat(tree.map { it.name }).containsExactly("a", "b").inOrder()
+		assertThat(tree[0].children).isEmpty()
+	}
+
+	@Test
 	fun `deep nesting chains through the stack`() {
 		val result =
 			OutlineTreeBuilder.build(

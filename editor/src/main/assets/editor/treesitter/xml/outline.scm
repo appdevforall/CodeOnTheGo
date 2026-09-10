@@ -4,7 +4,7 @@
     (xml_attr
       attr_name: (name) @_a
       (attr_value) @detail))
-  (#match? @_a "^id$")) @symbol.element
+  (#match? @_a "^(id|name)$")) @symbol.element
 
 (end_tag_element
   (tag_start
@@ -13,7 +13,7 @@
       (xml_attr
         attr_name: (name) @_a
         (attr_value) @detail)))
-  (#match? @_a "^id$")) @symbol.element
+  (#match? @_a "^(id|name)$")) @symbol.element
 
 (empty_element
   tag_name: (name) @name) @symbol.element

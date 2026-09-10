@@ -100,9 +100,9 @@ class TreeSitterOutlineProvider(
 		val language = languageFor(type)
 		val query = TSQuery.create(language, scm)
 		if (query.errorType != TSQueryError.None) {
-			throw IllegalArgumentException(
-				"outline.scm for '$type' failed to parse: ${query.errorType.name} at byte offset ${query.errorOffset}",
-			)
+			val error = "outline.scm for '$type' failed to parse: ${query.errorType.name} at byte offset ${query.errorOffset}"
+			query.close()
+			throw IllegalArgumentException(error)
 		}
 		return LanguageQueries(language, query, Predicator(query))
 	}

@@ -1680,4 +1680,18 @@
   <string name="outline_loading">Building outline...</string>
   <string name="cd_outline_expand">Expand</string>
   <string name="cd_outline_collapse">Collapse</string>
+  <string name="cd_outline_kind_class">Class</string>
+  <string name="cd_outline_kind_interface">Interface</string>
+  <string name="cd_outline_kind_enum">Enum</string>
+  <string name="cd_outline_kind_enum_member">Enum member</string>
+  <string name="cd_outline_kind_record">Record</string>
+  <string name="cd_outline_kind_annotation">Annotation</string>
+  <string name="cd_outline_kind_object">Object</string>
+  <string name="cd_outline_kind_companion">Companion object</string>
+  <string name="cd_outline_kind_type_alias">Type alias</string>
+  <string name="cd_outline_kind_constructor">Constructor</string>
+  <string name="cd_outline_kind_method">Method</string>
+  <string name="cd_outline_kind_field">Field</string>
+  <string name="cd_outline_kind_property">Property</string>
+  <string name="cd_outline_kind_element">Element</string>
 </resources>

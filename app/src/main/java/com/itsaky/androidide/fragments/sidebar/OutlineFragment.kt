@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.common.compose.IdeTheme
+import com.itsaky.androidide.editor.ui.IDEEditor
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.models.Position
@@ -34,10 +35,21 @@ class OutlineFragment : Fragment() {
 	private val editorViewModel: EditorViewModel by activityViewModels()
 	private var drawer: DrawerLayout? = null
 
+	private var pendingScroll: Pair<IDEEditor, Position>? = null
+
 	private val drawerListener =
 		object : DrawerLayout.SimpleDrawerListener() {
 			override fun onDrawerOpened(drawerView: View) {
+				pendingScroll = null
 				seedFromCurrentEditor()
+			}
+
+			override fun onDrawerClosed(drawerView: View) {
+				val (editor, position) = pendingScroll ?: return
+				pendingScroll = null
+				if (editor.isValidPosition(position, true)) {
+					centerPositionInView(editor, position)
+				}
 			}
 		}
 
@@ -79,6 +91,7 @@ class OutlineFragment : Fragment() {
 	override fun onDestroyView() {
 		drawer?.removeDrawerListener(drawerListener)
 		drawer = null
+		pendingScroll = null
 		viewModel.onNoEditor()
 		super.onDestroyView()
 	}
@@ -156,21 +169,12 @@ class OutlineFragment : Fragment() {
 			centerPositionInView(editor, position)
 			return
 		}
-		drawer.addDrawerListener(
-			object : DrawerLayout.SimpleDrawerListener() {
-				override fun onDrawerClosed(drawerView: View) {
-					drawer.removeDrawerListener(this)
-					if (editor.isValidPosition(position, true)) {
-						centerPositionInView(editor, position)
-					}
-				}
-			},
-		)
+		pendingScroll = editor to position
 		drawer.closeDrawer(GravityCompat.START)
 	}
 
 	private fun centerPositionInView(
-		editor: com.itsaky.androidide.editor.ui.IDEEditor,
+		editor: IDEEditor,
 		position: Position,
 	) {
 		val rowY = editor.layout.getCharLayoutOffset(position.line, position.column)[0]
