@@ -1,0 +1,95 @@
+package org.appdevforall.cotg.quickbuild.daemon.dex
+
+import com.google.common.truth.Truth.assertThat
+import org.appdevforall.cotg.quickbuild.daemon.TestSdk
+import org.appdevforall.cotg.quickbuild.daemon.compile.JavaCompileStep
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIf
+import org.junit.jupiter.api.io.TempDir
+import java.io.File
+
+/**
+ * The dex paths that need a host SDK are guarded per-test: build-tools' d8.jar carries the
+ * same com.android.tools.r8.D8 the device-provisioned r8.jar does, so those exercise the
+ * exact reflective path. The two failure paths below never reach d8 and so must run
+ * everywhere - a class-level guard would skip them on an SDK-less host.
+ */
+class DexToolTest {
+	@TempDir
+	lateinit var tempDir: File
+
+	private fun compileTinyClass(): File {
+		val source =
+			File(tempDir, "Tiny.java").apply {
+				writeText("package demo;\n\npublic class Tiny {\n\tpublic int two() { return 2; }\n}\n")
+			}
+		val classesDir = File(tempDir, "classes").apply { mkdirs() }
+		val result = JavaCompileStep.compile(listOf(source), emptyList(), classesDir)
+		check(result.success) { "fixture compile failed: ${result.diagnostics}" }
+		return classesDir
+	}
+
+	@Test
+	@EnabledIf("org.appdevforall.cotg.quickbuild.daemon.TestSdk#dexToolchainAvailable")
+	fun `dexes compiled classes into a valid classes dex`() {
+		val classesDir = compileTinyClass()
+		val outDir = File(tempDir, "dex")
+
+		DexTool(TestSdk.d8Jar()!!, TestSdk.androidJar()!!, minApi = 30).use { tool ->
+			val result = tool.dex(listOf(classesDir), outDir)
+
+			assertThat(result).isInstanceOf(DexTool.Result.Success::class.java)
+			val dexFile = (result as DexTool.Result.Success).dexFile
+			assertThat(dexFile.name).isEqualTo("classes.dex")
+			assertThat(dexFile.length()).isGreaterThan(0)
+			// The dex magic: "dex\n" then the version.
+			val magic = dexFile.readBytes().take(4).toByteArray()
+			assertThat(magic).isEqualTo(byteArrayOf(0x64, 0x65, 0x78, 0x0a))
+		}
+	}
+
+	@Test
+	@EnabledIf("org.appdevforall.cotg.quickbuild.daemon.TestSdk#dexToolchainAvailable")
+	fun `reports how many classes and bytes the pass moved`() {
+		// The strip pass rewrites the WHOLE tree every build, so these counts - not the
+		// edit's size - are what its cost scales with, and they are what makes a slow
+		// stripMillis readable.
+		val classesDir = compileTinyClass()
+		val classFile = File(classesDir, "demo/Tiny.class")
+
+		DexTool(TestSdk.d8Jar()!!, TestSdk.androidJar()!!, minApi = 30).use { tool ->
+			val result = tool.dex(listOf(classesDir), File(tempDir, "dex")) as DexTool.Result.Success
+
+			assertThat(result.stats.classFiles).isEqualTo(1)
+			assertThat(result.stats.classBytes).isEqualTo(classFile.length())
+		}
+	}
+
+	@Test
+	fun `empty classes dirs fail with a message, not a throw`() {
+		val emptyDir = File(tempDir, "empty").apply { mkdirs() }
+
+		// No SDK anywhere in this test on purpose: the no-input check must answer before
+		// d8 is ever loaded, so the tool paths are never opened.
+		DexTool(File(tempDir, "unopened-d8.jar"), File(tempDir, "unopened-android.jar"), minApi = 30).use { tool ->
+			val result = tool.dex(listOf(emptyDir), File(tempDir, "dex"))
+
+			assertThat(result).isInstanceOf(DexTool.Result.Failed::class.java)
+			assertThat((result as DexTool.Result.Failed).message).contains("no .class files")
+		}
+	}
+
+	@Test
+	fun `an unusable d8 jar fails with a message, not a throw`() {
+		val bogusJar = File(tempDir, "bogus.jar").apply { writeText("not a jar") }
+		val classesDir = compileTinyClass()
+
+		// The r8 class lookup fails on the bogus jar before the platform jar is read, so
+		// this covers the wrong-build-tools-layout path on any host, SDK or not.
+		DexTool(bogusJar, File(tempDir, "unopened-android.jar"), minApi = 30).use { tool ->
+			val result = tool.dex(listOf(classesDir), File(tempDir, "dex"))
+
+			assertThat(result).isInstanceOf(DexTool.Result.Failed::class.java)
+		}
+	}
+}
