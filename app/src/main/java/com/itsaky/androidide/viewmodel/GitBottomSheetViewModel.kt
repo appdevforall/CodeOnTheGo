@@ -181,7 +181,6 @@ class GitBottomSheetViewModel(
 			}
 
 			try {
-				_isProjectWatermarkEnabled.value = repo.isCommitWatermarkEnabled()
 				val status = repo.getStatus()
 				_gitStatus.value = status
 				_currentBranch.value = repo.getCurrentBranch()?.name

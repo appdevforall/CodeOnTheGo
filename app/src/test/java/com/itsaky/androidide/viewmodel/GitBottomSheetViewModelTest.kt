@@ -25,6 +25,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import java.io.IOException
+import kotlin.time.Duration.Companion.milliseconds
 
 @RunWith(JUnit4::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -280,7 +281,10 @@ class GitBottomSheetViewModelTest {
 	@Test
 	fun `setProjectWatermarkEnabled rolls back state flow and invokes onError when repository write fails`() =
 		runTest {
-			coEvery { repository.setCommitWatermarkEnabled(false) } throws IOException("Disk write failed")
+			coEvery { repository.setCommitWatermarkEnabled(false) } coAnswers {
+				delay(50.milliseconds)
+				throw IOException("Disk write failed")
+			}
 
 			var errorInvoked: Throwable? = null
 			viewModel.setProjectWatermarkEnabled(false) { error ->
@@ -300,7 +304,7 @@ class GitBottomSheetViewModelTest {
 	fun `rapid setProjectWatermarkEnabled calls cancel prior in-flight write and commit latest value`() =
 		runTest {
 			coEvery { repository.setCommitWatermarkEnabled(any()) } coAnswers {
-				delay(100)
+				delay(100.milliseconds)
 			}
 
 			viewModel.setProjectWatermarkEnabled(false)
