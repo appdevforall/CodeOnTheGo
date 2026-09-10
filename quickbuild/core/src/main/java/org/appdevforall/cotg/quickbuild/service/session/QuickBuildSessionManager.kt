@@ -39,6 +39,7 @@ import org.appdevforall.cotg.quickbuild.domain.reload.LiveReloadOrchestrator
 import org.appdevforall.cotg.quickbuild.domain.reload.LiveReloadRequestOutcome
 import org.appdevforall.cotg.quickbuild.domain.reload.OrchestratorEvent
 import org.appdevforall.cotg.quickbuild.domain.reload.isRestartSensitive
+import org.appdevforall.cotg.quickbuild.domain.session.PendingAsk
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildNotice
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildSessionState
@@ -333,18 +334,16 @@ class QuickBuildSessionManager(
 	@Volatile private var testSourceIgnoredNoticed = false
 
 	/**
-	 * When ([nowMillis]) a request to bring the proxy app forward arrived while a full Gradle
-	 * build held the screen; null when no ask is waiting. The ask waits for that build instead
-	 * of stranding the user in a stale app. A re-defer behind a chained build preserves the
-	 * stamp.
+	 * The one record of a Quick Build tap still waiting to see the proxy app.
 	 *
-	 * See [switchToProxyApp] for why leaving mid-build is worse than making the user wait, and
-	 * [settleDeferredForegroundAsk] for when it is answered or dropped. A rebaseline
-	 * whose own relaunch answered it clears it first (see [rebuildProxyApp]), so one tap is
-	 * one launch, and a stop tap during a rebaseline withdraws it
-	 * ([SessionEffect.CancelProxyAppRebuild]). Only touched on [dispatcher].
+	 * The reducer records and withdraws it through [SessionEffect.RecordAsk] and
+	 * [SessionEffect.WithdrawAsk], and reads it on every [dispatch] to decide whether a landing
+	 * emits [SessionEffect.SwitchToProxyApp]. It is answered in exactly two places: here, when
+	 * [switchToProxyApp] launches the app, and in [rebuildProxyApp], when the runner's own
+	 * relaunch already did. Written on [dispatcher] only; the orchestrator and the build runner
+	 * read [PendingAsk.isOutstanding] from their own threads.
 	 */
-	private var foregroundAskDeferredAtMillis: Long? = null
+	private val ask = PendingAsk(nowMillis)
 
 	/** Owns the daemon lifecycle protocol; see [QuickBuildDaemonController]. */
 	private val daemonController = QuickBuildDaemonController(daemon, scratch, paths)
@@ -362,6 +361,7 @@ class QuickBuildSessionManager(
 			watcherFactory = watcherFactory,
 			scope = scope,
 			onOrchestratorEvent = ::onOrchestratorEvent,
+			askOutstanding = { ask.isOutstanding },
 			assetsLiveReloadable = assetsLiveReloadable,
 			ioDispatcher = ioDispatcher,
 		)
@@ -707,13 +707,12 @@ class QuickBuildSessionManager(
 	 *   state does not care about is a silent no-op rather than an error
 	 */
 	private suspend fun dispatch(event: SessionEvent) {
-		val transition = reducer.reduce(_state.value, event)
+		val transition = reducer.reduce(_state.value, event, ask.isOutstanding)
 		if (transition.state != _state.value) {
 			log.info("Quick-build session: {} -> {} on {}", _state.value, transition.state, event)
 		}
 		_state.value = transition.state
 		transition.effects.forEach(::runEffect)
-		settleDeferredForegroundAsk(transition.state)
 	}
 
 	/**
@@ -757,6 +756,14 @@ class QuickBuildSessionManager(
 				switchToProxyApp()
 			}
 
+			SessionEffect.RecordAsk -> {
+				ask.record()
+			}
+
+			SessionEffect.WithdrawAsk -> {
+				ask.withdraw()
+			}
+
 			SessionEffect.CancelLiveReload -> {
 				scope.launch {
 					// Only report a cancellation that really happened: a stop that lost the
@@ -786,12 +793,9 @@ class QuickBuildSessionManager(
 
 			SessionEffect.CancelProxyAppRebuild -> {
 				proxyAppBuildCancelIssued = true
-				// The stop withdraws the user's ask to see the app. The reducer already
-				// dropped its half (Provisioning.userInitiated); this is the other half, a
-				// tap deferred behind this very build. Cleared before the cancel is tried
-				// because a cancel that loses the race to Gradle finishing lets the
-				// rebaseline run on, and its relaunch reads this field.
-				foregroundAskDeferredAtMillis = null
+				// The reducer's WithdrawAsk ran just before this, so a cancel that loses the
+				// race to Gradle finishing lets the rebaseline run on with no ask for its
+				// relaunch to read.
 				if (provisioner.cancelProxyAppBuild()) {
 					log.info("Quick Build rebaseline cancelled by the user")
 					surfaceNotice(QuickBuildNotice.BUILD_CANCELLED)
@@ -906,7 +910,7 @@ class QuickBuildSessionManager(
 	private fun scheduleTapSwitchFallback() {
 		scope.launch {
 			delay(TAP_SWITCH_FALLBACK_MILLIS)
-			if (live?.orchestrator?.consumeUnansweredTap() == true) {
+			if (live?.orchestrator?.askHasNoAnswerComing() == true) {
 				log.info(
 					"Quick Build tap saw no watcher batch within {} ms; switching to the proxy app anyway",
 					TAP_SWITCH_FALLBACK_MILLIS,
@@ -917,30 +921,35 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * Brings the proxy app to the foreground because the user asked.
+	 * Brings the proxy app to the foreground because the user asked, and answers the [ask].
 	 *
 	 * Best-effort: a refusal is logged rather than surfaced, since the build already
 	 * landed and the user can open the app themselves.
 	 *
-	 * Held back while a full Gradle build is in flight - see [settleDeferredForegroundAsk].
+	 * Held back while a full Gradle build is in flight: the ask stays recorded, and the
+	 * rebaseline's own relaunch answers it when it lands (see [rebuildProxyApp]), however long
+	 * that takes - the user clicked Quick Build, and a Gradle build on a phone routinely takes
+	 * minutes. A park or a failure withdraws it instead, because the app the user would land in
+	 * is the stale one they asked to be taken away from, and showing it would read as the
+	 * rebuild having worked.
 	 */
 	private fun switchToProxyApp() {
 		val session = live ?: return
+		if (!ask.isOutstanding) {
+			// Nothing asked: a stop or a park withdrew the tap between the decision to
+			// switch and this call.
+			return
+		}
 		if (fullGradleBuildInFlight()) {
 			// Leaving now shows the user the app they already had, for as long as the Gradle
 			// build takes, and it breaks the build's own install: the confirmation is a dialog
 			// only CoGo can raise, and Android does not deliver PENDING_USER_ACTION to a
-			// backgrounded app. The ask is answered when the rebaseline lands - however long
-			// that takes - and dropped if it does not land.
-			log.info("Quick Build asked for the proxy app mid-full-build; deferring until it lands")
-			// A re-defer keeps the original stamp, so the settle log reports how long the
-			// user's own tap waited, not the last chained build.
-			if (foregroundAskDeferredAtMillis == null) {
-				foregroundAskDeferredAtMillis = nowMillis()
-			}
+			// backgrounded app.
+			log.info("Quick Build asked for the proxy app mid-full-build; waiting until it lands")
 			return
 		}
-		foregroundAskDeferredAtMillis = null
+		val waitedMillis = ask.answer()
+		log.info("Quick Build's proxy app switch answered after {} ms", waitedMillis)
 		// Same target every launch path uses; see [ProxyAppInfo.launcherProxyClass].
 		if (!launcher.launch(session.proxyApp.proxyAppPackage, session.proxyApp.launcherProxyClass)) {
 			log.warn("Could not bring the proxy app {} to the foreground", session.proxyApp.proxyAppPackage)
@@ -964,43 +973,6 @@ class QuickBuildSessionManager(
 			is QuickBuildSessionState.Invalidated -> !state.awaitingRetry
 			else -> false
 		}
-
-	/**
-	 * Answers or drops a foreground request that waited for a full Gradle build.
-	 *
-	 * Answered the moment the session is live again, which is what "not until the rebaseline is
-	 * done" means - unless the rebaseline's own relaunch already answered it, in which case
-	 * [rebuildProxyApp] cleared the ask before landing and there is nothing left to do here.
-	 * Answered however old it is: the user clicked Quick Build, so the switch happens once
-	 * their changes are in the app, and a Gradle build on a phone routinely takes minutes.
-	 * Dropped when the build did not get there - a dead session or a park - because the app
-	 * the user would land in is the stale one they asked to be taken away from, and showing
-	 * it would read as the rebuild having worked.
-	 *
-	 * @param state the state just adopted.
-	 */
-	private fun settleDeferredForegroundAsk(state: QuickBuildSessionState) {
-		val askedAtMillis = foregroundAskDeferredAtMillis ?: return
-		when {
-			state is QuickBuildSessionState.Ready || state is QuickBuildSessionState.Deployed -> {
-				log.info("Quick Build's deferred proxy app switch answered after {} ms", nowMillis() - askedAtMillis)
-				// switchToProxyApp clears the ask itself, and re-checks the guard - a
-				// rebaseline that lands straight into another full build keeps the ask
-				// waiting, on its original stamp.
-				switchToProxyApp()
-			}
-
-			state is QuickBuildSessionState.Idle ||
-				(state is QuickBuildSessionState.Invalidated && state.awaitingRetry) -> {
-				log.info("Quick Build's deferred proxy app switch dropped: the full build did not land")
-				foregroundAskDeferredAtMillis = null
-			}
-
-			else -> {
-				// Still building, installing or spawning the daemon; keep waiting.
-			}
-		}
-	}
 
 	/** Runs the eager warm-up build. Silent on failure, and always reports finished. */
 	private suspend fun runPrebuild() {
@@ -1225,18 +1197,13 @@ class QuickBuildSessionManager(
 			buildRunner.rebuildProxyApp(
 				parkedRetry = installRetryPark != null,
 				superseded = { startEpoch != sessionEpoch },
-				// The user asked to see the app: either a tap deferred until this build
-				// lands (foregroundAskDeferredAtMillis) or a tap recorded onto the
-				// rebaseline itself (Provisioning.userInitiated). Anything else - a save,
-				// a foreground return - is not an ask, and the rebuilt app stays in the
-				// background. A relaunch here answers the deferred ask; the Succeeded
-				// branch below clears it so the landing does not launch again. A stop
-				// during the build clears both halves, so a cancel that arrived too late
-				// to stop Gradle still keeps the rebuilt app in the background.
-				userAskOutstanding = {
-					foregroundAskDeferredAtMillis != null ||
-						(_state.value as? QuickBuildSessionState.Provisioning)?.userInitiated == true
-				},
+				// The user asked to see the app, whether the tap came before this build or
+				// during it. Anything else - a save, a foreground return - is not an ask, and
+				// the rebuilt app stays in the background. A relaunch here answers the ask;
+				// the Succeeded branch below settles it so the landing does not launch again.
+				// A stop during the build withdraws it, so a cancel that arrived too late to
+				// stop Gradle still keeps the rebuilt app in the background.
+				userAskOutstanding = { ask.isOutstanding },
 			)
 
 		when (result) {
@@ -1275,9 +1242,10 @@ class QuickBuildSessionManager(
 			is ProxyAppBuildRunner.ProxyAppRebuildResult.Succeeded -> {
 				if (result.answeredUserAsk) {
 					// The runner's relaunch already brought the app forward for this ask.
-					// Cleared before the landing dispatches, so settleDeferredForegroundAsk
-					// does not launch it a second time for the same tap.
-					foregroundAskDeferredAtMillis = null
+					// Settled before the landing dispatches, so ProvisioningSucceeded does
+					// not switch a second time for the same tap.
+					val waitedMillis = ask.answer()
+					log.info("Quick Build's proxy app switch answered by the rebuild's relaunch after {} ms", waitedMillis)
 				}
 				try {
 					// Both delegates are built before adoptBaseline moves anything:
@@ -1318,12 +1286,7 @@ class QuickBuildSessionManager(
 					} catch (e: Exception) {
 						log.warn("Post-rebuild status clear failed", e)
 					}
-					dispatch(
-						SessionEvent.ProvisioningSucceeded(
-							result.baselineGeneration,
-							askAlreadyAnswered = result.answeredUserAsk,
-						),
-					)
+					dispatch(SessionEvent.ProvisioningSucceeded(result.baselineGeneration))
 				} catch (e: kotlinx.coroutines.CancellationException) {
 					throw e
 				} catch (e: Throwable) {

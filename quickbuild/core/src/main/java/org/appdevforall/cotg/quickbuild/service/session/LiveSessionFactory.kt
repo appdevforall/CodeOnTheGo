@@ -61,6 +61,8 @@ internal class LiveSessionFactory(
 	private val scope: CoroutineScope,
 	/** Delivered synchronously on the session dispatcher, so it must not block. */
 	private val onOrchestratorEvent: (OrchestratorEvent) -> Unit,
+	/** The manager's one record of a waiting Quick Build tap; see [LiveReloadOrchestrator]'s parameter. */
+	private val askOutstanding: () -> Boolean,
 	/** This device's asset-serving capability; see [ChangeClassifier]'s parameter of the same name. */
 	private val assetsLiveReloadable: Boolean,
 	/**
@@ -100,6 +102,7 @@ internal class LiveSessionFactory(
 				scope = scope,
 				now = nowMillis,
 				onEvent = onOrchestratorEvent,
+				askOutstanding = askOutstanding,
 			)
 		// Last, as before: the executor's entry-activity check throws first, and a watcher
 		// created ahead of it would be orphaned by that throw.

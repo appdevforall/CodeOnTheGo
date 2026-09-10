@@ -44,6 +44,13 @@ class LiveReloadOrchestrator(
 	/** Reads a file's mtime (epoch millis, 0 when missing or unreadable); injectable for tests. */
 	private val fileLastModified: (File) -> Long = File::lastModified,
 	/**
+	 * Whether a Quick Build tap is waiting to see the app - the session's one
+	 * [org.appdevforall.cotg.quickbuild.domain.session.PendingAsk], read and never written here.
+	 * Read at build start so the deploy may open a closed app, and at the tap's deadline. Must
+	 * not block: it is called under the internal lock.
+	 */
+	private val askOutstanding: () -> Boolean = { false },
+	/**
 	 * Receives every event, delivered outside the internal lock on the caller's context so a
 	 * handler may call back in; it must not throw, as an exception propagates into the caller.
 	 */
@@ -55,23 +62,6 @@ class LiveReloadOrchestrator(
 	private var pending: ChangedFiles = ChangedFiles.Known.EMPTY
 	private var pendingForced = false
 
-	/**
-	 * Set by a Quick Build tap and nothing else, because it decides whether the user is pulled out
-	 * of the editor into the proxy app - unlike [pendingForced], which the reconnect catch-up also
-	 * sets and a failed build re-arms. A failed build does NOT re-arm this one: the tap was already
-	 * answered, with an error. It never outlives the pending set it asked about, or a later
-	 * automatic save would be reported as something the user asked for.
-	 */
-	private var pendingUserInitiated = false
-
-	/**
-	 * A user tap whose save-all wrote something, waiting for the watcher batch those writes will
-	 * produce. Consumed by the first non-empty batch (which then carries the ask as
-	 * [pendingUserInitiated]) or by [consumeUnansweredTap]'s deadline, whichever comes first -
-	 * never both, so the tap is answered exactly once. Cleared wherever [pendingUserInitiated]
-	 * is force-cleared, for the same reason: the ask must not outlive the work it was about.
-	 */
-	private var tapAwaitingChanges = false
 	private var inFlight: InFlightBuild? = null
 	private var nextBuildId = 1L
 	private var invalidationReported = false
@@ -155,11 +145,6 @@ class LiveReloadOrchestrator(
 		val autoFollowUp: Boolean,
 		val route: BuildRoute,
 		/**
-		 * Mutable because a tap landing MID-BUILD is satisfied by this build's deploy
-		 * rather than by a second one: the tap has nothing to add except the ask itself.
-		 */
-		var userInitiated: Boolean = false,
-		/**
 		 * Cancellation handle. [onCancelRequested] leaves a warm compile alone, since the user
 		 * never asked for it; a proxy app rebuild supersedes and cancels any route.
 		 */
@@ -180,12 +165,6 @@ class LiveReloadOrchestrator(
 			if (awaitingAbsorption != null && remainder.isEmpty) return@withEvents
 			markBatchArrivalLocked()
 			pending = unionPendingLocked(pending, remainder)
-			if (tapAwaitingChanges && !pending.isEmpty) {
-				// The batch the tap's save-all promised has arrived; the build it produces
-				// answers the tap, so its deploy may bring the proxy app forward.
-				tapAwaitingChanges = false
-				pendingUserInitiated = true
-			}
 			maybeStartBuildLocked(events)
 		}
 	}
@@ -195,11 +174,14 @@ class LiveReloadOrchestrator(
 	 *
 	 * A user tap never forces a blind rebuild (the F7 echo fix): with work already pending it
 	 * starts a correctly-routed build whose deploy answers the tap; with nothing pending and
-	 * [expectChanges] set it arms the tap on the watcher batch the save-all's writes will
+	 * [expectChanges] set it leaves the tap to the watcher batch the save-all's writes will
 	 * deliver; with nothing pending and nothing written the caller switches immediately - the
 	 * deployed app is already current. Only the non-user reconnect catch-up still forces
 	 * ([BuildRequest.forced]): the app is provably behind and there is no changed-set to route,
 	 * and a failed forced build re-arms the flag so the eventual retry is forced too.
+	 *
+	 * The ask itself is not held here: the caller recorded it on the session's PendingAsk before
+	 * calling, and [maybeStartBuildLocked] reads it through [askOutstanding] when a build starts.
 	 *
 	 * @param userInitiated whether a human asked - only a tap passes true, since the reconnect
 	 *   catch-up would otherwise drag the user into the proxy app unprompted.
@@ -227,20 +209,18 @@ class LiveReloadOrchestrator(
 					// Accumulated work: build it now, routed by the classifier as any save
 					// would be; the deploy answers the tap.
 					markBatchArrivalLocked()
-					pendingUserInitiated = true
 					maybeStartBuildLocked(events)
 					outcome = deployAnsweringOutcomeLocked()
 				}
 
 				expectChanges -> {
 					// The tap's save-all wrote something, so its watcher batch is already on
-					// the way (the coalescer emits within 250 ms of the last event). Arm the
-					// tap on that batch instead of building an empty set behind it; the
+					// the way (the coalescer emits within 250 ms of the last event). Leave the
+					// tap to that batch instead of building an empty set behind it; the
 					// caller runs the deadline fallback for the case where every written
 					// file was watcher-irrelevant and no batch ever comes. Deliberately no
 					// queue-clock stamp: if no batch comes, a stamp here would charge the
 					// dead wait to the next unrelated save's build (the T16 shape).
-					tapAwaitingChanges = true
 					outcome = LiveReloadRequestOutcome.AWAITS_CHANGES
 				}
 
@@ -272,35 +252,20 @@ class LiveReloadOrchestrator(
 		}
 
 	/**
-	 * Disarms a tap still waiting for its save-all's watcher batch and says whether it was
-	 * waiting - the deadline half of the arm-on-batch tap protocol.
+	 * Whether an outstanding tap has nothing left here to answer it - the deadline half of the
+	 * tap-on-batch protocol.
 	 *
-	 * Called by the session manager's fallback timer. True means no batch arrived (the save-all
-	 * wrote only watcher-irrelevant files, e.g. a `.md`), so the caller answers the tap by
-	 * switching now; false means a batch already consumed the tap and its build's deploy
-	 * answers it, so the caller must do nothing - either way, exactly once.
+	 * Called by the session manager's fallback timer. True means the ask still stands and no
+	 * batch arrived for it (the save-all wrote only watcher-irrelevant files, e.g. a `.md`), so
+	 * the caller answers the tap by switching now; false means either the tap was already
+	 * answered or a batch arrived and a build, a queued set or a Gradle rebuild owes the answer,
+	 * so the caller must do nothing - either way, exactly once.
 	 */
-	suspend fun consumeUnansweredTap(): Boolean =
+	suspend fun askHasNoAnswerComing(): Boolean =
 		mutex.withLock {
-			val wasArmed = tapAwaitingChanges
-			tapAwaitingChanges = false
-			wasArmed
+			val realBuildInFlight = inFlight?.let { it.route !is BuildRoute.WarmCompile } ?: false
+			askOutstanding() && !realBuildInFlight && pending.isEmpty && awaitingAbsorption == null && !pendingForced
 		}
-
-	/**
-	 * Forgets every form of the user's ask this class holds: the tap recorded on the pending
-	 * set, the tap still waiting for its batch, and the promotion of the in-flight build.
-	 *
-	 * One function on purpose. A stop, the hand-off to a Gradle rebuild and a dropped pending
-	 * set each used to clear the fields by hand, and a site that forgets one of them leaves an
-	 * ask standing that a later unrelated save then answers by pulling the user out of the
-	 * editor. Must run under [mutex], before the caller discards [inFlight].
-	 */
-	private fun clearAskLocked() {
-		pendingUserInitiated = false
-		tapAwaitingChanges = false
-		inFlight?.userInitiated = false
-	}
 
 	/**
 	 * Makes the in-flight build the answer to a Quick Build tap that landed while it was
@@ -315,7 +280,6 @@ class LiveReloadOrchestrator(
 			if (flight == null || flight.route is BuildRoute.WarmCompile) {
 				false
 			} else {
-				flight.userInitiated = true
 				// The request already left with userInitiated false, so the executor has to
 				// hear about the promotion separately or this build's deploy would still
 				// refuse to open a closed app - and the tap would do nothing at all.
@@ -341,9 +305,9 @@ class LiveReloadOrchestrator(
 		mutex.withLock {
 			val flight = inFlight ?: return@withLock
 			if (flight.route is BuildRoute.WarmCompile) return@withLock
-			// A stop withdraws the ask, so neither the abandoned build's forced flag nor a tap
-			// queued behind it - answered or still armed - may survive to redeploy later.
-			clearAskLocked()
+			// A stop withdraws the abandoned build's forced flag too, so it cannot redeploy
+			// later; the ask itself is the reducer's to withdraw, and it does so on the same
+			// CancelRequested.
 			inFlight = null
 			pendingForced = false
 			// And the abandoned build's t0 goes with it: the returning batch now waits on the
@@ -440,12 +404,8 @@ class LiveReloadOrchestrator(
 			// charge all of it to whichever build picked the batch back up if the rebuild failed.
 			pendingSince = null
 			pendingForced = false
-			// The tap this recorded asked about the very set Gradle is now absorbing, and the
-			// InvalidationRequired that started this rebuild carried it to the session state,
-			// which is what answers it. Left armed, it would tag some later unrelated save as
-			// the user's ask and pull them out of the editor into the proxy app. Same for a tap
-			// still waiting on its batch: the rebuild reads the tap's saves off disk anyway.
-			clearAskLocked()
+			// A tap that asked about this set stays the session's outstanding ask, and the
+			// rebuild's relaunch answers it; nothing here to hand over.
 			inFlight = null
 			// Nulling inFlight only discards the late RESULT; the coroutine runs on and would
 			// deploy a payload compiled against the old baseline into an app Gradle is
@@ -469,8 +429,6 @@ class LiveReloadOrchestrator(
 				pending = ChangedFiles.Known.EMPTY
 				pendingSince = null
 				pendingForced = false
-				// Dropped with the set it asked about; see onProxyAppRebuildStarted.
-				clearAskLocked()
 				inFlight = null
 				superseded?.job?.cancel()
 			}
@@ -657,14 +615,13 @@ class LiveReloadOrchestrator(
 			// Pending is kept: it documents what the proxy app rebuild will absorb.
 			if (!invalidationReported) {
 				invalidationReported = true
-				events += OrchestratorEvent.InvalidationRequired(route.reason, userInitiated = pendingUserInitiated)
+				events += OrchestratorEvent.InvalidationRequired(route.reason)
 			}
 			return
 		}
 
 		val batch = pending
 		val forced = pendingForced
-		val userInitiated = pendingUserInitiated
 		// A batch with no clock was not queueing - it is a failed build's batch that has been
 		// sitting on the user, picked up by a path that starts a build without an arrival of its
 		// own. Its t0 is this build's own start, which reports the wait as the zero it was.
@@ -672,10 +629,8 @@ class LiveReloadOrchestrator(
 		pending = ChangedFiles.Known.EMPTY
 		pendingSince = null
 		pendingForced = false
-		pendingUserInitiated = false
 		val buildId = nextBuildId++
-		val flight =
-			InFlightBuild(buildId, batch, forced, autoFollowUp, route, userInitiated = userInitiated)
+		val flight = InFlightBuild(buildId, batch, forced, autoFollowUp, route)
 		inFlight = flight
 		events += OrchestratorEvent.BuildStarted(buildId, route, batch)
 
@@ -686,7 +641,10 @@ class LiveReloadOrchestrator(
 				route = route,
 				forced = forced,
 				triggeredAtMillis = triggeredAtMillis,
-				userInitiated = userInitiated,
+				// Snapshot of the session's ask: a build that starts while a tap is waiting
+				// is the one whose deploy may open a closed app. A tap landing mid-build
+				// promotes it through markInFlightUserInitiated instead.
+				userInitiated = askOutstanding(),
 			)
 		// Assigned while still holding the lock, so a cancel can never see a null handle for a
 		// build that is already running. Nothing suspends in between, and the launched
@@ -767,13 +725,7 @@ class LiveReloadOrchestrator(
 				is BuildOutcome.Success -> {
 					lastCompileDiagnostics = null
 					clearFailureTallyLocked()
-					events +=
-						OrchestratorEvent.BuildSucceeded(
-							buildId,
-							outcome,
-							flight.route,
-							userInitiated = flight.userInitiated,
-						)
+					events += OrchestratorEvent.BuildSucceeded(buildId, outcome, flight.route)
 					// Saves that landed mid-build start the coalesced follow-up now.
 					maybeStartBuildLocked(events, autoFollowUp = true)
 				}
@@ -790,9 +742,8 @@ class LiveReloadOrchestrator(
 					// stamp is already the pending clock and wins.
 					if (!newSavesArrivedMidBuild) pendingSince = null
 					pendingForced = pendingForced || flight.forced
-					// pendingUserInitiated is deliberately NOT re-armed: the tap was already
-					// answered, with the failure. The save that fixes the code is not a new
-					// ask, so it must not drag the user out of the editor (see the field).
+					// The ask is not this class's to settle: the reducer withdraws it on the
+					// BuildFailed this becomes, since the tap was answered with the failure.
 
 					val diagnostics = (outcome as? BuildOutcome.CompileError)?.diagnostics
 					val relinkStuck =
@@ -843,11 +794,7 @@ class LiveReloadOrchestrator(
 							buildId,
 							outcome,
 						)
-						events +=
-							OrchestratorEvent.InvalidationRequired(
-								InvalidationReason.RELOAD_PIPELINE_FAILED,
-								userInitiated = pendingUserInitiated,
-							)
+						events += OrchestratorEvent.InvalidationRequired(InvalidationReason.RELOAD_PIPELINE_FAILED)
 					} else if (newSavesArrivedMidBuild) {
 						// A mid-build save may be the fix; rebuild from the accumulated set.
 						maybeStartBuildLocked(events, autoFollowUp = true)
@@ -935,8 +882,8 @@ enum class LiveReloadRequestOutcome {
 	AWAITS_DEPLOY,
 
 	/**
-	 * The tap is armed on the save-all's incoming watcher batch; the caller must run the
-	 * deadline fallback via [LiveReloadOrchestrator.consumeUnansweredTap].
+	 * The tap is left to the save-all's incoming watcher batch; the caller must run the
+	 * deadline fallback via [LiveReloadOrchestrator.askHasNoAnswerComing].
 	 */
 	AWAITS_CHANGES,
 }
@@ -968,11 +915,6 @@ sealed interface OrchestratorEvent {
 		val result: BuildOutcome.Success,
 		/** What the build was for - a [BuildRoute.WarmCompile] success deployed nothing. */
 		val route: BuildRoute,
-		/**
-		 * True when this build answers a Quick Build tap, so the proxy app should be brought
-		 * forward as the deploy lands; false for a build a file write triggered.
-		 */
-		val userInitiated: Boolean = false,
 	) : OrchestratorEvent
 
 	/**
@@ -1002,13 +944,8 @@ sealed interface OrchestratorEvent {
 	 *
 	 * @property reason why the live reload path cannot absorb it, emitted once per pending set so
 	 *   that a second save of the same kind does not re-report it.
-	 * @property userInitiated whether a Quick Build tap is waiting on this pending set - the batch
-	 *   consumed the tap before it was classified, so the rebuild that absorbs it owes the answer.
-	 *   [onProxyAppRebuildStarted] clears the orchestrator's own record of the tap, so this event
-	 *   is the only place the ask survives the hand-off.
 	 */
 	data class InvalidationRequired(
 		val reason: InvalidationReason,
-		val userInitiated: Boolean = false,
 	) : OrchestratorEvent
 }
