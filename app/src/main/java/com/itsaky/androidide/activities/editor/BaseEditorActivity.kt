@@ -272,6 +272,12 @@ abstract class BaseEditorActivity :
 		protected set
 
 	/**
+	 * Whether the metrics samplers have been started this session. See
+	 * [startMetricsSamplingIfNeeded]; nothing samples until the carousel is first shown.
+	 */
+	private var metricsSamplingStarted = false
+
+	/**
 	 * Editor activity's [CoroutineScope] for executing tasks in the background.
 	 */
 	protected val editorActivityScope = CoroutineScope(Dispatchers.Default)
@@ -1059,7 +1065,40 @@ abstract class BaseEditorActivity :
 		}
 	}
 
+	/**
+	 * Starts the three samplers, once per session, when the carousel is first shown.
+	 *
+	 * The strip lives behind [SwipeRevealLayout] and is closed on launch, so a user who never drags
+	 * the app bar down never sees it -- and used to pay for it anyway: three loops reading /proc,
+	 * TrafficStats and the battery every tick, three listener chains, and three renderers redrawing
+	 * a chart underneath an opaque card. ADFA-5199 measured the single-chart version of this at
+	 * ~19% of a core with the editor idle; there are three watchers now.
+	 *
+	 * Starting late rather than pausing and resuming, because a pause would leave a hole in the
+	 * middle of the buffers and the renderer still positions samples by index rather than by their
+	 * recorded time (ADFA-5660). A later start shortens the history without breaking that
+	 * assumption, which is what `watchedSinceMillis` already exists to describe.
+	 */
+	private fun startMetricsSamplingIfNeeded() {
+		metricsSamplingStarted = true
+		if (!memoryUsageWatcher.isWatching) {
+			memoryUsageWatcher.startWatching()
+		}
+		// isSupported too: where TrafficStats has no per-UID counters the loop clears `watching`
+		// and breaks, so this gate alone relaunched a coroutine that sampled once, repainted a
+		// permanently-zero chart and died -- on every single resume, for the life of the session.
+		if (!networkUsageWatcher.isWatching && networkUsageWatcher.isSupported) {
+			networkUsageWatcher.startWatching()
+		}
+		if (!powerUsageWatcher.isWatching) {
+			powerUsageWatcher.startWatching()
+		}
+	}
+
 	private fun onSwipeRevealDragProgress(progress: Float) {
+		if (progress > 0f) {
+			startMetricsSamplingIfNeeded()
+		}
 		_binding?.apply {
 			contentCard.progress = progress
 			val insetsTop = systemBarInsets?.top ?: 0
@@ -1205,17 +1244,10 @@ abstract class BaseEditorActivity :
 		if (!isMetricsCarouselUndocked()) {
 			_binding?.let { metricsCarousel.bind(it.memUsageView) }
 		}
-		if (!memoryUsageWatcher.isWatching) {
-			memoryUsageWatcher.startWatching()
-		}
-		// isSupported too: where TrafficStats has no per-UID counters the loop clears `watching`
-		// and breaks, so this gate alone relaunched a coroutine that sampled once, repainted a
-		// permanently-zero chart and died -- on every single resume, for the life of the session.
-		if (!networkUsageWatcher.isWatching && networkUsageWatcher.isSupported) {
-			networkUsageWatcher.startWatching()
-		}
-		if (!powerUsageWatcher.isWatching) {
-			powerUsageWatcher.startWatching()
+		// Only what was already sampling, and the floating case, which shows the carousel without
+		// the strip ever being dragged open. Everything else waits for the first reveal.
+		if (metricsSamplingStarted || isMetricsCarouselUndocked()) {
+			startMetricsSamplingIfNeeded()
 		}
 
 		if (!isMetricsCarouselUndocked()) {
