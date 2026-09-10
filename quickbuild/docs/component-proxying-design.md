@@ -1,15 +1,19 @@
 # Component proxying
 
 The generated proxy app names generated `Proxy<N><Type>` classes in its manifest instead of the
-user's own. This page says why, which Android components that covers, how the Gradle plugin builds
-it, and the constraints a change here must not break. It is the design as built (ADFA-4128, the
-initial implementation) - not a change to something already shipped.
+user's own - for the component kinds where a rename is safe. This page says why, which Android
+components that covers (activities and providers; services and receivers deliberately keep their
+real names), how the Gradle plugin builds it, and the constraints a change here must not break.
+It is the design as built (ADFA-4128, the initial implementation) - not a change to something
+already shipped.
 
 ## Why proxy at all
 
-- **The user's classes are deliberately absent from the installed APK.** They travel only in the
-  swappable payload dex, so the parent-first classloader chain can never serve a stale copy of a
-  class the user just edited.
+- **The app module's own compiled classes are deliberately absent from the installed APK.** They
+  travel only in the swappable payload dex, so the parent-first classloader chain can never serve a
+  stale copy of a class the user just edited. What does stay in the APK: the generated `R`/`R$*`
+  classes (resource ids have to resolve before any payload arrives), and, in a multi-module
+  project, the user's own library modules - those rebuild through Gradle, not through a reload.
 - **But Android instantiates manifest components by class name**, and the manifest is fixed at
   install time. Changing it means reinstalling - the cost Quick Build exists to avoid.
 - **So the manifest must name a class that is in the APK and never changes**, while the code behind
@@ -20,9 +24,17 @@ initial implementation) - not a change to something already shipped.
   proxy keeps working as the user's class changes underneath it.
 - **The proxy is also where the runtime injects behaviour.** Activity proxies carry a
   `getClassLoader()` override, so by-name resolution - Fragment and Navigation
-  destinations, `LayoutInflater` custom views - can see payload-only classes; service proxies
-  register with the runtime's live-service census. Receiver and provider proxies are empty
-  subclasses: they exist for the stable name alone.
+  destinations, `LayoutInflater` custom views - can see payload-only classes. Provider proxies
+  are empty subclasses: they exist for the stable name alone.
+- **A kind whose real name is how the app addresses it must NOT be renamed.** Explicit intents
+  (`startService(Intent(ctx, SyncService::class.java))`, an AlarmManager
+  `PendingIntent.getBroadcast` at a receiver) resolve the real class name against the manifest;
+  Android has no `<service>`/`<receiver>` alias to compensate the way activities get one, so a
+  renamed service no-ops every explicit start/bind and a renamed receiver silently drops every
+  explicit broadcast. Services and receivers therefore keep their real names - safe because the
+  `AppComponentFactory` instantiates whatever name the manifest carries through the payload
+  loader, exactly as the `Application` already does, and neither kind needs the activity-only
+  `getClassLoader()` injection.
 
 ## What has to be proxied
 
@@ -30,10 +42,10 @@ Android instantiates five kinds of class by name from the merged manifest:
 
 | Manifest element | Android class | Proxied | Why / note |
 |---|---|---|---|
-| `<activity>` | `android.app.Activity` | yes | Gains the `getClassLoader()` override |
-| `<service>` | `android.app.Service` | yes | Registers with the live-service census; swaps by process restart |
-| `<receiver>` | `android.content.BroadcastReceiver` | yes | Manifest-declared only - receivers registered at runtime are ordinary objects and need nothing |
-| `<provider>` | `android.content.ContentProvider` | yes | Swaps by process restart |
+| `<activity>` | `android.app.Activity` | yes | Gains the `getClassLoader()` override; explicit in-app intents are preserved by a synthesized `<activity-alias>` under the real name |
+| `<service>` | `android.app.Service` | **no** | Keeps the real name: explicit `startService`/`bindService` intents resolve it against the manifest and there is no service alias to compensate a rename with. Still recorded in setup.json (swaps by process restart) |
+| `<receiver>` | `android.content.BroadcastReceiver` | **no** | Keeps the real name: an explicit broadcast (AlarmManager `PendingIntent`) at a renamed receiver is silently never delivered. Manifest-declared only - receivers registered at runtime are ordinary objects and need nothing |
+| `<provider>` | `android.content.ContentProvider` | yes | Addressed by `android:authorities`, which the rename does not touch; swaps by process restart |
 | `<application android:name>` | `android.app.Application` | **no** | Keeps the user's FQN, which `instantiateApplication` resolves against the payload loader like any other component. A proxy would buy nothing: the runtime's own per-process hook (`QuickBuildRuntime.install`) already runs inside `instantiateApplication`, so there is no behaviour to inject via a subclass |
 
 `<activity-alias>` is not instantiated itself, but its `targetActivity` must follow the activity it
@@ -45,17 +57,22 @@ See "Restart vs recreate".
 
 ## How: a Gradle plugin rewrites the merged manifest
 
-`QuickBuildPlugin` transforms AGP's merged-manifest artifact: every component's `android:name`
-becomes a generated proxy FQN, a `Proxy<N><Type> extends <user class>` source is generated and
-compiled into the APK, and `<application>` gains the runtime's `android:appComponentFactory`.
+`QuickBuildPlugin` transforms AGP's merged-manifest artifact: every **proxiable** activity's and
+provider's `android:name` becomes a generated proxy FQN, a `Proxy<N><Type> extends <user class>`
+source is generated and compiled into the APK, and `<application>` gains the runtime's
+`android:appComponentFactory`. Proxiable excludes `final` library components and the
+name-resolved ones listed below, which keep their real names. Services and receivers keep their real (fully qualified) names
+and are recorded proxy-less, per the addressing rule above.
 For each proxied activity the transform also synthesizes an `<activity-alias>` under the
 activity's REAL class name, pointing at the proxy - so an explicit in-app
 `Intent(ctx, SomeActivity::class.java)` still resolves instead of throwing
 `ActivityNotFoundException` (`QuickBuildManifestTransformer.transformActivities`). The alias
-copies its target's `android:exported` verbatim (absent reads as `false`): the alias is the
-only manifest entry left under the real name, so pinning it to `false` would reject a launch
-that works under a standard run - a pinned shortcut or a share target the app published records
-that real name, and the launcher is a different uid.
+copies its target's `android:exported`, `android:permission` and `android:enabled` verbatim,
+each absent-when-absent: the alias is the only manifest entry left under the real name, so
+pinning `exported` to `false` would reject a launch that works under a standard run - a pinned
+shortcut or a share target the app published records that real name, and the launcher is a
+different uid - while dropping `permission` would publish under the real name an entry the app
+had guarded, and dropping `enabled` would re-enable a component the app disabled.
 Everything else - permissions, icon, label, intent filters, `exported`, meta-data - is preserved
 verbatim. A manifest *change* (adding a component, editing an intent filter) still needs a proxy
 app rebuild; see
@@ -67,12 +84,12 @@ payload dex, so a reload swaps the whole hierarchy at once.
 ```mermaid
 flowchart LR
     subgraph build["Proxy app build (Gradle plugin)"]
-        MM["merged manifest"] --> TR["manifest transformer<br/>android:name -> proxy FQN"]
-        TR --> GEN["generated Proxy-N-Service / Receiver / Provider<br/>extends the user class"]
+        MM["merged manifest"] --> TR["manifest transformer<br/>activity/provider android:name -> proxy FQN<br/>service/receiver names kept"]
+        TR --> GEN["generated Proxy-N-Activity / Provider<br/>extends the user class"]
         TR --> SJ["setup.json<br/>components + supertype chains"]
     end
     subgraph device["On device"]
-        GEN -. compiled into the APK .-> FAC["AppComponentFactory<br/>instantiateService / Receiver / Provider"]
+        GEN -. compiled into the APK .-> FAC["AppComponentFactory<br/>instantiates every manifest name<br/>through the payload loader"]
         FAC --> PL["payload loader<br/>current generation"]
         SJ -. read by CoGo .-> DP["DeployPolicy<br/>restart or recreate"]
     end
@@ -82,7 +99,7 @@ flowchart LR
 
 | Approach | Why not |
 |---|---|
-| **No proxy: leave the user's own class names in the manifest** and let `AppComponentFactory` load them from the payload | Loads fine - this is exactly what the `Application` does today. What it loses is the injection point: no `getClassLoader()` override (so `LayoutInflater` and Fragment/Navigation by-name resolution cannot see payload-only classes), no live-service census. For a receiver or provider, which need none of those, the no-proxy option is genuinely close - they are proxied for uniformity. |
+| **No proxy: leave the user's own class names in the manifest** and let `AppComponentFactory` load them from the payload | Loads fine - this is exactly what the `Application`, services and receivers do today. For activities it loses the injection point: no `getClassLoader()` override, so `LayoutInflater` and Fragment/Navigation by-name resolution cannot see payload-only classes. Services and receivers were initially proxied "for uniformity", which turned out to silently break explicit-component intents (no alias mechanism exists for them) - so the no-proxy path IS their design now. Providers stay proxied: they are addressed by authorities, which renaming does not touch. |
 | **Delegation: one generic proxy per component type that forwards to a user instance** | A component's behaviour is inherited, not forwardable - lifecycle callbacks, `onBind`, `getResources`/theme overrides, and the concrete type that the framework and libraries check with `instanceof`. Subclassing keeps the real type. |
 | **Rewrite the manifest on every reload** | A manifest change means a reinstall. That is the cost Quick Build exists to remove. |
 | **Redefine classes in place (Apply Changes / HotSwap style)** | ART's redefinition cannot add or remove classes, methods or fields, so adding a class or a method - routine while developing - falls back to a full build anyway. |
@@ -127,9 +144,12 @@ order - 1 and 2 are not negotiable against the rest.
 
 ## Key decisions
 
-- **Every component is proxied by default - user code and library code alike.** The transform never
-  discriminates by origin; every exception comes from the resolver below, which decides from the
-  class file rather than from whose code it is.
+- **Every component of a proxied kind is proxied by default - user code and library code alike.**
+  The transform never discriminates by origin; every exception comes from the resolver below,
+  which decides from the class file rather than from whose code it is. For the unproxied kinds
+  (services, receivers) the same resolver decides *recording* instead: a component it rejects is
+  library-owned, ships in the base APK rather than the payload, and must stay out of the
+  setup.json component list so it cannot drag the deploy policy into needless restarts.
 - **A component that defeats `extends` is never silently dropped.** A `final` library class is
   skipped and logged, keeping its real manifest name. One present only on the runtime classpath
   cannot be detected before compilation, so it fails the proxy app build loudly, naming the
@@ -151,11 +171,13 @@ order - 1 and 2 are not negotiable against the rest.
   Both the manifest transform and the payload dex task ask it. It reads each component's class
   from the variant's dependency artifacts and skips any `final` one - from any library, named
   nowhere - leaving it under its real manifest name. Only what a class file cannot reveal is
-  listed by name: androidx `InitializationProvider` (resolves itself by hardcoded name),
-  `ProfileInstallReceiver` (absent from some proxy compile classpaths, and absence is
-  indistinguishable from project-owned before compilation), and Firebase's
+  listed by name, in `ComponentProxiabilityResolver.UNPROXIABLE_BY_NAME` - which is the one
+  place that list is enumerated, reasons included, so nothing here or in the README has to
+  carry a count that can drift. Examples: androidx `InitializationProvider` (resolves itself by
+  hardcoded name), `ProfileInstallReceiver` (absent from some proxy compile classpaths, and
+  absence is indistinguishable from project-owned before compilation), and Firebase's
   `ComponentDiscoveryService` (an ordinary non-final class the SDK never instantiates - it reads
-  its own `<meta-data>` by that exact name, so renaming it silently disables SDK discovery). Reasons live in that class's KDoc.
+  its own `<meta-data>` by that exact name, so renaming it silently disables SDK discovery).
 - **Provider authorities pass through verbatim.** The proxy app installs under the project's real
   `applicationId`, so `${applicationId}` resolves exactly as the real app's would.
 - **Unsupported attributes fail the build with the component and attribute named** - no stripping,

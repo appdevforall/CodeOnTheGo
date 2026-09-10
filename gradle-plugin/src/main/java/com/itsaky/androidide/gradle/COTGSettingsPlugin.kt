@@ -13,6 +13,11 @@ import org.gradle.api.logging.Logging
 import java.io.File
 import java.net.URI
 
+/**
+ * Supplements the root build's dependency and plugin repositories with CoGo's bundled local Maven
+ * repo, so a project resolves offline. Applied by [AndroidIDEInitScriptPlugin] on settings
+ * evaluation; a test env supplies its own repo paths instead of the device-only bundled one.
+ */
 class COTGSettingsPlugin : Plugin<Settings> {
 	private val logger = Logging.getLogger(COTGSettingsPlugin::class.java)
 
@@ -23,15 +28,22 @@ class COTGSettingsPlugin : Plugin<Settings> {
 		}
 
 		logger.info("Plugin instance: ${System.identityHashCode(this)}")
-		// Add our local maven repo, always.
-		val allLocalRepos = mutableListOf(MAVEN_LOCAL_REPOSITORY)
 
-		// Then check if we need to add additional repos, based on whether
-		// we're in a test environment
 		val (isTestEnv, mavenLocalRepos) = getTestEnvProps(target.startParameter)
-		if (isTestEnv) {
-			allLocalRepos += mavenLocalRepos
-		}
+
+		// The bundled repo lives at a device-only path, so a host test env supplies its own
+		// repos instead - requiring the device path there would fail every host build. A test
+		// env that supplies none is a misconfiguration, and adding zero repositories silently
+		// turns it into an unresolved-dependency failure somewhere far from the cause.
+		val allLocalRepos =
+			if (isTestEnv) {
+				require(mavenLocalRepos.isNotEmpty()) {
+					"$_PROPERTY_IS_TEST_ENV is set but $_PROPERTY_MAVEN_LOCAL_REPOSITORY names no repository"
+				}
+				mavenLocalRepos
+			} else {
+				listOf(MAVEN_LOCAL_REPOSITORY)
+			}
 
 		target.addLocalRepos(allLocalRepos)
 	}

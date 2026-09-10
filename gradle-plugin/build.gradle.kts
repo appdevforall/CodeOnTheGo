@@ -20,6 +20,7 @@
 import com.itsaky.androidide.build.config.AGP_VERSION_MINIMUM
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.ProjectConfig
+import org.gradle.api.file.SourceDirectorySet
 
 plugins {
 	id("org.jetbrains.kotlin.jvm")
@@ -28,8 +29,40 @@ plugins {
 
 description = "Gradle Plugin for projects that are built with AndroidIDE"
 
+// The functional tests run a real Gradle build against this repo's own plugins, so those
+// have to be staged into build-local maven repos first, and their locations handed to the
+// harness through repos.txt. Wired here rather than in build-logic because a
+// projectsEvaluated sweep silently misses projects under configure-on-demand.
+val mavenLocalStagingProjects = listOf(":logsender", ":logger", ":build-info")
+
 tasks.named<Test>("test") {
 	useJUnitPlatform()
+
+	val stagedRepos =
+		mavenLocalStagingProjects.map { path ->
+			dependsOn("$path:publishAllPublicationsToBuildMavenLocalRepository")
+			project(path)
+				.layout.buildDirectory
+				.dir("maven-local")
+				.get()
+				.asFile.absolutePath
+		}
+	val reposFile =
+		layout.buildDirectory
+			.file("maven-local/repos.txt")
+			.get()
+			.asFile
+
+	// Without these the staged repos are invisible to the input snapshot, so `test` reports
+	// UP-TO-DATE after a republish and the TestKit builds that resolve through repos.txt
+	// never run.
+	inputs.files(stagedRepos).withPropertyName("stagedMavenLocalRepos")
+	outputs.file(reposFile).withPropertyName("stagedMavenLocalReposFile")
+
+	doFirst {
+		reposFile.parentFile.mkdirs()
+		reposFile.writeText(stagedRepos.joinToString(separator = File.pathSeparator))
+	}
 }
 
 configurations {
@@ -52,8 +85,13 @@ dependencies {
 	implementation(projects.gradlePluginConfig)
 	implementation(projects.buildInfo)
 
-	// use the AGP APIs from the minimum supported AGP version
-	add("androidBuildTool", "com.android.tools.build:gradle:${AGP_VERSION_MINIMUM}")
+	// Quick Build (ADFA-4128) needs the ScopedArtifacts API (AGP 7.4+) and the D8 API
+	// shipped inside AGP's builder artifact, so this module compiles against the repo's
+	// AGP instead of AGP_VERSION_MINIMUM. Projects on older AGPs are unaffected at
+	// runtime: QuickBuildPlugin's classes load only when quick build is enabled, and the
+	// other plugins stick to APIs that exist since the minimum supported version - a
+	// claim the minAgpCheck guard below keeps honest by recompiling them against it.
+	add("androidBuildTool", libs.android.gradle.plugin)
 
 	testImplementation(gradleTestKit())
 	testImplementation(libs.tests.junit.jupiter)
@@ -61,6 +99,36 @@ dependencies {
 	testImplementation(projects.shared)
 
 	testRuntimeOnly(libs.tests.junit.platformLauncher)
+}
+
+// Min-AGP compatibility guard (restored after review). The main compile moved to the repo's
+// AGP for Quick Build (above), which deleted the old red light: an innocent AGP-8-only API
+// in LogSenderPlugin or AndroidIDEGradlePlugin would compile green and then fail every user
+// project on an older AGP at configuration time, with Quick Build off. This source set
+// recompiles the non-Quick-Build sources against AGP_VERSION_MINIMUM so that mistake goes
+// red in `check`. The Quick Build sources are excluded on purpose: they genuinely need the
+// newer AGP and only load when quick build is enabled (AndroidIDEGradlePlugin applies
+// QuickBuildPlugin by name, not by class literal, to keep this compile honest).
+val minAgpCheck: SourceSet =
+	sourceSets.create("minAgpCheck") {
+		java.setSrcDirs(emptyList<String>())
+		resources.setSrcDirs(emptyList<String>())
+	}
+(minAgpCheck.extensions.getByName("kotlin") as SourceDirectorySet).apply {
+	setSrcDirs(listOf("src/main/java"))
+	exclude("**/QuickBuildPlugin.kt", "**/quickbuild/**")
+}
+
+dependencies {
+	"minAgpCheckCompileOnly"(gradleApi())
+	"minAgpCheckCompileOnly"("com.android.tools.build:gradle:$AGP_VERSION_MINIMUM")
+	"minAgpCheckImplementation"(libs.composite.constants)
+	"minAgpCheckImplementation"(projects.gradlePluginConfig)
+	"minAgpCheckImplementation"(projects.buildInfo)
+}
+
+tasks.named("check") {
+	dependsOn(tasks.named("minAgpCheckClasses"))
 }
 
 gradlePlugin {
@@ -99,4 +167,19 @@ tasks.named<Jar>("jar") {
 	archiveBaseName.set("cogo-plugin")
 	archiveClassifier.set("") // Removes the default "all" classifier
 	archiveVersion.set("")
+}
+
+// Coverage REPORTING only - no verification gate is wired here. This JVM
+// module keeps the default build/jacoco/test.exec location; the report just
+// needs xml enabled (for tooling to read the percentages) and the explicit
+// test dependency so `:gradle-plugin:jacocoTestReport` is runnable on its own.
+// The percentages under-count: the TestKit-driven tests exercise the plugin in
+// a separate Gradle JVM this JaCoCo run does not instrument. Test failures do
+// not block the report: the root build sets ignoreFailures on every Test task.
+tasks.named<JacocoReport>("jacocoTestReport") {
+	dependsOn(tasks.named("test"))
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+	}
 }

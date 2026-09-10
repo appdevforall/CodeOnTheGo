@@ -17,8 +17,8 @@ Three things that number does not say:
 3. **Avoid modifying the user's code.** We use a Gradle plugin to create the proxy app that works as a wrapper, and try not to modify any of the user's app otherwise.
 4. **Good enough, but no need to be 100% compatible.** Where the proxy app cannot match the real app, make that clear to the user - see [the boundary](#edit-types-that-can-live-reload) and [Known limitations](#known-limitations-v1). We're not trying to match a Gradle build exactly, just to be useful.
 5. **Accept some tradeoffs to make live reload fast, but try to reduce tradeoffs**
-  1. A reasonable amount of extra time at project open is OK - today the first open costs noticeably more than a standard Run's first build.
-  2. We need some memory to keep Quick Build's compile daemon resident and available.
+   1. A reasonable amount of extra time at project open is OK - today the first open costs noticeably more than a standard Run's first build.
+   2. We need some memory to keep Quick Build's compile daemon resident and available.
 6. **Runs offline, on device.** Same standard as Code on the Go.
 
 ## Overview
@@ -98,7 +98,7 @@ How `:quickbuild:core` gets a compiled change into the running app - the step th
 
 ### Proxy-App Architecture
 
-What gets proxied: every **manifest-declared** activity, service, receiver, and provider gets a generated `Proxy<N><Type> extends <user class>` compiled into the APK; the `Application` keeps the user's class (the runtime already hooks process start), and runtime-registered receivers are ordinary objects needing nothing.
+What gets proxied: every **manifest-declared, proxiable** activity and provider gets a generated `Proxy<N><Type> extends <user class>` compiled into the APK - `final` library components and the name-resolved ones are skipped (see the exceptions below). Services, receivers, and the `Application` keep the user's class name - explicit intents address services and receivers by that real name and Android has no alias to compensate a rename with, while the `AppComponentFactory` instantiates whatever the manifest names through the payload loader anyway. Runtime-registered receivers are ordinary objects needing nothing.
 
 What the installed proxy app is made of:
 
@@ -107,14 +107,14 @@ flowchart LR
     subgraph apk["Installed proxy app APK - under the user's real applicationId"]
         rt["The runtime AAR"]
         libs["The user's libraries and resources"]
-        man["A manifest naming proxy components<br/>(Proxy0Activity, Proxy1Service, ...)"]
+        man["A manifest naming proxy activities/providers<br/>(Proxy0Activity, ...) and the real<br/>service/receiver names"]
         gen0["gen-0.dex - a baseline copy<br/>of the user's classes"]
     end
 
     payload[["Payload dex, arriving per reload:<br/>the user's classes, plus their proxies"]] --> apk
 ```
 
-The APK's own dex holds **no user classes at all**. They live only in the payload, which is why a reload can replace every one of them and why parent-first delegation can never serve a stale copy.
+The APK's own dex holds **none of the app module's own compiled classes**. They live only in the payload, which is why a reload can replace every one of them and why parent-first delegation can never serve a stale copy. The generated `R`/`R$*` classes stay behind (resource ids must resolve before any payload arrives), as do the user's own library modules in a multi-module project - those rebuild through Gradle.
 
 - **A proxy is a subclass, not a delegate.** `Proxy0Activity extends com.user.MainActivity`, so the manifest name stays fixed while the class beneath it is replaced wholesale. Proxy and user class travel in the same payload dex, so a reload swaps them together.
 - **Activity proxies exist for one runtime reason:** they override `getClassLoader()`. `Context#getClassLoader()` is otherwise pinned to the APK loader, so by-name resolution (`LayoutInflater` custom views, `FragmentFactory`, Navigation destinations) would never find a payload-only class.
