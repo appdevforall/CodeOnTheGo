@@ -3048,7 +3048,7 @@ class QuickBuildSessionManagerTest {
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
+				.isEqualTo(QuickBuildSessionState.Provisioning())
 
 			manager.restartSession()
 			advanceUntilIdle()
@@ -3079,7 +3079,7 @@ class QuickBuildSessionManagerTest {
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
+				.isEqualTo(QuickBuildSessionState.Provisioning())
 
 			manager.restartSession()
 			advanceUntilIdle()
@@ -3977,7 +3977,7 @@ class QuickBuildSessionManagerTest {
 			manager.onQuickBuildTapped()
 			advanceUntilIdle()
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
+				.isEqualTo(QuickBuildSessionState.Provisioning())
 
 			// ...so the restart's teardown must reach the Gradle cancel: nothing else
 			// releases the build slot for the reprovision it goes on to run.
@@ -4017,7 +4017,6 @@ class QuickBuildSessionManagerTest {
 			assertThat(manager.state.value)
 				.isEqualTo(
 					QuickBuildSessionState.Provisioning(
-						userInitiated = true,
 						rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED,
 					),
 				)
@@ -4172,7 +4171,7 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			val notices = recordNotices(manager)
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
+				.isEqualTo(QuickBuildSessionState.Provisioning())
 
 			manager.onCancelRequested()
 			advanceUntilIdle()
@@ -4857,7 +4856,7 @@ class QuickBuildSessionManagerTest {
 			advanceUntilIdle()
 			val notices = recordNotices(manager)
 			assertThat(manager.state.value)
-				.isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
+				.isEqualTo(QuickBuildSessionState.Provisioning())
 
 			manager.onCancelRequested()
 			advanceUntilIdle()
