@@ -288,6 +288,21 @@ class LiveReloadOrchestrator(
 		}
 
 	/**
+	 * Forgets every form of the user's ask this class holds: the tap recorded on the pending
+	 * set, the tap still waiting for its batch, and the promotion of the in-flight build.
+	 *
+	 * One function on purpose. A stop, the hand-off to a Gradle rebuild and a dropped pending
+	 * set each used to clear the fields by hand, and a site that forgets one of them leaves an
+	 * ask standing that a later unrelated save then answers by pulling the user out of the
+	 * editor. Must run under [mutex], before the caller discards [inFlight].
+	 */
+	private fun clearAskLocked() {
+		pendingUserInitiated = false
+		tapAwaitingChanges = false
+		inFlight?.userInitiated = false
+	}
+
+	/**
 	 * Makes the in-flight build the answer to a Quick Build tap that landed while it was
 	 * already running, instead of queueing a second build behind the same work.
 	 *
@@ -326,12 +341,11 @@ class LiveReloadOrchestrator(
 		mutex.withLock {
 			val flight = inFlight ?: return@withLock
 			if (flight.route is BuildRoute.WarmCompile) return@withLock
-			inFlight = null
 			// A stop withdraws the ask, so neither the abandoned build's forced flag nor a tap
 			// queued behind it - answered or still armed - may survive to redeploy later.
+			clearAskLocked()
+			inFlight = null
 			pendingForced = false
-			pendingUserInitiated = false
-			tapAwaitingChanges = false
 			// And the abandoned build's t0 goes with it: the returning batch now waits on the
 			// user, not on a queue, so the next arrival stamps its own. A mid-build save already
 			// owns the clock and keeps it - that save really did queue behind this build.
@@ -431,8 +445,7 @@ class LiveReloadOrchestrator(
 			// which is what answers it. Left armed, it would tag some later unrelated save as
 			// the user's ask and pull them out of the editor into the proxy app. Same for a tap
 			// still waiting on its batch: the rebuild reads the tap's saves off disk anyway.
-			pendingUserInitiated = false
-			tapAwaitingChanges = false
+			clearAskLocked()
 			inFlight = null
 			// Nulling inFlight only discards the late RESULT; the coroutine runs on and would
 			// deploy a payload compiled against the old baseline into an app Gradle is
@@ -457,8 +470,7 @@ class LiveReloadOrchestrator(
 				pendingSince = null
 				pendingForced = false
 				// Dropped with the set it asked about; see onProxyAppRebuildStarted.
-				pendingUserInitiated = false
-				tapAwaitingChanges = false
+				clearAskLocked()
 				inFlight = null
 				superseded?.job?.cancel()
 			}
