@@ -42,14 +42,32 @@ class SessionReducer {
 				}
 			// The flag rides through so only a restart the USER asked for brings the proxy
 			// app forward when the fresh session goes live; an automatic reprovision (a
-			// Build Variants switch) must leave them in the editor.
+			// Build Variants switch) must leave them in the editor - unless the state it
+			// tears down was already holding a tap, which the fresh session then owes.
 			return SessionTransition(
-				QuickBuildSessionState.Provisioning(userInitiated = event.userInitiated),
+				QuickBuildSessionState.Provisioning(userInitiated = event.userInitiated || state.carriesAsk()),
 				listOf(effect),
 			)
 		}
 		return reduceByState(state, event)
 	}
+
+	/** Whether the state remembers a Quick Build tap that still owes the switch to the proxy app. */
+	private fun QuickBuildSessionState.carriesAsk(): Boolean =
+		when (this) {
+			is QuickBuildSessionState.Prebuilding -> tapQueued
+
+			is QuickBuildSessionState.Provisioning -> userInitiated
+
+			is QuickBuildSessionState.Invalidated -> userInitiated
+
+			is QuickBuildSessionState.Idle,
+			is QuickBuildSessionState.Ready,
+			is QuickBuildSessionState.Building,
+			is QuickBuildSessionState.Deployed,
+			is QuickBuildSessionState.Degraded,
+			-> false
+		}
 
 	private fun reduceByState(
 		state: QuickBuildSessionState,
