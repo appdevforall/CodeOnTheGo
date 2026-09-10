@@ -412,8 +412,12 @@ class GradleQuickBuildProvisioner(
 			// cancels Quick Build's own provisioning.
 			val gradleService = buildService as? GradleBuildService
 			// The bracket keeps the editor's build UI out of the way, not the output: report the
-			// tasks as they run, so a ~90 s provision reads as progress rather than a hang.
-			val progressListener = narrator?.let { { line: String -> it.narrateProxyAppProgress(line) } }
+			// tasks as they run, so a ~90 s provision reads as progress rather than a hang. Taken
+			// per build, so that if the project closes mid-build this build's remaining output -
+			// the cancel is fire-and-forget - is dropped rather than written to the pane the next
+			// project opens.
+			val narration = narrator?.proxyAppBuildNarration()
+			val progressListener = narration?.let { { line: String -> it.progress(line) } }
 			// The bracket spans the AWAIT, not just the executeTasks call: executeTasks hands
 			// back a future immediately and every listener callback arrives while it is
 			// pending, so releasing earlier would un-suppress the ones that matter most.
@@ -433,7 +437,7 @@ class GradleQuickBuildProvisioner(
 				// a bare enum, so the captured output is the ONLY place Gradle's reason exists.
 				// Narrate it into Build Output or the user is told a build failed and never why.
 				val captured = gradleService?.takeInternalBuildOutput().orEmpty()
-				narrator?.narrateProxyAppBuildFailure(captured)
+				narration?.failure(captured)
 				return ProxyAppBuildResult.Failed(quickBuildProxyAppFailureSummary(captured))
 			}
 
