@@ -85,6 +85,7 @@ import com.itsaky.androidide.quickbuild.QuickBuildOutputNarrator
 import com.itsaky.androidide.quickbuild.QuickBuildPrebuildStagger
 import com.itsaky.androidide.quickbuild.QuickBuildStatusBarUpdate
 import com.itsaky.androidide.quickbuild.QuickBuildStatusTracker
+import com.itsaky.androidide.quickbuild.QuickBuildWontStayUpRestart
 import com.itsaky.androidide.quickbuild.quickBuildStatusBarUpdate
 import com.itsaky.androidide.quickbuild.resolve
 import com.itsaky.androidide.repositories.PluginRepository
@@ -452,18 +453,25 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			newMaterialDialogBuilder(this)
 				.setTitle(string.quick_build_wont_stay_up_title)
 				.setMessage(string.quick_build_wont_stay_up_message)
-				.setPositiveButton(string.quick_build_wont_stay_up_restart) { dialog, _ ->
-					dialog.dismiss()
-					quickBuildSessionManager()?.restartSessionAndReprovision()
-				}.setNegativeButton(string.quick_build_wont_stay_up_dismiss) { dialog, _ ->
+				.setPositiveButton(string.quick_build_wont_stay_up_restart, null)
+				.setNegativeButton(string.quick_build_wont_stay_up_dismiss) { dialog, _ ->
 					dialog.dismiss()
 				}.show()
-		// Same gate as the toolbar button and the Restart session row: while a standard Gradle
-		// build holds the slot, the restart tears the warm session down and the reprovision is
-		// then refused as slot-busy, so the user loses the session and is told to wait. Dismiss
-		// stays live, and the notice is raised again if the streak continues past a success.
-		shown.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled =
-			!QuickBuildAction.isBlockedByStandardBuild()
+		val restart =
+			QuickBuildWontStayUpRestart(
+				// Same gate as the toolbar button and the Restart session row: while a standard
+				// Gradle build holds the slot, the restart tears the warm session down and the
+				// reprovision is then refused as slot-busy, so the user loses the session and is
+				// told to wait. Read per tap, since the dialog outlives any one reading of it.
+				isBlockedByStandardBuild = QuickBuildAction::isBlockedByStandardBuild,
+				explainBlocked = { flashInfoLong(getString(string.quick_build_standard_build_in_progress)) },
+				restartAndReprovision = { quickBuildSessionManager()?.restartSessionAndReprovision() },
+				dismiss = shown::dismiss,
+			)
+		// Listener set on the button rather than through setPositiveButton, because the builder's
+		// listener runs after Material has already dismissed: a tap that could not act has to
+		// leave the notice up for the tap that can.
+		shown.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener { restart.onTapped() }
 	}
 
 	/**
