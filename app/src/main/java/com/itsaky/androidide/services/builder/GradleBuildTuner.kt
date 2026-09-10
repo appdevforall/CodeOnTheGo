@@ -11,11 +11,16 @@ import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import org.slf4j.LoggerFactory
 
 /**
- * Applies to EVERY Gradle build, Quick Build experiments flag on or off - deliberately NOT
- * gated behind FeatureFlags.isExperimentsEnabled: the 384m Metaspace floor fixes builds that
- * previously died in OutOfMemoryError: Metaspace (see BalancedStrategy.GRADLE_METASPACE_MB),
- * and the tiered daemon idle timeouts are what keep the IDE itself (and, flag on, the
- * quick-build daemon) resident on low-RAM devices after the user stops building.
+ * Reads the phone's RAM, core count and thermal state, picks a [GradleTuningStrategy] from them,
+ * and renders that strategy as the Gradle command-line and JVM arguments a build runs with -
+ * heap and Metaspace sizes, worker count, daemon idle timeout, caching and Kotlin compiler mode.
+ *
+ * These settings reach a build only when the Experiments switch is on. [GradleBuildService] calls
+ * the tuner behind `FeatureFlags.isExperimentsEnabled` and, with the switch off, passes Gradle
+ * nothing but the IDE's usual extra arguments, so Gradle keeps its own defaults. So the 384m
+ * Metaspace floor (see [BalancedStrategy.GRADLE_METASPACE_MB], which fixes builds that died in
+ * OutOfMemoryError: Metaspace) and the tiered daemon idle timeouts that keep the daemon resident
+ * on low-RAM devices are Experiments-only, even though the tuner has shipped since 2026-02.
  *
  * @author Akash Yadav
  */
