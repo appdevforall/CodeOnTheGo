@@ -135,11 +135,7 @@ class QuickBuildScratch(
 	 * the space guard. Never throws - a failure comes back as [Preparation.Failed]
 	 * with the message provisioning surfaces to the user.
 	 *
-	 * A provision that fails after this returned [Preparation.Ready] leaves the tree behind:
-	 * [remove] is keyed off the live layout, which a failed provision never sets, so the tree
-	 * waits for the next session manager start's [sweep]. Tracked as a followup under
-	 * ADFA-5423 rather than fixed here, since the failure paths that leave it live in the
-	 * provisioner.
+	 * A provision that fails after [Preparation.Ready] [remove]s the tree itself.
 	 *
 	 * @param projectRoot the project's root directory.
 	 * @return [Preparation.Ready] with the tree, or [Preparation.Failed] on a space shortfall or

@@ -75,6 +75,15 @@ sealed interface QuickBuildMessage {
 	data object RebuildFailed : QuickBuildMessage
 
 	/**
+	 * Provisioning died on an unexpected error that carried no message of its own.
+	 *
+	 * The fallback for a throw whose `message` is null (a bare NPE or `check`): the exception
+	 * class name is diagnostic, belongs in the error log, and would read as gibberish on a
+	 * banner - so the user gets this named case and the log keeps the class and stack.
+	 */
+	data object ProvisioningFailedUnexpectedly : QuickBuildMessage
+
+	/**
 	 * App storage is too tight to hold the build's intermediates. Checked up front so this
 	 * fails in seconds rather than minutes into a build.
 	 *
@@ -98,6 +107,16 @@ sealed interface QuickBuildMessage {
 
 	/** The compile daemon refused the configuration it was started with. */
 	data object DaemonRejectedConfiguration : QuickBuildMessage
+
+	/**
+	 * The compile daemon could not be started, so provisioning failed before any build ran.
+	 *
+	 * @property detail the daemon client's own reason (a spawn error, a protocol version
+	 *   mismatch, a missing reply), diagnostic rather than translatable
+	 */
+	data class DaemonStartFailed(
+		val detail: String,
+	) : QuickBuildMessage
 
 	/**
 	 * The compile daemon died and could not be restarted, so the session stays degraded until

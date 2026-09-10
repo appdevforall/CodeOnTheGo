@@ -316,6 +316,7 @@ class LiveReloadOrchestrator(
 	 * Two limits: the daemon has no cancel op, so the compile runs to completion unheard and may
 	 * delay the next build; and a stop in the deploy's own scheduler turn can report a cancel for a
 	 * payload the proxy app already took, leaving the status line one generation behind.
+	 * Tracked as ADFA-5456.
 	 *
 	 * @return true when a build was abandoned; false when there was nothing to cancel or it was a
 	 *   warm compile the user never asked for, on which the caller must report no cancellation.
@@ -713,7 +714,7 @@ class LiveReloadOrchestrator(
 					throw e
 				} catch (e: Throwable) {
 					log.error("Quick build #{} threw instead of reporting an outcome", buildId, e)
-					BuildOutcome.InfrastructureFailure(e.message ?: e.javaClass.name)
+					BuildOutcome.InfrastructureFailure(e.message ?: BuildOutcome.UNEXPECTED_FAILURE)
 				}
 			onBuildFinished(buildId, outcome)
 		}
