@@ -278,7 +278,9 @@ Try in order, and stop at the first rung that carries the finding honestly:
 
 Two rules: a finding is **never dropped** for want of an anchor, and the body **never
 restates** an anchored finding. Say it once, where it lives, so the author reads each thing
-exactly one time.
+exactly one time. The severity index in step 11 is the one thing that is not a restatement -
+one clause per finding, no failure trace and no fix - and it earns its place because the view
+the author reads cannot be severity-ordered on its own.
 
 ## Step 9: write the comments
 
@@ -325,6 +327,46 @@ step 1), the body, `event`, and the whole `comments[]` array. One call, one revi
 Build the payload as JSON with a script and send it with `gh api --input`. Do not hand-write
 JSON inline in a shell command: review bodies contain backticks, quotes, `$`, and `->`, and
 every one of them breaks a heredoc differently.
+
+### Order the payload by severity
+
+Sort `comments[]` before sending: CRITICAL, then IMPORTANT, then MINOR, then NITPICK, and
+within a severity by path and line so the order is deterministic rather than incidental.
+
+Be clear-eyed about what that buys, because it is easy to over-claim. It does **not** reorder
+the Files changed tab: an inline comment renders at the line it is anchored to, so that view is
+always in diff order and no payload can change it. What it does buy is that comments are created
+in array order, so their IDs ascend by severity - which is the order `GET /pulls/{n}/comments`
+returns them in, and therefore the order the step 7 re-check walks them in next round. A
+deterministic order also makes two runs over the same PR diffable.
+
+Since the surface the author reads cannot be severity-ordered, the body carries that ordering
+instead. Open it with an index, highest severity first:
+
+```
+CRITICAL
+- EditorActivity.kt:412 - decoder reused after the activity is recreated
+
+IMPORTANT
+- FileManager.kt:88 - rotation drops the pending edit
+- Content.kt:203 - an empty selection throws
+
+MINOR
+- BuildConfig.kt:31 - overflow unreachable behind both current callers
+
+NITPICK - 2 inline, not listed
+```
+
+One clause per finding, no failure trace and no fix - the anchored comment already carries
+those, and the index exists to give the author a triage order and the only view where the whole
+review is visible at once. Nitpicks get a count rather than lines, because listing them at the
+top is exactly the volume problem step 10 is trying to avoid.
+
+To make the entries clickable, the comment IDs do not exist until the POST returns. Post once,
+then rewrite only the body with `PUT /repos/{owner}/{repo}/pulls/{n}/reviews/{review_id}`,
+substituting each entry for the `html_url` the response gave it. That is optional - a plain
+`path:line` index is greppable and costs no second call - and the endpoint is documented but not
+exercised here, so treat a failure as expected and keep the plain index.
 
 Re-read the head SHA immediately before posting and compare it against step 1. A stack makes
 this more than paranoia: `gh stack rebase` and `gh stack sync` rewrite every branch above the

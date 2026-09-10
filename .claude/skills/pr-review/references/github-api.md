@@ -66,6 +66,19 @@ gh api --method POST repos/<owner>/<repo>/pulls/<n>/reviews \
   --jq '{id, state, html_url}'
 ```
 
+**Ordering.** The `comments[]` order is the creation order, so IDs ascend with it and
+`GET /pulls/{n}/comments` returns them in that order. It does not affect the Files changed tab,
+which renders each comment at its anchor and is therefore always in diff order. Whether the
+Conversation tab follows array order or diff order within a single review is **unverified** -
+do not promise the author a severity-ordered reading surface; put the severity order in the
+review body, which renders above the comments in both tabs.
+
+**Updating a review body after posting - unverified.**
+`PUT /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}` with `{"body": "..."}` is
+documented as the way to rewrite a submitted review's body, which is what a body index with
+links to each comment needs. It has not been exercised from this skill; if it fails, keep the
+plain `path:line` index rather than retrying.
+
 Comment fields:
 
 - `line` is the line number **in the file at the state that side represents** - the
