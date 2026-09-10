@@ -407,7 +407,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					// queued for the next project. Only when the project is closing - a recreated
 					// activity binds again and wants the lines produced in between.
 					if (isDestroying) {
-						narrator.reset()
+						// Discarding lasts until this project's teardown stops narrating, not until
+						// the next bind: the next project's activity binds its pane in onCreate,
+						// while the cancel of this project's proxy app build is still fire-and-forget
+						// in flight and its progress listener still firing.
+						val closing = quickBuildSessionManager()
+						narrator.reset(untilQuiet = { closing?.awaitTeardown() })
 					}
 				}
 			},
