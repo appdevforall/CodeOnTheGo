@@ -305,4 +305,13 @@ class JGitRepositoryTest {
 			lockFile.mkdir() // Making the lock path a directory causes LockFile creation to fail
 			jgitRepo.setCommitWatermarkEnabled(false)
 		}
+
+	@Test(expected = Exception::class)
+	fun testIsCommitWatermarkPropagatesExceptionOnFailure() =
+		runBlocking {
+			val configFile = File(repoDir, ".git/config")
+			configFile.writeText("[unclosed_section\nkey = value")
+			jgitRepo.isCommitWatermarkEnabled()
+			Unit
+		}
 }

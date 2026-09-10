@@ -226,13 +226,8 @@ class JGitRepository(
 	override suspend fun isCommitWatermarkEnabled(): Boolean =
 		withContext(Dispatchers.IO) {
 			configMutex.withLock {
-				try {
-					repository.config.load()
-					repository.config.getBoolean(CONFIG_SECTION_COTG, null, CONFIG_KEY_WATERMARK, true)
-				} catch (e: Exception) {
-					log.error("Error reading commit watermark config", e)
-					true
-				}
+				repository.config.load()
+				repository.config.getBoolean(CONFIG_SECTION_COTG, null, CONFIG_KEY_WATERMARK, true)
 			}
 		}
 
