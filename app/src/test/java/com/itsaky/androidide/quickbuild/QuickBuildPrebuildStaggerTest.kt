@@ -130,7 +130,11 @@ class QuickBuildPrebuildStaggerTest {
 			)
 
 		assertThat(transition.state).isInstanceOf(QuickBuildSessionState.Provisioning::class.java)
-		assertThat(transition.effects).containsExactly(SessionEffect.StartProvisioning)
+		// RecordAsk alongside it since PendingAsk: the tap is the user's outstanding ask, and the
+		// point here is that StartProvisioning is in the same transition rather than queued.
+		assertThat(transition.effects)
+			.containsExactly(SessionEffect.RecordAsk, SessionEffect.StartProvisioning)
+			.inOrder()
 	}
 
 	/**
@@ -147,7 +151,9 @@ class QuickBuildPrebuildStaggerTest {
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Prebuilding(tapQueued = true))
-		assertThat(transition.effects).isEmpty()
+		// The tap is recorded as the user's ask and nothing else: no build starts for it here,
+		// which is what "queues behind the warm build" means.
+		assertThat(transition.effects).containsExactly(SessionEffect.RecordAsk)
 	}
 
 	@Test
