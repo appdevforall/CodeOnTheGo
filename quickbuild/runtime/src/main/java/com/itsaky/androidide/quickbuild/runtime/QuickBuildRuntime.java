@@ -105,6 +105,24 @@ final class QuickBuildRuntime {
 	}
 
 	/**
+	 * Runs an apply failure's rollback-and-report body, but only when this failure is the first to settle the gate.
+	 *
+	 * Both apply paths can throw AFTER a swap they already posted has failed on the main looper and reported: the table swap fails on main and reports, the applying thread then throws in applyAssets, and an unguarded catch reports the same failure a second time - a second mixed banner and a second crash report for one deploy. Same rule as {@link SwapAckGate#failed}, applied to the catch rather than to the swap listener.
+	 *
+	 * Package-private and free of Context so a JVM test can pin the decision AND the report it gates. Reaching either catch for real needs a binder thread, a main looper and a Context, so a guard left at the call sites is checkable only on a device.
+	 *
+	 * @param gate
+	 *            the deploy's or the boot restore's swap gate; settled by this call when it was still open
+	 * @param report
+	 *            the rollback-and-report body, run at most once across the gate's whole life
+	 */
+	static void reportApplyFailureOnce(SwapAckGate gate, Runnable report) {
+		if (gate.failed()) {
+			report.run();
+		}
+	}
+
+	/**
 	 * Runs the boot-time resource restore on its own thread. Package-private so the JVM test can pin the dispatch off the caller's thread, which is the main thread inside the first activity's creation.
 	 *
 	 * @param body
@@ -462,24 +480,31 @@ final class QuickBuildRuntime {
 				reportUnadoptedFailure(generation, error);
 				return;
 			}
-			if (!ackGate.failed()) {
-				// A swap posted above already failed on main, and onSwapFailed abandoned,
-				// rolled back and reported it; a second report here would be a second
-				// banner and a second crash report for one deploy.
-				return;
-			}
-			// A step that already ran may have queued a swap that will still commit on main:
-			// applyTable posts before applyAssets can throw. Nothing cancels that swap, so
-			// the recreate must not run - it would render this generation's table over the
-			// dex failReload is rolling back. Only onSwapFailed used to set this, which is
-			// the branch where the swap is the thing that failed. A swap that has ALREADY
-			// committed is a different case: it cannot be refused, and failReload reports
-			// the mixed state it leaves instead of claiming the last working version.
-			abandonedReloadGeneration = generation;
-			// The posted swap is refused rather than committed: the store cannot undo a
-			// swap that took, so the only place to stop it is before it commits.
-			ResourceStore.INSTANCE.abandon(generation);
-			failReload(generation, previous, error);
+			// `previous` is assigned inside the try, so the report body - which cannot see a
+			// mutable local - needs its own final copy of it.
+			final PayloadStore.Payload rollbackTo = previous;
+			// A swap posted above may already have failed on main, where onSwapFailed
+			// abandoned, rolled back and reported it; reporting again here would be a
+			// second banner and a second crash report for one deploy.
+			reportApplyFailureOnce(ackGate, new Runnable() {
+
+				@Override
+				public void run() {
+					// A step that already ran may have queued a swap that will still commit on
+					// main: applyTable posts before applyAssets can throw. Nothing cancels that
+					// swap, so the recreate must not run - it would render this generation's
+					// table over the dex failReload is rolling back. Only onSwapFailed used to
+					// set this, which is the branch where the swap is the thing that failed. A
+					// swap that has ALREADY committed is a different case: it cannot be refused,
+					// and failReload reports the mixed state it leaves instead of claiming the
+					// last working version.
+					abandonedReloadGeneration = generation;
+					// The posted swap is refused rather than committed: the store cannot undo a
+					// swap that took, so the only place to stop it is before it commits.
+					ResourceStore.INSTANCE.abandon(generation);
+					failReload(generation, rollbackTo, error);
+				}
+			});
 		} finally {
 			// Also covers the early returns: an overtaken or restart deploy leaves here
 			// without having read these, and an unclosed fd leaks for the process life.
@@ -1154,12 +1179,16 @@ final class QuickBuildRuntime {
 			// queued would commit over a merge that failed, so refuse it. A swap that already
 			// committed cannot be undone; the process then runs mixed, and the banner says so.
 			ResourceStore.INSTANCE.abandon(generation);
-			if (gate.failed()) {
-				// Same guard as the listener above: a swap that already failed on main has
-				// reported this boot, and reporting again raises a second banner and a
-				// second crash report for it.
-				onBootRestoreFailed(generation, error);
-			}
+			// Same guard as the listener above: a swap that already failed on main has
+			// reported this boot, and reporting again raises a second banner and a second
+			// crash report for it.
+			reportApplyFailureOnce(gate, new Runnable() {
+
+				@Override
+				public void run() {
+					onBootRestoreFailed(generation, error);
+				}
+			});
 		}
 	}
 
