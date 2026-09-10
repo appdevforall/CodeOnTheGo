@@ -18,21 +18,25 @@ class SessionReducer {
 	 * @param state the session's current state.
 	 * @param event what happened; a state that does not handle it keeps [state] unchanged rather
 	 *   than failing.
+	 * @param askOutstanding whether the session's [PendingAsk] holds a tap still waiting to see
+	 *   the app - the one input the reducer needs from outside the state, read where a landing
+	 *   decides whether to emit [SessionEffect.SwitchToProxyApp].
 	 * @return the state to adopt and the effects the shell must then run, in order.
 	 */
 	fun reduce(
 		state: QuickBuildSessionState,
 		event: SessionEvent,
+		askOutstanding: Boolean = false,
 	): SessionTransition =
 		when (state) {
 			is QuickBuildSessionState.Idle -> reduceIdle(state, event)
 			is QuickBuildSessionState.Prebuilding -> reducePrebuilding(state, event)
-			is QuickBuildSessionState.Provisioning -> reduceProvisioning(state, event)
+			is QuickBuildSessionState.Provisioning -> reduceProvisioning(state, event, askOutstanding)
 			is QuickBuildSessionState.Ready -> reduceLive(state, state.generation, event)
-			is QuickBuildSessionState.Building -> reduceBuilding(state, event)
+			is QuickBuildSessionState.Building -> reduceBuilding(state, event, askOutstanding)
 			is QuickBuildSessionState.Deployed -> reduceLive(state, state.generation, event)
-			is QuickBuildSessionState.Invalidated -> reduceInvalidated(state, event)
-			is QuickBuildSessionState.Degraded -> reduceDegraded(state, event)
+			is QuickBuildSessionState.Invalidated -> reduceInvalidated(state, event, askOutstanding)
+			is QuickBuildSessionState.Degraded -> reduceDegraded(state, event, askOutstanding)
 		}
 
 	/**
@@ -41,7 +45,8 @@ class SessionReducer {
 	 * Restart always wins and always tears down, whatever state it came from. Idle has nothing
 	 * to tear down and answers the event itself, clearing a stale failed-start tone.
 	 */
-	private fun tearDown(): SessionTransition = SessionTransition(QuickBuildSessionState.Idle(), listOf(SessionEffect.TeardownSession))
+	private fun tearDown(): SessionTransition =
+		SessionTransition(QuickBuildSessionState.Idle(), listOf(SessionEffect.WithdrawAsk, SessionEffect.TeardownSession))
 
 	/**
 	 * [SessionEvent.SessionRestartAndReprovisionRequested] from any state.
@@ -62,32 +67,15 @@ class SessionReducer {
 			} else {
 				SessionEffect.TeardownAndProvision
 			}
-		// The flag rides through so only a restart the USER asked for brings the proxy
-		// app forward when the fresh session goes live; an automatic reprovision (a
-		// Build Variants switch) must leave them in the editor - unless the state it
-		// tears down was already holding a tap, which the fresh session then owes.
+		// Only a restart the USER asked for records an ask, so the fresh session brings the
+		// proxy app forward when it goes live; an automatic reprovision (a Build Variants
+		// switch) must leave them in the editor. Neither withdraws: a tap the torn-down
+		// state was holding is still owed, and the fresh session answers it.
 		return SessionTransition(
-			QuickBuildSessionState.Provisioning(userInitiated = event.userInitiated || state.carriesAsk()),
-			listOf(effect),
+			QuickBuildSessionState.Provisioning(),
+			if (event.userInitiated) listOf(SessionEffect.RecordAsk, effect) else listOf(effect),
 		)
 	}
-
-	/** Whether the state remembers a Quick Build tap that still owes the switch to the proxy app. */
-	private fun QuickBuildSessionState.carriesAsk(): Boolean =
-		when (this) {
-			is QuickBuildSessionState.Prebuilding -> tapQueued
-
-			is QuickBuildSessionState.Provisioning -> userInitiated
-
-			is QuickBuildSessionState.Invalidated -> userInitiated
-
-			is QuickBuildSessionState.Idle,
-			is QuickBuildSessionState.Ready,
-			is QuickBuildSessionState.Building,
-			is QuickBuildSessionState.Deployed,
-			is QuickBuildSessionState.Degraded,
-			-> false
-		}
 
 	private fun reduceIdle(
 		state: QuickBuildSessionState.Idle,
@@ -96,9 +84,15 @@ class SessionReducer {
 		when (event) {
 			is SessionEvent.QuickBuildTapped -> {
 				SessionTransition(
-					QuickBuildSessionState.Provisioning(userInitiated = true),
-					listOf(SessionEffect.StartProvisioning),
+					QuickBuildSessionState.Provisioning(),
+					listOf(SessionEffect.RecordAsk, SessionEffect.StartProvisioning),
 				)
+			}
+
+			SessionEvent.CancelRequested -> {
+				// Nothing to stop, but a stop still withdraws whatever ask is outstanding, so
+				// every state answers it the same way.
+				SessionTransition(state, listOf(SessionEffect.WithdrawAsk))
 			}
 
 			SessionEvent.PrebuildRequested -> {
@@ -135,7 +129,6 @@ class SessionReducer {
 				reprovision(state, event)
 			}
 
-			SessionEvent.CancelRequested,
 			SessionEvent.PrebuildFinished,
 			is SessionEvent.ProvisioningSucceeded,
 			is SessionEvent.ProvisioningFailed,
@@ -157,7 +150,7 @@ class SessionReducer {
 			is SessionEvent.ProxyAppCrashed,
 			-> {
 				// No session, no build and no daemon: these are late reports from a session
-				// that is gone, or a stop the button does not offer while it shows the bolt.
+				// that is gone.
 				SessionTransition(state)
 			}
 		}
@@ -171,7 +164,7 @@ class SessionReducer {
 			// the tooling server); it queues and fires on PrebuildFinished. The tap is also
 			// the retry gesture, so it clears a carried failed-start tone.
 			is SessionEvent.QuickBuildTapped -> {
-				SessionTransition(state.copy(tapQueued = true, lastStartFailed = false))
+				SessionTransition(state.copy(tapQueued = true, lastStartFailed = false), listOf(SessionEffect.RecordAsk))
 			}
 
 			SessionEvent.FileSaved -> {
@@ -185,8 +178,9 @@ class SessionReducer {
 
 			SessionEvent.PrebuildFinished -> {
 				if (state.tapQueued) {
+					// The ask the tap recorded is still outstanding; the provision answers it.
 					SessionTransition(
-						QuickBuildSessionState.Provisioning(userInitiated = true),
+						QuickBuildSessionState.Provisioning(),
 						listOf(SessionEffect.StartProvisioning),
 					)
 				} else {
@@ -200,9 +194,12 @@ class SessionReducer {
 				if (state.tapQueued) {
 					// The button only shows the stop affordance once a tap has queued, so a
 					// cancel here means drop the queued tap AND stop the Gradle build it waits on.
-					SessionTransition(QuickBuildSessionState.Idle(), listOf(SessionEffect.CancelProxyAppBuild))
+					SessionTransition(
+						QuickBuildSessionState.Idle(),
+						listOf(SessionEffect.WithdrawAsk, SessionEffect.CancelProxyAppBuild),
+					)
 				} else {
-					SessionTransition(state)
+					SessionTransition(state, listOf(SessionEffect.WithdrawAsk))
 				}
 			}
 
@@ -244,15 +241,17 @@ class SessionReducer {
 	private fun reduceProvisioning(
 		state: QuickBuildSessionState.Provisioning,
 		event: SessionEvent,
+		askOutstanding: Boolean,
 	): SessionTransition =
 		when (event) {
 			is SessionEvent.ProvisioningSucceeded -> {
 				SessionTransition(
 					QuickBuildSessionState.Ready(event.generation),
 					// Behaviour 2: nothing else launches the freshly installed proxy app, so a
-					// tap gets its answer here. A rebuild routed through this state stays in
-					// the editor, and one whose own relaunch already answered the tap says so.
-					if (state.userInitiated && !event.askAlreadyAnswered) {
+					// tap gets its answer here. A save-triggered rebuild stays in the editor,
+					// and one whose own relaunch already answered the tap arrives with the ask
+					// settled.
+					if (askOutstanding) {
 						listOf(SessionEffect.StartWarmCompile, SessionEffect.SwitchToProxyApp)
 					} else {
 						listOf(SessionEffect.StartWarmCompile)
@@ -262,11 +261,10 @@ class SessionReducer {
 
 			is SessionEvent.QuickBuildTapped -> {
 				// The tap asks to see the app once the user's changes are in it. The build
-				// already in flight covers the building, so the tap needs no effect of its
-				// own; recording userInitiated is what makes ProvisioningSucceeded above
-				// switch to the proxy app. Without this a save-triggered rebaseline, which
-				// provisions with userInitiated = false, would never answer the tap.
-				SessionTransition(state.copy(userInitiated = true))
+				// already in flight covers the building, so all the tap adds is the ask,
+				// which is what makes ProvisioningSucceeded above switch to the proxy app.
+				// Without this a save-triggered rebaseline would never answer the tap.
+				SessionTransition(state, listOf(SessionEffect.RecordAsk))
 			}
 
 			SessionEvent.CancelRequested -> {
@@ -278,12 +276,11 @@ class SessionReducer {
 					// a build failure or a lost slot parks. Tearing down here made a
 					// deliberate stop cost the ~97 s cold provision a failure does not.
 					//
-					// The stop withdraws the ask, as the orchestrator's onCancelRequested
-					// does for its half: a cancel that loses the race to the build's own
-					// completion lets the rebaseline run on to ProvisioningSucceeded, and a
-					// userInitiated left true there would bring forward the app the user
-					// just asked to stop.
-					SessionTransition(state.copy(userInitiated = false), listOf(SessionEffect.CancelProxyAppRebuild))
+					// The stop withdraws the ask first: a cancel that loses the race to the
+					// build's own completion lets the rebaseline run on to
+					// ProvisioningSucceeded, and an ask left standing there would bring
+					// forward the app the user just asked to stop.
+					SessionTransition(state, listOf(SessionEffect.WithdrawAsk, SessionEffect.CancelProxyAppRebuild))
 				} else {
 					// No half-provisioned session is worth keeping. A cancel mid-install is
 					// safe because the epoch guard discards a late provisioning success, and
@@ -291,7 +288,7 @@ class SessionReducer {
 					// chose this, so the Idle it lands in carries no failure.
 					SessionTransition(
 						QuickBuildSessionState.Idle(),
-						listOf(SessionEffect.CancelProxyAppBuild, SessionEffect.TeardownSession),
+						listOf(SessionEffect.WithdrawAsk, SessionEffect.CancelProxyAppBuild, SessionEffect.TeardownSession),
 					)
 				}
 			}
@@ -301,7 +298,7 @@ class SessionReducer {
 				// fades - a plain Idle here read READY right after a failed start (Q8).
 				SessionTransition(
 					QuickBuildSessionState.Idle(lastStartFailed = true),
-					listOf(SessionEffect.SurfaceProvisioningError(event.message)),
+					listOf(SessionEffect.WithdrawAsk, SessionEffect.SurfaceProvisioningError(event.message)),
 				)
 			}
 
@@ -322,10 +319,11 @@ class SessionReducer {
 						// Carried: an unfixed build file must not buy a fresh budget of Gradle
 						// builds on every return to CoGo.
 						installAutoRetries = state.installAutoRetries,
-						// Dropped on purpose: a park needs the user to act, and a carried tap
-						// would let the foreground auto-retry bring the app forward unasked.
-						userInitiated = false,
 					),
+					// The ask is dropped on purpose: a park needs the user to act, and a tap
+					// left standing would let the foreground auto-retry bring the app forward
+					// unasked.
+					listOf(SessionEffect.WithdrawAsk),
 				)
 			}
 
@@ -343,10 +341,9 @@ class SessionReducer {
 						// Refunded: the attempt cost nothing the budget bounds. Floored at zero,
 						// since a tap-initiated retry arrives having already reset it.
 						installAutoRetries = (state.installAutoRetries - 1).coerceAtLeast(0),
-						// Dropped on purpose: a park needs the user to act, and a carried tap
-						// would let the foreground auto-retry bring the app forward unasked.
-						userInitiated = false,
 					),
+					// The ask is dropped on purpose, as on every park.
+					listOf(SessionEffect.WithdrawAsk),
 				)
 			}
 
@@ -363,18 +360,17 @@ class SessionReducer {
 						awaitingRetry = true,
 						// Carried: the budget is spent per unconfirmed install, not per park.
 						installAutoRetries = state.installAutoRetries,
-						// Dropped on purpose: a park needs the user to act, and a carried tap
-						// would let the foreground auto-retry bring the app forward unasked.
-						userInitiated = false,
 					),
+					// The ask is dropped on purpose, as on every park.
+					listOf(SessionEffect.WithdrawAsk),
 				)
 			}
 
 			is SessionEvent.InvalidationDetected -> {
 				// The Gradle build in flight already reads current disk, so the invalidation
-				// itself changes nothing here. The tap it may carry is answered when this
-				// build lands, so only the ask is taken from it.
-				SessionTransition(state.copy(userInitiated = state.userInitiated || event.userInitiated))
+				// changes nothing here; a tap its batch consumed is already the outstanding
+				// ask and is answered when this build lands.
+				SessionTransition(state)
 			}
 
 			SessionEvent.SessionRestartRequested -> {
@@ -428,12 +424,20 @@ class SessionReducer {
 				SessionTransition(
 					state,
 					listOf(
+						SessionEffect.RecordAsk,
 						SessionEffect.TriggerLiveReload(
 							userInitiated = true,
 							expectChanges = event.wroteSomething,
 						),
 					),
 				)
+			}
+
+			SessionEvent.CancelRequested -> {
+				// No build is owned here, so a stop has nothing to cancel (a save's build only
+				// becomes cancellable once BuildStarted has moved the session to Building);
+				// it still withdraws an outstanding ask, as every state's stop does.
+				SessionTransition(state, listOf(SessionEffect.WithdrawAsk))
 			}
 
 			SessionEvent.BuildStarted -> {
@@ -445,10 +449,10 @@ class SessionReducer {
 			}
 
 			is SessionEvent.InvalidationDetected -> {
-				// The ask rides on the event: the batch that proved the invalidation may have
-				// consumed a tap, and the orchestrator forgets it once the rebuild starts.
+				// A tap the invalidating batch consumed stays the outstanding ask, and the
+				// rebuild's relaunch answers it.
 				SessionTransition(
-					QuickBuildSessionState.Invalidated(event.reason, generation, userInitiated = event.userInitiated),
+					QuickBuildSessionState.Invalidated(event.reason, generation),
 					listOf(SessionEffect.RunProxyAppRebuild),
 				)
 			}
@@ -478,7 +482,6 @@ class SessionReducer {
 				reprovision(state, event)
 			}
 
-			SessionEvent.CancelRequested,
 			SessionEvent.FileSaved,
 			SessionEvent.PrebuildRequested,
 			SessionEvent.PrebuildFinished,
@@ -495,12 +498,10 @@ class SessionReducer {
 			SessionEvent.DaemonRespawned,
 			SessionEvent.DaemonRestartFailed,
 			-> {
-				// No build is owned here, so a stop has nothing to cancel (a save's build only
-				// becomes cancellable once BuildStarted has moved the session to Building) and
-				// a build outcome is the late report of one already closed. The prebuild,
-				// provisioning and rebuild events belong to phases with no live session, the
-				// daemon is up so its respawn reports are stale, and HostForegrounded is only
-				// a parked Invalidated's retry trigger.
+				// No build is owned here, so a build outcome is the late report of one already
+				// closed. The prebuild, provisioning and rebuild events belong to phases with
+				// no live session, the daemon is up so its respawn reports are stale, and
+				// HostForegrounded is only a parked Invalidated's retry trigger.
 				SessionTransition(state)
 			}
 		}
@@ -508,6 +509,7 @@ class SessionReducer {
 	private fun reduceBuilding(
 		state: QuickBuildSessionState.Building,
 		event: SessionEvent,
+		askOutstanding: Boolean,
 	): SessionTransition =
 		when (event) {
 			is SessionEvent.BuildSucceeded -> {
@@ -515,12 +517,17 @@ class SessionReducer {
 					QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted, event.diagnostics),
 					// Behaviour 2 vs 3: the deploy landing is where a TAP gets its answer, and
 					// where a save deliberately gets none - the user is still editing.
-					if (event.userInitiated) listOf(SessionEffect.SwitchToProxyApp) else emptyList(),
+					if (askOutstanding) listOf(SessionEffect.SwitchToProxyApp) else emptyList(),
 				)
 			}
 
 			is SessionEvent.BuildFailed -> {
-				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration, event.failure))
+				// The tap was answered, with the failure: the save that fixes the code is not
+				// a new ask, so it must not drag the user out of the editor.
+				SessionTransition(
+					QuickBuildSessionState.Ready(state.deployedGeneration, event.failure),
+					listOf(SessionEffect.WithdrawAsk),
+				)
 			}
 
 			is SessionEvent.QuickBuildTapped -> {
@@ -532,6 +539,7 @@ class SessionReducer {
 					SessionTransition(
 						state,
 						listOf(
+							SessionEffect.RecordAsk,
 							SessionEffect.TriggerLiveReload(
 								userInitiated = true,
 								expectChanges = event.wroteSomething,
@@ -540,8 +548,9 @@ class SessionReducer {
 					)
 				} else {
 					// The in-flight build satisfies the tap's build but not the ask, so record
-					// the ask on it (behaviour 2) rather than dropping it.
-					SessionTransition(state, listOf(SessionEffect.MarkBuildUserInitiated))
+					// the ask and promote that build to answer it (behaviour 2) rather than
+					// dropping it.
+					SessionTransition(state, listOf(SessionEffect.RecordAsk, SessionEffect.MarkBuildUserInitiated))
 				}
 			}
 
@@ -549,13 +558,13 @@ class SessionReducer {
 				if (state.warmingCompiler) {
 					// The warm compile is not the user's build: unasked for, deploys nothing,
 					// and the button shows the bolt throughout. Nothing here to cancel.
-					SessionTransition(state)
+					SessionTransition(state, listOf(SessionEffect.WithdrawAsk))
 				} else {
 					// Behaviour 5: back to the generation the proxy app still runs, with no
 					// failure recorded - the user chose this, it is not an error.
 					SessionTransition(
 						QuickBuildSessionState.Ready(state.deployedGeneration),
-						listOf(SessionEffect.CancelLiveReload),
+						listOf(SessionEffect.WithdrawAsk, SessionEffect.CancelLiveReload),
 					)
 				}
 			}
@@ -568,7 +577,7 @@ class SessionReducer {
 
 			is SessionEvent.InvalidationDetected -> {
 				SessionTransition(
-					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration, userInitiated = event.userInitiated),
+					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration),
 					listOf(SessionEffect.RunProxyAppRebuild),
 				)
 			}
@@ -632,19 +641,19 @@ class SessionReducer {
 	private fun reduceInvalidated(
 		state: QuickBuildSessionState.Invalidated,
 		event: SessionEvent,
+		askOutstanding: Boolean,
 	): SessionTransition =
 		when (event) {
 			SessionEvent.ProxyAppRebuildStarted -> {
 				// A rebuild is a full Gradle build a save can also trigger, so finishing one is
-				// not by itself a reason to leave the editor: userInitiated is carried only
-				// when the batch that invalidated the baseline consumed a tap, and a tap that
-				// triggered a retry is answered by the SwitchToProxyApp the shell holds
-				// instead. The auto-retry count is carried so an unconfirmed reinstall parks
-				// back with it intact, and the reason so the status surfaces can call this a
-				// rebaseline without having to have seen the Invalidated hop.
+				// not by itself a reason to leave the editor: only an outstanding ask - a tap
+				// the invalidating batch consumed, or one that triggered the retry - makes the
+				// rebuild's relaunch bring the app forward. The auto-retry count is carried so
+				// an unconfirmed reinstall parks back with it intact, and the reason so the
+				// status surfaces can call this a rebaseline without having to have seen the
+				// Invalidated hop.
 				SessionTransition(
 					QuickBuildSessionState.Provisioning(
-						userInitiated = state.userInitiated,
 						installAutoRetries = state.installAutoRetries,
 						rebaselineReason = state.reason,
 					),
@@ -659,16 +668,16 @@ class SessionReducer {
 					//
 					// The tap is still a request to see the app, so it is recorded rather than
 					// dropped - but a rebaseline holds the screen for a full Gradle build and an
-					// install only CoGo can confirm, so the shell holds the switch until the
-					// rebuild lands and abandons it if it does not. Answering it now would park
-					// the user in the app they already had for the whole build.
+					// install only CoGo can confirm, so the rebuild's relaunch answers it and a
+					// park withdraws it. Answering it now would put the user in the app they
+					// already had for the whole build.
 					SessionTransition(
 						state.copy(awaitingRetry = false, installAutoRetries = 0),
-						listOf(SessionEffect.RunProxyAppRebuild, SessionEffect.SwitchToProxyApp),
+						listOf(SessionEffect.RecordAsk, SessionEffect.RunProxyAppRebuild),
 					)
 				} else {
-					// A proxy app rebuild is already in flight; the trigger has nothing to add.
-					SessionTransition(state)
+					// A proxy app rebuild is already in flight; the tap adds only the ask.
+					SessionTransition(state, listOf(SessionEffect.RecordAsk))
 				}
 			}
 
@@ -680,21 +689,12 @@ class SessionReducer {
 					// foreground return, so nothing else would unpark it. The budget resets because
 					// a changed file is a genuinely new attempt, not a retry of the failure.
 					SessionTransition(
-						state.copy(
-							reason = event.reason,
-							awaitingRetry = false,
-							installAutoRetries = 0,
-							// The save that unparks may be a tap's own save-all, so the ask
-							// rides on the event and is kept, never rebuilt from defaults.
-							userInitiated = state.userInitiated || event.userInitiated,
-						),
+						state.copy(reason = event.reason, awaitingRetry = false, installAutoRetries = 0),
 						listOf(SessionEffect.RunProxyAppRebuild),
 					)
 				} else {
-					// A proxy app rebuild is already in flight; it will build from current
-					// disk. Only the ask is news: a tap consumed by this batch is answered
-					// when that rebuild lands, so it must not vanish with the duplicate report.
-					SessionTransition(state.copy(userInitiated = state.userInitiated || event.userInitiated))
+					// A proxy app rebuild is already in flight; it will build from current disk.
+					SessionTransition(state)
 				}
 			}
 
@@ -722,7 +722,7 @@ class SessionReducer {
 					// without a BuildStarted of its own when the park and the build raced.
 					SessionTransition(
 						QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted, event.diagnostics),
-						if (event.userInitiated) listOf(SessionEffect.SwitchToProxyApp) else emptyList(),
+						if (askOutstanding) listOf(SessionEffect.SwitchToProxyApp) else emptyList(),
 					)
 				} else {
 					// The rebuild that superseded this build is what the session waits on.
@@ -737,8 +737,11 @@ class SessionReducer {
 					// Same reachability as BuildSucceeded above. The failure has to be visible:
 					// a compile error is fixable in seconds, which is what Ready.lastFailure is
 					// for, and the next save re-reports the invalidation if the baseline is
-					// still stale.
-					SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration, event.failure))
+					// still stale. The failure answers the tap, as in Building.
+					SessionTransition(
+						QuickBuildSessionState.Ready(state.deployedGeneration, event.failure),
+						listOf(SessionEffect.WithdrawAsk),
+					)
 				} else {
 					SessionTransition(state)
 				}
@@ -789,7 +792,7 @@ class SessionReducer {
 				// has moved the session on). The stop still withdraws the ask, so a rebuild
 				// it could not stop lands in the background instead of pulling the user
 				// into the app they just asked to stop.
-				SessionTransition(state.copy(userInitiated = false))
+				SessionTransition(state, listOf(SessionEffect.WithdrawAsk))
 			}
 
 			SessionEvent.HostForegrounded -> {
@@ -839,6 +842,7 @@ class SessionReducer {
 	private fun reduceDegraded(
 		state: QuickBuildSessionState.Degraded,
 		event: SessionEvent,
+		askOutstanding: Boolean,
 	): SessionTransition =
 		when (event) {
 			SessionEvent.DaemonRespawned -> {
@@ -871,13 +875,15 @@ class SessionReducer {
 				// The one gesture the user has while the compiler is down, so it must not fall through
 				// to the else below - that would answer the tap with no build, no message and no Build
 				// Output line, since that pane is driven by status transitions. The message goes out
-				// in both arms so the tap is never silent.
+				// in both arms so the tap is never silent, and the ask is recorded in both so the
+				// build that follows the respawn answers it.
 				if (state.restartFailed) {
 					// Nothing is scheduled any more, so the tap is the retry; clearing
 					// restartFailed puts the status back to "restarting".
 					SessionTransition(
 						state.copy(restartFailed = false),
 						listOf(
+							SessionEffect.RecordAsk,
 							SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying),
 							SessionEffect.RespawnDaemon,
 						),
@@ -888,7 +894,7 @@ class SessionReducer {
 					// the same daemon rather than be answered with Superseded. Ack only.
 					SessionTransition(
 						state,
-						listOf(SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying)),
+						listOf(SessionEffect.RecordAsk, SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying)),
 					)
 				}
 			}
@@ -908,7 +914,7 @@ class SessionReducer {
 				// moved the proxy app, whatever the daemon did afterwards.
 				SessionTransition(
 					QuickBuildSessionState.Deployed(event.generation, event.durationMillis, event.restarted, event.diagnostics),
-					if (event.userInitiated) listOf(SessionEffect.SwitchToProxyApp) else emptyList(),
+					if (askOutstanding) listOf(SessionEffect.SwitchToProxyApp) else emptyList(),
 				)
 			}
 
@@ -916,7 +922,10 @@ class SessionReducer {
 				// Same reachability as BuildSucceeded above. A build that reported diagnostics reached
 				// a working compiler, so Ready is honest and the diagnostics are what the user needs;
 				// a daemon death arrives as DaemonDied instead, never here.
-				SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration, event.failure))
+				SessionTransition(
+					QuickBuildSessionState.Ready(state.deployedGeneration, event.failure),
+					listOf(SessionEffect.WithdrawAsk),
+				)
 			}
 
 			SessionEvent.WarmCompileStarted,
@@ -943,13 +952,20 @@ class SessionReducer {
 				// the daemon, and the shell's daemonEpoch guard keeps it from racing the
 				// in-flight respawn.
 				SessionTransition(
-					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration, userInitiated = event.userInitiated),
+					QuickBuildSessionState.Invalidated(event.reason, state.deployedGeneration),
 					listOf(SessionEffect.RunProxyAppRebuild),
 				)
 			}
 
 			SessionEvent.ExternalBuildCompleted -> {
 				SessionTransition(state, listOf(SessionEffect.RefreshBaseline))
+			}
+
+			SessionEvent.CancelRequested -> {
+				// Nothing to stop, since a save's build only becomes cancellable once
+				// BuildStarted has moved the session to Building; the stop still withdraws an
+				// outstanding ask, as every state's stop does.
+				SessionTransition(state, listOf(SessionEffect.WithdrawAsk))
 			}
 
 			SessionEvent.SessionRestartRequested -> {
@@ -960,7 +976,6 @@ class SessionReducer {
 				reprovision(state, event)
 			}
 
-			SessionEvent.CancelRequested,
 			SessionEvent.FileSaved,
 			SessionEvent.PrebuildRequested,
 			SessionEvent.PrebuildFinished,
@@ -973,10 +988,8 @@ class SessionReducer {
 			SessionEvent.HostForegrounded,
 			-> {
 				// The prebuild and provisioning events belong to phases with no live session;
-				// CancelRequested has nothing to stop, since a save's build only becomes
-				// cancellable once BuildStarted has moved the session to Building; the
-				// ProxyAppRebuild* events are dispatched from Provisioning; and HostForegrounded
-				// is only a parked Invalidated's retry trigger.
+				// the ProxyAppRebuild* events are dispatched from Provisioning; and
+				// HostForegrounded is only a parked Invalidated's retry trigger.
 				SessionTransition(state)
 			}
 		}

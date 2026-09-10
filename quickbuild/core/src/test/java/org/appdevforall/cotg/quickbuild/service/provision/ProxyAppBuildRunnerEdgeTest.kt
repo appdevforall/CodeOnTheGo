@@ -79,6 +79,7 @@ class ProxyAppBuildRunnerEdgeTest {
 					watcherFactory = { _, _, _, _ -> error("not reached by these seams") },
 					scope = CoroutineScope(StandardTestDispatcher()),
 					onOrchestratorEvent = {},
+					askOutstanding = { false },
 					assetsLiveReloadable = true,
 				),
 			generationStoreFactory = { MemoryGenerationStore() },

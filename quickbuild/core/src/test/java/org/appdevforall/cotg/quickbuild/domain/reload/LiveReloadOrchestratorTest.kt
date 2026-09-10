@@ -542,7 +542,7 @@ class LiveReloadOrchestratorTest {
 
 			assertThat(executor.requests).isEmpty()
 			assertThat(events).containsExactly(
-				OrchestratorEvent.InvalidationRequired(InvalidationReason.GRADLE_CONFIG_CHANGED, userInitiated = true),
+				OrchestratorEvent.InvalidationRequired(InvalidationReason.GRADLE_CONFIG_CHANGED),
 			)
 		}
 
@@ -1068,67 +1068,49 @@ class LiveReloadOrchestratorTest {
 			assertThat(events).isEmpty()
 		}
 
-	// pendingUserInitiated must not latch across a rebaseline: the tap it records is answered by
-	// the Gradle build that absorbs its changes, and a surviving flag would report the next
-	// unrelated automatic save as the user's own ask, pulling them out of the editor into the
-	// proxy app.
+	// The ask is the session's, not the orchestrator's: a build that starts while a tap is
+	// outstanding carries userInitiated = true, and one that starts after the session answered
+	// or withdrew the ask does not. Nothing here latches a tap, so a tap absorbed by a proxy
+	// app rebuild cannot report the next unrelated automatic save as the user's own ask and
+	// pull them out of the editor into the proxy app.
 	@Test
-	fun `a tap absorbed by a proxy app rebuild does not tag the next automatic save as the user's ask`() =
+	fun `a build's userInitiated is a snapshot of the session's ask when the build starts`() =
 		runTest {
+			var ask = false
 			val executor = GatedExecutor()
-			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope, askOutstanding = { ask }) {}
 
 			// A manifest edit parks the session on an invalidation, so the tap lands with real work
-			// pending and no build to consume it - which is what arms the flag.
+			// pending and no build to consume it.
 			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
 			runCurrent()
+			ask = true
 			assertThat(orchestrator.onLiveReloadRequested(userInitiated = true))
 				.isEqualTo(LiveReloadRequestOutcome.AWAITS_DEPLOY)
 			runCurrent()
 			assertThat(executor.requests).isEmpty()
 
-			// Gradle absorbs the manifest edit; that build is the answer to the tap.
+			// Gradle absorbs the manifest edit; its relaunch answers the tap, so the session
+			// withdraws the ask.
 			orchestrator.onProxyAppRebuildStarted()
 			orchestrator.onBaselineReset()
 			runCurrent()
+			ask = false
 			assertThat(executor.requests).isEmpty()
 
 			// A plain autosave, much later. The user asked for nothing here.
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
+			assertThat(executor.requests.single().userInitiated).isFalse()
+
+			// A save whose build starts while a tap is outstanding is the tap's build.
 			executor.finish(0, success(generation = 1))
 			runCurrent()
-
-			assertThat(executor.requests.single().userInitiated).isFalse()
-			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
-			assertThat(succeeded.userInitiated).isFalse()
-		}
-
-	@Test
-	fun `a tap dropped by the no-rebuild-started fallback does not tag the next save either`() =
-		runTest {
-			val executor = GatedExecutor()
-			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
-
-			orchestrator.onFilesChanged(known("app/src/main/AndroidManifest.xml"))
+			ask = true
+			orchestrator.onFilesChanged(known(srcB))
 			runCurrent()
-			assertThat(orchestrator.onLiveReloadRequested(userInitiated = true))
-				.isEqualTo(LiveReloadRequestOutcome.AWAITS_DEPLOY)
-			// Drops the pending set, and with it the tap that asked about it.
-			orchestrator.onBaselineReset()
-			runCurrent()
-			assertThat(executor.requests).isEmpty()
-
-			orchestrator.onFilesChanged(known(srcA))
-			runCurrent()
-			executor.finish(0, success(generation = 1))
-			runCurrent()
-
-			assertThat(executor.requests.single().userInitiated).isFalse()
-			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
-			assertThat(succeeded.userInitiated).isFalse()
+			assertThat(executor.requests).hasSize(2)
+			assertThat(executor.requests[1].userInitiated).isTrue()
 		}
 
 	@Test
@@ -1520,9 +1502,9 @@ class LiveReloadOrchestratorTest {
 	@Test
 	fun `a tap with pending work reports that its answer is the deploy, and tags that build`() =
 		runTest {
+			var ask = false
 			val executor = GatedExecutor()
-			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope, askOutstanding = { ask }) {}
 
 			// A save landed but its build has not started yet (mid-rebuild absorption is the
 			// real-world shape); the tap coalesces into it and must wait for the deploy.
@@ -1531,15 +1513,13 @@ class LiveReloadOrchestratorTest {
 			runCurrent()
 			assertThat(executor.requests).isEmpty()
 
+			ask = true
 			val outcome = orchestrator.onLiveReloadRequested(userInitiated = true)
 			orchestrator.onBaselineReset()
 			runCurrent()
-			executor.finish(0, success(generation = 2))
-			runCurrent()
 
 			assertThat(outcome).isEqualTo(LiveReloadRequestOutcome.AWAITS_DEPLOY)
-			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
-			assertThat(succeeded.userInitiated).isTrue()
+			assertThat(executor.requests.single().userInitiated).isTrue()
 		}
 
 	@Test
@@ -1572,8 +1552,7 @@ class LiveReloadOrchestratorTest {
 			// inside the coalescer window. The batch, not the tap, drives the one build - so it
 			// is routed off the real changed-set instead of a forced blind NoOp.
 			val executor = GatedExecutor()
-			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope, askOutstanding = { true }) {}
 
 			val outcome = orchestrator.onLiveReloadRequested(userInitiated = true, expectChanges = true)
 			runCurrent()
@@ -1588,31 +1567,29 @@ class LiveReloadOrchestratorTest {
 			assertThat(request.forced).isFalse()
 			assertThat(request.userInitiated).isTrue()
 
-			executor.finish(0, success(generation = 1))
-			runCurrent()
-			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
-			assertThat(succeeded.userInitiated).isTrue()
-
-			// The batch already answered the tap, so the deadline fallback must find nothing.
-			assertThat(orchestrator.consumeUnansweredTap()).isFalse()
+			// That build owes the answer, so the deadline fallback must do nothing.
+			assertThat(orchestrator.askHasNoAnswerComing()).isFalse()
 		}
 
 	@Test
-	fun `an armed tap whose batch never comes is consumed by the deadline exactly once`() =
+	fun `an armed tap whose batch never comes is left to the deadline, for as long as the ask stands`() =
 		runTest {
 			// The .md-save edge: every written file was watcher-irrelevant, so no batch ever
 			// arrives and the deadline is the only thing left to answer the tap.
+			var ask = true
 			val executor = GatedExecutor()
-			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope, askOutstanding = { ask }) {}
 
 			orchestrator.onLiveReloadRequested(userInitiated = true, expectChanges = true)
 			runCurrent()
 
-			assertThat(orchestrator.consumeUnansweredTap()).isTrue()
-			// Exactly once: a second fallback (two taps racing) must not switch again.
-			assertThat(orchestrator.consumeUnansweredTap()).isFalse()
+			assertThat(orchestrator.askHasNoAnswerComing()).isTrue()
+			// The session answers the ask exactly once; a second fallback (two taps racing)
+			// then finds nothing to switch for.
+			ask = false
+			assertThat(orchestrator.askHasNoAnswerComing()).isFalse()
 
-			// The expired tap leaves nothing behind: a later save's build is not the user's ask.
+			// The answered tap leaves nothing behind: a later save's build is not the user's ask.
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
 			assertThat(executor.requests.single().forced).isFalse()
@@ -1622,19 +1599,15 @@ class LiveReloadOrchestratorTest {
 	@Test
 	fun `a build a save triggered is never tagged as user-initiated`() =
 		runTest {
-			// Behaviour 3, at the source: nothing about a watcher batch may set the flag that
+			// Behaviour 3, at the source: nothing about a watcher batch may tag the build that
 			// pulls the user out of the editor.
 			val executor = GatedExecutor()
-			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
 
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
-			executor.finish(0, success(generation = 1))
-			runCurrent()
 
-			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
-			assertThat(succeeded.userInitiated).isFalse()
+			assertThat(executor.requests.single().userInitiated).isFalse()
 		}
 
 	@Test
@@ -1654,37 +1627,39 @@ class LiveReloadOrchestratorTest {
 
 			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
 			assertThat(succeeded.result.generation).isEqualTo(1)
-			assertThat(succeeded.userInitiated).isFalse()
+			// Both the save's build and the forced catch-up behind it left with no ask.
+			assertThat(executor.requests.map { it.userInitiated }).doesNotContain(true)
 		}
 
 	@Test
 	fun `a failed user-initiated build does not re-tag the save that retries it`() =
 		runTest {
-			// The tap was already answered - with the compile error. The save that fixes the
-			// code is not a new ask, so it must not yank the user out of the editor.
+			// The tap was already answered - with the compile error - and the session withdrew
+			// the ask on BuildFailed. The save that fixes the code is not a new ask, so its
+			// build reads that and must not yank the user out of the editor.
+			var ask = false
 			val executor = GatedExecutor()
-			val events = mutableListOf<OrchestratorEvent>()
-			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) { events += it }
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope, askOutstanding = { ask }) {}
 
 			// Hold the batch so the tap lands BEFORE the build starts and really tags it.
 			orchestrator.onProxyAppRebuildStarted()
 			orchestrator.onFilesChanged(known(srcA))
+			ask = true
 			orchestrator.onLiveReloadRequested(userInitiated = true)
 			orchestrator.onBaselineReset()
 			runCurrent()
 			assertThat(executor.requests).hasSize(1)
+			assertThat(executor.requests[0].userInitiated).isTrue()
 
 			// A save lands mid-build so the failure triggers an immediate follow-up.
 			orchestrator.onFilesChanged(known(srcB))
 			runCurrent()
+			ask = false
 			executor.finish(0, compileError())
 			runCurrent()
 			assertThat(executor.requests).hasSize(2)
-			executor.finish(1, success(generation = 1))
-			runCurrent()
 
-			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
-			assertThat(succeeded.userInitiated).isFalse()
+			assertThat(executor.requests[1].userInitiated).isFalse()
 			// A tap no longer forces anything, so there is no forced flag to survive either;
 			// forced-survives-failure is pinned on the reconnect path, the one caller left
 			// that sets it (see `a failed forced catch-up build retries forced`).
@@ -1706,8 +1681,7 @@ class LiveReloadOrchestratorTest {
 			runCurrent()
 
 			assertThat(executor.requests).hasSize(1)
-			val succeeded = events.filterIsInstance<OrchestratorEvent.BuildSucceeded>().single()
-			assertThat(succeeded.userInitiated).isTrue()
+			assertThat(events.filterIsInstance<OrchestratorEvent.BuildSucceeded>()).hasSize(1)
 			// The request left before the tap arrived, so unless the executor is told
 			// separately this build's deploy still refuses to open a closed app - and the tap
 			// silently does nothing.
@@ -1730,15 +1704,16 @@ class LiveReloadOrchestratorTest {
 	@Test
 	fun `a tap's build is user-initiated, so its deploy may open the app`() =
 		runTest {
+			var ask = false
 			val executor = GatedExecutor()
-			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope, askOutstanding = { ask }) {}
 
-			// A tap only arms the flag when there is real work to wait for; a tap with nothing
-			// pending is answered by the caller itself. So park a build in flight, save again
-			// so the next batch is pending, then tap.
+			// A tap with nothing pending is answered by the caller itself, so park a build in
+			// flight, save again so the next batch is pending, then tap with the ask recorded.
 			orchestrator.onFilesChanged(known(srcA))
 			runCurrent()
 			orchestrator.onFilesChanged(known(srcB))
+			ask = true
 			orchestrator.onLiveReloadRequested(userInitiated = true)
 			runCurrent()
 
@@ -1747,9 +1722,9 @@ class LiveReloadOrchestratorTest {
 
 			assertThat(executor.requests).hasSize(2)
 			assertThat(executor.requests[1].userInitiated).isTrue()
-			// The tap arms the NEXT request only: the build already in flight left before the
-			// tap and stays untagged, or its deploy would take the screen for work nobody asked
-			// about. No promotion either - that is markInFlightUserInitiated's job, not a tap's.
+			// The ask is read when a request leaves: the build already in flight left before
+			// the tap and stays untagged, or its deploy would take the screen for work nobody
+			// asked about. No promotion either - that is markInFlightUserInitiated's job.
 			assertThat(executor.requests[0].userInitiated).isFalse()
 			assertThat(executor.promotions).isEqualTo(0)
 		}
