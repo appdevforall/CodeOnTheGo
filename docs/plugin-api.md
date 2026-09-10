@@ -17,10 +17,10 @@ The surface a plugin binds to is broader than one module. All of the following a
   - Data classes plugins **construct** (e.g. `MenuItem`, `TabItem`, `EditorTabItem`, `NavigationItem`, `ToolbarAction`, `FabAction`, `PluginBuildAction`, `SnippetContribution`, `PluginTooltipEntry`, `PluginSettingsEntry`).
   - Enums / sealed types plugins **reference**: `PluginPermission`, `ShowAsAction`, `ArchiveFormat`, `BuildActionCategory`, `ToolbarActionIds`, `CommandSpec`, `CommandResult`, `ExtractResult`, `KeystoreSecretStore.Stored`. Sealed, so a plugin `when`s over the cases exhaustively — adding one is a **breaking** change, not an additive one.
 - **Wire/format contracts outside the module:**
-  - Manifest `<meta-data>` keys — `plugin.id`, `plugin.name`, `plugin.version`, `plugin.description`, `plugin.author`, `plugin.main_class`, `plugin.min_ide_version`, `plugin.max_ide_version`, `plugin.permissions`, `plugin.sidebar_items`, `plugin.icon_day`, `plugin.icon_night`. Matched **by string** — a rename silently breaks every plugin.
+  - Manifest `<meta-data>` keys — `plugin.id`, `plugin.name`, `plugin.version`, `plugin.description`, `plugin.author`, `plugin.main_class`, `plugin.min_ide_version`, `plugin.max_ide_version`, `plugin.permissions`, `plugin.sidebar_items`, `plugin.icon_day`, `plugin.icon_night`, `plugin.vcs_revision`, `plugin.build_timestamp`. Matched **by string** — a rename silently breaks every plugin.
   - Permission **key strings** (`filesystem.read`, `filesystem.write`, `network.access`, `system.commands`, `ide.settings`, `project.structure`, `native.code`, `ide.environment.write`) — also matched by string.
   - The path allowlist and per-plugin data directories enforced by `IdeFileService` / `IdeArchiveService`.
-  - File/format contracts: the `.cgp` package format, the `.cgt` template format, the `plugin_documentation.db` schema, `.codeonthego/scripts.json`, the TextMate snippet syntax, and the `http://localhost:6174/` help-server URL scheme with the `plugin/<pluginId>/` namespace.
+  - File/format contracts: the `.cgp` package format (including `assets/cgp-build.properties`, the provenance record the builder writes into every artifact — see [PLUGIN_AUTHORING.md](PLUGIN_AUTHORING.md#provenance)), the `.cgt` template format, the `plugin_documentation.db` schema, `.codeonthego/scripts.json`, the TextMate snippet syntax, and the `http://localhost:6174/` help-server URL scheme with the `plugin/<pluginId>/` namespace.
 
 ## Current compatibility policy — read this
 

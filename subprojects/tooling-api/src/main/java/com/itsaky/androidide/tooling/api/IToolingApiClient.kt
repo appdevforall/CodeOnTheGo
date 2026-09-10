@@ -81,6 +81,31 @@ interface IToolingApiClient {
 	fun onBuildFailed(result: BuildResult)
 
 	/**
+	 * Called when the Gradle daemon this server drives has been identified.
+	 *
+	 * The daemon is a separate process, spawned by the Tooling API a moment after a build starts,
+	 * and it is the largest memory consumer of the three -- larger than the IDE and the tooling
+	 * server together on a Compose project. Only the server can name it: the daemon is its own
+	 * child, and the client has no handle on it (ADFA-5514).
+	 *
+	 * Reported once per daemon, not once per build. A daemon outlives the build that spawned it and
+	 * goes on holding its heap while idle, which is exactly what a user on a small device needs to
+	 * see.
+	 *
+	 * @param pid The process id of the Gradle daemon.
+	 */
+	@JsonNotification
+	fun onGradleDaemonStarted(pid: Int)
+
+	/**
+	 * Called when the Gradle daemon reported by [onGradleDaemonStarted] has exited.
+	 *
+	 * @param pid The process id of the daemon that exited.
+	 */
+	@JsonNotification
+	fun onGradleDaemonExited(pid: Int)
+
+	/**
 	 * Called when a [ProgressEvent] is received from Gradle build.
 	 *
 	 * @param event The [ProgressEvent] model describing the event.
