@@ -15,8 +15,8 @@ flox activate -d flox/local -- ./gradlew <task>
 ```
 
 - **Debug APK (arm64, the usual target):** `flox activate -d flox/local -- ./gradlew :app:assembleV8Debug --parallel --max-workers=6`
-- **Single unit test:** `flox activate -d flox/local -- ./gradlew :module:test --tests "com.itsaky.androidide.SomeTest"`
-- **Module unit tests:** `flox activate -d flox/local -- ./gradlew :testing:unit:test`
+- **Module unit tests:** `flox activate -d flox/local -- ./gradlew :editor:testV7DebugUnitTest` - unit tests are per-flavor, there is no plain `test` task. `:plugin-api` is the one module without flavors: `:plugin-api:testDebugUnitTest`.
+- **Single unit test:** append `--tests "com.itsaky.androidide.SomeTest"` to the flavored task above.
 - **Fast iteration:** during multi-file/multi-module changes, verify with targeted `:module:compileV8DebugKotlin`/`compileV8DebugJavaWithJavac` invocations (batch several modules into one Gradle call) rather than a full assemble. Reserve `:app:assembleV8Debug` for final end-to-end verification — it's slow (multi-minute) in this multi-module project, and running it after every small change adds up.
 - **Long-running commands: narrate them, and background only the read-only ones.** Anything that can exceed ~60s — `assembleV8Debug`, a full test sweep, a cold Gradle invocation of any kind (daemon start plus configuring this many modules is ~20s before any task runs, and far worse under memory pressure), and `git push`, which runs Spotless through the hook — gets a line before it starts saying what is running and roughly how long it takes, and a status line every couple of minutes while it runs: elapsed time, the last output line, whether it is still progressing. A silent terminal is indistinguishable from a hang, and saying which it is is your job, not the user's to ask.
 
@@ -78,7 +78,7 @@ Four independent reviews of work already reported as verified each found a real 
 
 ## Code style
 
-**Tabs** for indentation, **LF** line endings — enforced by **Spotless**. The `ratchetFrom = origin/stage` ratchet is **file-level, not line-level**: it checks every file that differs from `origin/stage` and reformats each such file *in full*, so editing even one line of a file whose existing indentation doesn't conform (e.g. a layout XML using 4 spaces) pulls the **whole file** under the ratchet and requires reindenting it to tabs — a one-line edit can become a whole-file reformat. That reformat is reviewer noise: commit it **standalone** (`style: spotless reformat, no functional change`), never `--amend`ed into a behavioral commit and never mixed with one. Better, do it *first* — append a blank line to each file you are about to touch (this enrolls it in the ratchet; `endWithNewline()` strips it back out), run `spotlessApply`, commit that, then make the functional change against an already-conforming file. Java uses the **Eclipse** formatter (`spotless.eclipse-java.xml`, with member sorting + import ordering); Kotlin and `*.gradle.kts` use **ktlint**; XML uses the **Eclipse WTP** formatter. Run `./gradlew spotlessApply` to fix formatting before pushing — the `.githooks` pre-push hook does this automatically once hooks are installed and enabled (`sh ./scripts/install-git-hooks.sh`, no conflicting `core.hooksPath`). Branch names must match `.../ADFA-#####` (3–5 digits) — see CONTRIBUTING.md; a pre-commit hook enforces it (`sh ./scripts/install-git-hooks.sh`).
+**Tabs** for indentation, **LF** line endings — enforced by **Spotless**. The `ratchetFrom = origin/stage` ratchet is **file-level, not line-level**: it checks every file that differs from `origin/stage` and reformats each such file *in full*, so editing even one line of a file whose existing indentation doesn't conform (e.g. a layout XML using 4 spaces) pulls the **whole file** under the ratchet and requires reindenting it to tabs — a one-line edit can become a whole-file reformat. That reformat is reviewer noise: commit it **standalone** (`style: spotless reformat, no functional change`), never `--amend`ed into a behavioral commit and never mixed with one. Better, do it *first* — append a blank line to each file you are about to touch (this enrolls it in the ratchet; `endWithNewline()` strips it back out), run `spotlessApply`, commit that, then make the functional change against an already-conforming file. Java uses the **Eclipse** formatter (`spotless.eclipse-java.xml`, with member sorting + import ordering); Kotlin and `*.gradle.kts` use **ktlint**; XML uses the **Eclipse WTP** formatter. Run `./gradlew spotlessApply` to fix formatting before pushing — the `.githooks` pre-push hook does this automatically once hooks are enabled. `flox activate -d flox/local` installs them (it writes `.git/hooks/pre-commit` and `pre-push` shims that dispatch to `.githooks/hook`); a global `core.hooksPath` silently overrides them. Branch names must match `.../ADFA-#####` (3-5 digits) - see CONTRIBUTING.md; a pre-commit hook enforces it.
 
 Keep docs, tickets, commit messages, and PR descriptions crisp — say it once, lead with the point, cut hedging and restated context. Brevity is the soul of wit; a reader's attention is the scarce resource.
 
@@ -117,7 +117,13 @@ The names are case-sensitive as written — note the lowercase `review` and `mer
 
 **Steps to QA.** The `Steps to QA` field is what QA works from, so it matters. When it's empty, offer to write it for the user as Gherkin — Given / When / Then. When you test a ticket yourself, read `Steps to QA` and cover it *in addition to* whatever the user asked you to check.
 
+**Stay on the ticket you were given.** Comment on, transition, or edit only that ticket. Reading a related ticket for context is fine; writing to one is not - if another ticket needs a comment or a status change, say so and let the user decide.
+
 Only open new tickets when the human tells you to.
+
+### Pull requests
+
+**Open the PR body with the Jira link.** The first line is `[ADFA-####](https://appdevforall.atlassian.net/browse/ADFA-####)` with nothing above it - no heading, no summary - so a reviewer reaches the ticket in one click. Everything else follows below it.
 
 ### SonarQube MCP server
 
