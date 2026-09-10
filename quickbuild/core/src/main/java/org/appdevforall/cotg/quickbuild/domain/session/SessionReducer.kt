@@ -620,6 +620,15 @@ class SessionReducer {
 				SessionTransition(state)
 			}
 
+			SessionEvent.CancelRequested -> {
+				// Nothing here can be stopped: parked, nothing runs, and a rebuild about to
+				// start has no Gradle build yet (that only exists once ProxyAppRebuildStarted
+				// has moved the session on). The stop still withdraws the ask, so a rebuild
+				// it could not stop lands in the background instead of pulling the user
+				// into the app they just asked to stop.
+				SessionTransition(state.copy(userInitiated = false))
+			}
+
 			SessionEvent.HostForegrounded -> {
 				if (state.awaitingRetry && state.installAutoRetries < MAX_INSTALL_AUTO_RETRIES) {
 					// The user's return is the first chance to re-prompt an install dialog that
@@ -638,10 +647,9 @@ class SessionReducer {
 
 			else -> {
 				// What legitimately reaches here: the prebuild and provisioning events, which
-				// belong to phases with no live session; CancelRequested, since the button offers
-				// no stop affordance while a full build is what is needed; and the
-				// ProxyAppRebuild* outcomes, which are dispatched from Provisioning, after the
-				// ProxyAppRebuildStarted hop moved the session there.
+				// belong to phases with no live session, and the ProxyAppRebuild* outcomes,
+				// which are dispatched from Provisioning, after the ProxyAppRebuildStarted hop
+				// moved the session there.
 				SessionTransition(state)
 			}
 		}
