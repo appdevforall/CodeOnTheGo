@@ -374,6 +374,37 @@ internal class ToolingApiServerImpl(
 
 	private val daemonWatcher by lazyDaemonWatcher
 
+	/**
+	 * Serialises constructing the watcher against stopping it.
+	 *
+	 * `shutdown` and `executeTasks` arrive as separate requests and run their bodies on the common
+	 * pool, so a build submitted just before a shutdown can reach [startDaemonWatch] after shutdown
+	 * has already asked whether a watcher exists. Without this, that build constructs a watcher, and
+	 * its scheduler, that nothing will ever stop -- the leak this class's shutdown call exists to
+	 * prevent, arriving by the one route the `isInitialized` check cannot see.
+	 */
+	private val daemonWatcherLock = Any()
+
+	/** Guarded by [daemonWatcherLock]. */
+	private var isDaemonWatcherShutdown = false
+
+	/**
+	 * Starts a daemon search for a build that is beginning, unless the server is shutting down.
+	 *
+	 * Only the construction is locked. `onBuildStarted` runs outside it, so a watcher stopped in
+	 * between hits the rejection its own guard already handles rather than blocking a build thread.
+	 */
+	private fun startDaemonWatch() {
+		val watcher =
+			synchronized(daemonWatcherLock) {
+				if (isDaemonWatcherShutdown) {
+					return
+				}
+				daemonWatcher
+			}
+		watcher.onBuildStarted()
+	}
+
 	private fun notifyBuildFailure(result: BuildResult) {
 		client?.onBuildFailed(result)
 	}
@@ -431,10 +462,16 @@ internal class ToolingApiServerImpl(
 			//
 			// Through the lazy delegate rather than the property: touching the property would
 			// construct a watcher, and its scheduler, only to shut it down again on a server that
-			// never ran a build.
-			if (lazyDaemonWatcher.isInitialized()) {
+			// never ran a build. The flag closes the other half of that: a build that reaches
+			// startDaemonWatch after this point must not build one either. See daemonWatcherLock.
+			val watcher =
+				synchronized(daemonWatcherLock) {
+					isDaemonWatcherShutdown = true
+					if (lazyDaemonWatcher.isInitialized()) daemonWatcher else null
+				}
+			if (watcher != null) {
 				log.info("Stopping the Gradle daemon watcher...")
-				runCatching { daemonWatcher.shutdown() }
+				runCatching { watcher.shutdown() }
 					.onFailure { log.warn("Could not stop the Gradle daemon watcher", it) }
 			}
 
@@ -499,7 +536,7 @@ internal class ToolingApiServerImpl(
 			}
 
 			isBuildInProgress = true
-			daemonWatcher.onBuildStarted()
+			startDaemonWatch()
 			try {
 				action()
 			} finally {

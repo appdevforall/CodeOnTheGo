@@ -15,11 +15,14 @@ import io.mockk.spyk
 import io.mockk.verify
 import org.gradle.tooling.GradleConnector
 import org.gradle.tooling.ProjectConnection
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * @author Akash Yadav
@@ -158,5 +161,63 @@ class ToolingApiServerImplTest {
 		server.shutdown().get(5, TimeUnit.SECONDS)
 
 		assertThat(built).isEqualTo(0)
+	}
+
+	@Test
+	fun `a build that starts after shutdown does not build a watcher`() {
+		// Half of the shutdown-versus-build race. A build request already in flight runs its body on
+		// the common pool, so it can reach startDaemonWatch after shutdown has looked for a watcher
+		// and found none. Building one here leaves a scheduler nothing will ever stop.
+		var built = 0
+		val server =
+			ToolingApiServerImpl(
+				newDaemonWatcher = { _, _ ->
+					built++
+					mockk(relaxed = true)
+				},
+			)
+
+		server.shutdown().get(5, TimeUnit.SECONDS)
+		server.initialize(testInitParams()).get(5, TimeUnit.SECONDS)
+
+		assertThat(built).isEqualTo(0)
+	}
+
+	@Test
+	fun `shutdown waits for a watcher a concurrent build is building`() {
+		// The other half: the build gets there first, and is still inside the constructor when
+		// shutdown asks. `lazy.isInitialized()` reads false throughout that window, so without the
+		// lock shutdown concludes there is no watcher and returns while one is being built.
+		//
+		// The negative assertion is bounded rather than exact: it proves shutdown did not conclude
+		// within a second, against an unlocked shutdown that runs in milliseconds.
+		val watcher = mockk<GradleDaemonWatcher>(relaxed = true)
+		val constructing = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val server =
+			ToolingApiServerImpl(
+				newDaemonWatcher = { _, _ ->
+					constructing.countDown()
+					assertThat(release.await(5, TimeUnit.SECONDS)).isTrue()
+					watcher
+				},
+			)
+
+		val build = server.initialize(testInitParams())
+		assertThat(constructing.await(5, TimeUnit.SECONDS)).isTrue()
+
+		val shutdown = server.shutdown()
+		try {
+			shutdown.get(1, TimeUnit.SECONDS)
+			fail("shutdown completed while the watcher was still being constructed")
+		} catch (_: TimeoutException) {
+			// expected: shutdown is waiting on the lock the build holds
+		}
+
+		release.countDown()
+		build.get(5, TimeUnit.SECONDS)
+		shutdown.get(5, TimeUnit.SECONDS)
+
+		verify(exactly = 1) { watcher.shutdown() }
 	}
 }
