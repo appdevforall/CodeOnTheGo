@@ -272,6 +272,13 @@ class SessionReducer {
 				)
 			}
 
+			is SessionEvent.InvalidationDetected -> {
+				// The Gradle build in flight already reads current disk, so the invalidation
+				// itself changes nothing here. The tap it may carry is answered when this
+				// build lands, so only the ask is taken from it.
+				SessionTransition(state.copy(userInitiated = state.userInitiated || event.userInitiated))
+			}
+
 			else -> {
 				SessionTransition(state)
 			}
@@ -492,17 +499,21 @@ class SessionReducer {
 					// foreground return, so nothing else would unpark it. The budget resets because
 					// a changed file is a genuinely new attempt, not a retry of the failure.
 					SessionTransition(
-						QuickBuildSessionState.Invalidated(
-							event.reason,
-							state.deployedGeneration,
+						state.copy(
+							reason = event.reason,
 							awaitingRetry = false,
 							installAutoRetries = 0,
+							// The save that unparks may be a tap's own save-all, so the ask
+							// rides on the event and is kept, never rebuilt from defaults.
+							userInitiated = state.userInitiated || event.userInitiated,
 						),
 						listOf(SessionEffect.RunProxyAppRebuild),
 					)
 				} else {
-					// A proxy app rebuild is already in flight; it will build from current disk.
-					SessionTransition(state)
+					// A proxy app rebuild is already in flight; it will build from current
+					// disk. Only the ask is news: a tap consumed by this batch is answered
+					// when that rebuild lands, so it must not vanish with the duplicate report.
+					SessionTransition(state.copy(userInitiated = state.userInitiated || event.userInitiated))
 				}
 			}
 
