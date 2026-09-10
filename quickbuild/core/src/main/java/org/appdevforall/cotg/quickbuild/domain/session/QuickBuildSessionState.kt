@@ -42,9 +42,9 @@ sealed interface QuickBuildSessionState {
 	/**
 	 * Proxy app build, proxy-app install and daemon spawn in progress.
 	 *
-	 * @property userInitiated a Quick Build tap started this, so the proxy app is brought forward on
-	 *   [SessionEvent.ProvisioningSucceeded]; false for a proxy app rebuild, which a plain save can
-	 *   trigger and which is answered by the deferred switch the shell holds, not by this flag.
+	 * Whether a tap is waiting to see the app when this lands is not part of the state: it is
+	 * the session's one [PendingAsk], which [SessionEvent.ProvisioningSucceeded] consults.
+	 *
 	 * @property installAutoRetries carried through a proxy app rebuild so an unconfirmed reinstall
 	 *   parks back in [Invalidated] with the count intact (see [Invalidated.installAutoRetries]).
 	 * @property rebaselineReason what invalidated the baseline when this is a rebaseline rather than
@@ -53,7 +53,6 @@ sealed interface QuickBuildSessionState {
 	 *   [kotlinx.coroutines.flow.StateFlow] and may never observe that hop.
 	 */
 	data class Provisioning(
-		val userInitiated: Boolean = false,
 		val installAutoRetries: Int = 0,
 		val rebaselineReason: InvalidationReason? = null,
 	) : QuickBuildSessionState
@@ -122,16 +121,12 @@ sealed interface QuickBuildSessionState {
 	 *   unconfirmed reinstall has spent; at [SessionReducer.MAX_INSTALL_AUTO_RETRIES] the foreground
 	 *   trigger stops, so a user who keeps declining does not pay a Gradle build on every resume,
 	 *   while an explicit tap still retries and resets the budget.
-	 * @property userInitiated a Quick Build tap was consumed by the batch that invalidated the
-	 *   baseline, so the rebuild owes the switch to the proxy app; carried onto
-	 *   [Provisioning.userInitiated] by [SessionEvent.ProxyAppRebuildStarted].
 	 */
 	data class Invalidated(
 		val reason: InvalidationReason,
 		val deployedGeneration: Long,
 		val awaitingRetry: Boolean = false,
 		val installAutoRetries: Int = 0,
-		val userInitiated: Boolean = false,
 	) : QuickBuildSessionState
 
 	/**
@@ -229,12 +224,9 @@ sealed interface SessionEvent {
 	 *
 	 * @property generation the generation the freshly installed proxy app starts at; every later
 	 *   deploy must be strictly newer.
-	 * @property askAlreadyAnswered the path that provisioned already brought the app forward for
-	 *   the outstanding tap, so landing must not switch to it a second time.
 	 */
 	data class ProvisioningSucceeded(
 		val generation: Long,
-		val askAlreadyAnswered: Boolean = false,
 	) : SessionEvent
 
 	/**
@@ -268,9 +260,6 @@ sealed interface SessionEvent {
 	 *   not the build alone.
 	 * @property restarted true when the deploy restarted the proxy-app process (component code
 	 *   changed).
-	 * @property userInitiated true when this build answers a Quick Build tap, so the deploy landing
-	 *   is the moment to bring the proxy app forward; false for a build a file write
-	 *   triggered - a save is not the user asking to leave the editor - and for a cancelled tap.
 	 * @property diagnostics the warnings the compile still produced, surfaced as
 	 *   [QuickBuildSessionState.Deployed.diagnostics] beside the landed generation.
 	 */
@@ -278,7 +267,6 @@ sealed interface SessionEvent {
 		val generation: Long,
 		val durationMillis: Long,
 		val restarted: Boolean = false,
-		val userInitiated: Boolean = false,
 		val diagnostics: List<BuildDiagnostic> = emptyList(),
 	) : SessionEvent
 
@@ -307,12 +295,9 @@ sealed interface SessionEvent {
 	 *
 	 * @property reason what could not be absorbed; reported once per invalidation, so no state may
 	 *   silently drop this event.
-	 * @property userInitiated the batch that proved the invalidation also consumed a Quick Build
-	 *   tap, so the rebuild it triggers owes the user the switch to the proxy app.
 	 */
 	data class InvalidationDetected(
 		val reason: InvalidationReason,
-		val userInitiated: Boolean = false,
 	) : SessionEvent
 
 	/** The full Gradle proxy app rebuild has been kicked off. */
@@ -428,8 +413,8 @@ sealed interface SessionEvent {
 	 * and a second tap for the user to discover (T15).
 	 *
 	 * @property userInitiated true when a user gesture (the menu item, the dialog) asked for the
-	 *   restart. Copied into [QuickBuildSessionState.Provisioning.userInitiated], so the fresh
-	 *   session brings the proxy app forward when it goes live. False for an automatic
+	 *   restart. Recorded as the session's [PendingAsk], so the fresh session brings the proxy
+	 *   app forward when it goes live. False for an automatic
 	 *   reprovision, such as a Build Variants switch re-syncing the project, where nobody asked
 	 *   to leave the editor. Defaults to true; automatic callers opt out explicitly.
 	 */
@@ -466,9 +451,28 @@ sealed interface SessionEffect {
 	/**
 	 * Bring the proxy app to the foreground - the answer to a tap.
 	 *
-	 * Never emitted for a build a file write triggered, nor after a cancelled tap.
+	 * Emitted only while the session's [PendingAsk] is outstanding (the reducer is told), so a
+	 * build a file write triggered, or one whose tap was stopped, lands in the background.
 	 */
 	data object SwitchToProxyApp : SessionEffect
+
+	/**
+	 * Remember that a Quick Build tap is waiting to see the app: record it on the session's
+	 * [PendingAsk].
+	 *
+	 * First in its effect list on purpose: a [TriggerLiveReload] launched after it reads the ask
+	 * when the build starts.
+	 */
+	data object RecordAsk : SessionEffect
+
+	/**
+	 * Forget the outstanding tap without answering it: a stop, a park, a failed build or a torn
+	 * down session.
+	 *
+	 * First in its effect list on purpose: a [CancelProxyAppRebuild] that loses the race to
+	 * Gradle finishing lets the rebaseline run on, and its relaunch reads the ask.
+	 */
+	data object WithdrawAsk : SessionEffect
 
 	/**
 	 * Record that a tap landed on a real build already in flight, so its deploy brings the proxy

@@ -78,6 +78,7 @@ class LiveSessionFactoryTest {
 		watcherFactory = watcherFactory,
 		scope = CoroutineScope(StandardTestDispatcher()),
 		onOrchestratorEvent = {},
+		askOutstanding = { false },
 		assetsLiveReloadable = true,
 		ioDispatcher = ioDispatcher,
 	)

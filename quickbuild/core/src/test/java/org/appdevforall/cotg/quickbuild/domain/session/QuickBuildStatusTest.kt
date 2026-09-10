@@ -19,15 +19,6 @@ class QuickBuildStatusTest {
 	}
 
 	@Test
-	fun `who asked for a provision does not change what the surface shows`() {
-		// userInitiated exists to decide where the user ENDS UP, not what the status line and
-		// the toolbar icon say. Leaking it into the derived status would also break the
-		// StateFlow conflation the toolbar repaint depends on.
-		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Provisioning(userInitiated = true)))
-			.isEqualTo(QuickBuildStatus.from(QuickBuildSessionState.Provisioning(userInitiated = false)))
-	}
-
-	@Test
 	fun `background prebuilding maps to hidden - the user never asked for it`() {
 		assertThat(QuickBuildStatus.from(QuickBuildSessionState.Prebuilding(tapQueued = false)))
 			.isEqualTo(QuickBuildStatus.Hidden())

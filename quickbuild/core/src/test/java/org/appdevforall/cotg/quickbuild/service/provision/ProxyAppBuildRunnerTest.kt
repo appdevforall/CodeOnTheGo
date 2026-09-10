@@ -139,6 +139,7 @@ class ProxyAppBuildRunnerTest {
 					watcherFactory = { _, _, _, _ -> error("not used by these seams") },
 					scope = CoroutineScope(StandardTestDispatcher()),
 					onOrchestratorEvent = {},
+					askOutstanding = { false },
 					assetsLiveReloadable = true,
 				),
 			generationStoreFactory = { MemoryGenerationStore() },

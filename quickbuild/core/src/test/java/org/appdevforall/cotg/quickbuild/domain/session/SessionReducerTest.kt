@@ -13,8 +13,8 @@ class SessionReducerTest {
 	fun `idle plus QuickBuildTapped starts provisioning`() {
 		val transition = reducer.reduce(QuickBuildSessionState.Idle(), SessionEvent.QuickBuildTapped())
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartProvisioning))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.StartProvisioning))
 	}
 
 	@Test
@@ -67,7 +67,7 @@ class SessionReducerTest {
 
 		assertThat(transition.state).isEqualTo(warmCompiling)
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
+			.isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.TriggerLiveReload(userInitiated = true)))
 	}
 
 	// A crash of the RUNNING generation during the warm-compile
@@ -117,25 +117,30 @@ class SessionReducerTest {
 		// lastStartFailed keeps the error tone on the bolt until the next tap or save (Q8).
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle(lastStartFailed = true))
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.SurfaceProvisioningError(QuickBuildMessage.Literal("boom"))))
+			.isEqualTo(
+				listOf(
+					SessionEffect.WithdrawAsk,
+					SessionEffect.SurfaceProvisioningError(QuickBuildMessage.Literal("boom")),
+				),
+			)
 	}
 
 	@Test
 	fun `a tap during provisioning records the ask instead of dropping it`() {
 		// The user clicked Quick Build, so the switch to the proxy app happens once enough
 		// building has happened - here, when the full build in flight lands. The case that
-		// matters is a save-triggered rebaseline: it provisions with userInitiated = false,
-		// so dropping the tap left that ask permanently unanswered.
+		// matters is a save-triggered rebaseline: nobody recorded an ask when it started, so
+		// dropping the tap left that ask permanently unanswered.
 		val rebaselining =
 			QuickBuildSessionState.Provisioning(rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED)
 		val transition = reducer.reduce(rebaselining, SessionEvent.QuickBuildTapped())
 
-		// No effect on purpose: the build in flight already covers the tap's build half.
-		assertThat(transition.state).isEqualTo(rebaselining.copy(userInitiated = true))
-		assertThat(transition.effects).isEmpty()
+		// Only the ask: the build in flight already covers the tap's build half.
+		assertThat(transition.state).isEqualTo(rebaselining)
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk))
 
 		// The recorded ask is answered when that build lands.
-		val landed = reducer.reduce(transition.state, SessionEvent.ProvisioningSucceeded(3))
+		val landed = reducer.reduce(transition.state, SessionEvent.ProvisioningSucceeded(3), askOutstanding = true)
 		assertThat(landed.effects).contains(SessionEffect.SwitchToProxyApp)
 	}
 
@@ -146,7 +151,7 @@ class SessionReducerTest {
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1))
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
+			.isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.TriggerLiveReload(userInitiated = true)))
 	}
 
 	@Test
@@ -159,7 +164,7 @@ class SessionReducerTest {
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Deployed(2, 500))
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
+			.isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.TriggerLiveReload(userInitiated = true)))
 	}
 
 	// The tap's one bit (whether its save-all wrote anything) must reach the orchestrator, or
@@ -178,7 +183,12 @@ class SessionReducerTest {
 
 			assertThat(transition.state).isEqualTo(state)
 			assertThat(transition.effects)
-				.isEqualTo(listOf(SessionEffect.TriggerLiveReload(userInitiated = true, expectChanges = true)))
+				.isEqualTo(
+					listOf(
+						SessionEffect.RecordAsk,
+						SessionEffect.TriggerLiveReload(userInitiated = true, expectChanges = true),
+					),
+				)
 		}
 	}
 
@@ -259,7 +269,7 @@ class SessionReducerTest {
 			reducer.reduce(QuickBuildSessionState.Building(1), SessionEvent.BuildFailed(failure))
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1, lastFailure = failure))
-		assertThat(transition.effects).isEmpty()
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk))
 	}
 
 	@Test
@@ -273,7 +283,7 @@ class SessionReducerTest {
 			reducer.reduce(QuickBuildSessionState.Building(1), SessionEvent.BuildFailed(failure))
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1, lastFailure = failure))
-		assertThat(transition.effects).isEmpty()
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk))
 	}
 
 	@Test
@@ -303,37 +313,35 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `an invalidation that consumed a tap records the ask on Invalidated from every live state`() {
-		// The watcher batch that proved the invalidation was the one the tap's save-all
-		// promised, so the orchestrator has already consumed the tap into it. If the ask is
-		// not recorded here, nothing answers it: the orchestrator forgets the tap when the
-		// rebuild starts, and the user is left in the editor after a multi-minute rebuild.
-		val event = SessionEvent.InvalidationDetected(InvalidationReason.GRADLE_CONFIG_CHANGED, userInitiated = true)
-		val expected =
-			QuickBuildSessionState.Invalidated(InvalidationReason.GRADLE_CONFIG_CHANGED, 1, userInitiated = true)
+	fun `an invalidation never withdraws the ask - from every live state`() {
+		// The watcher batch that proved the invalidation may be the one a tap's save-all
+		// promised. The ask lives in the session's PendingAsk, not on the state, so all the
+		// reducer has to do here is not withdraw it: the rebuild's relaunch answers it, and
+		// the user is not left in the editor after a multi-minute rebuild.
+		val event = SessionEvent.InvalidationDetected(InvalidationReason.GRADLE_CONFIG_CHANGED)
+		val expected = QuickBuildSessionState.Invalidated(InvalidationReason.GRADLE_CONFIG_CHANGED, 1)
 
-		assertThat(reducer.reduce(QuickBuildSessionState.Ready(1), event).state).isEqualTo(expected)
-		assertThat(reducer.reduce(QuickBuildSessionState.Building(1), event).state).isEqualTo(expected)
-		assertThat(reducer.reduce(QuickBuildSessionState.Degraded(1), event).state).isEqualTo(expected)
+		for (state in listOf(QuickBuildSessionState.Ready(1), QuickBuildSessionState.Building(1), QuickBuildSessionState.Degraded(1))) {
+			val transition = reducer.reduce(state, event)
+			assertThat(transition.state).isEqualTo(expected)
+			assertThat(transition.effects).doesNotContain(SessionEffect.WithdrawAsk)
+		}
 	}
 
 	@Test
-	fun `invalidated with a recorded ask plus ProxyAppRebuildStarted provisions user-initiated`() {
+	fun `invalidated plus ProxyAppRebuildStarted leaves an outstanding ask to the rebuild`() {
 		val transition =
 			reducer.reduce(
-				QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1, userInitiated = true),
+				QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1),
 				SessionEvent.ProxyAppRebuildStarted,
+				askOutstanding = true,
 			)
 
-		// userInitiated is what makes ProvisioningSucceeded switch to the proxy app, and what
-		// the runner reads to relaunch the reinstalled app for the ask.
+		// The ask stays in the session's PendingAsk: the runner reads it to relaunch the
+		// reinstalled app, and ProvisioningSucceeded reads it to switch to the proxy app.
 		assertThat(transition.state)
-			.isEqualTo(
-				QuickBuildSessionState.Provisioning(
-					userInitiated = true,
-					rebaselineReason = InvalidationReason.MANIFEST_CHANGED,
-				),
-			)
+			.isEqualTo(QuickBuildSessionState.Provisioning(rebaselineReason = InvalidationReason.MANIFEST_CHANGED))
+		assertThat(transition.effects).doesNotContain(SessionEffect.WithdrawAsk)
 	}
 
 	@Test
@@ -373,7 +381,9 @@ class SessionReducerTest {
 					awaitingRetry = true,
 				),
 			)
-		assertThat(transition.effects).isEmpty()
+		// The park hands the rebuild back to the user, so it withdraws the ask; the next
+		// tap is the new one.
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk))
 	}
 
 	@Test
@@ -397,9 +407,9 @@ class SessionReducerTest {
 					installAutoRetries = 0,
 				),
 			)
-		// No effect: retrying immediately would just hit the same busy slot. The next
-		// foreground return or tap runs it.
-		assertThat(transition.effects).isEmpty()
+		// No retry effect: retrying immediately would just hit the same busy slot. The next
+		// foreground return or tap runs it, and the park withdraws the ask like every park.
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk))
 	}
 
 	@Test
@@ -475,7 +485,7 @@ class SessionReducerTest {
 		// (below) does not ask: nobody pressed anything, so it must not move the user.
 		assertThat(transition.state).isEqualTo(parked.copy(awaitingRetry = false))
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.RunProxyAppRebuild, SessionEffect.SwitchToProxyApp))
+			.isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.RunProxyAppRebuild))
 	}
 
 	@Test
@@ -539,9 +549,9 @@ class SessionReducerTest {
 					awaitingRetry = true,
 				),
 			)
-		// No effect: SurfaceProvisioningError would tear the session down, and an automatic
-		// retry would just rebuild the same broken file.
-		assertThat(transition.effects).isEmpty()
+		// No error effect: SurfaceProvisioningError would tear the session down, and an
+		// automatic retry would just rebuild the same broken file. The park withdraws the ask.
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk))
 	}
 
 	@Test
@@ -625,7 +635,7 @@ class SessionReducerTest {
 		// The tap is also a request to see the app, recorded here and held by the shell until
 		// the rebuild lands - a rebaseline must not hand the user their stale app mid-build.
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.RunProxyAppRebuild, SessionEffect.SwitchToProxyApp))
+			.isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.RunProxyAppRebuild))
 	}
 
 	@Test
@@ -713,13 +723,13 @@ class SessionReducerTest {
 	}
 
 	@Test
-	fun `invalidated with a proxy app rebuild in flight ignores QuickBuildTapped`() {
+	fun `invalidated with a proxy app rebuild in flight records only the ask on QuickBuildTapped`() {
 		val invalidated = QuickBuildSessionState.Invalidated(InvalidationReason.MANIFEST_CHANGED, 1)
 
 		val transition = reducer.reduce(invalidated, SessionEvent.QuickBuildTapped())
 
 		assertThat(transition.state).isEqualTo(invalidated)
-		assertThat(transition.effects).isEmpty()
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk))
 	}
 
 	@Test
@@ -750,7 +760,7 @@ class SessionReducerTest {
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle())
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownSession))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk, SessionEffect.TeardownSession))
 	}
 
 	@Test
@@ -831,6 +841,7 @@ class SessionReducerTest {
 		assertThat(transition.effects)
 			.isEqualTo(
 				listOf(
+					SessionEffect.RecordAsk,
 					SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying),
 					SessionEffect.RespawnDaemon,
 				),
@@ -910,7 +921,7 @@ class SessionReducerTest {
 			reducer.reduce(QuickBuildSessionState.Prebuilding(), SessionEvent.QuickBuildTapped())
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Prebuilding(tapQueued = true))
-		assertThat(transition.effects).isEmpty()
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk))
 	}
 
 	@Test
@@ -921,7 +932,7 @@ class SessionReducerTest {
 				SessionEvent.PrebuildFinished,
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
 		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartProvisioning))
 	}
 
@@ -1027,7 +1038,7 @@ class SessionReducerTest {
 			reducer.reduce(QuickBuildSessionState.Ready(3), SessionEvent.SessionRestartRequested)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle())
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownSession))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk, SessionEffect.TeardownSession))
 	}
 
 	@Test
@@ -1036,7 +1047,7 @@ class SessionReducerTest {
 			reducer.reduce(QuickBuildSessionState.Building(1), SessionEvent.SessionRestartRequested)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle())
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownSession))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk, SessionEffect.TeardownSession))
 	}
 
 	@Test
@@ -1045,7 +1056,7 @@ class SessionReducerTest {
 			reducer.reduce(QuickBuildSessionState.Degraded(1), SessionEvent.SessionRestartRequested)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle())
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownSession))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk, SessionEffect.TeardownSession))
 	}
 
 	@Test
@@ -1057,7 +1068,7 @@ class SessionReducerTest {
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle())
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownSession))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk, SessionEffect.TeardownSession))
 	}
 
 	// The user-facing restart (T15). Resting at Idle is what made the menu item read as dead:
@@ -1072,8 +1083,8 @@ class SessionReducerTest {
 				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownAndProvision))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.TeardownAndProvision))
 	}
 
 	@Test
@@ -1084,8 +1095,8 @@ class SessionReducerTest {
 				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.StartProvisioning))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.StartProvisioning))
 	}
 
 	@Test
@@ -1096,8 +1107,8 @@ class SessionReducerTest {
 				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownAndProvision))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.TeardownAndProvision))
 	}
 
 	@Test
@@ -1108,8 +1119,8 @@ class SessionReducerTest {
 				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownAndProvision))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.TeardownAndProvision))
 	}
 
 	@Test
@@ -1120,8 +1131,8 @@ class SessionReducerTest {
 				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownAndProvision))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.TeardownAndProvision))
 	}
 
 	@Test
@@ -1135,23 +1146,22 @@ class SessionReducerTest {
 				SessionEvent.SessionRestartAndReprovisionRequested(),
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
 		assertThat((transition.state as QuickBuildSessionState.Provisioning).rebaselineReason).isNull()
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownAndProvision))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.TeardownAndProvision))
 	}
 
 	@Test
 	fun `an automatic reprovision - a variant switch - goes live without stealing the screen`() {
 		// Nobody tapped anything: the restart was CoGo reacting to a Build Variants change.
-		// The fresh session must come up in the background, so the flag from the event rides
-		// into Provisioning instead of being assumed true.
+		// The fresh session must come up in the background, so no ask is recorded.
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Ready(2),
 				SessionEvent.SessionRestartAndReprovisionRequested(userInitiated = false),
 			)
 
-		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = false))
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Provisioning())
 		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TeardownAndProvision))
 
 		// And the fresh session's landing leaves the user in the editor.
@@ -1167,8 +1177,9 @@ class SessionReducerTest {
 	fun `a user-initiated provision brings the proxy app forward when the session goes live`() {
 		val transition =
 			reducer.reduce(
-				QuickBuildSessionState.Provisioning(userInitiated = true),
+				QuickBuildSessionState.Provisioning(),
 				SessionEvent.ProvisioningSucceeded(1),
+				askOutstanding = true,
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1))
@@ -1191,7 +1202,8 @@ class SessionReducerTest {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Building(1),
-				SessionEvent.BuildSucceeded(2, 800, userInitiated = true),
+				SessionEvent.BuildSucceeded(2, 800),
+				askOutstanding = true,
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Deployed(2, 800))
@@ -1218,7 +1230,7 @@ class SessionReducerTest {
 			reducer.reduce(QuickBuildSessionState.Building(3), SessionEvent.QuickBuildTapped())
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Building(3))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.MarkBuildUserInitiated))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.MarkBuildUserInitiated))
 	}
 
 	@Test
@@ -1229,24 +1241,24 @@ class SessionReducerTest {
 		// Ready at the generation the proxy app still runs, lastFailure null: a cancellation
 		// the user chose must not render as the ATTENTION icon a broken build gets.
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(4, lastFailure = null))
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.CancelLiveReload))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk, SessionEffect.CancelLiveReload))
 	}
 
 	@Test
-	fun `stopping does nothing during the background warm compile`() {
+	fun `stopping only withdraws the ask during the background warm compile`() {
 		val warmCompiling = QuickBuildSessionState.Building(4, warmingCompiler = true)
 
 		val transition = reducer.reduce(warmCompiling, SessionEvent.CancelRequested)
 
 		assertThat(transition.state).isEqualTo(warmCompiling)
-		assertThat(transition.effects).isEmpty()
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk))
 	}
 
 	@Test
 	fun `stopping during provisioning cancels the Gradle proxy app build and tears down`() {
 		val transition =
 			reducer.reduce(
-				QuickBuildSessionState.Provisioning(userInitiated = true),
+				QuickBuildSessionState.Provisioning(),
 				SessionEvent.CancelRequested,
 			)
 
@@ -1254,7 +1266,9 @@ class SessionReducerTest {
 		// Order matters: the Gradle build has to be cancelled BEFORE the teardown cancels the
 		// coroutine that is awaiting it, or nothing would ever reach the cancellation token.
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.CancelProxyAppBuild, SessionEffect.TeardownSession))
+			.isEqualTo(
+				listOf(SessionEffect.WithdrawAsk, SessionEffect.CancelProxyAppBuild, SessionEffect.TeardownSession),
+			)
 	}
 
 	/**
@@ -1277,24 +1291,21 @@ class SessionReducerTest {
 		// in Invalidated with the retry count carried; no TeardownSession anywhere. The
 		// rebaseline's own cancel effect, so the handler knows no teardown follows it.
 		assertThat(transition.state).isEqualTo(provisioning)
-		assertThat(transition.effects).containsExactly(SessionEffect.CancelProxyAppRebuild)
+		assertThat(transition.effects).containsExactly(SessionEffect.WithdrawAsk, SessionEffect.CancelProxyAppRebuild).inOrder()
 	}
 
 	@Test
 	fun `stopping a rebaseline withdraws the ask so a cancel that lost the race does not relaunch`() {
 		// A cancel can lose the race to the Gradle build's own completion, in which case the
-		// rebaseline runs on to ProvisioningSucceeded. userInitiated left true there would bring
-		// forward the app the user just asked to stop.
+		// rebaseline runs on to ProvisioningSucceeded. An ask left outstanding there would
+		// bring forward the app the user just asked to stop, so WithdrawAsk comes first.
 		val provisioning =
-			QuickBuildSessionState.Provisioning(
-				userInitiated = true,
-				rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED,
-			)
+			QuickBuildSessionState.Provisioning(rebaselineReason = InvalidationReason.GRADLE_CONFIG_CHANGED)
 
 		val transition = reducer.reduce(provisioning, SessionEvent.CancelRequested)
 
-		assertThat(transition.state).isEqualTo(provisioning.copy(userInitiated = false))
-		assertThat(transition.effects).containsExactly(SessionEffect.CancelProxyAppRebuild)
+		assertThat(transition.state).isEqualTo(provisioning)
+		assertThat(transition.effects).containsExactly(SessionEffect.WithdrawAsk, SessionEffect.CancelProxyAppRebuild).inOrder()
 	}
 
 	@Test
@@ -1306,14 +1317,15 @@ class SessionReducerTest {
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Idle())
-		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.CancelProxyAppBuild))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk, SessionEffect.CancelProxyAppBuild))
 	}
 
 	@Test
-	fun `stopping is a no-op in every state that does not own a build the user asked for`() {
+	fun `stopping only withdraws the ask in every state that does not own a build the user asked for`() {
 		// The button only shows the stop affordance in the states above, but the shell
-		// dispatches without checking - so every other state has to absorb it silently
-		// rather than, say, tearing a live session down.
+		// dispatches without checking - so every other state has to absorb it rather than,
+		// say, tearing a live session down. Withdrawing the ask is the one thing every stop
+		// does, so a tap the user took back can never be answered later.
 		for (state in listOf(
 			QuickBuildSessionState.Idle(),
 			QuickBuildSessionState.Prebuilding(tapQueued = false),
@@ -1324,7 +1336,7 @@ class SessionReducerTest {
 		)) {
 			val transition = reducer.reduce(state, SessionEvent.CancelRequested)
 			assertThat(transition.state).isEqualTo(state)
-			assertThat(transition.effects).isEmpty()
+			assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk))
 		}
 	}
 
@@ -1344,7 +1356,7 @@ class SessionReducerTest {
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Degraded(3))
 		assertThat(transition.effects)
-			.isEqualTo(listOf(SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying)))
+			.isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying)))
 	}
 
 	@Test
@@ -1362,6 +1374,7 @@ class SessionReducerTest {
 		assertThat(transition.effects)
 			.isEqualTo(
 				listOf(
+					SessionEffect.RecordAsk,
 					SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying),
 					SessionEffect.RespawnDaemon,
 				),
@@ -1386,7 +1399,8 @@ class SessionReducerTest {
 		val transition =
 			reducer.reduce(
 				QuickBuildSessionState.Degraded(3),
-				SessionEvent.BuildSucceeded(4, 900, restarted = false, userInitiated = true),
+				SessionEvent.BuildSucceeded(4, 900, restarted = false),
+				askOutstanding = true,
 			)
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Deployed(4, 900))
@@ -1406,7 +1420,7 @@ class SessionReducerTest {
 			reducer.reduce(QuickBuildSessionState.Degraded(3), SessionEvent.BuildFailed(failure))
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(3, failure))
-		assertThat(transition.effects).isEmpty()
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk))
 	}
 
 	@Test
@@ -1487,7 +1501,7 @@ class SessionReducerTest {
 		val transition = reducer.reduce(parked, SessionEvent.BuildFailed(failure))
 
 		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(2, failure))
-		assertThat(transition.effects).isEmpty()
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.WithdrawAsk))
 	}
 
 	@Test

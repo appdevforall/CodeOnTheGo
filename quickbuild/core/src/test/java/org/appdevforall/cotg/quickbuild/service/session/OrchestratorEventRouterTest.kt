@@ -52,14 +52,13 @@ class OrchestratorEventRouterTest {
 					buildId = 1,
 					result = success(generation = 7L),
 					route = BuildRoute.CodeOnly,
-					userInitiated = true,
 				),
 				lastDeployedGeneration = 3L,
 			)
 		assertThat(routing.newLastDeployedGeneration).isEqualTo(7L)
 		assertThat(routing.sessionEvents)
 			.containsExactly(
-				SessionEvent.BuildSucceeded(7L, 120L, restarted = false, userInitiated = true),
+				SessionEvent.BuildSucceeded(7L, 120L, restarted = false),
 			)
 	}
 
@@ -114,17 +113,6 @@ class OrchestratorEventRouterTest {
 		assertThat(routing.sessionEvents)
 			.containsExactly(SessionEvent.InvalidationDetected(InvalidationReason.MANIFEST_CHANGED))
 		assertThat(invalidations).isEqualTo(1)
-	}
-
-	@Test
-	fun `an InvalidationRequired carrying a consumed tap keeps it on the session event`() {
-		val routing =
-			route(OrchestratorEvent.InvalidationRequired(InvalidationReason.GRADLE_CONFIG_CHANGED, userInitiated = true))
-
-		// The reducer records the ask from this flag; dropping it here leaves the tap
-		// unanswered across the whole rebaseline.
-		assertThat(routing.sessionEvents)
-			.containsExactly(SessionEvent.InvalidationDetected(InvalidationReason.GRADLE_CONFIG_CHANGED, userInitiated = true))
 	}
 
 	@Test
