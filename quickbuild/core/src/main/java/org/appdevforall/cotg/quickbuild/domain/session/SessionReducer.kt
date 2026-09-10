@@ -5,8 +5,11 @@ import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
 /**
  * Pure transition function for the session state machine.
  *
- * The reducer is total: an unknown (state, event) pair keeps the current state and produces no
- * effects, so a late or duplicate event can never corrupt the session. The shell logs those.
+ * The reducer is total: every (state, event) pair is listed, and the ones a state has no use
+ * for keep the current state and produce no effects, so a late or duplicate event can never
+ * corrupt the session. Each per-state `when` is exhaustive over [SessionEvent] on purpose: an
+ * event that is added without saying what every state does with it fails to compile, rather
+ * than disappearing into a catch-all.
  */
 class SessionReducer {
 	/**
@@ -20,36 +23,53 @@ class SessionReducer {
 	fun reduce(
 		state: QuickBuildSessionState,
 		event: SessionEvent,
+	): SessionTransition =
+		when (state) {
+			is QuickBuildSessionState.Idle -> reduceIdle(state, event)
+			is QuickBuildSessionState.Prebuilding -> reducePrebuilding(state, event)
+			is QuickBuildSessionState.Provisioning -> reduceProvisioning(state, event)
+			is QuickBuildSessionState.Ready -> reduceLive(state, state.generation, event)
+			is QuickBuildSessionState.Building -> reduceBuilding(state, event)
+			is QuickBuildSessionState.Deployed -> reduceLive(state, state.generation, event)
+			is QuickBuildSessionState.Invalidated -> reduceInvalidated(state, event)
+			is QuickBuildSessionState.Degraded -> reduceDegraded(state, event)
+		}
+
+	/**
+	 * [SessionEvent.SessionRestartRequested] from any state with something to tear down.
+	 *
+	 * Restart always wins and always tears down, whatever state it came from. Idle has nothing
+	 * to tear down and answers the event itself, clearing a stale failed-start tone.
+	 */
+	private fun tearDown(): SessionTransition = SessionTransition(QuickBuildSessionState.Idle(), listOf(SessionEffect.TeardownSession))
+
+	/**
+	 * [SessionEvent.SessionRestartAndReprovisionRequested] from any state.
+	 *
+	 * The user-facing restart also wins from any state. Unlike the teardown-only event it never
+	 * rests at Idle: it goes straight on to a fresh provision, so the toolbar icon turns BUILDING
+	 * and the surfaces narrate the rebuild the user asked for. Idle has nothing to tear down, so
+	 * it starts one without the teardown effect.
+	 */
+	private fun reprovision(
+		state: QuickBuildSessionState,
+		event: SessionEvent.SessionRestartAndReprovisionRequested,
 	): SessionTransition {
-		// Restart always wins and always tears down, whatever state it came from, so it is
-		// handled once here rather than repeated in every per-state reducer. Idle has nothing
-		// to tear down and falls through to reduceIdle, which still clears a stale
-		// failed-start tone.
-		if (event == SessionEvent.SessionRestartRequested && state !is QuickBuildSessionState.Idle) {
-			return SessionTransition(QuickBuildSessionState.Idle(), listOf(SessionEffect.TeardownSession))
-		}
-		// The user-facing restart, which also wins from any state. Unlike the teardown-only event
-		// above it never rests at Idle: it goes straight on to a fresh provision, so the toolbar
-		// icon turns BUILDING and the surfaces narrate the rebuild the user asked for. Idle has
-		// nothing to tear down, so it starts one without the teardown effect.
-		if (event is SessionEvent.SessionRestartAndReprovisionRequested) {
-			val effect =
-				if (state is QuickBuildSessionState.Idle) {
-					// Nothing to tear down, so this is an ordinary first provision.
-					SessionEffect.StartProvisioning
-				} else {
-					SessionEffect.TeardownAndProvision
-				}
-			// The flag rides through so only a restart the USER asked for brings the proxy
-			// app forward when the fresh session goes live; an automatic reprovision (a
-			// Build Variants switch) must leave them in the editor - unless the state it
-			// tears down was already holding a tap, which the fresh session then owes.
-			return SessionTransition(
-				QuickBuildSessionState.Provisioning(userInitiated = event.userInitiated || state.carriesAsk()),
-				listOf(effect),
-			)
-		}
-		return reduceByState(state, event)
+		val effect =
+			if (state is QuickBuildSessionState.Idle) {
+				// Nothing to tear down, so this is an ordinary first provision.
+				SessionEffect.StartProvisioning
+			} else {
+				SessionEffect.TeardownAndProvision
+			}
+		// The flag rides through so only a restart the USER asked for brings the proxy
+		// app forward when the fresh session goes live; an automatic reprovision (a
+		// Build Variants switch) must leave them in the editor - unless the state it
+		// tears down was already holding a tap, which the fresh session then owes.
+		return SessionTransition(
+			QuickBuildSessionState.Provisioning(userInitiated = event.userInitiated || state.carriesAsk()),
+			listOf(effect),
+		)
 	}
 
 	/** Whether the state remembers a Quick Build tap that still owes the switch to the proxy app. */
@@ -67,21 +87,6 @@ class SessionReducer {
 			is QuickBuildSessionState.Deployed,
 			is QuickBuildSessionState.Degraded,
 			-> false
-		}
-
-	private fun reduceByState(
-		state: QuickBuildSessionState,
-		event: SessionEvent,
-	): SessionTransition =
-		when (state) {
-			is QuickBuildSessionState.Idle -> reduceIdle(state, event)
-			is QuickBuildSessionState.Prebuilding -> reducePrebuilding(state, event)
-			is QuickBuildSessionState.Provisioning -> reduceProvisioning(state, event)
-			is QuickBuildSessionState.Ready -> reduceLive(state, state.generation, event)
-			is QuickBuildSessionState.Building -> reduceBuilding(state, event)
-			is QuickBuildSessionState.Deployed -> reduceLive(state, state.generation, event)
-			is QuickBuildSessionState.Invalidated -> reduceInvalidated(state, event)
-			is QuickBuildSessionState.Degraded -> reduceDegraded(state, event)
 		}
 
 	private fun reduceIdle(
@@ -126,7 +131,33 @@ class SessionReducer {
 				}
 			}
 
-			else -> {
+			is SessionEvent.SessionRestartAndReprovisionRequested -> {
+				reprovision(state, event)
+			}
+
+			SessionEvent.CancelRequested,
+			SessionEvent.PrebuildFinished,
+			is SessionEvent.ProvisioningSucceeded,
+			is SessionEvent.ProvisioningFailed,
+			SessionEvent.BuildStarted,
+			SessionEvent.WarmCompileStarted,
+			is SessionEvent.BuildSucceeded,
+			is SessionEvent.BuildFailed,
+			SessionEvent.WarmCompileFinished,
+			is SessionEvent.InvalidationDetected,
+			SessionEvent.ProxyAppRebuildStarted,
+			is SessionEvent.ProxyAppRebuildInstallNotConfirmed,
+			is SessionEvent.ProxyAppRebuildDeferred,
+			is SessionEvent.ProxyAppRebuildFailed,
+			SessionEvent.HostForegrounded,
+			SessionEvent.ExternalBuildCompleted,
+			SessionEvent.DaemonDied,
+			SessionEvent.DaemonRespawned,
+			SessionEvent.DaemonRestartFailed,
+			is SessionEvent.ProxyAppCrashed,
+			-> {
+				// No session, no build and no daemon: these are late reports from a session
+				// that is gone, or a stop the button does not offer while it shows the bolt.
 				SessionTransition(state)
 			}
 		}
@@ -175,7 +206,37 @@ class SessionReducer {
 				}
 			}
 
-			else -> {
+			SessionEvent.SessionRestartRequested -> {
+				tearDown()
+			}
+
+			is SessionEvent.SessionRestartAndReprovisionRequested -> {
+				reprovision(state, event)
+			}
+
+			SessionEvent.PrebuildRequested,
+			is SessionEvent.ProvisioningSucceeded,
+			is SessionEvent.ProvisioningFailed,
+			SessionEvent.BuildStarted,
+			SessionEvent.WarmCompileStarted,
+			is SessionEvent.BuildSucceeded,
+			is SessionEvent.BuildFailed,
+			SessionEvent.WarmCompileFinished,
+			is SessionEvent.InvalidationDetected,
+			SessionEvent.ProxyAppRebuildStarted,
+			is SessionEvent.ProxyAppRebuildInstallNotConfirmed,
+			is SessionEvent.ProxyAppRebuildDeferred,
+			is SessionEvent.ProxyAppRebuildFailed,
+			SessionEvent.HostForegrounded,
+			SessionEvent.ExternalBuildCompleted,
+			SessionEvent.DaemonDied,
+			SessionEvent.DaemonRespawned,
+			SessionEvent.DaemonRestartFailed,
+			is SessionEvent.ProxyAppCrashed,
+			-> {
+				// The warm build installs nothing and starts no daemon, so there is no session
+				// for a build, rebuild, daemon or crash report to be about; a second
+				// PrebuildRequested has nothing to add to the build already running.
 				SessionTransition(state)
 			}
 		}
@@ -297,7 +358,34 @@ class SessionReducer {
 				SessionTransition(state.copy(userInitiated = state.userInitiated || event.userInitiated))
 			}
 
-			else -> {
+			SessionEvent.SessionRestartRequested -> {
+				tearDown()
+			}
+
+			is SessionEvent.SessionRestartAndReprovisionRequested -> {
+				reprovision(state, event)
+			}
+
+			SessionEvent.FileSaved,
+			SessionEvent.PrebuildRequested,
+			SessionEvent.PrebuildFinished,
+			SessionEvent.BuildStarted,
+			SessionEvent.WarmCompileStarted,
+			is SessionEvent.BuildSucceeded,
+			is SessionEvent.BuildFailed,
+			SessionEvent.WarmCompileFinished,
+			SessionEvent.ProxyAppRebuildStarted,
+			SessionEvent.HostForegrounded,
+			SessionEvent.ExternalBuildCompleted,
+			SessionEvent.DaemonDied,
+			SessionEvent.DaemonRespawned,
+			SessionEvent.DaemonRestartFailed,
+			is SessionEvent.ProxyAppCrashed,
+			-> {
+				// Quick builds are suspended for the whole Gradle build and the daemon is
+				// deliberately down, so build, daemon and crash reports here are echoes of
+				// the session being replaced; the warm-up and park-retry events belong to
+				// phases this is not, and a save is only a gesture to a failed-start Idle.
 				SessionTransition(state)
 			}
 		}
@@ -363,7 +451,37 @@ class SessionReducer {
 				SessionTransition(state, listOf(SessionEffect.RefreshBaseline))
 			}
 
-			else -> {
+			SessionEvent.SessionRestartRequested -> {
+				tearDown()
+			}
+
+			is SessionEvent.SessionRestartAndReprovisionRequested -> {
+				reprovision(state, event)
+			}
+
+			SessionEvent.CancelRequested,
+			SessionEvent.FileSaved,
+			SessionEvent.PrebuildRequested,
+			SessionEvent.PrebuildFinished,
+			is SessionEvent.ProvisioningSucceeded,
+			is SessionEvent.ProvisioningFailed,
+			is SessionEvent.BuildSucceeded,
+			is SessionEvent.BuildFailed,
+			SessionEvent.WarmCompileFinished,
+			SessionEvent.ProxyAppRebuildStarted,
+			is SessionEvent.ProxyAppRebuildInstallNotConfirmed,
+			is SessionEvent.ProxyAppRebuildDeferred,
+			is SessionEvent.ProxyAppRebuildFailed,
+			SessionEvent.HostForegrounded,
+			SessionEvent.DaemonRespawned,
+			SessionEvent.DaemonRestartFailed,
+			-> {
+				// No build is owned here, so a stop has nothing to cancel (a save's build only
+				// becomes cancellable once BuildStarted has moved the session to Building) and
+				// a build outcome is the late report of one already closed. The prebuild,
+				// provisioning and rebuild events belong to phases with no live session, the
+				// daemon is up so its respawn reports are stale, and HostForegrounded is only
+				// a parked Invalidated's retry trigger.
 				SessionTransition(state)
 			}
 		}
@@ -461,7 +579,33 @@ class SessionReducer {
 				SessionTransition(state, listOf(SessionEffect.RefreshBaseline))
 			}
 
-			else -> {
+			SessionEvent.SessionRestartRequested -> {
+				tearDown()
+			}
+
+			is SessionEvent.SessionRestartAndReprovisionRequested -> {
+				reprovision(state, event)
+			}
+
+			SessionEvent.FileSaved,
+			SessionEvent.PrebuildRequested,
+			SessionEvent.PrebuildFinished,
+			is SessionEvent.ProvisioningSucceeded,
+			is SessionEvent.ProvisioningFailed,
+			SessionEvent.BuildStarted,
+			SessionEvent.WarmCompileStarted,
+			SessionEvent.ProxyAppRebuildStarted,
+			is SessionEvent.ProxyAppRebuildInstallNotConfirmed,
+			is SessionEvent.ProxyAppRebuildDeferred,
+			is SessionEvent.ProxyAppRebuildFailed,
+			SessionEvent.HostForegrounded,
+			SessionEvent.DaemonRespawned,
+			SessionEvent.DaemonRestartFailed,
+			-> {
+				// The orchestrator runs one build at a time, so a second start here is a
+				// duplicate report; the prebuild, provisioning and rebuild events belong to
+				// phases with no live session; the daemon is up, so its respawn reports are
+				// stale; and HostForegrounded is only a parked Invalidated's retry trigger.
 				SessionTransition(state)
 			}
 		}
@@ -645,11 +789,30 @@ class SessionReducer {
 				}
 			}
 
-			else -> {
-				// What legitimately reaches here: the prebuild and provisioning events, which
-				// belong to phases with no live session, and the ProxyAppRebuild* outcomes,
-				// which are dispatched from Provisioning, after the ProxyAppRebuildStarted hop
-				// moved the session there.
+			SessionEvent.SessionRestartRequested -> {
+				tearDown()
+			}
+
+			is SessionEvent.SessionRestartAndReprovisionRequested -> {
+				reprovision(state, event)
+			}
+
+			SessionEvent.FileSaved,
+			SessionEvent.PrebuildRequested,
+			SessionEvent.PrebuildFinished,
+			is SessionEvent.ProvisioningSucceeded,
+			is SessionEvent.ProvisioningFailed,
+			is SessionEvent.ProxyAppRebuildInstallNotConfirmed,
+			is SessionEvent.ProxyAppRebuildDeferred,
+			is SessionEvent.ProxyAppRebuildFailed,
+			SessionEvent.ExternalBuildCompleted,
+			SessionEvent.DaemonRestartFailed,
+			-> {
+				// The prebuild and provisioning events belong to phases with no live session;
+				// the ProxyAppRebuild* outcomes are dispatched from Provisioning, after the
+				// ProxyAppRebuildStarted hop moved the session there; an external full build
+				// has nothing to add to a state already waiting on one; and only Degraded
+				// acts on a failed daemon restart.
 				SessionTransition(state)
 			}
 		}
@@ -770,12 +933,31 @@ class SessionReducer {
 				SessionTransition(state, listOf(SessionEffect.RefreshBaseline))
 			}
 
-			else -> {
-				// What legitimately reaches here: the prebuild and provisioning events, which
-				// belong to phases with no live session; CancelRequested, since a save's build only
-				// becomes cancellable once BuildStarted has moved the session to Building; the
-				// ProxyAppRebuild* outcomes, dispatched from Provisioning; and HostForegrounded,
-				// which only a parked Invalidated acts on.
+			SessionEvent.SessionRestartRequested -> {
+				tearDown()
+			}
+
+			is SessionEvent.SessionRestartAndReprovisionRequested -> {
+				reprovision(state, event)
+			}
+
+			SessionEvent.CancelRequested,
+			SessionEvent.FileSaved,
+			SessionEvent.PrebuildRequested,
+			SessionEvent.PrebuildFinished,
+			is SessionEvent.ProvisioningSucceeded,
+			is SessionEvent.ProvisioningFailed,
+			SessionEvent.ProxyAppRebuildStarted,
+			is SessionEvent.ProxyAppRebuildInstallNotConfirmed,
+			is SessionEvent.ProxyAppRebuildDeferred,
+			is SessionEvent.ProxyAppRebuildFailed,
+			SessionEvent.HostForegrounded,
+			-> {
+				// The prebuild and provisioning events belong to phases with no live session;
+				// CancelRequested has nothing to stop, since a save's build only becomes
+				// cancellable once BuildStarted has moved the session to Building; the
+				// ProxyAppRebuild* events are dispatched from Provisioning; and HostForegrounded
+				// is only a parked Invalidated's retry trigger.
 				SessionTransition(state)
 			}
 		}
