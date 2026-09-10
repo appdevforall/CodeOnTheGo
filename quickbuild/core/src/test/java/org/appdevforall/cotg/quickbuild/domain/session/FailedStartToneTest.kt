@@ -32,8 +32,8 @@ class FailedStartToneTest {
 		val transition = reducer.reduce(failedStartIdle(), SessionEvent.QuickBuildTapped())
 
 		assertThat(transition.state)
-			.isEqualTo(QuickBuildSessionState.Provisioning(userInitiated = true))
-		assertThat(transition.effects).containsExactly(SessionEffect.StartProvisioning)
+			.isEqualTo(QuickBuildSessionState.Provisioning())
+		assertThat(transition.effects).containsExactly(SessionEffect.RecordAsk, SessionEffect.StartProvisioning).inOrder()
 		assertThat(QuickBuildStatus.from(transition.state).toTone())
 			.isEqualTo(QuickBuildTone.BUILDING)
 	}
