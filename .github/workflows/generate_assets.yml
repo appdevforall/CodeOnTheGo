@@ -312,9 +312,11 @@ jobs:
           - abi: v8
             arch: arm64-v8a
             label: 64-bit ARM
+            drive_file_id_secret: ASSETS_V8_FILE_ID
           - abi: v7
             arch: armeabi-v7a
             label: 32-bit ARM
+            drive_file_id_secret: ASSETS_V7_FILE_ID
 
     steps:
       - name: Checkout repository
@@ -346,6 +348,15 @@ jobs:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+
+      - name: Authenticate to Google Cloud for Drive access
+        id: auth_drive
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.IDENTITY_EMAIL }}
+          token_format: 'access_token'
+          access_token_scopes: 'https://www.googleapis.com/auth/drive'
 
       - name: Download staged assets (ABI-independent)
         uses: actions/download-artifact@v4
@@ -398,33 +409,39 @@ jobs:
           echo "ASSETS_PATH=$zip_path" >> $GITHUB_OUTPUT
           echo "$(du -h "$zip_path" | cut -f1) $zip_path"
 
-      - name: Checkout this workflow's tooling
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-          path: .workflow-tools
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Upload assets zip to Cloudflare R2
-        id: r2
+      - name: Upload assets zip to Google Drive
+        id: drive
         env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_KEY_ID: ${{ vars.CLOUDFLARE_KEY_ID }}
-          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ vars.R2_ASSETS_BUCKET || 'apk-repo' }}
-          R2_KEY_PREFIX: assets/${{ steps.toolchain.outputs.GRADLE_VERSION }}/
+          ACCESS_TOKEN: ${{ steps.auth_drive.outputs.access_token }}
+          DRIVE_FILE_ID: ${{ secrets[matrix.drive_file_id_secret] }}
+          ASSETS_PATH: ${{ steps.assets_zip.outputs.ASSETS_PATH }}
         run: |
-          uv run --with boto3 .workflow-tools/scripts/cloudflare-r2-upload.py "${{ steps.assets_zip.outputs.ASSETS_PATH }}"
-          echo "DOWNLOAD_URL=https://download.appdevforall.org/assets/${{ steps.toolchain.outputs.GRADLE_VERSION }}/assets-${{ matrix.arch }}.zip" >> $GITHUB_OUTPUT
+          if [ -z "$DRIVE_FILE_ID" ]; then
+            echo "ERROR: ${{ matrix.drive_file_id_secret }} is not set"
+            exit 1
+          fi
+
+          echo "Uploading $ASSETS_PATH to Drive file $DRIVE_FILE_ID..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" --fail -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/zip" \
+            --upload-file "$ASSETS_PATH" \
+            "https://www.googleapis.com/upload/drive/v3/files/${DRIVE_FILE_ID}?uploadType=media")
+
+          if [[ "$response" -ne 200 ]]; then
+            echo "Upload of $ASSETS_PATH failed with HTTP status $response"
+            exit 1
+          fi
+
+          echo "Upload complete."
+          echo "DOWNLOAD_URL=https://drive.google.com/file/d/${DRIVE_FILE_ID}/view" >> $GITHUB_OUTPUT
 
       - name: Send Slack notification
         if: inputs.notify_slack
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
           ASSET_LABEL: ${{ matrix.label }}
-          DOWNLOAD_URL: ${{ steps.r2.outputs.DOWNLOAD_URL }}
+          DOWNLOAD_URL: ${{ steps.drive.outputs.DOWNLOAD_URL }}
           BUILD_REF: ${{ inputs.ref }}
           GRADLE_VERSION: ${{ steps.toolchain.outputs.GRADLE_VERSION }}
         run: |
@@ -447,7 +464,7 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: "*\($label):* <\($url)|Download assets zip>"
+                    text: "*Assets \($label) Link:* <\($url)|Download Assets Zip \($label)>"
                   }
                 },
                 {
