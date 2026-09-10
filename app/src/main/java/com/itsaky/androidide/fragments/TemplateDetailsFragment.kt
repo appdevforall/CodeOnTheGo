@@ -21,6 +21,7 @@ import android.animation.ObjectAnimator
 import android.os.Bundle
 import android.view.View
 import android.view.animation.LinearInterpolator
+import androidx.annotation.VisibleForTesting
 import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -67,21 +68,20 @@ class TemplateDetailsFragment :
 	private val projectCreationManager by lazy { ProjectCreationManager(requireContext()) }
 	private var blinkAnimator: ObjectAnimator? = null
 
-	/**
-	 * The blink is an endlessly repeating animator, and an animator keeps the main thread's
-	 * Choreographer loop alive process-wide -- it does not pause when this fragment's activity is
-	 * merely stopped. This fragment is inflated by activity_main.xml on every launch and is never
-	 * removed, so tying the blink to anything but the view lifecycle leaves it running behind the
-	 * editor forever.
-	 */
-	private val blinkWhileStarted =
+	/** Whether this fragment's view is started, one of the three [shouldBlinkScrollIndicator] inputs. */
+	private var isViewStarted = false
+
+	/** Keeps [isViewStarted] current and re-evaluates the blink whenever the view starts or stops. */
+	private val blinkWhileOnScreen =
 		object : DefaultLifecycleObserver {
 			override fun onStart(owner: LifecycleOwner) {
-				startBlinkingIndicator()
+				isViewStarted = true
+				updateBlinkState()
 			}
 
 			override fun onStop(owner: LifecycleOwner) {
-				stopBlinkingIndicator()
+				isViewStarted = false
+				updateBlinkState()
 			}
 		}
 
@@ -95,16 +95,22 @@ class TemplateDetailsFragment :
 		setupTooltips()
 		setupObservers()
 		setupClickListeners()
-		viewLifecycleOwner.lifecycle.addObserver(blinkWhileStarted)
+		viewLifecycleOwner.lifecycle.addObserver(blinkWhileOnScreen)
 	}
 
 	override fun onDestroyView() {
-		super.onDestroyView()
-
+		/*
+		 * stopBlinkingIndicator touches the binding, and FragmentWithBinding.onDestroyView nulls
+		 * _binding before calling up, so it has to run before super to keep doing anything at all.
+		 * The gatekeeper teardown holds its own view reference and does not care either way; it is
+		 * kept alongside so this fragment's teardown reads as one block.
+		 */
 		stopBlinkingIndicator()
 
 		scrollGateKeeper?.detach()
 		scrollGateKeeper = null
+
+		super.onDestroyView()
 	}
 
 	private fun setupRecyclerView() {
@@ -118,6 +124,8 @@ class TemplateDetailsFragment :
 	}
 
 	private fun setupObservers() {
+		viewModel.currentScreen.observe(viewLifecycleOwner) { updateBlinkState() }
+
 		viewModel.template.observe(viewLifecycleOwner) {
 			binding.widgets.adapter = null
 			scrollGateKeeper?.reset()
@@ -225,6 +233,26 @@ class TemplateDetailsFragment :
 		binding.finish.isEnabled = !isCreating && hasScrolledToBottom
 		binding.scrollIndicator.isVisible = !hasScrolledToBottom
 		ViewCompat.setStateDescription(binding.finish, stateDesc)
+
+		updateBlinkState()
+	}
+
+	/**
+	 * Starts or stops the blink to match [shouldBlinkScrollIndicator].
+	 */
+	private fun updateBlinkState() {
+		val shouldBlink =
+			shouldBlinkScrollIndicator(
+				isViewStarted = isViewStarted,
+				currentScreen = viewModel.currentScreen.value,
+				isIndicatorVisible = _binding?.scrollIndicator?.isVisible == true,
+			)
+
+		if (shouldBlink) {
+			startBlinkingIndicator()
+		} else {
+			stopBlinkingIndicator()
+		}
 	}
 
 	private fun startBlinkingIndicator() {
@@ -249,3 +277,26 @@ class TemplateDetailsFragment :
 		_binding?.scrollIndicator?.alpha = 1f
 	}
 }
+
+/**
+ * Whether the scroll indicator's blink should be running.
+ *
+ * The blink repeats forever, and an endlessly repeating animator keeps the main thread's
+ * Choreographer loop alive process-wide: it re-posts a vsync callback every frame whether or not
+ * anything is drawn, and it does not pause when its activity merely stops. So it may run only
+ * while the indicator can actually be seen, which takes all three inputs here.
+ *
+ * A started view lifecycle is not on its own a proxy for that. `activity_main.xml` declares every
+ * one of MainActivity's screens as a sibling container in one `FrameLayout`, and switching screens
+ * only flips their `View` visibility, so this fragment's view reaches `STARTED` at cold start and
+ * stays there for as long as MainActivity is started -- including the whole time the user sits on
+ * the project list having never opened the new-project flow. The indicator also hides itself once
+ * the form has been scrolled to the bottom, which is a third way for it to be off screen while
+ * this screen is the current one.
+ */
+@VisibleForTesting
+internal fun shouldBlinkScrollIndicator(
+	isViewStarted: Boolean,
+	currentScreen: Int?,
+	isIndicatorVisible: Boolean,
+): Boolean = isViewStarted && currentScreen == MainViewModel.SCREEN_TEMPLATE_DETAILS && isIndicatorVisible
