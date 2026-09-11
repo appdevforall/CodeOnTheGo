@@ -53,17 +53,13 @@ class MetricsChartLegendFormTest {
 		MemoryUsageChartRenderer(
 			usagesProvider = {
 				arrayOf(
-					MemoryUsageWatcher
-						.ProcessMemoryInfo(1, "IDE", MutableShiftedLongArray(SAMPLES), watchedSinceMillis = 0L)
-						// Fully sampled: the renderer plots only the slots that hold a real sample.
-						.also { it.sampledCount = SAMPLES },
-					MemoryUsageWatcher
-						.ProcessMemoryInfo(
-							2,
-							"Gradle Tooling",
-							MutableShiftedLongArray(SAMPLES),
-							watchedSinceMillis = 0L,
-						).also { it.sampledCount = SAMPLES },
+					MemoryUsageWatcher.ProcessMemoryInfo(1, "IDE", MutableShiftedLongArray(SAMPLES), watchedSinceMillis = 0L),
+					MemoryUsageWatcher.ProcessMemoryInfo(
+						2,
+						"Gradle Tooling",
+						MutableShiftedLongArray(SAMPLES),
+						watchedSinceMillis = 0L,
+					),
 				)
 			},
 			lineColorFor = { android.graphics.Color.BLUE },
