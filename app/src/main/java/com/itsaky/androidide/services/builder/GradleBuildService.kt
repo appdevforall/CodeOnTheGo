@@ -354,6 +354,11 @@ class GradleBuildService :
 
 	override fun onServerExited(exitCode: Int) {
 		log.warn("Tooling API process terminated with exit code: {}", exitCode)
+		// The runner has cleared its own started flag; without clearing this one too,
+		// isToolingServerStarted() stays true and every build goes to a proxy whose process is
+		// gone. With both cleared, the next bind's startToolingServer starts a fresh runner.
+		isToolingServerStarted = false
+		server = null
 		stopForeground(STOP_FOREGROUND_REMOVE)
 	}
 
