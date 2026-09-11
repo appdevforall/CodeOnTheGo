@@ -252,7 +252,15 @@ object TooltipManager {
 		)
 	}
 
-	private fun canShowPopup(context: Context, view: View): Boolean {
+	/**
+	 * Whether a popup anchored to [view] can actually be shown right now.
+	 *
+	 * Internal so [com.itsaky.androidide.utils.showTooltipIfPresent] can ask before it plays the
+	 * long-press haptic. Asking after is too late: the buzz is the user's signal that help arrived,
+	 * and a hold that completes 800ms after its window has gone fired it for a tooltip that never
+	 * appeared.
+	 */
+	internal fun canShowPopup(context: Context, view: View): Boolean {
 		tailrec fun Context.findActivity(): Activity? {
 			return when (this) {
 				is Activity -> this

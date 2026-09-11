@@ -18,6 +18,7 @@ import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.handlers.GlitchTipDiagnosticsContext
+import com.itsaky.androidide.handlers.MetricsCrashAttachment
 import com.itsaky.androidide.logging.provider.IdeLogRouter
 import com.itsaky.androidide.preferences.internal.StatPreferences
 import com.itsaky.androidide.preferences.internal.TelemetryConsent
@@ -25,6 +26,7 @@ import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.MetricsScratch
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Breadcrumb
@@ -126,6 +128,12 @@ internal object DeviceProtectedApplicationLoader :
 
 				// Enrich every GlitchTip event with app-specific diagnostic context.
 				GlitchTipDiagnosticsContext.install(options)
+
+				// And with what the machine was doing in the minutes before it (ADFA-5526). The
+				// destinations that snapshot writes into are taken now, while failing to get them is
+				// survivable -- a crash handler is the wrong place to ask for memory.
+				MetricsScratch.install()
+				MetricsCrashAttachment.install(options, app)
 			}
 
 			// Forward INFO+ logs to GlitchTip as breadcrumbs (never as events; crash events are
