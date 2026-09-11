@@ -35,7 +35,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.idetooltips.attachTooltip
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.preferences.internal.GitPreferences
-import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.onLongPress

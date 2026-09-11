@@ -14,6 +14,10 @@ import com.itsaky.androidide.databinding.PopupGitBranchesBinding
 import com.itsaky.androidide.fragments.git.adapter.GitBranchAdapter
 import com.itsaky.androidide.fragments.git.adapter.GitBranchListItem
 import com.itsaky.androidide.git.core.models.GitBranch
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.applyLongPressRecursively
+import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.BranchesUiState
 
@@ -73,6 +77,30 @@ class GitBranchPopupWindow(
 
 		binding.etSearchBranches.doAfterTextChanged { text ->
 			filterBranches(text?.toString())
+		}
+
+		setupTooltips()
+	}
+
+	private fun setupTooltips() {
+		fun showTooltip(anchor: View = binding.root) {
+			TooltipManager.showIdeCategoryTooltip(
+				context = context,
+				anchorView = anchor,
+				tag = TooltipTag.GIT_BRANCHES,
+			)
+		}
+
+		binding.root.applyLongPressRecursively(
+			exclude = listOf(binding.rvBranches),
+			includeEditTexts = false,
+		) { view ->
+			showTooltip(view)
+			true
+		}
+
+		binding.rvBranches.onLongPress(suppressClickAfterLongPress = true) {
+			showTooltip(binding.root)
 		}
 	}
 
