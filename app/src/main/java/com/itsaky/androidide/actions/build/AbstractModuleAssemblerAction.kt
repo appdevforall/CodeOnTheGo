@@ -115,16 +115,22 @@ abstract class AbstractModuleAssemblerAction(
 				},
 			)
 		}
-		if (isPluginProject) {
-			startBuild(null)
-			return
+		// Confirm-on-switch (ADFA-4128) is asked here rather than at install time so a user who
+		// says no has not already paid for a full Gradle build.
+		when (
+			val decision =
+				standardRunClobberDecision(
+					isPluginProject = isPluginProject,
+					applicationId = resolvedVariant.mainArtifact.applicationId,
+				)
+		) {
+			StandardRunClobberDecision.SkipConfirm -> {
+				startBuild(null)
+			}
+
+			is StandardRunClobberDecision.AskFirst -> {
+				activity.ensureStandardRunClobberConfirmed(decision.applicationId, startBuild)
+			}
 		}
-		// Confirm-on-switch (ADFA-4128): this Run installs under the project's real applicationId,
-		// so it replaces a Quick Build proxy app sitting there. Asked here rather than at install
-		// time so a user who says no has not already paid for a full Gradle build.
-		activity.ensureStandardRunClobberConfirmed(
-			resolvedVariant.mainArtifact.applicationId?.takeIf { it.isNotBlank() },
-			startBuild,
-		)
 	}
 }
