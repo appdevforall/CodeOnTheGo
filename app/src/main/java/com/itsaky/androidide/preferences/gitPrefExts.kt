@@ -7,6 +7,9 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GIT_USEREMAIL
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GIT_USERNAME
 import com.itsaky.androidide.preferences.internal.GitPreferences
 import com.itsaky.androidide.R
+import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
@@ -20,6 +23,7 @@ class GitPreferencesScreen(
 
 	init {
 		addPreference(GitAuthorConfig())
+		addPreference(CommitWatermarkConfig())
 	}
 }
 
@@ -27,13 +31,24 @@ class GitPreferencesScreen(
 class GitAuthorConfig(
 	override val key: String = "idepref_git_author",
 	override val title: Int = R.string.idepref_git_author_title,
-	override val summary: Int? = R.string.idepref_git_author_summary,
 	override val children: List<IPreference> = mutableListOf(),
 ) : IPreferenceGroup() {
 
 	init {
 		addPreference(GitUserName())
 		addPreference(GitUserEmail())
+	}
+}
+
+@Parcelize
+class CommitWatermarkConfig(
+	override val key: String = "idepref_git_commit_watermark",
+	override val title: Int = R.string.idepref_git_commit_watermark_title,
+	override val children: List<IPreference> = mutableListOf(),
+) : IPreferenceGroup() {
+
+	init {
+		addPreference(AddGitCommitWatermark())
 	}
 }
 
@@ -110,3 +125,15 @@ class GitUserEmail(
 		return true
 	}
 }
+
+@Parcelize
+private class AddGitCommitWatermark(
+	override val key: String = GitPreferences.ADD_GLOBAL_COMMIT_WATERMARK,
+	override val title: Int = string.idepref_git_add_commit_watermark,
+	override val summary: Int? = string.idepref_git_add_commit_watermark_summary,
+	override val icon: Int? = drawable.ic_watermark,
+	override val tooltipTag: String = TooltipTag.PREFS_GIT_WATERMARK,
+) : SwitchPreference(
+	setValue = GitPreferences::shouldAddGlobalCommitWatermark::set,
+	getValue = GitPreferences::shouldAddGlobalCommitWatermark::get
+)
