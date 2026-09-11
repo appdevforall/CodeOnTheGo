@@ -107,6 +107,34 @@ class InstallationEventFlowTest {
 		assertThat(broadcasts.single().status).isEqualTo(InstallBroadcast.Status.OTHER)
 	}
 
+	/**
+	 * The whole PackageInstaller failure block in one table. Every constant here satisfies
+	 * `code >= STATUS_FAILURE`, so the arms are ordered, not disjoint: only the ABORTED arm
+	 * sitting ahead of the generic one keeps a user who cancelled from being told the install
+	 * is broken. Listing ABORTED's numeric neighbours beside it is what makes a reorder show
+	 * up as one row changing rather than as a whole test disappearing.
+	 */
+	@Test
+	fun `every failure constant keeps its own verdict - ABORTED alone stays retryable`() {
+		val expected =
+			linkedMapOf(
+				PackageInstaller.STATUS_FAILURE to InstallBroadcast.Status.FAILURE,
+				PackageInstaller.STATUS_FAILURE_BLOCKED to InstallBroadcast.Status.FAILURE,
+				PackageInstaller.STATUS_FAILURE_ABORTED to InstallBroadcast.Status.ABORTED,
+				PackageInstaller.STATUS_FAILURE_INVALID to InstallBroadcast.Status.FAILURE,
+				PackageInstaller.STATUS_FAILURE_CONFLICT to InstallBroadcast.Status.FAILURE,
+				PackageInstaller.STATUS_FAILURE_STORAGE to InstallBroadcast.Status.FAILURE,
+				PackageInstaller.STATUS_FAILURE_INCOMPATIBLE to InstallBroadcast.Status.FAILURE,
+			)
+
+		val actual =
+			expected.keys.associateWith { code ->
+				broadcastsFor(resultEvent(code)).single().status
+			}
+
+		assertThat(actual).containsExactlyEntriesIn(expected).inOrder()
+	}
+
 	@Test
 	fun `an intent with no extras emits nothing`() {
 		val intent = mockk<Intent>()
