@@ -192,6 +192,46 @@ android {
 	}
 }
 
+// DoD coverage gate. Two path traps are baked in below; both fail silently rather
+// than erroring, so each is spelled out here to stop the next measurement repeating one.
+//
+// executionData: the root build attaches the jacoco agent to every Test task, but for an
+// Android module the exec lands under outputs/unit_test_code_coverage/<variant>UnitTest/,
+// not build/jacoco/. A report pointed at build/jacoco/ SKIPs and measures nothing.
+//
+// classDirectories: :app runs transformV8DebugClassesWithAsm, so the bytecode the tests
+// executed is NOT tmp/kotlin-classes/v8Debug. That path is right for the quickbuild
+// modules (they run no ASM transform) and wrong here: measured 2026-09-10 it makes 138
+// classes report "Execution data ... does not match" and count as fully uncovered, which
+// reads as a real coverage hole rather than a misconfiguration. The transformed dirs
+// below give 0 mismatches.
+tasks.register<JacocoReport>("jacocoTestReport") {
+	group = "verification"
+	description = "JaCoCo line+branch coverage for the v8Debug unit tests."
+	dependsOn("testV8DebugUnitTest")
+
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+	}
+
+	classDirectories.setFrom(
+		fileTree(
+			layout.buildDirectory.dir(
+				"intermediates/classes/v8Debug/transformV8DebugClassesWithAsm/dirs",
+			),
+		) {
+			exclude("**/BuildConfig*")
+		},
+	)
+	sourceDirectories.setFrom(files("src/main/java"))
+	executionData.setFrom(
+		layout.buildDirectory.file(
+			"outputs/unit_test_code_coverage/v8DebugUnitTest/testV8DebugUnitTest.exec",
+		),
+	)
+}
+
 // Sentry gradle plugin config (crash reporting to GlitchTip).
 sentry {
 	includeProguardMapping = false
