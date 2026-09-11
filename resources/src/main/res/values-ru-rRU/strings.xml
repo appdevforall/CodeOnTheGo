@@ -157,8 +157,6 @@
   <string name="msg_open_projects">Если включено, IDE будет запоминать последний открытый проект и открывать его при последующих запусках</string>
   <string name="title_confirm_project_open">Подтверждение открытия проекта</string>
   <string name="msg_confirm_project_open">Спрашивать перед открытием последнего проекта.</string>
-  <string name="title_default_shell">Использовать системный shell в терминале</string>
-  <string name="msg_default_shell">Если включено, \'/system/bin/sh\' будет использовано в терминале.</string>
   <string name="title_general">Основное</string>
   <string name="title_tab_size">Размер TAB</string>
   <string name="msg_tab_size">Укажите, сколько пробелов будет напечатано при нажатии TAB.</string>

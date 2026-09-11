@@ -159,8 +159,6 @@
   <string name="msg_open_projects">Se habilitado, a IDE se lembrará do último projeto aberto e será reaberto na próxima vez.</string>
   <string name="title_confirm_project_open">Confirmar abertura do projeto</string>
   <string name="msg_confirm_project_open">Perguntar antes de abrir o último projeto aberto.</string>
-  <string name="title_default_shell">Usar shell do sistema no terminal</string>
-  <string name="msg_default_shell">Se habilitado, \'/system/bin/sh\' será usado no terminal.</string>
   <string name="title_general">Geral</string>
   <string name="title_tab_size">Tamanho da tabulação</string>
   <string name="msg_tab_size">Especifique o número de espaços para o TAB</string>

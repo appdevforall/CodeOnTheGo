@@ -6,6 +6,8 @@ import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.ContainedPathResolver
+import com.itsaky.androidide.utils.ContainedPathResolver.Resolution
 import com.itsaky.androidide.utils.Environment.DEFAULT_ROOT
 import com.itsaky.androidide.utils.useEntriesEach
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +31,9 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
+import java.nio.file.StandardOpenOption
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -254,62 +258,88 @@ object AssetsInstallationHelper {
 		destDir: Path,
 	) = extractZipToDir(Files.newInputStream(srcFile), destDir)
 
+	/**
+	 * Containment is [ContainedPathResolver]'s, shared with `ZipUtils.unzipFile`. It does *not*
+	 * memoize: the per-parent cache this loop used to keep was measured against a real 1.8 GB asset
+	 * installation and bought nothing (48.0s without it, 51.4s with), so every path is re-verified
+	 * against the filesystem rather than trusting an ancestor proven earlier.
+	 *
+	 * What stays local is the policy: this refuses to write through *any* existing symlink at an
+	 * entry's target -- in-base, dangling, or pointing outside destDir -- and says so. An installer
+	 * directory reused across runs is the case that matters, and unlike unzipping a user's project
+	 * there is no legitimate reason for a symlink to be there. The three failure messages are kept
+	 * distinct on purpose: an escaping entry is a hostile archive, a symlink at the target is this
+	 * policy, and unverifiable containment is a filesystem problem -- a 1.8 GB install that dies
+	 * 9,000 entries in should name the real cause (ADFA-5257 review).
+	 */
 	@WorkerThread
 	internal fun extractZipToDir(
 		srcStream: InputStream,
 		destDir: Path,
 	) {
 		Files.createDirectories(destDir)
-		// Normalize and make destDir absolute for secure path validation
-		val normalizedDestDir = destDir.toAbsolutePath().normalize()
-		val realDestDir = normalizedDestDir.toRealPath()
-
-		// Zip entries are commonly clustered by directory (e.g. dozens of files
-		// under the same build-tools/<version>/ prefix); cache the last-verified
-		// parent so consecutive entries under it skip a redundant toRealPath() call.
-		// Nothing below can turn an already-verified real directory into a symlink
-		// mid-run, so caching by lexical parent equality is safe.
-		var lastVerifiedParent: Path? = null
+		val contained = ContainedPathResolver(destDir.toFile())
 
 		ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
-			// Validate entry name doesn't contain dangerous patterns
-			if (entry.name.contains("..") || entry.name.startsWith("/") || entry.name.startsWith("\\")) {
-				throw IllegalStateException("Zip entry contains dangerous path components: ${entry.name}")
+			// A "." or "./" root directory entry names destDir itself, which already exists. The
+			// asset zips are refreshed from an external URL, and archivers that emit such an entry
+			// exist -- a no-op, not a reason to abort the installation (ADFA-5257 review).
+			if (entry.isDirectory && ContainedPathResolver.namesBase(entry.name)) {
+				return@useEntriesEach
 			}
 
-			val destFile = normalizedDestDir.resolve(entry.name).normalize()
+			val destFile =
+				when (val resolution = contained.resolve(entry.name)) {
+					is Resolution.Contained -> {
+						resolution.file.toPath()
+					}
 
-			// Use Path.startsWith() for proper path validation instead of string comparison
-			if (!destFile.startsWith(normalizedDestDir)) {
-				// DO NOT allow extraction to outside of the target dir
-				throw IllegalStateException("Entry is outside of the target dir: ${entry.name}")
-			}
+					is Resolution.Rejected -> {
+						// A pre-existing symlink at the entry's own target -- dangling, or leading
+						// outside destDir -- is this caller's refusal policy at work, not a
+						// zip-slip attempt; report it as such.
+						val overSymlink = resolution.lexicalTarget?.let { Files.isSymbolicLink(it) } == true
+						throw IllegalStateException(
+							if (overSymlink) {
+								"Refusing to extract over an existing symlink: ${entry.name}"
+							} else {
+								"Zip entry escapes the target dir: ${entry.name}"
+							},
+						)
+					}
 
-			// The checks above are lexical (entry name only) and don't catch a symlink
-			// already present on disk (e.g. destDir merged/reused across installer
-			// runs). Reject writing through an existing symlink up front, then
-			// re-check containment against the real, on-disk path once created.
+					is Resolution.Unverifiable -> {
+						throw IllegalStateException(
+							"Cannot verify that a zip entry stays in the target dir: ${entry.name} (${resolution.cause})",
+							resolution.cause,
+						)
+					}
+				}
+
+			// Policy, not containment: the resolver allows a symlink whose target is still inside
+			// destDir, and this caller does not.
 			if (Files.isSymbolicLink(destFile)) {
 				throw IllegalStateException("Refusing to extract over an existing symlink: ${entry.name}")
 			}
 
 			if (entry.isDirectory) {
 				Files.createDirectories(destFile)
-				if (!destFile.toRealPath().startsWith(realDestDir)) {
-					throw IllegalStateException("Entry escapes the target dir via symlink: ${entry.name}")
-				}
 			} else {
 				Files.createDirectories(destFile.parent)
-				if (destFile.parent != lastVerifiedParent) {
-					if (!destFile.parent.toRealPath().startsWith(realDestDir)) {
-						throw IllegalStateException("Entry parent escapes the target dir via symlink: ${entry.name}")
+				// NOFOLLOW_LINKS: the isSymbolicLink check above is a stat, and this is a separate
+				// open, so a link appearing in between would be followed. O_NOFOLLOW makes the
+				// refusal part of the open. Parent directories are still followed -- that needs
+				// openat(2), which java.nio does not expose (ADFA-5257 review).
+				Files
+					.newOutputStream(
+						destFile,
+						StandardOpenOption.WRITE,
+						StandardOpenOption.CREATE,
+						StandardOpenOption.TRUNCATE_EXISTING,
+						LinkOption.NOFOLLOW_LINKS,
+					).use { dest ->
+						zipInput.copyTo(dest)
 					}
-					lastVerifiedParent = destFile.parent
-				}
-
-				Files.newOutputStream(destFile).use { dest ->
-					zipInput.copyTo(dest)
-				}
 			}
 		}
 	}

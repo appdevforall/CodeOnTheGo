@@ -22,38 +22,45 @@ package com.itsaky.androidide.actions
  * @author Akash Yadav
  */
 interface ActionMenu : ActionItem {
+	val children: MutableSet<ActionItem>
 
-  val children: MutableSet<ActionItem>
+	fun addAction(action: ActionItem) = children.add(action)
 
-  fun addAction(action: ActionItem) = children.add(action)
+	fun removeAction(action: ActionItem) = children.remove(action)
 
-  fun removeAction(action: ActionItem) = children.remove(action)
+	/**
+	 * Find the action item with the given action ID.
+	 *
+	 * @return The action item or `null` if not found.
+	 */
+	fun findAction(id: String): ActionItem? = children.find { it.id == id }
 
-  /**
-   * Find the action item with the given action ID.
-   *
-   * @return The action item or `null` if not found.
-   */
-  fun findAction(id: String): ActionItem? {
-    return children.find { it.id == id }
-  }
+	/**
+	 * Find the child action with the given menu item ID.
+	 *
+	 * Child actions are not registered with the [ActionsRegistry], so the registry cannot resolve
+	 * them; a submenu's renderer must look them up here (ADFA-4510).
+	 *
+	 * @return The action item or `null` if not found.
+	 */
+	fun findAction(itemId: Int): ActionItem? = children.find { it.itemId == itemId }
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    visible = children.isNotEmpty() && isAtLeastOneChildVisible(data)
-    enabled = visible
-  }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		visible = children.isNotEmpty() && isAtLeastOneChildVisible(data)
+		enabled = visible
+	}
 
-  /** Action menus are not supposed to perform any action */
-  override suspend fun execAction(data: ActionData): Boolean {
-    return false
-  }
+	/** Action menus are not supposed to perform any action */
+	override suspend fun execAction(data: ActionData): Boolean = false
 
-  /**
-   * Calls [ActionItem.prepare] on each child action and returns `true` if at least one of them
-   * is [visible][ActionItem.visible].
-   */
-  fun isAtLeastOneChildVisible(data: ActionData) : Boolean {
-    return children.firstOrNull { it.prepare(data); it.visible } != null
-  }
+	/**
+	 * Calls [ActionItem.prepare] on each child action and returns `true` if at least one of them
+	 * is [visible][ActionItem.visible].
+	 */
+	fun isAtLeastOneChildVisible(data: ActionData): Boolean =
+		children.firstOrNull {
+			it.prepare(data)
+			it.visible
+		} != null
 }

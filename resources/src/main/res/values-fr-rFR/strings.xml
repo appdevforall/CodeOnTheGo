@@ -160,8 +160,6 @@ Dernier projet ouvert : \n%s</string>
   <string name="msg_open_projects">Si il est activé, l\'IDE se rappelera du dernier projet ouvert et l\'ouvrira au prochain démarrage de l\'application</string>
   <string name="title_confirm_project_open">Confirmer l\'ouverture du projet</string>
   <string name="msg_confirm_project_open">Demander avant d\'ouvrir le dernier projet ouvert</string>
-  <string name="title_default_shell">Utiliser le système Shell dans le terminal</string>
-  <string name="msg_default_shell">Si il est activer, \'/system/bin/sh\' sera utilisé dans le terminal.</string>
   <string name="title_general">Général</string>
   <string name="title_tab_size">Taille de l\'onglet</string>
   <string name="msg_tab_size">Spécifier la taille de l\'onglet</string>

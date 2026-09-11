@@ -34,6 +34,7 @@ dependencies {
 	implementation(libs.common.kotlin.coroutines.android)
 	implementation(libs.google.material)
 
+	implementation(projects.commonCompose)
 	implementation(projects.editorApi)
 	implementation(projects.common)
 	implementation(projects.resources)

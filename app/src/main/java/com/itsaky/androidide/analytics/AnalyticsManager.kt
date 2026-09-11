@@ -7,6 +7,7 @@ import com.google.firebase.ktx.Firebase
 import com.itsaky.androidide.analytics.gradle.BuildCompletedMetric
 import com.itsaky.androidide.analytics.gradle.BuildStartedMetric
 import com.itsaky.androidide.analytics.gradle.StrategySelectedMetric
+import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 
 interface IAnalyticsManager {
@@ -40,19 +41,26 @@ interface IAnalyticsManager {
 
 	fun trackBuildCompleted(metric: BuildCompletedMetric) = trackMetric(metric)
 
+	fun trackDeepLink(metric: DeepLinkMetric) = trackMetric(metric)
+
 	fun trackMetric(metric: Metric)
 }
 
 class AnalyticsManager : IAnalyticsManager {
+	@Volatile
+	private var consentGranted = false
+
 	private val analytics: FirebaseAnalytics by lazy {
 		Firebase.analytics.apply {
-			setAnalyticsCollectionEnabled(true)
+			setAnalyticsCollectionEnabled(consentGranted)
 		}
 	}
 
 	private var sessionStartTime: Long = 0
 
 	override fun initialize() {
+		consentGranted = true
+		analytics.setAnalyticsCollectionEnabled(true)
 		trackAppOpen()
 		startSession()
 	}
@@ -154,6 +162,19 @@ class AnalyticsManager : IAnalyticsManager {
 		val bundle = metric.asBundle()
 		bundle.putLong("timestamp", System.currentTimeMillis())
 
-		analytics.logEvent(metric.eventName, bundle)
+		// Reaching `analytics` initializes FirebaseAnalytics, which throws outright when the default
+		// FirebaseApp was never initialized in this process. Measuring a feature must never be able
+		// to break it: DeepLinkActivity is exported and logs before it does anything else, so an
+		// uninitialized Firebase would turn every incoming link into a crash rather than a lost
+		// event. Swallowed at this one choke point so no metric call site has to guard for itself.
+		try {
+			analytics.logEvent(metric.eventName, bundle)
+		} catch (e: IllegalStateException) {
+			log.warn("Dropping metric {}: analytics unavailable.", metric.eventName, e)
+		}
+	}
+
+	private companion object {
+		private val log = LoggerFactory.getLogger(AnalyticsManager::class.java)
 	}
 }

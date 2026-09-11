@@ -28,43 +28,57 @@ import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.coroutines.launch
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.koin.core.context.GlobalContext
 
-class InstallFileAction(context: Context, override val order: Int) : FileTabAction() {
+class InstallFileAction(
+	context: Context,
+	override val order: Int,
+) : FileTabAction() {
+	override val id: String = "ide.editor.fileTab.install"
 
-    override val id: String = "ide.editor.fileTab.install"
+	init {
+		label = context.getString(R.string.action_install)
+	}
 
-    init {
-        label = context.getString(R.string.action_install)
-    }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		if (!visible) return
+		val activity =
+			data.getActivity() ?: run {
+				markInvisible()
+				return
+			}
+		val currentFile = activity.editorViewModel.getCurrentFile()
+		visible = currentFile?.extension?.lowercase() in setOf("apk", PLUGIN_ARCHIVE_EXTENSION)
+		enabled = visible
+	}
 
-    override fun prepare(data: ActionData) {
-        super.prepare(data)
-        if (!visible) return
-        val activity = data.getActivity() ?: run { markInvisible(); return }
-        val currentFile = activity.editorViewModel.getCurrentFile()
-        visible = currentFile?.extension?.lowercase() in setOf("apk", "cgp")
-        enabled = visible
-    }
+	override fun EditorHandlerActivity.doAction(data: ActionData): Boolean {
+		val file = editorViewModel.getCurrentFile() ?: return false
+		when (file.extension.lowercase()) {
+			"apk" -> {
+				apkInstallationViewModel.installApk(
+					context = this,
+					apk = file,
+					launchInDebugMode = false,
+				)
+			}
 
-    override fun EditorHandlerActivity.doAction(data: ActionData): Boolean {
-        val file = editorViewModel.getCurrentFile() ?: return false
-        when (file.extension.lowercase()) {
-            "apk" -> apkInstallationViewModel.installApk(
-                context = this, apk = file, launchInDebugMode = false
-            )
-            "cgp" -> lifecycleScope.launch {
-                val repo = GlobalContext.get().get<PluginRepository>()
-                repo.installPluginFromFile(file)
-                    .onSuccess {
-                        flashSuccess(getString(R.string.msg_plugin_installed_restart))
-                        DialogUtils.showRestartPrompt(this@doAction)
-                    }
-                    .onFailure { e ->
-                        flashError(getString(R.string.msg_plugin_install_failed, e.message))
-                    }
-            }
-        }
-        return true
-    }
+			PLUGIN_ARCHIVE_EXTENSION -> {
+				lifecycleScope.launch {
+					val repo = GlobalContext.get().get<PluginRepository>()
+					repo
+						.installPluginFromFile(file)
+						.onSuccess {
+							flashSuccess(getString(R.string.msg_plugin_installed_restart))
+							DialogUtils.showRestartPrompt(this@doAction)
+						}.onFailure { e ->
+							flashError(getString(R.string.msg_plugin_install_failed, e.message))
+						}
+				}
+			}
+		}
+		return true
+	}
 }

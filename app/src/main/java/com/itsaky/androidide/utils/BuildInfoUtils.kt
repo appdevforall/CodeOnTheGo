@@ -31,7 +31,10 @@ import com.termux.shared.termux.TermuxUtils
  * @author Akash Yadav
  */
 object BuildInfoUtils {
-	const val BASIC_INFO = BasicBuildInfo.BASIC_INFO
+	// Not a `const val`: the underlying version string changes between builds and must
+	// not be inlined into consumers. See ADR 0012.
+	@JvmField
+	val BASIC_INFO = BasicBuildInfo.BASIC_INFO
 
 	private val BUILD_INFO_HEADER by lazy {
 		val map =

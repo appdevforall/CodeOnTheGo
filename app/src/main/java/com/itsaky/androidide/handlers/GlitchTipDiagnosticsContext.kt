@@ -20,6 +20,7 @@ package com.itsaky.androidide.handlers
 
 import android.content.pm.ApplicationInfo
 import android.os.SystemClock
+import com.itsaky.androidide.analytics.AttachedDevicesCollector
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.buildinfo.BuildInfo
@@ -170,6 +171,7 @@ object GlitchTipDiagnosticsContext {
 						mapOf(
 							"id" to info.metadata.id,
 							"version" to info.metadata.version,
+							"vcs_revision" to (info.metadata.vcsRevision ?: "unknown"),
 							"min_ide_version" to info.metadata.minIdeVersion,
 							"crash_count" to
 								runCatching {
@@ -178,6 +180,18 @@ object GlitchTipDiagnosticsContext {
 						)
 					}
 			mapOf("count" to plugins.size, "plugins" to plugins)
+		}
+
+		context(event, "attached_devices") {
+			val snapshot = AttachedDevicesCollector.collect(app)
+			mapOf(
+				"mouse_count" to snapshot.mouseCount,
+				"external_keyboard_count" to snapshot.externalKeyboardCount,
+				"touchpad_count" to snapshot.touchpadCount,
+				"stylus_count" to snapshot.stylusCount,
+				"gamepad_count" to snapshot.gamepadCount,
+				"external_display_count" to snapshot.externalDisplayCount,
+			)
 		}
 
 		// A — release identifier + version code.

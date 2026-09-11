@@ -23,6 +23,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.idetooltips.attachTooltip
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.executeAsync
@@ -30,7 +31,6 @@ import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.FlashType
 import com.itsaky.androidide.utils.flashMessage
-import com.itsaky.androidide.utils.showWithLongPressTooltip
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 
@@ -95,10 +95,9 @@ class DeleteAction(
 					String.format("%s [%s]", file.name, file.absolutePath),
 				),
 			).setCancelable(false)
-			.showWithLongPressTooltip(
-				context = context,
-				tooltipTag = TooltipTag.PROJECT_CONFIRM_DELETE,
-			)
+			.create()
+			.attachTooltip(TooltipTag.PROJECT_CONFIRM_DELETE)
+			.show()
 	}
 
 	private fun notifyFileDeleted(

@@ -24,6 +24,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
@@ -31,96 +32,133 @@ import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
-
+import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
 
 class IDETooltipWebviewFragment : Fragment() {
-    private lateinit var webView: WebView
-    private lateinit var website : String
+	private lateinit var webView: WebView
+	private lateinit var website: String
 
-    //This warning is unnecessary because we control the content
-    @SuppressLint("SetJavaScriptEnabled")
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        super.onCreateView(inflater, container, savedInstanceState)
-        Log.d(Companion.TAG, "IDETooltipWebviewFragment\\\\onCreateView called")
-        // Handle back press using OnBackPressedCallback
-        requireActivity().onBackPressedDispatcher.addCallback(
-            viewLifecycleOwner,
-            object : OnBackPressedCallback(true) {
-                override fun handleOnBackPressed() {
-                    if (webView.canGoBack()) {
-                        webView.goBack()
-                    } else {
-                        activity?.runOnUiThread {
-                            webView.clearHistory()
-                            webView.loadUrl("about:blank")
-                            webView.destroy()
-                        }
-                        parentFragmentManager.popBackStack()
-                        isEnabled =
-                            false // Disable this callback to let the default back press behavior occur
-                    }
-                }
-            })
+	// A getter, not an initializer and not `by lazy`: an initializer here runs during Fragment
+	// construction on the main thread, where the interceptor's sentinel check is a disk read
+	// StrictMode reports and a missing database is a crash before the view exists -- and `lazy`
+	// memoizes even the null that means Environment.DOC_DB was not set *yet*, pinning in-process
+	// serving off for the fragment's life. Only a non-null is cached, so the companion's
+	// retry-on-null contract holds. See HelpActivity for the same note.
+	private var cachedDocumentation: DocumentationRequestInterceptor? = null
+	private val documentation: DocumentationRequestInterceptor?
+		get() = cachedDocumentation ?: DocumentationRequestInterceptor.shared?.also { cachedDocumentation = it }
 
-        website = arguments?.getString(MainFragment.KEY_TOOLTIP_URL).orEmpty()
+	/**
+	 * Creates and configures the documentation WebView for the tooltip content.
+	 *
+	 * @return The fragment's inflated view, or `null` if no view is created.
+	 */
+	@SuppressLint("SetJavaScriptEnabled")
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View? {
+		super.onCreateView(inflater, container, savedInstanceState)
+		Log.d(Companion.TAG, "IDETooltipWebviewFragment\\\\onCreateView called")
+		// Handle back press using OnBackPressedCallback
+		requireActivity().onBackPressedDispatcher.addCallback(
+			viewLifecycleOwner,
+			object : OnBackPressedCallback(true) {
+				override fun handleOnBackPressed() {
+					if (webView.canGoBack()) {
+						webView.goBack()
+					} else {
+						activity?.runOnUiThread {
+							webView.clearHistory()
+							webView.loadUrl("about:blank")
+							webView.destroy()
+						}
+						parentFragmentManager.popBackStack()
+						isEnabled =
+							false // Disable this callback to let the default back press behavior occur
+					}
+				}
+			},
+		)
 
-        val safeContext = ContextThemeWrapper(requireContext().applicationContext, requireContext().theme)
-        val view = LayoutInflater.from(safeContext).inflate(R.layout.fragment_idetooltipwebview, container, false)
+		website = arguments?.getString(MainFragment.KEY_TOOLTIP_URL).orEmpty()
 
-        webView = view.findViewById(R.id.IDETooltipWebView)
+		val safeContext = ContextThemeWrapper(requireContext().applicationContext, requireContext().theme)
+		val view = LayoutInflater.from(safeContext).inflate(R.layout.fragment_idetooltipwebview, container, false)
 
-        // Set a WebViewClient to handle loading pages
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                // Allow loading of local assets files
-                if (request.url.toString().startsWith("file:///android_asset/")) {
-                    view.loadUrl(request.url.toString())
-                    return true
-                }
-                return super.shouldOverrideUrlLoading(view, request)
-            }
-        }
+		webView = view.findViewById(R.id.IDETooltipWebView)
 
-        // Set up WebChromeClient to support JavaScript
+		// Set a WebViewClient to handle loading pages
+		webView.webViewClient =
+			object : WebViewClient() {
+				// ADFA-5176: documentation comes from the database in-process; anything this declines
+
+				/**
+				 * Handles WebView resource requests through the documentation interceptor.
+				 *
+				 * @return The intercepted resource response, or the default WebView response when no intercepted response is available.
+				 */
+				override fun shouldInterceptRequest(
+					view: WebView,
+					request: WebResourceRequest,
+				): WebResourceResponse? = documentation?.intercept(request) ?: super.shouldInterceptRequest(view, request)
+
+				/**
+				 * Loads Android asset URLs explicitly and delegates other requests to the default handler.
+				 *
+				 * @param view The WebView requesting the URL.
+				 * @param request The resource request to handle.
+				 * @return `true` if the URL was loaded explicitly, `false` otherwise.
+				 */
+				override fun shouldOverrideUrlLoading(
+					view: WebView,
+					request: WebResourceRequest,
+				): Boolean {
+					// Allow loading of local assets files
+					if (request.url.toString().startsWith("file:///android_asset/")) {
+						view.loadUrl(request.url.toString())
+						return true
+					}
+					return super.shouldOverrideUrlLoading(view, request)
+				}
+			}
+
+		// Set up WebChromeClient to support JavaScript
 //        webView.webChromeClient = WebChromeClient()
-        webView.settings.allowFileAccessFromFileURLs
-        webView.settings.allowFileAccess
-        webView.settings.allowUniversalAccessFromFileURLs
-        webView.scrollBarStyle = WebView.SCROLLBARS_OUTSIDE_OVERLAY
-        webView.scrollBarDefaultDelayBeforeFade = 1000
+		webView.scrollBarStyle = WebView.SCROLLBARS_OUTSIDE_OVERLAY
+		webView.scrollBarDefaultDelayBeforeFade = 1000
 
+		// Enable JavaScript if needed
+		webView.settings.javaScriptEnabled = true
 
-        // Enable JavaScript if needed
-        webView.settings.javaScriptEnabled = true
+		// Load the HTML file from the assets folder
+		webView.loadUrl(website)
+		return view
+	}
 
-        // Load the HTML file from the assets folder
-        webView.loadUrl(website)
-        return view
-    }
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		Log.d(Companion.TAG, "IDETooltipWebViewFragment\\\\onViewCreated called")
+	}
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        Log.d(Companion.TAG, "IDETooltipWebViewFragment\\\\onViewCreated called")
-    }
+	/**
+	 * Releases the WebView and clears its browsing state when the view is visible.
+	 */
+	override fun onDestroyView() {
+		super.onDestroyView()
+		// Clean up the WebView in Fragment
+		if (webView.isVisible) {
+			webView.clearHistory()
+			webView.loadUrl("about:blank")
+			webView.destroy()
+		}
+	}
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        // Clean up the WebView in Fragment
-        if(webView.isVisible) {
-            webView.clearHistory()
-            webView.loadUrl("about:blank")
-            webView.destroy()
-        }
-
-    }
-
-    companion object {
-        private const val TAG = "IDETooltipWebViewFragment"
-    }
-
-
+	companion object {
+		private const val TAG = "IDETooltipWebViewFragment"
+	}
 }

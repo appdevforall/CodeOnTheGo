@@ -158,8 +158,6 @@
   <string name="msg_open_projects">Wenn diese Option aktiviert ist, merkt sich die IDE das zuletzt ge&#xF6;ffnete Projekt und &#xF6;ffnet dieses beim n&#xE4;chsten Start.</string>
   <string name="title_confirm_project_open">Projekt &#xF6;ffnung best&#xE4;tigen</string>
   <string name="msg_confirm_project_open">Vor dem &#xD6;ffnen des zuletzt ge&#xF6;ffneten Projekts nachfragen.</string>
-  <string name="title_default_shell">Verwenden Sie die System-Shell im Terminal</string>
-  <string name="msg_default_shell">Wenn aktiviert, wird \'/system/bin/sh\' im Terminal verwendet.</string>
   <string name="title_general">Allgemein</string>
   <string name="title_tab_size">Tab-Gr&#xF6;&#xDF;e</string>
   <string name="msg_tab_size">Geben Sie die Anzahl der Leerzeichen f&#xFC;r TAB an</string>

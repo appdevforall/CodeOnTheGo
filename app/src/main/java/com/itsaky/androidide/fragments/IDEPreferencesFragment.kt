@@ -23,87 +23,167 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
+import androidx.preference.PreferenceGroupAdapter
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.transition.MaterialSharedAxis
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_DEVELOPER
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_EDITOR_XML
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GENERAL
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_GRADLE
-import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TERMUX
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_TOP
 import com.itsaky.androidide.preferences.IPreference
 import com.itsaky.androidide.preferences.IPreferenceGroup
 import com.itsaky.androidide.preferences.IPreferenceScreen
+import com.itsaky.androidide.utils.onLongPress
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
+import org.slf4j.LoggerFactory
 
 class IDEPreferencesFragment : BasePreferenceFragment() {
+	/** Every preference in this screen, including nested categories' children, keyed by its key. */
+	internal var tooltipTagsByKey: Map<String, String> = emptyMap()
 
-  private var children: List<IPreference> = emptyList()
+	/**
+	 * This screen's own tag - the fallback for a long-press that lands on empty RecyclerView
+	 * space (no row under the touch point) or on a row with no tooltipTag of its own. Also read
+	 * by [com.itsaky.androidide.activities.PreferencesActivity] to resolve the toolbar's and the
+	 * scroll container's long-press tooltip to whichever screen is currently showing.
+	 */
+	internal var screenTooltipTag: String = PREFS_TOP
+		private set
 
-  override fun onCreateView(
-    inflater: LayoutInflater,
-    container: ViewGroup?,
-    savedInstanceState: Bundle?
-  ): View {
-    enterTransition = MaterialSharedAxis(MaterialSharedAxis.X, true)
-    reenterTransition = MaterialSharedAxis(MaterialSharedAxis.X, false)
-    exitTransition = MaterialSharedAxis(MaterialSharedAxis.X, true)
-    return super.onCreateView(inflater, container, savedInstanceState)
-  }
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		enterTransition = MaterialSharedAxis(MaterialSharedAxis.X, true)
+		reenterTransition = MaterialSharedAxis(MaterialSharedAxis.X, false)
+		exitTransition = MaterialSharedAxis(MaterialSharedAxis.X, true)
+		return super.onCreateView(inflater, container, savedInstanceState)
+	}
 
-  override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-    super.onCreatePreferences(savedInstanceState, rootKey)
+	override fun onCreatePreferences(
+		savedInstanceState: Bundle?,
+		rootKey: String?,
+	) {
+		super.onCreatePreferences(savedInstanceState, rootKey)
 
-    if (context == null) {
-      return
-    }
+		@Suppress("DEPRECATION")
+		val children: List<IPreference> = arguments?.getParcelableArrayList(EXTRA_CHILDREN) ?: emptyList()
+		this.tooltipTagsByKey = collectTooltipTags(children)
+		this.screenTooltipTag = resolveScreenTooltipTag(arguments?.getString(EXTRA_SCREEN_TOOLTIP_TAG))
 
-    @Suppress("DEPRECATION")
-    this.children = arguments?.getParcelableArrayList(EXTRA_CHILDREN) ?: emptyList()
+		// Neither read above needs a context; only building the actual preference UI does.
+		if (context == null) {
+			return
+		}
 
-    preferenceScreen.removeAll()
-    addChildren(this.children, preferenceScreen)
-  }
+		preferenceScreen.removeAll()
+		addChildren(children, preferenceScreen)
+	}
 
-  private fun addChildren(children: List<IPreference>, pref: PreferenceGroup) {
-    for (child in children) {
-      val preference = child.onCreateView(requireContext())
-      if (child is IPreferenceScreen) {
-        preference.fragment = IDEPreferencesFragment::class.java.name
-        preference.extras.putParcelableArrayList(EXTRA_CHILDREN, ArrayList(child.children))
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
+		// Captured once: re-reading the `listView` property from inside the callback (which can
+		// fire after a delay) would hit a field PreferenceFragmentCompat clears in onDestroyView.
+		val recyclerView = listView
 
-        pref.addPreference(preference)
-        continue
-      }
+		recyclerView.onLongPress(suppressClickAfterLongPress = true) { e ->
+			// isAdded alone isn't enough: a fragment can stay added (e.g. on the back stack)
+			// while its view is torn down, and the long-press timer can fire after that.
+			if (!isAdded || !recyclerView.isAttachedToWindow) {
+				return@onLongPress
+			}
+			val ctx = context ?: return@onLongPress
 
-      if (child is IPreferenceGroup) {
-        pref.addPreference(preference as PreferenceCategory)
-        addChildren(child.children, preference)
-        continue
-      }
+			val row = recyclerView.findChildViewUnder(e.x, e.y)
+			val tag = row?.let { resolveTooltipTag(recyclerView, it) } ?: screenTooltipTag
+			val anchor = row ?: recyclerView
 
+			showIdeCategoryTooltipIfPresent(ctx, anchor, tag)
+		}
+	}
 
-      pref.addPreference(preference)
-    }
-  }
+	/** [EXTRA_SCREEN_TOOLTIP_TAG]'s value, or [PREFS_TOP] if it's missing or blank. */
+	internal fun resolveScreenTooltipTag(rawTag: String?): String = rawTag?.takeIf { it.isNotBlank() } ?: PREFS_TOP
 
-    fun getCurrentScreenTooltip(): String {
-    val firstChildKey = children.firstOrNull()?.key
-    return when (firstChildKey) {
-      "idepref_configure" -> PREFS_TOP
-      "idepref_general_interface" -> PREFS_GENERAL
-      "idepref_editor_common" -> PREFS_EDITOR
-      "idepref_build_gradle" -> PREFS_GRADLE
-      "idepref_build_gradleCommands" -> PREFS_GRADLE
-      "ide.preferences.terminal.debugging" -> PREFS_TERMUX
-      "ide.prefs.developerOptions.debugging" -> PREFS_DEVELOPER
-      "idepref_xml_trimFinalNewLine" -> PREFS_EDITOR_XML
-      else -> PREFS_TOP
-    }
-  }
+	/** The row's own tooltipTag, or null if there's no row at that position or it has none. */
+	internal fun resolveTooltipTag(
+		recyclerView: RecyclerView,
+		row: View,
+	): String? {
+		val position = recyclerView.getChildAdapterPosition(row)
+		if (position == RecyclerView.NO_POSITION) {
+			return null
+		}
 
-  companion object {
-    const val EXTRA_CHILDREN = "ide.preferences.fragment.children"
-  }
+		val key = (recyclerView.adapter as? PreferenceGroupAdapter)?.getItem(position)?.key ?: return null
+		return tooltipTagsByKey[key]?.takeIf { it.isNotBlank() }
+	}
+
+	/**
+	 * Recursively walks [children], mapping each preference key to its tooltip tag.
+	 * Nested [IPreferenceScreen] nodes are not descended into. Entries with an empty
+	 * tooltip tag are kept as-is. If two preferences in the tree share a key, the first
+	 * one's tag wins and the duplicate is logged - restored fragments legitimately
+	 * arrive with every child duplicated, so this must not throw.
+	 */
+	internal fun collectTooltipTags(children: List<IPreference>): Map<String, String> {
+		val map = mutableMapOf<String, String>()
+
+		fun visit(items: List<IPreference>) {
+			for (item in items) {
+				// Log and keep the first, rather than check(): a duplicate key is a wrong tooltip on one
+				// row, and this runs inside onCreatePreferences, where throwing takes the whole screen
+				// down. It is also reachable without any mistake in the tree -- every @Parcelize group
+				// declares `children` as a constructor property *and* re-adds its children in init, so
+				// a fragment restored from its parcelled arguments (process death, or "Don't keep
+				// activities") arrives with every child twice. pluginSettingsPreferences() already
+				// chose this policy for the same hazard (ADFA-5088 review).
+				if (item.key in map) {
+					log.warn("Duplicate preference key in this screen's tree: {}; keeping the first tooltip tag", item.key)
+				} else {
+					map[item.key] = item.tooltipTag
+				}
+				if (item is IPreferenceGroup && item !is IPreferenceScreen) {
+					visit(item.children)
+				}
+			}
+		}
+
+		visit(children)
+		return map
+	}
+
+	private fun addChildren(
+		children: List<IPreference>,
+		pref: PreferenceGroup,
+	) {
+		for (child in children) {
+			val preference = child.onCreateView(requireContext())
+			if (child is IPreferenceScreen) {
+				preference.fragment = IDEPreferencesFragment::class.java.name
+				preference.extras.putParcelableArrayList(EXTRA_CHILDREN, ArrayList(child.children))
+				preference.extras.putString(EXTRA_SCREEN_TOOLTIP_TAG, child.tooltipTag)
+
+				pref.addPreference(preference)
+				continue
+			}
+
+			if (child is IPreferenceGroup) {
+				pref.addPreference(preference as PreferenceCategory)
+				addChildren(child.children, preference)
+				continue
+			}
+
+			pref.addPreference(preference)
+		}
+	}
+
+	companion object {
+		private val log = LoggerFactory.getLogger(IDEPreferencesFragment::class.java)
+
+		const val EXTRA_CHILDREN = "ide.preferences.fragment.children"
+		const val EXTRA_SCREEN_TOOLTIP_TAG = "ide.preferences.fragment.screenTooltipTag"
+	}
 }
-

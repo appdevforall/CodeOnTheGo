@@ -58,6 +58,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
+import com.itsaky.androidide.models.EditorIntentExtras
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.models.SearchResult
@@ -79,6 +80,7 @@ import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_CANCELLED
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.CACHE_READ_ERROR
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_DIRECTORY_INACCESSIBLE
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_DIRECTORY
@@ -94,6 +96,7 @@ import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.onLongPress
@@ -188,6 +191,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private val buildServiceConnection = GradleBuildServiceConnnection()
 
+	// True once onCreate() has completed past its isFinishing check -- mirrors
+	// EditorHandlerActivity.didCompleteLiveOnCreate. super.onCreate() (BaseEditorActivity) may
+	// already have called finish() for a doomed instance spun up by a stale deep-link liveness
+	// check; finish() doesn't stop execution, so without this flag preDestroy() would unregister
+	// the process-wide build-service Lookup entry and shut down the LSP singleton that an
+	// actually-live sibling instance still depends on.
+	private var didCompleteLiveOnCreate = false
+
 	companion object {
 		private val logger = LoggerFactory.getLogger(ProjectHandlerActivity::class.java)
 
@@ -214,6 +225,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
+		// super.onCreate() may have already called finish() for a doomed instance (see
+		// EditorHandlerActivity.onCreate's own isFinishing guard for the fuller explanation);
+		// finish() doesn't stop execution here, so without this check startServices() below would
+		// unconditionally bind a build service and register a listener that preDestroy() will
+		// later tear down, corrupting the actually-live sibling instance's state.
+		if (isFinishing) {
+			return
+		}
+		didCompleteLiveOnCreate = true
+
 		editorViewModel._isSyncNeeded.observe(this) { isSyncNeeded ->
 			if (!isSyncNeeded) {
 				// dismiss if already showing
@@ -232,7 +253,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		observeStates()
 		startServices()
 
-		if (intent.getBooleanExtra("HAS_TEMPLATE_ISSUES", false)) {
+		if (intent.getBooleanExtra(EditorIntentExtras.EXTRA_HAS_TEMPLATE_ISSUES, false)) {
 			flashError(getString(string.msg_template_warnings))
 		}
 	}
@@ -373,7 +394,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		syncNotificationFlashbar?.dismiss()
 		syncNotificationFlashbar = null
 
-		if (isDestroying) {
+		if (didCompleteLiveOnCreate && isDestroying) {
 			releaseServerListener()
 			this.initializingFuture?.cancel(true)
 			this.initializingFuture = null
@@ -381,13 +402,13 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			doCloseAll()
 		}
 
-		if (IDELanguageClientImpl.isInitialized()) {
+		if (didCompleteLiveOnCreate && IDELanguageClientImpl.isInitialized()) {
 			IDELanguageClientImpl.shutdown()
 		}
 
 		super.preDestroy()
 
-		if (isDestroying) {
+		if (didCompleteLiveOnCreate && isDestroying) {
 			try {
 				stopLanguageServers()
 			} catch (_: Exception) {
@@ -589,11 +610,19 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 		if (buildService == null) {
 			log.error("No build service found. Cannot initialize project.")
+			// This init failed before postProjectInit could ever run, so its regardless-of-outcome
+			// drain never happens here -- without this, a deep link's pending file navigation stays
+			// armed on the intent and fires on the next unrelated successful sync or variant
+			// switch, the stale jump that drain exists to prevent. Same for the tooling-server
+			// check below. (The handleMissingProjectDirectory returns above don't need it: they
+			// finish() this instance, and the request dies with it.)
+			withContext(Dispatchers.Main.immediate) { drainPendingFileRequest() }
 			return@launch
 		}
 
 		if (!buildService.isToolingServerStarted()) {
 			flashError(string.msg_tooling_server_unavailable)
+			withContext(Dispatchers.Main.immediate) { drainPendingFileRequest() }
 			return@launch
 		}
 
@@ -663,6 +692,28 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 	}
 
+	/**
+	 * Re-adds the processes the service already knows about to this activity's memory watcher.
+	 *
+	 * A configuration change replaces the activity and its [MemoryUsageWatcher] but not the service
+	 * or the processes it is driving, and both pids are reported on one-shot callbacks that a
+	 * replacement listener has already missed -- the tooling server's on the start it did not
+	 * request, the daemon's on the build that spawned it. Without this the chart came back after a
+	 * rotation plotting the IDE alone, which is the smallest of the three.
+	 */
+	private fun readoptWatchedProcesses(service: GradleBuildService) {
+		val tooling = service.toolingServerPid
+		val daemon = service.gradleDaemonPid
+		if (tooling == null && daemon == null) {
+			return
+		}
+
+		logger.info("Re-adopting watched processes: tooling server {}, Gradle daemon {}", tooling, daemon)
+		tooling?.let { memoryUsageWatcher.watchProcess(it, PROC_GRADLE_TOOLING) }
+		daemon?.let { memoryUsageWatcher.watchProcess(it, PROC_GRADLE_DAEMON) }
+		resetMemUsageChart()
+	}
+
 	protected fun onGradleBuildServiceConnected(service: GradleBuildService) {
 		log.info("Connected to Gradle build service")
 
@@ -670,10 +721,18 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		editorViewModel.isBoundToBuildSerice = true
 		Lookup.getDefault().update(BuildService.KEY_BUILD_SERVICE, service)
 		service.setEventListener(mBuildEventListener)
+		readoptWatchedProcesses(service)
 
 		if (service.isToolingServerStarted()) {
 			if (service.isBuildInProgress) {
 				log.info("Skipping project initialization while build is in progress")
+				// The third early return that never reaches postProjectInit, and so never reaches its
+				// drain -- the same reason initializeProject's two failure returns drain. Cold-opening a
+				// project by deep link while a Gradle build is already running otherwise left the
+				// PendingFileRequest armed on the intent: the editor never navigated (only a log line),
+				// and the request then fired on the first unrelated later sync, yanking the editor to
+				// that stale file and line.
+				lifecycleScope.launch(Dispatchers.Main.immediate) { drainPendingFileRequest() }
 				return
 			}
 			initializeProject()
@@ -682,7 +741,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		service.startToolingServer { pid ->
 			memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_TOOLING)
-			resetMemUsageChart()
+			// The callback arrives on the tooling server's own thread, and the renderer is
+			// @UiThread: rebuild() clears and repopulates a non-thread-safe pid map that the
+			// once-a-second sample listener reads on the main thread, so racing it can plot one
+			// process's samples on another's line or throw out of the entry loop.
+			runOnUiThread { resetMemUsageChart() }
 
 			service.metadata().whenComplete { metadata, err ->
 				if (metadata == null || err != null) {
@@ -697,7 +760,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						metadata.pid,
 					)
 					memoryUsageWatcher.watchProcess(metadata.pid, PROC_GRADLE_TOOLING)
-					resetMemUsageChart()
+					// A CompletableFuture completion thread, for the same reason as above.
+					runOnUiThread { resetMemUsageChart() }
 				}
 			}
 
@@ -744,6 +808,22 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	) {
 		val manager = ProjectManagerImpl.getInstance()
 		if (!isSuccessful) {
+			// Before the project name is resolved, which the cancel path does not use: that lookup
+			// walks the workspace model and has a catch-Throwable around it, and a user who pressed
+			// Stop should not be waiting on it -- or be affected by it failing.
+			//
+			// A sync the user stopped is not a failure, and arrives here through the same callback
+			// as one. ADFA-5542 fixed that for builds and missed this path, which is the one a
+			// cancelled *sync* takes: the user pressed Stop and got an indefinite red "Project
+			// initialization failed" for doing so.
+			if (failure == BUILD_CANCELLED) {
+				val cancelled = getString(string.info_build_cancelled)
+				setStatus(cancelled)
+				flashInfo(cancelled)
+				editorViewModel.isInitializing = false
+				return
+			}
+
 			// Get project name for error message
 			val projectName =
 				try {
@@ -927,7 +1007,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		builder.setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
 		val dialog = builder.create()
-		dialog.onLongPress { view ->
+		dialog.onLongPress(includeEditTexts = true) { view ->
 			if (
 				view is EditText
 			) {

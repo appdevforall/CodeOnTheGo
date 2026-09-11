@@ -26,8 +26,12 @@ import androidx.preference.Preference
  * @author Akash Yadav
  */
 abstract class IPreferenceScreen : IPreferenceGroup() {
-  
-  override fun onCreatePreference(context: Context): Preference {
-    return Preference(context)
-  }
+	// Re-abstracted rather than inheriting IPreference's "" default: a screen's tag is what a
+	// long-press falls back to for every row on it (see IDEPreferencesFragment), including empty
+	// RecyclerView space, so silently omitting it here is a real regression (it did happen once in
+	// this codebase's history), not just a missing per-row nicety. All current screens already
+	// supply a real tag, so this is a compile-time guarantee, not a behavior change.
+	abstract override val tooltipTag: String
+
+	override fun onCreatePreference(context: Context): Preference = Preference(context)
 }

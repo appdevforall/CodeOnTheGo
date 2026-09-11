@@ -75,7 +75,12 @@ internal fun referenceAtCaret(
 	return null
 }
 
-private fun navigableLeafAt(
+/**
+ * The leaf token at [offset] if a caret there could name something, else null. Shared with
+ * [targetAtCaret], which applies the same accept-list before asking whether the leaf is a
+ * declaration's own name.
+ */
+internal fun navigableLeafAt(
 	file: KtFile,
 	offset: Int,
 ): PsiElement? {

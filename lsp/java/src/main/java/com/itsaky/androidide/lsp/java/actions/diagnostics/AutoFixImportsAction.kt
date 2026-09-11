@@ -17,9 +17,13 @@
 
 package com.itsaky.androidide.lsp.java.actions.diagnostics
 
+import android.content.Context
+import android.view.View
+import android.widget.ListView
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requirePath
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.java.R
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
@@ -32,6 +36,7 @@ import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashInfo
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -42,165 +47,221 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class AutoFixImportsAction : BaseJavaCodeAction() {
+	override val titleTextRes: Int = R.string.title_fix_imports
+	override val id: String = "ide.editor.lsp.java.diagnostics.autoFixImports"
+	override var label: String = ""
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
 
-  override val titleTextRes: Int = R.string.title_fix_imports
-  override val id: String = "ide.editor.lsp.java.diagnostics.autoFixImports"
-  override var label: String = ""
-  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS
+	companion object {
+		private val log = LoggerFactory.getLogger(AutoFixImportsAction::class.java)
+	}
 
-  companion object {
+	override suspend fun execAction(data: ActionData): Result {
+		val path = data.requirePath()
+		val compiler = data.requireCompiler()
+		return compiler.compile(path).get { task ->
+			val classes = mutableMapOf<String, List<String>>()
 
-    private val log = LoggerFactory.getLogger(AutoFixImportsAction::class.java)
-  }
+			// find all unresolved simple names
+			unresolvedNames(path, task).forEach { simpleName ->
 
-  override suspend fun execAction(data: ActionData): Result {
-    val path = data.requirePath()
-    val compiler = data.requireCompiler()
-    return compiler.compile(path).get { task ->
-      val classes = mutableMapOf<String, List<String>>()
+				// if we have already looked for this simple name
+				// we do not need to look it up again
+				if (classes[simpleName] != null) return@forEach
 
-      // find all unresolved simple names
-      unresolvedNames(path, task).forEach { simpleName ->
+				// find classes with those names
+				compiler.findQualifiedNames(simpleName).let { names ->
 
-        // if we have already looked for this simple name
-        // we do not need to look it up again
-        if (classes[simpleName] != null) return@forEach
+					// if we find classes with that specific simple name, map them to the simple name
+					if (names.isNotEmpty()) {
+						classes[simpleName] = names
+					}
+				}
+			}
 
-        // find classes with those names
-        compiler.findQualifiedNames(simpleName).let { names ->
+			// return the result
+			Result(getFileImports(task, path), classes)
+		}
+	}
 
-          // if we find classes with that specific simple name, map them to the simple name
-          if (names.isNotEmpty()) {
-            classes[simpleName] = names
-          }
-        }
-      }
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is Result) {
+			log.error("Invalid result returned from execAction: {}", result)
+			return
+		}
 
-      // return the result
-      Result(getFileImports(task, path), classes)
-    }
-  }
+		if (result.classes.isEmpty()) {
+			flashInfo(R.string.msg_no_unresolved_classes)
+			return
+		}
 
-  override fun postExec(data: ActionData, result: Any) {
-    if (result !is Result) {
-      log.error("Invalid result returned from execAction: {}", result)
-      return
-    }
+		// if there are multiple classes with same simple name
+		// ask the user to choose the appropriate class
+		if (result.classes.any { it.value.size > 1 }) {
+			finalizeClassNames(data, result)
+		} else {
+			performEdits(data, result)
+		}
+	}
 
-    if (result.classes.isEmpty()) {
-      flashInfo(R.string.msg_no_unresolved_classes)
-      return
-    }
+	private fun finalizeClassNames(
+		data: ActionData,
+		result: Result,
+	) {
+		var e: Map.Entry<String, List<String>>? = null
+		for (entry in result.classes) {
+			if (entry.value.size > 1) {
+				e = entry
+				break
+			}
+		}
 
-    // if there are multiple classes with same simple name
-    // ask the user to choose the appropriate class
-    if (result.classes.any { it.value.size > 1 }) {
-      finalizeClassNames(data, result)
-    } else {
-      performEdits(data, result)
-    }
-  }
+		if (e == null) {
+			performEdits(data, result)
+			return
+		}
 
-  private fun finalizeClassNames(data: ActionData, result: Result) {
-    var e: Map.Entry<String, List<String>>? = null
-    for (entry in result.classes) {
-      if (entry.value.size > 1) {
-        e = entry
-        break
-      }
-    }
+		val context = data.requireContext()
+		val entry = e
+		val dialog =
+			DialogUtils
+				.newMaterialDialogBuilder(context)
+				.setCancelable(true)
+				.setItems(entry.value.toTypedArray()) { dialog, which ->
+					dialog.dismiss()
+					result.classes[entry.key] = listOf(entry.value[which])
 
-    if (e == null) {
-      performEdits(data, result)
-      return
-    }
+					// once the user decides which class to import for this simple name,
+					// call this method again to see if there any other simple names with multiple options
+					finalizeClassNames(data, result)
+				}.setTitle(context.getString(R.string.title_class_chooser, entry.key))
+				.create()
 
-    val context = data.requireContext()
-    DialogUtils.newMaterialDialogBuilder(context)
-      .setCancelable(true)
-      .setItems(e.value.toTypedArray()) { dialog, which ->
-        dialog.dismiss()
-        result.classes[e.key] = listOf(e.value[which])
+		dialog.listView?.setOnItemLongClickListener { _, view, _, _ ->
+			showDialogTooltip(context, view)
+			true
+		}
 
-        // once the user decides which class to import for this simple name,
-        // call this method again to see if there any other simple names with multiple options
-        finalizeClassNames(data, result)
-      }
-      .setTitle(context.getString(R.string.title_class_chooser, e.key))
-      .show()
-  }
+		dialog.setOnShowListener {
+			val root = dialog.window?.decorView ?: return@setOnShowListener
+			root.applyLongPressRecursively {
+				showDialogTooltip(context, root)
+				true
+			}
+		}
 
-  private fun performEdits(data: ActionData, result: Result) {
-    val path = data.requirePath()
-    val compiler = data.requireCompiler()
-    val client =
-      data.getLanguageClient()
-        ?: run {
-          log.warn("No language client found. Cannot perform edits.")
-          return
-        }
+		dialog.show()
+	}
 
-    val classes = result.classes.mapNotNull { it.value.firstOrNull() }
+	/**
+	 * [applyLongPressRecursively] skips [ListView] subtrees, so the item list needs its own listener
+	 * -- the dialog chrome and the rows are wired separately (ADFA-4510).
+	 *
+	 * Shares [TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS_DIALOG] with AddImportAction's chooser: same
+	 * question asked of the user, same answer, and the two actions already share an action tag.
+	 */
+	private fun showDialogTooltip(
+		context: Context,
+		anchor: View,
+	) {
+		TooltipManager.showIdeCategoryTooltip(
+			context,
+			anchor,
+			TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS_DIALOG,
+		)
+	}
 
-    if (classes.isEmpty()) {
-      flashInfo(R.string.msg_no_unresolved_classes)
-      return
-    }
+	private fun performEdits(
+		data: ActionData,
+		result: Result,
+	) {
+		val path = data.requirePath()
+		val compiler = data.requireCompiler()
+		val client =
+			data.getLanguageClient()
+				?: run {
+					log.warn("No language client found. Cannot perform edits.")
+					return
+				}
 
-    val insertText = StringBuilder()
-    if (result.fileImports.isEmpty() && classes.isNotEmpty()) {
-      // if there are no file imports, the new imports will be added just after the package
-      // declaration. To avoid this, add a new line before the imports
-      insertText.append("\n")
-    }
+		val classes = result.classes.mapNotNull { it.value.firstOrNull() }
 
-    for (klass in classes) {
-      insertText.append("import ${klass};\n")
-    }
+		if (classes.isEmpty()) {
+			flashInfo(R.string.msg_no_unresolved_classes)
+			return
+		}
 
-    val position = compiler.compile(path).get { positionForImports(classes[0], it) }
+		val insertText = StringBuilder()
+		if (result.fileImports.isEmpty() && classes.isNotEmpty()) {
+			// if there are no file imports, the new imports will be added just after the package
+			// declaration. To avoid this, add a new line before the imports
+			insertText.append("\n")
+		}
 
-    val change = DocumentChange()
-    change.file = path
-    change.edits = listOf(TextEdit(Range.pointRange(position), insertText.toString()))
+		for (klass in classes) {
+			insertText.append("import $klass;\n")
+		}
 
-    val action = CodeActionItem()
-    action.title = data.requireContext().getString(R.string.title_fix_imports)
-    action.kind = CodeActionKind.QuickFix
-    action.changes = listOf(change)
-    client.performCodeAction(action)
-  }
+		val position = compiler.compile(path).get { positionForImports(classes[0], it) }
 
-  /**
-   * Walks through the diagnostics of the compilation task, looks for [DiagnosticCode.NOT_IMPORTED]
-   * errors and returns a list of simple names of all not imported classes.
-   */
-  private fun unresolvedNames(file: Path, task: CompileTask): List<String> {
-    val names = mutableListOf<String>()
-    var docContents: CharSequence? = null
-    val diagnostics =
-      task.diagnostics.filter {
-        it.source.toUri() == file.toUri() && it.code == DiagnosticCode.NOT_IMPORTED.id
-      }
-    for (diagnostic in diagnostics) {
-      val content =
-        try {
-          docContents ?: diagnostic.source.getCharContent(true).also { docContents = it }
-        } catch (e: Exception) {
-          log.error("Failed to get contents of file {}", file, e)
-          continue
-        }
+		val change = DocumentChange()
+		change.file = path
+		change.edits = listOf(TextEdit(Range.pointRange(position), insertText.toString()))
 
-      val name =
-        content.subSequence(diagnostic.startPosition.toInt(), diagnostic.endPosition.toInt())
-      names.add(name.toString())
-    }
-    return names
-  }
+		val action = CodeActionItem()
+		action.title = data.requireContext().getString(R.string.title_fix_imports)
+		action.kind = CodeActionKind.QuickFix
+		action.changes = listOf(change)
+		client.performCodeAction(action)
+	}
 
-  private fun getFileImports(task: CompileTask, file: Path): Set<String> {
-    return task.root(file).imports.map { it.qualifiedIdentifier }.map { it.toString() }.toSet()
-  }
+	/**
+	 * Walks through the diagnostics of the compilation task, looks for [DiagnosticCode.NOT_IMPORTED]
+	 * errors and returns a list of simple names of all not imported classes.
+	 */
+	private fun unresolvedNames(
+		file: Path,
+		task: CompileTask,
+	): List<String> {
+		val names = mutableListOf<String>()
+		var docContents: CharSequence? = null
+		val diagnostics =
+			task.diagnostics.filter {
+				it.source.toUri() == file.toUri() && it.code == DiagnosticCode.NOT_IMPORTED.id
+			}
+		for (diagnostic in diagnostics) {
+			val content =
+				try {
+					docContents ?: diagnostic.source.getCharContent(true).also { docContents = it }
+				} catch (e: Exception) {
+					log.error("Failed to get contents of file {}", file, e)
+					continue
+				}
 
-  inner class Result(val fileImports: Set<String>, val classes: MutableMap<String, List<String>>)
+			val name =
+				content.subSequence(diagnostic.startPosition.toInt(), diagnostic.endPosition.toInt())
+			names.add(name.toString())
+		}
+		return names
+	}
+
+	private fun getFileImports(
+		task: CompileTask,
+		file: Path,
+	): Set<String> =
+		task
+			.root(file)
+			.imports
+			.map {
+				it.qualifiedIdentifier
+			}.map { it.toString() }
+			.toSet()
+
+	inner class Result(
+		val fileImports: Set<String>,
+		val classes: MutableMap<String, List<String>>,
+	)
 }

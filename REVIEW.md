@@ -22,7 +22,7 @@ A review isn't done because it *looks* fine; it's done when you can **show what 
 | §4 Security | Which untrusted inputs were validated; secrets checked |
 | §5 Tests & coverage | JaCoCo numbers for new non-UI code (line & branch) |
 | §7 Code quality | Duplication/cohesion pass done; no reimplementation of existing helpers |
-| §8–§9 A11y & help | contentDescription + long-press help on new interactive elements |
+| §8–§9 A11y & help | contentDescription + long-press help on new interactive elements; font scale 1.0/2.0 verified on new or changed screens |
 | §10 Architecture | Checklist below, each item pass/fail |
 | §13 Plugins | API-surface touched? impact check result |
 
@@ -40,6 +40,7 @@ Keep it proportional — a two-line change needs a two-line ledger.
 - [ ] **Docs:** public classes/functions have KDoc/Javadoc explaining *why*, not *what*; any module `README`/`ARCHITECTURE.md`/ADR the change affects is updated in the same PR.
 - [ ] **Strings** are in the **`:resources`** module's `strings.xml` (not per-module, not inline literals) — keeps localization centralized.
 - [ ] **Accessibility:** every actionable view has a `contentDescription` (XML *or* programmatic); decorative views are marked `importantForAccessibility="no"`.
+- [ ] **Font scale:** new or changed screens verified at **1.0 and 2.0** — nothing clipped, nothing unreachable — or explicitly noted as not applicable.
 - [ ] **Contextual help:** new interactive elements (and any new screen/panel) have long-press help wired to the 3-tier tooltip system.
 - [ ] **Analytics:** meaningful user/build actions emit an event (see below).
 - [ ] **Scope/size:** PR is focused on one ticket/use case; if large, it's split into **reviewable commits** (mechanical separate from behavioral) rather than force-split into multiple PRs (`CLAUDE.md`).
@@ -142,7 +143,7 @@ Keep event names/params stable and low-cardinality; **no PII, file paths with us
 - **Strings in `strings.xml`.** User-facing text must be a string resource, never an inline literal — lint flags `HardcodedText`, and externalized strings feed our Crowdin translation flow. Use plurals/`getQuantityString` and positional args for formatting. Log messages and analytics keys are *not* user-facing and stay in code.
 - **Dependencies:** don't add one without checking `gradle/libs.versions.toml` first — we probably already have it (`CLAUDE.md`).
 
-## 8. Accessibility — every actionable view speaks
+## 8. Accessibility — every actionable view speaks, and every screen scales
 
 CoGo serves visually-impaired developers, so TalkBack support is a correctness requirement, not a nice-to-have (pattern set by ADFA-2667). New UI is Compose ([§10](#10-architecture-alignment) / [ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)), so each rule gives the View and Compose form — the requirement is the same in either.
 
@@ -159,6 +160,15 @@ CoGo serves visually-impaired developers, so TalkBack support is a correctness r
 - **Externalize, with the `cd_` convention.** Content descriptions live in `strings.xml` as `cd_*` — greppable, translatable, reusable; check for an existing one first. `HardcodedText` lint does **not** catch Compose literals, so reviewers must.
 - **Bonus — it stabilizes tests.** Screen-reader semantics are what UI tests match on (`ACTION_CLICK` for Views, `onNodeWithContentDescription(…)` for Compose), so a11y and reliable instrumentation tests are the same work.
 
+**Text scales, so layouts must too.** Low vision means large system fonts as often as it means TalkBack. A screen isn't done until it works at **2x**.
+
+- **Verify new or changed screens at font scale 1.0 and 2.0**, and put the result in the PR — screenshots at both scales, or one line naming both scales and what you checked. Recipe in `CLAUDE.md` (Build & test → Emulator / device). "No visual change" or "no text on this surface" is a valid one-line opt-out; silence is not.
+- **Spacing in `dp`, text in `sp`.** An `sp` dimension used as a margin or padding grows with the font scale and squeezes the text it was meant to frame — as `layout-land/fragment_onboarding_greeting.xml` does today with `@dimen/_32sp`.
+- **Don't box text in a fixed size.** A control sized `40dp x 40dp` can't hold a label that doubled. Let the container wrap its content and set a `minWidth`/`minHeight` for the touch target instead of a fixed one.
+  - *Compose:* the same trap is `Modifier.height(44.dp)`/`.size(36.dp)` on chrome that contains text — use `defaultMinSize` and let it grow.
+- **Give growth somewhere to go.** Content that can reflow past the viewport needs a `NestedScrollView` (Compose: `verticalScroll`/`LazyColumn`). Only 14 of the 108 layouts in `app/src/main/res/layout/` have one today — don't add to the pile.
+- **`maxLines`/`singleLine`/`ellipsize` are a decision, not a default.** Clamping is fine for a preview line, wrong for anything the user must read to proceed. `ellipsize="none"` with `maxLines` clips mid-glyph and is almost never what you want.
+
 ## 9. Contextual help — long-press works everywhere
 
 Help in CoGo is reached by **long-press**, anywhere: a progressive three-tier experience — **Tiers 1 & 2 are tooltips** (anchored popups from `idetooltips`), **Tier 3 is a full help web page** via the tooltip's "See More" link. A long-press should never be met with silence.
@@ -166,7 +176,7 @@ Help in CoGo is reached by **long-press**, anywhere: a progressive three-tier ex
 - **Wire up help on new interactive elements.** Anything tappable — buttons, icon controls, menu items, list rows, toolbar actions — gets long-press help. A new actionable view with no tooltip is as incomplete as a missing `contentDescription`.
 - **Cover new screens and panels too.** Even where pixels aren't interactive, a new screen/panel/dialog needs a top-level help entry so help is always reachable.
 - **The affordance is the requirement, not finished copy.** Tooltip content may still be in authoring — fine — but the long-press must be wired and routed into the tier system. Don't ship UI that can never surface help.
-- **Reuse the system.** Wire help through `idetooltips` — today the `View.displayTooltipOnLongPress(context, anchorView, category, tag)` extension (`setOnLongClickListener` → `TooltipManager.showTooltip`) — not a one-off popup.
+- **Reuse the system.** Wire help through `idetooltips` — today the `View.displayTooltipOnLongPress(context, tooltipTag, tooltipCategory, holdMillis)` extension (a long-click listener for the framework's own gesture, plus a touch listener that times the longer hold ADFA-5554 asks for, both reaching `TooltipManager.showTooltip`) — not a one-off popup.
 - **Compose has no native entry point yet** (tracked by **ADFA-4381**). The helper is View-based (needs an `anchorView`), so until `idetooltips` grows a Compose API, a composable wires help via `AndroidView` interop. Flag it in review rather than skipping help, and build the reusable `Modifier`/wrapper once instead of copy-pasting interop.
 
 ## 10. Architecture alignment

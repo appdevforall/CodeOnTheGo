@@ -32,6 +32,7 @@ protobuf {
 
 dependencies {
 	api(projects.actions)
+	implementation(projects.commonCompose)
 	implementation(projects.logger)
 	implementation(projects.subprojects.privilegedServices)
 	implementation(projects.subprojects.flamegraph)

@@ -7,9 +7,11 @@ import androidx.preference.Preference
 import com.itsaky.androidide.activities.PluginManagerActivity
 import com.itsaky.androidide.activities.PluginScreenNavigator
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_PLUGIN_MANAGER
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.flashError
 import kotlinx.parcelize.Parcelize
 
@@ -18,6 +20,7 @@ class PluginManagerEntry(
 	override val key: String = "idepref_plugin_manager",
 	override val title: Int = string.plugin_manager_title,
 	override val summary: Int? = string.plugin_manager_summary,
+	override val tooltipTag: String = PREFS_PLUGIN_MANAGER,
 ) : BasePreference() {
 	override fun onCreatePreference(context: Context): Preference {
 		return Preference(context)
@@ -58,8 +61,14 @@ data class PluginSettingsEntryPreference(
 	val summaryText: String?,
 	val fragmentClassName: String,
 ) : IPreference() {
+	/**
+	 * Uniquely identifies this [pluginId]/[entryId] pair. Length-prefixing [pluginId] makes the
+	 * split point unambiguous regardless of what characters either id contains - a plain
+	 * "$pluginId.$entryId" join can collide, e.g. ("com.example", "ai.agent") and
+	 * ("com.example.ai", "agent") would otherwise both produce "com.example.ai.agent".
+	 */
 	override val key: String
-		get() = "idepref_plugin_settings_$pluginId.$entryId"
+		get() = "idepref_plugin_settings_${pluginId.length}:$pluginId:$entryId"
 
 	// Unused: the row sets a literal title in onCreateView rather than resolving an IDE resource.
 	override val title: Int
@@ -101,19 +110,38 @@ data class PluginSettingsEntryPreference(
  * also while the asynchronous plugin load is still in flight - `PreferencesActivity` re-checks on
  * resume and rebuilds the tree if the set changed.
  *
+ * A duplicate [PluginSettingsEntryPreference.key] - two plugins colliding, or one plugin returning
+ * two entries with the same id - is dropped (keeping the first) rather than reaching the
+ * Preferences screen's tree: that tree asserts every key is unique and crashes if it isn't, which
+ * is the right behaviour for a first-party bug but not for third-party plugin data.
+ *
  * [pluginManager] defaults to the running IDE's instance; tests pass their own.
  */
 internal fun pluginSettingsPreferences(
 	pluginManager: PluginManager? = IDEApplication.getPluginManager(),
-): List<PluginSettingsEntryPreference> =
-	pluginManager
-		?.getPluginSettingsEntries()
-		?.map { (pluginId, entry) ->
-			PluginSettingsEntryPreference(
-				pluginId = pluginId,
-				entryId = entry.id,
-				titleText = entry.title,
-				summaryText = entry.summary,
-				fragmentClassName = entry.fragmentClassName,
-			)
-		}.orEmpty()
+): List<PluginSettingsEntryPreference> {
+	val entries =
+		pluginManager
+			?.getPluginSettingsEntries()
+			?.map { (pluginId, entry) ->
+				PluginSettingsEntryPreference(
+					pluginId = pluginId,
+					entryId = entry.id,
+					titleText = entry.title,
+					summaryText = entry.summary,
+					fragmentClassName = entry.fragmentClassName,
+				)
+			}
+			.orEmpty()
+
+	val seenKeys = mutableSetOf<String>()
+	val result = mutableListOf<PluginSettingsEntryPreference>()
+	for (entry in entries) {
+		if (seenKeys.add(entry.key)) {
+			result.add(entry)
+		} else {
+			ILogger.ROOT.warn("Dropping plugin settings entry with a duplicate key: {}", entry.key)
+		}
+	}
+	return result
+}

@@ -6,6 +6,8 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.itsaky.androidide.BuildConfig
+import com.itsaky.androidide.analytics.AttachedDevicesCollector
+import com.itsaky.androidide.analytics.AttachedDevicesMetric
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.app.strictmode.StrictModeConfig
 import com.itsaky.androidide.app.strictmode.StrictModeManager
@@ -16,11 +18,15 @@ import com.itsaky.androidide.events.LspJavaEventsIndex
 import com.itsaky.androidide.events.ProjectsApiEventsIndex
 import com.itsaky.androidide.handlers.CrashEventSubscriber
 import com.itsaky.androidide.handlers.GlitchTipDiagnosticsContext
+import com.itsaky.androidide.handlers.MetricsCrashAttachment
 import com.itsaky.androidide.logging.provider.IdeLogRouter
+import com.itsaky.androidide.preferences.internal.StatPreferences
+import com.itsaky.androidide.preferences.internal.TelemetryConsent
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.MetricsScratch
 import com.termux.shared.reflection.ReflectionUtils
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.sentry.Breadcrumb
@@ -37,6 +43,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.system.exitProcess
 
 /**
@@ -50,6 +57,10 @@ internal object DeviceProtectedApplicationLoader :
 
 	private val crashEventSubscriber = CrashEventSubscriber()
 	val analyticsManager: IAnalyticsManager by inject()
+
+	private val telemetryInitialized = AtomicBoolean(false)
+
+	private const val KEY_LEGACY_PRIVACY_DISCLOSURE_SHOWN = "privacy.disclosure.shown"
 
 	override suspend fun load(app: IDEApplication) {
 		logger.info("Loading device protected storage context components...")
@@ -73,6 +84,41 @@ internal object DeviceProtectedApplicationLoader :
 			),
 		)
 
+		migrateLegacyConsent(app)
+		initTelemetryIfConsented(app)
+
+		ShizukuSettings.initialize()
+
+		EventBus
+			.builder()
+			.addIndex(AppEventsIndex())
+			.addIndex(EditorEventsIndex())
+			.addIndex(ProjectsApiEventsIndex())
+			.addIndex(LspApiEventsIndex())
+			.addIndex(LspJavaEventsIndex())
+			.installDefaultEventBus(true)
+
+		EventBus.getDefault().register(crashEventSubscriber)
+
+		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
+
+		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
+
+		app.coroutineScope.launch(Dispatchers.IO) {
+			IThemeManager.getInstance()
+		}
+	}
+
+	suspend fun initTelemetryIfConsented(app: IDEApplication) {
+		if (StatPreferences.telemetryConsent != TelemetryConsent.GRANTED) {
+			logger.info("Telemetry not initialized (consent={})", StatPreferences.telemetryConsent)
+			return
+		}
+
+		if (!telemetryInitialized.compareAndSet(false, true)) {
+			return
+		}
+
 		runCatching {
 			// Initialize the Sentry SDK; it reports to our GlitchTip backend
 			// (GlitchTip is Sentry-protocol-compatible), so the SDK types stay io.sentry.
@@ -82,6 +128,12 @@ internal object DeviceProtectedApplicationLoader :
 
 				// Enrich every GlitchTip event with app-specific diagnostic context.
 				GlitchTipDiagnosticsContext.install(options)
+
+				// And with what the machine was doing in the minutes before it (ADFA-5526). The
+				// destinations that snapshot writes into are taken now, while failing to get them is
+				// survivable -- a crash handler is the wrong place to ask for memory.
+				MetricsScratch.install()
+				MetricsCrashAttachment.install(options, app)
 			}
 
 			// Forward INFO+ logs to GlitchTip as breadcrumbs (never as events; crash events are
@@ -117,30 +169,30 @@ internal object DeviceProtectedApplicationLoader :
 			logger.error("Failed to initialize crash and log reporting", it)
 		}
 
-		ShizukuSettings.initialize()
-
-		EventBus
-			.builder()
-			.addIndex(AppEventsIndex())
-			.addIndex(EditorEventsIndex())
-			.addIndex(ProjectsApiEventsIndex())
-			.addIndex(LspApiEventsIndex())
-			.addIndex(LspJavaEventsIndex())
-			.installDefaultEventBus(true)
-
-		EventBus.getDefault().register(crashEventSubscriber)
-
-		EditorColorScheme.setDefault(SchemeAndroidIDE.newInstance(null))
-
-		ReflectionUtils.bypassHiddenAPIReflectionRestrictions()
-
-		app.coroutineScope.launch(Dispatchers.IO) {
-			// early-init theme manager since it may need to perform disk reads
-			IThemeManager.getInstance()
-		}
-
 		withContext(Dispatchers.Main) {
 			initializeAnalytics()
+		}
+
+		trackAttachedDevicesMetric(app)
+	}
+
+	fun onTelemetryConsentGranted(app: IDEApplication) {
+		app.coroutineScope.launch(Dispatchers.Default) {
+			initTelemetryIfConsented(app)
+		}
+	}
+
+	internal fun shouldMigrateLegacyConsent(
+		currentConsent: TelemetryConsent,
+		legacyDisclosureShown: Boolean,
+	): Boolean = currentConsent == TelemetryConsent.UNSET && legacyDisclosureShown
+
+	private fun migrateLegacyConsent(app: IDEApplication) {
+		val legacyDisclosureShown =
+			app.prefManager.getBoolean(KEY_LEGACY_PRIVACY_DISCLOSURE_SHOWN, false)
+		if (shouldMigrateLegacyConsent(StatPreferences.telemetryConsent, legacyDisclosureShown)) {
+			logger.info("Migrating legacy privacy disclosure acceptance to telemetry consent")
+			StatPreferences.telemetryConsent = TelemetryConsent.GRANTED
 		}
 	}
 
@@ -151,6 +203,16 @@ internal object DeviceProtectedApplicationLoader :
 			logger.info("Firebase Analytics initialized successfully")
 		} catch (e: Exception) {
 			logger.error("Failed to initialize Firebase Analytics", e)
+		}
+	}
+
+	private fun trackAttachedDevicesMetric(app: IDEApplication) {
+		try {
+			analyticsManager.trackMetric(
+				AttachedDevicesMetric(AttachedDevicesCollector.collect(app)),
+			)
+		} catch (e: Exception) {
+			logger.error("Failed to report attached devices metric", e)
 		}
 	}
 

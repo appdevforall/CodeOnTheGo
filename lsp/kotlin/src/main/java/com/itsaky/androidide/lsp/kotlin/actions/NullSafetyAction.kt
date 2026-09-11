@@ -1,12 +1,17 @@
 package com.itsaky.androidide.lsp.kotlin.actions
 
+import android.content.Context
+import android.view.View
+import android.widget.ListView
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.newDialogBuilder
 import com.itsaky.androidide.actions.requireContext
 import com.itsaky.androidide.actions.requireFile
+import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
-import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.lsp.api.ILanguageClient
+import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.diagnostic.DiagnosticAction
 import com.itsaky.androidide.lsp.kotlin.utils.NullSafetyKind
 import com.itsaky.androidide.lsp.kotlin.utils.NullSafetyVariant
@@ -17,9 +22,11 @@ import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.utils.applyLongPressRecursively
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.nio.file.Path
 
 /**
  * Offers null-safety quick fixes on an UNSAFE_CALL diagnostic (`receiver.selector` where `receiver`
@@ -61,28 +68,57 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 
 			val nioPath = data.requireFile().toPath()
 
-			// Fetch the live KtFile BEFORE entering `read` (deadlock rule: its refresh needs write access).
-			val ktFile =
-				withContext(Dispatchers.IO) {
-					extra.compilationEnv.ktSymbolIndex
-						.getCurrentKtFile(nioPath)
-						.get()
-				} ?: return emptyList()
-
-			extra.compilationEnv.project.read {
-				val qe =
-					findNullableMemberAccess(
-						ktFile,
-						diagnostic.range.start.requireIndex(),
-						diagnostic.range.end.requireIndex(),
-					) ?: return@read emptyList()
-				nullSafetyVariants(qe)
+			// Off the main thread: acquiring the pin resolves the file first, which can block on a refresh.
+			withContext(Dispatchers.IO) {
+				computeNullSafetyVariants(
+					extra.compilationEnv,
+					nioPath,
+					diagnostic.range.start.requireIndex(),
+					diagnostic.range.end.requireIndex(),
+				)
 			}
 		}.getOrElse { e ->
 			if (e is CancellationException) throw e
 			logger.warn("Failed to compute null-safety fixes", e)
 			emptyList()
 		}
+
+	/**
+	 * The null-safety rewrites for the nullable member access spanning [startOffset] to [endOffset].
+	 *
+	 * Blocking: pinning the file resolves it first, so callers must stay off the main thread
+	 * ([execAction] wraps it in [Dispatchers.IO]). Returns an empty list when the span names no
+	 * nullable access, and when the pinned text is behind the buffer.
+	 */
+	internal fun computeNullSafetyVariants(
+		env: AbstractCompilationEnvironment,
+		nioPath: Path,
+		startOffset: Int,
+		endOffset: Int,
+	): List<NullSafetyVariant> =
+		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+			if (live.isStale) {
+				// Joining another feature's scope hands over text older than the buffer, and these variants
+				// carry raw PSI offsets that nothing downstream re-checks against the document.
+				logger.debug("skipping null-safety fixes for {}: pinned text is behind the buffer", nioPath)
+				return@withLiveKtFile emptyList()
+			}
+
+			val variants =
+				live.read { ktFile ->
+					val qe = findNullableMemberAccess(ktFile, startOffset, endOffset) ?: return@read emptyList()
+					nullSafetyVariants(qe)
+				}
+
+			if (live.isStale) {
+				// Resolving the file and taking the read lock can both block long enough for the user to
+				// type, and these variants carry raw PSI offsets that nothing downstream re-checks.
+				logger.debug("dropping null-safety fixes for {}: buffer moved while computing", nioPath)
+				return@withLiveKtFile emptyList()
+			}
+
+			variants
+		} ?: emptyList()
 
 	override fun postExec(
 		data: ActionData,
@@ -122,15 +158,57 @@ class NullSafetyAction : BaseKotlinCodeAction() {
 			}
 
 			else -> {
-				newDialogBuilder(data)
-					.setTitle(label)
-					.setItems(actions.map { it.title }.toTypedArray()) { dialog, which ->
-						dialog.dismiss()
-						actions.getOrNull(which)?.also { client.performCodeAction(it) }
-							?: logger.error("Index $which is out of bounds for actions of size ${actions.size}")
-					}.show()
+				showFixChooser(data, context, actions, client)
 			}
 		}
+	}
+
+	/**
+	 * Shows the fix chooser and makes every part of it long-pressable for help.
+	 *
+	 * [applyLongPressRecursively] skips [ListView] subtrees, so the item list needs its own
+	 * listener -- the dialog chrome and the rows are wired separately (ADFA-4510).
+	 */
+	private fun showFixChooser(
+		data: ActionData,
+		context: Context,
+		actions: List<CodeActionItem>,
+		client: ILanguageClient,
+	) {
+		val dialog =
+			newDialogBuilder(data)
+				.setTitle(label)
+				.setItems(actions.map { it.title }.toTypedArray()) { dialog, which ->
+					dialog.dismiss()
+					actions.getOrNull(which)?.also { client.performCodeAction(it) }
+						?: logger.error("Index $which is out of bounds for actions of size ${actions.size}")
+				}.create()
+
+		dialog.listView?.setOnItemLongClickListener { _, view, _, _ ->
+			showDialogTooltip(context, view)
+			true
+		}
+
+		dialog.setOnShowListener {
+			val root = dialog.window?.decorView ?: return@setOnShowListener
+			root.applyLongPressRecursively {
+				showDialogTooltip(context, root)
+				true
+			}
+		}
+
+		dialog.show()
+	}
+
+	private fun showDialogTooltip(
+		context: Context,
+		anchor: View,
+	) {
+		TooltipManager.showIdeCategoryTooltip(
+			context,
+			anchor,
+			TooltipTag.EDITOR_CODE_ACTIONS_KT_NULL_SAFETY_FIX_DIALOG,
+		)
 	}
 }
 

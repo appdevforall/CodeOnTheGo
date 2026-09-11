@@ -34,210 +34,210 @@ import com.itsaky.androidide.utils.resolveAttr
  * @author Akash Yadav
  */
 interface ActionItem {
+	/**
+	 * A unique ID for this action.
+	 */
+	val id: String
 
-  /**
-   * A unique ID for this action.
-   */
-  val id: String
+	/**
+	 * The label for this action.
+	 */
+	var label: String
 
-  /**
-   * The label for this action.
-   */
-  var label: String
+	/**
+	 * Whether the action should be visible to the user or not.
+	 */
+	var visible: Boolean
 
-  /**
-   * Whether the action should be visible to the user or not.
-   */
-  var visible: Boolean
+	/**
+	 * Whether the action should be enabled.
+	 */
+	var enabled: Boolean
 
-  /**
-   * Whether the action should be enabled.
-   */
-  var enabled: Boolean
+	/**
+	 * Icon for this action.
+	 */
+	var icon: Drawable?
 
-  /**
-   * Icon for this action.
-   */
-  var icon: Drawable?
+	/**
+	 * Whether the [execAction] method of this action must be executed on UI thread.
+	 */
+	var requiresUIThread: Boolean
 
-  /**
-   * Whether the [execAction] method of this action must be executed on UI thread.
-   */
-  var requiresUIThread: Boolean
+	/**
+	 * The location of this [ActionItem].
+	 */
+	var location: Location
 
-  /**
-   * The location of this [ActionItem].
-   */
-  var location: Location
+	/**
+	 * The tooltip tag of this [ActionItem].
+	 */
+	var tooltipTag: String
+		get() = ""
+		set(_) {}
 
-    /**
-     * The tooltip tag of this [ActionItem].
-     */
-    var tooltipTag: String
-      get() = ""
-      set(_) {}
+	/**
+	 * Retrieves the tooltip tag for this [ActionItem].
+	 *
+	 * This function allows the action to provide a context-specific tooltip. For example,
+	 * the "Copy" action can have a different tooltip in a standard code editor
+	 * versus a read-only output panel where the user can only view, copy, and share content.
+	 *
+	 * @param isReadOnlyContext `true` if the action is displayed in a context where the
+	 * content is read-only (e.g., a build output or logcat panel), `false` otherwise.
+	 * @return The appropriate tooltip tag for the given context, or an empty string if
+	 * no tooltip is available. Defaults to [tooltipTag], so an action may override either
+	 * member and every consumer sees the same value (ADFA-4510).
+	 */
+	fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = tooltipTag
 
-  /**
-   * Retrieves the tooltip tag for this [ActionItem].
-   *
-   * This function allows the action to provide a context-specific tooltip. For example,
-   * the "Copy" action can have a different tooltip in a standard code editor
-   * versus a read-only output panel where the user can only view, copy, and share content.
-   *
-   * @param isReadOnlyContext `true` if the action is displayed in a context where the
-   * content is read-only (e.g., a build output or logcat panel), `false` otherwise.
-   * @return The appropriate tooltip tag for the given context, or an empty string if
-   * no tooltip is available.
-   */
-  fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = ""
+	/**
+	 * Retrieves the tooltip category for this [ActionItem]. The default is
+	 * [TooltipCategory.CATEGORY_IDE]; plugin-contributed actions override this
+	 * to point at their own `plugin_<pluginId>` category so the lookup hits
+	 * tooltip rows the plugin installed via [DocumentationExtension].
+	 */
+	fun retrieveTooltipCategory(): String = TooltipCategory.CATEGORY_IDE
 
-  /**
-   * Retrieves the tooltip category for this [ActionItem]. The default is
-   * [TooltipCategory.CATEGORY_IDE]; plugin-contributed actions override this
-   * to point at their own `plugin_<pluginId>` category so the lookup hits
-   * tooltip rows the plugin installed via [DocumentationExtension].
-   */
-  fun retrieveTooltipCategory(): String = TooltipCategory.CATEGORY_IDE
+	/**
+	 * The order of this action item. This is used only at some locations and not everywhere.
+	 *
+	 * @see android.view.MenuItem.getOrder
+	 */
+	val order: Int
+		get() = Menu.NONE
 
-  /**
-   * The order of this action item. This is used only at some locations and not everywhere.
-   *
-   * @see android.view.MenuItem.getOrder
-   */
-  val order: Int
-    get() = Menu.NONE
+	/**
+	 * The item ID that will be set to the menu item.
+	 */
+	val itemId: Int
+		get() = id.hashCode()
 
-  /**
-   * The item ID that will be set to the menu item.
-   */
-  val itemId: Int
-    get() = id.hashCode()
+	/**
+	 * Whether the editor toolbar should fully remove this action when [visible] is false,
+	 * instead of the legacy behaviour of keeping it and only greying out when disabled.
+	 * Built-in actions keep the legacy behaviour (default false); plugin-contributed
+	 * toolbar actions opt in by overriding this to true.
+	 */
+	val honorVisibility: Boolean
+		get() = false
 
-  /**
-   * Whether the editor toolbar should fully remove this action when [visible] is false,
-   * instead of the legacy behaviour of keeping it and only greying out when disabled.
-   * Built-in actions keep the legacy behaviour (default false); plugin-contributed
-   * toolbar actions opt in by overriding this to true.
-   */
-  val honorVisibility: Boolean
-    get() = false
+	/**
+	 * Prepare the action. Subclasses can modify the visual properties of this action here.
+	 *
+	 * @param data The data containing various information about the event.
+	 */
+	@CallSuper
+	fun prepare(data: ActionData) {
+		visible = true
+		enabled = true
+	}
 
-  /**
-   * Prepare the action. Subclasses can modify the visual properties of this action here.
-   *
-   * @param data The data containing various information about the event.
-   */
-  @CallSuper
-  fun prepare(data: ActionData) {
-    visible = true
-    enabled = true
-  }
+	/**
+	 * Execute the action. The action executed in a background thread by default.
+	 *
+	 * @param data The data containing various information about the event.
+	 * @return `true` if this action was executed successfully, `false` otherwise.
+	 */
+	suspend fun execAction(data: ActionData): Any
 
-  /**
-   * Execute the action. The action executed in a background thread by default.
-   *
-   * @param data The data containing various information about the event.
-   * @return `true` if this action was executed successfully, `false` otherwise.
-   */
-  suspend fun execAction(data: ActionData): Any
+	/**
+	 * Called just after the [execAction] method executes **successfully** (i.e. returns `true`).
+	 * Subclasses are free to do UI related work here as this method is called on UI thread.
+	 *
+	 * @param data The data containing various information about the event.
+	 */
+	fun postExec(
+		data: ActionData,
+		result: Any,
+	) = Unit
 
-  /**
-   * Called just after the [execAction] method executes **successfully** (i.e. returns `true`).
-   * Subclasses are free to do UI related work here as this method is called on UI thread.
-   *
-   * @param data The data containing various information about the event.
-   */
-  fun postExec(data: ActionData, result: Any) = Unit
+	/**
+	 * Called when the action item is to be destroyed. Any resource references must be released if
+	 * held.
+	 */
+	fun destroy() = Unit
 
-  /**
-   * Called when the action item is to be destroyed. Any resource references must be released if
-   * held.
-   */
-  fun destroy() = Unit
+	/**
+	 * Return the show as action flags for the menu item.
+	 *
+	 * @return The show as action flags.
+	 */
+	fun getShowAsActionFlags(data: ActionData): Int = -1
 
-  /**
-   * Return the show as action flags for the menu item.
-   *
-   * @return The show as action flags.
-   */
-  fun getShowAsActionFlags(data: ActionData): Int = -1
+	/**
+	 * Create custom action view for this action item.
+	 *
+	 * @return The custom action view or `null`.
+	 */
+	fun createActionView(data: ActionData): View? = null
 
-  /**
-   * Create custom action view for this action item.
-   *
-   * @return The custom action view or `null`.
-   */
-  fun createActionView(data: ActionData): View? = null
+	/**
+	 * Creates the color filter for this action's icon drawable.
+	 *
+	 * The default implementation returns a [PorterDuffColorFilter] instance with color [R.attr.colorOnSurface].
+	 */
+	fun createColorFilter(data: ActionData): ColorFilter? =
+		data.getContext()?.let {
+			PorterDuffColorFilter(it.resolveAttr(R.attr.colorOnSurface), PorterDuff.Mode.SRC_ATOP)
+		}
 
-  /**
-   * Creates the color filter for this action's icon drawable.
-   *
-   * The default implementation returns a [PorterDuffColorFilter] instance with color [R.attr.colorOnSurface].
-   */
-  fun createColorFilter(data: ActionData): ColorFilter? {
-    return data.getContext()?.let {
-      PorterDuffColorFilter(it.resolveAttr(R.attr.colorOnSurface), PorterDuff.Mode.SRC_ATOP)
-    }
-  }
+	/** Location where an action item will be shown. */
+	enum class Location(
+		val id: String,
+	) {
+		/**
+		 * Location marker for the action items shown in the debugger (both overlay window and the
+		 * bottom sheet).
+		 */
+		DEBUGGER_ACTIONS("ide.debugger"),
 
-  /** Location where an action item will be shown. */
-  enum class Location(val id: String) {
+		/** Location marker for action items shown in editor activity's toolbar. */
+		EDITOR_TOOLBAR("ide.editor.toolbar"),
 
-    /**
-     * Location marker for the action items shown in the debugger (both overlay window and the
-     * bottom sheet).
-     */
-    DEBUGGER_ACTIONS("ide.debugger"),
+		/** Location marker for action items shown in editor activity's toolbar submenu.
+		 * FindInFileAction and FindInProjectAction will use this location so
+		 * they don't show in the editor activity's toolbar*/
+		EDITOR_FIND_ACTION_MENU("ide.editor.toolbar.find.menu"),
 
-    /** Location marker for action items shown in editor activity's toolbar. */
-    EDITOR_TOOLBAR("ide.editor.toolbar"),
+		/**
+		 * Location marker for action items shown in editor activity's sidebar (navigation rail in the drawer).
+		 */
+		EDITOR_SIDEBAR("ide.editor.sidebar"),
+		EDITOR_RIGHT_SIDEBAR("ide.editor.right.sidebar"),
 
-    /** Location marker for action items shown in editor activity's toolbar submenu.
-     * FindInFileAction and FindInProjectAction will use this location so
-     * they don't show in the editor activity's toolbar*/
-    EDITOR_FIND_ACTION_MENU("ide.editor.toolbar.find.menu"),
+		/**
+		 * Location marker for action items shown in the default category of editor activity's sidebar (navigation rail in the drawer).
+		 */
+		EDITOR_SIDEBAR_DEFAULT_ITEMS("ide.editor.sidebar.defaultItems"),
 
-    /**
-     * Location marker for action items shown in editor activity's sidebar (navigation rail in the drawer).
-     */
-    EDITOR_SIDEBAR("ide.editor.sidebar"),
-    EDITOR_RIGHT_SIDEBAR("ide.editor.right.sidebar"),
+		/** Location marker for action items shown in editor's text action menu. */
+		EDITOR_TEXT_ACTIONS("ide.editor.textActions"),
 
-    /**
-     * Location marker for action items shown in the default category of editor activity's sidebar (navigation rail in the drawer).
-     */
-    EDITOR_SIDEBAR_DEFAULT_ITEMS("ide.editor.sidebar.defaultItems"),
+		/**
+		 * Location marker for action items shown in 'Code actions' submenu in editor's text action
+		 * menu.
+		 */
+		EDITOR_CODE_ACTIONS("ide.editor.codeActions"),
 
-    /** Location marker for action items shown in editor's text action menu. */
-    EDITOR_TEXT_ACTIONS("ide.editor.textActions"),
+		/** Location marker for action items shown when file tabs are reselected. */
+		EDITOR_FILE_TABS("ide.editor.fileTabs"),
 
-    /**
-     * Location marker for action items shown in 'Code actions' submenu in editor's text action
-     * menu.
-     */
-    EDITOR_CODE_ACTIONS("ide.editor.codeActions"),
+		/**
+		 * Location marker for action items that are shown when the files in the editor activity's file
+		 * tree are long clicked.
+		 */
+		EDITOR_FILE_TREE("ide.editor.fileTree"),
 
-    /** Location marker for action items shown when file tabs are reselected. */
-    EDITOR_FILE_TABS("ide.editor.fileTabs"),
+		/** Location marker for action items shown in UI Designer activity's toolbar. */
+		UI_DESIGNER_TOOLBAR("ide.uidesigner.toolbar"),
 
-    /**
-     * Location marker for action items that are shown when the files in the editor activity's file
-     * tree are long clicked.
-     */
-    EDITOR_FILE_TREE("ide.editor.fileTree"),
+		/** Location marker for action items shown on the main screen. */
+		MAIN_SCREEN("ide.main.screen"),
+		;
 
-    /** Location marker for action items shown in UI Designer activity's toolbar. */
-    UI_DESIGNER_TOOLBAR("ide.uidesigner.toolbar"),
+		override fun toString(): String = id
 
-    /** Location marker for action items shown on the main screen. */
-    MAIN_SCREEN("ide.main.screen");
-
-    override fun toString(): String {
-      return id
-    }
-
-    fun forId(id: String): Location {
-      return entries.first { it.id == id }
-    }
-  }
+		fun forId(id: String): Location = entries.first { it.id == id }
+	}
 }

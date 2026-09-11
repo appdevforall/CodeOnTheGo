@@ -111,7 +111,7 @@ Both rules are enforced by construction rather than by filtering afterwards: an 
 
 ## Non-goals
 
-- **Find usages** - ADFA-4824, the sibling subtask. It will share the reference-at-caret resolution helper.
+- **Find usages** - ADFA-4824, the sibling subtask; see [kotlin-find-usages.md](kotlin-find-usages.md).
 - **Go-to-implementation.** A call through an interface or abstract member resolves to the declaring member only. Walking down to overriding implementations needs an inheritance search over the workspace.
 - **Go-to-super.**
 - **Library-source navigation**, via decompilation, generated stubs, or `-sources.jar` extraction.
@@ -161,7 +161,7 @@ The dispatch mirrors `signatureHelp` line for line, which is what buys R3 and R1
 Touched components:
 
 - **`KotlinLanguageServer.findDefinition`** - guards stay (`definitionsEnabled()`, `isKotlinFile`), then delegates inside the file's `CompilationEnvironment`, matching how `signatureHelp` and `analyze` already dispatch. A `.kts` has no environment, so the lookup returns null there and the request answers empty.
-- **`navigation/ReferenceAtCaret.kt`** - `referenceAtCaret(file: KtFile, offset: Int): KtElement?`. Pure PSI, no analysis session: the caret-token accept-list, the `offset - 1` retry, and the two-level climb (R2). ADFA-4824 imports this verbatim; it needs the reference element, not the declarations.
+- **`navigation/ReferenceAtCaret.kt`** - `referenceAtCaret(file: KtFile, offset: Int): KtElement?`. Pure PSI, no analysis session: the caret-token accept-list, the `offset - 1` retry, and the two-level climb (R2). ADFA-4824 reuses its accept-list and retry, but not the function: this deliberately resolves nothing when the caret is on a declaration's own name, which is exactly where find usages is invoked from. See [kotlin-find-usages.md](kotlin-find-usages.md) R2.
 - **`navigation/GoToDefinition.kt`** - `findDefinitionAt(params)` under `context(env: CompilationEnvironment)`. The two symbol paths (R4), then symbol -> source PSI -> name-identifier range -> `Location`, with dedup, ordering, cancellation and failure isolation (R5, R6, R10, R11).
 - **`GoToDefinitionAction` in `lsp/kotlin/actions`** extending `BaseKotlinCodeAction`, id `ide.editor.lsp.kt.gotoDefinition` (the prefix every other Kotlin action uses), `requiresUIThread = true` like Java's, registered in `KotlinCodeActionsMenu` after the comment actions - the same slot Java uses.
 - **`TooltipTag.EDITOR_CODE_ACTIONS_KT_GOTO_DEF`** - one new constant (R1).

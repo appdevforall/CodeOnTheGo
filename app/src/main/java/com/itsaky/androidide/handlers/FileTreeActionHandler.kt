@@ -26,6 +26,7 @@ import com.itsaky.androidide.actions.ActionMenu
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
+import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.eventbus.events.filetree.FileClickEvent
 import com.itsaky.androidide.eventbus.events.filetree.FileLongClickEvent
 import com.itsaky.androidide.events.CollapseTreeNodeRequestEvent
@@ -34,12 +35,13 @@ import com.itsaky.androidide.events.FileContextMenuItemClickEvent
 import com.itsaky.androidide.events.FileContextMenuItemLongClickEvent
 import com.itsaky.androidide.fragments.sheets.OptionsListFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.models.SheetOption
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
 import com.itsaky.androidide.utils.flashError
 import com.unnamed.b.atv.model.TreeNode
 import kotlinx.coroutines.launch
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
@@ -52,153 +54,157 @@ import java.io.File
  */
 @Suppress("unused")
 class FileTreeActionHandler : BaseEventHandler() {
+	private var lastHeld: TreeNode? = null
 
-  private var lastHeld: TreeNode? = null
+	companion object {
+		const val TAG_FILE_OPTIONS_FRAGMENT = "file_options_fragment"
+		const val MB_10: Long = 10 * 1024 * 1024
+	}
 
-  companion object {
+	@Subscribe(threadMode = MAIN)
+	fun onFileClicked(event: FileClickEvent) {
+		if (!checkIsEditorActivity(event)) {
+			logCannotHandle(event)
+			return
+		}
 
-    const val TAG_FILE_OPTIONS_FRAGMENT = "file_options_fragment"
-    const val MB_10: Long = 10 * 1024 * 1024
-  }
+		if (event.file.isDirectory) {
+			return
+		}
 
-  @Subscribe(threadMode = MAIN)
-  fun onFileClicked(event: FileClickEvent) {
-    if (!checkIsEditorActivity(event)) {
-      logCannotHandle(event)
-      return
-    }
+		val context = event[Context::class.java]!! as EditorHandlerActivity
+		context.binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
 
-    if (event.file.isDirectory) {
-      return
-    }
+		val isArchive = event.file.extension.lowercase() in setOf("apk", PLUGIN_ARCHIVE_EXTENSION, TEMPLATE_ARCHIVE_EXTENSION, "zip")
+		if (!isArchive && MB_10 < event.file.length()) {
+			flashError("File is too big!")
+			log.warn("Cannot open {} as it is too big. File size: {} bytes", event.file, event.file.length())
+			return
+		}
 
-    val context = event[Context::class.java]!! as EditorHandlerActivity
-    context.binding.editorDrawerLayout.closeDrawer(GravityCompat.START)
+		context.lifecycleScope.launch {
+			context.openFile(event.file)
+		}
+	}
 
-    val isArchive = event.file.extension.lowercase() in setOf("apk", "cgp", "zip")
-    if (!isArchive && MB_10 < event.file.length()) {
-      flashError("File is too big!")
-      log.warn(
-        "Cannot open {} as it is too big. File size: {} bytes", event.file, event.file.length())
-      return
-    }
+	@Subscribe(threadMode = MAIN)
+	fun onFileLongClicked(event: FileLongClickEvent) {
+		if (!checkIsEditorActivity(event)) {
+			logCannotHandle(event)
+			return
+		}
 
-    context.lifecycleScope.launch {
-      context.openFile(event.file)
-    }
-  }
+		this.lastHeld = event[TreeNode::class.java]
+		val context = event[Context::class.java]!! as EditorHandlerActivity
+		createFileOptionsFragment(context, event.file)
+			.show(context.supportFragmentManager, TAG_FILE_OPTIONS_FRAGMENT)
+	}
 
-  @Subscribe(threadMode = MAIN)
-  fun onFileLongClicked(event: FileLongClickEvent) {
-    if (!checkIsEditorActivity(event)) {
-      logCannotHandle(event)
-      return
-    }
+	private fun createFileOptionsFragment(
+		context: EditorHandlerActivity,
+		file: File,
+	): OptionsListFragment {
+		val fragment = OptionsListFragment()
+		val registry = ActionsRegistry.getInstance()
+		val actions = registry.getActions(EDITOR_FILE_TREE)
+		val data = ActionData.create(context)
+		data.apply {
+			put(File::class.java, file)
+			put(TreeNode::class.java, lastHeld)
+		}
 
-    this.lastHeld = event[TreeNode::class.java]
-    val context = event[Context::class.java]!! as EditorHandlerActivity
-    createFileOptionsFragment(context, event.file)
-      .show(context.supportFragmentManager, TAG_FILE_OPTIONS_FRAGMENT)
-  }
+		for (action in actions.values) {
+			check(action !is ActionMenu) { "File tree actions do not support action menus" }
 
-  private fun createFileOptionsFragment(
-    context: EditorHandlerActivity,
-    file: File
-  ): OptionsListFragment {
-    val fragment = OptionsListFragment()
-    val registry = ActionsRegistry.getInstance()
-    val actions = registry.getActions(EDITOR_FILE_TREE)
-    val data = ActionData.create(context)
-    data.apply {
-      put(File::class.java, file)
-      put(TreeNode::class.java, lastHeld)
-    }
+			action.prepare(data)
+			if (!action.enabled || !action.visible) {
+				continue
+			}
 
-    for (action in actions.values) {
+			fragment.addOption(
+				SheetOption(action.id, action.icon, action.label, file).apply { this.extra = data },
+			)
+		}
 
-      check(action !is ActionMenu) { "File tree actions do not support action menus" }
+		IDEApplication
+			.getPluginManager()
+			?.getFileTabMenuItems(file)
+			?.filter { it.isEnabled && it.isVisible }
+			?.forEach { item ->
+				fragment.addOption(SheetOption("plugin.file.${item.id}", null, item.title, item))
+			}
 
-      action.prepare(data)
-      if (!action.enabled || !action.visible) {
-        continue
-      }
+		return fragment
+	}
 
-      fragment.addOption(
-        SheetOption(action.id, action.icon, action.label, file).apply { this.extra = data }
-      )
-    }
+	@Subscribe(threadMode = MAIN)
+	internal fun onFileOptionClicked(event: FileContextMenuItemClickEvent) {
+		val option = event.option
+		if (option.extra is FileTabMenuItem) {
+			try {
+				(option.extra as FileTabMenuItem).action()
+			} catch (e: Exception) {
+				log.error("Plugin file menu action failed", e)
+			}
+			return
+		}
+		if (option.extra !is ActionData) {
+			return
+		}
 
-    IDEApplication.getPluginManager()
-      ?.getFileTabMenuItems(file)
-      ?.filter { it.isEnabled && it.isVisible }
-      ?.forEach { item ->
-        fragment.addOption(SheetOption("plugin.file.${item.id}", null, item.title, item))
-      }
+		val data = option.extra!! as ActionData
+		val registry = ActionsRegistry.getInstance() as DefaultActionsRegistry
+		val action = registry.findAction(EDITOR_FILE_TREE, option.id)
 
-    return fragment
-  }
+		checkNotNull(action) {
+			"Invalid FileContextMenuItemClickEvent received. No action item registered with id '${option.id}'"
+		}
 
-  @Subscribe(threadMode = MAIN)
-  internal fun onFileOptionClicked(event: FileContextMenuItemClickEvent) {
-    val option = event.option
-    if (option.extra is FileTabMenuItem) {
-      try { (option.extra as FileTabMenuItem).action() } catch (e: Exception) { log.error("Plugin file menu action failed", e) }
-      return
-    }
-    if (option.extra !is ActionData) {
-      return
-    }
+		registry.executeAction(action, data)
+	}
 
-    val data = option.extra!! as ActionData
-    val registry = ActionsRegistry.getInstance() as DefaultActionsRegistry
-    val action = registry.findAction(EDITOR_FILE_TREE, option.id)
+	@Subscribe(threadMode = MAIN)
+	internal fun onFileOptionLongClicked(event: FileContextMenuItemLongClickEvent) {
+		val option = event.option
+		val actionData = option.extra
+		if (actionData !is ActionData) {
+			return
+		}
 
-    checkNotNull(action) {
-      "Invalid FileContextMenuItemClickEvent received. No action item registered with id '${option.id}'"
-    }
+		val registry = ActionsRegistry.getInstance() as DefaultActionsRegistry
+		val action = registry.findAction(EDITOR_FILE_TREE, option.id)
 
-    registry.executeAction(action, data)
-  }
+		checkNotNull(action) {
+			"Invalid FileContextMenuItemClickEvent received. No action item registered with id '${option.id}'"
+		}
+		val tag = action.retrieveTooltipTag(actionData.get(File::class.java)?.isDirectory == true)
+		tag.isNotEmpty() || return
+		val activity = event[Context::class.java] as? EditorHandlerActivity
+		activity?.let { act ->
+			TooltipManager.showIdeCategoryTooltip(
+				context = act,
+				anchorView = act.window.decorView,
+				tag = tag,
+			)
+		}
+	}
 
-  @Subscribe(threadMode = MAIN)
-  internal fun onFileOptionLongClicked(event: FileContextMenuItemLongClickEvent) {
-    val option = event.option
-    val actionData = option.extra
-    if (actionData !is ActionData) {
-      return
-    }
+	private fun requestExpandHeldNode() {
+		requestExpandNode(lastHeld!!)
+	}
 
-    val registry = ActionsRegistry.getInstance() as DefaultActionsRegistry
-    val action = registry.findAction(EDITOR_FILE_TREE, option.id)
+	private fun requestCollapseHeldNode() {
+		requestCollapseNode(lastHeld!!, true)
+	}
 
-    checkNotNull(action) {
-      "Invalid FileContextMenuItemClickEvent received. No action item registered with id '${option.id}'"
-    }
-    val tag = action.retrieveTooltipTag(actionData.get(File::class.java)?.isDirectory == true)
-    tag.isNotEmpty() || return
-    val activity = event[Context::class.java] as? EditorHandlerActivity
-    activity?.let { act ->
-        TooltipManager.showIdeCategoryTooltip(
-            context = act,
-            anchorView = act.window.decorView,
-            tag = tag,
-        )
-    }
-  }
+	private fun requestExpandNode(node: TreeNode) {
+		EventBus.getDefault().post(ExpandTreeNodeRequestEvent(node))
+	}
 
-  private fun requestExpandHeldNode() {
-    requestExpandNode(lastHeld!!)
-  }
-
-  private fun requestCollapseHeldNode() {
-    requestCollapseNode(lastHeld!!, true)
-  }
-
-  private fun requestExpandNode(node: TreeNode) {
-    EventBus.getDefault().post(ExpandTreeNodeRequestEvent(node))
-  }
-
-  private fun requestCollapseNode(node: TreeNode, includeSubnodes: Boolean) {
-    EventBus.getDefault().post(CollapseTreeNodeRequestEvent(node, includeSubnodes))
-  }
+	private fun requestCollapseNode(
+		node: TreeNode,
+		includeSubnodes: Boolean,
+	) {
+		EventBus.getDefault().post(CollapseTreeNodeRequestEvent(node, includeSubnodes))
+	}
 }

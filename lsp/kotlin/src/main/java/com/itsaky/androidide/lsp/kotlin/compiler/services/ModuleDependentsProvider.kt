@@ -9,59 +9,58 @@ import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
 import org.jetbrains.kotlin.com.intellij.util.containers.ContainerUtil.createConcurrentSoftMap
 
-internal class ModuleDependentsProvider : KtLspService, KotlinModuleDependentsProviderBase() {
-
+internal class ModuleDependentsProvider :
+	KotlinModuleDependentsProviderBase(),
+	KtLspService {
 	private lateinit var modules: List<KtModule>
 
 	override fun setupWith(
 		project: MockProject,
 		index: KtSymbolIndex,
 		modules: List<KtModule>,
-		libraryRoots: List<JavaRoot>
+		libraryRoots: List<JavaRoot>,
 	) {
 		this.modules = modules
 	}
 
 	private val directDependentsByKtModule by lazy {
-		modules.asSequence()
-			.map { module ->
-				buildDependentsMap(module, module.allDirectDependencies())
-			}
-			.reduce { acc, value -> acc + value }
+		buildDependentsMap(modules) { it.allDirectDependencies() }
 	}
 
 	private val transitiveDependentsByKtModule = createConcurrentSoftMap<KaModule, Set<KaModule>>()
 	private val refinementDependentsByKtModule by lazy {
-		modules
-			.asSequence()
-			.map { buildDependentsMap(it, it.transitiveDependsOnDependencies.asSequence()) }
-			.reduce { acc, map -> acc + map }
+		buildDependentsMap(modules) { it.transitiveDependsOnDependencies.asSequence() }
 	}
 
-	override fun getDirectDependents(module: KaModule): Set<KaModule> {
-		return directDependentsByKtModule[module].orEmpty()
-	}
+	override fun getDirectDependents(module: KaModule): Set<KaModule> = directDependentsByKtModule[module].orEmpty()
 
-	override fun getRefinementDependents(module: KaModule): Set<KaModule> {
-		return refinementDependentsByKtModule[module].orEmpty()
-	}
+	override fun getRefinementDependents(module: KaModule): Set<KaModule> = refinementDependentsByKtModule[module].orEmpty()
 
-	override fun getTransitiveDependents(module: KaModule): Set<KaModule> {
-		return transitiveDependentsByKtModule.computeIfAbsent(module) { key ->
+	override fun getTransitiveDependents(module: KaModule): Set<KaModule> =
+		transitiveDependentsByKtModule.computeIfAbsent(module) { key ->
 			computeTransitiveDependents(
-				key
+				key,
 			)
 		}
-	}
 }
 
+/**
+ * Inverts every module's dependency edges into one dependency -> dependents map.
+ *
+ * Accumulated across all of [modules] rather than built per module and merged: `Map + Map` *replaces* a
+ * shared dependency's dependent set, so a module used by more than one other kept only the last of them
+ * and find usages then missed every call site in the rest.
+ */
 private fun buildDependentsMap(
-	module: KaModule,
-	dependencies: Sequence<KaModule>,
-): Map<KaModule, MutableSet<KaModule>> = buildMap {
-	dependencies.forEach { dependency ->
-		if (dependency == module) return@forEach
-		val dependents = computeIfAbsent(dependency) { mutableSetOf() }
-		dependents.add(module)
+	modules: List<KtModule>,
+	dependenciesOf: (KtModule) -> Sequence<KaModule>,
+): Map<KaModule, Set<KaModule>> =
+	buildMap<KaModule, MutableSet<KaModule>> {
+		modules.forEach { module ->
+			dependenciesOf(module).forEach { dependency ->
+				if (dependency != module) {
+					getOrPut(dependency) { mutableSetOf() }.add(module)
+				}
+			}
+		}
 	}
-}
