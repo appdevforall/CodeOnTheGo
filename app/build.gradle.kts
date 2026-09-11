@@ -329,6 +329,9 @@ dependencies {
 	implementation(libs.androidx.work)
 	implementation(libs.androidx.work.ktx)
 	implementation(libs.google.material)
+	// Metrics carousel (ADFA-5487). Already on the classpath transitively; declared so the
+	// compile-time use in MetricsCarouselAdapter does not depend on another library's graph.
+	implementation(libs.androidx.viewpager2.v110beta02)
 	implementation(libs.google.flexbox)
 	implementation(libs.libsu.core)
 

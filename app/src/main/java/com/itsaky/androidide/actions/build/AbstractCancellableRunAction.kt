@@ -12,6 +12,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.requestBuildCancellation
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -77,34 +78,13 @@ abstract class AbstractCancellableRunAction(
 	protected abstract fun doExec(data: ActionData): Any
 
 	protected fun cancelBuild(): Boolean {
-		log.info("Sending build cancellation request...")
 		val builder = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 		if (builder?.isToolingServerStarted() != true) {
 			flashError(com.itsaky.androidide.projects.R.string.msg_tooling_server_unavailable)
 			return false
 		}
 
-		builder.cancelCurrentBuild().whenComplete {
-			result,
-			error,
-			->
-			if (error != null) {
-				log.error("Failed to send build cancellation request", error)
-				return@whenComplete
-			}
-
-			if (!result.wasEnqueued) {
-				log.warn(
-					"Unable to enqueue cancellation request reason={} reason.message={}",
-					result.failureReason,
-					result.failureReason!!.message,
-				)
-				return@whenComplete
-			}
-
-			log.info("Build cancellation request was successfully enqueued...")
-		}
-
+		requestBuildCancellation(builder)
 		return true
 	}
 
