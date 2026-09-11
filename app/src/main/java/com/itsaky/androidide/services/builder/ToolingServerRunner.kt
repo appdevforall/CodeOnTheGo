@@ -123,7 +123,7 @@ internal class ToolingServerRunner(
 					// session. This is stamp-guarded and idempotent - a no-op once init has done
 					// it, the extraction itself when it has not - and we are on Dispatchers.IO.
 					if (!ToolsManager.ensureToolingJar(context)) {
-						log.error("Tooling API jar is not from this install; the server may misbehave")
+						log.error("Could not confirm the tooling API jar is from this install; starting it anyway")
 					}
 					val command =
 						listOf(
