@@ -150,11 +150,10 @@
 		<item name="alertDialogStyle">@style/MaterialDialog.Insets</item>
 	</style>
 
-	<!-- Material reserves 80dp above and below every alert dialog, which on a 1080x2340 phone is
-	     450px of the 2340 spent on margin. At 2x font scale that is the difference between a
-	     dialog that fits and one whose message and lower button are silently cut off - the panel
-	     is measured against what is left, and both the message and the button bar sit in
-	     ScrollViews that clip rather than grow. 24dp matches Material's own horizontal inset. -->
+	<!-- Material reserves 80dp above and below every alert dialog, which on a 1080x2340 phone is 450px of the 2340 spent
+		on margin. At 2x font scale that is the difference between a dialog that fits and one whose message and lower button are
+		silently cut off - the panel is measured against what is left, and both the message and the button bar sit in ScrollViews
+		that clip rather than grow. 24dp matches Material's own horizontal inset. -->
 	<style
 		name="MaterialDialog.Insets"
 		parent="@style/MaterialAlertDialog.Material3">
