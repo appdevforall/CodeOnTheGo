@@ -101,9 +101,10 @@ class TemplateDetailsFragment :
 		/*
 		 * [blinkWhileOnScreen] is what guarantees the animator is gone: performDestroyView drives the
 		 * view lifecycle to DESTROYED before calling here, and that backward pass dispatches ON_STOP.
-		 * This call is a no-op belt-and-braces for a teardown that skipped the observer; it still has
-		 * to precede super, since FragmentWithBinding.onDestroyView nulls _binding before calling up.
+		 * These two are a no-op belt-and-braces for a teardown that skipped the observer; the stop still
+		 * has to precede super, since FragmentWithBinding.onDestroyView nulls _binding before calling up.
 		 */
+		isViewStarted = false
 		stopBlinkingIndicator()
 
 		scrollGateKeeper?.detach()
@@ -255,7 +256,7 @@ class TemplateDetailsFragment :
 	}
 
 	private fun startBlinkingIndicator() {
-		if (blinkAnimator != null) {
+		if (blinkAnimator?.isStarted == true) {
 			return
 		}
 
