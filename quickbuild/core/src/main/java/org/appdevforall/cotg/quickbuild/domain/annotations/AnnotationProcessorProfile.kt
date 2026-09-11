@@ -92,9 +92,11 @@ class AnnotationProcessorProfile private constructor(
 		/**
 		 * Builds the profile for a project's configured processors.
 		 *
-		 * @param coordinates processor dependency coordinates (`group:artifact:version`, or
-		 *   whatever the proxy app build could report - matching is substring-based, so a
-		 *   version-catalog alias like `libs.room.compiler` still identifies Room).
+		 * @param coordinates processor dependency coordinates as the proxy app build reports
+		 *   them, `group:artifact:version`. Only the group is matched, and exactly: a substring
+		 *   match read `com.example:roomy-processor` as Room, and would read a local processor
+		 *   module in a project called `ClassroomApp` the same way, silencing the escalation
+		 *   that keeps its generated code fresh.
 		 * @return [NONE] for an empty or blank-only list; otherwise a profile that turns
 		 *   conservative as soon as a single coordinate goes unrecognized.
 		 */
@@ -104,8 +106,8 @@ class AnnotationProcessorProfile private constructor(
 			val specs = mutableListOf<ProcessorSpec>()
 			var unrecognized = false
 			for (coordinate in cleaned) {
-				val spec = KNOWN.firstOrNull { (marker, _) -> coordinate.contains(marker, ignoreCase = true) }
-				if (spec == null) unrecognized = true else specs += spec.second
+				val spec = KNOWN[coordinate.substringBefore(':').lowercase()]
+				if (spec == null) unrecognized = true else specs += spec
 			}
 			return AnnotationProcessorProfile(cleaned, specs.distinctBy { it.id }, unrecognized)
 		}
@@ -207,20 +209,19 @@ class AnnotationProcessorProfile private constructor(
 			)
 
 		/**
-		 * Coordinate marker -> vocabulary, matched as a substring. A coordinate matching
-		 * nothing here flips the profile into the conservative unrecognized mode.
+		 * Maven group (lower case) -> vocabulary. A coordinate whose group is not here flips the
+		 * profile into the conservative unrecognized mode, which costs a full build rather than
+		 * risking stale generated code - so a group this list misses fails in the safe direction.
 		 */
-		private val KNOWN: List<Pair<String, ProcessorSpec>> =
-			listOf(
-				"room" to ROOM,
-				"hilt" to DAGGER_HILT,
-				"dagger" to DAGGER_HILT,
-				"moshi" to MOSHI,
-				"glide" to GLIDE,
-				"auto-value" to AUTO_VALUE,
-				"auto.value" to AUTO_VALUE,
-				"auto-service" to AUTO_VALUE,
-				"auto.service" to AUTO_VALUE,
+		private val KNOWN: Map<String, ProcessorSpec> =
+			mapOf(
+				"androidx.room" to ROOM,
+				"com.google.dagger" to DAGGER_HILT,
+				"androidx.hilt" to DAGGER_HILT,
+				"com.squareup.moshi" to MOSHI,
+				"com.github.bumptech.glide" to GLIDE,
+				"com.google.auto.value" to AUTO_VALUE,
+				"com.google.auto.service" to AUTO_VALUE,
 			)
 
 		/**

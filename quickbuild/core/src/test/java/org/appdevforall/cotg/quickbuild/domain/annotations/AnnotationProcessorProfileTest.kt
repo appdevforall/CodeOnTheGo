@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.domain.annotations
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import org.junit.jupiter.api.Test
 
 /** Which annotations a given processor set claims - the permissive/conservative switch. */
@@ -48,9 +49,31 @@ class AnnotationProcessorProfileTest {
 	}
 
 	@Test
-	fun `a version catalog alias still identifies the processor`() {
-		val profile = AnnotationProcessorProfile.of(listOf("libs.room.compiler"))
+	fun `a coordinate that merely contains a marker is unrecognized`() {
+		// The plugin reports group:artifact:version, so the group is the identity. A substring
+		// match took each of these for Room or Dagger and then claimed only that processor's
+		// own annotations, leaving the real processor's input unescalated - stale generated
+		// code, the one outcome the conservative mode exists to prevent. The third is the
+		// realistic one: a local processor module in a project named ClassroomApp.
+		val use = "import com.example.roomy.Generate\n@Generate\nclass Thing"
+		val lookalikes =
+			listOf(
+				"com.example:roomy-processor:1.0",
+				"ClassroomApp:processor:unspecified",
+				"se.ansman.dagger.auto:compiler:1.0",
+			)
+		for (coordinate in lookalikes) {
+			val profile = AnnotationProcessorProfile.of(listOf(coordinate))
+			assertWithMessage(coordinate).that(isInput(profile, use)).isTrue()
+		}
+	}
+
+	@Test
+	fun `a known group is recognized whatever its artifact name`() {
+		val profile = AnnotationProcessorProfile.of(listOf("androidx.room:anything"))
 		assertThat(isInput(profile, "import androidx.room.Dao\n@Dao\ninterface UserDao")).isTrue()
+		// Recognized, not conservative: an annotation outside Room's vocabulary is still not input.
+		assertThat(isInput(profile, "import androidx.compose.runtime.Composable\n@Composable\nfun S()")).isFalse()
 	}
 
 	@Test
