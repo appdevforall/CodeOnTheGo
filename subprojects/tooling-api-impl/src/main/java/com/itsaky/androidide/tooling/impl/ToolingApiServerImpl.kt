@@ -73,7 +73,10 @@ import kotlin.concurrent.withLock
  *
  * @author Akash Yadav
  */
-internal class ToolingApiServerImpl : IToolingApiServer {
+internal class ToolingApiServerImpl(
+	private val newDaemonWatcher: (onStarted: (Int) -> Unit, onExited: (Int) -> Unit) -> GradleDaemonWatcher =
+		{ onStarted, onExited -> GradleDaemonWatcher(onStarted = onStarted, onExited = onExited) },
+) : IToolingApiServer {
 	private var client: IToolingApiClient? = null
 	private var connector: GradleConnector? = null
 	private var connection: ProjectConnection? = null
@@ -361,11 +364,45 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	 * Finds the Gradle daemon and reports it to the client, so the memory chart can plot the process
 	 * that actually holds the build's heap (ADFA-5514).
 	 */
-	private val daemonWatcher by lazy {
-		GradleDaemonWatcher(
-			onStarted = { pid -> client?.onGradleDaemonStarted(pid) },
-			onExited = { pid -> client?.onGradleDaemonExited(pid) },
-		)
+	private val lazyDaemonWatcher =
+		lazy {
+			newDaemonWatcher(
+				{ pid -> client?.onGradleDaemonStarted(pid) },
+				{ pid -> client?.onGradleDaemonExited(pid) },
+			)
+		}
+
+	private val daemonWatcher by lazyDaemonWatcher
+
+	/**
+	 * Serialises constructing the watcher against stopping it.
+	 *
+	 * `shutdown` and `executeTasks` arrive as separate requests and run their bodies on the common
+	 * pool, so a build submitted just before a shutdown can reach [startDaemonWatch] after shutdown
+	 * has already asked whether a watcher exists. Without this, that build constructs a watcher, and
+	 * its scheduler, that nothing will ever stop -- the leak this class's shutdown call exists to
+	 * prevent, arriving by the one route the `isInitialized` check cannot see.
+	 */
+	private val daemonWatcherLock = Any()
+
+	/** Guarded by [daemonWatcherLock]. */
+	private var isDaemonWatcherShutdown = false
+
+	/**
+	 * Starts a daemon search for a build that is beginning, unless the server is shutting down.
+	 *
+	 * Only the construction is locked. `onBuildStarted` runs outside it, so a watcher stopped in
+	 * between hits the rejection its own guard already handles rather than blocking a build thread.
+	 */
+	private fun startDaemonWatch() {
+		val watcher =
+			synchronized(daemonWatcherLock) {
+				if (isDaemonWatcherShutdown) {
+					return
+				}
+				daemonWatcher
+			}
+		watcher.onBuildStarted()
 	}
 
 	private fun notifyBuildFailure(result: BuildResult) {
@@ -406,6 +443,37 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			log.info("Cancelling running builds...")
 			buildCancellationToken?.cancel()
 			buildCancellationToken = null
+
+			// Early, and deliberately not "late enough to report the daemon's exit".
+			//
+			// The leaked thread is the defect: unstopped, an in-flight poll chain goes on scanning
+			// ProcessHandle.descendants() for up to a minute after the server is gone. Stopping it
+			// here ends that at once, and means no later poll can report a daemon into an RPC
+			// channel that is being torn down.
+			//
+			// Delivering the shutdown-time exit was tried and does not work. That report arrives
+			// through handle.onExit().thenRun { scheduler.execute { ... } }, and onExit completes
+			// on a process-reaper thread only once the OS has reaped the daemon -- strictly after
+			// DefaultGradleConnector.close() returns. There is no point in this sequence where the
+			// scheduler is still accepting work *and* the daemon has already been reaped, so the
+			// report is not deliverable at shutdown whatever the ordering; keeping `client` alive
+			// for it only widens the window in which a half-torn-down channel can be written to.
+			// The client learns the daemon is gone when it reconnects, not from here.
+			//
+			// Through the lazy delegate rather than the property: touching the property would
+			// construct a watcher, and its scheduler, only to shut it down again on a server that
+			// never ran a build. The flag closes the other half of that: a build that reaches
+			// startDaemonWatch after this point must not build one either. See daemonWatcherLock.
+			val watcher =
+				synchronized(daemonWatcherLock) {
+					isDaemonWatcherShutdown = true
+					if (lazyDaemonWatcher.isInitialized()) daemonWatcher else null
+				}
+			if (watcher != null) {
+				log.info("Stopping the Gradle daemon watcher...")
+				runCatching { watcher.shutdown() }
+					.onFailure { log.warn("Could not stop the Gradle daemon watcher", it) }
+			}
 
 			val connection = this.connection
 			val connector = this.connector
@@ -468,7 +536,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			}
 
 			isBuildInProgress = true
-			daemonWatcher.onBuildStarted()
+			startDaemonWatch()
 			try {
 				action()
 			} finally {
