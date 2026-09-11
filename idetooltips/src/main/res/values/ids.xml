@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<!-- Keyed view tag holding the hold-to-help touch listener, so it can be found and removed without disturbing a touch
+		listener someone else installed. See ViewUtils.performOnHold. -->
+	<item
+		name="tooltip_hold_listener"
+		type="id" />
+</resources>

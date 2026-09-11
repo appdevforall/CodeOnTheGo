@@ -1167,6 +1167,7 @@
 	<string name="error_no_apk_in_output_listing">No APK found in output listing file.</string>
 	<string name="error_apk_not_exist">APK file specified does not exist: %1$s</string>
 	<string name="info_build_cancelled">Build was cancelled by the user.</string>
+	<string name="msg_build_cancel_failed">Could not stop the build.</string>
 	<string name="error_quick_run_failed">Quick Run failed.</string>
 	<string name="status_building">Building…</string>
 	<string name="status_installing_plugin">Installing plugin…</string>
@@ -1686,4 +1687,36 @@
 	<string name="floating_window_action_dock">Dock to editor</string>
 	<string name="floating_window_action_close">Close</string>
 
+	<string name="metrics_carousel_memory_chart">Memory usage chart</string>
+	<string name="metrics_title_memory">Memory usage</string>
+	<string name="metrics_network_chart">Network traffic chart</string>
+	<string name="metrics_title_network">Network traffic</string>
+	<string name="metrics_carousel_undocked">Metrics are in a floating window.\nSingle-tap to bring them back.</string>
+	<string name="metrics_carousel_window_title">Metrics</string>
+	<string name="metrics_sampling_rate_title">Sampling rate</string>
+	<string name="metrics_sampling_rate_entry">Every %1$s</string>
+	<string name="metrics_sampling_rate_unavailable">%1$s (needs a 64-bit device)</string>
+	<string name="metrics_title_power">Temperature and power</string>
+	<!-- Markers drawn on the metrics charts when a build starts, finishes or fails (ADFA-5509). -->
+	<string name="metrics_annotation_build_started">Build started</string>
+	<string name="metrics_annotation_build_finished">Build finished</string>
+	<string name="metrics_annotation_build_failed">Build failed</string>
+	<string name="metrics_annotation_build_cancelled">Build cancelled</string>
+	<string name="metrics_power_chart">Temperature and power chart</string>
+	<string name="metrics_power_temperature">Battery temp</string>
+	<string name="metrics_power_draw">Power</string>
+	<string name="metrics_carousel_previous">Previous metric</string>
+	<string name="metrics_carousel_next">Next metric</string>
+	<string name="metrics_carousel_snapshot">Save chart image</string>
+	<string name="msg_metrics_snapshot_failed">Couldn\'t save the chart image.</string>
+	<string name="metrics_carousel_export">Save metrics data</string>
+	<string name="msg_metrics_export_failed">Couldn\'t save the metrics data.</string>
+	<string name="metrics_network_received">Received</string>
+	<string name="metrics_network_transmitted">Sent</string>
+	<string name="metrics_axis_now">now</string>
+	<string name="metrics_value_unavailable">n/a</string>
+	<!-- A chart legend entry: the series name, then its latest value. -->
+	<string name="metrics_legend_entry">%1$s %2$s</string>
+
 </resources>
+

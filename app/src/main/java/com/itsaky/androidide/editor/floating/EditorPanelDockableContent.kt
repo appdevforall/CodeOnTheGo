@@ -19,6 +19,7 @@ import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.ui.CodeEditorView
+import com.itsaky.androidide.utils.requestBuildCancellation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -114,7 +115,9 @@ class EditorPanelDockableContent(
 	private fun cancelBuild() {
 		val builder = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 		if (builder?.isToolingServerStarted() == true) {
-			builder.cancelCurrentBuild()
+			// Through the shared reporter, because this copy threw the result away entirely: a
+			// Stop the server refused here said nothing at all, not even to the log.
+			requestBuildCancellation(builder)
 		}
 	}
 
