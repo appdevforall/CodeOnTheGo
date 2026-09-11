@@ -261,6 +261,9 @@ class MemoryUsageWatcher
 				memoryUsage.values.forEach { proc ->
 					proc._history[0] = readings[proc.pid] ?: 0L
 					proc._history.shift(1)
+					if (proc.sampledCount < MAX_USAGE_ENTRIES) {
+						proc.sampledCount++
+					}
 				}
 			}
 		}
@@ -561,6 +564,18 @@ class MemoryUsageWatcher
 			internal val memInfo: MemoryInfo = MemoryInfo()
 
 			/**
+			 * How many of [usageHistory]'s slots hold a real sample, newest-first.
+			 *
+			 * The buffer is zero-filled and reaches back to the start of the session however late
+			 * this process appeared, so without this a chart cannot tell "used no memory" from "not
+			 * measured yet" and draws a flat zero line for the part it never sampled. The CSV
+			 * exporter has always had [watchedSinceMillis] for the same job; this is the exact
+			 * form, counted rather than derived from a clock and an assumed interval.
+			 */
+			@Volatile
+			internal var sampledCount: Int = 0
+
+			/**
 			 * How this process's footprint is read, chosen once when it starts being watched.
 			 *
 			 * Per process rather than per sample: the choice needs a file-existence check, and a
@@ -584,7 +599,9 @@ class MemoryUsageWatcher
 				// reads as "watched since the epoch" -- so the guard that blanks a process's
 				// zero-filled past never fired, and the Gradle daemon's buffer exported as
 				// measured zeros from before it existed (ADFA-5531).
-				ProcessMemoryInfo(pid, pname, _history.copy(), watchedSinceMillis)
+				ProcessMemoryInfo(pid, pname, _history.copy(), watchedSinceMillis).also {
+					it.sampledCount = sampledCount
+				}
 
 			override fun equals(other: Any?): Boolean {
 				if (this === other) return true

@@ -91,8 +91,17 @@ class MemoryUsageChartRenderer(
 				val proc = processes[index]
 				pidToDatasetIdx[proc.pid] = index
 
+				// Only the slots that hold a real sample. The buffer is zero-filled back to the
+				// start of the session, so plotting all of it drew a flat zero line for the part
+				// that was never measured -- "the IDE used no memory", rather than "not measured".
+				// Visible whenever sampling starts after the session does: a process that appears
+				// with a build, and now every process, since sampling waits for the carousel to be
+				// shown. The x positions are unchanged, so the line simply starts partway across.
+				val firstSampled = (proc.usageHistory.size - proc.sampledCount).coerceAtLeast(0)
+
 				LineDataSet(
-					List(proc.usageHistory.size) { entryIdx ->
+					List(proc.usageHistory.size - firstSampled) { offset ->
+						val entryIdx = firstSampled + offset
 						Entry(entryIdx.toFloat(), proc.usageHistory.megabytesAt(entryIdx))
 					},
 					proc.pname,

@@ -59,7 +59,9 @@ class MemoryUsageChartRendererTest {
 				"IDE",
 				MutableShiftedLongArray(LongArray(history.size) { history[it] }),
 				watchedSinceMillis = 0L,
-			)
+				// Every slot is a real sample here. The renderer plots only what was sampled, so a
+				// fixture that does not say so draws nothing.
+			).also { it.sampledCount = history.size }
 		renderer { arrayOf(process) }.attach(chart)
 		chart.layOutAndDraw()
 		return chart
@@ -75,7 +77,7 @@ class MemoryUsageChartRendererTest {
 		pname,
 		MutableShiftedLongArray(MemoryUsageWatcher.MAX_USAGE_ENTRIES) { (firstMegabytes + it) * BYTES_PER_MB },
 		watchedSinceMillis = 0L,
-	)
+	).also { it.sampledCount = MemoryUsageWatcher.MAX_USAGE_ENTRIES }
 
 	private fun datasetFor(
 		chart: SafeLineChart,
@@ -257,5 +259,32 @@ class MemoryUsageChartRendererTest {
 
 		/** Longer than the visible window, so the start of the history scrolls off screen. */
 		const val SAMPLE_COUNT = 200
+	}
+
+	@Test
+	fun `a buffer that is only partly sampled plots only the samples`() {
+		// Sampling starts when the carousel is first shown, so the older half of the buffer holds
+		// zero-fill rather than measurements. Plotting it drew a flat zero line and a vertical jump
+		// -- "the IDE used no memory", not "not measured". The x positions are unchanged, so the
+		// line simply starts partway across.
+		val chart = SafeLineChart(ApplicationProvider.getApplicationContext())
+		val size = MemoryUsageWatcher.MAX_USAGE_ENTRIES
+		val sampled = 10
+		val process =
+			ProcessMemoryInfo(
+				PID_IDE,
+				"IDE",
+				MutableShiftedLongArray(size) { 100L * BYTES_PER_MB },
+				watchedSinceMillis = 0L,
+			).also { it.sampledCount = sampled }
+
+		renderer { arrayOf(process) }.attach(chart)
+		chart.layOutAndDraw()
+
+		val dataset = datasetFor(chart, 0)
+		assertThat(dataset.entryCount).isEqualTo(sampled)
+		// Anchored at the newest end, which is where the real samples are.
+		assertThat(dataset.getEntryForIndex(0).x).isEqualTo((size - sampled).toFloat())
+		assertThat(dataset.getEntryForIndex(sampled - 1).x).isEqualTo((size - 1).toFloat())
 	}
 }
