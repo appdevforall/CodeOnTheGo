@@ -1,33 +1,141 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-  ~  This file is part of AndroidIDE.
-  ~
-  ~  AndroidIDE is free software: you can redistribute it and/or modify
-  ~  it under the terms of the GNU General Public License as published by
-  ~  the Free Software Foundation, either version 3 of the License, or
-  ~  (at your option) any later version.
-  ~
-  ~  AndroidIDE is distributed in the hope that it will be useful,
-  ~  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~  GNU General Public License for more details.
-  ~
-  ~  You should have received a copy of the GNU General Public License
-  ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+<?xml version="1.0" encoding="utf-8"?><!-- ~ This file is part of AndroidIDE. ~ ~ AndroidIDE is free software: you can redistribute
+	it and/or modify ~ it under the terms of the GNU General Public License as published by ~ the Free Software Foundation, either
+	version 3 of the License, or ~ (at your option) any later version. ~ ~ AndroidIDE is distributed in the hope that it will
+	be useful, ~ but WITHOUT ANY WARRANTY; without even the implied warranty of ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR
+	PURPOSE. See the ~ GNU General Public License for more details. ~ ~ You should have received a copy of the GNU General Public
+	License ~ along with AndroidIDE. If not, see <https://www.gnu.org/licenses/>. -->
 
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  xmlns:app="http://schemas.android.com/apk/res-auto"
-  android:layout_width="match_parent"
-  android:layout_height="@dimen/editor_mem_usage_view_height">
+<!-- Must stay a single view: SwipeRevealLayout asserts childCount == 2 and indexes its children positionally, so this include
+	is its hidden content and cannot gain a sibling. -->
+<com.itsaky.androidide.ui.MetricsCarouselLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:layout_width="match_parent"
+	android:layout_height="@dimen/editor_mem_usage_view_height">
 
-  <!--  Need to wrap this in a layout so that we can apply margins at runtime-->
-  <com.itsaky.androidide.ui.SafeLineChart
-    android:id="@+id/chart"
-    android:layout_width="0dp"
-    android:layout_height="0dp"
-    app:layout_constraintBottom_toBottomOf="parent"
-    app:layout_constraintEnd_toEndOf="parent"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toTopOf="parent" />
+	<!-- The pager takes whatever height the title leaves, so the title can grow with the font scale without being clipped
+		and without the panel changing height. -->
+	<androidx.viewpager2.widget.ViewPager2
+		android:id="@+id/metrics_pager"
+		android:layout_width="0dp"
+		android:layout_height="0dp"
+		app:layout_constraintBottom_toTopOf="@id/metrics_title"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toTopOf="parent" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+	<!-- Tapping an arrow moves the carousel. Swiping works too, but it competes with panning a zoomed chart and with the
+		drawer gesture, so a plain control is the reliable way. -->
+	<ImageButton
+		android:id="@+id/metrics_previous"
+		android:layout_width="@dimen/metrics_carousel_arrow_touch_target"
+		android:layout_height="@dimen/metrics_carousel_arrow_touch_target"
+		android:background="?attr/selectableItemBackgroundBorderless"
+		android:contentDescription="@string/metrics_carousel_previous"
+		android:padding="@dimen/metrics_carousel_arrow_padding"
+		android:scaleType="fitCenter"
+		android:src="@drawable/ic_arrow_left"
+		app:tint="?attr/colorOnSurface"
+		app:layout_constraintBottom_toBottomOf="@id/metrics_title"
+		app:layout_constraintEnd_toStartOf="@id/metrics_title"
+		app:layout_constraintHorizontal_chainStyle="packed"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toTopOf="@id/metrics_title" />
+
+	<ImageButton
+		android:id="@+id/metrics_next"
+		android:layout_width="@dimen/metrics_carousel_arrow_touch_target"
+		android:layout_height="@dimen/metrics_carousel_arrow_touch_target"
+		android:background="?attr/selectableItemBackgroundBorderless"
+		android:contentDescription="@string/metrics_carousel_next"
+		android:padding="@dimen/metrics_carousel_arrow_padding"
+		android:scaleType="fitCenter"
+		android:src="@drawable/ic_arrow_right"
+		app:tint="?attr/colorOnSurface"
+		app:layout_constraintBottom_toBottomOf="@id/metrics_title"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toEndOf="@id/metrics_title"
+		app:layout_constraintTop_toTopOf="@id/metrics_title" />
+
+	<TextView
+		android:id="@+id/metrics_title"
+		android:layout_width="0dp"
+		android:layout_height="wrap_content"
+		android:gravity="center"
+		android:paddingHorizontal="@dimen/metrics_carousel_title_padding_horizontal"
+		android:paddingVertical="@dimen/metrics_carousel_title_padding_vertical"
+		android:textAppearance="?attr/textAppearanceLabelMedium"
+		android:textColor="?attr/colorOnSurface"
+		app:layout_constraintBottom_toBottomOf="parent"
+		app:layout_constraintEnd_toStartOf="@id/metrics_next"
+		app:layout_constraintHorizontal_chainStyle="packed"
+		app:layout_constraintStart_toEndOf="@id/metrics_previous"
+		tools:text="Memory usage"
+		xmlns:tools="http://schemas.android.com/tools" />
+
+	<!-- Exports the visible chart as an image. Tucked into the graph's bottom-right corner because every gesture over the
+		chart is already spoken for: paging, the two-finger tap that undocks, pinch to zoom, and a tap on the x axis for the sampling
+		rate. The icon is small but the button keeps a full touch target. -->
+	<ImageButton
+		android:id="@+id/metrics_snapshot"
+		android:layout_width="@dimen/metrics_carousel_snapshot_touch_target"
+		android:layout_height="@dimen/metrics_carousel_snapshot_touch_target"
+		android:background="?attr/selectableItemBackgroundBorderless"
+		android:contentDescription="@string/metrics_carousel_snapshot"
+		android:padding="@dimen/metrics_carousel_snapshot_padding"
+		android:scaleType="fitCenter"
+		android:src="@drawable/ic_camera"
+		app:layout_constraintBottom_toBottomOf="@id/metrics_pager"
+		app:layout_constraintEnd_toEndOf="@id/metrics_pager" />
+
+	<!-- Exports every retained sample as CSV (ADFA-5531). Left of the camera, sharing its corner and its touch target: both
+		are exports, and putting them together keeps the rest of the chart free for the gestures that already own it. -->
+	<ImageButton
+		android:id="@+id/metrics_export"
+		android:layout_width="@dimen/metrics_carousel_snapshot_touch_target"
+		android:layout_height="@dimen/metrics_carousel_snapshot_touch_target"
+		android:background="?attr/selectableItemBackgroundBorderless"
+		android:contentDescription="@string/metrics_carousel_export"
+		android:padding="@dimen/metrics_carousel_snapshot_padding"
+		android:scaleType="fitCenter"
+		android:src="@drawable/ic_spreadsheet"
+		app:layout_constraintBottom_toBottomOf="@id/metrics_snapshot"
+		app:layout_constraintEnd_toStartOf="@id/metrics_snapshot" />
+
+	<!-- Battery level, in the graph's top-right corner. Hidden while charging, when a rising level would contradict a chart
+		about power being spent, and on every page but the power one. -->
+	<TextView
+		android:id="@+id/metrics_battery"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:paddingHorizontal="@dimen/metrics_carousel_title_padding_vertical"
+		android:textAppearance="?attr/textAppearanceLabelSmall"
+		android:textColor="?attr/colorOnSurface"
+		android:visibility="gone"
+		app:layout_constraintEnd_toEndOf="@id/metrics_pager"
+		app:layout_constraintTop_toTopOf="@id/metrics_pager"
+		tools:text="84%"
+		xmlns:tools="http://schemas.android.com/tools" />
+
+	<!-- Shown in place of the carousel while it is floating in its own window. Only one carousel can be live at a time (the
+		watchers hold a single listener each), so undocking moves it out of the editor rather than copying it; without this the reveal
+		would open on an empty strip that reads as broken, and there would be no way back if the window is off screen. -->
+	<TextView
+		android:id="@+id/metrics_undocked_message"
+		android:layout_width="0dp"
+		android:layout_height="0dp"
+		android:background="?attr/selectableItemBackground"
+		android:clickable="true"
+		android:focusable="true"
+		android:gravity="center"
+		android:padding="@dimen/metrics_carousel_title_padding_horizontal"
+		android:text="@string/metrics_carousel_undocked"
+		android:textAppearance="?attr/textAppearanceLabelMedium"
+		android:textColor="?attr/colorOnSurface"
+		android:visibility="gone"
+		app:layout_constraintBottom_toBottomOf="parent"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toTopOf="parent" />
+
+</com.itsaky.androidide.ui.MetricsCarouselLayout>
