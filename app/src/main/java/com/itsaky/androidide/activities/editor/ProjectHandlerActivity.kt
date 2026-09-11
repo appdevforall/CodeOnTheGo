@@ -80,6 +80,7 @@ import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_CANCELLED
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.CACHE_READ_ERROR
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_DIRECTORY_INACCESSIBLE
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_DIRECTORY
@@ -95,6 +96,7 @@ import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
 import com.itsaky.androidide.utils.onLongPress
@@ -739,7 +741,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 		service.startToolingServer { pid ->
 			memoryUsageWatcher.watchProcess(pid, PROC_GRADLE_TOOLING)
-			resetMemUsageChart()
+			// The callback arrives on the tooling server's own thread, and the renderer is
+			// @UiThread: rebuild() clears and repopulates a non-thread-safe pid map that the
+			// once-a-second sample listener reads on the main thread, so racing it can plot one
+			// process's samples on another's line or throw out of the entry loop.
+			runOnUiThread { resetMemUsageChart() }
 
 			service.metadata().whenComplete { metadata, err ->
 				if (metadata == null || err != null) {
@@ -754,7 +760,8 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 						metadata.pid,
 					)
 					memoryUsageWatcher.watchProcess(metadata.pid, PROC_GRADLE_TOOLING)
-					resetMemUsageChart()
+					// A CompletableFuture completion thread, for the same reason as above.
+					runOnUiThread { resetMemUsageChart() }
 				}
 			}
 
@@ -801,6 +808,22 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	) {
 		val manager = ProjectManagerImpl.getInstance()
 		if (!isSuccessful) {
+			// Before the project name is resolved, which the cancel path does not use: that lookup
+			// walks the workspace model and has a catch-Throwable around it, and a user who pressed
+			// Stop should not be waiting on it -- or be affected by it failing.
+			//
+			// A sync the user stopped is not a failure, and arrives here through the same callback
+			// as one. ADFA-5542 fixed that for builds and missed this path, which is the one a
+			// cancelled *sync* takes: the user pressed Stop and got an indefinite red "Project
+			// initialization failed" for doing so.
+			if (failure == BUILD_CANCELLED) {
+				val cancelled = getString(string.info_build_cancelled)
+				setStatus(cancelled)
+				flashInfo(cancelled)
+				editorViewModel.isInitializing = false
+				return
+			}
+
 			// Get project name for error message
 			val projectName =
 				try {

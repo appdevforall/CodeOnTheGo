@@ -9,6 +9,8 @@ import android.text.style.ClickableSpan
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -33,6 +35,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.idetooltips.attachTooltip
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.preferences.internal.GitPreferences
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.onLongPress
@@ -55,6 +58,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	private lateinit var branchPopupWindow: GitBranchPopupWindow
 
 	private var _binding: FragmentGitBottomSheetBinding? = null
+	private var isUpdatingWatermarkUI = false
 	val binding: FragmentGitBottomSheetBinding
 		get() = checkNotNull(_binding) { "Fragment binding is null or view has been destroyed" }
 
@@ -276,6 +280,18 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 				}
 			}
 
+			launch {
+				viewModel.isProjectWatermarkEnabled.collectLatest {
+					updateWatermarkUI()
+				}
+			}
+
+			launch {
+				viewModel.watermarkError.collectLatest {
+					flashError(getString(R.string.git_watermark_save_failed))
+				}
+			}
+
 			combine(
 				viewModel.isGitRepository,
 				viewModel.gitStatus,
@@ -290,6 +306,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							recyclerView.visibility = View.GONE
 							cbCheckAll.visibility = View.GONE
 							commitSection.visibility = View.GONE
+							layoutWatermark.visibility = View.GONE
 							authorWarning.visibility = View.GONE
 							commitHistoryButton.visibility = View.GONE
 							btnAbortMerge.visibility = View.GONE
@@ -306,6 +323,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							cbCheckAll.isChecked = false
 							cbCheckAll.text = getString(R.string.changed_files_count, 0)
 							commitSection.visibility = View.GONE
+							layoutWatermark.visibility = View.GONE
 							authorWarning.visibility = View.GONE
 							commitHistoryButton.visibility = View.VISIBLE
 							btnAbortMerge.visibility = View.GONE
@@ -321,6 +339,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							cbCheckAll.isEnabled = hasSelectable
 							cbCheckAll.text = getString(R.string.changed_files_count, allChanges.size)
 							commitSection.visibility = View.VISIBLE
+							updateWatermarkUI(isRepo = isRepo, hasChanges = allChanges.isNotEmpty())
 							authorWarning.visibility =
 								if (hasAuthorInfo()) View.GONE else View.VISIBLE
 							commitHistoryButton.visibility = View.VISIBLE
@@ -351,6 +370,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 	override fun onResume() {
 		super.onResume()
 		updateAuthorUI()
+		updateWatermarkUI()
 	}
 
 	private fun updateAuthorUI() {
@@ -359,6 +379,53 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		binding.authorWarning.visibility =
 			if (!hasAuthor && allChanges.isNotEmpty()) View.VISIBLE else View.GONE
 		validateCommitButton()
+	}
+
+	private fun updateWatermarkUI(
+		isRepo: Boolean = viewModel.isGitRepository.value,
+		hasChanges: Boolean =
+			viewModel.gitStatus.value
+				.allChanges()
+				.isNotEmpty(),
+	) {
+		if (!isRepo || !hasChanges) {
+			binding.layoutWatermark.isGone = true
+			return
+		}
+
+		binding.layoutWatermark.isVisible = true
+		isUpdatingWatermarkUI = true
+
+		try {
+			if (!GitPreferences.shouldAddGlobalCommitWatermark) {
+				showGlobalWatermarkDisabled()
+			} else {
+				showProjectWatermarkState()
+			}
+		} finally {
+			isUpdatingWatermarkUI = false
+		}
+	}
+
+	private fun showGlobalWatermarkDisabled() {
+		val projectEnabled = viewModel.isProjectWatermarkEnabled.value
+		binding.apply {
+			switchCommitWatermark.isEnabled = false
+			switchCommitWatermark.isChecked = projectEnabled
+			tvCommitWatermark.isGone = true
+			tvWatermarkGlobalDisabled.isVisible = true
+		}
+	}
+
+	private fun showProjectWatermarkState() {
+		val projectEnabled = viewModel.isProjectWatermarkEnabled.value
+
+		binding.apply {
+			switchCommitWatermark.isEnabled = true
+			switchCommitWatermark.isChecked = projectEnabled
+			tvCommitWatermark.isVisible = projectEnabled
+			tvWatermarkGlobalDisabled.isGone = true
+		}
 	}
 
 	private fun hasAuthorInfo(): Boolean = !GitPreferences.userName.isNullOrBlank() && !GitPreferences.userEmail.isNullOrBlank()
@@ -408,21 +475,34 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						binding.commitSummary.text
 							?.toString()
 							?.trim() ?: ""
+
 					val description =
 						binding.commitDescription.text
 							?.toString()
 							?.trim()
 
-					if (summary.isNotEmpty() && fileChangeAdapter.selectedFiles.isNotEmpty() && hasAuthorInfo()) {
-						viewModel.commitChanges(
+					val watermark =
+						getString(R.string.made_with_code_on_the_go)
+							.takeIf {
+								GitPreferences.shouldAddGlobalCommitWatermark && binding.switchCommitWatermark.isChecked
+							}
+
+					val message =
+						formatCommitMessage(
 							summary = summary,
 							description = description,
+							watermark = watermark,
+						)
+
+					if (summary.isNotEmpty() && fileChangeAdapter.selectedFiles.isNotEmpty() && hasAuthorInfo()) {
+						viewModel.commitChanges(
+							message = message,
 							selectedPaths = fileChangeAdapter.selectedFiles.toList(),
 						) {
 							// Clear the inputs on successful commit
 							binding.commitSummary.text?.clear()
 							binding.commitDescription.text?.clear()
-							fileChangeAdapter.selectedFiles.clear()
+							fileChangeAdapter.clearSelection()
 							updateCheckAllButton()
 						}
 					}
@@ -430,7 +510,45 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			}
 			setTooltipOnView(TooltipTag.PROJECT_GIT_COMMIT)
 		}
+		binding.switchCommitWatermark.setOnCheckedChangeListener { _, isChecked ->
+			if (isUpdatingWatermarkUI) {
+				return@setOnCheckedChangeListener
+			}
+			binding.tvCommitWatermark.isVisible = isChecked
+			if (viewModel.isProjectWatermarkEnabled.value != isChecked) {
+				viewModel.setProjectWatermarkEnabled(isChecked)
+			}
+		}
+		updateWatermarkUI()
 	}
+
+	fun formatCommitMessage(
+		summary: String,
+		description: String? = null,
+		watermark: String? = null,
+	): String {
+		val trimmedSummary = summary.trim()
+		val trimmedDescription = description?.trim()?.takeIf(String::isNotEmpty)
+		val trimmedWatermark = watermark?.trim()?.takeIf(String::isNotEmpty)
+
+		val effectiveWatermark =
+			trimmedWatermark
+				?.takeUnless { containsWatermark(trimmedSummary, trimmedDescription, it) }
+
+		return listOfNotNull(
+			trimmedSummary.takeIf(String::isNotEmpty),
+			trimmedDescription,
+			effectiveWatermark,
+		).joinToString("\n\n")
+	}
+
+	internal fun containsWatermark(
+		summary: String,
+		description: String?,
+		watermark: String,
+	): Boolean =
+		summary.contains(watermark, ignoreCase = true) ||
+			(description?.contains(watermark, ignoreCase = true) == true)
 
 	private fun showAuthorPopup() {
 		val name = GitPreferences.userName.orEmpty().ifBlank { getString(R.string.author_not_set) }
