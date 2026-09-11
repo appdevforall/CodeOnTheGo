@@ -1,7 +1,7 @@
 [versions]
 activityKtx = "1.8.2"
 agp = "8.8.2"
-agp-tooling = "8.11.0"
+agp-tooling = "9.3.1"
 androidx-sqlite = "2.6.2"
 appcompatVersion = "1.7.1"
 colorpickerview = "2.3.0"
@@ -295,6 +295,7 @@ tests-junit-kts = { module = "androidx.test.ext:junit-ktx", version = "1.2.1" }
 tests-kotlinx-coroutines = {module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesCore"}
 
 # Tooling
+tooling-agp = { module = "com.android.tools.build:gradle", version.ref = "agp-tooling" }
 tooling-builderModel = { module = "com.android.tools.build:builder-model", version.ref = "agp-tooling" }
 tooling-gradleApi = { module = "com.itsaky.androidide.gradle:gradle-tooling-api", version.ref = "gradle-tooling" }
 tooling-slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.12" }

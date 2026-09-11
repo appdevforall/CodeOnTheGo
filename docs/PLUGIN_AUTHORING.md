@@ -39,7 +39,7 @@ in `build.gradle.kts`:
 ```kotlin
 plugins {
     id("com.android.application") version "8.8.2"
-    id("org.jetbrains.kotlin.android") version "2.1.21"
+    id("org.jetbrains.kotlin.android") version "2.3.0"
     id("com.itsaky.androidide.plugins.build")
 }
 
@@ -66,21 +66,31 @@ against — the `:plugin-api` module plus `common`, `eventbus-events`, and
 `idetooltips`. The builder plugin applied above resolves the same way, from the
 injected `com.itsaky.androidide.plugins.build` `1.0.0` marker.
 
-#### Building on-device (offline) pins the AGP/Kotlin versions
+#### Building on-device (offline) pins the AGP/Kotlin/Gradle versions
 
-The `plugins {}` example above uses AGP `8.8.2` / Kotlin `2.1.21` — the versions the
-dev/CI repo resolves online. A plugin built **on-device** resolves AGP and the Kotlin
-Gradle plugin from the harvested on-device `localMvnRepository`, which currently ships
-only **AGP `8.11.0`** and **Kotlin `1.9.22`**. Request those versions for an on-device
-build, or offline resolution of the build plugins fails.
+The `plugins {}` example above uses AGP `8.8.2` / Kotlin `2.3.0` — the versions the
+dev/CI repo resolves online. A plugin built **on-device** resolves its build plugins from
+the harvested on-device `localMvnRepository`, which ships only the versions pinned in
+`org.adfa.constants` — `ANDROID_GRADLE_PLUGIN_VERSION`, `KOTLIN_VERSION` and
+`GRADLE_DISTRIBUTION_VERSION`, currently **AGP `9.3.1`**, **Kotlin `2.3.21`** and
+**Gradle `9.6.1`**. Request those, or offline resolution of the build plugins fails. That
+constants file is authoritative; the numbers here are a snapshot of it.
 
-Also declare AGP `apply false` in the **root** `build.gradle.kts` (as the standard CoGo
-project template does):
+AGP 9 compiles Kotlin itself and **refuses** the `org.jetbrains.kotlin.android` plugin, so
+an on-device build drops it and pins Kotlin through the `kotlin-gradle-plugin` jar on the
+**root** buildscript classpath, which is where AGP 9 takes its compiler from. Declare AGP
+`apply false` in the same root file (as the standard CoGo project template does):
 
 ```kotlin
+buildscript {
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.21")
+    }
+}
+
 plugins {
-    id("com.android.application") apply false version "8.11.0"
-    id("com.android.library") apply false version "8.11.0"
+    id("com.android.application") apply false version "9.3.1"
+    id("com.android.library") apply false version "9.3.1"
 }
 ```
 

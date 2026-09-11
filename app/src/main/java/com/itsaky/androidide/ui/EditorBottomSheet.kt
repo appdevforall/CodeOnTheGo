@@ -67,6 +67,8 @@ import com.itsaky.androidide.tasks.runOnUiThread
 import com.itsaky.androidide.utils.DiagnosticsFormatter
 import com.itsaky.androidide.utils.IntentUtils.shareFile
 import com.itsaky.androidide.utils.Symbols.forFile
+import com.itsaky.androidide.utils.clearLongPressHelp
+import com.itsaky.androidide.utils.displayTooltipOnLongPress
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
@@ -251,7 +253,7 @@ class EditorBottomSheet
 						}
 					}
 			}
-			binding.shareOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SHARE_EXTERNAL))
+			binding.shareOutputAction.displayTooltipOnLongPress(context, TooltipTag.OUTPUT_SHARE_EXTERNAL)
 
 			binding.clearOutputAction.setOnClickListener {
 				val fragment =
@@ -262,7 +264,7 @@ class EditorBottomSheet
 				}
 				(fragment as ShareableOutputFragment).clearOutput()
 			}
-			binding.clearOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_CLEAR))
+			binding.clearOutputAction.displayTooltipOnLongPress(context, TooltipTag.OUTPUT_CLEAR)
 
 			binding.copyDiagnosticsFab.setOnClickListener {
 				copyDiagnosticsToClipboard()
@@ -278,7 +280,7 @@ class EditorBottomSheet
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 				fragment.beginSearch()
 			}
-			binding.searchOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_SEARCH))
+			binding.searchOutputAction.displayTooltipOnLongPress(context, TooltipTag.OUTPUT_SEARCH)
 
 			binding.filterOutputAction.setOnClickListener {
 				val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
@@ -289,7 +291,7 @@ class EditorBottomSheet
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 				fragment.toggleFilterBar()
 			}
-			binding.filterOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_FILTER))
+			binding.filterOutputAction.displayTooltipOnLongPress(context, TooltipTag.OUTPUT_FILTER)
 
 			updateWordWrapButtonState(EditorPreferences.outputWordWrap)
 			binding.wordWrapOutputAction.setOnClickListener {
@@ -297,7 +299,7 @@ class EditorBottomSheet
 				EditorPreferences.outputWordWrap = newState
 				updateWordWrapButtonState(newState)
 			}
-			binding.wordWrapOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_WORD_WRAP))
+			binding.wordWrapOutputAction.displayTooltipOnLongPress(context, TooltipTag.OUTPUT_WORD_WRAP)
 
 			binding.viewOptionsOutputAction.setOnClickListener {
 				val fragment = pagerAdapter.getFragmentAtIndex<Fragment>(binding.tabs.selectedTabPosition)
@@ -305,7 +307,7 @@ class EditorBottomSheet
 					fragment.showViewOptions(it)
 				}
 			}
-			binding.viewOptionsOutputAction.setOnLongClickListener(generateTooltipListener(TooltipTag.OUTPUT_VIEW_OPTIONS))
+			binding.viewOptionsOutputAction.displayTooltipOnLongPress(context, TooltipTag.OUTPUT_VIEW_OPTIONS)
 
 			binding.headerContainer.setOnClickListener {
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
@@ -332,17 +334,17 @@ class EditorBottomSheet
 
 			binding.tabs.clearOnTabSelectedListeners()
 			binding.shareOutputAction.setOnClickListener(null)
-			binding.shareOutputAction.setOnLongClickListener(null)
+			binding.shareOutputAction.clearLongPressHelp()
 			binding.clearOutputAction.setOnClickListener(null)
-			binding.clearOutputAction.setOnLongClickListener(null)
+			binding.clearOutputAction.clearLongPressHelp()
 			binding.searchOutputAction.setOnClickListener(null)
-			binding.searchOutputAction.setOnLongClickListener(null)
+			binding.searchOutputAction.clearLongPressHelp()
 			binding.filterOutputAction.setOnClickListener(null)
-			binding.filterOutputAction.setOnLongClickListener(null)
+			binding.filterOutputAction.clearLongPressHelp()
 			binding.wordWrapOutputAction.setOnClickListener(null)
-			binding.wordWrapOutputAction.setOnLongClickListener(null)
+			binding.wordWrapOutputAction.clearLongPressHelp()
 			binding.viewOptionsOutputAction.setOnClickListener(null)
-			binding.viewOptionsOutputAction.setOnLongClickListener(null)
+			binding.viewOptionsOutputAction.clearLongPressHelp()
 			binding.copyDiagnosticsFab.setOnClickListener(null)
 			binding.headerContainer.setOnClickListener(null)
 			removeOnLayoutChangeListener(fabLayoutChangeListener)
@@ -386,18 +388,6 @@ class EditorBottomSheet
 				}
 			}
 		}
-
-		private fun generateTooltipListener(tooltipTag: String): OnLongClickListener =
-			OnLongClickListener { view: View ->
-				TooltipManager.showIdeCategoryTooltip(
-					context = context,
-					anchorView = view,
-					tag = tooltipTag,
-				)
-
-				// A long-click listener must return true to indicate it has consumed the event.
-				true
-			}
 
 		fun setCurrentTab(
 			@BottomSheetViewModel.TabDef tabIndex: Int,
@@ -528,7 +518,10 @@ class EditorBottomSheet
 
 		private val suppressedGradleWarnings =
 			listOf(
-				"The option setting 'android.aapt2FromMavenOverride=/data/data/com.itsaky.androidide/files/home/android-sdk/build-tools/35.0.0/aapt2' is experimental",
+				// Matched with contains(), so the build-tools version is deliberately left
+				// out: the path moves with Environment.BUILD_TOOLS_VERSION and a hardcoded
+				// version silently stops matching, resurfacing the warning to users.
+				"The option setting 'android.aapt2FromMavenOverride=",
 				"The org.gradle.api.plugins.BasePluginConvention type has been deprecated.",
 				"The org.gradle.api.plugins.Convention type has been deprecated.",
 				"The BasePluginExtension.archivesBaseName property has been deprecated.",
