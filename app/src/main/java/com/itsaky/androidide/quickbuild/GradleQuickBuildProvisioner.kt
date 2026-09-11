@@ -88,6 +88,16 @@ class GradleQuickBuildProvisioner(
 	private val stage: (Context, EnvironmentQuickBuildPaths) -> Unit = { ctx, paths ->
 		QuickBuildArtifactStager.stage(ctx, paths)
 	},
+	/**
+	 * Reads whoever holds the device's single Gradle slot, through the same [Lookup] key CoGo's
+	 * own build guards read. Called per use, never cached: the service comes and goes with the
+	 * tooling server. Injectable so a test can drive the slot without a live service.
+	 */
+	private val lookupBuildService: () -> BuildService? = {
+		Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+	},
+	/** The open project's model. Injectable for tests. */
+	private val lookupProjectManager: () -> IProjectManager = { IProjectManager.getInstance() },
 ) : QuickBuildProvisioner {
 	override suspend fun provision(): ProvisionOutcome {
 		unsupportedProjectTypeFailure()?.let { return ProvisionOutcome.Failure(QuickBuildMessage.Literal(context.getString(it))) }
@@ -249,7 +259,7 @@ class GradleQuickBuildProvisioner(
 	@StringRes
 	private fun unsupportedProjectTypeFailure(): Int? =
 		QuickBuildProjectSupport.unsupportedProjectTypeMessage(
-			IProjectManager.getInstance().isPluginProject(),
+			lookupProjectManager().isPluginProject(),
 		)
 
 	/**
@@ -325,13 +335,13 @@ class GradleQuickBuildProvisioner(
 			// before it is handed out, so a build refused after allocation burns that generation.
 			// Losing one is harmless on its own, but the refusal is also the common case - CoGo's
 			// project sync fires on the same gradle-file edit that invalidates the session.
-			if (Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)?.isBuildInProgress == true) {
+			if (lookupBuildService()?.isBuildInProgress == true) {
 				log.info("A Gradle build is already in progress; not staging for the Quick Build proxy app build")
 				return ProxyAppBuildResult.SlotBusy
 			}
 			stage(context, paths)
 
-			val projectManager = IProjectManager.getInstance()
+			val projectManager = lookupProjectManager()
 			val projectRoot = File(projectManager.projectDirPath)
 
 			// The project model only exists once CoGo's Gradle sync has populated it, and a tap
@@ -346,7 +356,7 @@ class GradleQuickBuildProvisioner(
 			}
 
 			val module =
-				quickBuildModule()
+				quickBuildModule(projectManager)
 					?: run {
 						log.error("No Android module found for the Quick Build proxy app build")
 						return ProxyAppBuildResult.Failed(
@@ -366,7 +376,7 @@ class GradleQuickBuildProvisioner(
 			}
 
 			val buildService =
-				Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+				lookupBuildService()
 					?: run {
 						log.error("Build service unavailable for the Quick Build proxy app build")
 						return ProxyAppBuildResult.Failed()
@@ -498,7 +508,7 @@ class GradleQuickBuildProvisioner(
 	 */
 	override fun cancelProxyAppBuild(): Boolean {
 		val buildService =
-			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+			lookupBuildService()
 				?: return false
 		if (!buildService.isBuildInProgress) return false
 		if (buildService.isUserVisibleBuildInProgress) {
@@ -534,12 +544,13 @@ class GradleQuickBuildProvisioner(
 		 * The module Quick Build provisions: the first Android application module, and failing
 		 * that the first Android module at all. The same choice the proxy app build makes, so
 		 * a variant read through here names the variant that was actually built.
+		 *
+		 * @param manager the project model to ask; defaults to the process-wide one, which is
+		 *   what every non-injected caller has always used.
 		 */
-		private fun quickBuildModule(): AndroidModule? =
-			IProjectManager.getInstance().let { manager ->
-				manager.getAndroidAppModules().firstOrNull()
-					?: manager.getAndroidModules().firstOrNull()
-			}
+		private fun quickBuildModule(manager: IProjectManager = IProjectManager.getInstance()): AndroidModule? =
+			manager.getAndroidAppModules().firstOrNull()
+				?: manager.getAndroidModules().firstOrNull()
 
 		/**
 		 * The Build Variants selection Quick Build would build right now, or null when the
