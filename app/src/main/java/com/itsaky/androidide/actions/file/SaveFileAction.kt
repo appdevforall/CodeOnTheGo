@@ -96,19 +96,16 @@ class SaveFileAction(
 			// does not overlap the sync notification
 			context.flashSuccess(R.string.all_saved)
 
-			val saveResult = result.result
-			// Only a resource or manifest save can change what generateSources produces (R.jar,
-			// ViewBinding accessors, the Manifest class - see SaveResult.resourceXmlSaved), so only
-			// those warrant the Gradle run. Deliberately un-gated (experiments flag off included):
-			// previously ANY XML save triggered this, so skipping it on other non-resource XML is
-			// a save-latency win for every user.
-			// Routed through the deferral: immediate with no Quick Build session, parked and
-			// coalesced until the session pipeline settles with one (see GenerateSourcesDeferral).
-			if (saveResult.resourceXmlSaved) {
+			// Which flags warrant which follow-up is decided by saveFollowUpFor; this only performs
+			// the follow-ups. The regenerate goes through the deferral: immediate with no Quick
+			// Build session, parked and coalesced until the session pipeline settles with one
+			// (see GenerateSourcesDeferral).
+			val followUp = saveFollowUpFor(result.result)
+			if (followUp.regenerateSources) {
 				GenerateSourcesDeferral.notifyResourceSaved()
 			}
 
-			if (saveResult.gradleSaved) {
+			if (followUp.markSyncNeeded) {
 				context.editorViewModel.isSyncNeeded = true
 			}
 
