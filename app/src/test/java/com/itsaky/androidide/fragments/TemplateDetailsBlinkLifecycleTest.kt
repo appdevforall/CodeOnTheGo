@@ -43,6 +43,9 @@ import org.robolectric.annotation.Config
  * outlives the view being on screen burns frames for the rest of the process. Pre-fix the blink
  * started once in `onViewCreated` and was only cancelled in `onDestroyView`, so both cases here go
  * red: leaving the screen and stopping the activity each left it running.
+ *
+ * The stop case also pins the return: the observer watches START/STOP rather than cancelling once
+ * so that the blink comes back with the screen, and nothing else covers that half.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(application = TemplateDetailsBlinkLifecycleTest.TestApp::class)
@@ -76,7 +79,7 @@ class TemplateDetailsBlinkLifecycleTest {
 	}
 
 	@Test
-	fun `blink stops when the view lifecycle stops`() {
+	fun `blink stops when the view lifecycle stops and returns when it starts`() {
 		val controller = Robolectric.buildActivity(AppCompatActivity::class.java).setup()
 		val fragment = controller.get().showTemplateDetails()
 
@@ -85,6 +88,10 @@ class TemplateDetailsBlinkLifecycleTest {
 		controller.pause().stop()
 
 		assertThat(fragment.blinkAnimator()).isNull()
+
+		controller.start().resume()
+
+		assertThat(fragment.blinkAnimator()?.isRunning).isTrue()
 	}
 
 	@Test
