@@ -122,10 +122,10 @@ class QuickBuildAction(
 		val tone = currentTone()
 		icon = ContextCompat.getDrawable(context, iconResFor(tone))
 		// A Quick Build cannot start while the user's own Gradle build holds the one slot, so
-		// the button says so before the tap rather than after it - staging used to run first and
-		// the refusal read as a failure. The label carries the reason because it is what the
-		// tooltip, the long-press dropdown and the overflow menu all read: a greyed control with
-		// no explanation is the worse half of this trade.
+		// the button is disabled before the tap rather than after it - staging used to run first
+		// and the refusal read as a failure. The label says only that a build is running: the
+		// long-press dropdown row is one line and "Standard build in progress" was cut off at 2x
+		// font scale. The full reason stays on the content description and the blocked-tap flash.
 		val blocked = blockedByStandardBuild(tone, standardBuildInProgress())
 		enabled = !blocked
 		// The label moves with the icon: it is what the long-press dropdown and the
@@ -133,7 +133,7 @@ class QuickBuildAction(
 		// offer the user two different actions for one button.
 		label =
 			context.getString(
-				if (blocked) R.string.quick_build_standard_build_in_progress else labelResFor(tone),
+				if (blocked) R.string.status_building else labelResFor(tone),
 			)
 	}
 
