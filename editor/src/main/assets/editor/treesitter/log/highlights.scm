@@ -1,6 +1,11 @@
 (begin_header) @header
 
 (log_line
+  (message) @stack.frame
+  (#match? @stack.frame "^\\s*at \\S+\\([\\w-]+\\.(java|kt):\\d+\\)$")
+)
+
+(log_line
   (date) @err.date
   (time) @err.time
   (pid) @err.pid

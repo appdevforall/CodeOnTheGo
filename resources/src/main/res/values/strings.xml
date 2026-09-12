@@ -795,6 +795,7 @@
 	<string name="msg_emptyview_diagnostics">Open a file to show its diagnostic results</string>
 	<string name="log_filter_hint">Filter lines</string>
 	<string name="msg_no_filter_matches">No matching log entries found.</string>
+	<string name="msg_stack_frame_source_not_found">No project source found for %1$s</string>
 	<string name="msg_no_search_matches">No search matches found.</string>
 	<string name="log_action_filter">Filter</string>
 	<string name="log_action_search">Search</string>

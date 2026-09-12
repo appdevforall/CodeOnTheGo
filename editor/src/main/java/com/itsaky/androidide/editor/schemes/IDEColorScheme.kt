@@ -131,6 +131,7 @@ data class StyleDef(
 	var strikeThrough: Boolean = false,
 	var completion: Boolean = true,
 	var maybeHexColor: Boolean = false,
+	var underlineSourceLocation: Boolean = false,
 ) {
 	/**
 	 * Make the style for the style definition.

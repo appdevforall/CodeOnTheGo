@@ -24,6 +24,7 @@ import androidx.annotation.UiThread
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.R
+import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.databinding.FragmentLogBinding
 import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
 import com.itsaky.androidide.editor.language.treesitter.LogLanguage
@@ -36,15 +37,27 @@ import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.fragments.EmptyStateFragment
 import com.itsaky.androidide.models.LogFilter
 import com.itsaky.androidide.models.LogLine
+import com.itsaky.androidide.models.Position
+import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.preferences.internal.EditorPreferences
+import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.utils.BasicBuildInfo
+import com.itsaky.androidide.utils.StackFrame
+import com.itsaky.androidide.utils.StackFrameLocator
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
 import com.itsaky.androidide.utils.viewLifecycleScope
 import com.itsaky.androidide.viewmodel.LogViewModel
+import io.github.rosemoe.sora.event.ClickEvent
+import io.github.rosemoe.sora.util.IntPair
+import io.github.rosemoe.sora.widget.REGION_TEXT
+import io.github.rosemoe.sora.widget.resolveTouchRegion
 import io.github.rosemoe.sora.widget.style.CursorAnimator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -253,6 +266,11 @@ abstract class LogViewFragment<V : LogViewModel> :
 		editor.isEnsurePosAnimEnabled = false
 		editor.tag = tooltipTag
 		editor.cursorAnimator = NoOpCursorAnimator
+		editor.subscribeEvent(ClickEvent::class.java) { event, _ ->
+			if (IntPair.getFirst(editor.resolveTouchRegion(event.causingEvent)) != REGION_TEXT) return@subscribeEvent
+			val frame = StackFrameLocator.parse(editor.text.getLineString(event.line)) ?: return@subscribeEvent
+			openStackFrame(frame)
+		}
 
 		// Skip tree-sitter language setup during tests to avoid native library issues
 		if (!isTestMode()) {
@@ -269,6 +287,31 @@ abstract class LogViewFragment<V : LogViewModel> :
 					}
 					editor.applyTreeSitterLang(language, LogLanguage.TS_TYPE, scheme)
 				}
+			}
+		}
+	}
+
+	private fun openStackFrame(frame: StackFrame) {
+		viewLifecycleScope.launch {
+			val file =
+				withContext(Dispatchers.IO) {
+					val sourceDirs =
+						IProjectManager
+							.getInstance()
+							.workspace
+							?.subProjects
+							.orEmpty()
+							.filterIsInstance<ModuleProject>()
+							.flatMap { it.getSourceDirectories() }
+					StackFrameLocator.locate(frame, sourceDirs)
+				}
+			if (file == null) {
+				flashInfo(getString(R.string.msg_stack_frame_source_not_found, frame.fileName))
+				return@launch
+			}
+			(activity as? BaseEditorActivity)?.apply {
+				doOpenFile(file, Range.pointRange(Position(frame.line - 1, 0)))
+				hideBottomSheet()
 			}
 		}
 	}
