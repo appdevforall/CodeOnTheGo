@@ -1,6 +1,5 @@
 package com.itsaky.androidide.localWebServer
 
-import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
 import android.os.Environment.getExternalStorageDirectory
@@ -11,6 +10,7 @@ import com.itsaky.androidide.documentation.DocumentationContent
 import com.itsaky.androidide.documentation.DocumentationContentSource
 import com.itsaky.androidide.documentation.DocumentationLookup
 import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
+import com.itsaky.androidide.documentation.TemplateRenderException
 import com.itsaky.androidide.utils.ContentTypeHeaders
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import org.slf4j.LoggerFactory
@@ -147,18 +147,6 @@ class WebServer(
 			// was written against that; gson would drop the key entirely by default.
 			.serializeNulls()
 			.create()
-
-	// -1 means "not fetched yet". Volatile because the WebView transport shares this server's
-	// process, and the interceptor's reads can run on WebView threads while the accept loop writes.
-	@Volatile
-	private var bookshelfTemplateId: Int = -1
-
-	private val cacheLock = Any()
-
-	// Which of the source's databases bookshelfTemplateId was filled from. The compiled templates
-	// themselves live in the source and are dropped by its own swap.
-	@Volatile
-	private var cachedDatabaseGeneration = 0L
 
 	// Long enough to stop a descriptor-exhaustion spin starving the connections whose closing would
 	// fix it; short enough to be invisible to a user, and never paid on a successful accept.
@@ -547,29 +535,9 @@ class WebServer(
 			return sendError(writer, output, 501, "Not Implemented")
 		}
 
-		// serveRequest applies any pending sdcard debug-database swap via the content source.
+		// The content source applies a pending sdcard debug-database swap inside lookup()/withDatabase(),
+		// so a request reaching neither -- an unknown /pr/ target -- does not poll for one.
 		serveRequest(writer, output, path)
-	}
-
-	/**
-	 * Invalidates the cached bookshelf template identifier when the documentation database changes.
-	 */
-	private fun discardCachesIfDatabaseChanged() {
-		// Apply any pending swap first. The source swaps inside lookup()/withDatabase(), so checking
-		// the generation before those runs reads the generation from before the swap: on the very
-		// request that swaps, this would leave bookshelfTemplateId pointing at the previous
-		// database's template row -- rendering the old bookshelf, or 500ing if that id is absent.
-		contentSource.refreshDatabase()
-
-		if (contentSource.generation == cachedDatabaseGeneration) return
-
-		synchronized(cacheLock) {
-			val generation = contentSource.generation
-			if (generation == cachedDatabaseGeneration) return
-
-			bookshelfTemplateId = -1
-			cachedDatabaseGeneration = generation
-		}
 	}
 
 	/**
@@ -584,8 +552,6 @@ class WebServer(
 		output: java.io.OutputStream,
 		path: String,
 	) {
-		discardCachesIfDatabaseChanged()
-
 		// Handle the special "pr" endpoint with highest priority
 		if (path.startsWith("pr/", false)) {
 			if (debugEnabled) log.debug("Found a pr/ path, '{}'.", path)
@@ -623,7 +589,13 @@ class WebServer(
 			}
 
 			is DocumentationLookup.Failed -> {
-				sendError(writer, output, httpInternalServerError, "Internal Server Error", lookup.cause.message ?: "")
+				log.error("Cannot serve the documentation request", lookup.cause)
+				// Same rule as /pr/bs, and for the same reason: only a template failure names a
+				// template, and only its message is safe to send. A SQLiteException carries SQL text
+				// and withDatabase's check() carries the database's filesystem path, and any app on
+				// the device can GET this port. This is the sibling the first pass missed.
+				val detail = (lookup.cause as? TemplateRenderException)?.message ?: "Internal Server Error"
+				sendError(writer, output, httpInternalServerError, "Internal Server Error", detail)
 			}
 		}
 	}
@@ -801,10 +773,25 @@ class WebServer(
 		var outputStarted = false
 
 		try {
-			outputStarted = realHandleBsEndpoint(writer, output) { outputStarted = true }
+			realHandleBsEndpoint(writer, output) { outputStarted = true }
 		} catch (e: Exception) {
 			log.error("Error handling /pr/bs endpoint: {}", e.message)
-			sendError(writer, output, httpInternalServerError, "Internal Server Error 6", "Error generating bookshelf HTML.", outputStarted)
+			// The message is echoed ONLY for a template failure. That one names a template -- the
+			// bookshelf row itself, or anything it references -- and the name is the whole diagnostic
+			// (ADFA-5405). Everything else keeps the generic text, because this catch spans the whole
+			// of realHandleBsEndpoint: a SQLiteException carries SQL, and withDatabase's
+			// check(openIfNeeded()) carries the database's filesystem path. Any app on the device can
+			// GET this port, so echoing those was handing out internals for the sake of one
+			// diagnostic.
+			val detail = (e as? TemplateRenderException)?.message ?: "Error generating bookshelf HTML."
+			sendError(
+				writer,
+				output,
+				httpInternalServerError,
+				"Internal Server Error 6",
+				detail,
+				outputStarted,
+			)
 		}
 
 		if (debugEnabled) log.debug("Leaving handleBsEndpoint().")
@@ -864,45 +851,29 @@ class WebServer(
 	/**
 	 * Generates the bookshelf page and sends it to the client.
 	 *
-	 * @return `true` if a response was produced, `false` if processing failed or no response was produced.
+	 * Returns nothing: [markOutputStarted] is how the caller learns the response has begun, and it
+	 * fires at the moment it actually does. Returning the same fact as well meant two mechanisms
+	 * for one piece of state -- and once the only early return went, the returned value was a
+	 * constant. A later early return that updated one and not the other would leave the caller
+	 * sending response headers onto a socket that already carries a body.
 	 */
 	private fun realHandleBsEndpoint(
 		writer: PrintWriter,
 		output: java.io.OutputStream,
 		markOutputStarted: () -> Unit,
-	): Boolean {
+	) {
 		if (debugEnabled) log.debug("Entering realHandleBsEndpoint().")
 
-		// Null means an error response has already been sent, so there is nothing left to write.
-		val jsonText =
-			contentSource.withDatabase { database ->
-				try {
-					val json = bookshelfJson(database)
-					if (debugEnabled) log.debug("json content = '{}'.", String(json, Charsets.UTF_8))
-					if (debugEnabled) log.debug("before fetch bookshelf template ID = '{}'", bookshelfTemplateId)
-
-					// Have we already fetched the template
-					if (bookshelfTemplateId == -1) {
-						database.rawQuery("SELECT id FROM Templates WHERE name = 'bookshelf'", arrayOf()).use { cursor ->
-							if (!isCursorOneRow(cursor, writer, output)) {
-								return@withDatabase null
-							}
-
-							cursor.moveToFirst()
-							bookshelfTemplateId = cursor.getInt(0)
-							if (debugEnabled) log.debug("after the fetch bookshelf template ID = '{}'", bookshelfTemplateId)
-						}
-					}
-
-					json
-				} catch (e: Exception) {
-					log.error("Error processing request: {}", e.message)
-					sendError(writer, output, httpInternalServerError, "Internal Server Error", e.message ?: "")
-					null
+		// The payload and the template are built under one database acquisition, so a swap cannot
+		// land between them. Nothing is caught here: handleBsEndpoint's catch is the single place
+		// that decides what reaches the client, and an inner catch that answered and returned made
+		// that decision unreachable for everything raised inside this block.
+		val result =
+			contentSource.renderNamedTemplate("bookshelf", "/bookshelf") { database ->
+				bookshelfJson(database).also {
+					if (debugEnabled) log.debug("json content = '{}'.", String(it, Charsets.UTF_8))
 				}
-			} ?: return false
-
-		val result = contentSource.renderTemplate(bookshelfTemplateId, jsonText, "/bookshelf")
+			}
 
 		if (debugEnabled) log.debug("Bookshelf result is '{}'.", String(result))
 
@@ -910,8 +881,6 @@ class WebServer(
 		writeNormalToClient(writer, output, String(result))
 
 		if (debugEnabled) log.debug("Leaving realHandleBsEndpoint().")
-
-		return true
 	}
 
 	/**
@@ -1068,22 +1037,6 @@ ORDER BY BC.category,
 				)
 			},
 		)
-	}
-
-	private fun isCursorOneRow(
-		cursor: Cursor,
-		writer: PrintWriter,
-		output: java.io.OutputStream,
-	): Boolean {
-		if (cursor.count == 1) {
-			return true
-		}
-		if (cursor.count == 0) {
-			sendError(writer, output, httpNotFound, "Corrupt database, no rows found, expected one.")
-		} else {
-			sendError(writer, output, httpInternalServerError, "Corrupt database - found ${cursor.count} rows when 1 was expected.")
-		}
-		return false
 	}
 
 	/**
