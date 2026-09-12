@@ -51,9 +51,9 @@ object JavaSourceAbi {
 	 *
 	 * @param javaSources every `.java` in the module; an empty list is a known-empty ABI, not
 	 *   an unknown one.
-	 * @param warn receives the reason when a throw makes the snapshot null. A null costs every
-	 *   later compile in the session a full Kotlin recompile, which from the daemon log alone
-	 *   looks like a slow device - so the cause must reach the log.
+	 * @param warn receives the reason whenever the snapshot is null. A null costs every later
+	 *   compile in the session a full Kotlin recompile, which from the daemon log alone looks
+	 *   like a slow device - so the cause must reach the log.
 	 * @return one entry per input file, or null - which callers must read as "assume the ABI
 	 *   changed", never as "nothing changed".
 	 */
@@ -62,14 +62,19 @@ object JavaSourceAbi {
 		warn: (String) -> Unit = {},
 	): Map<File, FileAbi>? {
 		if (javaSources.isEmpty()) return emptyMap()
-		val compiler = ToolProvider.getSystemJavaCompiler() ?: return null
+
+		fun unknown(reason: String): Map<File, FileAbi>? {
+			warn("w: Java ABI snapshot failed, every Kotlin source will be recompiled: $reason")
+			return null
+		}
+		val compiler = ToolProvider.getSystemJavaCompiler() ?: return unknown("no system Java compiler")
 		val collector = DiagnosticCollector<JavaFileObject>()
 		return try {
 			compiler.getStandardFileManager(collector, Locale.ROOT, StandardCharsets.UTF_8).use { manager ->
 				val units = manager.getJavaFileObjectsFromFiles(javaSources)
 				val task =
 					compiler.getTask(StringWriter(), manager, collector, listOf("-proc:none"), null, units)
-						as? JavacTask ?: return null
+						as? JavacTask ?: return unknown("the system Java compiler's task is not a JavacTask")
 				val byPath = javaSources.associateBy { it.absolutePath }
 				val result = HashMap<File, FileAbi>()
 				for (unit in task.parse()) {
@@ -79,11 +84,14 @@ object JavaSourceAbi {
 				// A file javac declined to hand back was not parsed; do not claim to know its ABI.
 				// Compared against byPath, not the input list: both are keyed by absolute path, so a
 				// repeated path is one entry here and would otherwise read as a parse failure forever.
-				if (result.size != byPath.size) null else result
+				if (result.size != byPath.size) {
+					unknown("javac handed back ${result.size} of ${byPath.size} files")
+				} else {
+					result
+				}
 			}
 		} catch (e: Exception) {
-			warn("w: Java ABI snapshot failed, every Kotlin source will be recompiled: ${e.javaClass.name}: ${e.message}")
-			null
+			unknown("${e.javaClass.name}: ${e.message}")
 		}
 	}
 
