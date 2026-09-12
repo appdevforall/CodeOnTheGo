@@ -6,7 +6,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.domain.telemetry.E2eTimeline
@@ -29,9 +31,10 @@ class QuickBuildOutputNarratorTest {
 
 	/**
 	 * Runs [body] against an attached narrator whose scope dispatches eagerly, so an emission is
-	 * delivered by the time the next line of the test runs.
+	 * delivered by the time the next line of the test runs. The narrator's clock is the test's,
+	 * so [advanceTimeBy] moves its timeouts.
 	 */
-	private fun narrating(body: suspend (QuickBuildOutputNarrator) -> Unit) =
+	private fun narrating(body: suspend TestScope.(QuickBuildOutputNarrator) -> Unit) =
 		runTest {
 			val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
 			val narrator = QuickBuildOutputNarrator(scope)
@@ -348,6 +351,40 @@ class QuickBuildOutputNarratorTest {
 			narrator.bind(sink)
 
 			statuses.emit(QuickBuildStatus.Hidden())
+
+			assertThat(written).isEmpty()
+		}
+
+	@Test
+	fun `a teardown that never reports quiet stops muting the pane after 30 seconds`() =
+		narrating { narrator ->
+			// A teardown can hang - a daemon that will not die, a scratch removal stuck on FUSE.
+			// Muting until it reported quiet would then silence the pane for the rest of the
+			// process, which is worse than the stale lines the mute exists to drop.
+			narrator.reset(untilQuiet = { CompletableDeferred<Unit>().await() })
+			narrator.bind(sink)
+			narrator.narrate(timeline(generation = 2L))
+			assertThat(written).isEmpty()
+
+			advanceTimeBy(30_001L)
+			narrator.narrate(timeline(generation = 3L))
+
+			assertThat(written.joinToString("")).contains("generation 3")
+		}
+
+	@Test
+	fun `an earlier teardown reporting quiet does not lift a later reset's mute`() =
+		narrating { narrator ->
+			// Two projects closed in quick succession: the first teardown finishing must not
+			// unmute the pane the second reset is still guarding, so each reset's mute is its
+			// own token and only the matching teardown clears it.
+			val first = CompletableDeferred<Unit>()
+			narrator.reset(untilQuiet = { first.await() })
+			narrator.reset(untilQuiet = { CompletableDeferred<Unit>().await() })
+			narrator.bind(sink)
+
+			first.complete(Unit)
+			narrator.narrate(timeline(generation = 2L))
 
 			assertThat(written).isEmpty()
 		}
