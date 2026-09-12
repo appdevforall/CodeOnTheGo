@@ -625,7 +625,7 @@ class Aapt2LinkTest {
 			thread(isDaemon = true) {
 				Aapt2Link.watchdogTimedOut(process, AAPT2_CEILING_MILLIS) { timedOut.set(true) }
 			}
-		val output = process.inputStream.bufferedReader().readText()
+		val output = process.inputStream.bufferedReader().use { it.readText() }
 		val exitCode = process.waitFor()
 		watchdog.join()
 		val command = "aapt2 " + args.joinToString(" ")
