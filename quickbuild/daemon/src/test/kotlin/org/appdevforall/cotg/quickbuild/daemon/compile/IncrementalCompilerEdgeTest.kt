@@ -7,6 +7,7 @@ import org.appdevforall.cotg.quickbuild.daemon.protocol.ProtocolCodec
 import org.appdevforall.cotg.quickbuild.protocol.CompileStats
 import org.appdevforall.cotg.quickbuild.protocol.DaemonResponse
 import org.appdevforall.cotg.quickbuild.protocol.Diagnostic
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -30,7 +31,16 @@ class IncrementalCompilerEdgeTest {
 		workDir = File(tempDir, "work").apply { mkdirs() }
 	}
 
-	private fun compiler() = IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), workDir.toPath())
+	/** Every compiler opened outside a `use`, closed after the test; see [IncrementalCompiler.close]. */
+	private val opened = mutableListOf<IncrementalCompiler>()
+
+	@AfterEach
+	fun closeCompilers() {
+		opened.asReversed().forEach { it.close() }
+		opened.clear()
+	}
+
+	private fun compiler() = IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), workDir.toPath()).also(opened::add)
 
 	private fun writeJava(
 		relativePath: String,
@@ -98,7 +108,7 @@ class IncrementalCompilerEdgeTest {
 		// Any jar serves as a plugin here: nothing loads it until a compile runs.
 		val plugin = TestSdk.kotlinStdlib().copyTo(File(tempDir, "some-compiler-plugin.jar"))
 
-		IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), workDir.toPath(), compilerPluginJars = listOf(plugin))
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), workDir.toPath(), compilerPluginJars = listOf(plugin)).also(opened::add)
 
 		// A plugin changes the bytecode kotlinc emits for sources the engine sees as unchanged,
 		// so caches seeded without it are as stale as under a rewritten jar.
@@ -107,7 +117,7 @@ class IncrementalCompilerEdgeTest {
 
 		// And the same plugin set again keeps the warm caches, as an unchanged classpath does.
 		val kept = File(workDir, "ic/marker").apply { writeText("kept") }
-		IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), workDir.toPath(), compilerPluginJars = listOf(plugin))
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), workDir.toPath(), compilerPluginJars = listOf(plugin)).also(opened::add)
 		assertThat(kept.exists()).isTrue()
 	}
 
@@ -197,6 +207,7 @@ class IncrementalCompilerEdgeTest {
 		val work = File(tempDir, "$name-work").apply { mkdirs() }
 		val result =
 			IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), work.toPath())
+				.also(opened::add)
 				.compile(listOf(java), changedFiles = listOf(java))
 		check(result is IncrementalCompiler.Result.Success) { "fixture compile failed" }
 		return result.classesDir
@@ -213,13 +224,13 @@ class IncrementalCompilerEdgeTest {
 		File(compiledClasses("one", 1), "demo/Lib.class").copyTo(target, overwrite = true)
 		val fingerprintFile = File(workDir, "classpath-fingerprint.txt")
 
-		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath())
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath()).also(opened::add)
 		val before = fingerprintFile.readText()
 
 		// Same path, same class, new bytes: the in-place rewrite AGP does to a sibling library
 		// module between builds.
 		File(compiledClasses("two", 2), "demo/Lib.class").copyTo(target, overwrite = true)
-		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath())
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath()).also(opened::add)
 
 		assertThat(fingerprintFile.readText()).isNotEqualTo(before)
 	}
@@ -231,10 +242,10 @@ class IncrementalCompilerEdgeTest {
 		val classesDir = compiledClasses("stable", 7)
 		val fingerprintFile = File(workDir, "classpath-fingerprint.txt")
 
-		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath())
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath()).also(opened::add)
 		val before = fingerprintFile.readText()
 
-		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath())
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib(), classesDir), workDir.toPath()).also(opened::add)
 
 		assertThat(fingerprintFile.readText()).isEqualTo(before)
 	}
