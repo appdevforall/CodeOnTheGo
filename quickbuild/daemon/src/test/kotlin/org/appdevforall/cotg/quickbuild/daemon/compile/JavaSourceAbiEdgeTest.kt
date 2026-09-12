@@ -200,8 +200,13 @@ class JavaSourceAbiEdgeTest {
 	fun `a source javac does not hand back leaves the snapshot unknown`() {
 		val real = write("Dotted.java", "package demo;\n\npublic class Dotted {}")
 		val viaDot = File(tempDir, "./Dotted.java")
+		val warnings = mutableListOf<String>()
 
-		assertThat(JavaSourceAbi.snapshot(listOf(viaDot))).isNull()
+		assertThat(JavaSourceAbi.snapshot(listOf(viaDot)) { warnings += it }).isNull()
+		// The null is a full Kotlin recompile for the rest of the session; without the warning
+		// the log reads as a slow device.
+		assertThat(warnings).hasSize(1)
+		assertThat(warnings.single()).contains("recompiled")
 		// Sanity: the same content under its plain path is fine, so the null above is the
 		// completeness check firing rather than a broken fixture.
 		assertThat(JavaSourceAbi.snapshot(listOf(real))).isNotNull()

@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.daemon.res
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import org.appdevforall.cotg.quickbuild.daemon.TestSdk
 import org.appdevforall.cotg.quickbuild.protocol.Diagnostic
 import org.junit.jupiter.api.BeforeEach
@@ -475,7 +476,9 @@ class Aapt2LinkTest {
 				staleCompileDir.absolutePath,
 			).redirectErrorStream(true)
 				.start()
-		assertThat(compileResult.waitFor()).isEqualTo(0)
+		// Read before waitFor: aapt2 blocks on a full pipe, and the output is the only diagnostic.
+		val compileOutput = compileResult.inputStream.bufferedReader().readText()
+		assertWithMessage(compileOutput).that(compileResult.waitFor()).isEqualTo(0)
 		val staleFlat = staleCompileDir.listFiles { file -> file.name.endsWith(".flat") }!!.single()
 		val link = Aapt2Link(TestSdk.aapt2()!!, TestSdk.androidJar()!!)
 
@@ -563,10 +566,9 @@ class Aapt2LinkTest {
 			).redirectErrorStream(true)
 				.start()
 		val compileOutput = compileResult.inputStream.bufferedReader().readText()
-		assertThat(compileResult.waitFor()).isEqualTo(0)
+		assertWithMessage(compileOutput).that(compileResult.waitFor()).isEqualTo(0)
 		val libraryFlat = libraryCompileDir.listFiles { file -> file.name.endsWith(".flat") }?.singleOrNull()
 		assertThat(libraryFlat).isNotNull()
-		assertThat(compileOutput).isNotNull() // keep the diagnostic text reachable for debugging a failed assertion above
 
 		val fixed =
 			link.relink(
@@ -614,7 +616,9 @@ class Aapt2LinkTest {
 				staleCompileDir.absolutePath,
 			).redirectErrorStream(true)
 				.start()
-		assertThat(compileResult.waitFor()).isEqualTo(0)
+		// Read before waitFor: aapt2 blocks on a full pipe, and the output is the only diagnostic.
+		val compileOutput = compileResult.inputStream.bufferedReader().readText()
+		assertWithMessage(compileOutput).that(compileResult.waitFor()).isEqualTo(0)
 		val staleFlat = staleCompileDir.listFiles { file -> file.name.endsWith(".flat") }!!.single()
 
 		val link = Aapt2Link(TestSdk.aapt2()!!, TestSdk.androidJar()!!)

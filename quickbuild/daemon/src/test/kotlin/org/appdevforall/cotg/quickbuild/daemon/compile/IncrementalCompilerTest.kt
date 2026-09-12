@@ -3,6 +3,7 @@ package org.appdevforall.cotg.quickbuild.daemon.compile
 import com.google.common.truth.Truth.assertThat
 import org.appdevforall.cotg.quickbuild.daemon.TestSdk
 import org.appdevforall.cotg.quickbuild.protocol.Diagnostic
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIf
@@ -33,7 +34,17 @@ class IncrementalCompilerTest {
 	/** Every line the compiler emitted; cleared between compiles to read one compile's log. */
 	private val compileLog = mutableListOf<String>()
 
-	private fun compiler() = IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), workDir.toPath(), compileLog = { compileLog += it })
+	/** Every compiler opened outside a `use`, closed after the test; see [IncrementalCompiler.close]. */
+	private val opened = mutableListOf<IncrementalCompiler>()
+
+	@AfterEach
+	fun closeCompilers() {
+		opened.asReversed().forEach { it.close() }
+		opened.clear()
+	}
+
+	private fun compiler() =
+		IncrementalCompiler(listOf(TestSdk.kotlinStdlib()), workDir.toPath(), compileLog = { compileLog += it }).also(opened::add)
 
 	private fun writeSource(
 		name: String,
@@ -305,7 +316,7 @@ class IncrementalCompilerTest {
 			workDir.toPath(),
 			compilerPluginJars = listOf(TestSdk.composePluginJar()!!),
 			compileLog = { compileLog += it },
-		)
+		).also(opened::add)
 
 	private fun composablesKt(marker: String = "MARKER_V1") =
 		writeSource(
