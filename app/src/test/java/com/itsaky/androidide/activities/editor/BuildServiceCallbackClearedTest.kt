@@ -23,10 +23,24 @@ class BuildServiceCallbackClearedTest {
 
 	@Test
 	fun givenANonFinishingDestroy_whenPreDestroyRuns_thenTheBuildServiceCallbackIsCleared() {
+		assertCallbackClearedWhenDestroying(false)
+	}
+
+	@Test
+	fun givenAFinishingDestroy_whenPreDestroyRuns_thenTheBuildServiceCallbackIsCleared() {
+		assertCallbackClearedWhenDestroying(true)
+	}
+
+	/**
+	 * Both destroy shapes, because the bug was an asymmetry between them: the clearing used to sit
+	 * inside the `isDestroying` guard, so it ran for a finishing destroy and not for a recreation.
+	 * Pinning only one shape would not have caught that.
+	 */
+	private fun assertCallbackClearedWhenDestroying(destroying: Boolean) {
 		val activity = Robolectric.buildActivity(EditorHandlerActivity::class.java).get()
 		val connection = connectionField.get(activity) as GradleBuildServiceConnnection
 		onConnected.set(connection, { _: GradleBuildService -> })
-		isDestroying.set(activity, false)
+		isDestroying.set(activity, destroying)
 
 		// preDestroy goes on to tear down members that a bare activity never initialised; the
 		// clearing under test happens first, so what it throws afterwards is not this test's
