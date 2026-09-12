@@ -36,7 +36,7 @@ class D8DiagnosticsCollectorTest {
 	): T = type.cast(Proxy.newProxyInstance(type.classLoader, arrayOf(type), collector))
 
 	@Test
-	fun `a reported error is collected and a proposed level is kept`() {
+	fun `a warning is dropped and a proposed level is passed through`() {
 		val collector = DexTool.D8DiagnosticsCollector()
 		val handler = proxy(FakeHandler::class.java, collector)
 
