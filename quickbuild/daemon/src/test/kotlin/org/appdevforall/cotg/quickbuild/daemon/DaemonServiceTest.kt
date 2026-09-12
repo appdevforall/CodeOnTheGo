@@ -8,6 +8,7 @@ import org.appdevforall.cotg.quickbuild.protocol.DaemonResponse
 import org.appdevforall.cotg.quickbuild.protocol.DexRequest
 import org.appdevforall.cotg.quickbuild.protocol.RelinkRequest
 import org.appdevforall.cotg.quickbuild.protocol.ResponseKeys
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -17,6 +18,12 @@ class DaemonServiceTest {
 	lateinit var tempDir: File
 
 	private val service = DaemonService(log = {})
+
+	/** Same reason as DaemonServiceOpsTest: a configured session's tools live until shutdown(). */
+	@AfterEach
+	fun releaseSessionTools() {
+		service.shutdown()
+	}
 
 	@Test
 	fun `build ops before configure fail with a clear message`() {
@@ -48,6 +55,10 @@ class DaemonServiceTest {
 		assertThat(response.ok).isFalse()
 		assertThat(response.diagnostics.single().message).contains("no-such.jar")
 		assertThat(response.diagnostics.single().message).contains("no-such-aapt2")
+		// DexTool opens its jar lazily, so a d8 or android.jar missing here would otherwise
+		// surface only at the first dex - the late failure this check exists to prevent.
+		assertThat(response.diagnostics.single().message).contains("no-such-r8.jar")
+		assertThat(response.diagnostics.single().message).contains("no-such-android.jar")
 	}
 
 	@Test

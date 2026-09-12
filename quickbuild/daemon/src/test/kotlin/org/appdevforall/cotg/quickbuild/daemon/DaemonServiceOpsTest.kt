@@ -207,42 +207,45 @@ class DaemonServiceOpsTest {
 		// from inside d8 rather than at the close. The ordering is therefore asserted directly.
 		val lines = mutableListOf<String>()
 		val loggingService = DaemonService(log = { lines += it })
-		configure(service = loggingService)
-		val source = File(tempDir, "Hello.kt").apply { writeText("package demo\n\nfun hello() = \"hi\"\n") }
-		val compile = { id: Long ->
-			loggingService.compile(CompileRequest(id, listOf(source.absolutePath), listOf(source.absolutePath)))
-		}
-		check(compile(2).ok) { "fixture compile failed" }
-		// A classpath entry that exists but is not a zip: passes configure's existence check,
-		// then throws inside classpath snapshotting - the realistic corrupt-AAR shape.
-		val corruptJar = File(tempDir, "corrupt.jar").apply { writeText("not a jar") }
-
-		val reconfigure =
-			runCatching {
-				loggingService.configure(
-					ConfigureRequest(
-						id = 3,
-						projectRoot = tempDir.absolutePath,
-						classpath = listOf(corruptJar.absolutePath),
-						outDir = File(tempDir, "out").absolutePath,
-						aapt2 = TestSdk.kotlinStdlib().absolutePath,
-						d8Jar = TestSdk.kotlinStdlib().absolutePath,
-						androidJar = TestSdk.kotlinStdlib().absolutePath,
-					),
-				)
+		try {
+			configure(service = loggingService)
+			val source = File(tempDir, "Hello.kt").apply { writeText("package demo\n\nfun hello() = \"hi\"\n") }
+			val compile = { id: Long ->
+				loggingService.compile(CompileRequest(id, listOf(source.absolutePath), listOf(source.absolutePath)))
 			}
+			check(compile(2).ok) { "fixture compile failed" }
+			// A classpath entry that exists but is not a zip: passes configure's existence check,
+			// then throws inside classpath snapshotting - the realistic corrupt-AAR shape.
+			val corruptJar = File(tempDir, "corrupt.jar").apply { writeText("not a jar") }
 
-		// Assert the THROWING path specifically: an ok:false return exercises none of this, so
-		// the test would quietly stop covering the bug if snapshotting ever stopped throwing.
-		assertThat(reconfigure.isFailure).isTrue()
-		assertThat(lines.none { it.contains("released the previous session") }).isTrue()
-		assertThat(compile(4).ok).isTrue()
-		// A re-configure that SUCCEEDS must still release, or the leak this guards is real in
-		// the other direction.
-		configure(service = loggingService)
-		assertThat(lines.any { it.contains("released the previous session") }).isTrue()
-		// Local to this test, so the @AfterEach hook does not reach it.
-		loggingService.shutdown()
+			val reconfigure =
+				runCatching {
+					loggingService.configure(
+						ConfigureRequest(
+							id = 3,
+							projectRoot = tempDir.absolutePath,
+							classpath = listOf(corruptJar.absolutePath),
+							outDir = File(tempDir, "out").absolutePath,
+							aapt2 = TestSdk.kotlinStdlib().absolutePath,
+							d8Jar = TestSdk.kotlinStdlib().absolutePath,
+							androidJar = TestSdk.kotlinStdlib().absolutePath,
+						),
+					)
+				}
+
+			// Assert the THROWING path specifically: an ok:false return exercises none of this, so
+			// the test would quietly stop covering the bug if snapshotting ever stopped throwing.
+			assertThat(reconfigure.isFailure).isTrue()
+			assertThat(lines.none { it.contains("released the previous session") }).isTrue()
+			assertThat(compile(4).ok).isTrue()
+			// A re-configure that SUCCEEDS must still release, or the leak this guards is real in
+			// the other direction.
+			configure(service = loggingService)
+			assertThat(lines.any { it.contains("released the previous session") }).isTrue()
+		} finally {
+			// Local to this test, so the @AfterEach hook does not reach it.
+			loggingService.shutdown()
+		}
 	}
 
 	@Test
