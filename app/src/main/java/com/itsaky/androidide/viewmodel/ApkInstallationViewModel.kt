@@ -175,17 +175,25 @@ class ApkInstallationViewModel : ViewModel() {
 	}
 
 	/**
-	 * Destroys the APK installation session.
+	 * Destroys the APK installation session and drops the installer callback [installApk] registered.
 	 */
 	fun destroy(context: Context) {
+		val packageInstaller = context.packageManager.packageInstaller
+		// Before the session lookup: a finished or abandoned session leaves nothing to abandon,
+		// but the callback is still registered with the installer, which outlives this view
+		// model - it would keep firing into a dead one.
+		try {
+			packageInstaller.unregisterSessionCallback(callback)
+		} catch (e: Exception) {
+			logger.error("Failed to unregister the install session callback", e)
+		}
+
 		val sessionId = reloadStatus(context)
 		if (sessionId == -1) {
 			return
 		}
 
 		try {
-			val packageInstaller = context.packageManager.packageInstaller
-			packageInstaller.unregisterSessionCallback(callback)
 			packageInstaller.abandonSession(sessionId)
 		} catch (e: Exception) {
 			logger.error("Failed to abandon session with ID: {}", sessionId, e)
