@@ -4,6 +4,7 @@ object TooltipTag {
 	const val BUILD_VARIANT_SIDEBAR = "project.sidebar.buildvariants"
 	const val CLOSE_PROJECT_SIDEBAR = "project.sidebar.closeproject"
 	const val FILE_TREE_SIDEBAR = "project.sidebar.filetree"
+	const val OUTLINE_SIDEBAR = "project.sidebar.outline"
 	const val HELP_SIDEBAR = "project.help"
 	const val PREFERENCES_SIDEBAR = "main.prefs"
 	const val TERMINAL_SIDEBAR = "project.sidebar.terminal"
@@ -117,6 +118,7 @@ object TooltipTag {
 	// Preferences - Git screen
 	const val PREFS_GIT_USERNAME = "prefs.git.username"
 	const val PREFS_GIT_USEREMAIL = "prefs.git.useremail"
+	const val PREFS_GIT_WATERMARK = "prefs.git.watermark"
 
 	// Preferences - Developer options screen
 	const val PREFS_DEVOPTIONS_DUMPLOGS = "prefs.devoptions.dumplogs"

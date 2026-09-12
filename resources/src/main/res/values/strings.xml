@@ -1523,16 +1523,22 @@
     <string name="cancel_clone">Cancel clone</string>
     <string name="initialising_clone">Initializing clone…</string>
     <string name="cancelling_clone">Cancelling clone…</string>
+    <string name="add_commit_watermark">Add commit message watermark</string>
+    <string name="made_with_code_on_the_go" translatable="false">Made with Code on the Go (appdevforall.org)</string>
+    <string name="git_watermark_disabled_globally">Disabled globally in Preferences</string>
+    <string name="git_watermark_save_failed">Failed to update watermark setting</string>
 
     <!-- Git Preferences -->
     <string name="idepref_git_summary">Set and update Git configuration</string>
     <string name="idepref_git_author_title">Author identity</string>
-    <string name="idepref_git_author_summary">Set the name and email used for commits</string>
     <string name="idepref_git_user_name_title">User name</string>
     <string name="idepref_git_user_name_summary">Used as author name in commits</string>
     <string name="idepref_git_user_email_title">User email</string>
     <string name="idepref_git_user_email_summary">Used as author email in commits</string>
     <string name="idepref_git_author_missing_warning">Configure Git author in Preferences to enable commits.\nTap the avatar for more info.</string>
+    <string name="idepref_git_add_commit_watermark">Add watermark to commits</string>
+    <string name="idepref_git_add_commit_watermark_summary">Automatically adds a Code on the Go credit to Git commits. You can disable it for individual projects in the Git tab.</string>
+    <string name="idepref_git_commit_watermark_title">Commit watermark</string>
     <string name="git_committing_as">Committing as %1$s</string>
     <string name="git_committing_email">Email - %1$s</string>
     <string name="git_update_config_in_preferences">You can update your Git configuration in Preferences.</string>
@@ -1712,5 +1718,27 @@
 	<!-- A chart legend entry: the series name, then its latest value. -->
 	<string name="metrics_legend_entry">%1$s %2$s</string>
 
+
+	<string name="title_document_outline">Outline</string>
+	<string name="outline_no_file_open">No file open</string>
+	<string name="outline_unsupported">No outline available for %1$s</string>
+	<string name="outline_empty">No symbols found in this file</string>
+	<string name="outline_loading">Building outline...</string>
+	<string name="cd_outline_expand">Expand</string>
+	<string name="cd_outline_collapse">Collapse</string>
+	<string name="cd_outline_kind_class">Class</string>
+	<string name="cd_outline_kind_interface">Interface</string>
+	<string name="cd_outline_kind_enum">Enum</string>
+	<string name="cd_outline_kind_enum_member">Enum member</string>
+	<string name="cd_outline_kind_record">Record</string>
+	<string name="cd_outline_kind_annotation">Annotation</string>
+	<string name="cd_outline_kind_object">Object</string>
+	<string name="cd_outline_kind_companion">Companion object</string>
+	<string name="cd_outline_kind_type_alias">Type alias</string>
+	<string name="cd_outline_kind_constructor">Constructor</string>
+	<string name="cd_outline_kind_method">Method</string>
+	<string name="cd_outline_kind_field">Field</string>
+	<string name="cd_outline_kind_property">Property</string>
+	<string name="cd_outline_kind_element">Element</string>
 </resources>
 
