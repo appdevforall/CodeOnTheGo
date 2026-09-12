@@ -13,13 +13,17 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
+/**
+ * Configure validation and the compile happy path of [DaemonService], each test driving one
+ * service, configured or not. A configured session's tools live until shutdown(), so
+ * [releaseSessionTools] runs after every test; DaemonServiceOpsTest covers the op paths.
+ */
 class DaemonServiceTest {
 	@TempDir
 	lateinit var tempDir: File
 
 	private val service = DaemonService(log = {})
 
-	/** Same reason as DaemonServiceOpsTest: a configured session's tools live until shutdown(). */
 	@AfterEach
 	fun releaseSessionTools() {
 		service.shutdown()

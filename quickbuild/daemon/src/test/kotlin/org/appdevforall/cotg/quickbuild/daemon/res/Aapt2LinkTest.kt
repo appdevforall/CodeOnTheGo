@@ -9,7 +9,15 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIf
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipFile
+import kotlin.concurrent.thread
+
+/**
+ * Per-call ceiling for the test's own aapt2 spawns. A compile or dump of these few-file fixtures
+ * takes well under a second on a host, so this only ever fires for a wedged binary.
+ */
+private const val AAPT2_CEILING_MILLIS = 60_000L
 
 /**
  * The guard is per-method, not per-class: only the tests that actually shell out to aapt2 need a
@@ -466,19 +474,7 @@ class Aapt2LinkTest {
 			""".trimIndent(),
 		)
 		val staleCompileDir = File(tempDir, "stale-compiled").apply { mkdirs() }
-		val compileResult =
-			ProcessBuilder(
-				TestSdk.aapt2()!!.absolutePath,
-				"compile",
-				"--dir",
-				staleRes.absolutePath,
-				"-o",
-				staleCompileDir.absolutePath,
-			).redirectErrorStream(true)
-				.start()
-		// Read before waitFor: aapt2 blocks on a full pipe, and the output is the only diagnostic.
-		val compileOutput = compileResult.inputStream.bufferedReader().readText()
-		assertWithMessage(compileOutput).that(compileResult.waitFor()).isEqualTo(0)
+		runAapt2("compile", "--dir", staleRes.absolutePath, "-o", staleCompileDir.absolutePath)
 		val staleFlat = staleCompileDir.listFiles { file -> file.name.endsWith(".flat") }!!.single()
 		val link = Aapt2Link(TestSdk.aapt2()!!, TestSdk.androidJar()!!)
 
@@ -492,16 +488,7 @@ class Aapt2LinkTest {
 			assertThat(zip.getEntry("resources.arsc")).isNotNull()
 			assertThat(zip.getEntry("res/drawable/shape_0.xml")).isNotNull()
 		}
-		val dumped =
-			ProcessBuilder(TestSdk.aapt2()!!.absolutePath, "dump", "resources", apk.absolutePath)
-				.redirectErrorStream(true)
-				.start()
-				.let {
-					it.inputStream
-						.bufferedReader()
-						.readText()
-						.also { _ -> it.waitFor() }
-				}
+		val dumped = runAapt2("dump", "resources", apk.absolutePath)
 		assertThat(dumped).contains("FRESH_EDIT")
 		assertThat(dumped).doesNotContain("STALE_BASELINE")
 	}
@@ -555,18 +542,7 @@ class Aapt2LinkTest {
 			""".trimIndent(),
 		)
 		val libraryCompileDir = File(tempDir, "library-compiled").apply { mkdirs() }
-		val compileResult =
-			ProcessBuilder(
-				TestSdk.aapt2()!!.absolutePath,
-				"compile",
-				"--dir",
-				libraryRes.absolutePath,
-				"-o",
-				libraryCompileDir.absolutePath,
-			).redirectErrorStream(true)
-				.start()
-		val compileOutput = compileResult.inputStream.bufferedReader().readText()
-		assertWithMessage(compileOutput).that(compileResult.waitFor()).isEqualTo(0)
+		runAapt2("compile", "--dir", libraryRes.absolutePath, "-o", libraryCompileDir.absolutePath)
 		val libraryFlat = libraryCompileDir.listFiles { file -> file.name.endsWith(".flat") }?.singleOrNull()
 		assertThat(libraryFlat).isNotNull()
 
@@ -606,19 +582,7 @@ class Aapt2LinkTest {
 			""".trimIndent(),
 		)
 		val staleCompileDir = File(tempDir, "stale-compiled").apply { mkdirs() }
-		val compileResult =
-			ProcessBuilder(
-				TestSdk.aapt2()!!.absolutePath,
-				"compile",
-				"--dir",
-				staleRes.absolutePath,
-				"-o",
-				staleCompileDir.absolutePath,
-			).redirectErrorStream(true)
-				.start()
-		// Read before waitFor: aapt2 blocks on a full pipe, and the output is the only diagnostic.
-		val compileOutput = compileResult.inputStream.bufferedReader().readText()
-		assertWithMessage(compileOutput).that(compileResult.waitFor()).isEqualTo(0)
+		runAapt2("compile", "--dir", staleRes.absolutePath, "-o", staleCompileDir.absolutePath)
 		val staleFlat = staleCompileDir.listFiles { file -> file.name.endsWith(".flat") }!!.single()
 
 		val link = Aapt2Link(TestSdk.aapt2()!!, TestSdk.androidJar()!!)
@@ -626,16 +590,7 @@ class Aapt2LinkTest {
 
 		assertThat(result).isInstanceOf(Aapt2Link.Result.Success::class.java)
 		val apk = (result as Aapt2Link.Result.Success).resourceApk
-		val dumped =
-			ProcessBuilder(TestSdk.aapt2()!!.absolutePath, "dump", "resources", apk.absolutePath)
-				.redirectErrorStream(true)
-				.start()
-				.let {
-					it.inputStream
-						.bufferedReader()
-						.readText()
-						.also { _ -> it.waitFor() }
-				}
+		val dumped = runAapt2("dump", "resources", apk.absolutePath)
 		assertThat(dumped).contains("FRESH_EDIT")
 		assertThat(dumped).doesNotContain("STALE_BASELINE")
 	}
@@ -645,14 +600,39 @@ class Aapt2LinkTest {
 		apk: File,
 		typeSlashName: String,
 	): String? {
-		val process =
-			ProcessBuilder(TestSdk.aapt2()!!.absolutePath, "dump", "resources", apk.absolutePath)
-				.redirectErrorStream(true)
-				.start()
-		val output = process.inputStream.bufferedReader().readText()
-		process.waitFor()
+		val output = runAapt2("dump", "resources", apk.absolutePath)
 		// aapt2 dump resources prints e.g.: "resource 0x7f010000 string/app_name: ..."
 		val line = output.lineSequence().firstOrNull { it.trim().endsWith(typeSlashName) || it.contains(" $typeSlashName:") }
 		return Regex("""0x[0-9a-fA-F]{8}""").find(line ?: return null)?.value
+	}
+
+	/**
+	 * Runs the host aapt2 with [args] and returns its merged stdout and stderr, failing the test
+	 * unless it exits 0 within [AAPT2_CEILING_MILLIS].
+	 *
+	 * The output is read to EOF before waitFor: aapt2 blocks on a full pipe, and the output is
+	 * the only diagnostic. That read is also why the ceiling needs its own thread - a child that
+	 * hangs with its pipe open hangs the read, not the wait - so, as in the production watchdog,
+	 * a second thread kills the child at the deadline and the kill is what ends the read.
+	 */
+	private fun runAapt2(vararg args: String): String {
+		val process =
+			ProcessBuilder(TestSdk.aapt2()!!.absolutePath, *args)
+				.redirectErrorStream(true)
+				.start()
+		val timedOut = AtomicBoolean(false)
+		val watchdog =
+			thread(isDaemon = true) {
+				Aapt2Link.watchdogTimedOut(process, AAPT2_CEILING_MILLIS) { timedOut.set(true) }
+			}
+		val output = process.inputStream.bufferedReader().readText()
+		val exitCode = process.waitFor()
+		watchdog.join()
+		val command = "aapt2 " + args.joinToString(" ")
+		if (timedOut.get()) {
+			assertWithMessage("$command killed after $AAPT2_CEILING_MILLIS ms; output so far:\n$output").fail()
+		}
+		assertWithMessage("$command exited $exitCode:\n$output").that(exitCode).isEqualTo(0)
+		return output
 	}
 }
