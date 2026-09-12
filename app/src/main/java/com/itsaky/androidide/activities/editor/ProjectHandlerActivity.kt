@@ -391,6 +391,11 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	override fun preDestroy() {
+		// First, and on every destroy rather than only a finishing one: onConnected is a bound
+		// reference to this activity, so leaving it set lets a bind that is still pending deliver
+		// into an instance that is already tearing down.
+		buildServiceConnection.onConnected = null
+
 		syncNotificationFlashbar?.dismiss()
 		syncNotificationFlashbar = null
 
@@ -407,10 +412,6 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 
 		super.preDestroy()
-
-		// On every destroy, not only a finishing one: onConnected is a bound reference to this
-		// activity, so leaving it set lets a still-pending bind deliver into a dead instance.
-		buildServiceConnection.onConnected = null
 
 		if (didCompleteLiveOnCreate && isDestroying) {
 			try {
