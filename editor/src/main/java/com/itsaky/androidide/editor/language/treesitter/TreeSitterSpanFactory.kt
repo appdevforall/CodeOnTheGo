@@ -22,12 +22,15 @@ import androidx.core.graphics.ColorUtils
 import com.itsaky.androidide.editor.schemes.LanguageScheme
 import com.itsaky.androidide.treesitter.TSQuery
 import com.itsaky.androidide.treesitter.TSQueryCapture
+import com.itsaky.androidide.utils.StackFrameLocator
 import com.itsaky.androidide.utils.parseHexColor
 import io.github.rosemoe.sora.editor.ts.spans.DefaultSpanFactory
 import io.github.rosemoe.sora.editor.ts.spans.TsSpanFactory
 import io.github.rosemoe.sora.lang.styling.Span
 import io.github.rosemoe.sora.lang.styling.SpanFactory
 import io.github.rosemoe.sora.lang.styling.Styles
+import io.github.rosemoe.sora.lang.styling.color.EditorColor
+import io.github.rosemoe.sora.lang.styling.color.ResolvableColor
 import io.github.rosemoe.sora.lang.styling.span.SpanConstColorResolver
 import io.github.rosemoe.sora.lang.styling.span.SpanExtAttrs
 import io.github.rosemoe.sora.text.ContentReference
@@ -69,7 +72,7 @@ class TreeSitterSpanFactory(
 
 		val captureName = query.getCaptureNameForId(capture.index)
 		val styleDef = langScheme.getStyles()[captureName]
-		if (styleDef?.maybeHexColor != true) {
+		if (styleDef == null || (!styleDef.maybeHexColor && !styleDef.underlineSourceLocation)) {
 			return super.createSpans(capture, column, spanStyle)
 		}
 
@@ -84,6 +87,13 @@ class TreeSitterSpanFactory(
 		}
 
 		val text = content.subContent(start.line, start.column, end.line, end.column)
+		if (styleDef.underlineSourceLocation) {
+			val range =
+				StackFrameLocator.sourceLocationRange(text.toString())
+					?: return super.createSpans(capture, column, spanStyle)
+			return underlinedSpans(column, spanStyle, range, text.lastIndex, EditorColor(styleDef.fg))
+		}
+
 		val results = HEX_REGEX.findAll(text)
 		val spans = mutableListOf<Span>()
 		var s = -1
@@ -141,6 +151,24 @@ class TreeSitterSpanFactory(
 			spans.add(SpanFactory.obtain(column + e + 1, spanStyle))
 		}
 
+		return spans
+	}
+
+	private fun underlinedSpans(
+		column: Int,
+		spanStyle: Long,
+		range: IntRange,
+		lastIndex: Int,
+		color: ResolvableColor,
+	): List<Span> {
+		val spans = mutableListOf<Span>()
+		if (range.first > 0) {
+			spans.add(SpanFactory.obtain(column, spanStyle))
+		}
+		spans.add(SpanFactory.obtain(column + range.first, spanStyle).also { it.setUnderlineColor(color) })
+		if (range.last < lastIndex) {
+			spans.add(SpanFactory.obtain(column + range.last + 1, spanStyle))
+		}
 		return spans
 	}
 }

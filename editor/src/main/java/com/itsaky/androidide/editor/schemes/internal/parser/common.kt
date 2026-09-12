@@ -131,6 +131,7 @@ while (reader.hasNext()) {
 	"strikethrough" -> def.strikeThrough = reader.nextBoolean()
 	"completion" -> def.completion = reader.nextBoolean()
 	"maybeHexColor" -> def.maybeHexColor = reader.nextBoolean()
+	"underlineSourceLocation" -> def.underlineSourceLocation = reader.nextBoolean()
 	}
 }
 if (def.fg == 0) {
