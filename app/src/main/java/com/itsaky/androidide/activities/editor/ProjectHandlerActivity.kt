@@ -504,7 +504,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		// activity through the framework's own bookkeeping.
 		if (
 			applicationContext.bindService(
-				Intent(this, GradleBuildService::class.java),
+				Intent(applicationContext, GradleBuildService::class.java),
 				buildServiceConnection,
 				BIND_AUTO_CREATE or BIND_IMPORTANT,
 			)
