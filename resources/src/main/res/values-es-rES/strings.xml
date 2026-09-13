@@ -159,8 +159,6 @@
   <string name="msg_open_projects">Si está marcado, el IDE recordará el último proyecto abierto y volverá a abrirse en el próximo arranque.</string>
   <string name="title_confirm_project_open">Confirmar apertura del proyecto</string>
   <string name="msg_confirm_project_open">Preguntar antes de abrir el último proyecto abierto.</string>
-  <string name="title_default_shell">Use system shell in terminal</string>
-  <string name="msg_default_shell">Si está marcado, se utilizará \'/system/bin/sh\' en el terminal.</string>
   <string name="title_general">General</string>
   <string name="title_tab_size">Tamaño de la pestaña</string>
   <string name="msg_tab_size">Especificar el número de espacios para la TAB</string>

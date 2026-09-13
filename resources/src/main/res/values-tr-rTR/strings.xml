@@ -159,8 +159,6 @@
   <string name="msg_open_projects">Eğer etkinleştirilirse, IDE en son açılan projeyi hatırlayacak ve diğer başlatmada tekrar açılacak.</string>
   <string name="title_confirm_project_open">Projenin açılmasını onayla</string>
   <string name="msg_confirm_project_open">Son projeyi açmadan önce sor.</string>
-  <string name="title_default_shell">Terminalde sistem kabuğunu kullan</string>
-  <string name="msg_default_shell">Eğer etkinleştirilirse, \'/system/bin/sh\' terminalde kullanılacak.</string>
   <string name="title_general">Genel</string>
   <string name="title_tab_size">Boşluk boyutu</string>
   <string name="msg_tab_size">TAB için boşluk sayısını ayarla</string>

@@ -76,6 +76,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -88,7 +90,9 @@ import kotlin.math.abs
 private const val MIN_FONT_SIZE = EditorPreferences.FONT_SIZE_MIN
 private const val DEFAULT_FONT_SIZE = EditorPreferences.FONT_SIZE_DEFAULT
 private const val MAX_FONT_SIZE = EditorPreferences.FONT_SIZE_MAX
-private val ARCHIVE_EXTENSIONS = setOf("apk", "cgp", "zip")
+
+/** File extensions [CodeEditorView.save] never writes -- these are opened read-only. */
+internal val ARCHIVE_EXTENSIONS = setOf("apk", PLUGIN_ARCHIVE_EXTENSION, TEMPLATE_ARCHIVE_EXTENSION, "zip")
 
 /**
  * A view that handles opened code editor.

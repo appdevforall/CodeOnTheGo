@@ -24,10 +24,10 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.actions.observers.FileActionObserver
 import com.itsaky.androidide.actions.requireFile
-import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.idetooltips.attachTooltip
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -41,7 +41,6 @@ import com.itsaky.androidide.utils.ProjectWriter
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.unnamed.b.atv.model.TreeNode
 import jdkx.lang.model.SourceVersion
 import kotlinx.coroutines.CancellationException
@@ -205,14 +204,9 @@ class NewFileAction(
 		builder.setNegativeButton(android.R.string.cancel, null)
 		builder
 			.setCancelable(false)
-			.showWithLongPressTooltip(
-				context = context,
-				tooltipTag = TooltipTag.PROJECT_FOLDER_NEWTYPE,
-				binding.typeClass,
-				binding.typeActivity,
-				binding.typeInterface,
-				binding.typeEnum,
-			)
+			.create()
+			.attachTooltip(TooltipTag.PROJECT_FOLDER_NEWTYPE)
+			.show()
 	}
 
 	private fun doCreateSourceFile(
@@ -406,10 +400,9 @@ class NewFileAction(
 					2 -> createMenuRes(context, node, File(file, "menu"))
 					3 -> createNewFile(context, node, file, true)
 				}
-			}.showWithLongPressTooltip(
-				context = context,
-				tooltipTag = TooltipTag.PROJECT_FOLDER_NEWXML,
-			)
+			}.create()
+			.attachTooltip(TooltipTag.PROJECT_FOLDER_NEWXML)
+			.show()
 	}
 
 	private fun createNewEmptyFile(
@@ -474,10 +467,9 @@ class NewFileAction(
 		}
 		builder
 			.setNegativeButton(android.R.string.cancel, null)
-			.showWithLongPressTooltip(
-				context = context,
-				tooltipTag = TooltipTag.PROJECT_NEWFILE_DIALOG,
-			)
+			.create()
+			.attachTooltip(TooltipTag.PROJECT_NEWFILE_DIALOG)
+			.show()
 	}
 
 	private fun createFile(

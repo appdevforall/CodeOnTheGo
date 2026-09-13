@@ -8,9 +8,8 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
-import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
 import com.itsaky.androidide.lsp.kotlin.utils.membersToImplement
 import com.itsaky.androidide.lsp.kotlin.utils.renderOverrideStub
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
@@ -20,6 +19,7 @@ import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tasks.createJobCancelChecker
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
@@ -52,13 +52,12 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 		val offset = data.requireEditor().cursor.left
 		val env = server.compilationEnvironmentFor(nioPath) ?: return emptyList()
 		// Ties the analysis to this action's coroutine: cancelling the action aborts the queued analysis.
-		return computeImplementMembersEdit(env, nioPath, offset, ScheduledCancelChecker(createJobCancelChecker()))
+		return computeImplementMembersEdit(env, nioPath, offset, createJobCancelChecker())
 	}
 
 	/**
 	 * Computes the edit that inserts stubs for the abstract members left unimplemented by the class or
-	 * object enclosing [offset] in the file at [nioPath]. The current [KtFile] is fetched BEFORE
-	 * entering [read] (deadlock rule: never block on `getCurrentKtFile(...).get()` inside `project.read`).
+	 * object enclosing [offset] in the file at [nioPath].
 	 *
 	 * Returns an empty list when there is nothing to do (cursor not in a class/object, the declaration
 	 * is abstract/an interface/enum, or every required member is already implemented) *and* whenever
@@ -70,27 +69,59 @@ class ImplementMembersAction : BaseKotlinCodeAction() {
 		env: AbstractCompilationEnvironment,
 		nioPath: Path,
 		offset: Int,
-		cancelChecker: ScheduledCancelChecker,
+		cancelChecker: ICancelChecker,
 	): List<TextEdit> =
 		runCatching {
-			val ktFile = env.ktSymbolIndex.getCurrentKtFile(nioPath).get() ?: return emptyList()
-			env.project.read {
-				val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
-				analyzeMaybeDangling(ktFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
-					val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzeMaybeDangling emptyList()
-					if (!isImplementable(classSymbol)) return@analyzeMaybeDangling emptyList()
+			/*
+			 * A user-invoked command: AnalysisPriority.COMMAND, retried once if keystroke-driven work
+			 * preempts it (ADR 0011). Without the retry a preemption fell into the getOrElse below and the
+			 * action silently inserted nothing. The file is re-pinned per attempt because the preemptor
+			 * also refreshed the live PSI.
+			 */
+			retryingOnPreemption(cancelChecker, "Implement members for $nioPath") { checker ->
+				env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+					if (live.isStale) {
+						// Joining another feature's scope hands over text older than the buffer, so both the
+						// caret offset and the computed insertion point would land in the wrong place.
+						logger.debug("skipping implement-members for {}: pinned text is behind the buffer", nioPath)
+						return@withLiveKtFile emptyList()
+					}
 
-					val classIndent = classIndentOf(ktFile, classOrObject)
-					val unit = detectIndentUnit(ktFile.text)
-					val memberIndent = memberIndentOf(ktFile, classOrObject, classIndent, unit)
-					val stubs = membersToImplement(classSymbol).mapNotNull { renderOverrideStub(it, memberIndent, unit) }
-					if (stubs.isEmpty()) return@analyzeMaybeDangling emptyList()
+					val edits =
+						live.read { ktFile ->
+							val classOrObject = findEnclosingClassOrObject(ktFile, offset) ?: return@read emptyList()
+							live.analyzing(AnalysisPriority.COMMAND, checker) {
+								val classSymbol = classOrObject.symbol as? KaClassSymbol ?: return@analyzing emptyList()
+								if (!isImplementable(classSymbol)) return@analyzing emptyList()
 
-					buildInsertionEdit(ktFile, classOrObject, stubs, classIndent)
-				}
+								val classIndent = classIndentOf(ktFile, classOrObject)
+								val unit = detectIndentUnit(ktFile.text)
+								val memberIndent = memberIndentOf(ktFile, classOrObject, classIndent, unit)
+								val stubs = membersToImplement(classSymbol).mapNotNull { renderOverrideStub(it, memberIndent, unit) }
+								if (stubs.isEmpty()) return@analyzing emptyList()
+
+								buildInsertionEdit(ktFile, classOrObject, stubs, classIndent)
+							}
+						}
+
+					if (live.isStale) {
+						// The analysis above is slow enough for the user to type through, and nothing between
+						// here and performCodeAction re-checks the offsets these edits were measured against.
+						logger.debug("dropping implement-members edits for {}: buffer moved while computing", nioPath)
+						return@withLiveKtFile emptyList()
+					}
+
+					edits
+				} ?: emptyList()
 			}
 		}.getOrElse { e ->
-			logger.warn("Failed to compute implement-members edit", e)
+			if (e.isAnalysisCancellation()) {
+				// Cancelled, or preempted past the retry above: not a failure, and warn-logging it would
+				// bury the ones that are.
+				logger.debug("Implement-members edit for {} was cancelled", nioPath, e)
+			} else {
+				logger.warn("Failed to compute implement-members edit", e)
+			}
 			emptyList()
 		}
 

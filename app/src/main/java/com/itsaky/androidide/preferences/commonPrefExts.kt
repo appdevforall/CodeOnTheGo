@@ -23,27 +23,26 @@ import kotlin.reflect.KMutableProperty0
 
 internal abstract class PropertyBasedMultiChoicePreference : MultiChoicePreference() {
 
-  abstract fun getProperties(): Map<String, KMutableProperty0<Boolean>>
+	/** The checkboxes for this screen, in display order. Build each entry via [propertyEntry]. */
+	abstract fun getProperties(): List<PreferenceChoices.Entry>
 
-  override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> {
-    val properties = getProperties()
-    val entries = Array(properties.size) { PreferenceChoices.Entry.EMPTY }
+	/** One checkbox entry backed by a mutable boolean property, read at its current value. */
+	protected fun propertyEntry(
+		label: String,
+		property: KMutableProperty0<Boolean>,
+		tooltipTag: String = "",
+	): PreferenceChoices.Entry =
+		PreferenceChoices.Entry(label, property.get(), property, tooltipTag)
 
-    var index = 0
-    properties.forEach { (key, property) ->
-      entries[index] = PreferenceChoices.Entry(key, property.get(), property)
-      ++index
-    }
+	override fun getEntries(preference: Preference): Array<PreferenceChoices.Entry> =
+		getProperties().toTypedArray()
 
-    return entries
-  }
-
-  override fun onChoicesConfirmed(
-    preference: Preference,
-    entries: Array<PreferenceChoices.Entry>
-  ) {
-    entries.forEach { entry ->
-      uncheckedCast<KMutableProperty0<Boolean>>(entry.data).set(entry.isChecked)
-    }
-  }
+	override fun onChoicesConfirmed(
+		preference: Preference,
+		entries: Array<PreferenceChoices.Entry>
+	) {
+		entries.forEach { entry ->
+			uncheckedCast<KMutableProperty0<Boolean>>(entry.data).set(entry.isChecked)
+		}
+	}
 }

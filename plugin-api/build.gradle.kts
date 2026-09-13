@@ -22,7 +22,8 @@ android {
 kotlin {
 	compilerOptions {
 		jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-		// Emit metadata the on-device Kotlin compiler (1.9.22) can read (<= 2.0.0).
+		// Emit metadata every supported on-device Kotlin compiler can read (<= 2.0.0), so a
+		// device still on an older bundled toolchain keeps working after a KOTLIN_VERSION bump.
 		// This jar ships in the plugin-api coordinate on-device plugins compile against.
 		apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
 		languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
@@ -42,8 +43,18 @@ dependencies {
 
 	api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
+	// Logging goes through SLF4J, not android.util.Log. Not `compileOnly` like the Android artifacts
+	// above: these classes run in the host's process, which already resolves slf4j-api and the IDE's
+	// provider via :common -> :logger, so declaring it keeps the compile and runtime views the same.
+	implementation(libs.tooling.slf4j)
+
 	// Test dependencies
 	testImplementation("junit:junit:4.13.2")
+
+	// KeystoreSecretStore reaches for android.util.Base64 and a real SharedPreferences, so its tests
+	// need the framework on the JVM.
+	testImplementation(libs.tests.robolectric)
+	testImplementation(libs.tests.google.truth)
 }
 
 tasks.register<Copy>("createPluginApiJar") {

@@ -18,9 +18,12 @@ package com.itsaky.androidide.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -40,25 +43,16 @@ import kotlin.math.max
  * content is read from file on demand for share/API. Memory is bounded by not holding the full
  * log in RAM.
  *
- * Append/clear are intended to be called from the main thread (from [BuildOutputFragment]).
+ * [appendAsync] is the write path and is safe to call from any thread; it does not depend on the
+ * Build Output tab existing. That matters because the tab lives in a pager that destroys its
+ * fragment whenever another tab is shown -- the AI agent's chat tab included -- and while the
+ * fragment was the only caller of [append], a build started from the chat wrote no log at all and
+ * the agent's `read_build_output` had nothing to read.
  */
 class BuildOutputViewModel(
 	application: Application,
 ) : AndroidViewModel(application) {
 	private val lock = ReentrantLock()
-	private val cachedContentSnapshot = StringBuilder()
-	// Reused until clear/onCleared so noisy builds do not open and close the file per line.
-	private var sessionOutputStream: FileOutputStream? = null
-
-	@Volatile
-	private var sessionGeneration = 0
-
-	/** Token for output produced by the current build session. */
-	val currentSessionToken: Int
-		get() = sessionGeneration
-
-	/** Returns whether [token] still belongs to the current build session. */
-	fun isCurrentSession(token: Int): Boolean = token == sessionGeneration
 
 	/**
 	 * Case-insensitive line filter applied to the *editor view* of the build output.
@@ -76,57 +70,166 @@ class BuildOutputViewModel(
 	val showLineNumbers = MutableStateFlow(EditorPreferences.outputLineNumbers)
 
 	/**
-	 * Returns the thread-safe cached snapshot for synchronous share/copy. Updated on [append] and
-	 * [clear], primed on restore via [setCachedSnapshot], and capped at
-	 * [CACHE_SNAPSHOT_MAX_CHARS].
+	 * Thread-safe snapshot of content for synchronous [getShareableContent] without blocking.
+	 * Updated on [append] and [clear]; primed on restore via [setCachedSnapshot].
+	 * Capped at [CACHE_SNAPSHOT_MAX_CHARS] to bound memory.
 	 */
-	fun getCachedContentSnapshot(): String = lock.withLock { cachedContentSnapshot.toString() }
+	@Volatile
+	private var cachedContentSnapshot: String = ""
+
+	/** Returns the current cached snapshot for share/copy (non-blocking). */
+	fun getCachedContentSnapshot(): String = cachedContentSnapshot
 
 	/** Updates the cached snapshot (e.g. after loading full content on restore). Capped to [CACHE_SNAPSHOT_MAX_CHARS]. */
 	fun setCachedSnapshot(content: String) {
-		lock.withLock { replaceCachedSnapshot(content) }
+		cachedContentSnapshot =
+			if (content.length <= CACHE_SNAPSHOT_MAX_CHARS) {
+				content
+			} else {
+				content.takeLast(CACHE_SNAPSHOT_MAX_CHARS)
+			}
 	}
 
 	private val sessionFile: File
 		get() = File(getApplication<Application>().cacheDir, SESSION_FILE_NAME)
 
 	/**
+	 * Output waiting to be written. Unbounded and non-blocking to send: [appendAsync] is called from
+	 * the Gradle tooling thread for every line of a build, which must never wait on disk.
+	 */
+	private val pendingOutput = Channel<PendingOutput>(Channel.UNLIMITED)
+
+	/**
+	 * Bumped by [clear]. A batch already drained when a new build starts belongs to the old session,
+	 * and writing it would put the previous build's errors in front of the current build's.
+	 */
+	@Volatile
+	private var sessionGeneration = 0
+
+	init {
+		viewModelScope.launch(Dispatchers.Default) { writePendingOutput() }
+	}
+
+	/**
+	 * Queues [text] for the session file. Returns immediately; safe from any thread.
+	 *
+	 * @param text one line, or several, of build output; a missing trailing newline is added.
+	 */
+	fun appendAsync(text: String) {
+		if (text.isEmpty()) return
+		// Stamped here, not at drain time: a clear() between the queue handing an item to the writer
+		// and the writer reading the counter would file the finished build's output under the new
+		// session. The producer's moment is the one that decides which build the text belongs to.
+		pendingOutput.trySend(
+			PendingOutput(sessionGeneration, if (text.endsWith('\n')) text else text + "\n"),
+		)
+	}
+
+	/**
+	 * Drains [pendingOutput] for as long as the view model lives, batching whatever has piled up
+	 * into one write: a large build emits thousands of lines, and one file open per line is the
+	 * difference between a background write and a stutter.
+	 */
+	private suspend fun writePendingOutput() {
+		val batch = StringBuilder()
+		for (first in pendingOutput) {
+			var generation = first.generation
+			batch.append(first.text)
+			while (true) {
+				val next = pendingOutput.tryReceive().getOrNull() ?: break
+				// A batch spans one session only, so a clear() mid-drain flushes what came before it.
+				if (next.generation != generation) {
+					appendForSession(batch.toString(), generation)
+					batch.setLength(0)
+					generation = next.generation
+				}
+				batch.append(next.text)
+			}
+			appendForSession(batch.toString(), generation)
+			batch.setLength(0)
+		}
+	}
+
+	/**
+	 * One queued piece of build output.
+	 *
+	 * @property generation the session it was produced in; see [sessionGeneration].
+	 * @property text the output, newline-terminated.
+	 */
+	private data class PendingOutput(
+		val generation: Int,
+		val text: String,
+	)
+
+	/**
 	 * Appends text to the session file. File I/O is performed on a background dispatcher; call from
-	 * any thread. [sessionToken] values invalidated by [clear] are rejected inside the file lock.
+	 * any thread. Prefer calling before switching to Main so disk write does not block the UI.
+	 */
+	suspend fun append(text: String) = appendForSession(text, sessionGeneration)
+
+	/**
+	 * The current session's token. Producers capture this before queueing output so a batch
+	 * that outlives its build can be discarded rather than written into the next one.
+	 */
+	val currentSessionToken: Int
+		get() = lock.withLock { sessionGeneration }
+
+	/** True while [token] is still the session [clear] has not superseded. */
+	fun isCurrentSession(token: Int): Boolean = lock.withLock { token == sessionGeneration }
+
+	/**
+	 * Appends [text] if [sessionToken] is still current, reporting whether it was written.
+	 *
+	 * The boolean is what lets a caller stop feeding a buffer whose build has ended; the
+	 * generation check itself still happens inside the lock, in [appendForSession].
 	 */
 	suspend fun append(
 		text: String,
 		sessionToken: Int,
 	): Boolean {
 		if (text.isEmpty()) return false
-		return withContext(Dispatchers.IO) {
+		appendForSession(text, sessionToken)
+		return isCurrentSession(sessionToken)
+	}
+
+	/**
+	 * Appends [text] only while [generation] is still the current session.
+	 *
+	 * The check lives inside the lock, with the write: checked outside, a batch that had already
+	 * passed it could still reach the disk after [clear] had deleted the file, seeding the new
+	 * build's log with the finished build's errors.
+	 *
+	 * @param text the output to write.
+	 * @param generation the session the text was produced in.
+	 */
+	private suspend fun appendForSession(
+		text: String,
+		generation: Int,
+	) {
+		if (text.isEmpty()) return
+		withContext(Dispatchers.IO) {
 			lock.withLock {
-				if (!isCurrentSession(sessionToken)) return@withLock false
+				if (generation != sessionGeneration) return@withLock
 				try {
-					val output =
-						sessionOutputStream
-							?: FileOutputStream(sessionFile, true).also {
-								sessionOutputStream = it
-							}
-					output.write(text.toByteArray(StandardCharsets.UTF_8))
-					appendCachedSnapshot(text)
-					true
+					FileOutputStream(sessionFile, true).use {
+						it.write(text.toByteArray(StandardCharsets.UTF_8))
+					}
+					cachedContentSnapshot =
+						(cachedContentSnapshot + text).takeLast(CACHE_SNAPSHOT_MAX_CHARS)
 				} catch (e: Exception) {
-					closeSessionOutputStream()
 					log.error("Failed to append build output to session file", e)
-					false
 				}
 			}
 		}
 	}
 
 	/**
-	 * Returns the last [EDITOR_WINDOW_MAX_CHARS] characters from the session file for the editor to
+	 * Returns the last [WINDOW_SIZE_CHARS] characters from the session file for the editor to
 	 * display (e.g. initial view or after rotation). Returns empty string if no content.
 	 */
 	fun getWindowForEditor(): String =
 		lock.withLock {
-			readTailFromFile(sessionFile, EDITOR_WINDOW_MAX_CHARS)
+			readTailFromFile(sessionFile, WINDOW_SIZE_CHARS)
 		}
 
 	/**
@@ -172,9 +275,13 @@ class BuildOutputViewModel(
 	 */
 	fun clear() {
 		lock.withLock {
+			// Queued text is the finished build's; dropping it here, and bumping the generation for
+			// the batch that may already be in flight, keeps the two sessions out of one file.
 			sessionGeneration++
-			closeSessionOutputStream()
-			cachedContentSnapshot.setLength(0)
+			while (pendingOutput.tryReceive().isSuccess) {
+				// Discarded: this text belongs to the session being cleared.
+			}
+			cachedContentSnapshot = ""
 			try {
 				if (sessionFile.exists()) {
 					sessionFile.delete()
@@ -185,71 +292,25 @@ class BuildOutputViewModel(
 		}
 	}
 
-	override fun onCleared() {
-		lock.withLock { closeSessionOutputStream() }
-		super.onCleared()
-	}
-
-	private fun appendCachedSnapshot(text: String) {
-		if (text.length >= CACHE_SNAPSHOT_MAX_CHARS) {
-			replaceCachedSnapshot(text)
-			return
-		}
-		val overflow = cachedContentSnapshot.length + text.length - CACHE_SNAPSHOT_MAX_CHARS
-		if (overflow > 0) cachedContentSnapshot.delete(0, overflow)
-		cachedContentSnapshot.append(text)
-	}
-
-	private fun replaceCachedSnapshot(content: String) {
-		cachedContentSnapshot.setLength(0)
-		val start = (content.length - CACHE_SNAPSHOT_MAX_CHARS).coerceAtLeast(0)
-		cachedContentSnapshot.append(content, start, content.length)
-	}
-
-	private fun closeSessionOutputStream() {
-		try {
-			sessionOutputStream?.close()
-		} catch (e: Exception) {
-			log.error("Failed to close build output session file", e)
-		} finally {
-			sessionOutputStream = null
-		}
-	}
-
-	private fun readTailFromFile(
-		file: File,
-		maxChars: Int,
-	): String {
-		if (!file.exists()) return ""
-		try {
-			RandomAccessFile(file, "r").use { raf ->
-				val len = raf.length()
-				if (len == 0L) return ""
-				// UTF-8: up to 4 bytes per char; read enough bytes for maxChars, then decode and take last maxChars
-				val maxBytes = minOf(len, maxChars * 4L)
-				raf.seek(max(0, len - maxBytes))
-				val bytes = ByteArray(maxBytes.toInt())
-				raf.readFully(bytes)
-				val decoded = String(bytes, Charsets.UTF_8)
-				return if (decoded.length <= maxChars) decoded else decoded.takeLast(maxChars)
-			}
-		} catch (e: Exception) {
-			log.error("Failed to read tail from build output session file", e)
-			return ""
-		}
-	}
-
 	companion object {
-		internal const val EDITOR_WINDOW_MAX_CHARS = 512 * 1024
+		/**
+		 * The editor never holds more than this many characters of build output; it mirrors
+		 * [WINDOW_SIZE_CHARS] so the on-screen window and the snapshot cap stay in lockstep.
+		 */
+		internal const val EDITOR_WINDOW_MAX_CHARS = WINDOW_SIZE_CHARS
+
 		private const val EDITOR_WINDOW_REFRESH_CHARS = 128 * 1024
+
 		private const val EDITOR_WINDOW_REFRESH_BASE_CHARS =
 			EDITOR_WINDOW_MAX_CHARS - EDITOR_WINDOW_REFRESH_CHARS
 
+		/** True when appending [incomingChars] to [currentChars] would overrun the editor window. */
 		internal fun wouldExceedEditorWindow(
 			currentChars: Int,
 			incomingChars: Int,
 		): Boolean = currentChars > EDITOR_WINDOW_MAX_CHARS - incomingChars
 
+		/** Characters the editor keeps after a refresh trims it back from the window maximum. */
 		internal fun editorSourceCharsAfterRefresh(windowChars: Int): Int =
 			windowChars.coerceAtMost(EDITOR_WINDOW_REFRESH_BASE_CHARS)
 
@@ -319,9 +380,58 @@ class BuildOutputViewModel(
 			}
 		}
 
-		private const val SESSION_FILE_NAME = "build_output_session.txt"
+		/**
+		 * The last [maxChars] characters of [text], started at a line boundary.
+		 *
+		 * A tail sliced at a character offset begins part-way through a line, and [PREFIX_REGEX] is
+		 * anchored to the start of one, so that fragment keeps the timestamp every other line has
+		 * stripped. Text short enough to survive whole keeps its real first line; a tail holding no
+		 * newline at all is returned as it is, being better than nothing.
+		 */
+		internal fun tailFromLineStart(
+			text: String,
+			maxChars: Int,
+		): String {
+			if (text.length <= maxChars) return text
+			val tail = text.takeLast(maxChars)
+			val newline = tail.indexOf('\n')
+			return if (newline == -1) tail else tail.substring(newline + 1)
+		}
+
+		/**
+		 * Reads the last [maxChars] characters of [file], or `""` when it is missing or unreadable.
+		 * Shared with [com.itsaky.androidide.api.BuildOutputProvider], which reads the same session
+		 * file for consumers outside the editor UI.
+		 */
+		internal fun readTailFromFile(
+			file: File,
+			maxChars: Int,
+		): String {
+			if (!file.exists()) return ""
+			try {
+				RandomAccessFile(file, "r").use { raf ->
+					val len = raf.length()
+					if (len == 0L) return ""
+					// UTF-8: up to 4 bytes per char; read enough bytes for maxChars, then decode and take last maxChars
+					val maxBytes = minOf(len, maxChars * 4L)
+					raf.seek(max(0, len - maxBytes))
+					val bytes = ByteArray(maxBytes.toInt())
+					raf.readFully(bytes)
+					val decoded = String(bytes, Charsets.UTF_8)
+					return tailFromLineStart(decoded, maxChars)
+				}
+			} catch (e: Exception) {
+				log.error("Failed to read tail from build output session file", e)
+				return ""
+			}
+		}
+
+		/** Name of the on-disk build output session file, shared with [com.itsaky.androidide.api.BuildOutputProvider]. */
+		internal const val SESSION_FILE_NAME = "build_output_session.txt"
+		private const val WINDOW_SIZE_CHARS = 512 * 1024
+
 		/** Max length of [cachedContentSnapshot] to bound memory. */
-		private const val CACHE_SNAPSHOT_MAX_CHARS = EDITOR_WINDOW_MAX_CHARS
+		private const val CACHE_SNAPSHOT_MAX_CHARS = WINDOW_SIZE_CHARS
 		private val log = org.slf4j.LoggerFactory.getLogger(BuildOutputViewModel::class.java)
 	}
 }

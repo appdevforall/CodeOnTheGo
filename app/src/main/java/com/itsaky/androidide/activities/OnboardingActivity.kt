@@ -47,10 +47,10 @@ import com.itsaky.androidide.preferences.internal.prefManager
 import com.itsaky.androidide.tasks.doAsyncWithProgress
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.PermissionsHelper
 import com.itsaky.androidide.utils.isAtLeastV
 import com.itsaky.androidide.utils.isSystemInDarkMode
+import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.resolveAttr
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
@@ -62,14 +62,13 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {
-
 	private var listJdkInstallationsJob: Job? = null
-    private lateinit var feedbackButton: FloatingActionButton
-    private var feedbackButtonManager: FeedbackButtonManager? = null
-    private lateinit var nextButton: ImageButton
-    private lateinit var pulseAnimation: Animation
+	private lateinit var feedbackButton: FloatingActionButton
+	private var feedbackButtonManager: FeedbackButtonManager? = null
+	private lateinit var nextButton: ImageButton
+	private lateinit var pulseAnimation: Animation
 
-    companion object {
+	companion object {
 		private val logger = LoggerFactory.getLogger(OnboardingActivity::class.java)
 		private const val KEY_ARCHCONFIG_WARNING_IS_SHOWN =
 			"ide.archConfig.experimentalWarning.isShown"
@@ -103,14 +102,14 @@ class OnboardingActivity : AppIntro2() {
 		setTransformer(AppIntroPageTransformerType.Fade)
 		setProgressIndicator()
 		showStatusBar(true)
-        setupFeedbackButton()
+		setupFeedbackButton()
 		isIndicatorEnabled = true
 		isWizardMode = true
 
-        nextButton = findViewById(R.id.next)
-        pulseAnimation = AnimationUtils.loadAnimation(this, R.anim.pulse_animation)
+		nextButton = findViewById(R.id.next)
+		pulseAnimation = AnimationUtils.loadAnimation(this, R.anim.pulse_animation)
 
-        addSlide(GreetingFragment())
+		addSlide(GreetingFragment())
 
 		if (!PackageUtils.isCurrentUserThePrimaryUser(this)) {
 			val errorMessage =
@@ -161,44 +160,54 @@ class OnboardingActivity : AppIntro2() {
 		}
 	}
 
-    private fun setupFeedbackButton() {
-        val contentRootView = findViewById<View>(android.R.id.content)
-        contentRootView.viewTreeObserver.addOnGlobalLayoutListener(object :
-            ViewTreeObserver.OnGlobalLayoutListener {
-            override fun onGlobalLayout() {
-                contentRootView.viewTreeObserver.removeOnGlobalLayoutListener(this)
+	private fun setupFeedbackButton() {
+		val contentRootView = findViewById<View>(android.R.id.content)
+		contentRootView.viewTreeObserver.addOnGlobalLayoutListener(
+			object :
+				ViewTreeObserver.OnGlobalLayoutListener {
+				override fun onGlobalLayout() {
+					contentRootView.viewTreeObserver.removeOnGlobalLayoutListener(this)
 
-                val appIntroContainer: ConstraintLayout? = findViewById(R.id.background)
-                if (appIntroContainer != null) {
-                    // Reuse the shared feedback FAB definition (size, icon, elevation) so this
-                    // matches every other screen (ADFA-2686); only positioning is set here.
-                    feedbackButton = (layoutInflater.inflate(
-                        R.layout.feedback_fab, appIntroContainer, false
-                    ) as FloatingActionButton).apply {
-                        layoutParams = ConstraintLayout.LayoutParams(
-                            ConstraintLayout.LayoutParams.WRAP_CONTENT,
-                            ConstraintLayout.LayoutParams.WRAP_CONTENT
-                        ).apply {
-                            startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                            bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-                            val marginInPx =
-                                resources.getDimensionPixelSize(R.dimen.feedback_fab_margin)
-                            setMargins(marginInPx, marginInPx, marginInPx, marginInPx)
-                        }
-                    }
+					val appIntroContainer: ConstraintLayout? = findViewById(R.id.background)
+					if (appIntroContainer != null) {
+						// Reuse the shared feedback FAB definition (size, icon, elevation) so this
+						// matches every other screen (ADFA-2686); only positioning is set here.
+						feedbackButton =
+							(
+								layoutInflater.inflate(
+									R.layout.feedback_fab,
+									appIntroContainer,
+									false,
+								) as FloatingActionButton
+							).apply {
+								layoutParams =
+									ConstraintLayout
+										.LayoutParams(
+											ConstraintLayout.LayoutParams.WRAP_CONTENT,
+											ConstraintLayout.LayoutParams.WRAP_CONTENT,
+										).apply {
+											startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+											bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+											val marginInPx =
+												resources.getDimensionPixelSize(R.dimen.feedback_fab_margin)
+											setMargins(marginInPx, marginInPx, marginInPx, marginInPx)
+										}
+							}
 
-                    appIntroContainer.addView(feedbackButton)
-                    feedbackButtonManager = FeedbackButtonManager(
-                        activity = this@OnboardingActivity,
-                        feedbackFab = feedbackButton
-                    )
-                    feedbackButtonManager?.setupDraggableFab()
-                } else {
-                    logger.error("Could not find AppIntro2 container to add FAB.")
-                }
-            }
-        })
-    }
+						appIntroContainer.addView(feedbackButton)
+						feedbackButtonManager =
+							FeedbackButtonManager(
+								activity = this@OnboardingActivity,
+								feedbackFab = feedbackButton,
+							)
+						feedbackButtonManager?.setupDraggableFab()
+					} else {
+						logger.error("Could not find AppIntro2 container to add FAB.")
+					}
+				}
+			},
+		)
+	}
 
 	override fun onResume() {
 		super.onResume()
@@ -221,27 +230,32 @@ class OnboardingActivity : AppIntro2() {
 		tryNavigateToMainIfSetupIsCompleted()
 	}
 
-    fun setOnboardingChromeVisible(visible: Boolean) {
-        isIndicatorEnabled = visible
-        isButtonsEnabled = visible
-    }
+	fun setOnboardingChromeVisible(visible: Boolean) {
+		isIndicatorEnabled = visible
+		isButtonsEnabled = visible
+	}
 
 	override fun onPageSelected(position: Int) {
 		super.onPageSelected(position)
 
-        when {
-            !nextButton.isVisible -> nextButton.clearAnimation()
-            !isTestMode() && nextButton.animation == null -> nextButton.startAnimation(pulseAnimation)
-        }
+		when {
+			!nextButton.isVisible -> nextButton.clearAnimation()
+			!isTestMode() && nextButton.animation == null -> nextButton.startAnimation(pulseAnimation)
+		}
 	}
 
 	private fun checkToolsIsInstalled(): Boolean =
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
 			Environment.ANDROID_HOME.exists()
 
+	// Deliberately the provider's loaded list, not isIdeSetupComplete()'s on-disk check: this screen
+	// can afford to wait for a validated JDK (it calls loadDistributions() itself when the list is
+	// empty, a few lines below) and should not hand over to MainActivity until one is really usable.
+	// The deep-link gate asks the weaker on-disk question because it runs on a cold-start main
+	// thread and cannot wait -- see SetupState.kt.
 	private fun isSetupCompleted(): Boolean =
 		checkToolsIsInstalled() &&
-				PermissionsHelper.areAllPermissionsGranted(this)
+			PermissionsHelper.areAllPermissionsGranted(this)
 
 	internal fun navigateToMain() {
 		startActivity(Intent(this, MainActivity::class.java))
@@ -258,16 +272,16 @@ class OnboardingActivity : AppIntro2() {
 	}
 
 	private suspend fun reloadJdkDistInfo(distConsumer: (List<JdkDistribution>) -> Unit) {
-        val distributionProvider = IJdkDistributionProvider.getInstance()
-        val currentDistributions = distributionProvider.installedDistributions
-        if (currentDistributions.isNotEmpty()) {
-            distConsumer(currentDistributions)
-            return
-        }
+		val distributionProvider = IJdkDistributionProvider.getInstance()
+		val currentDistributions = distributionProvider.installedDistributions
+		if (currentDistributions.isNotEmpty()) {
+			distConsumer(currentDistributions)
+			return
+		}
 
-        if (listJdkInstallationsJob?.isActive == true) {
-            return
-        }
+		if (listJdkInstallationsJob?.isActive == true) {
+			return
+		}
 
 		listJdkInstallationsJob =
 			doAsyncWithProgress(
@@ -278,10 +292,10 @@ class OnboardingActivity : AppIntro2() {
 			) { _, _ ->
 				distributionProvider.loadDistributions()
 				withContext(Dispatchers.Main) {
-                    if (!isFinishing && !isDestroyed) {
-                        distConsumer(distributionProvider.installedDistributions)
-                    }
-                }
+					if (!isFinishing && !isDestroyed) {
+						distConsumer(distributionProvider.installedDistributions)
+					}
+				}
 			}.also {
 				it?.invokeOnCompletion {
 					listJdkInstallationsJob = null

@@ -411,10 +411,11 @@ class BuildOutputFragment :
 					withContext(Dispatchers.Default) {
 						if (text.endsWith('\n')) text else "$text\n"
 					}
-				if (
-					buildOutputViewModel.append(normalized, sessionToken) &&
-					buildOutputViewModel.isCurrentSession(sessionToken)
-				) {
+				// Display only. EditorBottomSheet.appendBuildOut has already written this line
+				// to the session file via appendAsync; writing it again here would double every
+				// line in the log, and would still miss the builds started while another tab
+				// had this fragment destroyed.
+				if (buildOutputViewModel.isCurrentSession(sessionToken)) {
 					outputBuffer.offer(normalized, sessionToken)
 				}
 			}
@@ -458,7 +459,10 @@ class BuildOutputFragment :
 	/**
 	 * Performs the safe UI update on the Main Thread.
 	 *
-	 * Applies output already persisted by the producer before switching to Main.
+	 * Display only: the session file is written independently by
+	 * [com.itsaky.androidide.ui.EditorBottomSheet.appendBuildOut], which sees every line whether or
+	 * not this fragment exists.
+	 *
 	 * Uses [IDEEditor.awaitLayout] to guarantee the editor has physical dimensions (width > 0)
 	 * before attempting to insert text, preventing the Sora library's `ArrayIndexOutOfBoundsException`.
 	 */

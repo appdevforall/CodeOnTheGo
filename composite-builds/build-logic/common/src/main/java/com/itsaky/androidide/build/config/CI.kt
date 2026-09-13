@@ -29,6 +29,7 @@ import kotlin.getOrDefault
 object CI {
 	private var commitHash: String? = null
 	private var branchName: String? = null
+	private var commitEpochSeconds: Long? = null
 
 	fun commitHash(project: Project): String {
 		if (commitHash == null) {
@@ -61,6 +62,42 @@ object CI {
 		}
 
 		return branchName ?: "unknown"
+	}
+
+	/**
+	 * Committer timestamp of the commit being built, in epoch seconds.
+	 *
+	 * Version strings derive from this rather than from the wall clock, so rebuilding
+	 * a commit yields the same version instead of one that changes every minute. That
+	 * keeps the generated BuildInfo, and therefore build-info.jar, byte-stable between
+	 * rebuilds. See docs/adr/0012-volatile-build-metadata-out-of-abis.md.
+	 *
+	 * Falls back to the current time if git cannot be read; determinism then no longer
+	 * holds, but the build still succeeds.
+	 *
+	 * This is read during configuration, so it goes through [ProviderFactory.exec]
+	 * rather than a raw ProcessBuilder: the configuration cache cannot track an
+	 * external process started directly from a build script, but it can track this.
+	 */
+	fun commitEpochSeconds(project: Project): Long {
+		if (commitEpochSeconds == null) {
+			val sha = System.getenv("GITHUB_SHA") ?: "HEAD"
+			commitEpochSeconds =
+				runCatching {
+					project.providers
+						.exec { spec ->
+							spec.workingDir(project.rootProject.projectDir)
+							spec.commandLine("git", "show", "-s", "--format=%ct", sha)
+							spec.isIgnoreExitValue = true
+						}.standardOutput.asText
+						.get()
+						.trim()
+				}.getOrNull()
+					?.toLongOrNull()
+					?: (System.currentTimeMillis() / 1000L)
+		}
+
+		return commitEpochSeconds ?: (System.currentTimeMillis() / 1000L)
 	}
 
 	/** Whether the current build is a CI build. */

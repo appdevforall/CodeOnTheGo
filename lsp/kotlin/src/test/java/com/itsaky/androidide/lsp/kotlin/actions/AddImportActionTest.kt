@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.actions
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.findSymbolBySimpleName
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
+import com.itsaky.androidide.lsp.models.TextEdit
 import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
@@ -51,7 +52,7 @@ class AddImportActionTest : KtLspTest() {
 		index(classSymbol("lib", "Foo"))
 		createSourceFile("Main.kt", "package p\nimport lib.Bar\nfun f(x: Foo) {}")
 
-		val candidates = AddImportAction().computeImportCandidates(env, mainPath, "Foo")
+		val candidates = AddImportAction().computeImportCandidates(env, mainPath, "Foo").found()
 
 		assertEquals(setOf("lib.Foo"), candidates.keys)
 		val edit = candidates.getValue("lib.Foo").single()
@@ -63,7 +64,7 @@ class AddImportActionTest : KtLspTest() {
 		index(classSymbol("a", "Foo"), classSymbol("b", "Foo"))
 		createSourceFile("Main.kt", "package p\nfun f(x: Foo) {}")
 
-		val candidates = AddImportAction().computeImportCandidates(env, mainPath, "Foo")
+		val candidates = AddImportAction().computeImportCandidates(env, mainPath, "Foo").found()
 
 		assertEquals(setOf("a.Foo", "b.Foo"), candidates.keys)
 		candidates.values.forEach { assertEquals(1, it.size) }
@@ -74,7 +75,7 @@ class AddImportActionTest : KtLspTest() {
 		index(classSymbol("a", "Foo"), funSymbol("b", "Foo"))
 		createSourceFile("Main.kt", "package p\nfun f(x: Foo) {}")
 
-		val candidates = AddImportAction().computeImportCandidates(env, mainPath, "Foo")
+		val candidates = AddImportAction().computeImportCandidates(env, mainPath, "Foo").found()
 
 		assertEquals(setOf("a.Foo"), candidates.keys)
 	}
@@ -83,7 +84,7 @@ class AddImportActionTest : KtLspTest() {
 	fun `returns no candidates for an unknown reference`() {
 		createSourceFile("Main.kt", "package p\nfun f() {}")
 
-		assertTrue(AddImportAction().computeImportCandidates(env, mainPath, "Nope").isEmpty())
+		assertTrue(AddImportAction().computeImportCandidates(env, mainPath, "Nope").found().isEmpty())
 	}
 
 	/**
@@ -106,3 +107,5 @@ class AddImportActionTest : KtLspTest() {
 		)
 	}
 }
+
+private fun ImportCandidates.found(): Map<String, List<TextEdit>> = (this as ImportCandidates.Found).edits

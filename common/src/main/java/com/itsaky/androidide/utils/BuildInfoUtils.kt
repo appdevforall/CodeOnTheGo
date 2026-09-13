@@ -11,8 +11,12 @@ object BasicBuildInfo {
 
 	/**
 	 * Basic info, includes internal app name and version name.
+	 *
+	 * Not a `const val`: [BuildInfo.VERSION_NAME_SIMPLE] changes between builds, and a
+	 * `const val` would inline it here and put it back in this module's ABI. See ADR 0012.
 	 */
-	const val BASIC_INFO = "${BuildInfo.INTERNAL_NAME} (${BuildInfo.VERSION_NAME_SIMPLE})"
+	@JvmField
+	val BASIC_INFO = "${BuildInfo.INTERNAL_NAME} (${BuildInfo.VERSION_NAME_SIMPLE})"
 
 	val hasReleaseVersion: Boolean
 		get() = BuildInfo.RELEASE_VERSION.isNotBlank()

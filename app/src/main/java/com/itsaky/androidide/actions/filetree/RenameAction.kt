@@ -24,10 +24,10 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.idetooltips.attachTooltip
 import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.showWithLongPressTooltip
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 
 /**
@@ -57,39 +57,45 @@ class RenameAction(
 		builder.setTitle(R.string.rename_file)
 		builder.setMessage(R.string.msg_rename_file)
 		builder.setView(binding.root)
+		builder.setCancelable(false)
 		builder.setNegativeButton(android.R.string.cancel, null)
 		builder.setPositiveButton(R.string.rename_file) { dialogInterface, _ ->
-            val fileManagerViewModel: FileManagerViewModel by context.viewModels()
-            val name: String = binding.name.editText?.text.toString().trim()
-            when {
-                name.isEmpty() -> {
-                    flashError(R.string.msg_invalid_name)
-                    return@setPositiveButton
-                }
-                name.length > 40 -> {
-                    flashError(R.string.file_name_too_long)
-                    return@setPositiveButton
-                }
-            }
+			val fileManagerViewModel: FileManagerViewModel by context.viewModels()
+			val name: String =
+				binding.name.editText
+					?.text
+					.toString()
+					.trim()
+			when {
+				name.isEmpty() -> {
+					flashError(R.string.msg_invalid_name)
+					return@setPositiveButton
+				}
 
-            dialogInterface.dismiss()
-            fileManagerViewModel.renameFile(file, name, context) { renamed ->
-                if (!renamed) return@renameFile
+				name.length > 40 -> {
+					flashError(R.string.file_name_too_long)
+					return@setPositiveButton
+				}
+			}
 
-                val parent = lastHeld?.parent
+			dialogInterface.dismiss()
+			fileManagerViewModel.renameFile(file, name, context) { renamed ->
+				if (!renamed) return@renameFile
 
-                if (parent != null) {
-                    requestCollapseNode(parent, false)
-                    requestExpandNode(parent)
-                } else {
-                    requestFileListing()
-                }
-            }
+				val parent = lastHeld?.parent
+
+				if (parent != null) {
+					requestCollapseNode(parent, false)
+					requestExpandNode(parent)
+				} else {
+					requestFileListing()
+				}
+			}
 		}
 
-        builder.showWithLongPressTooltip(
-            context = context,
-            tooltipTag = TooltipTag.PROJECT_RENAME_DIALOG
-        )
+		builder
+			.create()
+			.attachTooltip(TooltipTag.PROJECT_RENAME_DIALOG)
+			.show()
 	}
 }

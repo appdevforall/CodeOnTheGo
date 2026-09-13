@@ -71,7 +71,31 @@ class PluginSettingsEntryPreferenceTest {
 				fragmentClassName = "com.example.ai.SettingsFragment",
 			)
 
-		assertThat(preference.key).isEqualTo("idepref_plugin_settings_com.example.ai.agent")
+		assertThat(preference.key).isEqualTo("idepref_plugin_settings_14:com.example.ai:agent")
+	}
+
+	@Test
+	fun keyDoesNotCollideWhenTheDotSplitIsAmbiguous() {
+		// Without a length-prefixed split point, both pairs below would join to the
+		// identical string "com.example.ai.agent" and collide.
+		val first =
+			PluginSettingsEntryPreference(
+				pluginId = "com.example",
+				entryId = "ai.agent",
+				titleText = "First",
+				summaryText = null,
+				fragmentClassName = "com.example.Frag",
+			)
+		val second =
+			PluginSettingsEntryPreference(
+				pluginId = "com.example.ai",
+				entryId = "agent",
+				titleText = "Second",
+				summaryText = null,
+				fragmentClassName = "com.example.ai.Frag",
+			)
+
+		assertThat(first.key).isNotEqualTo(second.key)
 	}
 
 	@Suppress("DEPRECATION")

@@ -15,8 +15,9 @@
 
 <p align="center">
   <a href="https://github.com/appdevforall/CodeOnTheGo/issues">Report a bug or request a feature</a> &nbsp; &#8226; &nbsp;
-   <a href="https://github.com/appdevforall/CodeOnTheGo/discussions">Join our support and discussions forum</a>&nbsp; &#8226; &nbsp;
-   <a href="https://t.me/CodeOnTheGoOfficial">Telegram channel</a>
+   <a href="https://github.com/appdevforall/CodeOnTheGo/discussions">Support and discussions forum</a>&nbsp; &#8226; &nbsp;
+   <a href="https://t.me/CodeOnTheGoOfficial">Telegram channel</a> &nbsp; &#8226; &nbsp;
+<a href="https://github.com/appdevforall/CodeOnTheGo/wiki/Code-on-the-Go-Knowledge-Base">Knowledge base</a>
 </p>
 
 ## Code on the Go and AndroidIDE

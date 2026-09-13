@@ -43,4 +43,6 @@ It cannot. The index stores names, kinds, visibility, and containing-class metad
 ## Related
 
 - [docs/features/kotlin-goto-definition.md](../features/kotlin-goto-definition.md) - the first feature built on this decision
+- [docs/features/kotlin-find-usages.md](../features/kotlin-find-usages.md) - the second, which additionally has no reference-search infrastructure to fall back on: the bundled Analysis API ships no `ReferencesSearch`, no `PsiSearchHelper` and no word index
+- [ADR 0011](0011-command-analysis-priority.md) - the analysis priority those features run at
 - [ADR 0001](0001-prefer-room-for-persistence.md) - persistence choices for the indexes this ADR declines to use

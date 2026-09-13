@@ -8,9 +8,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isAnalysisCancellation
-import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.utils.AnalysisContext
 import com.itsaky.androidide.lsp.kotlin.utils.ContextKeywords
 import com.itsaky.androidide.lsp.kotlin.utils.ModifierFilter
@@ -28,6 +26,7 @@ import com.itsaky.androidide.lsp.models.MatchLevel
 import com.itsaky.androidide.preferences.utils.indentationString
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.progress.ProgressManager
+import com.itsaky.androidide.projects.FileManager
 import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
@@ -57,7 +56,6 @@ import org.jetbrains.kotlin.analysis.api.symbols.name
 import org.jetbrains.kotlin.analysis.api.symbols.receiverType
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaType
-import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
@@ -136,6 +134,37 @@ internal fun codeComplete(params: CompletionParams): CompletionResult {
 	}
 }
 
+/** The buffer a completion request was measured against, paired with its offset into it. */
+internal data class CompletionRequestBuffer(
+	val text: String,
+	val offset: Int,
+)
+
+/**
+ * The live buffer for [params] and the request's offset into it, or `null` if the offset is past its
+ * end.
+ *
+ * Deliberately the document rather than the pinned [LiveKtFile]: the pin is process-wide, so a joined
+ * scope hands over another feature's frozen text while [CompletionParams.position] was measured
+ * against the buffer. Taking both from the buffer keeps them on one version. Refusing on a stale pin
+ * instead would be worse than useless - the refusal returns before `analyzingVariant`, so an
+ * INTERACTIVE request never reaches [AnalysisScheduler] and stops preempting the older completion
+ * whose pin it joined, leaving that older one to publish items for a caret the user has moved past.
+ *
+ * A `null` means the buffer moved between the editor measuring the offset and this read, so the
+ * request describes text that no longer exists. Clamping the offset into range instead would compute
+ * items for an unrelated context and insert them at the user's real caret.
+ */
+internal fun completionRequestBuffer(params: CompletionParams): CompletionRequestBuffer? {
+	val text = FileManager.getDocumentContents(params.file)
+	val offset = params.position.requireIndex()
+	if (offset > text.length) {
+		logger.debug("skipping completion for {}: request offset is past the live buffer", params.file)
+		return null
+	}
+	return CompletionRequestBuffer(text, offset)
+}
+
 /**
  * Runs at the highest [AnalysisPriority.INTERACTIVE]: preempts in-progress diagnostics/indexing and
  * is never preempted by lower-priority work, but is superseded (cancelled and discarded) by a newer
@@ -143,105 +172,100 @@ internal fun codeComplete(params: CompletionParams): CompletionResult {
  */
 context(env: CompilationEnvironment)
 internal fun doComplete(params: CompletionParams): CompletionResult {
-	val ktFile = env.ktSymbolIndex.getCurrentKtFile(params.file).get()
-	if (ktFile == null) {
+	val result =
+		env.ktSymbolIndex.withLiveKtFile(params.file) { live ->
+			// Completion still parses its own placeholder variant (text differs), anchored by the pin to
+			// the one instance every door answers with for the path.
+			val (originalText, completionOffset) =
+				completionRequestBuffer(params) ?: return@withLiveKtFile CompletionResult.EMPTY
+			val prefix = params.requirePrefix()
+			val partial = partialIdentifier(prefix)
+
+			abortIfCancelled()
+
+			// insert placeholder to fix broken trees
+			val textWithPlaceholder =
+				buildString {
+					append(originalText, 0, completionOffset)
+					append(KT_COMPLETION_PLACEHOLDER)
+					append(originalText, completionOffset, originalText.length)
+				}
+
+			abortIfCancelled()
+
+			/*
+			 * Use the request-scoped checker on params, not the global Lookup: Lookup holds one ICancelChecker
+			 * updated per request, so with concurrent completions an older request could read a newer request's
+			 * checker and never observe its own cancellation. Fall back to Lookup only for a NOOP checker (tests).
+			 */
+			val delegate =
+				params.cancelChecker.takeUnless { it === ICancelChecker.NOOP }
+					?: Lookup.getDefault().lookup(ICancelChecker::class.java)
+					?: ICancelChecker.NOOP
+			val cancelChecker = ScheduledCancelChecker(delegate)
+			currentCancelChecker.set(cancelChecker)
+
+			try {
+				live.analyzingVariant(
+					name = params.file.name,
+					text = textWithPlaceholder,
+					priority = AnalysisPriority.INTERACTIVE,
+					cancelChecker = cancelChecker,
+				) { completionKtFile ->
+					abortIfCancelled()
+
+					val ctx =
+						resolveAnalysisContext(
+							env = env,
+							file = params.file,
+							ktFile = completionKtFile,
+							offset = completionOffset,
+							partial = partial,
+						)
+
+					if (ctx == null) {
+						logger.error(
+							"Unable to determine context at offset {} in file {}",
+							completionOffset,
+							params.file,
+						)
+						return@analyzingVariant CompletionResult.EMPTY
+					}
+
+					abortIfCancelled()
+					context(ctx) {
+						val items = mutableListOf<CompletionItem>()
+						val completionContext = determineCompletionContext(ctx.psiElement)
+						when (completionContext) {
+							CompletionContext.Scope -> {
+								collectScopeCompletions(to = items)
+							}
+
+							CompletionContext.Member -> {
+								collectMemberCompletions(to = items)
+							}
+						}
+
+						CompletionResult(items)
+					}
+				}
+			} catch (e: Throwable) {
+				if (e.isCancellation()) {
+					throw e
+				}
+
+				logger.warn("An error occurred while computing completions for {}", params.file, e)
+				CompletionResult.EMPTY
+			} finally {
+				currentCancelChecker.remove()
+			}
+		}
+
+	if (result == null) {
 		logger.warn("File {} is not open", params.file)
 		return CompletionResult.EMPTY
 	}
-
-	// Completion still parses its own placeholder variant (text differs), anchored to the
-	// current file.
-	val originalText = ktFile.text
-	val requestPosition = params.position
-	val completionOffset = requestPosition.requireIndex()
-	val prefix = params.requirePrefix()
-	val partial = partialIdentifier(prefix)
-
-	abortIfCancelled()
-
-	// insert placeholder to fix broken trees
-	val textWithPlaceholder =
-		buildString {
-			append(originalText, 0, completionOffset)
-			append(KT_COMPLETION_PLACEHOLDER)
-			append(originalText, completionOffset, originalText.length)
-		}
-
-	val completionKtFile =
-		env.project.read {
-			env.parser
-				.createFile(
-					fileName = params.file.name,
-					text = textWithPlaceholder,
-				).apply {
-					originalFile = ktFile
-					originalKtFile = ktFile
-				}
-		}
-
-	abortIfCancelled()
-
-	// Use the request-scoped checker on params, not the global Lookup: Lookup holds one ICancelChecker
-	// updated per request, so with concurrent completions an older request could read a newer request's
-	// checker and never observe its own cancellation. Fall back to Lookup only for a NOOP checker (tests).
-	val delegate =
-		params.cancelChecker.takeUnless { it === ICancelChecker.NOOP }
-			?: Lookup.getDefault().lookup(ICancelChecker::class.java)
-			?: ICancelChecker.NOOP
-	val cancelChecker = ScheduledCancelChecker(delegate)
-	currentCancelChecker.set(cancelChecker)
-
-	return try {
-		env.project.read {
-			abortIfCancelled()
-
-			analyzeMaybeDangling(completionKtFile, AnalysisPriority.INTERACTIVE, cancelChecker) {
-				val ctx =
-					resolveAnalysisContext(
-						env = env,
-						file = params.file,
-						ktFile = completionKtFile,
-						offset = completionOffset,
-						partial = partial,
-					)
-
-				if (ctx == null) {
-					logger.error(
-						"Unable to determine context at offset {} in file {}",
-						completionOffset,
-						params.file,
-					)
-					return@analyzeMaybeDangling CompletionResult.EMPTY
-				}
-
-				abortIfCancelled()
-				context(ctx) {
-					val items = mutableListOf<CompletionItem>()
-					val completionContext = determineCompletionContext(ctx.psiElement)
-					when (completionContext) {
-						CompletionContext.Scope -> {
-							collectScopeCompletions(to = items)
-						}
-
-						CompletionContext.Member -> {
-							collectMemberCompletions(to = items)
-						}
-					}
-
-					CompletionResult(items)
-				}
-			}
-		}
-	} catch (e: Throwable) {
-		if (e.isCancellation()) {
-			throw e
-		}
-
-		logger.warn("An error occurred while computing completions for {}", params.file, e)
-		return CompletionResult.EMPTY
-	} finally {
-		currentCancelChecker.remove()
-	}
+	return result
 }
 
 context(ctx: AnalysisContext)

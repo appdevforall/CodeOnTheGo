@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.kotlin.utils
 import com.itsaky.androidide.lsp.kotlin.actions.ImplementMembersAction
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.lsp.models.TextEdit
+import com.itsaky.androidide.progress.ICancelChecker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,7 +16,7 @@ class ImplementMembersEndToEndTest : KtLspTest() {
 	): List<TextEdit> {
 		createSourceFile("Main.kt", content)
 		val mainPath = env.sourceRoots.first().resolve("Main.kt")
-		return ImplementMembersAction().computeImplementMembersEdit(env, mainPath, caret, noopCancelChecker())
+		return ImplementMembersAction().computeImplementMembersEdit(env, mainPath, caret, ICancelChecker.NOOP)
 	}
 
 	/** Applies a single edit's newText over its [TextEdit.range] index span, returning the resulting text. */

@@ -38,16 +38,20 @@ public class BuildInfo {
   public static final String MVN_GROUP_ID = "@@MVN_GROUP_ID@@";
 
   public static final String VERSION_NAME = "@@VERSION_NAME@@";
-  public static final String VERSION_NAME_SIMPLE = "@@VERSION_NAME_SIMPLE@@";
   public static final String RELEASE_VERSION = "@@RELEASE_VERSION@@";
-  public static final String VERSION_NAME_PUBLISHING = "@@VERSION_NAME_PUBLISHING@@";
-  public static final String VERSION_NAME_DOWNLOAD = "@@VERSION_NAME_DOWNLOAD@@";
+
+  // The three fields below embed the build time to the minute, so they change
+  // between any two builds. volatileValue() keeps them out of the ConstantValue
+  // attribute: see the note on that method.
+  public static final String VERSION_NAME_SIMPLE = volatileValue("@@VERSION_NAME_SIMPLE@@");
+  public static final String VERSION_NAME_PUBLISHING = volatileValue("@@VERSION_NAME_PUBLISHING@@");
+  public static final String VERSION_NAME_DOWNLOAD = volatileValue("@@VERSION_NAME_DOWNLOAD@@");
 
   // --------- CI info --------------------
 
   public static final boolean CI_BUILD = @@CI_BUILD@@;
-  public static final String CI_GIT_BRANCH = "@@CI_GIT_BRANCH@@";
-  public static final String CI_GIT_COMMIT_HASH = "@@CI_COMMIT_HASH@@";
+  public static final String CI_GIT_BRANCH = volatileValue("@@CI_GIT_BRANCH@@");
+  public static final String CI_GIT_COMMIT_HASH = volatileValue("@@CI_COMMIT_HASH@@");
 
   // --------- CI info --------------------
 
@@ -68,4 +72,23 @@ public class BuildInfo {
   public static final String PROJECT_SITE = "@@PROJECT_SITE@@";
   public static final String SNAPSHOTS_REPOSITORY = "@@SNAPSHOTS_REPOSITORY@@";
   public static final String PUBLIC_REPOSITORY = "@@PUBLIC_REPOSITORY@@";
+
+  /**
+   * Returns its argument unchanged.
+   *
+   * <p>A {@code static final String} initialised by a constant expression is a
+   * compile-time constant: javac records it in the ConstantValue attribute and inlines
+   * it into every consumer, which makes its <em>value</em> part of this module's ABI.
+   * Because :build-info sits at the root of the dependency graph, a value that changes
+   * between builds would then force the entire project to recompile every time.
+   *
+   * <p>Routing the value through a method call makes the initialiser non-constant, so
+   * no ConstantValue is emitted and the value leaves the ABI. Do not "simplify" the
+   * volatile fields back to plain literals.
+   *
+   * <p>See docs/adr/0012-volatile-build-metadata-out-of-abis.md.
+   */
+  private static String volatileValue(String value) {
+    return value;
+  }
 }

@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.services
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
+import com.itsaky.androidide.lsp.kotlin.compiler.index.ResolutionSideKtFileAccess
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
@@ -32,7 +33,9 @@ import org.jetbrains.kotlin.psi.psiUtil.contains
 import org.jetbrains.kotlin.psi.psiUtil.getImportedSimpleNameByImportAlias
 import org.jetbrains.kotlin.psi.psiUtil.getSuperNames
 
-internal class DirectInheritorsProvider: KtLspService, KotlinDirectInheritorsProvider {
+internal class DirectInheritorsProvider :
+	KtLspService,
+	KotlinDirectInheritorsProvider {
 	private lateinit var index: KtSymbolIndex
 	private lateinit var modules: List<KtModule>
 	private lateinit var project: Project
@@ -44,7 +47,7 @@ internal class DirectInheritorsProvider: KtLspService, KotlinDirectInheritorsPro
 		project: MockProject,
 		index: KtSymbolIndex,
 		modules: List<KtModule>,
-		libraryRoots: List<JavaRoot>
+		libraryRoots: List<JavaRoot>,
 	) {
 		this.project = project
 		this.index = index
@@ -55,7 +58,7 @@ internal class DirectInheritorsProvider: KtLspService, KotlinDirectInheritorsPro
 	override fun getDirectKotlinInheritors(
 		ktClass: KtClass,
 		scope: GlobalSearchScope,
-		includeLocalInheritors: Boolean
+		includeLocalInheritors: Boolean,
 	): Iterable<KtClassOrObject> {
 		computeIndex()
 
@@ -75,41 +78,48 @@ internal class DirectInheritorsProvider: KtLspService, KotlinDirectInheritorsPro
 	}
 
 	// Let's say this operation is not frequently called, if we discover it's not the case we should cache it
+	@OptIn(ResolutionSideKtFileAccess::class)
 	private fun computeIndex() {
 		classesBySupertypeName.clear()
 		inheritableTypeAliasesByAliasedName.clear()
 
 		modules
 			.asFlatSequence()
-			.filter { it.isSourceModule }.flatMap { it.computeFiles(extended = true) }
+			.filter { it.isSourceModule }
+			.flatMap { it.computeFiles(extended = true) }
 			.mapNotNull { index.getKtFile(it) }
 			.forEach { ktFile ->
-				ktFile.accept(object : KtTreeVisitorVoid() {
-					override fun visitClassOrObject(classOrObject: KtClassOrObject) {
-						classOrObject.getSuperNames().forEach { superName ->
-							classesBySupertypeName
-								.computeIfAbsent(Name.identifier(superName)) { mutableSetOf() }
-								.add(classOrObject)
-						}
-						super.visitClassOrObject(classOrObject)
-					}
-
-					override fun visitTypeAlias(typeAlias: KtTypeAlias) {
-						val typeElement = typeAlias.getTypeReference()?.typeElement ?: return
-
-						findInheritableSimpleNames(typeElement).forEach { expandedName ->
-							inheritableTypeAliasesByAliasedName
-								.computeIfAbsent(Name.identifier(expandedName)) { mutableSetOf() }
-								.add(typeAlias)
+				ktFile.accept(
+					object : KtTreeVisitorVoid() {
+						override fun visitClassOrObject(classOrObject: KtClassOrObject) {
+							classOrObject.getSuperNames().forEach { superName ->
+								classesBySupertypeName
+									.computeIfAbsent(Name.identifier(superName)) { mutableSetOf() }
+									.add(classOrObject)
+							}
+							super.visitClassOrObject(classOrObject)
 						}
 
-						super.visitTypeAlias(typeAlias)
-					}
-				})
+						override fun visitTypeAlias(typeAlias: KtTypeAlias) {
+							val typeElement = typeAlias.getTypeReference()?.typeElement ?: return
+
+							findInheritableSimpleNames(typeElement).forEach { expandedName ->
+								inheritableTypeAliasesByAliasedName
+									.computeIfAbsent(Name.identifier(expandedName)) { mutableSetOf() }
+									.add(typeAlias)
+							}
+
+							super.visitTypeAlias(typeAlias)
+						}
+					},
+				)
 			}
 	}
 
-	private fun calculateAliases(aliasedName: Name, aliases: MutableSet<Name>) {
+	private fun calculateAliases(
+		aliasedName: Name,
+		aliases: MutableSet<Name>,
+	) {
 		inheritableTypeAliasesByAliasedName[aliasedName].orEmpty().forEach { alias ->
 			val aliasName = alias.nameAsSafeName
 			val isNewAliasName = aliases.add(aliasName)
@@ -166,7 +176,13 @@ private fun findInheritableSimpleNames(typeElement: KtTypeElement): List<String>
 				}
 			}
 		}
-		is KtNullableType -> typeElement.innerType?.let(::findInheritableSimpleNames) ?: emptyList()
-		else -> emptyList()
+
+		is KtNullableType -> {
+			typeElement.innerType?.let(::findInheritableSimpleNames) ?: emptyList()
+		}
+
+		else -> {
+			emptyList()
+		}
 	}
 }

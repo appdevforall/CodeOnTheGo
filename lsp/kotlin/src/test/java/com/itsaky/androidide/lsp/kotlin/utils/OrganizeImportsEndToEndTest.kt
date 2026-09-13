@@ -4,6 +4,7 @@ import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.progress.ICancelChecker
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,7 +32,7 @@ class OrganizeImportsEndToEndTest : KtLspTest() {
 		val mainPath = env.sourceRoots.first().resolve("Main.kt")
 
 		// Drive the action's real plumbing: fetch-before-read ordering + full guard chain.
-		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, noopCancelChecker())
+		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, ICancelChecker.NOOP)
 
 		assertEquals(1, edits.size)
 		assertEquals("import lib.Used", edits.single().newText)
@@ -63,7 +64,7 @@ class OrganizeImportsEndToEndTest : KtLspTest() {
 			""".trimIndent(),
 		)
 		val mainPath = env.sourceRoots.first().resolve("Main.kt")
-		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, noopCancelChecker())
+		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, ICancelChecker.NOOP)
 		// Already organized -> no edit. A dropped import would produce a rewrite that removes it.
 		assertTrue("constructor-only import must survive", edits.isEmpty())
 	}
@@ -86,7 +87,7 @@ class OrganizeImportsEndToEndTest : KtLspTest() {
 			""".trimIndent(),
 		)
 		val mainPath = env.sourceRoots.first().resolve("Main.kt")
-		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, noopCancelChecker())
+		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, ICancelChecker.NOOP)
 		assertTrue("annotation-only import must survive", edits.isEmpty())
 	}
 
@@ -109,7 +110,7 @@ class OrganizeImportsEndToEndTest : KtLspTest() {
 			""".trimIndent(),
 		)
 		val mainPath = env.sourceRoots.first().resolve("Main.kt")
-		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, noopCancelChecker())
+		val edits = OrganizeImportsAction().computeOrganizeEdit(env, mainPath, ICancelChecker.NOOP)
 		assertTrue("typealias-only import used as constructor must survive", edits.isEmpty())
 	}
 }

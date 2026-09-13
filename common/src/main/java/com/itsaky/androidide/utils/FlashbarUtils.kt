@@ -48,8 +48,18 @@ fun flashSuccess(
 	withActivity { flashSuccess(msg) }
 }
 
+/** Suspends until the success bar has actually finished its entrance animation - see [Activity.flashSuccessAwaitShown]. */
+suspend fun flashSuccessAwaitShown(msg: String?) {
+	withActivitySuspend { flashSuccessAwaitShown(msg) }
+}
+
 fun flashError(msg: String?) {
 	withActivity { flashError(msg) }
+}
+
+/** Suspends until the error bar has actually finished its entrance animation - see [Activity.flashErrorAwaitShown]. */
+suspend fun flashErrorAwaitShown(msg: String?) {
+	withActivitySuspend { flashErrorAwaitShown(msg) }
 }
 
 fun flashError(
@@ -77,6 +87,15 @@ private inline fun <T> withActivity(action: Activity.() -> T?): T? =
 			ILogger.ROOT.warn("Cannot show flashbar message. Cannot get top activity.")
 			null
 		}
+
+private suspend inline fun withActivitySuspend(crossinline action: suspend Activity.() -> Unit) {
+	val activity = BaseApplication.baseInstance.foregroundActivity
+	if (activity == null) {
+		ILogger.ROOT.warn("Cannot show flashbar message. Cannot get top activity.")
+		return
+	}
+	activity.action()
+}
 
 /** The type of flashbar message. */
 enum class FlashType {

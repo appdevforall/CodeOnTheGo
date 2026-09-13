@@ -17,9 +17,9 @@
 
 package org.adfa.constants
 
-const val ANDROID_GRADLE_PLUGIN_VERSION = "8.11.0"
-const val GRADLE_DISTRIBUTION_VERSION = "8.14.3"
-const val KOTLIN_VERSION = "1.9.22"
+const val ANDROID_GRADLE_PLUGIN_VERSION = "9.3.1"
+const val GRADLE_DISTRIBUTION_VERSION = "9.6.1"
+const val KOTLIN_VERSION = "2.3.21"
 
 val TARGET_SDK_VERSION = Sdk.Baklava
 val COMPILE_SDK_VERSION = Sdk.Baklava
@@ -88,3 +88,6 @@ const val GRADLE_API_NAME_JAR_BR = "${GRADLE_API_NAME_JAR}.br"
 const val TEMPLATE_ARCHIVE_EXTENSION = "cgt"
 const val TEMPLATE_CORE_ARCHIVE = "core.$TEMPLATE_ARCHIVE_EXTENSION"
 const val TEMPLATE_CORE_ARCHIVE_BR = "${TEMPLATE_CORE_ARCHIVE}.br"
+
+// Plugin archive
+const val PLUGIN_ARCHIVE_EXTENSION = "cgp"

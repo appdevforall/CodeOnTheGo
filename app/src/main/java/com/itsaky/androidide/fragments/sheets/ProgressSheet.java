@@ -30,68 +30,89 @@ import com.itsaky.androidide.databinding.LayoutProgressSheetBinding;
 
 public class ProgressSheet extends BaseBottomSheetFragment {
 
-  private LayoutProgressSheetBinding binding;
-  private String message = "";
-  private String subMessage = "";
-  private boolean subMessageEnabled = false;
+	private LayoutProgressSheetBinding binding;
+	private String message = "";
+	private String subMessage = "";
+	private boolean subMessageEnabled = false;
 
-  @Override
-  public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
-    super.onViewCreated(view, savedInstanceState);
+	/* A dismiss that arrived before this fragment was attached, replayed in onStart. */
+	private boolean dismissPending = false;
 
-    binding.message.setText(message);
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * A dismiss that arrives before the enqueued {@code show()} transaction has run is remembered rather than dropped: the fragment is not attached to a fragment manager yet, so dismissing now would throw, but doing nothing would leave the sheet on screen with nothing left to close it.
+	 */
+	@Override
+	public void dismiss() {
+		if (!isAdded()) {
+			dismissPending = true;
+			return;
+		}
 
-    final var params = (ConstraintLayout.LayoutParams) binding.message.getLayoutParams();
-    if (subMessageEnabled) {
-      binding.subMessage.setText(subMessage);
-      binding.subMessage.setVisibility(View.VISIBLE);
-      params.bottomToBottom = View.NO_ID;
-    } else {
-      binding.subMessage.setVisibility(View.GONE);
-      params.bottomToBottom = LayoutParams.PARENT_ID;
-    }
-  }
+		dismissPending = false;
+		super.dismiss();
+	}
 
-  @Nullable
-  @Override
-  public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
-                           @Nullable Bundle savedInstanceState
-  ) {
-    binding = LayoutProgressSheetBinding.inflate(LayoutInflater.from(getContext()));
-    return binding.getRoot();
-  }
+	@Nullable
+	@Override
+	public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+			@Nullable Bundle savedInstanceState) {
+		binding = LayoutProgressSheetBinding.inflate(LayoutInflater.from(getContext()));
+		return binding.getRoot();
+	}
 
-  public void setSubMessageEnabled(boolean enabled) {
-    this.subMessageEnabled = enabled;
-  }
+	@Override
+	public void onStart() {
+		super.onStart();
+		if (dismissPending) {
+			dismissPending = false;
+			dismissAllowingStateLoss();
+		}
+	}
 
-  public void setSubMessage(String msg) {
-    this.subMessage = msg;
-    if (isShowing()) {
-      binding.subMessage.setText(msg);
-    }
-  }
+	@Override
+	public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
+		super.onViewCreated(view, savedInstanceState);
 
-  public ProgressSheet setMessage(String message) {
-    this.message = message;
-    if (isShowing()) {
-      binding.message.setText(message);
-    }
+		binding.message.setText(message);
 
-    return this;
-  }
+		final var params = (ConstraintLayout.LayoutParams) binding.message.getLayoutParams();
+		if (subMessageEnabled) {
+			binding.subMessage.setText(subMessage);
+			binding.subMessage.setVisibility(View.VISIBLE);
+			params.bottomToBottom = View.NO_ID;
+		} else {
+			binding.subMessage.setVisibility(View.GONE);
+			params.bottomToBottom = LayoutParams.PARENT_ID;
+		}
+	}
 
-  public ProgressSheet setProgressDrawable(Drawable drawable) {
-    if (isShowing()) {
-      binding.progress.setIndeterminateDrawable(drawable);
-    }
-    return this;
-  }
+	public ProgressSheet setMessage(String message) {
+		this.message = message;
+		if (isShowing()) {
+			binding.message.setText(message);
+		}
 
-  @Override
-  public void dismiss() {
-    if (isShowing()) {
-      super.dismiss();
-    }
-  }
+		return this;
+	}
+
+	public ProgressSheet setProgressDrawable(Drawable drawable) {
+		if (isShowing()) {
+			binding.progress.setIndeterminateDrawable(drawable);
+		}
+		return this;
+	}
+
+	public void setSubMessage(String msg) {
+		this.subMessage = msg;
+		if (isShowing()) {
+			binding.subMessage.setText(msg);
+		}
+	}
+
+	public void setSubMessageEnabled(boolean enabled) {
+		this.subMessageEnabled = enabled;
+	}
 }

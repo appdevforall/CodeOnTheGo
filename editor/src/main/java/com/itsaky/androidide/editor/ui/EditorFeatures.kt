@@ -88,6 +88,17 @@ class EditorFeatures(
 		} ?: Position.NONE
 
 	override fun validateRange(range: Range) {
+		// The shared sentinels are never clamped. Range.NONE is a process-wide @JvmField whose two ends
+		// are the single Position.NONE instance, and the assignments below write line/column straight
+		// onto the caller's objects -- so clamping one here rewrites Position.NONE from (-1, -1) to real
+		// in-document coordinates for the rest of the process. Position has structural equals, so every
+		// later "nothing found" check comparing against Range.NONE / Position.NONE (GoToDefinition,
+		// FindUsages, OrganizeImports, CodeFormatProvider) would silently stop matching. Callers reach
+		// here with them legitimately: this very class hands them out as `?: Range.NONE` and
+		// `?: Position.NONE` defaults.
+		if (range === Range.NONE || range.start === Position.NONE || range.end === Position.NONE) {
+			return
+		}
 		withEditor {
 			val start = range.start
 			val end = range.end
@@ -140,7 +151,7 @@ class EditorFeatures(
 	): Boolean =
 		withEditor {
 			val columnCount = text.getColumnCount(line)
-			return@withEditor column >= 0 && (column < columnCount || allowColumnEqual && column == columnCount)
+			return@withEditor column >= 0 && (column < columnCount || (allowColumnEqual && column == columnCount))
 		} ?: false
 
 	override fun append(text: CharSequence?): Int =

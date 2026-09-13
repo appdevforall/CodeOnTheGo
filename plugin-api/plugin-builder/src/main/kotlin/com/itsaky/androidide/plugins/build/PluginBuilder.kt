@@ -5,111 +5,237 @@ import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import java.io.File
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 class PluginBuilder : Plugin<Project> {
+	private enum class BuildVariant(
+		val variantName: String,
+		val taskName: String,
+		val fileSuffix: String,
+	) {
+		DEBUG("debug", "assemblePluginDebug", "-debug"),
+		RELEASE("release", "assemblePlugin", ""),
+	}
 
-    private enum class BuildVariant(
-        val variantName: String,
-        val taskName: String,
-        val fileSuffix: String
-    ) {
-        DEBUG("debug", "assemblePluginDebug", "-debug"),
-        RELEASE("release", "assemblePlugin", "")
-    }
+	companion object {
+		private const val DEFAULT_VERSION = "1.0.0"
+		private const val POSITIVE_HASH_MASK = 0x7FFFFFFF
+		private const val PACKAGE_ID_RANGE = 0x7D
+		private const val MIN_PACKAGE_ID = 0x02
+	}
 
-    companion object {
-        private val TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
-        private const val DEFAULT_VERSION = "1.0.0"
-        private const val POSITIVE_HASH_MASK = 0x7FFFFFFF
-        private const val PACKAGE_ID_RANGE = 0x7D
-        private const val MIN_PACKAGE_ID = 0x02
-    }
+	override fun apply(target: Project) {
+		val extension =
+			target.extensions.create(
+				"pluginBuilder",
+				PluginBuilderExtension::class.java,
+			)
 
-    override fun apply(target: Project) {
-        val extension = target.extensions.create(
-            "pluginBuilder",
-            PluginBuilderExtension::class.java
-        )
+		val androidExtension = target.extensions.getByType(ApplicationExtension::class.java)
+		val componentsExtension =
+			target.extensions.getByType(
+				ApplicationAndroidComponentsExtension::class.java,
+			)
+		// Resolved once and shared by both variants: onVariants runs per variant and the chain
+		// forks `git` up to three times. Forced inside the callback, which runs after the DSL is
+		// locked, so the `pluginBuilder { }` block has been evaluated and the extension can be read.
+		val provenance by lazy {
+			provenanceResolver(target).resolve(extension.pluginVcsRevision.orNull)
+		}
 
-        val androidExtension = target.extensions.getByType(ApplicationExtension::class.java)
-        val componentsExtension = target.extensions.getByType(
-            ApplicationAndroidComponentsExtension::class.java
-        )
-        componentsExtension.onVariants { variant ->
-            val resolvedVersion = if (extension.pluginVersion.isPresent) {
-                extension.pluginVersion.get()
-            } else {
-                val baseVersion = androidExtension.defaultConfig.versionName ?: DEFAULT_VERSION
-                val timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER)
-                "$baseVersion-${variant.name}.$timestamp"
-            }
-            variant.manifestPlaceholders.put("pluginVersion", resolvedVersion)
-            target.logger.lifecycle("PluginBuilder: version resolved to '$resolvedVersion'")
-        }
+		componentsExtension.onVariants { variant ->
+			val record = provenance
+			val resolvedVersion = resolveVersion(androidExtension, extension, variant.name, record)
 
-        target.afterEvaluate {
-            configurePackageId(target)
-            BuildVariant.values().forEach { variant ->
-                createAssembleTask(target, extension, variant)
-            }
-        }
-    }
+			variant.manifestPlaceholders.put("pluginVersion", resolvedVersion)
+			// Always populated, even when unresolved: a manifest referencing a placeholder that was
+			// never `put` fails the merger outright, and all plugins share one builder jar.
+			variant.manifestPlaceholders.put("pluginVcsRevision", record.revision)
+			variant.manifestPlaceholders.put("pluginBuildTimestamp", record.timestamp)
 
-    private fun configurePackageId(project: Project) {
-        val android = project.extensions.findByType(ApplicationExtension::class.java) ?: return
+			val resolvedPluginName = extension.pluginName.getOrElse(target.name)
+			val capitalizedVariant = variant.name.replaceFirstChar { it.uppercase() }
+			val generateProvenance =
+				target.tasks.register(
+					"generate${capitalizedVariant}CgpBuildProperties",
+					GenerateCgpBuildProperties::class.java,
+				)
+			generateProvenance.configure {
+				pluginName.set(resolvedPluginName)
+				pluginVersion.set(resolvedVersion)
+				variantName.set(variant.name)
+				revision.set(record.revision)
+				revisionSource.set(record.revisionSource)
+				buildTimestamp.set(record.timestamp)
+				timestampSource.set(record.timestampSource)
+				record.libsRevision?.let(libsRevision::set)
+			}
 
-        val existingParams = android.androidResources.additionalParameters
-        val alreadyConfigured = existingParams.any { it == "--package-id" }
-        if (alreadyConfigured) {
-            project.logger.lifecycle("Plugin package-id already configured manually, skipping auto-assignment")
-            return
-        }
+			// Wire the record in as a generated asset dir so it is packaged -- and therefore
+			// signed -- with the rest of the APK, rather than appended to the finished .cgp.
+			val assets = variant.sources.assets
+			if (assets != null) {
+				assets.addGeneratedSourceDirectory(generateProvenance) { it.outputDir }
+			} else {
+				// The record is documented as always present, so its absence has to be audible
+				// rather than a silently missing file in a shipped artifact.
+				target.logger.warn(
+					"PluginBuilder: no asset sources on variant '${variant.name}', " +
+						"${CgpBuildProperties.FILE_NAME} will not be packaged",
+				)
+			}
 
-        val applicationId = android.defaultConfig.applicationId ?: project.group.toString()
-        val packageId = generatePackageId(applicationId)
-        val packageIdHex = "0x${packageId.toString(16).uppercase().padStart(2, '0')}"
+			target.logger.lifecycle(
+				"PluginBuilder: version '$resolvedVersion', revision '${record.revision}' " +
+					"(${record.revisionSource}), timestamp ${record.timestamp} (${record.timestampSource.id})",
+			)
+		}
 
-        android.androidResources.additionalParameters(
-            "--package-id", packageIdHex, "--allow-reserved-package-id"
-        )
+		target.afterEvaluate {
+			configurePackageId(target)
+			BuildVariant.values().forEach { variant ->
+				createAssembleTask(target, extension, variant)
+			}
+		}
+	}
 
-        project.logger.lifecycle("Auto-assigned plugin package-id: $packageIdHex (from applicationId: $applicationId)")
-    }
+	private fun resolveVersion(
+		androidExtension: ApplicationExtension,
+		extension: PluginBuilderExtension,
+		variantName: String,
+		record: PluginProvenanceRecord,
+	): String {
+		if (extension.pluginVersion.isPresent) {
+			return extension.pluginVersion.get()
+		}
 
-    private fun generatePackageId(applicationId: String): Int {
-        val hash = applicationId.hashCode() and POSITIVE_HASH_MASK
-        return (hash % PACKAGE_ID_RANGE) + MIN_PACKAGE_ID
-    }
+		val baseVersion = androidExtension.defaultConfig.versionName ?: DEFAULT_VERSION
+		val autogenerated = "$baseVersion-$variantName.${record.timestamp}"
+		val includeRevision =
+			extension.includeRevisionInVersion.getOrElse(false) &&
+				record.revision != PluginProvenance.UNKNOWN_REVISION
+		return if (includeRevision) "$autogenerated+${record.revisionBuildMetadata}" else autogenerated
+	}
 
-    private fun createAssembleTask(project: Project, extension: PluginBuilderExtension, variant: BuildVariant) {
-        val task = project.tasks.create(variant.taskName)
-        task.group = "build"
-        task.description = "Assembles the ${variant.variantName} plugin and creates .cgp file"
-        task.dependsOn("assemble${variant.variantName.replaceFirstChar { it.uppercase() }}")
+	/**
+	 * A resolver bound to this project.
+	 *
+	 * Everything that shells out goes through [org.gradle.api.provider.ProviderFactory.exec] rather
+	 * than a raw `ProcessBuilder`: on-device builds really do run with `--configuration-cache`
+	 * (`HighPerformanceStrategy` turns it on for any device with >= 6 GB of RAM), and the
+	 * configuration cache cannot track a process started directly from build logic -- it would
+	 * serve a stale revision from a cache hit.
+	 *
+	 * The clock is deliberately *not* a ValueSource. Read at configuration time it freezes into a
+	 * cached configuration, but a clock ValueSource would report a new value on every build and
+	 * invalidate that configuration every time, which is worse. It only ever feeds the fallback,
+	 * and the record says `timestamp_source=wall-clock` when it did.
+	 */
+	private fun provenanceResolver(project: Project): ProvenanceResolver =
+		ProvenanceResolver(
+			git = GitClient { args -> git(project, project.projectDir, *args) },
+			env = { name -> project.providers.environmentVariable(name).orNull },
+			projectDir = project.projectDir,
+			clockEpochSeconds = { System.currentTimeMillis() / 1000L },
+		)
 
-        val pluginName = extension.pluginName.getOrElse(project.name)
-        val apkDir = File(project.layout.buildDirectory.asFile.get(), "outputs/apk/${variant.variantName}")
-        val outputDir = File(project.layout.buildDirectory.asFile.get(), "plugin")
+	/**
+	 * Trimmed stdout of a git invocation, or `null` when git is absent, the command failed, or it
+	 * printed nothing.
+	 *
+	 * The `runCatching` is not decorative: `standardOutput.asText.get()` throws when the executable
+	 * is missing, which is the normal case on device, and `isIgnoreExitValue` does not cover it.
+	 */
+	private fun git(
+		project: Project,
+		dir: File,
+		vararg args: String,
+	): String? {
+		val command = listOf("git", *args)
+		return runCatching {
+			project.providers
+				.exec {
+					// `kotlin-dsl` turns Action<T> into a receiver lambda, so `this` is the ExecSpec.
+					workingDir(dir)
+					commandLine(command)
+					isIgnoreExitValue = true
+				}.standardOutput.asText
+				.get()
+				.trim()
+				.takeIf { it.isNotEmpty() }
+		}.getOrNull()
+	}
 
-        task.doLast(object : org.gradle.api.Action<org.gradle.api.Task> {
-            override fun execute(t: org.gradle.api.Task) {
-                outputDir.mkdirs()
+	private fun configurePackageId(project: Project) {
+		val android = project.extensions.findByType(ApplicationExtension::class.java) ?: return
 
-                t.logger.lifecycle("Looking for APK in: ${apkDir.absolutePath}")
+		val existingParams = android.androidResources.additionalParameters
+		val alreadyConfigured = existingParams.any { it == "--package-id" }
+		if (alreadyConfigured) {
+			project.logger.lifecycle("Plugin package-id already configured manually, skipping auto-assignment")
+			return
+		}
 
-                val apkFile = apkDir.listFiles()?.firstOrNull { it.extension == "apk" }
-                if (apkFile == null) {
-                    t.logger.warn("No APK found in ${apkDir.absolutePath}")
-                    return
-                }
+		val applicationId = android.defaultConfig.applicationId ?: project.group.toString()
+		val packageId = generatePackageId(applicationId)
+		val packageIdHex = "0x${packageId.toString(16).uppercase().padStart(2, '0')}"
 
-                val outputFile = File(outputDir, "$pluginName${variant.fileSuffix}.cgp")
-                apkFile.copyTo(outputFile, overwrite = true)
-                apkFile.delete()
-                t.logger.lifecycle("Plugin assembled: ${outputFile.absolutePath}")
-            }
-        })
-    }
+		android.androidResources.additionalParameters(
+			"--package-id",
+			packageIdHex,
+			"--allow-reserved-package-id",
+		)
+
+		project.logger.lifecycle("Auto-assigned plugin package-id: $packageIdHex (from applicationId: $applicationId)")
+	}
+
+	private fun generatePackageId(applicationId: String): Int {
+		val hash = applicationId.hashCode() and POSITIVE_HASH_MASK
+		return (hash % PACKAGE_ID_RANGE) + MIN_PACKAGE_ID
+	}
+
+	private fun createAssembleTask(
+		project: Project,
+		extension: PluginBuilderExtension,
+		variant: BuildVariant,
+	) {
+		val task = project.tasks.create(variant.taskName)
+		task.group = "build"
+		task.description = "Assembles the ${variant.variantName} plugin and creates .cgp file"
+		task.dependsOn("assemble${variant.variantName.replaceFirstChar { it.uppercase() }}")
+
+		val pluginName = extension.pluginName.getOrElse(project.name)
+		val apkDir =
+			File(
+				project.layout.buildDirectory.asFile
+					.get(),
+				"outputs/apk/${variant.variantName}",
+			)
+		val outputDir =
+			File(
+				project.layout.buildDirectory.asFile
+					.get(),
+				"plugin",
+			)
+
+		task.doLast(
+			object : org.gradle.api.Action<org.gradle.api.Task> {
+				override fun execute(t: org.gradle.api.Task) {
+					outputDir.mkdirs()
+
+					t.logger.lifecycle("Looking for APK in: ${apkDir.absolutePath}")
+
+					val apkFile = apkDir.listFiles()?.firstOrNull { it.extension == "apk" }
+					if (apkFile == null) {
+						t.logger.warn("No APK found in ${apkDir.absolutePath}")
+						return
+					}
+
+					val outputFile = File(outputDir, "$pluginName${variant.fileSuffix}.cgp")
+					apkFile.copyTo(outputFile, overwrite = true)
+					apkFile.delete()
+					t.logger.lifecycle("Plugin assembled: ${outputFile.absolutePath}")
+				}
+			},
+		)
+	}
 }

@@ -112,10 +112,10 @@ class FindDefinitionRequestTest : KtLspTest() {
 
 	@Test
 	fun `a same-file target found through the active document still resolves`() {
-		// Every other test in this file leaves the file un-opened, so getCurrentKtFile takes the
-		// disk fallback - a real CoreLocalFileSystem-backed KtFile whose virtualFile has protocol
+		// Every other test in this file leaves the file un-opened, so acquisition takes the disk
+		// fallback - a real CoreLocalFileSystem-backed KtFile whose virtualFile has protocol
 		// "file". That's exactly the path the production bug (ADFA-4823 finding 1) does NOT hit:
-		// opening the file makes getCurrentKtFile refresh a live KtFile instead
+		// opening the file makes acquisition refresh a live KtFile instead
 		// (KtSymbolIndex.refreshToCurrent), whose virtualFile is a non-physical LightVirtualFile -
 		// locationOfPsi must resolve a path from backingFilePath instead, which is exactly what this
 		// test exercises.

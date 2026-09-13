@@ -38,6 +38,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.navigation.findDefinitionAt
+import com.itsaky.androidide.lsp.kotlin.navigation.findUsagesAt
 import com.itsaky.androidide.lsp.kotlin.signaturehelp.doSignatureHelp
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
@@ -233,7 +234,11 @@ class KotlinLanguageServer : ILanguageServer {
 			return ReferenceResult.empty()
 		}
 
-		return ReferenceResult.empty()
+		logger.debug("findReferences(position={}, file={})", params.position, params.file)
+		return compiler
+			?.compilationEnvironmentFor(params.file)
+			?.let { context(it) { findUsagesAt(params) } }
+			?: ReferenceResult.empty()
 	}
 
 	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {

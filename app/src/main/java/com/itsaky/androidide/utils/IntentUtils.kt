@@ -22,7 +22,6 @@ import android.content.Intent
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.ShareCompat
-import androidx.core.content.FileProvider
 import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.ImageUtils.ImageType.TYPE_UNKNOWN
 import org.slf4j.LoggerFactory
@@ -72,12 +71,14 @@ object IntentUtils {
 	}
 
 	@JvmStatic
+	@JvmOverloads
 	fun shareFile(
 		context: Context,
 		file: File,
 		mimeType: String,
+		extraFlags: Int = 0,
 	) {
-		startIntent(context = context, file = file, mimeType = mimeType)
+		startIntent(context = context, file = file, mimeType = mimeType, extraFlags = extraFlags)
 	}
 
 	@JvmStatic
@@ -87,13 +88,11 @@ object IntentUtils {
 		file: File,
 		mimeType: String = MIME_ANY,
 		intentAction: String = Intent.ACTION_SEND,
+		// For a context with no task of its own -- a floating window's -- where startActivity
+		// needs FLAG_ACTIVITY_NEW_TASK. Zero leaves an activity-hosted share exactly as it was.
+		extraFlags: Int = 0,
 	) {
-		val uri =
-			FileProvider.getUriForFile(
-				context,
-				"${context.packageName}.providers.fileprovider",
-				file,
-			)
+		val uri = context.fileProviderUriFor(file)
 		val intent =
 			ShareCompat
 				.IntentBuilder(context)
@@ -102,9 +101,13 @@ object IntentUtils {
 				.intent
 				.setAction(intentAction)
 				.setDataAndType(uri, mimeType)
-				.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+				.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or extraFlags)
 
-		context.startActivity(Intent.createChooser(intent, null))
+		// extraFlags on the chooser as well as on the intent it wraps. createChooser copies only
+		// the URI-grant flags outwards, and the chooser is what startActivity launches -- so a
+		// FLAG_ACTIVITY_NEW_TASK passed for a window context never reached the intent that needed
+		// it, and the share threw from a context with no task of its own.
+		context.startActivity(Intent.createChooser(intent, null).addFlags(extraFlags))
 	}
 
 	/**

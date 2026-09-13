@@ -1,0 +1,406 @@
+package com.itsaky.androidide.viewmodels
+
+import android.content.Context
+import android.net.Uri
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import androidx.test.core.app.ApplicationProvider
+import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.repositories.PluginRepository
+import com.itsaky.androidide.repositories.TemplateCollectionRepository
+import com.itsaky.androidide.ui.models.ExternalFileInstallUiEffect
+import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
+import com.itsaky.androidide.viewmodel.MainDispatcherRule
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import java.io.File
+
+@RunWith(RobolectricTestRunner::class)
+@OptIn(ExperimentalCoroutinesApi::class)
+class ExternalFileInstallViewModelTest {
+	@get:Rule
+	val instantExecutorRule = InstantTaskExecutorRule()
+
+	@get:Rule
+	val mainDispatcherRule = MainDispatcherRule()
+
+	@get:Rule
+	val tempFolder = TemporaryFolder()
+
+	private val context: Context = ApplicationProvider.getApplicationContext()
+	private val pluginRepository = mockk<PluginRepository>(relaxed = true)
+	private val templateCollectionRepository = mockk<TemplateCollectionRepository>(relaxed = true)
+
+	private lateinit var viewModel: ExternalFileInstallViewModel
+
+	@Before
+	fun setup() {
+		viewModel =
+			ExternalFileInstallViewModel(
+				pluginRepository = pluginRepository,
+				templateCollectionRepository = templateCollectionRepository,
+				contentResolver = context.contentResolver,
+				filesDir = tempFolder.root,
+			)
+	}
+
+	private fun sourceUriFor(
+		fileName: String,
+		content: String = "dummy",
+	): Uri {
+		val file = File(tempFolder.newFolder(), fileName)
+		file.writeText(content)
+		return Uri.fromFile(file)
+	}
+
+	@Test
+	fun `unsupported extension shows error and finishes`() =
+		runTest {
+			viewModel.onReceived(sourceUriFor("notes.txt"))
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
+		}
+
+	@Test
+	fun `cgp when plugin manager unavailable shows setup-incomplete error`() =
+		runTest {
+			stubPluginManagerAvailable(false)
+
+			viewModel.onReceived(sourceUriFor("my-plugin.cgp"))
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
+		}
+
+	@Test
+	fun `cgt when templates unavailable shows setup-incomplete error`() =
+		runTest {
+			stubTemplatesFeatureAvailable(false)
+
+			viewModel.onReceived(sourceUriFor("my-templates.cgt"))
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
+		}
+
+	@Test
+	fun `fresh cgp forwards to plugin manager`() =
+		runTest {
+			stubPluginManagerAvailable(true)
+
+			viewModel.onReceived(sourceUriFor("my-plugin.cgp"))
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ForwardToPluginManager::class.java)
+		}
+
+	@Test
+	fun `fresh cgt with no name collision shows install confirmation`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+
+			viewModel.onReceived(sourceUriFor("my-templates.cgt"))
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation::class.java)
+			val effect = first as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+			assertThat(effect.suggestedBaseName).isEqualTo("my-templates")
+			assertThat(effect.info.templateNames).containsExactly("Empty Activity")
+		}
+
+	@Test
+	fun `cgt with existing name collision shows name conflict`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns "my-templates"
+
+			viewModel.onReceived(sourceUriFor("my-templates.cgt"))
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowTemplateNameConflict::class.java)
+			assertThat((first as ExternalFileInstallUiEffect.ShowTemplateNameConflict).existingName).isEqualTo("my-templates")
+		}
+
+	@Test
+	fun `a second onReceived for a different file cleans up the first file's still-pending temp copy`() =
+		runTest {
+			// Simulates a second VIEW intent for a different file arriving via onNewIntent() on
+			// the singleTask ExternalFileInstallActivity while the first file's confirmation
+			// dialog is still unanswered.
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+
+			viewModel.onReceived(sourceUriFor("first.cgt"))
+			val firstEffect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+			val firstTempFile = firstEffect.tempFile
+			assertThat(firstTempFile.exists()).isTrue()
+
+			viewModel.onReceived(sourceUriFor("second.cgt"))
+			val secondEffect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+
+			assertThat(firstTempFile.exists()).isFalse()
+			assertThat(secondEffect.tempFile).isNotEqualTo(firstTempFile)
+			assertThat(secondEffect.tempFile.exists()).isTrue()
+		}
+
+	@Test
+	fun `isInstalling for a superseded generation does not block a newer dialog's buttons`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+
+			val installDeferred = CompletableDeferred<Result<Unit>>()
+			coEvery { templateCollectionRepository.installCollection(any(), any(), any()) } coAnswers { installDeferred.await() }
+
+			viewModel.onReceived(sourceUriFor("first.cgt"))
+			val firstEffect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(firstEffect.tempFile, firstEffect.suggestedBaseName, overwrite = false),
+			)
+			assertThat(viewModel.isInstalling.value).isTrue()
+
+			// A second, unrelated file arrives (e.g. via onNewIntent on the singleTask activity)
+			// while the first file's install is still in flight.
+			viewModel.onReceived(sourceUriFor("second.cgt"))
+			viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+
+			// The new dialog must not render with its buttons disabled just because an unrelated,
+			// already-superseded install is still finishing up in the background.
+			assertThat(viewModel.isInstalling.value).isFalse()
+
+			installDeferred.complete(Result.success(Unit))
+			viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowSuccess
+
+			// The now-completed, superseded install must not re-enable (or otherwise touch)
+			// isInstalling on behalf of the current, unrelated generation.
+			assertThat(viewModel.isInstalling.value).isFalse()
+		}
+
+	@Test
+	fun `confirming a stale dialog uses its own generation, not a newer request's`() =
+		runTest {
+			// Regression test: confirmTemplateInstall() must key off the generation the on-screen
+			// dialog was actually committed under (pendingConfirmationGeneration), not the live
+			// currentRequestGeneration counter, which a second onReceived() can already have bumped
+			// before its own dialog is shown.
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision("first") } returns null
+			coEvery { templateCollectionRepository.installCollection(any(), any(), any()) } returns Result.success(Unit)
+
+			val secondGate = CompletableDeferred<Unit>()
+			coEvery { templateCollectionRepository.findExistingCollision("second") } coAnswers {
+				secondGate.await()
+				null
+			}
+
+			viewModel.onReceived(sourceUriFor("first.cgt"))
+			val firstEffect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+			val firstTempFile = firstEffect.tempFile
+
+			// A second VIEW intent arrives (e.g. via onNewIntent) while file A's dialog is still
+			// the one on screen - this bumps currentRequestGeneration synchronously, well before
+			// file B's own async pipeline (gated on secondGate) can commit its own dialog.
+			viewModel.onReceived(sourceUriFor("second.cgt"))
+
+			// The user taps Install on the still-visible (but now globally-stale) dialog for A.
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(firstTempFile, firstEffect.suggestedBaseName, overwrite = false),
+			)
+
+			// File A's install genuinely succeeds - but must not Finish the Activity, since file
+			// B's request (a newer generation) is still in flight and hasn't shown its own dialog.
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.ShowSuccess::class.java)
+
+			secondGate.complete(Unit)
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation::class.java)
+		}
+
+	@Test
+	fun `ignoring a stale dialog does not finish the activity out from under a newer one`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+			coEvery { templateCollectionRepository.installCollection(any(), any(), any()) } returns Result.success(Unit)
+
+			viewModel.onReceived(sourceUriFor("first.cgt"))
+			val firstEffect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+			val firstTempFile = firstEffect.tempFile
+
+			viewModel.onReceived(sourceUriFor("second.cgt"))
+			val secondEffect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+
+			// A stale Ignore/Cancel tap for file A's now-replaced dialog must be a no-op - in
+			// particular it must not Finish the Activity out from under file B's current dialog.
+			viewModel.onEvent(ExternalFileInstallUiEvent.IgnoreTemplateInstall(firstTempFile))
+
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(
+					secondEffect.tempFile,
+					secondEffect.suggestedBaseName,
+					overwrite = false,
+				),
+			)
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.ShowSuccess::class.java)
+		}
+
+	@Test
+	fun `retrying Install after a failed install actually attempts install again`() =
+		runTest {
+			// Regression test: confirmTemplateInstall() clears pendingConfirmationTempFile on
+			// entry (transferring tempFile's "ownership" to the install attempt) but the dialog is
+			// deliberately left open on failure so the user can retry - if that field isn't
+			// restored, the retry tap's pendingConfirmationTempFile != tempFile guard silently
+			// no-ops forever, permanently stranding the user on an unresponsive dialog.
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+			coEvery { templateCollectionRepository.installCollection(any(), any(), any()) } returnsMany
+				listOf(Result.failure(IllegalStateException("disk full")), Result.success(Unit))
+
+			viewModel.onReceived(sourceUriFor("first.cgt"))
+			val effect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(effect.tempFile, effect.suggestedBaseName, overwrite = false),
+			)
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
+
+			// Retry tap on the still-open dialog must actually attempt the install again, not
+			// silently no-op.
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(effect.tempFile, effect.suggestedBaseName, overwrite = false),
+			)
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.ShowSuccess::class.java)
+			coVerify(exactly = 2) { templateCollectionRepository.installCollection(any(), any(), any()) }
+		}
+
+	@Test
+	fun `cancelling after a failed install still finishes`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+			coEvery { templateCollectionRepository.installCollection(any(), any(), any()) } returns
+				Result.failure(IllegalStateException("disk full"))
+
+			viewModel.onReceived(sourceUriFor("first.cgt"))
+			val effect = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(effect.tempFile, effect.suggestedBaseName, overwrite = false),
+			)
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
+
+			// Cancel/back on the still-open dialog after a failed install must still Finish, not
+			// silently no-op.
+			viewModel.onEvent(ExternalFileInstallUiEvent.IgnoreTemplateInstall(effect.tempFile))
+			assertThat(viewModel.uiEffect.first()).isInstanceOf(ExternalFileInstallUiEffect.Finish::class.java)
+		}
+
+	@Test
+	fun `invalid cgt shows invalid-file error`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns
+				Result.failure(IllegalArgumentException("no templates"))
+
+			viewModel.onReceived(sourceUriFor("broken.cgt"))
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowError::class.java)
+		}
+
+	@Test
+	fun `onReceived is idempotent per ViewModel instance`() =
+		runTest {
+			stubPluginManagerAvailable(true)
+			val uri = sourceUriFor("my-plugin.cgp")
+
+			viewModel.onReceived(uri)
+			viewModel.onReceived(uri)
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ForwardToPluginManager::class.java)
+			verify(exactly = 1) { pluginRepository.isPluginManagerAvailable() }
+		}
+
+	@Test
+	fun `plugin manager becoming available mid-retry still forwards`() =
+		runTest {
+			every { pluginRepository.isPluginManagerAvailable() } returnsMany listOf(false, false, true)
+
+			viewModel.onReceived(sourceUriFor("my-plugin.cgp"))
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ForwardToPluginManager::class.java)
+		}
+
+	@Test
+	fun `sanitizeBaseName strips filesystem-unsafe characters`() {
+		assertThat(viewModel.sanitizeBaseName("my:templates/v2")).isEqualTo("my_templates_v2")
+		assertThat(viewModel.sanitizeBaseName("   ")).isEqualTo("templates")
+	}
+
+	@Test
+	fun `suggestUniqueBaseName bumps suffix until free`() =
+		runTest {
+			coEvery { templateCollectionRepository.findExistingCollision("foo") } returns "foo"
+			coEvery { templateCollectionRepository.findExistingCollision("foo (2)") } returns "foo (2)"
+			coEvery { templateCollectionRepository.findExistingCollision("foo (3)") } returns null
+
+			val suggested = viewModel.suggestUniqueBaseName("foo")
+
+			assertThat(suggested).isEqualTo("foo (3)")
+		}
+
+	@Test
+	fun `suggestUniqueBaseName gives up after a bounded number of attempts`() =
+		runTest {
+			// A pathological repository that always reports a collision must not hang this
+			// suspend function forever.
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns "always-taken"
+
+			val suggested = viewModel.suggestUniqueBaseName("foo")
+
+			assertThat(suggested).isEqualTo("foo (50)")
+			// The give-up candidate itself must actually have been checked for collision - not
+			// returned unverified because the attempt-count bound short-circuited before it.
+			coVerify(exactly = 1) { templateCollectionRepository.findExistingCollision("foo (50)") }
+		}
+
+	private fun stubPluginManagerAvailable(available: Boolean) {
+		every { pluginRepository.isPluginManagerAvailable() } returns available
+	}
+
+	private fun stubTemplatesFeatureAvailable(available: Boolean) {
+		every { templateCollectionRepository.isTemplatesFeatureAvailable() } returns available
+	}
+}

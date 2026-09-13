@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><!-- ~ This file is part of AndroidIDE. ~ ~ AndroidIDE is free software: you can redistribute
+	it and/or modify ~ it under the terms of the GNU General Public License as published by ~ the Free Software Foundation, either
+	version 3 of the License, or ~ (at your option) any later version. ~ ~ AndroidIDE is distributed in the hope that it will
+	be useful, ~ but WITHOUT ANY WARRANTY; without even the implied warranty of ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR
+	PURPOSE. See the ~ GNU General Public License for more details. ~ ~ You should have received a copy of the GNU General Public
+	License ~ along with AndroidIDE. If not, see <https://www.gnu.org/licenses/>. -->
+
+<vector
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="24dp"
+	android:height="24dp"
+	android:tint="?attr/colorOnSurface"
+	android:viewportWidth="24"
+	android:viewportHeight="24">
+
+	<!-- A grid of cells with a heavier header row: the spreadsheet the ticket asks for, drawn to read at the same small
+		size as the camera beside it. -->
+	<path
+		android:fillColor="@android:color/white"
+		android:pathData="M4,3h16a1,1 0,0 1,1 1v3h-18v-3a1,1 0,0 1,1 -1z" />
+
+	<path
+		android:fillColor="@android:color/white"
+		android:pathData="M3,8.5h6v3.5h-6zM10,8.5h4v3.5h-4zM15,8.5h6v3.5h-6zM3,13h6v3.5h-6zM10,13h4v3.5h-4zM15,13h6v3.5h-6zM3,17.5h6v2.5a1,1 0,0 1,-1 1h-4a1,1 0,0 1,-1 -1zM10,17.5h4v3.5h-4zM15,17.5h6v2.5a1,1 0,0 1,-1 1h-4a1,1 0,0 1,-1 -1z" />
+</vector>

@@ -29,7 +29,9 @@ This affects Steps 3 and 5 below. All other steps run the same regardless of mod
    - Find the transcript: glob `~/.claude/projects/<converted-cwd>/*.jsonl` sorted by modification time (convert cwd slashes to dashes, e.g., `/Users/me/myproject` → `-Users-me-myproject`). Pick the most recent.
    - Run the script: `python3 scripts/analyze_transcript.py <path-to-jsonl>` — the script lives in `scripts/` alongside this SKILL.md.
    - The script outputs: per-turn breakdown (full user text, assistant word count, tools, errors) and timing stats (reading at 150 wpm, typing at 60 wpm, 1 min buffer per turn, overlapping turns merged).
-   - System-injected messages (skill injections, /mcp outputs, system reminders) are automatically filtered out.
+   - System-injected messages (skill injections, /mcp outputs, system reminders) are automatically filtered
+     out, as are the agent's own image reads -- a screenshot the agent took arrives as a `user` message and
+     would otherwise be counted as a prompt the human typed, inflating hands-on time.
 
    **What you do with the output:**
    - Read the turn-by-turn output to understand what happened
@@ -39,7 +41,7 @@ This affects Steps 3 and 5 below. All other steps run the same regardless of mod
 
    Present as a time breakdown table with proportional bars and a metrics summary:
 
-   | Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
+   | Started | Phase | 👤 Hands-On Time | 🤖 Span (agent + away) | Problems |
    |---------|-------|-----------------|---------------|----------|
    | Feb 10 10:00am | Build (engine restart, voice recog, UI tweaks) | ██████ 60m | ███ 30m | ⚠ 5 fix cycles |
    | Feb 10 11:30am | Research (BT routing for AirPods + external mics) | | █████ 45m | |
@@ -127,7 +129,7 @@ This affects Steps 3 and 5 below. All other steps run the same regardless of mod
    ## YYYY-MM-DD - [Brief context of what we worked on]
 
    ### Time Breakdown
-   | Started | Phase | 👤 Hands-On Time | 🤖 Agent Time | Problems |
+   | Started | Phase | 👤 Hands-On Time | 🤖 Span (agent + away) | Problems |
    |---------|-------|-----------------|---------------|----------|
    | ... | ... | ... | ... | ... |
 

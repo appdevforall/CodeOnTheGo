@@ -23,6 +23,7 @@ import com.android.build.api.variant.Variant
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.tooling.api.GradlePluginConfig._PROPERTY_IS_TEST_ENV
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.dsl.DependencyHandler
 
@@ -36,6 +37,30 @@ import org.gradle.api.artifacts.dsl.DependencyHandler
 
 const val APP_PLUGIN = "com.android.application"
 const val LIBRARY_PLUGIN = "com.android.library"
+
+const val INSTALL_TASK_UNSUPPORTED_MESSAGE =
+	"Code On The Go: adb is not available on the device, so Gradle cannot install the APK. " +
+		"When this task runs from the IDE, Code On The Go installs the built APK itself."
+const val UNINSTALL_TASK_UNSUPPORTED_MESSAGE =
+	"Code On The Go: adb is not available on the device, so Gradle cannot uninstall the app. " +
+		"Remove it from the device's Settings."
+const val ANDROID_TEST_INSTALL_UNSUPPORTED_MESSAGE =
+	"Code On The Go: adb is not available on the device, so instrumentation test APKs " +
+		"cannot be installed or uninstalled from Gradle."
+
+private const val AGP_INSTALL_TASK = "com.android.build.gradle.internal.tasks.InstallVariantTask"
+private const val AGP_UNINSTALL_TASK = "com.android.build.gradle.internal.tasks.UninstallTask"
+
+internal fun adbTaskReplacementMessage(task: Task): String? =
+	when (
+		generateSequence<Class<*>>(task.javaClass) { it.superclass }
+			.map { it.name }
+			.firstOrNull { it == AGP_INSTALL_TASK || it == AGP_UNINSTALL_TASK }
+	) {
+		AGP_INSTALL_TASK -> INSTALL_TASK_UNSUPPORTED_MESSAGE
+		AGP_UNINSTALL_TASK -> UNINSTALL_TASK_UNSUPPORTED_MESSAGE
+		else -> null
+	}
 
 internal val Project.isTestEnv: Boolean
 	get() = hasProperty(_PROPERTY_IS_TEST_ENV) && property(

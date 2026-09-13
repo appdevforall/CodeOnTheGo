@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Body and choices share one scroll container so they scroll together, and the dialog is given this as a custom view rather
+	than a message: Material only draws its scroll-indicator dividers around the message pane, so supplying no message removes
+	them. -->
+<androidx.core.widget.NestedScrollView
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="wrap_content"
+	android:fadeScrollbars="false"
+	android:scrollbarStyle="outsideOverlay"
+	android:scrollbars="vertical">
+
+	<LinearLayout
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:orientation="vertical">
+
+		<TextView
+			android:id="@+id/privacy_message"
+			style="?attr/materialAlertDialogBodyTextStyle"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:paddingStart="?attr/dialogPreferredPadding"
+			android:paddingEnd="?attr/dialogPreferredPadding"
+			android:paddingBottom="24dp"
+			android:text="@string/privacy_disclosure_message" />
+
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:background="?attr/colorSurfaceVariant"
+			android:gravity="center_horizontal"
+			android:orientation="vertical"
+			android:paddingStart="?attr/dialogPreferredPadding"
+			android:paddingTop="16dp"
+			android:paddingEnd="?attr/dialogPreferredPadding"
+			android:paddingBottom="16dp">
+
+			<com.google.android.material.button.MaterialButton
+				android:id="@+id/privacy_accept"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/privacy_disclosure_accept" />
+
+			<com.google.android.material.button.MaterialButton
+				android:id="@+id/privacy_decline"
+				style="@style/Widget.Material3.Button.OutlinedButton"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="8dp"
+				android:text="@string/privacy_disclosure_decline" />
+		</LinearLayout>
+	</LinearLayout>
+</androidx.core.widget.NestedScrollView>

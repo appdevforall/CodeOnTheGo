@@ -331,8 +331,6 @@
 	<string name="title_confirm_project_open">确认打开项目</string>
 	<string name="msg_confirm_project_open">启用后，Code on the Go 在打开上次的项目前会要求确认</string>
 	<string name="msg_error_opening_project">打开项目时出错</string>
-	<string name="title_default_shell">在终端中使用系统 Shell</string>
-	<string name="msg_default_shell">如果选中，终端将使用 \'/system/bin/sh\'</string>
 	<string name="title_general">通用</string>
 	<string name="title_tab_size">制表符大小</string>
 	<string name="msg_tab_size">设置 Tab 键缩进的空格数</string>
@@ -659,9 +657,9 @@
 	<string name="title_privacy">隐私</string>
 
 	<string name="privacy_disclosure_title">隐私和分析</string>
-	<string name="privacy_disclosure_message">Code on the Go 使用 Firebase Analytics 和 GlitchTip 来帮助我们改进应用 \n\nFirebase Analytics 收集匿名使用数据，帮助我们了解应用的使用情况 \n\nGlitchTip 帮助我们跟踪和修复错误 \n\n不会收集或分享任何个人信息 所有数据均按照我们的隐私政策进行处理 </string>
-	<string name="privacy_disclosure_accept">我了解</string>
-	<string name="privacy_disclosure_learn_more">了解更多</string>
+	<string name="privacy_disclosure_message">Code on the Go 会收集匿名的使用情况和崩溃信息，以帮助我们修复缺陷并改进应用。我们不会收集或分享任何个人信息。\n\n选择“共享匿名数据”将发送这些信息；选择“保持离线”则不会发送任何内容。</string>
+	<string name="privacy_disclosure_accept">共享匿名数据</string>
+	<string name="privacy_disclosure_decline">保持离线</string>
 
 	<string name="title_unique_id">唯一 ID</string>
 	<string name="title_device">设备</string>
@@ -1184,7 +1182,6 @@
 	<string name="support_our_work">支持我们的工作</string>
 	<string name="github_sponsors_url">https://github.com/sponsors/appdevforall</string>
 	<string name="docs_url">http://localhost:6174/i/index.html</string>
-	<string name="privacy_policy_url">https://www.appdevforall.org/wp-content/uploads/2024/08/privacy_notice.pdf</string>
 	<string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
 	<string name="adfa_email">info@appdevforall.org</string>
 	<string name="mail_to_adfa">mailto:info@appdevforall.org</string>
