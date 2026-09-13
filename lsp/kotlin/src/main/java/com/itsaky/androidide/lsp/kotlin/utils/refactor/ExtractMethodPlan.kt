@@ -183,18 +183,31 @@ data class ExtractMethodPlan(
 }
 
 /**
- * The signature exactly as [buildExtractMethodRewrites] emits it. The sheet's preview calls this, so
- * there is one derivation and the preview cannot drift from the declaration (R11).
+ * Everything the signature says before the method's name.
+ *
+ * Split from [signatureSuffix] rather than rendered whole because the sheet's preview follows what the
+ * user types, and [MethodCandidateView] carries the two halves. Both this and
+ * [buildExtractMethodRewrites] compose them through [signatureText], so there is one derivation and
+ * the preview cannot drift from the declaration (R11).
  */
-fun ExtractMethodCandidate.signatureText(name: String): String =
-	buildString {
-		annotations.forEach { append(it).append(' ') }
-		modifiers.forEach { append(it).append(' ') }
-		append("fun ")
-		receiverTypeText?.let { append(it).append('.') }
-		append(name)
-		append('(')
-		append(parameters.joinToString(", ") { "${it.name}: ${it.typeText}" })
-		append(')')
-		returnTypeText?.let { append(": ").append(it) }
-	}
+val ExtractMethodCandidate.signaturePrefix: String
+	get() =
+		buildString {
+			annotations.forEach { append(it).append(' ') }
+			modifiers.forEach { append(it).append(' ') }
+			append("fun ")
+			receiverTypeText?.let { append(it).append('.') }
+		}
+
+/** Everything the signature says after the method's name: parameters and return type. */
+val ExtractMethodCandidate.signatureSuffix: String
+	get() =
+		buildString {
+			append('(')
+			append(parameters.joinToString(", ") { "${it.name}: ${it.typeText}" })
+			append(')')
+			returnTypeText?.let { append(": ").append(it) }
+		}
+
+/** The signature exactly as [buildExtractMethodRewrites] emits it. */
+fun ExtractMethodCandidate.signatureText(name: String): String = signaturePrefix + name + signatureSuffix

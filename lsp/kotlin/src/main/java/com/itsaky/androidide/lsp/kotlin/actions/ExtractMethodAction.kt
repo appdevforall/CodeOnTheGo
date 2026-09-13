@@ -9,10 +9,13 @@ import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
-import com.itsaky.androidide.lsp.kotlin.refactor.ui.ExtractMethodChoice
-import com.itsaky.androidide.lsp.kotlin.refactor.ui.ExtractMethodSheet
+import com.itsaky.androidide.lsp.kotlin.refactor.KOTLIN_NAME_MESSAGES
+import com.itsaky.androidide.lsp.kotlin.refactor.candidateFor
+import com.itsaky.androidide.lsp.kotlin.refactor.toMethodCandidateViews
+import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractMethodCandidate
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractMethodPlan
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionRefusal
+import com.itsaky.androidide.lsp.kotlin.utils.refactor.HARD_KEYWORDS
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractMethodPlan
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractMethodRewrites
 import com.itsaky.androidide.lsp.models.CodeActionItem
@@ -20,6 +23,8 @@ import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.Command
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.refactor.toTextEdit
+import com.itsaky.androidide.lsp.ui.ExtractMethodSelection
+import com.itsaky.androidide.lsp.ui.ExtractMethodSheet
 import com.itsaky.androidide.lsp.ui.findFragmentActivity
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.resources.R
@@ -99,7 +104,13 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 					return
 				}
 
-		val shown = ExtractMethodSheet.show(activity, result) { choice -> applyChoice(data, result, choice) }
+		val shown =
+			ExtractMethodSheet.show(
+				activity,
+				result.toMethodCandidateViews(),
+				HARD_KEYWORDS,
+				KOTLIN_NAME_MESSAGES,
+			) { selection -> applySelection(data, result, selection) }
 		if (!shown) {
 			logger.warn("Fragment manager unavailable. Cannot show the extract sheet.")
 		}
@@ -115,21 +126,21 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 	 * Runs from the sheet's click handler, outside `execAction` and so outside every guard the action
 	 * framework provides -- nothing here may throw (R16), hence the [runCatching].
 	 */
-	private fun applyChoice(
+	private fun applySelection(
 		data: ActionData,
 		plan: ExtractMethodPlan,
-		choice: ExtractMethodChoice,
+		selection: ExtractMethodSelection,
 	) {
-		runCatching { performChoice(data, plan, choice) }.onFailure { error ->
-			logger.error("Failed to apply the extract-method choice '{}'", choice.name, error)
+		runCatching { performSelection(data, plan, selection) }.onFailure { error ->
+			logger.error("Failed to apply the extract-method selection '{}'", selection.name, error)
 			flashError(R.string.msg_cannot_perform_fix)
 		}
 	}
 
-	private fun performChoice(
+	private fun performSelection(
 		data: ActionData,
 		plan: ExtractMethodPlan,
-		choice: ExtractMethodChoice,
+		selection: ExtractMethodSelection,
 	) {
 		val file = data.requireFile()
 		val nioPath = file.toPath()
@@ -138,9 +149,16 @@ class ExtractMethodAction : BaseKotlinCodeAction() {
 			return
 		}
 
+		val candidate: ExtractMethodCandidate =
+			plan.candidateFor(selection) ?: run {
+				logger.warn("Selection {} does not address the plan it came from.", selection)
+				flashError(R.string.msg_cannot_perform_fix)
+				return
+			}
+
 		val rewrites =
-			buildExtractMethodRewrites(plan.fileText, choice.candidate, choice.name) ?: run {
-				logger.warn("Could not build an extract-method rewrite for '{}'", choice.candidate.label)
+			buildExtractMethodRewrites(plan.fileText, candidate, selection.name) ?: run {
+				logger.warn("Could not build an extract-method rewrite for '{}'", candidate.label)
 				flashError(R.string.msg_cannot_perform_fix)
 				return
 			}

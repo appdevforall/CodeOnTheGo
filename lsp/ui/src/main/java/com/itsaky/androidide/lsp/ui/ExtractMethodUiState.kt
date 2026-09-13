@@ -1,12 +1,9 @@
-package com.itsaky.androidide.lsp.kotlin.refactor.ui
-
-import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractMethodCandidate
-import com.itsaky.androidide.lsp.ui.NameProblem
+package com.itsaky.androidide.lsp.ui
 
 /**
  * Everything the extract-method sheet renders.
  *
- * There is no scope chooser (the new function is always a sibling of the enclosing declaration) and
+ * There is no scope chooser (the new method is always a sibling of the region's own declaration) and
  * no replace-all checkbox (the region is the only site rewritten), so the sheet is a chooser, a name
  * field and a preview.
  *
@@ -39,12 +36,3 @@ sealed interface ExtractMethodUiEvent {
 
 	data object Dismissed : ExtractMethodUiEvent
 }
-
-/**
- * The user's finished decision, handed to the action to turn into edits. Free of offsets and text so
- * the sheet stays a pure chooser.
- */
-data class ExtractMethodChoice(
-	val candidate: ExtractMethodCandidate,
-	val name: String,
-)

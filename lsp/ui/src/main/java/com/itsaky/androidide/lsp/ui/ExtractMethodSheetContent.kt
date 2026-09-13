@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.kotlin.refactor.ui
+package com.itsaky.androidide.lsp.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,23 +18,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import com.itsaky.androidide.lsp.kotlin.refactor.KOTLIN_NAME_MESSAGES
-import com.itsaky.androidide.lsp.ui.LabelledSection
-import com.itsaky.androidide.lsp.ui.OptionList
 import com.itsaky.androidide.resources.R
 
 /**
- * The extract-method sheet: the expression chooser (when there is a choice), the name, and the
- * signature exactly as it will be emitted.
+ * The extract-method sheet: the region chooser (when there is a choice), the name, and the signature
+ * exactly as it will be emitted.
  *
  * A sibling of the extract-variable sheet rather than a generalisation of it: a single shared sheet
- * would need a state class where half the fields are meaningless to either caller (ADR 0013).
+ * would need a state class where half the fields are meaningless to either caller.
  *
  * Stateless: all state arrives in [state] and every interaction leaves as an [ExtractMethodUiEvent].
+ * [nameMessages] is the calling language's wording, since two of the four name problems name the
+ * language.
  */
 @Composable
 fun ExtractMethodSheetContent(
 	state: ExtractMethodUiState,
+	nameMessages: NameMessages,
 	onEvent: (ExtractMethodUiEvent) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -71,7 +71,7 @@ fun ExtractMethodSheetContent(
 			singleLine = true,
 			supportingText =
 				state.nameProblem?.let { problem ->
-					{ Text(stringResource(KOTLIN_NAME_MESSAGES.resFor(problem))) }
+					{ Text(stringResource(nameMessages.resFor(problem))) }
 				},
 			modifier = Modifier.fillMaxWidth(),
 		)
