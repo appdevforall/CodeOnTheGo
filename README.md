@@ -28,6 +28,10 @@ Code on the Go is the successor to [AndroidIDE](https://github.com/AndroidIDEOff
 
 Download the [Code on the Go APK](https://www.appdevforall.org/code-on-the-go?utm_source=gh&utm_medium=readme) from the [App Dev for All](https://www.appdevforall.org/?utm_source=gh&utm_medium=readme) website.
 
+# Note 
+
+- This program might damage your CPU because its developers are a bunch of idiots and amateurs.
+
 
 ## Contributing
 
