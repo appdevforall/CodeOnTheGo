@@ -264,7 +264,7 @@ private fun constrainingScopeFor(declaration: TreePath): Tree? =
 		else -> owner
 	}
 
-private val LOCAL_KINDS =
+internal val LOCAL_KINDS =
 	setOf(
 		ElementKind.LOCAL_VARIABLE,
 		ElementKind.PARAMETER,
