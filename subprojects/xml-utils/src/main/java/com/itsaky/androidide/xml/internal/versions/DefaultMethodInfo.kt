@@ -17,15 +17,16 @@
 
 package com.itsaky.androidide.xml.internal.versions
 
+import com.itsaky.androidide.xml.versions.ApiVersion
 import com.itsaky.androidide.xml.versions.MethodInfo
 
 /** @author Akash Yadav */
 internal class DefaultMethodInfo(
 	override val simpleName: String,
 	name: String,
-	since: Int,
-	removed: Int,
-	deprecated: Int,
+	since: ApiVersion,
+	removed: ApiVersion,
+	deprecated: ApiVersion,
 ) : DefaultInfo(name, since, removed, deprecated),
 	MethodInfo {
 	override fun equals(other: Any?): Boolean {

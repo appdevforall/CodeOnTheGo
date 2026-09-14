@@ -27,11 +27,11 @@ interface Info {
 	val name: String
 
 	/** The introducing API version. */
-	val since: Int
+	val since: ApiVersion
 
 	/** The removing API version. */
-	val removed: Int
+	val removed: ApiVersion
 
 	/** The deprecating API version. */
-	val deprecated: Int
+	val deprecated: ApiVersion
 }

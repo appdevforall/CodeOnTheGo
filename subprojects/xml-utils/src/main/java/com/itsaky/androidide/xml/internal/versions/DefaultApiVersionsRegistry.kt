@@ -18,6 +18,7 @@
 package com.itsaky.androidide.xml.internal.versions
 
 import com.google.auto.service.AutoService
+import com.itsaky.androidide.xml.versions.ApiVersion
 import com.itsaky.androidide.xml.versions.ApiVersions
 import com.itsaky.androidide.xml.versions.ApiVersionsRegistry
 import com.itsaky.androidide.xml.versions.ClassInfo
@@ -46,12 +47,18 @@ class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 	override var isLoggingEnabled: Boolean = true
 
 	override fun forPlatformDir(platform: File): ApiVersions? {
-		var version = versions[platform.path]
-		if (version != null) {
-			return version
-		}
+		versions[platform.path]?.let { return it }
 
-		version = readApiVersions(platform) ?: return null
+		/*
+		 * This table only feeds API-level hints in the completion popup, and it is read on the
+		 * path that opens a project. A platform file we cannot parse must therefore cost the
+		 * hints, not the project: every failure below degrades to null.
+		 */
+		val version =
+			runCatching { readApiVersions(platform) }
+				.onFailure { log.warn("Could not read API versions for platform dir: {}", platform, it) }
+				.getOrNull() ?: return null
+
 		versions[platform.path] = version
 		return version
 	}
@@ -180,24 +187,25 @@ class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 
 	private fun XmlPullParser.readName(): String = readString("name")
 
-	private fun XmlPullParser.readSince(): Int = readInt("since")
+	private fun XmlPullParser.readSince(): ApiVersion = readApiVersion("since")
 
-	private fun XmlPullParser.readRemoved(): Int = readInt("removed")
+	private fun XmlPullParser.readRemoved(): ApiVersion = readApiVersion("removed")
 
-	private fun XmlPullParser.readDeprecated(): Int = readInt("deprecated")
+	private fun XmlPullParser.readDeprecated(): ApiVersion = readApiVersion("deprecated")
 
-	private fun XmlPullParser.readInt(
-		name: String,
-		default: Int = -1,
-	): Int {
-		return read(this, name) {
-			if (it.isNullOrBlank()) {
-				return@read default
+	private fun XmlPullParser.readApiVersion(name: String): ApiVersion =
+		read(this, name) { raw ->
+			if (raw.isNullOrBlank()) {
+				return@read ApiVersion.UNKNOWN
 			}
 
-			return@read it.toInt()
+			ApiVersion.parse(raw) ?: run {
+				if (isLoggingEnabled) {
+					log.warn("Unrecognized API version '{}' for attribute '{}'", raw, name)
+				}
+				ApiVersion.UNKNOWN
+			}
 		}
-	}
 
 	private fun XmlPullParser.readString(
 		name: String,

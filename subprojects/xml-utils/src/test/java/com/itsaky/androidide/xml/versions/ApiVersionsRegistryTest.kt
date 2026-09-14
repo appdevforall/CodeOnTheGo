@@ -37,23 +37,23 @@ class ApiVersionsRegistryTest {
 			assertThat(this).isNotNull()
 			this!!.getField("WRITE_EXTERNAL_STORAGE").apply {
 				assertThat(this).isNotNull()
-				assertThat(this!!.since).isEqualTo(4)
-				assertThat(this.removed).isEqualTo(-1)
-				assertThat(this.deprecated).isEqualTo(-1)
+				assertThat(this!!.since).isEqualTo(ApiVersion.of(4))
+				assertThat(this.removed).isEqualTo(ApiVersion.UNKNOWN)
+				assertThat(this.deprecated).isEqualTo(ApiVersion.UNKNOWN)
 			}
 
 			this.getField("USE_BIOMETRIC").apply {
 				assertThat(this).isNotNull()
-				assertThat(this!!.since).isEqualTo(28)
-				assertThat(this.removed).isEqualTo(-1)
-				assertThat(this.deprecated).isEqualTo(-1)
+				assertThat(this!!.since).isEqualTo(ApiVersion.of(28))
+				assertThat(this.removed).isEqualTo(ApiVersion.UNKNOWN)
+				assertThat(this.deprecated).isEqualTo(ApiVersion.UNKNOWN)
 			}
 
 			this.getField("PERSISTENT_ACTIVITY").apply {
 				assertThat(this).isNotNull()
-				assertThat(this!!.since).isEqualTo(-1)
-				assertThat(this.removed).isEqualTo(-1)
-				assertThat(this.deprecated).isEqualTo(15)
+				assertThat(this!!.since).isEqualTo(ApiVersion.UNKNOWN)
+				assertThat(this.removed).isEqualTo(ApiVersion.UNKNOWN)
+				assertThat(this.deprecated).isEqualTo(ApiVersion.of(15))
 			}
 
 			this.getMethod("nonExistentMethod", "i.do.not.exist").apply { assertThat(this).isNull() }
@@ -64,9 +64,9 @@ class ApiVersionsRegistryTest {
 			assertThat(this).isNotNull()
 			this!!.getField("SYSTEM_UI_FLAG_FULLSCREEN").apply {
 				assertThat(this).isNotNull()
-				assertThat(this!!.since).isEqualTo(16)
-				assertThat(this.removed).isEqualTo(-1)
-				assertThat(this.deprecated).isEqualTo(30)
+				assertThat(this!!.since).isEqualTo(ApiVersion.of(16))
+				assertThat(this.removed).isEqualTo(ApiVersion.UNKNOWN)
+				assertThat(this.deprecated).isEqualTo(ApiVersion.of(30))
 			}
 
 			this
@@ -75,9 +75,9 @@ class ApiVersionsRegistryTest {
 					"android.view.View\$OnSystemUiVisibilityChangeListener",
 				).apply {
 					assertThat(this).isNotNull()
-					assertThat(this!!.since).isEqualTo(11)
-					assertThat(this.removed).isEqualTo(-1)
-					assertThat(this.deprecated).isEqualTo(30)
+					assertThat(this!!.since).isEqualTo(ApiVersion.of(11))
+					assertThat(this.removed).isEqualTo(ApiVersion.UNKNOWN)
+					assertThat(this.deprecated).isEqualTo(ApiVersion.of(30))
 				}
 
 			this.getMethod("nonExistentMethod", "i.do.not.exist").apply { assertThat(this).isNull() }

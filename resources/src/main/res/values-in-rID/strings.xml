@@ -81,9 +81,9 @@
 	<string name="get_started">Mulailah</string>
 	<string name="msg_cannot_perform_fix">Tidak dapat melakukan perbaikan cepat</string>
 	<string name="msg_performing_actions">Melakukan tindakan kode…</string>
-	<string name="msg_api_info_since">Sejak API %d</string>
-	<string name="msg_api_info_removed">Dihapus pada API %d</string>
-	<string name="msg_api_info_deprecated">Usang pada API %d</string>
+	<string name="msg_api_info_since">Sejak API %s</string>
+	<string name="msg_api_info_removed">Dihapus pada API %s</string>
+	<string name="msg_api_info_deprecated">Usang pada API %s</string>
 	<string name="msg_finding_references">Mencari referensi…</string>
 	<string name="msg_finding_definition">Mencari definisi…</string>
 	<string name="msg_no_definition">Definisi tidak ditemukan</string>

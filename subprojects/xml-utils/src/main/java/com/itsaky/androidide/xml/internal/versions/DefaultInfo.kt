@@ -17,14 +17,15 @@
 
 package com.itsaky.androidide.xml.internal.versions
 
+import com.itsaky.androidide.xml.versions.ApiVersion
 import com.itsaky.androidide.xml.versions.Info
 
 /** @author Akash Yadav */
 open class DefaultInfo(
 	override val name: String,
-	override val since: Int,
-	override val removed: Int,
-	override val deprecated: Int,
+	override val since: ApiVersion,
+	override val removed: ApiVersion,
+	override val deprecated: ApiVersion,
 ) : Info {
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
@@ -40,9 +41,9 @@ open class DefaultInfo(
 
 	override fun hashCode(): Int {
 		var result = name.hashCode()
-		result = 31 * result + since
-		result = 31 * result + removed
-		result = 31 * result + deprecated
+		result = 31 * result + since.hashCode()
+		result = 31 * result + removed.hashCode()
+		result = 31 * result + deprecated.hashCode()
 		return result
 	}
 

@@ -49,6 +49,7 @@ import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE.COMPLETION_WND
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE.COMPLETION_WND_TEXT_TYPE
 import com.itsaky.androidide.tasks.executeAsync
 import com.itsaky.androidide.utils.customOrJBMono
+import com.itsaky.androidide.xml.versions.ApiVersion
 import com.itsaky.androidide.xml.versions.ApiVersions
 import com.itsaky.androidide.xml.versions.Info
 import io.github.rosemoe.sora.widget.component.EditorCompletionAdapter
@@ -189,18 +190,18 @@ class CompletionListAdapter : EditorCompletionAdapter() {
 				}
 			}
 			val sb = StringBuilder()
-			if (info!!.since > 1) {
-				sb.append(textView.context.getString(msg_api_info_since, info.since))
+			if (info!!.since > ApiVersion.of(1)) {
+				sb.append(textView.context.getString(msg_api_info_since, info.since.toString()))
 				sb.append("\n")
 			}
 
-			if (info.removed > 0) {
-				sb.append(textView.context.getString(msg_api_info_removed, info.removed))
+			if (info.removed.isKnown) {
+				sb.append(textView.context.getString(msg_api_info_removed, info.removed.toString()))
 				sb.append("\n")
 			}
 
-			if (info.deprecated > 0) {
-				sb.append(textView.context.getString(msg_api_info_deprecated, info.deprecated))
+			if (info.deprecated.isKnown) {
+				sb.append(textView.context.getString(msg_api_info_deprecated, info.deprecated.toString()))
 				sb.append("\n")
 			}
 
