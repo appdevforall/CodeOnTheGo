@@ -94,6 +94,12 @@ open class AndroidModule(
 		val dirs = mutableSetOf<File>()
 		dirs.addAll(mainSourceSet?.sourceProvider?.resDirs ?: emptyList())
 
+		// src/<buildType>/res, src/<flavor>/res and the variant's own res dir are resources of the
+		// selected variant as much as src/main/res is; a save there must regenerate R too.
+		getSelectedVariant()?.variantSourceProvidersList?.forEach { provider ->
+			dirs.addAll(provider.resDirs)
+		}
+
 		val dependencies = getCompileModuleProjects().filterIsInstance<AndroidModule>()
 
 		for (dependency in dependencies) {

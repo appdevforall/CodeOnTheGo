@@ -283,6 +283,10 @@ message AndroidVariant {
 
   // The 'main' artifact of the variant.
   AndroidArtifact mainArtifact = 2;
+
+  // The source providers AGP layers over the main source set for this variant: its build
+  // type, each product flavor, the multi-flavor provider and the variant's own provider.
+  repeated SourceProvider variantSourceProviders = 3;
 }
 
 // The Android project model.
