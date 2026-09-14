@@ -1,6 +1,8 @@
 package com.itsaky.androidide.fragments.git
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
@@ -50,6 +52,9 @@ class GitBranchPopupWindow(
 		).apply {
 			setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
 			elevation = 16f
+			setOnDismissListener {
+				TooltipManager.dismissActiveTooltip()
+			}
 		}
 
 	private val adapter: GitBranchAdapter =
@@ -65,6 +70,7 @@ class GitBranchPopupWindow(
 		)
 
 	private var allBranches: List<GitBranch> = emptyList()
+	private var hostAnchor: View? = null
 
 	init {
 		binding.rvBranches.layoutManager = LinearLayoutManager(context)
@@ -83,7 +89,11 @@ class GitBranchPopupWindow(
 	}
 
 	private fun setupTooltips() {
-		fun showTooltip(anchor: View = binding.root) {
+		fun showTooltip() {
+			val anchor =
+				hostAnchor?.takeIf { it.isAttachedToWindow }
+					?: context.findActivity()?.window?.decorView
+					?: return
 			TooltipManager.showIdeCategoryTooltip(
 				context = context,
 				anchorView = anchor,
@@ -94,13 +104,13 @@ class GitBranchPopupWindow(
 		binding.root.applyLongPressRecursively(
 			exclude = listOf(binding.rvBranches),
 			includeEditTexts = false,
-		) { view ->
-			showTooltip(view)
+		) {
+			showTooltip()
 			true
 		}
 
 		binding.rvBranches.onLongPress(suppressClickAfterLongPress = true) {
-			showTooltip(binding.root)
+			showTooltip()
 		}
 	}
 
@@ -195,6 +205,7 @@ class GitBranchPopupWindow(
 	 * @param anchor The view below which the popup dropdown should be displayed.
 	 */
 	fun show(anchor: View) {
+		hostAnchor = anchor
 		binding.etSearchBranches.text?.clear()
 		filterBranches(null)
 		val displayWidth = context.resources.displayMetrics.widthPixels
@@ -222,3 +233,10 @@ class GitBranchPopupWindow(
 		}
 	}
 }
+
+private tailrec fun Context.findActivity(): Activity? =
+	when (this) {
+		is Activity -> this
+		is ContextWrapper -> baseContext?.findActivity()
+		else -> null
+	}
