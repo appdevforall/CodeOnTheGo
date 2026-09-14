@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.xml
 
+import com.itsaky.androidide.xml.versions.ApiVersion
 import java.io.File
 
 fun findAndroidJar(): File {
@@ -31,7 +32,7 @@ val installed = platformsDir.listFiles { f ->
 
 return installed
 	.mapNotNull { dir ->
-	val apiLevel = dir.name.removePrefix("android-").toIntOrNull() ?: return@mapNotNull null
+	val apiLevel = ApiVersion.parse(dir.name.removePrefix("android-")) ?: return@mapNotNull null
 	apiLevel to File(dir, "android.jar")
 	}
 	.maxByOrNull { it.first }
