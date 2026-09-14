@@ -18,6 +18,7 @@ package com.itsaky.androidide.viewmodel
 
 import android.view.Gravity.CENTER
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
@@ -108,6 +109,9 @@ class EditorViewModel : ViewModel() {
 	 * index of the editor opened. Second value is the file that is opened.
 	 */
 	private val mCurrentFile = MutableLiveData<Pair<Int, File?>?>(null)
+
+	@get:JvmName("currentFileLiveData")
+	val currentFile: LiveData<Pair<Int, File?>?> get() = mCurrentFile
 
 	var areFilesModified: Boolean
 		get() = _filesModified.value ?: false
