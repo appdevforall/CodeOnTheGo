@@ -186,7 +186,7 @@ data class ExtractMethodPlan(
  * Everything the signature says before the method's name.
  *
  * Split from [signatureSuffix] rather than rendered whole because the sheet's preview follows what the
- * user types, and [MethodCandidateView] carries the two halves. Both this and
+ * user types, and [com.itsaky.androidide.lsp.ui.MethodCandidateView] carries the two halves. Both this and
  * [buildExtractMethodRewrites] compose them through [signatureText], so there is one derivation and
  * the preview cannot drift from the declaration (R11).
  */

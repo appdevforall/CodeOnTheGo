@@ -87,7 +87,8 @@ class ExtractMethodSheet : BottomSheetDialogFragment() {
 		 *
 		 * [keywords] is the language's reserved-word set and [nameMessages] its name-problem strings, so
 		 * a Java user is never shown Kotlin's wording. Returns false when the sheet could not be shown,
-		 * so the caller can report a failure rather than silently doing nothing.
+		 * so the caller can report a failure rather than silently doing nothing -- including when
+		 * [candidates] is empty, since a chooser with nothing to choose has nothing to show.
 		 */
 		fun show(
 			activity: FragmentActivity,
@@ -96,6 +97,7 @@ class ExtractMethodSheet : BottomSheetDialogFragment() {
 			nameMessages: NameMessages,
 			onSelected: (ExtractMethodSelection) -> Unit,
 		): Boolean {
+			if (candidates.isEmpty()) return false
 			val manager = activity.supportFragmentManager
 			if (manager.isStateSaved || manager.isDestroyed) return false
 			ExtractMethodSheet()
