@@ -20,5 +20,10 @@ package com.itsaky.androidide.xml.internal.versions
 import com.itsaky.androidide.xml.versions.FieldInfo
 
 /** @author Akash Yadav */
-class DefaultFieldInfo(name: String, since: Int, removed: Int, deprecated: Int) :
-  DefaultInfo(name, since, removed, deprecated), FieldInfo
+class DefaultFieldInfo(
+	name: String,
+	since: Int,
+	removed: Int,
+	deprecated: Int,
+) : DefaultInfo(name, since, removed, deprecated),
+	FieldInfo

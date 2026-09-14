@@ -23,16 +23,15 @@ package com.itsaky.androidide.xml.versions
  * @author Akash Yadav
  */
 interface Info {
+	/** Name of this element. */
+	val name: String
 
-  /** Name of this element. */
-  val name: String
+	/** The introducing API version. */
+	val since: Int
 
-  /** The introducing API version. */
-  val since: Int
+	/** The removing API version. */
+	val removed: Int
 
-  /** The removing API version. */
-  val removed: Int
-
-  /** The deprecating API version. */
-  val deprecated: Int
+	/** The deprecating API version. */
+	val deprecated: Int
 }

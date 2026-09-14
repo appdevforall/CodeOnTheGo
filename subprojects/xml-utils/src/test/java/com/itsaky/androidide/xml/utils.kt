@@ -20,43 +20,43 @@ package com.itsaky.androidide.xml
 import java.io.File
 
 fun findAndroidJar(): File {
-  val androidHome = findAndroidHome()
-  val platformsDir = File(androidHome, "platforms")
+val androidHome = findAndroidHome()
+val platformsDir = File(androidHome, "platforms")
 
-  // Pick the newest installed platform's android.jar.  Hard-coding a fixed
-  // list (e.g. 31/32/33) breaks every time CI ships only newer SDKs.
-  val installed = platformsDir.listFiles { f ->
-    f.isDirectory && f.name.startsWith("android-") && File(f, "android.jar").isFile
-  }.orEmpty()
+// Pick the newest installed platform's android.jar.  Hard-coding a fixed
+// list (e.g. 31/32/33) breaks every time CI ships only newer SDKs.
+val installed = platformsDir.listFiles { f ->
+	f.isDirectory && f.name.startsWith("android-") && File(f, "android.jar").isFile
+}.orEmpty()
 
-  return installed
-    .mapNotNull { dir ->
-      val apiLevel = dir.name.removePrefix("android-").toIntOrNull() ?: return@mapNotNull null
-      apiLevel to File(dir, "android.jar")
-    }
-    .maxByOrNull { it.first }
-    ?.second
-    ?: throw RuntimeException(
-      "Cannot find android.jar under $platformsDir (ANDROID_HOME=$androidHome)"
-    )
+return installed
+	.mapNotNull { dir ->
+	val apiLevel = dir.name.removePrefix("android-").toIntOrNull() ?: return@mapNotNull null
+	apiLevel to File(dir, "android.jar")
+	}
+	.maxByOrNull { it.first }
+	?.second
+	?: throw RuntimeException(
+	"Cannot find android.jar under $platformsDir (ANDROID_HOME=$androidHome)"
+	)
 }
 
 fun findAndroidHome(): String {
-  var androidHome = System.getenv("ANDROID_HOME")
-  if (androidHome != null && androidHome.isNotBlank()) {
-    return androidHome
-  }
+var androidHome = System.getenv("ANDROID_HOME")
+if (androidHome != null && androidHome.isNotBlank()) {
+	return androidHome
+}
 
-  androidHome = System.getenv("ANDROID_SDK_ROOT")
-  if (androidHome != null && androidHome.isNotBlank()) {
-    return androidHome
-  }
+androidHome = System.getenv("ANDROID_SDK_ROOT")
+if (androidHome != null && androidHome.isNotBlank()) {
+	return androidHome
+}
 
-  val os = System.getProperty("os.name")!!
-  val home = System.getProperty("user.home")!!
-  return if (os.contains("Linux")) {
-    "$home/Android/Sdk"
-  } else {
-    "$home\\AppData\\Local\\Android\\Sdk"
-  }
+val os = System.getProperty("os.name")!!
+val home = System.getProperty("user.home")!!
+return if (os.contains("Linux")) {
+	"$home/Android/Sdk"
+} else {
+	"$home\\AppData\\Local\\Android\\Sdk"
+}
 }

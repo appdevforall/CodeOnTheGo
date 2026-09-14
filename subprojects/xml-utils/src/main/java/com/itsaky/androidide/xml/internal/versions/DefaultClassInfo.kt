@@ -28,26 +28,31 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * @author Akash Yadav
  */
-internal class DefaultClassInfo(name: String, since: Int, removed: Int, deprecated: Int) :
-  DefaultInfo(name, since, removed, deprecated), ClassInfo {
+internal class DefaultClassInfo(
+	name: String,
+	since: Int,
+	removed: Int,
+	deprecated: Int,
+) : DefaultInfo(name, since, removed, deprecated),
+	ClassInfo {
+	internal val fields = ConcurrentHashMap<String, FieldInfo>()
+	internal val methods = ConcurrentHashMap<String, MutableList<MethodInfo>>()
 
-  internal val fields = ConcurrentHashMap<String, FieldInfo>()
-  internal val methods = ConcurrentHashMap<String, MutableList<MethodInfo>>()
+	override fun getField(name: String): FieldInfo? = fields[name]
 
-  override fun getField(name: String): FieldInfo? {
-    return fields[name]
-  }
+	override fun getMethod(
+		name: String,
+		vararg params: String,
+	): MethodInfo? {
+		val methods = methods[name] ?: return null
+		val paramTypes = Array(size = params.size) { "" }
+		params.forEachIndexed { index, type ->
+			paramTypes[index] = Signature.createTypeSignature(type.replace('.', '/'), true)
+		}
 
-  override fun getMethod(name: String, vararg params: String): MethodInfo? {
-    val methods = methods[name] ?: return null
-    val paramTypes = Array(size = params.size) { "" }
-    params.forEachIndexed { index, type ->
-      paramTypes[index] = Signature.createTypeSignature(type.replace('.', '/'), true)
-    }
-
-    return methods.find {
-      val methodParams = Signature.getParameterTypes(it.name)
-      methodParams != null && paramTypes.contentDeepEquals(methodParams)
-    }
-  }
+		return methods.find {
+			val methodParams = Signature.getParameterTypes(it.name)
+			methodParams != null && paramTypes.contentDeepEquals(methodParams)
+		}
+	}
 }

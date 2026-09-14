@@ -26,62 +26,61 @@ import org.robolectric.RobolectricTestRunner
 /** @author Akash Yadav */
 @RunWith(RobolectricTestRunner::class)
 class ApiVersionsRegistryTest {
+	@Test
+	fun test() {
+		val androidJar = findAndroidJar()
+		val registry = ApiVersionsRegistry.getInstance()
+		val versions = registry.forPlatformDir(androidJar.parentFile!!)
 
-  @Test
-  fun test() {
-    val androidJar = findAndroidJar()
-    val registry = ApiVersionsRegistry.getInstance()
-    val versions = registry.forPlatformDir(androidJar.parentFile!!)
+		assertThat(versions).isNotNull()
+		versions!!.getClass("android.Manifest\$permission").apply {
+			assertThat(this).isNotNull()
+			this!!.getField("WRITE_EXTERNAL_STORAGE").apply {
+				assertThat(this).isNotNull()
+				assertThat(this!!.since).isEqualTo(4)
+				assertThat(this.removed).isEqualTo(-1)
+				assertThat(this.deprecated).isEqualTo(-1)
+			}
 
-    assertThat(versions).isNotNull()
-    versions!!.getClass("android.Manifest\$permission").apply {
-      assertThat(this).isNotNull()
-      this!!.getField("WRITE_EXTERNAL_STORAGE").apply {
-        assertThat(this).isNotNull()
-        assertThat(this!!.since).isEqualTo(4)
-        assertThat(this.removed).isEqualTo(-1)
-        assertThat(this.deprecated).isEqualTo(-1)
-      }
+			this.getField("USE_BIOMETRIC").apply {
+				assertThat(this).isNotNull()
+				assertThat(this!!.since).isEqualTo(28)
+				assertThat(this.removed).isEqualTo(-1)
+				assertThat(this.deprecated).isEqualTo(-1)
+			}
 
-      this.getField("USE_BIOMETRIC").apply {
-        assertThat(this).isNotNull()
-        assertThat(this!!.since).isEqualTo(28)
-        assertThat(this.removed).isEqualTo(-1)
-        assertThat(this.deprecated).isEqualTo(-1)
-      }
+			this.getField("PERSISTENT_ACTIVITY").apply {
+				assertThat(this).isNotNull()
+				assertThat(this!!.since).isEqualTo(-1)
+				assertThat(this.removed).isEqualTo(-1)
+				assertThat(this.deprecated).isEqualTo(15)
+			}
 
-      this.getField("PERSISTENT_ACTIVITY").apply {
-        assertThat(this).isNotNull()
-        assertThat(this!!.since).isEqualTo(-1)
-        assertThat(this.removed).isEqualTo(-1)
-        assertThat(this.deprecated).isEqualTo(15)
-      }
+			this.getMethod("nonExistentMethod", "i.do.not.exist").apply { assertThat(this).isNull() }
+			this.getField("nonExistentField").apply { assertThat(this).isNull() }
+		}
 
-      this.getMethod("nonExistentMethod", "i.do.not.exist").apply { assertThat(this).isNull() }
-      this.getField("nonExistentField").apply { assertThat(this).isNull() }
-    }
+		versions.getClass("android.view.View").apply {
+			assertThat(this).isNotNull()
+			this!!.getField("SYSTEM_UI_FLAG_FULLSCREEN").apply {
+				assertThat(this).isNotNull()
+				assertThat(this!!.since).isEqualTo(16)
+				assertThat(this.removed).isEqualTo(-1)
+				assertThat(this.deprecated).isEqualTo(30)
+			}
 
-    versions.getClass("android.view.View").apply {
-      assertThat(this).isNotNull()
-      this!!.getField("SYSTEM_UI_FLAG_FULLSCREEN").apply {
-        assertThat(this).isNotNull()
-        assertThat(this!!.since).isEqualTo(16)
-        assertThat(this.removed).isEqualTo(-1)
-        assertThat(this.deprecated).isEqualTo(30)
-      }
+			this
+				.getMethod(
+					"setOnSystemUiVisibilityChangeListener",
+					"android.view.View\$OnSystemUiVisibilityChangeListener",
+				).apply {
+					assertThat(this).isNotNull()
+					assertThat(this!!.since).isEqualTo(11)
+					assertThat(this.removed).isEqualTo(-1)
+					assertThat(this.deprecated).isEqualTo(30)
+				}
 
-      this.getMethod(
-          "setOnSystemUiVisibilityChangeListener",
-          "android.view.View\$OnSystemUiVisibilityChangeListener"
-        )
-        .apply {
-          assertThat(this).isNotNull()
-          assertThat(this!!.since).isEqualTo(11)
-          assertThat(this.removed).isEqualTo(-1)
-          assertThat(this.deprecated).isEqualTo(30)
-        }
-
-      this.getMethod("nonExistentMethod", "i.do.not.exist").apply { assertThat(this).isNull() }
-    }
-  }
+			this.getMethod("nonExistentMethod", "i.do.not.exist").apply { assertThat(this).isNull() }
+		}
+	}
 }
