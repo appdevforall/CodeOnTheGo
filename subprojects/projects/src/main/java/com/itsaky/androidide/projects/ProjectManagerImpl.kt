@@ -18,6 +18,7 @@
 package com.itsaky.androidide.projects
 
 import androidx.annotation.RestrictTo
+import androidx.annotation.VisibleForTesting
 import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
 import com.itsaky.androidide.app.BaseApplication
@@ -96,7 +97,8 @@ class ProjectManagerImpl :
 	override var workspace: Workspace? = null
 
 	override var androidBuildVariants: Map<String, BuildVariantInfo> = emptyMap()
-		private set
+		@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+		internal set
 
 	/**
 	 * The project directory path, or an empty string when [projectPath] has not yet been
