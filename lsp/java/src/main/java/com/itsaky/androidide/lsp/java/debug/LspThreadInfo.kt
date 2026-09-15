@@ -68,24 +68,27 @@ class JavaStackFrame(
 					}?.run {
 						val variables = mutableListOf<AbstractJavaVariable<*>>()
 
-						val thisObject = runCatching {
-							this.thisObject()
-						}.getOrElse { e ->
-							when (e) {
-								is VMDisconnectedException -> {
-									logger.warn("VM disconnected while fetching 'this' object.", e)
-									return@evaluate emptyList()
-								}
-								is ObjectCollectedException -> {
-									logger.warn("Object collected by GC during debug", e)
-									null
-								}
-								else -> {
-									logger.error("Unexpected error fetching thisObject", e)
-									null
+						val thisObject =
+							runCatching {
+								this.thisObject()
+							}.getOrElse { e ->
+								when (e) {
+									is VMDisconnectedException -> {
+										logger.warn("VM disconnected while fetching 'this' object.", e)
+										return@evaluate emptyList()
+									}
+
+									is ObjectCollectedException -> {
+										logger.warn("Object collected by GC during debug", e)
+										null
+									}
+
+									else -> {
+										logger.error("Unexpected error fetching thisObject", e)
+										null
+									}
 								}
 							}
-						}
 						if (thisObject != null) {
 							variables.add(
 								ThisVariable<Value>(
@@ -164,7 +167,9 @@ class JavaStackFrame(
 			}
 
 			// TODO: Support other types of variable values
-			else -> throw IllegalStateException("Unsupported variable kind: ${variable.kind}")
+			else -> {
+				throw IllegalStateException("Unsupported variable kind: ${variable.kind}")
+			}
 		}
 	}
 }
