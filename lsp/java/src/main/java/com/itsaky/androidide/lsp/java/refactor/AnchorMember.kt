@@ -10,6 +10,7 @@ import openjdk.source.tree.Tree
 import openjdk.source.tree.VariableTree
 import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
+import openjdk.source.util.Trees
 
 /**
  * The class member the new method becomes a sibling of (R4).
@@ -35,6 +36,7 @@ internal class AnchorMember(
 internal fun anchorMemberFor(
 	regionPath: TreePath,
 	root: CompilationUnitTree,
+	trees: Trees,
 	positions: SourcePositions,
 ): AnchorMember? {
 	var current: TreePath = regionPath
@@ -47,7 +49,7 @@ internal fun anchorMemberFor(
 				path = current,
 				classPath = parent,
 				span = span,
-				isStatic = isStaticMember(member),
+				isStatic = isStaticMember(current, trees),
 				method = member as? MethodTree,
 			)
 		}
@@ -56,13 +58,14 @@ internal fun anchorMemberFor(
 }
 
 /** A static anchor forces a `static` method: no instance to resolve `this` or an instance member on. */
-private fun isStaticMember(member: Tree): Boolean =
-	when (member) {
-		is MethodTree -> Modifier.STATIC in member.modifiers.flags
-		is VariableTree -> Modifier.STATIC in member.modifiers.flags
-		is BlockTree -> member.isStatic
-		else -> false
-	}
+private fun isStaticMember(
+	memberPath: TreePath,
+	trees: Trees,
+): Boolean {
+	val element = runCatching { trees.getElement(memberPath) }.getOrNull()
+	if (element != null) return Modifier.STATIC in element.modifiers
+	return (memberPath.leaf as? BlockTree)?.isStatic == true
+}
 
 /** The trees the region actually covers: one expression, or each statement of the range. */
 internal fun regionPathsOf(region: ExtractionRegion): List<TreePath> =
@@ -72,7 +75,7 @@ internal fun regionPathsOf(region: ExtractionRegion): List<TreePath> =
 		}
 
 		is ExtractionRegion.Statements -> {
-			val blockPath = region.path.parentPath
-			if (blockPath == null) listOf(region.path) else region.statements.map { TreePath(blockPath, it) }
+			val blockPath = region.path.parentPath ?: error("a statements region's path must have a block parent")
+			region.statements.map { TreePath(blockPath, it) }
 		}
 	}

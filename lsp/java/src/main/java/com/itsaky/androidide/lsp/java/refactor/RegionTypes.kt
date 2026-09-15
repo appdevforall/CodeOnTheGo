@@ -41,15 +41,27 @@ internal fun isCapturedLocalType(
 		element as? TypeElement
 			?: element.enclosingElement as? TypeElement
 			?: return false
-	if (type.nestingKind != NestingKind.LOCAL && type.nestingKind != NestingKind.ANONYMOUS) return false
-	val declaration = declarationSpanOf(type, root, trees, positions) ?: return false
+	val localOrAnonymous = enclosingLocalOrAnonymous(type) ?: return false
+	val declaration = declarationSpanOf(localOrAnonymous, root, trees, positions) ?: return false
 	return !span.contains(declaration)
+}
+
+private fun enclosingLocalOrAnonymous(type: TypeElement): TypeElement? {
+	var current: Element? = type
+	while (current is TypeElement) {
+		if (current.nestingKind == NestingKind.LOCAL || current.nestingKind == NestingKind.ANONYMOUS) return current
+		current = current.enclosingElement
+	}
+	return null
 }
 
 /** The local class a reference names, whether directly or through one of its members. */
 internal fun localTypeNameOf(element: Element): String {
 	val type = element as? TypeElement ?: element.enclosingElement as? TypeElement ?: return element.simpleName.toString()
-	return type.simpleName.toString().ifEmpty { element.simpleName.toString() }
+	return type.simpleName
+		.toString()
+		.ifEmpty { element.simpleName.toString() }
+		.ifEmpty { "anonymous class" }
 }
 
 /**
@@ -71,7 +83,8 @@ internal fun localTypeNameIn(
 			) {
 				element.simpleName.toString().ifEmpty { "anonymous class" }
 			} else {
-				type.typeArguments.firstNotNullOfOrNull { localTypeNameIn(it, depth + 1) }
+				(runCatching { type.enclosingType }.getOrNull() as? DeclaredType)?.let { localTypeNameIn(it, depth + 1) }
+					?: type.typeArguments.firstNotNullOfOrNull { localTypeNameIn(it, depth + 1) }
 			}
 		}
 
@@ -152,6 +165,7 @@ internal class TypeNames(
 		val text = runCatching { type.toString() }.getOrNull() ?: return null
 		if (isUnrenderableTypeText(text)) return null
 		if (isValuelessKind(type.kind)) return null
+		if (isAnonymousDeclared(type)) return null
 		return shortenTypeText(text, imported, starred)
 	}
 }
