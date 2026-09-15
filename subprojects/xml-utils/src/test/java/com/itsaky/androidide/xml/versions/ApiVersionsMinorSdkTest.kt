@@ -19,7 +19,9 @@ package com.itsaky.androidide.xml.versions
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
@@ -32,6 +34,9 @@ import java.io.File
  */
 @RunWith(RobolectricTestRunner::class)
 class ApiVersionsMinorSdkTest {
+	@get:Rule
+	val tempDir = TemporaryFolder()
+
 	private val registry = ApiVersionsRegistry.getInstance()
 
 	@Before
@@ -70,6 +75,25 @@ class ApiVersionsMinorSdkTest {
 	fun `returns null instead of propagating when the file is not an api table`() {
 		assertThat(registry.forPlatformDir(fixture("platform-malformed"))).isNull()
 	}
+
+	@Test
+	fun `does not re-read a platform whose table could not be parsed`() {
+		val platform = tempDir.newFolder("platform")
+		val table = File(platform, "data/api-versions.xml")
+		table.parentFile.mkdirs()
+
+		table.writeText(fixtureText("platform-malformed"))
+		assertThat(registry.forPlatformDir(platform)).isNull()
+
+		// A second call must answer from the cache, not re-parse the file.
+		table.writeText(fixtureText("platform-minor-sdk"))
+		assertThat(registry.forPlatformDir(platform)).isNull()
+
+		registry.clear()
+		assertThat(registry.forPlatformDir(platform)).isNotNull()
+	}
+
+	private fun fixtureText(name: String): String = File(fixture(name), "data/api-versions.xml").readText()
 
 	private fun fixture(name: String): File {
 		val resource =

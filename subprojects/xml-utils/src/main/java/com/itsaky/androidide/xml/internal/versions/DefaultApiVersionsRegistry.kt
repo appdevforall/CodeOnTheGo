@@ -40,6 +40,13 @@ import java.util.concurrent.ConcurrentHashMap
 class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 	private val versions = ConcurrentHashMap<String, ApiVersions>()
 
+	/*
+	 * Platform dirs with no readable table. setupLookupForCompletion asks for the table on every
+	 * completion request, so without remembering the failure a dir whose file is missing or
+	 * unparseable is re-opened and re-parsed per keystroke. clear() is the way back.
+	 */
+	private val unreadablePlatforms = ConcurrentHashMap.newKeySet<String>()
+
 	companion object {
 		private val log = LoggerFactory.getLogger(DefaultApiVersionsRegistry::class.java)
 	}
@@ -48,16 +55,29 @@ class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 
 	override fun forPlatformDir(platform: File): ApiVersions? {
 		versions[platform.path]?.let { return it }
+		if (platform.path in unreadablePlatforms) {
+			return null
+		}
 
 		/*
 		 * This table only feeds API-level hints in the completion popup, and it is read on the
 		 * path that opens a project. A platform file we cannot parse must therefore cost the
-		 * hints, not the project: every failure below degrades to null.
+		 * hints, not the project: every failure below degrades to null. An Error is left to
+		 * propagate -- an OutOfMemoryError part-way through a multi-MB parse is not a malformed
+		 * file, and continuing on an exhausted heap hides it.
 		 */
 		val version =
-			runCatching { readApiVersions(platform) }
-				.onFailure { log.warn("Could not read API versions for platform dir: {}", platform, it) }
-				.getOrNull() ?: return null
+			try {
+				readApiVersions(platform)
+			} catch (e: Exception) {
+				log.warn("Could not read API versions for platform dir: {}", platform, e)
+				null
+			}
+
+		if (version == null) {
+			unreadablePlatforms += platform.path
+			return null
+		}
 
 		versions[platform.path] = version
 		return version
@@ -73,20 +93,31 @@ class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 			log.info("Creating API versions table for platform dir: $platform")
 		}
 
-		return versionsFile.bufferedReader().use {
-			val parser =
-				XmlPullParserFactory.newInstance().run {
-					isNamespaceAware = false
-					return@run newPullParser().run {
-						setInput(it)
-						this
+		val unreadable = UnreadableAttributes()
+		val table =
+			versionsFile.bufferedReader().use {
+				val parser =
+					XmlPullParserFactory.newInstance().run {
+						isNamespaceAware = false
+						return@run newPullParser().run {
+							setInput(it)
+							this
+						}
 					}
-				}
-			readApiVersions(parser)
+				readApiVersions(parser, unreadable)
+			}
+
+		if (isLoggingEnabled && unreadable.count > 0) {
+			log.warn("Ignored {} unreadable API version attribute(s) in {}, first {}", unreadable.count, versionsFile, unreadable.first)
 		}
+
+		return table
 	}
 
-	private fun readApiVersions(parser: XmlPullParser): ApiVersions {
+	private fun readApiVersions(
+		parser: XmlPullParser,
+		unreadable: UnreadableAttributes,
+	): ApiVersions {
 		val versions = DefaultApiVersions()
 		var event = parser.eventType
 		var apiEncountered = false
@@ -103,7 +134,7 @@ class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 					throw IllegalStateException("<api> tag not found")
 				}
 
-				val info = readTag(parser)
+				val info = readTag(parser, unreadable)
 				if (info != null && info is ClassInfo) {
 					versions.putClass(info.name, info)
 				}
@@ -113,39 +144,51 @@ class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 		return versions
 	}
 
-	private fun readTag(parser: XmlPullParser): Info? =
+	private fun readTag(
+		parser: XmlPullParser,
+		unreadable: UnreadableAttributes,
+	): Info? =
 		when (parser.name) {
-			"class" -> readClassInfo(parser)
-			"method" -> readMethodInfo(parser)
-			"field" -> readFieldInfo(parser)
+			"class" -> readClassInfo(parser, unreadable)
+			"method" -> readMethodInfo(parser, unreadable)
+			"field" -> readFieldInfo(parser, unreadable)
 			else -> null
 		}
 
-	private fun readMethodInfo(parser: XmlPullParser): Info {
+	private fun readMethodInfo(
+		parser: XmlPullParser,
+		unreadable: UnreadableAttributes,
+	): Info {
 		val name = parser.readName()
 		return DefaultMethodInfo(
 			name = name,
-			since = parser.readSince(),
-			removed = parser.readRemoved(),
-			deprecated = parser.readDeprecated(),
+			since = parser.readSince(unreadable),
+			removed = parser.readRemoved(unreadable),
+			deprecated = parser.readDeprecated(unreadable),
 			simpleName = name.substringBefore('('),
 		)
 	}
 
-	private fun readFieldInfo(parser: XmlPullParser): Info =
+	private fun readFieldInfo(
+		parser: XmlPullParser,
+		unreadable: UnreadableAttributes,
+	): Info =
 		DefaultFieldInfo(
 			name = parser.readName(),
-			since = parser.readSince(),
-			removed = parser.readRemoved(),
-			deprecated = parser.readDeprecated(),
+			since = parser.readSince(unreadable),
+			removed = parser.readRemoved(unreadable),
+			deprecated = parser.readDeprecated(unreadable),
 		)
 
-	private fun readClassInfo(parser: XmlPullParser): ClassInfo =
+	private fun readClassInfo(
+		parser: XmlPullParser,
+		unreadable: UnreadableAttributes,
+	): ClassInfo =
 		DefaultClassInfo(
 			name = parser.readName(),
-			since = parser.readSince(),
-			removed = parser.readRemoved(),
-			deprecated = parser.readDeprecated(),
+			since = parser.readSince(unreadable),
+			removed = parser.readRemoved(unreadable),
+			deprecated = parser.readDeprecated(unreadable),
 		).apply {
 			val depth = parser.depth
 			var event = parser.next()
@@ -159,7 +202,7 @@ class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 					continue
 				}
 
-				val info = readTag(parser)
+				val info = readTag(parser, unreadable)
 				if (info == null) {
 					event = parser.next()
 					continue
@@ -187,22 +230,23 @@ class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 
 	private fun XmlPullParser.readName(): String = readString("name")
 
-	private fun XmlPullParser.readSince(): ApiVersion = readApiVersion("since")
+	private fun XmlPullParser.readSince(unreadable: UnreadableAttributes): ApiVersion = readApiVersion("since", unreadable)
 
-	private fun XmlPullParser.readRemoved(): ApiVersion = readApiVersion("removed")
+	private fun XmlPullParser.readRemoved(unreadable: UnreadableAttributes): ApiVersion = readApiVersion("removed", unreadable)
 
-	private fun XmlPullParser.readDeprecated(): ApiVersion = readApiVersion("deprecated")
+	private fun XmlPullParser.readDeprecated(unreadable: UnreadableAttributes): ApiVersion = readApiVersion("deprecated", unreadable)
 
-	private fun XmlPullParser.readApiVersion(name: String): ApiVersion =
+	private fun XmlPullParser.readApiVersion(
+		name: String,
+		unreadable: UnreadableAttributes,
+	): ApiVersion =
 		read(this, name) { raw ->
 			if (raw.isNullOrBlank()) {
 				return@read ApiVersion.UNKNOWN
 			}
 
 			ApiVersion.parse(raw) ?: run {
-				if (isLoggingEnabled) {
-					log.warn("Unrecognized API version '{}' for attribute '{}'", raw, name)
-				}
+				unreadable.record(name, raw)
 				ApiVersion.UNKNOWN
 			}
 		}
@@ -234,6 +278,7 @@ class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 
 	override fun clear() {
 		versions.clear()
+		unreadablePlatforms.clear()
 	}
 
 	/**
@@ -258,4 +303,27 @@ class DefaultApiVersionsRegistry : ApiVersionsRegistry {
 	 * @return The value of the attribute.
 	 */
 	private fun XmlPullParser.value(index: Int): String? = getAttributeValue(index)
+
+	/*
+	 * Attributes ignored while reading one file. api-versions.xml carries ~100k entries, so a
+	 * grammar extension we do not understand yet has to cost one warning per file rather than one
+	 * per entry.
+	 */
+	private class UnreadableAttributes {
+		var count = 0
+			private set
+
+		var first: String? = null
+			private set
+
+		fun record(
+			name: String,
+			raw: String,
+		) {
+			if (count == 0) {
+				first = "$name='$raw'"
+			}
+			count++
+		}
+	}
 }
