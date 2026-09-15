@@ -782,11 +782,13 @@ class QuickBuildSessionManager(
 				if (provisioner.cancelProxyAppBuild()) {
 					log.info("Quick Build proxy app build cancelled by the user")
 				} else {
-					// The Gradle build had already finished and the session is in its
-					// install or daemon-spawn tail. The TeardownSession effect that
-					// follows still stops the session, so the cancellation is real
-					// either way and the notice is owed.
-					log.info("No Quick Build proxy app build to cancel; tearing the session down instead")
+					// The Gradle build had already finished. What happens next belongs to
+					// the emitter: the Provisioning stop pairs this effect with a
+					// TeardownSession that stops the install or daemon-spawn tail, the
+					// Prebuilding stop pairs it with nothing and the finished prebuild
+					// just goes unused (see proxyAppBuildCancelIssued). Either way the
+					// user's stop landed, so the notice is owed.
+					log.info("No Quick Build proxy app build to cancel; nothing left to cancel")
 				}
 				surfaceNotice(QuickBuildNotice.BUILD_CANCELLED)
 			}

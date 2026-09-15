@@ -69,7 +69,7 @@ stateDiagram-v2
 
     Invalidated --> Provisioning: ProxyAppRebuildStarted (carries the reason as rebaselineReason)
     Invalidated --> Invalidated: QuickBuildTapped (RecordAsk; awaiting retry - RunProxyAppRebuild)
-    Invalidated --> Invalidated: HostForegrounded retry (RunProxyAppRebuild)
+    Invalidated --> Invalidated: HostForegrounded (awaiting retry, under the auto-retry budget - RunProxyAppRebuild)
     Invalidated --> Invalidated: InvalidationDetected (awaiting retry - re-park + RunProxyAppRebuild)
     Invalidated --> Building: BuildStarted (awaiting retry)
     Invalidated --> Deployed: BuildSucceeded (awaiting retry; SwitchToProxyApp if the ask is outstanding)
