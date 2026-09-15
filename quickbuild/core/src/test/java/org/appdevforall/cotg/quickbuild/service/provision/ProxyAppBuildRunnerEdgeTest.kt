@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.service.provision
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -163,6 +164,26 @@ class ProxyAppBuildRunnerEdgeTest {
 			val result = runner().provision(superseded = { false })
 
 			assertThat(result).isEqualTo(ProxyAppBuildRunner.ProvisionResult.Failed(QuickBuildMessage.DaemonStartFailed("jdk missing")))
+		}
+
+	@Test
+	fun `a daemon start failure ends the uid session the provision began`() =
+		runTest {
+			// The runner closes every registration it opens, whether or not the manager's
+			// teardown would end the session after it. Both daemon replies that fail the
+			// provision have to do it.
+			val replies =
+				listOf<DaemonReply<Unit>>(DaemonReply.BuildFailed(emptyList()), DaemonReply.Failed("jdk missing"))
+			for (reply in replies) {
+				provisioner.provisionOutcome = { successOutcome() }
+				daemon.startReply = reply
+
+				val result = runner().provision(superseded = { false })
+
+				assertThat(result).isInstanceOf(ProxyAppBuildRunner.ProvisionResult.Failed::class.java)
+				assertWithMessage("registry uid after $reply").that(connections.expectedUid).isNull()
+				assertWithMessage("registry package after $reply").that(connections.expectedPackage).isNull()
+			}
 		}
 
 	@Test
