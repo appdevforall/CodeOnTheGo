@@ -284,8 +284,11 @@ class SessionReducer {
 				} else {
 					// No half-provisioned session is worth keeping. A cancel mid-install is
 					// safe because the epoch guard discards a late provisioning success, and
-					// the next tap re-provisions from build outputs still on disk. The user
-					// chose this, so the Idle it lands in carries no failure.
+					// the next tap re-provisions from build outputs still on disk. When the
+					// Gradle build had already finished the cancel effect finds nothing to
+					// stop, and it is the TeardownSession after it that ends the install or
+					// daemon-spawn tail. The user chose this, so the Idle it lands in
+					// carries no failure.
 					SessionTransition(
 						QuickBuildSessionState.Idle(),
 						listOf(SessionEffect.WithdrawAsk, SessionEffect.CancelProxyAppBuild, SessionEffect.TeardownSession),
