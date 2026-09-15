@@ -191,12 +191,17 @@ internal class ProxyAppBuildRunner(
 							)
 						}
 
+						// Both daemon failures end the uid session begun above, like the catch below.
+						// The manager's SurfaceProvisioningError teardown would end it too; the runner
+						// still closes every registration it opens rather than lean on a caller.
 						is DaemonReply.BuildFailed -> {
+							connections.endSession()
 							scratch.remove(outcome.layout.projectRoot)
 							ProvisionResult.Failed(QuickBuildMessage.DaemonRejectedConfiguration)
 						}
 
 						is DaemonReply.Failed -> {
+							connections.endSession()
 							scratch.remove(outcome.layout.projectRoot)
 							ProvisionResult.Failed(QuickBuildMessage.DaemonStartFailed(started.message))
 						}
