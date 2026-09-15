@@ -12,6 +12,7 @@ import openjdk.source.util.JavacTask
 import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
 import openjdk.source.util.TreePathScanner
+import openjdk.source.util.Trees
 
 /**
  * What a selection resolved to. Exactly two kinds, which is the whole reason the hard cases never
@@ -46,11 +47,11 @@ sealed interface ExtractionRegion {
 fun resolveExtractionRegions(
 	task: JavacTask,
 	root: CompilationUnitTree,
-	positions: SourcePositions,
 	fileText: String,
 	selectionStart: Int,
 	selectionEnd: Int,
 ): List<ExtractionRegion> {
+	val positions = Trees.instance(task).sourcePositions
 	val (start, end) = trimToCode(fileText, selectionStart, selectionEnd) ?: return emptyList()
 	if (start == end) return expressionRegions(task, root, positions, fileText, selectionStart, selectionEnd)
 
@@ -121,25 +122,27 @@ private fun snapToStatements(
 	if (selected.any { it is ExpressionStatementTree && it.expression.isConstructorDelegation() }) return null
 	val firstSpan = spanOf(root, positions, selected.first()) ?: return null
 	val lastSpan = spanOf(root, positions, selected.last()) ?: return null
+	val nextStatementStart = statements.getOrNull(to + 1)?.let { spanOf(root, positions, it)?.start } ?: fileText.length
 
 	return ExtractionRegion.Statements(
 		statements = selected,
 		path = first,
-		span = TextSpan(firstSpan.start, absorbTrailingSemicolon(fileText, lastSpan.end)),
+		span = TextSpan(firstSpan.start, absorbTrailingSemicolon(fileText, lastSpan.end, nextStatementStart)),
 	)
 }
 
 private fun ExpressionTree.isConstructorDelegation(): Boolean = this is MethodInvocationTree && isConstructorDelegation(this)
 
 /**
- * javac's end position for a statement does not reliably reach past its own `;`, and a region that
- * stops short of one leaves a stray `;` behind at the call site. Absorbing a `;` that is already inside
- * the span is impossible, so this is a no-op wherever it is not needed.
+ * Extends [end] over a trailing `;` that javac's end position stopped short of, but never at or past
+ * [limit] -- the next statement's start -- so it can never swallow a following statement's own `;`, such
+ * as the empty statement in `p(y);;`.
  */
 internal fun absorbTrailingSemicolon(
 	fileText: String,
 	end: Int,
-): Int = if (end < fileText.length && fileText[end] == ';') end + 1 else end
+	limit: Int,
+): Int = if (end < limit && end < fileText.length && fileText[end] == ';') end + 1 else end
 
 /**
  * The narrowest statement containing [offset] that is a direct statement child of a block. Null for a
@@ -167,11 +170,11 @@ private fun statementContaining(
 				p: Unit?,
 			): Unit? {
 				if (tree == null) return null
-				// currentPath still holds the parent here, which is exactly the block being asked about.
-				if (tree is StatementTree && currentPath?.leaf is BlockTree) {
+				val parent = currentPath
+				if (tree is StatementTree && parent != null) {
 					val span = spanOf(root, positions, tree)
 					if (span != null && span.length > 0 && offset >= span.start && offset < span.end && span.length < bestWidth) {
-						best = TreePath(currentPath, tree)
+						best = TreePath(parent, tree)
 						bestWidth = span.length
 					}
 				}
@@ -179,5 +182,5 @@ private fun statementContaining(
 			}
 		}
 	scanner.scan(TreePath(root), null)
-	return best
+	return best?.takeIf { it.parentPath?.leaf is BlockTree }
 }

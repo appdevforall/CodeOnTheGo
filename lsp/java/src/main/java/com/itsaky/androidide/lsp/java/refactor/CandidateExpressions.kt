@@ -336,7 +336,24 @@ internal fun isLegalExtractionTarget(
 	// a statement, so extract method (hoisted = false) keeps this target; without it a bare cursor in
 	// `foo(a, b);` -- the commonest place to reach for extract method -- would offer nothing.
 	if (hoisted && parent is ExpressionStatementTree) return false
+	if (!hoisted && parent is ExpressionStatementTree && writesToNonField(path, trees)) return false
 	return true
+}
+
+private fun writesToNonField(
+	path: TreePath,
+	trees: Trees,
+): Boolean {
+	val leaf = path.leaf
+	val target =
+		when {
+			leaf is AssignmentTree -> leaf.variable
+			leaf is CompoundAssignmentTree -> leaf.variable
+			leaf is UnaryTree && leaf.kind in INCREMENT_KINDS -> leaf.expression
+			else -> return false
+		}
+	val element = runCatching { trees.getElement(TreePath(path, target)) }.getOrNull() ?: return true
+	return element.kind != ElementKind.FIELD
 }
 
 /** A resolution failure reads as "not a type", keeping a candidate over broken code. */
