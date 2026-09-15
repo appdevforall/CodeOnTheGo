@@ -74,6 +74,9 @@ class DefaultResourceTableRegistry : ResourceTableRegistry {
 	private val singleLineValueEntries =
 		ConcurrentHashMap<String, ConcurrentHashMap<SingleLineValueEntryType, List<String>>>()
 
+	// Platform dirs with no readable resources. See DefaultApiVersionsRegistry.
+	private val unreadablePlatforms = ConcurrentHashMap.newKeySet<String>()
+
 	companion object {
 		private val log = LoggerFactory.getLogger(DefaultResourceTableRegistry::class.java)
 	}
@@ -100,13 +103,28 @@ class DefaultResourceTableRegistry : ResourceTableRegistry {
 	}
 
 	override fun forPlatformDir(platform: File): ResourceTable? {
-		getManifestAttrTable(platform)
-		getActivityActions(platform)
-		getBroadcastActions(platform)
-		getServiceActions(platform)
-		getCategories(platform)
-		getFeatures(platform)
-		return super.forPlatformDir(platform)
+		if (platform.path in unreadablePlatforms) {
+			return null
+		}
+
+		/*
+		 * These tables only feed editor hints, and they are read on the path that opens a
+		 * project. A platform file we cannot read must therefore cost the hints, not the
+		 * project.
+		 */
+		return try {
+			getManifestAttrTable(platform)
+			getActivityActions(platform)
+			getBroadcastActions(platform)
+			getServiceActions(platform)
+			getCategories(platform)
+			getFeatures(platform)
+			super.forPlatformDir(platform)
+		} catch (e: Exception) {
+			log.warn("Could not read resources for platform dir: {}", platform, e)
+			unreadablePlatforms += platform.path
+			null
+		}
 	}
 
 	override fun getManifestAttrTable(platform: File): ResourceTable? =
@@ -132,6 +150,7 @@ class DefaultResourceTableRegistry : ResourceTableRegistry {
 
 	override fun clear() {
 		tables.clear()
+		unreadablePlatforms.clear()
 	}
 
 	private fun getSingleLineEntry(

@@ -33,6 +33,9 @@ import java.util.concurrent.ConcurrentHashMap
 class DefaultWidgetTableRegistry : WidgetTableRegistry {
 	private val tables = ConcurrentHashMap<String, WidgetTable>()
 
+	// Platform dirs with no readable widget list. See DefaultApiVersionsRegistry.
+	private val unreadablePlatforms = ConcurrentHashMap.newKeySet<String>()
+
 	companion object {
 		private val log = LoggerFactory.getLogger(DefaultWidgetTableRegistry::class.java)
 	}
@@ -40,12 +43,29 @@ class DefaultWidgetTableRegistry : WidgetTableRegistry {
 	override var isLoggingEnabled: Boolean = true
 
 	override fun forPlatformDir(platform: File): WidgetTable? {
-		var table = tables[platform.path]
-		if (table != null) {
-			return table
+		tables[platform.path]?.let { return it }
+		if (platform.path in unreadablePlatforms) {
+			return null
 		}
 
-		table = createTable(platform) ?: return null
+		/*
+		 * This table only feeds layout completion, and it is read on the path that opens a
+		 * project. A platform file we cannot read must therefore cost the completion, not the
+		 * project.
+		 */
+		val table =
+			try {
+				createTable(platform)
+			} catch (e: Exception) {
+				log.warn("Could not read widgets for platform dir: {}", platform, e)
+				null
+			}
+
+		if (table == null) {
+			unreadablePlatforms += platform.path
+			return null
+		}
+
 		tables[platform.path] = table
 		return table
 	}
@@ -74,5 +94,6 @@ class DefaultWidgetTableRegistry : WidgetTableRegistry {
 
 	override fun clear() {
 		tables.clear()
+		unreadablePlatforms.clear()
 	}
 }
