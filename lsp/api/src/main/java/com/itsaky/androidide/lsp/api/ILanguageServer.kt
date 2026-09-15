@@ -42,7 +42,6 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 interface ILanguageServer {
-
 	val serverId: String
 
 	/**
@@ -58,6 +57,9 @@ interface ILanguageServer {
 	 */
 	val debugAdapter: IDebugAdapter?
 		get() = null
+
+	val supportsDebugging: Boolean
+		get() = debugAdapter != null
 
 	/**
 	 * Called by client to notify the server to shutdown. Language servers must release all the

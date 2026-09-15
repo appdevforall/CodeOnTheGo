@@ -28,6 +28,8 @@ import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
+import com.itsaky.androidide.lsp.java.debug.utils.isKotlinSource
+import com.itsaky.androidide.lsp.java.debug.utils.kotlinBinaryNamesOf
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.utils.withStopWatch
@@ -339,19 +341,24 @@ internal class JavaDebugAdapter :
 				request.breakpoints.map { breakpoint ->
 					logger.debug("add breakpoint {}", breakpoint)
 
-					val qualifiedName =
-						ProjectManagerImpl
-							.getInstance()
-							.workspace
-							?.subProjects
-							?.filterIsInstance<ModuleProject>()
-							?.firstNotNullOfOrNull { module ->
-								module.compileJavaSourceClasses
-									.findSource(Paths.get(breakpoint.source.path))
-									?.qualifiedName
-							}
+					val sourcePath = Paths.get(breakpoint.source.path)
+					val qualifiedNames =
+						if (isKotlinSource(breakpoint.source.path)) {
+							kotlinBinaryNamesOf(sourcePath)
+						} else {
+							ProjectManagerImpl
+								.getInstance()
+								.workspace
+								?.subProjects
+								?.filterIsInstance<ModuleProject>()
+								?.firstNotNullOfOrNull { module ->
+									module.compileJavaSourceClasses
+										.findSource(sourcePath)
+										?.qualifiedName
+								}?.let(::listOf) ?: emptyList()
+						}
 
-					logger.debug("qualified name: {}", qualifiedName)
+					logger.debug("qualified names: {}", qualifiedNames)
 
 					val spec =
 						when (breakpoint) {
@@ -361,7 +368,7 @@ internal class JavaDebugAdapter :
 									// +1 because we receive 0-indexed line numbers from the IDE
 									// while JDI expects 1-index line numbers
 									lineNumber = breakpoint.line + 1,
-									qualifiedName = qualifiedName,
+									qualifiedNames = qualifiedNames,
 									suspendPolicy = breakpoint.suspendPolicy.asJdiInt(),
 								)
 							}
@@ -371,7 +378,7 @@ internal class JavaDebugAdapter :
 									source = breakpoint.source,
 									methodId = breakpoint.methodId,
 									methodArgs = breakpoint.methodArgs,
-									qualifiedName = qualifiedName,
+									qualifiedNames = qualifiedNames,
 									suspendPolicy = breakpoint.suspendPolicy.asJdiInt(),
 								)
 							}

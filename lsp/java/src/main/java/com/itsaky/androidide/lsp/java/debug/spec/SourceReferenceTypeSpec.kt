@@ -10,12 +10,12 @@ import com.sun.jdi.request.ClassPrepareRequest
  */
 class SourceReferenceTypeSpec(
 	internal val source: Source,
-	internal val qualifiedName: String?,
+	internal val qualifiedNames: List<String>,
 ) : ReferenceTypeSpec {
 	override fun matchingRefTypes(vm: VirtualMachine): List<ReferenceType> =
-		qualifiedName?.let { name ->
+		qualifiedNames.flatMap { name ->
 			vm.classesByName(name)
-		} ?: emptyList()
+		}
 
 	override fun matches(
 		vm: VirtualMachine,
