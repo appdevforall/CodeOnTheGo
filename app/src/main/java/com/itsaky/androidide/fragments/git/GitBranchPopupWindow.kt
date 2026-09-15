@@ -1,8 +1,6 @@
 package com.itsaky.androidide.fragments.git
 
-import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
 import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
@@ -19,7 +17,9 @@ import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.utils.applyLongPressRecursively
+import com.itsaky.androidide.utils.findActivity
 import com.itsaky.androidide.utils.onLongPress
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.BranchesUiState
 
@@ -89,15 +89,16 @@ class GitBranchPopupWindow(
 	}
 
 	private fun setupTooltips() {
-		fun showTooltip() {
+		fun showTooltip(playHapticFeedback: Boolean) {
 			val anchor =
 				hostAnchor?.takeIf { it.isAttachedToWindow }
 					?: context.findActivity()?.window?.decorView
 					?: return
-			TooltipManager.showIdeCategoryTooltip(
+			showIdeCategoryTooltipIfPresent(
 				context = context,
-				anchorView = anchor,
+				anchor = anchor,
 				tag = TooltipTag.GIT_BRANCHES,
+				playHapticFeedback = playHapticFeedback,
 			)
 		}
 
@@ -105,12 +106,12 @@ class GitBranchPopupWindow(
 			exclude = listOf(binding.rvBranches),
 			includeEditTexts = false,
 		) {
-			showTooltip()
+			showTooltip(playHapticFeedback = false)
 			true
 		}
 
 		binding.rvBranches.onLongPress(suppressClickAfterLongPress = true) {
-			showTooltip()
+			showTooltip(playHapticFeedback = true)
 		}
 	}
 
@@ -233,10 +234,3 @@ class GitBranchPopupWindow(
 		}
 	}
 }
-
-private tailrec fun Context.findActivity(): Activity? =
-	when (this) {
-		is Activity -> this
-		is ContextWrapper -> baseContext?.findActivity()
-		else -> null
-	}
