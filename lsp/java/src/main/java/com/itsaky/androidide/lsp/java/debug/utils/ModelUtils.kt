@@ -8,6 +8,7 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.sun.jdi.Location
 import jdkx.tools.JavaFileObject
 import org.slf4j.LoggerFactory
+import java.io.File
 import kotlin.jvm.optionals.getOrNull
 import com.itsaky.androidide.lsp.debug.model.Location as LspLocation
 
@@ -20,6 +21,10 @@ private val logger = LoggerFactory.getLogger("ModelUtilsKt")
  * type of this location.
  */
 fun Location.asLspLocation(useDeclTypeName: Boolean = true): LspLocation {
+	if (declaringType().isKotlinType) {
+		return asKotlinLspLocation()
+	}
+
 	val projectManager = ProjectManagerImpl.getInstance()
 	val fo =
 		projectManager.workspace
@@ -64,8 +69,8 @@ fun Location.asLspLocation(useDeclTypeName: Boolean = true): LspLocation {
 			)
 		} else {
 			Source(
-				name = sourceName(),
-				path = sourcePath(),
+				name = sourceNameOrNull() ?: "",
+				path = sourcePathOrNull() ?: "",
 			)
 		}
 
@@ -73,7 +78,45 @@ fun Location.asLspLocation(useDeclTypeName: Boolean = true): LspLocation {
 		source = source,
 		// -1 because we get 1-indexed line numbers from JDI
 		// but IDE expects 0-indexed line numbers
-		line = lineNumber() - 1,
+		line = lineNumberInSource() - 1,
 		column = null,
 	)
 }
+
+private fun Location.asKotlinLspLocation(): LspLocation {
+	val relativePath = sourcePathOrNull()
+	val resolved = relativePath?.let(::resolveInSourceRoots)
+
+	if (resolved == null) {
+		logger.info("No source found for Kotlin location: {}", this)
+	}
+
+	val source =
+		if (resolved != null) {
+			Source(name = resolved.name, path = resolved.absolutePath)
+		} else {
+			Source(
+				name = sourceNameOrNull() ?: "",
+				path = relativePath ?: "",
+			)
+		}
+
+	return LspLocation(
+		source = source,
+		line = lineNumberInSource() - 1,
+		column = null,
+	)
+}
+
+private fun resolveInSourceRoots(relativePath: String): File? =
+	ProjectManagerImpl
+		.getInstance()
+		.workspace
+		?.subProjects
+		?.filterIsInstance<ModuleProject>()
+		?.firstNotNullOfOrNull { module ->
+			module
+				.getCompileSourceDirectories()
+				.map { dir -> File(dir, relativePath) }
+				.firstOrNull(File::isFile)
+		}

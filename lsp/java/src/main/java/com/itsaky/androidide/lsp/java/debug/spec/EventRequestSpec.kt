@@ -43,7 +43,16 @@ internal abstract class EventRequestSpec(
 		event: ClassPrepareEvent,
 	): EventRequest? {
 		if (resolved == null && prepareRequest != null && prepareRequest == event.request()) {
-			val resolved = resolveEventRequest(vm, event.referenceType())
+			val resolved =
+				try {
+					resolveEventRequest(vm, event.referenceType())
+				} catch (err: LineNotFoundException) {
+					logger.debug(
+						"class {} shares the source file but not line, waiting for another",
+						event.referenceType().name(),
+					)
+					return null
+				}
 			this.resolved = resolved
 
 			this.prepareRequest!!.disable()
@@ -119,7 +128,12 @@ internal abstract class EventRequestSpec(
 	): EventRequest? {
 		classes.firstOrNull { refType ->
 			if (refSpec.matches(vm, refType)) {
-				resolved = resolveEventRequest(vm, refType)
+				resolved =
+					try {
+						resolveEventRequest(vm, refType)
+					} catch (err: LineNotFoundException) {
+						null
+					}
 			}
 
 			resolved != null
