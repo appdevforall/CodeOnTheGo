@@ -853,7 +853,16 @@ class SessionReducer {
 					// save discovered it; stay degraded and keep telling the truth.
 					SessionTransition(state)
 				} else {
-					SessionTransition(QuickBuildSessionState.Ready(state.deployedGeneration))
+					// A tap recorded below is owed its switch: the user clicked, so they go to
+					// the proxy app once their changes are in it. The shell only re-warms a
+					// respawned daemon when nothing is pending, so no build would answer the
+					// ask and it would sit until the next ordinary save pulled them out of the
+					// editor. Hand it to the orchestrator as a clean tap instead: pending work
+					// builds and its deploy answers; nothing pending switches right away.
+					SessionTransition(
+						QuickBuildSessionState.Ready(state.deployedGeneration),
+						if (askOutstanding) listOf(SessionEffect.TriggerLiveReload(userInitiated = true)) else emptyList(),
+					)
 				}
 			}
 
@@ -876,7 +885,7 @@ class SessionReducer {
 				// to the else below - that would answer the tap with no build, no message and no Build
 				// Output line, since that pane is driven by status transitions. The message goes out
 				// in both arms so the tap is never silent, and the ask is recorded in both so the
-				// build that follows the respawn answers it.
+				// respawn's landing (DaemonRespawned above) answers it.
 				if (state.restartFailed) {
 					// Nothing is scheduled any more, so the tap is the retry; clearing
 					// restartFailed puts the status back to "restarting".

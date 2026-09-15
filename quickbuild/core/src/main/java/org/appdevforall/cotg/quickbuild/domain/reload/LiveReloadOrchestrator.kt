@@ -176,9 +176,11 @@ class LiveReloadOrchestrator(
 	 * starts a correctly-routed build whose deploy answers the tap; with nothing pending and
 	 * [expectChanges] set it leaves the tap to the watcher batch the save-all's writes will
 	 * deliver; with nothing pending and nothing written the caller switches immediately - the
-	 * deployed app is already current. Only the non-user reconnect catch-up still forces
-	 * ([BuildRequest.forced]): the app is provably behind and there is no changed-set to route,
-	 * and a failed forced build re-arms the flag so the eventual retry is forced too.
+	 * deployed app is already current - unless a real build already holds the pending set, in
+	 * which case that build is promoted and its deploy answers. Only the non-user reconnect
+	 * catch-up still forces ([BuildRequest.forced]): the app is provably behind and there is
+	 * no changed-set to route, and a failed forced build re-arms the flag so the eventual
+	 * retry is forced too.
 	 *
 	 * The ask itself is not held here: the caller recorded it on the session's PendingAsk before
 	 * calling, and [maybeStartBuildLocked] reads it through [askOutstanding] when a build starts.
@@ -225,9 +227,20 @@ class LiveReloadOrchestrator(
 				}
 
 				else -> {
-					// Nothing written and nothing pending: the deployed app is current, so
-					// the tap is answered by switching to it and no build runs at all.
-					outcome = LiveReloadRequestOutcome.SWITCH_NOW
+					val flight = inFlight
+					if (flight != null && flight.route !is BuildRoute.WarmCompile) {
+						// A real build took the pending set between the tap and this call (a
+						// respawn's onDaemonReplaced, or a watcher batch, starts one on its
+						// own). Switching now would show the app before that build lands the
+						// user's changes in it, so the build is promoted to answer the tap
+						// instead; a warm compile deploys nothing and falls through to the switch.
+						executor.markCurrentBuildUserInitiated()
+						outcome = LiveReloadRequestOutcome.AWAITS_DEPLOY
+					} else {
+						// Nothing written and nothing pending: the deployed app is current, so
+						// the tap is answered by switching to it and no build runs at all.
+						outcome = LiveReloadRequestOutcome.SWITCH_NOW
+					}
 				}
 			}
 		}
