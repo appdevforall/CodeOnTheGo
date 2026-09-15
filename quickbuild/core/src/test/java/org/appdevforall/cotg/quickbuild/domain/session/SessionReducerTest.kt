@@ -789,6 +789,35 @@ class SessionReducerTest {
 	}
 
 	@Test
+	fun `a respawn landing with the ask outstanding hands the tap to the orchestrator, not to the next save`() {
+		// A tap in Degraded is recorded on the promise that the build after the respawn answers
+		// it. With nothing pending no build follows (the shell only re-warms), so without this
+		// effect the ask sat until the user's next ordinary save and that save's deploy pulled
+		// them out of the editor - the save case behaviour 3 exists to prevent. The orchestrator
+		// builds pending work (its deploy answers) or switches now (the app is current).
+		val transition =
+			reducer.reduce(QuickBuildSessionState.Degraded(1), SessionEvent.DaemonRespawned, askOutstanding = true)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Ready(1))
+		assertThat(transition.effects).isEqualTo(listOf(SessionEffect.TriggerLiveReload(userInitiated = true)))
+	}
+
+	@Test
+	fun `a stale respawn keeps the ask for the tap that retries the restart`() {
+		// restartFailed means the announced daemon is already dead, so there is no compiler
+		// to answer the tap with; the ask stays recorded and the retry tap's respawn answers it.
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Degraded(1, restartFailed = true),
+				SessionEvent.DaemonRespawned,
+				askOutstanding = true,
+			)
+
+		assertThat(transition.state).isEqualTo(QuickBuildSessionState.Degraded(1, restartFailed = true))
+		assertThat(transition.effects).isEmpty()
+	}
+
+	@Test
 	fun `degraded plus DaemonDied stays degraded without a duplicate respawn effect`() {
 		val transition = reducer.reduce(QuickBuildSessionState.Degraded(1), SessionEvent.DaemonDied)
 
