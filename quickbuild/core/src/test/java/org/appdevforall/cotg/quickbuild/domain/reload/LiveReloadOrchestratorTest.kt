@@ -1523,6 +1523,45 @@ class LiveReloadOrchestratorTest {
 		}
 
 	@Test
+	fun `a clean tap landing on a real build already in flight is answered by that build, not by an early switch`() =
+		runTest {
+			// The respawn shape: onDaemonReplaced takes the pending set into a build before the
+			// tap's launched request reaches the orchestrator. Switching now would show the app
+			// before the user's changes land in it, so the build is promoted to answer instead.
+			val executor = GatedExecutor()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			orchestrator.onFilesChanged(known(srcA))
+			runCurrent()
+			assertThat(executor.requests).hasSize(1)
+
+			val outcome = orchestrator.onLiveReloadRequested(userInitiated = true, expectChanges = false)
+			runCurrent()
+
+			assertThat(outcome).isEqualTo(LiveReloadRequestOutcome.AWAITS_DEPLOY)
+			assertThat(executor.promotions).isEqualTo(1)
+			// No second build behind the same work.
+			assertThat(executor.requests).hasSize(1)
+		}
+
+	@Test
+	fun `a clean tap during a warm compile still switches now - the warm compile deploys nothing`() =
+		runTest {
+			val executor = GatedExecutor()
+			val orchestrator = LiveReloadOrchestrator(executor, ChangeClassifier(), backgroundScope) {}
+
+			orchestrator.onWarmCompileRequested()
+			runCurrent()
+			assertThat(executor.requests.single().route).isEqualTo(BuildRoute.WarmCompile)
+
+			val outcome = orchestrator.onLiveReloadRequested(userInitiated = true, expectChanges = false)
+			runCurrent()
+
+			assertThat(outcome).isEqualTo(LiveReloadRequestOutcome.SWITCH_NOW)
+			assertThat(executor.promotions).isEqualTo(0)
+		}
+
+	@Test
 	fun `a clean tap with nothing pending builds nothing and tells the caller to switch`() =
 		runTest {
 			// The F7 root fix's do-nothing half: the deployed app is current, so answering the

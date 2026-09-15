@@ -76,7 +76,7 @@ stateDiagram-v2
     Invalidated --> Ready: BuildFailed (awaiting retry)
     Invalidated --> Invalidated: DaemonDied (awaiting retry, RespawnDaemon)
 
-    Degraded --> Ready: DaemonRespawned (not restartFailed)
+    Degraded --> Ready: DaemonRespawned (not restartFailed; TriggerLiveReload if the ask is outstanding)
     Degraded --> Degraded: DaemonRespawned (restartFailed - the announced daemon already died)
     Degraded --> Degraded: DaemonDied / DaemonRestartFailed (restartFailed = true, no auto-retry)
     Degraded --> Invalidated: InvalidationDetected
