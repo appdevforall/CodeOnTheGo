@@ -26,16 +26,19 @@ package com.itsaky.androidide.xml.versions
  * `-1`, below every real version.
  */
 @JvmInline
-value class ApiVersion(
+value class ApiVersion private constructor(
 	val value: Long,
 ) : Comparable<ApiVersion> {
-	/** The major version, e.g. `36` for API 36.1. */
+	/** The major version, e.g. `36` for API 36.1, or `-1` when this is [UNKNOWN]. */
 	val major: Int
-		get() = (value / MINOR_SCALE).toInt()
+		get() = if (isKnown) (value / MINOR_SCALE).toInt() else -1
 
-	/** The minor version, e.g. `1` for API 36.1. Zero for a version without a minor component. */
+	/**
+	 * The minor version, e.g. `1` for API 36.1. Zero for a version without a minor component, `-1`
+	 * when this is [UNKNOWN].
+	 */
 	val minor: Int
-		get() = (value % MINOR_SCALE).toInt()
+		get() = if (isKnown) (value % MINOR_SCALE).toInt() else -1
 
 	/** Whether this is a real version rather than [UNKNOWN]. */
 	val isKnown: Boolean
@@ -56,11 +59,20 @@ value class ApiVersion(
 
 		private const val MINOR_SCALE = 100_000L
 
-		/** The packed version for [major] and [minor]. */
+		/**
+		 * The packed version for [major] and [minor].
+		 *
+		 * @throws IllegalArgumentException if either component is out of range, which would pack onto
+		 *   a different version -- `of(36, 100_000)` would otherwise read back as API 37.
+		 */
 		fun of(
 			major: Int,
 			minor: Int = 0,
-		): ApiVersion = ApiVersion(major * MINOR_SCALE + minor)
+		): ApiVersion {
+			require(major >= 0) { "Negative major version: $major" }
+			require(minor.toLong() in 0L until MINOR_SCALE) { "Minor version out of range: $minor" }
+			return ApiVersion(major * MINOR_SCALE + minor)
+		}
 
 		/**
 		 * Parses a `major` or `major.minor` version, as `api-versions.xml` and the SDK platform

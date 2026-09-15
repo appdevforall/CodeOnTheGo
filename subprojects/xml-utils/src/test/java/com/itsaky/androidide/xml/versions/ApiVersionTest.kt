@@ -18,6 +18,7 @@
 package com.itsaky.androidide.xml.versions
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /** @author Akash Yadav */
@@ -78,5 +79,18 @@ class ApiVersionTest {
 		assertThat(ApiVersion.of(37, 0).toString()).isEqualTo("37")
 		assertThat(ApiVersion.of(36, 1).toString()).isEqualTo("36.1")
 		assertThat(ApiVersion.UNKNOWN.toString()).isEqualTo("unknown")
+	}
+
+	@Test
+	fun `reports an unknown version as -1 rather than API 0`() {
+		assertThat(ApiVersion.UNKNOWN.major).isEqualTo(-1)
+		assertThat(ApiVersion.UNKNOWN.minor).isEqualTo(-1)
+	}
+
+	@Test
+	fun `rejects components that would alias onto another version`() {
+		assertThrows(IllegalArgumentException::class.java) { ApiVersion.of(36, 100_000) }
+		assertThrows(IllegalArgumentException::class.java) { ApiVersion.of(36, -1) }
+		assertThrows(IllegalArgumentException::class.java) { ApiVersion.of(-1) }
 	}
 }
