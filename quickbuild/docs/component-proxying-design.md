@@ -43,8 +43,8 @@ Android instantiates five kinds of class by name from the merged manifest:
 | Manifest element | Android class | Proxied | Why / note |
 |---|---|---|---|
 | `<activity>` | `android.app.Activity` | yes | Gains the `getClassLoader()` override; explicit in-app intents are preserved by a synthesized `<activity-alias>` under the real name |
-| `<service>` | `android.app.Service` | **no** | Keeps the real name: explicit `startService`/`bindService` intents resolve it against the manifest and there is no service alias to compensate a rename with. Still recorded in setup.json (swaps by process restart) |
-| `<receiver>` | `android.content.BroadcastReceiver` | **no** | Keeps the real name: an explicit broadcast (AlarmManager `PendingIntent`) at a renamed receiver is silently never delivered. Manifest-declared only - receivers registered at runtime are ordinary objects and need nothing |
+| `<service>` | `android.app.Service` | **no** | Keeps the real name: explicit `startService`/`bindService` intents resolve it against the manifest and there is no service alias to compensate a rename with. Recorded in setup.json only when the proxiability resolver accepts it; a by-name or `final` library service is left verbatim and absent from `components` (swaps by process restart) |
+| `<receiver>` | `android.content.BroadcastReceiver` | **no** | Keeps the real name: an explicit broadcast (AlarmManager `PendingIntent`) at a renamed receiver is silently never delivered. Manifest-declared only - receivers registered at runtime are ordinary objects and need nothing. Recorded in setup.json on the same terms as a service: a resolver-rejected one is absent from `components` |
 | `<provider>` | `android.content.ContentProvider` | yes | Addressed by `android:authorities`, which the rename does not touch; swaps by process restart |
 | `<application android:name>` | `android.app.Application` | **no** | Keeps the user's FQN, which `instantiateApplication` resolves against the payload loader like any other component. A proxy would buy nothing: the runtime's own per-process hook (`QuickBuildRuntime.install`) already runs inside `instantiateApplication`, so there is no behaviour to inject via a subclass |
 
@@ -61,8 +61,9 @@ See "Restart vs recreate".
 provider's `android:name` becomes a generated proxy FQN, a `Proxy<N><Type> extends <user class>`
 source is generated and compiled into the APK, and `<application>` gains the runtime's
 `android:appComponentFactory`. Proxiable excludes `final` library components and the
-name-resolved ones listed below, which keep their real names. Services and receivers keep their real (fully qualified) names
-and are recorded proxy-less, per the addressing rule above.
+name-resolved ones listed below, which keep their real names. Services and receivers the resolver accepts keep their real (fully
+qualified) names and are recorded proxy-less, per the addressing rule above; a rejected one is
+left verbatim and absent from `components`, so `DeployPolicy` never restarts for it.
 For each proxied activity the transform also synthesizes an `<activity-alias>` under the
 activity's REAL class name, pointing at the proxy - so an explicit in-app
 `Intent(ctx, SomeActivity::class.java)` still resolves instead of throwing
