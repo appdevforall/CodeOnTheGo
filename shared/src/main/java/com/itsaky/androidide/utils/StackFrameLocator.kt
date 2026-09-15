@@ -13,8 +13,9 @@ object StackFrameLocator {
 
 	fun parse(logLine: String): StackFrame? {
 		val match = framePattern.find(logLine) ?: return null
-		val (className, fileName, line) = match.destructured
-		return StackFrame(className, fileName, line.toInt())
+		val (className, fileName, lineText) = match.destructured
+		val line = lineText.toIntOrNull()?.takeIf { it > 0 } ?: return null
+		return StackFrame(className, fileName, line)
 	}
 
 	fun sourceLocationRange(logLine: String): IntRange? {

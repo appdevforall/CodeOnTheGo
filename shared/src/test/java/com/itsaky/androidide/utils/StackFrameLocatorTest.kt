@@ -39,6 +39,11 @@ class StackFrameLocatorTest {
 	}
 
 	@Test
+	fun `ignores a frame whose line number does not fit in an Int`() {
+		assertThat(StackFrameLocator.parse("\tat com.example.app.MainActivity.onCreate(MainActivity.kt:999999999999)")).isNull()
+	}
+
+	@Test
 	fun `locates a Java source under its package directory`() {
 		val root = tempDir()
 		val expected = sourceFile(root, "com/example/app/MainActivity.java")

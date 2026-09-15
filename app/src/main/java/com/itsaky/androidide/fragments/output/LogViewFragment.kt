@@ -45,6 +45,7 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.utils.BasicBuildInfo
 import com.itsaky.androidide.utils.StackFrame
 import com.itsaky.androidide.utils.StackFrameLocator
+import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.isTestMode
 import com.itsaky.androidide.utils.jetbrainsMono
@@ -55,7 +56,9 @@ import io.github.rosemoe.sora.util.IntPair
 import io.github.rosemoe.sora.widget.REGION_TEXT
 import io.github.rosemoe.sora.widget.resolveTouchRegion
 import io.github.rosemoe.sora.widget.style.CursorAnimator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -291,29 +294,40 @@ abstract class LogViewFragment<V : LogViewModel> :
 		}
 	}
 
+	private var frameNavigationJob: Job? = null
+
 	private fun openStackFrame(frame: StackFrame) {
-		viewLifecycleScope.launch {
-			val file =
-				withContext(Dispatchers.IO) {
-					val sourceDirs =
-						IProjectManager
-							.getInstance()
-							.workspace
-							?.subProjects
-							.orEmpty()
-							.filterIsInstance<ModuleProject>()
-							.flatMap { it.getSourceDirectories() }
-					StackFrameLocator.locate(frame, sourceDirs)
+		frameNavigationJob?.cancel()
+		frameNavigationJob =
+			viewLifecycleScope.launch {
+				try {
+					val file =
+						withContext(Dispatchers.IO) {
+							val sourceDirs =
+								IProjectManager
+									.getInstance()
+									.workspace
+									?.subProjects
+									.orEmpty()
+									.filterIsInstance<ModuleProject>()
+									.flatMap { it.getSourceDirectories() }
+							StackFrameLocator.locate(frame, sourceDirs)
+						}
+					if (file == null) {
+						flashInfo(getString(R.string.msg_stack_frame_source_not_found, frame.fileName))
+						return@launch
+					}
+					(activity as? BaseEditorActivity)?.apply {
+						doOpenFile(file, Range.pointRange(Position(frame.line - 1, 0)))
+						hideBottomSheet()
+					}
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Throwable) {
+					log.error("Failed to open source for stack frame {}", frame.fileName, e)
+					flashError(getString(R.string.msg_stack_frame_open_failed, frame.fileName))
 				}
-			if (file == null) {
-				flashInfo(getString(R.string.msg_stack_frame_source_not_found, frame.fileName))
-				return@launch
 			}
-			(activity as? BaseEditorActivity)?.apply {
-				doOpenFile(file, Range.pointRange(Position(frame.line - 1, 0)))
-				hideBottomSheet()
-			}
-		}
 	}
 
 	@UiThread
