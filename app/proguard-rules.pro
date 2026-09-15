@@ -222,6 +222,26 @@
 -keep class io.noties.markwon.** { *; }
 -keep class com.google.gson.** { *; }
 
+# Same union, the part plugins reach that the rules above do not cover. Scoped
+# to the API surface an add-on can actually call -- public and protected members
+# only, which resolves every reference the current add-ons make (verified by
+# resolving each .cgp's dex method references against a release APK index;
+# public/protected alone is as complete here as keeping all members).
+#
+# The class scope stays wide on purpose. Add-ons are third-party, so the members
+# they call are not derivable from this app: the Compose compiler rewrites every
+# @Composable into calls on androidx.compose.runtime, and Code Together's dex
+# alone references 13,172 distinct androidx.compose methods. Narrowing to the
+# classes today's add-ons happen to use would pin the add-on ABI to this release.
+#
+# Crashes this fixes, all reproduced on a release build:
+#   ComposerKt.sourceInformation   Code Together, Compose Preview
+#   sora Logger/Indexer            Layout Editor, via its bundled tm4e
+#   Logger.trace                   Code Together, via java-websocket
+-keep class androidx.compose.** { public protected *; }
+-keep class org.slf4j.** { public protected *; }
+-keep class io.github.rosemoe.sora.** { public protected *; }
+
 -keep class com.google.firebase.** { *; }
 -keep class com.google.android.gms.** { *; }
 
