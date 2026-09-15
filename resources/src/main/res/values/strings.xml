@@ -87,9 +87,9 @@
 	<string name="get_started">Get started</string>
 	<string name="msg_cannot_perform_fix">Unable to perform quick fix</string>
 	<string name="msg_performing_actions">Performing code action…</string>
-	<string name="msg_api_info_since">Since API %d</string>
-	<string name="msg_api_info_removed">Removed in API %d</string>
-	<string name="msg_api_info_deprecated">Deprecated in API %d</string>
+	<string name="msg_api_info_since">Since API %s</string>
+	<string name="msg_api_info_removed">Removed in API %s</string>
+	<string name="msg_api_info_deprecated">Deprecated in API %s</string>
 	<string name="msg_finding_references">Finding references…</string>
 	<string name="msg_finding_definition">Finding definition…</string>
 	<string name="msg_no_definition">Definition not found</string>
