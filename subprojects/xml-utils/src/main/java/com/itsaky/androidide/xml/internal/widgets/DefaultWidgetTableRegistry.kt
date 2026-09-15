@@ -31,50 +31,48 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @AutoService(WidgetTableRegistry::class)
 class DefaultWidgetTableRegistry : WidgetTableRegistry {
+	private val tables = ConcurrentHashMap<String, WidgetTable>()
 
-  private val tables = ConcurrentHashMap<String, WidgetTable>()
+	companion object {
+		private val log = LoggerFactory.getLogger(DefaultWidgetTableRegistry::class.java)
+	}
 
-  companion object {
+	override var isLoggingEnabled: Boolean = true
 
-    private val log = LoggerFactory.getLogger(DefaultWidgetTableRegistry::class.java)
-  }
+	override fun forPlatformDir(platform: File): WidgetTable? {
+		var table = tables[platform.path]
+		if (table != null) {
+			return table
+		}
 
-  override var isLoggingEnabled: Boolean = true
+		table = createTable(platform) ?: return null
+		tables[platform.path] = table
+		return table
+	}
 
-  override fun forPlatformDir(platform: File): WidgetTable? {
-    var table = tables[platform.path]
-    if (table != null) {
-      return table
-    }
+	private fun createTable(platformDir: File): WidgetTable? {
+		val widgets = File(platformDir, "data/widgets.txt")
+		if (!widgets.exists() || !widgets.isFile) {
+			if (isLoggingEnabled) {
+				log.warn("'widgets.txt' file does not exist in {}/data directory", platformDir.absolutePath)
+			}
+			return null
+		}
 
-    table = createTable(platform) ?: return null
-    tables[platform.path] = table
-    return table
-  }
+		if (isLoggingEnabled) {
+			log.info("Creating widget table for platform dir: {}", platformDir)
+		}
 
-  private fun createTable(platformDir: File): WidgetTable? {
-    val widgets = File(platformDir, "data/widgets.txt")
-    if (!widgets.exists() || !widgets.isFile) {
-      if (isLoggingEnabled) {
-        log.warn("'widgets.txt' file does not exist in {}/data directory", platformDir.absolutePath)
-      }
-      return null
-    }
+		return widgets.inputStream().bufferedReader().useLines {
+			val table = DefaultWidgetTable()
+			it.forEach { line ->
+				table.putWidget(line)
+			}
+			table
+		}
+	}
 
-    if (isLoggingEnabled) {
-      log.info("Creating widget table for platform dir: {}", platformDir)
-    }
-
-    return widgets.inputStream().bufferedReader().useLines {
-      val table = DefaultWidgetTable()
-      it.forEach { line ->
-        table.putWidget(line)
-      }
-      table
-    }
-  }
-
-  override fun clear() {
-    tables.clear()
-  }
+	override fun clear() {
+		tables.clear()
+	}
 }
