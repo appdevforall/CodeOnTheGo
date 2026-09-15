@@ -1,6 +1,8 @@
 package com.itsaky.androidide.lsp.java.debug.spec
 
 import com.itsaky.androidide.lsp.debug.model.Source
+import com.itsaky.androidide.lsp.java.debug.utils.matchesSourcePath
+import com.itsaky.androidide.lsp.java.debug.utils.sourcePathOrNull
 import com.sun.jdi.ReferenceType
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.request.ClassPrepareRequest
@@ -20,19 +22,7 @@ class SourceReferenceTypeSpec(
 	override fun matches(
 		vm: VirtualMachine,
 		refType: ReferenceType,
-	): Boolean {
-		try {
-			val sourcePath =
-				refType
-					.sourcePaths(vm.defaultStratum)
-					.firstOrNull() ?: return false
-			return this.source.path.endsWith(sourcePath)
-		} catch (err: Exception) {
-			// ignored
-		}
-
-		return false
-	}
+	): Boolean = matchesSourcePath(this.source.path, refType.sourcePathOrNull())
 
 	override fun createPrepareRequest(vm: VirtualMachine): ClassPrepareRequest {
 		val request =
@@ -40,7 +30,6 @@ class SourceReferenceTypeSpec(
 				.eventRequestManager()
 				.createClassPrepareRequest()
 		request.addSourceNameFilter("*${source.name}")
-		request.addCountFilter(1)
 		return request
 	}
 }
