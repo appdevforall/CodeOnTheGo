@@ -9,6 +9,9 @@ import com.itsaky.androidide.lsp.debug.model.Value
 import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.lsp.java.debug.utils.isOpaque
+import com.itsaky.androidide.lsp.java.debug.utils.isSyntheticKotlinLocal
+import com.itsaky.androidide.lsp.java.debug.utils.lineNumberInSource
+import com.itsaky.androidide.lsp.java.debug.utils.sourceNameOrNull
 import com.sun.jdi.Location
 import com.sun.jdi.Method
 import com.sun.jdi.ObjectCollectedException
@@ -28,8 +31,8 @@ class JavaStackFrame(
 	val frame: StackFrame,
 	val location: Location = frame.location(),
 	val method: Method? = location.method(),
-	val sourceName: String = location.sourceName(),
-	val lineNumber: Long = location.lineNumber().toLong(),
+	val sourceName: String = location.sourceNameOrNull() ?: "",
+	val lineNumber: Long = location.lineNumberInSource().toLong(),
 ) : LspStackFrame {
 	companion object {
 		private val logger = LoggerFactory.getLogger(JavaStackFrame::class.java)
@@ -68,24 +71,27 @@ class JavaStackFrame(
 					}?.run {
 						val variables = mutableListOf<AbstractJavaVariable<*>>()
 
-						val thisObject = runCatching {
-							this.thisObject()
-						}.getOrElse { e ->
-							when (e) {
-								is VMDisconnectedException -> {
-									logger.warn("VM disconnected while fetching 'this' object.", e)
-									return@evaluate emptyList()
-								}
-								is ObjectCollectedException -> {
-									logger.warn("Object collected by GC during debug", e)
-									null
-								}
-								else -> {
-									logger.error("Unexpected error fetching thisObject", e)
-									null
+						val thisObject =
+							runCatching {
+								this.thisObject()
+							}.getOrElse { e ->
+								when (e) {
+									is VMDisconnectedException -> {
+										logger.warn("VM disconnected while fetching 'this' object.", e)
+										return@evaluate emptyList()
+									}
+
+									is ObjectCollectedException -> {
+										logger.warn("Object collected by GC during debug", e)
+										null
+									}
+
+									else -> {
+										logger.error("Unexpected error fetching thisObject", e)
+										null
+									}
 								}
 							}
-						}
 						if (thisObject != null) {
 							variables.add(
 								ThisVariable<Value>(
@@ -101,6 +107,10 @@ class JavaStackFrame(
 								?.mapNotNull { variable ->
 									if (variable.name().isBlank()) {
 										// some opaque frames in core Android classes have empty variable names (like in ZygoteInit)
+										return@mapNotNull null
+									}
+
+									if (isSyntheticKotlinLocal(variable.name())) {
 										return@mapNotNull null
 									}
 
@@ -164,7 +174,9 @@ class JavaStackFrame(
 			}
 
 			// TODO: Support other types of variable values
-			else -> throw IllegalStateException("Unsupported variable kind: ${variable.kind}")
+			else -> {
+				throw IllegalStateException("Unsupported variable kind: ${variable.kind}")
+			}
 		}
 	}
 }
