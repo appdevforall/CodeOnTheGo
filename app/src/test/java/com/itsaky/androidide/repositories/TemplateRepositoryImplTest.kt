@@ -226,4 +226,18 @@ class TemplateRepositoryImplTest {
 
 			assertThat(items.map { it.name }).containsExactly("installed.cgt")
 		}
+
+	@Test
+	fun listTemplateFiles_hidesACoreArchiveTwinInDownloads() =
+		runTest {
+			writeCgt(templatesDir, TEMPLATE_CORE_ARCHIVE)
+			writeCgt(downloadDir, TEMPLATE_CORE_ARCHIVE)
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			// The excluded core.cgt must not resurrect its Downloads twin as an installable card -
+			// that card's Install could only ever fail, since the real core.cgt already occupies
+			// that path in templatesDir.
+			assertThat(items).isEmpty()
+		}
 }

@@ -62,16 +62,16 @@ class TemplateRepositoryImpl(
 	 * install/uninstall/delete flows.
 	 */
 	private fun scanTemplates(): List<CgtFileItem> {
-		val installed =
-			cgtFilesIn(templatesDir)
-				.filterNot { file -> file.name == TEMPLATE_CORE_ARCHIVE }
-				.mapNotNull { file -> parseCgtFile(file, installed = true) }
+		// installedNames is deliberately built before core.cgt is filtered out below: a same-named
+		// core.cgt sitting in Downloads must still be hidden as a dead-end twin (see the class doc),
+		// not shown as an installable card whose Install could only ever collide with the real one.
+		val installed = cgtFilesIn(templatesDir).mapNotNull { file -> parseCgtFile(file, installed = true) }
 		val installedNames = installed.mapTo(mutableSetOf()) { item -> item.name.lowercase() }
 		val downloaded =
 			cgtFilesIn(downloadDir)
 				.filterNot { file -> file.name.lowercase() in installedNames }
 				.mapNotNull { file -> parseCgtFile(file, installed = false) }
-		return installed + downloaded
+		return installed.filterNot { item -> item.name == TEMPLATE_CORE_ARCHIVE } + downloaded
 	}
 
 	private fun cgtFilesIn(dir: File): List<File> =
