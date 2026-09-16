@@ -38,11 +38,11 @@ class AndroidIDEInitScriptPluginTest {
 
 	/**
 	 * The init script injects the IDE plugin into the root buildscript and applies it by ID on
-	 * every subproject. Nothing about that is version-specific, so the Gradle 9 case is here to
-	 * keep the version new projects increasingly pin covered rather than assumed.
+	 * every subproject. Nothing about that is version-specific. AGP_VERSION_LATEST (9.3.1) needs
+	 * Gradle 9.5 or newer, so the arms are the oldest Gradle it accepts and the one the IDE bundles.
 	 */
 	@ParameterizedTest
-	@ValueSource(strings = ["8.14.3", "9.5.1"])
+	@ValueSource(strings = ["9.5.1", "9.6.1"])
 	fun `test plugins are applied on the given gradle version`(gradleVersion: String) {
 		assertIdePluginApplied(buildProject(gradleVersion = gradleVersion))
 	}
@@ -51,12 +51,12 @@ class AndroidIDEInitScriptPluginTest {
 		"LogSenderPlugin reads ApplicationVariantBuilder.debuggable inside an AGP beforeVariants " +
 			"callback, which AGP (the repo's current AGP_VERSION_LATEST) forbids with " +
 			"PropertyAccessNotAllowedException - so enabling LogSender fails to configure ':app' on " +
-			"both 8.14.3 and 9.5.1. That is a LogSenderPlugin/AGP issue (the known-logsender bucket), " +
+			"both 9.5.1 and 9.6.1. That is a LogSenderPlugin/AGP issue (the known-logsender bucket), " +
 			"orthogonal to the init-script plugin injection this suite covers. The fix (move the read " +
 			"to onVariants, which also covers JdwpPlugin) is ADFA-5433; re-enabling this test is ADFA-5459.",
 	)
 	@ParameterizedTest
-	@ValueSource(strings = ["8.14.3", "9.5.1"])
+	@ValueSource(strings = ["9.5.1", "9.6.1"])
 	fun `test log sender is applied to debuggable variants only`(
 		gradleVersion: String,
 		@TempDir dir: File,
