@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.java.refactor
 import com.itsaky.androidide.lsp.refactor.MAX_CANDIDATES
 import com.itsaky.androidide.lsp.refactor.TextSpan
 import jdkx.lang.model.element.ElementKind
+import jdkx.lang.model.element.Modifier
 import openjdk.source.tree.AnnotatedTypeTree
 import openjdk.source.tree.AnnotationTree
 import openjdk.source.tree.ArrayTypeTree
@@ -336,24 +337,53 @@ internal fun isLegalExtractionTarget(
 	// a statement, so extract method (hoisted = false) keeps this target; without it a bare cursor in
 	// `foo(a, b);` -- the commonest place to reach for extract method -- would offer nothing.
 	if (hoisted && parent is ExpressionStatementTree) return false
-	if (!hoisted && parent is ExpressionStatementTree && writesToNonField(path, trees)) return false
+	if (!hoisted && containsUnmovableWrite(path, trees)) return false
 	return true
 }
 
-private fun writesToNonField(
+private fun containsUnmovableWrite(
 	path: TreePath,
 	trees: Trees,
 ): Boolean {
-	val leaf = path.leaf
-	val target =
-		when {
-			leaf is AssignmentTree -> leaf.variable
-			leaf is CompoundAssignmentTree -> leaf.variable
-			leaf is UnaryTree && leaf.kind in INCREMENT_KINDS -> leaf.expression
-			else -> return false
+	var found = false
+	val scanner =
+		object : TreePathScanner<Unit, Unit>() {
+			override fun visitAssignment(
+				node: AssignmentTree,
+				p: Unit?,
+			): Unit? {
+				if (isUnmovableTarget(currentPath, node.variable, trees)) found = true
+				return super.visitAssignment(node, p)
+			}
+
+			override fun visitCompoundAssignment(
+				node: CompoundAssignmentTree,
+				p: Unit?,
+			): Unit? {
+				if (isUnmovableTarget(currentPath, node.variable, trees)) found = true
+				return super.visitCompoundAssignment(node, p)
+			}
+
+			override fun visitUnary(
+				node: UnaryTree,
+				p: Unit?,
+			): Unit? {
+				if (node.kind in INCREMENT_KINDS && isUnmovableTarget(currentPath, node.expression, trees)) found = true
+				return super.visitUnary(node, p)
+			}
 		}
-	val element = runCatching { trees.getElement(TreePath(path, target)) }.getOrNull() ?: return true
-	return element.kind != ElementKind.FIELD
+	scanner.scan(path, null)
+	return found
+}
+
+private fun isUnmovableTarget(
+	parentPath: TreePath,
+	target: ExpressionTree,
+	trees: Trees,
+): Boolean {
+	val element = runCatching { trees.getElement(TreePath(parentPath, target)) }.getOrNull() ?: return true
+	if (element.kind != ElementKind.FIELD) return true
+	return Modifier.FINAL in element.modifiers
 }
 
 /** A resolution failure reads as "not a type", keeping a candidate over broken code. */

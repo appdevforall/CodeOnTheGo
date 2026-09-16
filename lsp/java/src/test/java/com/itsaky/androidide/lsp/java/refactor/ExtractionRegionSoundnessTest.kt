@@ -87,6 +87,58 @@ class ExtractionRegionSoundnessTest {
 		assertThat(texts).contains("this.fld = a + 1")
 	}
 
+	@Test
+	fun `a whole brace-bodied compound statement resolves to a single statements region`() {
+		val cases =
+			listOf(
+				"\tvoid m(boolean flag) {\n\t\twhile (flag) { g(); }\n\t}" to "while (flag) { g(); }",
+				"\tvoid m() {\n\t\tfor (int i = 0; i < 3; i++) { g(); }\n\t}" to "for (int i = 0; i < 3; i++) { g(); }",
+				"\tvoid m(int[] xs) {\n\t\tfor (int x : xs) { g(); }\n\t}" to "for (int x : xs) { g(); }",
+				"\tvoid m() {\n\t\ttry { g(); } catch (RuntimeException e) {}\n\t}" to "try { g(); } catch (RuntimeException e) {}",
+				"\tvoid m(boolean flag) {\n\t\tif (flag) { g(); }\n\t}" to "if (flag) { g(); }",
+				"\tvoid m(boolean flag) {\n\t\tif (flag) g();\n\t}" to "if (flag) g();",
+			)
+		for ((members, selection) in cases) {
+			val f = fixture(members)
+			val regions = f.select(selection)
+			assertWithMessage(selection).that(regions).hasSize(1)
+			val only = regions.single()
+			assertWithMessage(selection).that(only).isInstanceOf(ExtractionRegion.Statements::class.java)
+			assertWithMessage(selection).that(f.spanText(only)).isEqualTo(selection)
+		}
+	}
+
+	@Test
+	fun `a local write nested inside an offered candidate is not offered`() {
+		val f = fixture("\tvoid m(int a) {\n\t\tint i = a;\n\t\tr(i++);\n\t}")
+		val texts = f.candidateTextsAt("r(i++)", inside = "i+")
+		assertThat(texts).doesNotContain("i++")
+		assertThat(texts).doesNotContain("r(i++)")
+	}
+
+	@Test
+	fun `a call wrapping an assignment to a local is not offered`() {
+		val f = fixture("\tvoid m() {\n\t\tint i = 0;\n\t\tr(i = 3);\n\t}")
+		val texts = f.candidateTextsAt("r(i = 3)", inside = "i = 3")
+		assertThat(texts).doesNotContain("i = 3")
+		assertThat(texts).doesNotContain("r(i = 3)")
+	}
+
+	@Test
+	fun `an assignment chaining through a local is not offered even when the outer target is a field`() {
+		val f = fixture("\tvoid m() {\n\t\tint b = 0;\n\t\tfld = b = 1;\n\t}")
+		val texts = f.candidateTextsAt("fld = b = 1", inside = "b = 1")
+		assertThat(texts).doesNotContain("b = 1")
+		assertThat(texts).doesNotContain("fld = b = 1")
+	}
+
+	@Test
+	fun `a write to a final field is not an extract-method target`() {
+		val f = fixture("\tfinal int ff;\n\tF(int a) {\n\t\tthis.ff = a + 1;\n\t}")
+		val texts = f.candidateTextsAt("this.ff = a + 1", inside = "a + 1")
+		assertThat(texts).doesNotContain("this.ff = a + 1")
+	}
+
 	private fun JavacFixture.regions(
 		start: Int,
 		end: Int,

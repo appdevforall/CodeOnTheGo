@@ -106,13 +106,13 @@ private fun snapToStatements(
 	val first = statementContaining(root, positions, start) ?: return null
 	val last = statementContaining(root, positions, end - 1) ?: return null
 
-	val block = first.parentPath?.leaf as? BlockTree ?: return null
-	if (last.parentPath?.leaf !== block) return null
-	if (!isExtractionPosition(first, hoisted = false)) return null
+	val block = first.path.parentPath?.leaf as? BlockTree ?: return null
+	if (last.path.parentPath?.leaf !== block) return null
+	if (!isExtractionPosition(first.path, hoisted = false)) return null
 
 	val statements = block.statements
-	val from = statements.indexOfFirst { it === first.leaf }
-	val to = statements.indexOfFirst { it === last.leaf }
+	val from = statements.indexOfFirst { it === first.path.leaf }
+	val to = statements.indexOfFirst { it === last.path.leaf }
 	if (from < 0 || to < from) return null
 
 	val selected = statements.subList(from, to + 1).toList()
@@ -122,11 +122,14 @@ private fun snapToStatements(
 	if (selected.any { it is ExpressionStatementTree && it.expression.isConstructorDelegation() }) return null
 	val firstSpan = spanOf(root, positions, selected.first()) ?: return null
 	val lastSpan = spanOf(root, positions, selected.last()) ?: return null
+
+	if ((first.climbed || last.climbed) && (start > firstSpan.start || end < lastSpan.end)) return null
+
 	val nextStatementStart = statements.getOrNull(to + 1)?.let { spanOf(root, positions, it)?.start } ?: fileText.length
 
 	return ExtractionRegion.Statements(
 		statements = selected,
-		path = first,
+		path = first.path,
 		span = TextSpan(firstSpan.start, absorbTrailingSemicolon(fileText, lastSpan.end, nextStatementStart)),
 	)
 }
@@ -144,9 +147,16 @@ internal fun absorbTrailingSemicolon(
 	limit: Int,
 ): Int = if (end < limit && end < fileText.length && fileText[end] == ';') end + 1 else end
 
+private class StatementAnchor(
+	val path: TreePath,
+	val climbed: Boolean,
+)
+
 /**
- * The narrowest statement containing [offset] that is a direct statement child of a block. Null for a
- * position that is not inside one, such as a comment or a class body.
+ * The block-child statement [offset] belongs to: the narrowest statement at the offset, or the nearest
+ * ancestor that is a direct block child when that statement is a case entry, an un-braced if/loop body,
+ * or a compound statement's own inner block. [StatementAnchor.climbed] records whether it climbed. Null
+ * for a position not inside any statement.
  *
  * Deliberately *not* a walk up from [deepestPathAt]: `analyze()` synthesises a default constructor for
  * a class that declares none, and its generated `super()` carries the class declaration's own start
@@ -159,7 +169,7 @@ private fun statementContaining(
 	root: CompilationUnitTree,
 	positions: SourcePositions,
 	offset: Int,
-): TreePath? {
+): StatementAnchor? {
 	var best: TreePath? = null
 	var bestWidth = Int.MAX_VALUE
 
@@ -182,5 +192,11 @@ private fun statementContaining(
 			}
 		}
 	scanner.scan(TreePath(root), null)
-	return best?.takeIf { it.parentPath?.leaf is BlockTree }
+	var path = best ?: return null
+	var climbed = false
+	while (true) {
+		if (path.leaf is StatementTree && path.parentPath?.leaf is BlockTree) return StatementAnchor(path, climbed)
+		path = path.parentPath ?: return null
+		climbed = true
+	}
 }
