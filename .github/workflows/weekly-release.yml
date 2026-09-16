@@ -2,6 +2,11 @@ name: Weekly release (manual)
 
 on:
   workflow_dispatch:
+    inputs:
+      hotfix_version:
+        description: 'Override version for hotfixes (e.g., 26.38.1)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -28,8 +33,13 @@ jobs:
       - name: Compute CalVer version
         id: compute
         run: |
-          VERSION=$(date -u +%g.%V)
-          NEXT_VERSION=$(date -u -d "+7 days" +%g.%V)
+          if [[ -n "${{ github.event.inputs.hotfix_version }}" ]]; then
+            VERSION="${{ github.event.inputs.hotfix_version }}"
+            NEXT_VERSION=$(date -u -d "+7 days" +%g.%V)
+          else
+            VERSION=$(date -u +%g.%V)
+            NEXT_VERSION=$(date -u -d "+7 days" +%g.%V)
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
           echo "Releasing $VERSION (next will be $NEXT_VERSION)"
@@ -41,7 +51,7 @@ jobs:
         shell: flox activate -d flox/base -- bash -eo pipefail {0}
         run: |
           PREVIOUS_TAG=$(gh release list --json tagName \
-              --jq '[.[] | select(.tagName | test("^[0-9]+\\.[0-9]+$"))] | .[0].tagName // ""')
+              --jq '[.[] | select(.tagName | test("^[0-9]+\\.[0-9]+(\\.[0-9]+)?$"))] | .[0].tagName // ""')
           echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
           echo "Previous CalVer tag: ${PREVIOUS_TAG:-none}"
 
