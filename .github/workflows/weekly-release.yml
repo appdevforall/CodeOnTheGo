@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       hotfix_version:
-        description: 'Override version for hotfixes (e.g., 26.38.1)'
+        description: 'Version for an off-cycle release (e.g. 26.38.1). Publishes the current build under this version instead of the CalVer week.'
         required: false
         type: string
 
@@ -41,14 +41,17 @@ jobs:
               exit 1
             fi
             VERSION="$HOTFIX_VERSION"
-            NEXT_VERSION=$(date -u -d "+7 days" +%g.%V)
           else
             VERSION=$(date -u +%g.%V)
-            NEXT_VERSION=$(date -u -d "+7 days" +%g.%V)
           fi
+          NEXT_VERSION=$(date -u -d "+7 days" +%g.%V)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-          echo "Releasing $VERSION (next will be $NEXT_VERSION)"
+          if [[ -n "$HOTFIX_VERSION" ]]; then
+            echo "Releasing hotfix $VERSION (NEXT_RELEASE_VERSION left unchanged)"
+          else
+            echo "Releasing $VERSION (next will be $NEXT_VERSION)"
+          fi
 
       - name: Look up previous CalVer tag
         id: previous
@@ -214,20 +217,20 @@ jobs:
             exit 0
           fi
 
-          if [[ -n "$PREVIOUS_TAG" && "$PREVIOUS_TAG" != "$VERSION" ]]; then
-            gh release create "$VERSION" \
-                --target "$GITHUB_SHA" \
-                --latest \
-                --title "$VERSION" \
-                --generate-notes \
-                --notes-start-tag "$PREVIOUS_TAG"
-          else
-            gh release create "$VERSION" \
-                --target "$GITHUB_SHA" \
-                --latest \
-                --title "$VERSION" \
-                --generate-notes
+          # A hotfix cut against a superseded release must not steal the "Latest"
+          # badge from the newer release that is already published.
+          IS_LATEST=true
+          if [[ -n "$PREVIOUS_TAG" ]] \
+              && [[ "$(printf '%s\n%s\n' "$VERSION" "$PREVIOUS_TAG" | sort -V | tail -n1)" != "$VERSION" ]]; then
+            IS_LATEST=false
           fi
+          echo "Marking $VERSION as latest: $IS_LATEST (previous tag: ${PREVIOUS_TAG:-none})"
+
+          ARGS=(--target "$GITHUB_SHA" --latest="$IS_LATEST" --title "$VERSION" --generate-notes)
+          if [[ -n "$PREVIOUS_TAG" && "$PREVIOUS_TAG" != "$VERSION" ]]; then
+            ARGS+=(--notes-start-tag "$PREVIOUS_TAG")
+          fi
+          gh release create "$VERSION" "${ARGS[@]}"
 
   upload-r2:
     needs: [prepare, pull-apk]
@@ -310,6 +313,7 @@ jobs:
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
       - name: Set NEXT_RELEASE_VERSION repo variable
+        if: ${{ github.event.inputs.hotfix_version == '' }}
         env:
           GH_TOKEN:     ${{ steps.app-token.outputs.token }}
           NEXT_VERSION: ${{ needs.prepare.outputs.next_version }}

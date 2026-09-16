@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       hotfix_version:
-        description: 'Override version for hotfixes (e.g. 26.38.1)'
+        description: 'Version stamp for an off-cycle release (e.g. 26.38.1). Still merges stage into main and builds main.'
         required: false
         type: string
 
