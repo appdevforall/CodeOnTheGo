@@ -81,7 +81,7 @@ private fun planFor(
 	val trees = Trees.instance(task)
 	val positions = trees.sourcePositions
 
-	val regions = resolveExtractionRegions(task, root, positions, fileText, selectionStart, selectionEnd)
+	val regions = resolveExtractionRegions(task, root, fileText, selectionStart, selectionEnd)
 	if (regions.isEmpty()) {
 		return ExtractMethodPlan.refused(ExtractionRefusal.NotASingleRegion, fileText, documentVersion)
 	}

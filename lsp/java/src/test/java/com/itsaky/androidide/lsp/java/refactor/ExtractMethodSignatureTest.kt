@@ -38,7 +38,7 @@ class ExtractMethodSignatureTest {
 		require(start >= 0) { "the fixture contains no selection" }
 		val positions = trees.sourcePositions
 		val region =
-			resolveExtractionRegions(task, root, positions, text, start, start + selection.length)
+			resolveExtractionRegions(task, root, text, start, start + selection.length)
 				.filterIsInstance<ExtractionRegion.Statements>()
 				.firstOrNull() ?: error("no statements region for the selection")
 		return analyseRegion(region, task, root, trees, positions, text)

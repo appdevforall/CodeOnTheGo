@@ -62,7 +62,7 @@ internal fun analyseRegion(
 	positions: SourcePositions,
 	fileText: String,
 ): AnalysisResult {
-	val anchor = anchorMemberFor(region.path, root, positions) ?: return refuse(ExtractionRefusal.NotASingleRegion)
+	val anchor = anchorMemberFor(region.path, root, trees, positions) ?: return refuse(ExtractionRefusal.NotASingleRegion)
 	val span = region.span
 	val names = TypeNames(root)
 	val elements = task.elements
@@ -77,7 +77,7 @@ internal fun analyseRegion(
 		?.let { return refuse(ExtractionRefusal.UsesTypeParameter(it.element.simpleName.toString())) }
 
 	references
-		.firstOrNull { isCapturedLocalType(it.element, span, root, trees, positions) }
+		.firstOrNull { isCapturedLocalType(it.element, span, anchor, root, trees, positions) }
 		?.let { return refuse(ExtractionRefusal.CapturedLocalDeclaration(localTypeNameOf(it.element))) }
 
 	outerReassignmentIn(regionPaths, span, anchor, root, trees, positions)
@@ -117,7 +117,7 @@ internal fun analyseRegion(
 			?: return refuse(ExtractionRefusal.UnrenderableType)
 
 	val takenNames = methodNamesIn(anchor.classPath, trees, elements)
-	val insertOffset = absorbTrailingSemicolon(fileText, anchor.span.end)
+	val insertOffset = absorbTrailingSemicolon(fileText, anchor.span.end, fileText.length)
 
 	return AnalysisResult.Analysed(
 		ExtractMethodCandidate(
