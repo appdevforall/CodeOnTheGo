@@ -139,10 +139,15 @@ sealed interface QuickBuildSessionState {
 	 *   scheduled to try once more, deliberately, because auto-retrying a hard-broken daemon just
 	 *   spins; a flag rather than a state because all that changes is that the status must stop
 	 *   claiming a restart is under way.
+	 * @property tapWroteSomething a tap recorded while degraded had a save-all that wrote at least
+	 *   one file; carried into the respawn's [SessionEffect.TriggerLiveReload] as `expectChanges`
+	 *   so the orchestrator waits for that write's watcher batch instead of switching on an empty
+	 *   pending set. Dropped on the transition to [Ready], which does not carry it.
 	 */
 	data class Degraded(
 		val deployedGeneration: Long,
 		val restartFailed: Boolean = false,
+		val tapWroteSomething: Boolean = false,
 	) : QuickBuildSessionState
 }
 

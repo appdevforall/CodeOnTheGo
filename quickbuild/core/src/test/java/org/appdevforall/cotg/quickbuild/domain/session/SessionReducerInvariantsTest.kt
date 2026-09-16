@@ -211,7 +211,9 @@ class SessionReducerInvariantsTest {
 				for (awaiting in BOOLEANS) {
 					for (retries in RETRY_COUNTS) add(QuickBuildSessionState.Invalidated(REASON, GENERATION, awaiting, retries))
 				}
-				for (failed in BOOLEANS) add(QuickBuildSessionState.Degraded(GENERATION, failed))
+				for (failed in BOOLEANS) {
+					for (wrote in BOOLEANS) add(QuickBuildSessionState.Degraded(GENERATION, failed, wrote))
+				}
 			}
 
 		val events: List<SessionEvent> =
