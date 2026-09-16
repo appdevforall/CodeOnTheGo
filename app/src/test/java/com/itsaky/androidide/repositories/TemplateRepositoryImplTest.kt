@@ -98,7 +98,7 @@ class TemplateRepositoryImplTest {
 		}
 
 	@Test
-	fun uninstallTemplate_nameCollision_failsWithoutTouchingEitherCopy() =
+	fun uninstallTemplate_nameCollision_failsWithReplaceConflict_withoutTouchingEitherCopy() =
 		runTest {
 			val source = File(templatesDir, "dup.cgt").apply { writeText("installed") }
 			val existingDownload = File(downloadDir, "dup.cgt").apply { writeText("already in downloads") }
@@ -106,6 +106,7 @@ class TemplateRepositoryImplTest {
 			val result = repository.uninstallTemplate(item(source, installed = true))
 
 			assertThat(result.isFailure).isTrue()
+			assertThat(result.exceptionOrNull()).isInstanceOf(TemplateReplaceConflictException::class.java)
 			assertThat(source.exists()).isTrue()
 			assertThat(source.readText()).isEqualTo("installed")
 			assertThat(existingDownload.readText()).isEqualTo("already in downloads")
@@ -125,6 +126,25 @@ class TemplateRepositoryImplTest {
 			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
 			assertThat(source.exists()).isTrue()
 			assertThat(restored.exists()).isFalse()
+		}
+
+	@Test
+	fun uninstallTemplate_overwriteTrue_deleteFails_leavesTheReplacementCopyInDownloads() =
+		runTest {
+			val source = File(templatesDir, "uninstall.cgt").apply { writeText("installed") }
+			val restored = File(downloadDir, "uninstall.cgt").apply { writeText("stale") }
+
+			check(templatesDir.setWritable(false)) { "test setup: could not make templatesDir read-only" }
+
+			val result = repository.uninstallTemplate(item(source, installed = true), overwrite = true)
+
+			assertThat(result.isFailure).isTrue()
+			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
+			// The source is still installed (its delete failed) - the pre-existing Downloads
+			// content was already overwritten and can't be recovered either way, so the new copy
+			// is left in place rather than deleted for nothing.
+			assertThat(source.exists()).isTrue()
+			assertThat(restored.readText()).isEqualTo("installed")
 		}
 
 	@Test

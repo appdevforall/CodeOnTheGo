@@ -1430,6 +1430,10 @@
 	<string name="title_templates_in">Templates in %1$s</string>
 	<string name="title_delete_template">Delete template?</string>
 	<string name="msg_delete_template_confirm">This permanently deletes \'%1$s\' from Downloads.</string>
+	<string name="title_uninstall_template">Uninstall template?</string>
+	<string name="msg_uninstall_template_confirm">This moves \'%1$s\' back to Downloads.</string>
+	<string name="title_replace_template">Replace file in Downloads?</string>
+	<string name="msg_replace_template_confirm">A file named \'%1$s\' already exists in Downloads. Replace it?</string>
 	<string name="label_template_file">File</string>
 	<string name="label_template_status">Status</string>
 	<string name="label_template_location">Location</string>

@@ -137,7 +137,10 @@ class TemplateRepositoryImpl(
 			}
 		}
 
-	override suspend fun uninstallTemplate(item: CgtFileItem): Result<Unit> =
+	override suspend fun uninstallTemplate(
+		item: CgtFileItem,
+		overwrite: Boolean,
+	): Result<Unit> =
 		withContext(Dispatchers.IO) {
 			try {
 				check(item.installed) { "'${item.name}' is not installed" }
@@ -146,10 +149,20 @@ class TemplateRepositoryImpl(
 				// Restore a copy to Downloads BEFORE removing it from the store: if the restore
 				// throws, the store copy below is never touched, so the user's only copy survives.
 				val restored = File(downloadDir, item.file.name)
-				check(!restored.exists()) { "A download named '${restored.name}' already exists in $downloadDir" }
-				item.file.copyTo(restored, overwrite = false)
+				val hadExistingDownload = restored.exists()
+				if (hadExistingDownload && !overwrite) {
+					return@withContext Result.failure(TemplateReplaceConflictException(restored.name))
+				}
+				item.file.copyTo(restored, overwrite = overwrite)
 				if (!item.file.delete()) {
-					restored.delete()
+					// Only roll back a copy this call created itself. When `overwrite` replaced a
+					// pre-existing Downloads file, that original content is already gone - deleting
+					// `restored` here would destroy the new copy too and leave the user with nothing,
+					// whereas the still-installed source (its delete just failed) means leaving the
+					// new copy in place costs nothing and loses no data.
+					if (!hadExistingDownload) {
+						restored.delete()
+					}
 					throw IOException("Failed to delete source file after copying: ${item.file.absolutePath}")
 				}
 				ITemplateProvider.getInstance(reload = true)

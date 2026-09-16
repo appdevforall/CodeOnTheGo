@@ -44,6 +44,45 @@ fun DeleteTemplateConfirmationDialog(
 	)
 }
 
+@Composable
+fun UninstallTemplateConfirmationDialog(
+	item: CgtFileItem,
+	onConfirm: () -> Unit,
+	onDismiss: () -> Unit,
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.title_uninstall_template)) },
+		text = { Text(stringResource(R.string.msg_uninstall_template_confirm, item.displayName)) },
+		confirmButton = {
+			TextButton(onClick = onConfirm) { Text(stringResource(R.string.action_uninstall_template)) }
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+		},
+	)
+}
+
+/** Shown when uninstalling [item] would silently overwrite an existing Downloads file of the same name. */
+@Composable
+fun ReplaceTemplateInDownloadsDialog(
+	item: CgtFileItem,
+	onConfirm: () -> Unit,
+	onDismiss: () -> Unit,
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.title_replace_template)) },
+		text = { Text(stringResource(R.string.msg_replace_template_confirm, item.displayName)) },
+		confirmButton = {
+			TextButton(onClick = onConfirm) { Text(stringResource(R.string.replace)) }
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+		},
+	)
+}
+
 /** File-level details for a single-template .cgt (multi-template files use [TemplateListDialog]). */
 @Composable
 fun TemplateFileDetailsDialog(
