@@ -145,6 +145,10 @@ class TemplateRepositoryImplTest {
 			// is left in place rather than deleted for nothing.
 			assertThat(source.exists()).isTrue()
 			assertThat(restored.readText()).isEqualTo("installed")
+			// The message must say the file now exists in both places, not the plain "failed to
+			// delete" wording the non-overwrite rollback case uses - a user reading that after an
+			// overwrite would wrongly assume their prior Downloads content is still intact.
+			assertThat(result.exceptionOrNull()?.message).contains("now exists in both places")
 		}
 
 	@Test

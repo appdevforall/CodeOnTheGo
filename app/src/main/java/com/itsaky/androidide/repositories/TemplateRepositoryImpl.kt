@@ -151,6 +151,12 @@ class TemplateRepositoryImpl(
 				val restored = File(downloadDir, item.file.name)
 				val hadExistingDownload = restored.exists()
 				if (hadExistingDownload && !overwrite) {
+					// Not thrown, so it skips the catch blocks below - log it here instead, or a
+					// repeated replace-conflict leaves no trace for support to find.
+					logger.warn(
+						"Uninstall of '{}' would overwrite an existing Downloads file; asking for confirmation",
+						item.name,
+					)
 					return@withContext Result.failure(TemplateReplaceConflictException(restored.name))
 				}
 				item.file.copyTo(restored, overwrite = overwrite)
@@ -162,8 +168,12 @@ class TemplateRepositoryImpl(
 					// new copy in place costs nothing and loses no data.
 					if (!hadExistingDownload) {
 						restored.delete()
+						throw IOException("Failed to delete source file after copying: ${item.file.absolutePath}")
 					}
-					throw IOException("Failed to delete source file after copying: ${item.file.absolutePath}")
+					throw IOException(
+						"Replaced '${restored.name}' in Downloads, but failed to delete the installed copy at " +
+							"${item.file.absolutePath} - the template now exists in both places",
+					)
 				}
 				ITemplateProvider.getInstance(reload = true)
 				Result.success(Unit)
