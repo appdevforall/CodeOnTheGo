@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: '0 12 * * *'  # Daily at 12:00 PM UTC
   workflow_dispatch:
+    inputs:
+      hotfix_version:
+        description: 'Override version for hotfixes (e.g. 26.38.1)'
+        required: false
+        type: string
 
 env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -485,7 +490,7 @@ jobs:
 
       - name: Validate release version
         env:
-          NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
+          NEXT_RELEASE_VERSION: ${{ github.event.inputs.hotfix_version || vars.NEXT_RELEASE_VERSION }}
         run: |
           if [ -z "$NEXT_RELEASE_VERSION" ]; then
             echo "ERROR: NEXT_RELEASE_VERSION variable is not set"
@@ -505,7 +510,7 @@ jobs:
       - name: Assemble Release APK
         env:
           INCLUDE_LLAMA_ASSETS: "true"
-          NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
+          NEXT_RELEASE_VERSION: ${{ github.event.inputs.hotfix_version || vars.NEXT_RELEASE_VERSION }}
         run: |
           variant_upper=$(echo "${{ matrix.variant }}" | tr '[:lower:]' '[:upper:]')
           flox activate -d flox/base -- ./gradlew :app:assemble${variant_upper}Release --no-daemon \
