@@ -1415,7 +1415,6 @@
 	<string name="no_templates_found_hint">Templates you download show up here for installing</string>
 	<string name="status_template_installed">Installed</string>
 	<string name="status_template_not_installed">Not installed</string>
-	<string name="template_provenance_bundled">Bundled</string>
 	<string name="template_provenance_plugin">From plugin</string>
 	<string name="template_provenance_user">Imported</string>
 	<plurals name="template_contains_count">

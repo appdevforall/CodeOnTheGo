@@ -5,6 +5,7 @@ import com.itsaky.androidide.templates.manager.models.CgtFileItem
 import com.itsaky.androidide.templates.manager.models.TemplateMetadata
 import com.itsaky.androidide.templates.manager.models.TemplateProvenance
 import kotlinx.coroutines.test.runTest
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -213,5 +214,16 @@ class TemplateRepositoryImplTest {
 			// Shadowing must be keyed on the name, not applied to every download.
 			assertThat(items.map { it.name }).containsExactly("installed.cgt", "other.cgt")
 			assertThat(items.filter { it.installed }.map { it.name }).containsExactly("installed.cgt")
+		}
+
+	@Test
+	fun listTemplateFiles_excludesTheBundledCoreArchive() =
+		runTest {
+			writeCgt(templatesDir, TEMPLATE_CORE_ARCHIVE)
+			writeCgt(templatesDir, "installed.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name }).containsExactly("installed.cgt")
 		}
 }
