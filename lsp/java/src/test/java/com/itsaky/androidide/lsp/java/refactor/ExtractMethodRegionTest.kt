@@ -1,7 +1,6 @@
 package com.itsaky.androidide.lsp.java.refactor
 
 import com.google.common.truth.Truth.assertThat
-import openjdk.source.util.Trees
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -123,7 +122,7 @@ class ExtractMethodRegionTest {
 	private fun JavacFixture.regionsBetween(
 		start: Int,
 		end: Int,
-	): List<ExtractionRegion> = resolveExtractionRegions(task, root, Trees.instance(task).sourcePositions, text, start, end)
+	): List<ExtractionRegion> = resolveExtractionRegions(task, root, text, start, end)
 
 	private fun fixture(body: String) =
 		JavacFixture(
