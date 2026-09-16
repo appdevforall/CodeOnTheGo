@@ -31,6 +31,7 @@ internal fun isAnchorTypeParameter(
 internal fun isCapturedLocalType(
 	element: Element,
 	span: TextSpan,
+	anchor: AnchorMember,
 	root: CompilationUnitTree,
 	trees: Trees,
 	positions: SourcePositions,
@@ -43,7 +44,8 @@ internal fun isCapturedLocalType(
 			?: return false
 	val localOrAnonymous = enclosingLocalOrAnonymous(type) ?: return false
 	val declaration = declarationSpanOf(localOrAnonymous, root, trees, positions) ?: return false
-	return !span.contains(declaration)
+	if (span.contains(declaration)) return false
+	return anchor.span.contains(declaration)
 }
 
 private fun enclosingLocalOrAnonymous(type: TypeElement): TypeElement? {

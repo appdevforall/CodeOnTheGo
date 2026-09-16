@@ -54,6 +54,34 @@ class RegionAnalysisPrimitivesTest {
 		assertThat(localTypeNameOf(anonElement)).isEqualTo("anonymous class")
 	}
 
+	@Test
+	fun `a field of the local class the region sits in is not a captured local type`() {
+		val f =
+			fixture(
+				"class F {\n\tvoid m() {\n\t\tclass Local {\n\t\t\tint fld;\n\t\t\tint g() { return fld + 1; }\n\t\t}\n\t}\n}",
+			)
+		val path = f.pathAt("fld + 1")
+		val element = f.trees.getElement(path)!!
+		val anchor = anchorMemberFor(path, f.root, f.trees, f.positions)!!
+		val start = f.text.indexOf("fld + 1")
+		val regionSpan = TextSpan(start, start + "fld + 1".length)
+		assertThat(isCapturedLocalType(element, regionSpan, anchor, f.root, f.trees, f.positions)).isFalse()
+	}
+
+	@Test
+	fun `a local class referenced outside it but inside the anchor member is a captured local type`() {
+		val f =
+			fixture(
+				"class F {\n\tvoid m() {\n\t\tclass L {}\n\t\tuse(new L());\n\t}\n\tstatic void use(Object o) {}\n}",
+			)
+		val path = f.pathAt("L()")
+		val element = f.trees.getElement(path)!!
+		val anchor = anchorMemberFor(path, f.root, f.trees, f.positions)!!
+		val start = f.text.indexOf("new L()")
+		val regionSpan = TextSpan(start, start + "new L()".length)
+		assertThat(isCapturedLocalType(element, regionSpan, anchor, f.root, f.trees, f.positions)).isTrue()
+	}
+
 	private val JavacFixture.positions get() = trees.sourcePositions
 
 	private fun JavacFixture.pathAt(marker: String): TreePath {
