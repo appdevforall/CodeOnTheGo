@@ -193,7 +193,9 @@ class SessionReducerTest {
 	}
 
 	// States that do not trigger a live reload ignore the bit: the tap means the same thing
-	// with or without a preceding write there, so the transitions must be identical.
+	// with or without a preceding write there, so the transitions must be identical. Degraded
+	// is not one of them: it triggers the reload later, when the respawn lands, so it keeps the
+	// bit as tapWroteSomething (pinned by the Degraded tap tests below).
 	@Test
 	fun `states that do not trigger a reload treat a clean and a dirty tap identically`() {
 		val states =
@@ -207,7 +209,6 @@ class SessionReducerTest {
 					1,
 					awaitingRetry = true,
 				),
-				QuickBuildSessionState.Degraded(3),
 			)
 
 		for (state in states) {
@@ -1408,6 +1409,67 @@ class SessionReducerTest {
 					SessionEffect.RespawnDaemon,
 				),
 			)
+	}
+
+	@Test
+	fun `a tap that wrote something while degraded carries expectChanges into the respawn's live reload`() {
+		// The dispatcher orders work after it is queued, and the watcher hands over a batch only
+		// once its coalescer settles (250 ms after the last write), so a respawn landing inside
+		// that window finds the pending set empty. A TriggerLiveReload without expectChanges
+		// then answers the tap by switching at once, before the changes the tap saved have
+		// built; with the bit the orchestrator waits for the batch (AWAITS_CHANGES) and its
+		// deploy does the switching. The Degraded state is the only place the bit can survive
+		// the gap between the tap and the respawn.
+		val tapped = reducer.reduce(QuickBuildSessionState.Degraded(1), SessionEvent.QuickBuildTapped(wroteSomething = true))
+
+		assertThat(tapped.state).isEqualTo(QuickBuildSessionState.Degraded(1, tapWroteSomething = true))
+		assertThat(tapped.effects)
+			.isEqualTo(listOf(SessionEffect.RecordAsk, SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying)))
+
+		val respawned = reducer.reduce(tapped.state, SessionEvent.DaemonRespawned, askOutstanding = true)
+
+		assertThat(respawned.state).isEqualTo(QuickBuildSessionState.Ready(1))
+		assertThat(respawned.effects)
+			.isEqualTo(listOf(SessionEffect.TriggerLiveReload(userInitiated = true, expectChanges = true)))
+	}
+
+	@Test
+	fun `a retry tap that wrote something keeps the bit alongside clearing restartFailed`() {
+		// The retry arm rebuilds the state with copy, so it is the arm most likely to drop the
+		// bit by accident; the effects are the existing three, unchanged.
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Degraded(1, restartFailed = true),
+				SessionEvent.QuickBuildTapped(wroteSomething = true),
+			)
+
+		assertThat(transition.state)
+			.isEqualTo(QuickBuildSessionState.Degraded(1, restartFailed = false, tapWroteSomething = true))
+		assertThat(transition.effects)
+			.isEqualTo(
+				listOf(
+					SessionEffect.RecordAsk,
+					SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying),
+					SessionEffect.RespawnDaemon,
+				),
+			)
+	}
+
+	@Test
+	fun `a stale respawn keeps the bit for the respawn that finally answers the tap`() {
+		// restartFailed means the announced daemon is already dead, so nothing answers the tap
+		// yet; the ask stays recorded and so must the bit, or the retry tap's respawn would
+		// switch on an empty pending set exactly as the unfixed arm did.
+		val transition =
+			reducer.reduce(
+				QuickBuildSessionState.Degraded(1, restartFailed = true, tapWroteSomething = true),
+				SessionEvent.DaemonRespawned,
+				askOutstanding = true,
+			)
+
+		assertThat(transition.state)
+			.isEqualTo(QuickBuildSessionState.Degraded(1, restartFailed = true, tapWroteSomething = true))
+		assertThat(transition.effects).isEmpty()
 	}
 
 	@Test
