@@ -143,6 +143,20 @@ class TemplateRepositoryImpl(
 				check(item.installed) { "'${item.name}' is not installed" }
 				check(item.provenance != TemplateProvenance.BUNDLED) { "Cannot uninstall the bundled template" }
 
+				if (item.provenance == TemplateProvenance.PLUGIN) {
+					// Plugin templates are extracted straight from the plugin's own bundled
+					// resources (PluginProjectManager.extractBundledCgtTemplates) - they never
+					// passed through Downloads, so there's nothing to restore there and no
+					// collision to check. Uninstalling one just deletes the extracted copy,
+					// matching how PluginProjectManager/IdeTemplateServiceImpl already remove
+					// these elsewhere (cleanupPluginTemplates/unregisterTemplate).
+					if (!item.file.delete()) {
+						throw IOException("Failed to delete ${item.file.absolutePath}")
+					}
+					ITemplateProvider.getInstance(reload = true)
+					return@withContext Result.success(Unit)
+				}
+
 				// Restore a copy to Downloads BEFORE removing it from the store: if the restore
 				// throws, the store copy below is never touched, so the user's only copy survives.
 				val restored = File(downloadDir, item.file.name)
