@@ -43,7 +43,7 @@ Android instantiates five kinds of class by name from the merged manifest:
 | Manifest element | Android class | Proxied | Why / note |
 |---|---|---|---|
 | `<activity>` | `android.app.Activity` | yes | Gains the `getClassLoader()` override; explicit in-app intents are preserved by a synthesized `<activity-alias>` under the real name |
-| `<service>` | `android.app.Service` | **no** | Keeps the real name: explicit `startService`/`bindService` intents resolve it against the manifest and there is no service alias to compensate a rename with. Recorded in setup.json only when the proxiability resolver accepts it; a by-name or `final` library service is left verbatim and absent from `components` (swaps by process restart) |
+| `<service>` | `android.app.Service` | **no** | Keeps the real name: explicit `startService`/`bindService` intents resolve it against the manifest and there is no service alias to compensate a rename with. Recorded in setup.json only when it is the project's own and the proxiability resolver accepts it, and a recorded service swaps by process restart; a library-owned service, or one rejected by name or as `final`, is left verbatim and absent from `components` - it ships in the base APK dex, so no payload redefines it and it never restarts anything |
 | `<receiver>` | `android.content.BroadcastReceiver` | **no** | Keeps the real name: an explicit broadcast (AlarmManager `PendingIntent`) at a renamed receiver is silently never delivered. Manifest-declared only - receivers registered at runtime are ordinary objects and need nothing. Recorded in setup.json on the same terms as a service: a resolver-rejected one is absent from `components` |
 | `<provider>` | `android.content.ContentProvider` | yes | Addressed by `android:authorities`, which the rename does not touch; swaps by process restart |
 | `<application android:name>` | `android.app.Application` | **no** | Keeps the user's FQN, which `instantiateApplication` resolves against the payload loader like any other component. A proxy would buy nothing: the runtime's own per-process hook (`QuickBuildRuntime.install`) already runs inside `instantiateApplication`, so there is no behaviour to inject via a subclass |
@@ -190,12 +190,16 @@ order - 1 and 2 are not negotiable against the rest.
 
 ## Restart vs recreate
 
-Decided per app, not per edit: if the manifest declares a service, provider or custom
-`Application`, every code-bearing deploy restarts the process.
+Decided per app, not per edit: if the recorded component list (`components` in setup.json)
+holds a service, provider or custom `Application`, every code-bearing deploy restarts the
+process. `DeployPolicy` reads that list, never the manifest, so a library-owned or
+resolver-rejected service - left out of the list, see the table above - never restarts
+anything: it ships in the base APK dex and no payload redefines it (`transformComponents` in
+`QuickBuildManifestTransformer.kt`).
 
 ```mermaid
 flowchart TD
-    C["code-bearing deploy"] --> Q{"does the app declare a<br/>service, provider, or a<br/>custom Application?"}
+    C["code-bearing deploy"] --> Q{"does setup.json record a<br/>service, provider, or a<br/>custom Application?"}
     Q -->|no| R["activity recreate<br/>(hot swap)"]
     Q -->|yes| K["process restart:<br/>persist payload, ack,<br/>background, exit,<br/>CoGo resumes the task"]
     RES["resource-only / asset-only"] --> R
