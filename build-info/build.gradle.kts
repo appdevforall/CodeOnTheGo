@@ -76,9 +76,10 @@ tasks.create("generateBuildInfo") {
 						libs.versions.agp.tooling
 							.get(),
 					// The Gradle version AGP_VERSION_LATEST gets exercised against: the
-					// distribution the IDE bundles. 8.6 was stale - AGP 8.11 refuses to
-					// configure on anything older than 8.13.
-					"AGP_VERSION_GRADLE_LATEST" to "8.14.3",
+					// distribution the IDE bundles (GRADLE_DISTRIBUTION_VERSION in
+					// composite-builds/build-deps-common). AGP 9.3.1 refuses to configure
+					// on anything older than 9.5.
+					"AGP_VERSION_GRADLE_LATEST" to "9.6.1",
 					"SNAPSHOTS_REPOSITORY" to VersionUtils.SONATYPE_SNAPSHOTS_REPO,
 					"PUBLIC_REPOSITORY" to VersionUtils.SONATYPE_PUBLIC_REPO,
 				),
