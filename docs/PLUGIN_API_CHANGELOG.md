@@ -35,6 +35,36 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.39 — unreleased
+- **added — An embedding capability a backend can declare** _(ADFA-6053)_ **[verified]**
+  A backend that has an embedding model can now say so. The only embedding entry point
+  before this was `LlmInferenceService.getEmbeddings(String, String)`, which addresses a
+  backend by id and hands back a bare `float[]`: the caller learns neither which model
+  produced the vector nor how long it is, and pays one round trip per text. Indexing a
+  project is thousands of chunks, so that is thousands of requests, and a stored vector
+  carries no provenance — swapping the model behind a backend silently degrades every
+  vector already on disk instead of invalidating it.
+  `LlmInferenceService.EmbeddingBackend extends LlmBackend` is an optional capability
+  interface, like `ToolCallingBackend` and `HistoryCapableBackend`: implement it and the
+  consumer finds it with `instanceof`, there is no flag to set. It declares
+  `embed(List<String>)` returning `CompletableFuture<List<float[]>>` index-aligned with
+  the input, `getEmbeddingDimensions()`, and `getEmbeddingModelId()` — the model's
+  identity, not the backend's, because two models of equal width are mutually
+  incomparable and a width check alone cannot detect a swap.
+  The batch either completes whole or fails whole; it never yields a short list, a list
+  padded with nulls, or a placeholder vector, so a caller can never store a partially-real
+  batch. `embed` must not block the calling thread and must be safe for concurrent calls
+  (indexing and a user's query can be in flight at once); it reports every failure by
+  completing the future exceptionally and throws synchronously only for a caller's own
+  mistake — `NullPointerException` for a null argument or element, `IllegalArgumentException`
+  for an empty list.
+  Purely additive: a new interface with three new methods, nothing existing changed (the
+  ABI dump diff is six added lines and no removals), so an already-built `.cgp` keeps
+  loading and running against the refreshed jar. `getEmbeddings(String, String)` stays —
+  the Vector-Search plugin is a live caller. Floor `plugin.min_ide_version` at `26.39` if
+  you implement or consume `EmbeddingBackend`; an older IDE has no such type, and a
+  consumer's `instanceof` against it there fails to resolve the class.
+
 ### 26.36 — unreleased
 - **added — Build provenance in every `.cgp`** _(ADFA-5394)_ **[verified]**
   A plugin artifact now records the commit it was built from, so a crash report or a
