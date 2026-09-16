@@ -32,9 +32,15 @@ jobs:
 
       - name: Compute CalVer version
         id: compute
+        env:
+          HOTFIX_VERSION: ${{ github.event.inputs.hotfix_version }}
         run: |
-          if [[ -n "${{ github.event.inputs.hotfix_version }}" ]]; then
-            VERSION="${{ github.event.inputs.hotfix_version }}"
+          if [[ -n "$HOTFIX_VERSION" ]]; then
+            if [[ ! "$HOTFIX_VERSION" =~ ^[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
+              echo "::error::Invalid hotfix version format: $HOTFIX_VERSION"
+              exit 1
+            fi
+            VERSION="$HOTFIX_VERSION"
             NEXT_VERSION=$(date -u -d "+7 days" +%g.%V)
           else
             VERSION=$(date -u +%g.%V)
