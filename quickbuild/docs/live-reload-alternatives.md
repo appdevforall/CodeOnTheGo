@@ -19,9 +19,11 @@ Reproduced end to end on device `[measured on a56, 2026-08-20]`.
 
 ### The restart rule
 
-A code-bearing deploy **restarts** the proxy-app process when the app declares a
+A code-bearing deploy **restarts** the proxy-app process when setup.json records a
 restart-sensitive component - `<service>`, `<provider>`, or a custom `Application` - and
-**hot-swaps** otherwise. `DeployPolicy` decides it. A save that compiles no code - a resource
+**hot-swaps** otherwise. `DeployPolicy` decides it from that recorded list, never from the
+manifest, so a library-owned service the proxy app build left unrecorded never restarts
+anything (`component-proxying-design.md`, Restart vs recreate). A save that compiles no code - a resource
 or asset edit - never reaches this rule: it follows the resource path (`resource-updates.md`)
 and never restarts.
 
