@@ -271,7 +271,10 @@ abstract class LogViewFragment<V : LogViewModel> :
 		editor.cursorAnimator = NoOpCursorAnimator
 		editor.subscribeEvent(ClickEvent::class.java) { event, _ ->
 			if (IntPair.getFirst(editor.resolveTouchRegion(event.causingEvent)) != REGION_TEXT) return@subscribeEvent
-			val frame = StackFrameLocator.parse(editor.text.getLineString(event.line)) ?: return@subscribeEvent
+			val lineString = editor.text.getLineString(event.line)
+			val sourceRange = StackFrameLocator.sourceLocationRange(lineString) ?: return@subscribeEvent
+			if (event.column !in sourceRange) return@subscribeEvent
+			val frame = StackFrameLocator.parse(lineString) ?: return@subscribeEvent
 			openStackFrame(frame)
 		}
 

@@ -2,7 +2,7 @@
 
 (log_line
   (message) @stack.frame
-  (#match? @stack.frame "^\\s*at \\S+\\([\\w-]+\\.(java|kt):\\d+\\)$")
+  (#match? @stack.frame "\\bat\\s+[\\w.$]+\\.[\\w$<>]+\\([\\w-]+\\.(java|kt):\\d+\\)")
 )
 
 (log_line
