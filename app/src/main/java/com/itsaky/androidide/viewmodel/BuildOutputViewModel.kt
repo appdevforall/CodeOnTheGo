@@ -168,6 +168,31 @@ class BuildOutputViewModel(
 	suspend fun append(text: String) = appendForSession(text, sessionGeneration)
 
 	/**
+	 * The current session's token. Producers capture this before queueing output so a batch
+	 * that outlives its build can be discarded rather than written into the next one.
+	 */
+	val currentSessionToken: Int
+		get() = lock.withLock { sessionGeneration }
+
+	/** True while [token] is still the session [clear] has not superseded. */
+	fun isCurrentSession(token: Int): Boolean = lock.withLock { token == sessionGeneration }
+
+	/**
+	 * Appends [text] if [sessionToken] is still current, reporting whether it was written.
+	 *
+	 * The boolean is what lets a caller stop feeding a buffer whose build has ended; the
+	 * generation check itself still happens inside the lock, in [appendForSession].
+	 */
+	suspend fun append(
+		text: String,
+		sessionToken: Int,
+	): Boolean {
+		if (text.isEmpty()) return false
+		appendForSession(text, sessionToken)
+		return isCurrentSession(sessionToken)
+	}
+
+	/**
 	 * Appends [text] only while [generation] is still the current session.
 	 *
 	 * The check lives inside the lock, with the write: checked outside, a batch that had already
@@ -268,6 +293,27 @@ class BuildOutputViewModel(
 	}
 
 	companion object {
+		/**
+		 * The editor never holds more than this many characters of build output; it mirrors
+		 * [WINDOW_SIZE_CHARS] so the on-screen window and the snapshot cap stay in lockstep.
+		 */
+		internal const val EDITOR_WINDOW_MAX_CHARS = WINDOW_SIZE_CHARS
+
+		private const val EDITOR_WINDOW_REFRESH_CHARS = 128 * 1024
+
+		private const val EDITOR_WINDOW_REFRESH_BASE_CHARS =
+			EDITOR_WINDOW_MAX_CHARS - EDITOR_WINDOW_REFRESH_CHARS
+
+		/** True when appending [incomingChars] to [currentChars] would overrun the editor window. */
+		internal fun wouldExceedEditorWindow(
+			currentChars: Int,
+			incomingChars: Int,
+		): Boolean = currentChars > EDITOR_WINDOW_MAX_CHARS - incomingChars
+
+		/** Characters the editor keeps after a refresh trims it back from the window maximum. */
+		internal fun editorSourceCharsAfterRefresh(windowChars: Int): Int =
+			windowChars.coerceAtMost(EDITOR_WINDOW_REFRESH_BASE_CHARS)
+
 		// Must mirror formatLinePrefix exactly; the round-trip is covered by BuildOutputFilterTest.
 		// Anchored to line start so timestamp-shaped text inside a message is never stripped.
 		private val PREFIX_REGEX =
