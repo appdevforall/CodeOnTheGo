@@ -861,10 +861,18 @@ class SessionReducer {
 					// respawned daemon when nothing is pending, so no build would answer the
 					// ask and it would sit until the next ordinary save pulled them out of the
 					// editor. Hand it to the orchestrator as a clean tap instead: pending work
-					// builds and its deploy answers; nothing pending switches right away.
+					// builds and its deploy answers; nothing pending switches right away. The
+					// tap's wroteSomething travels as expectChanges because its watcher batch
+					// can still be inside the coalescer window when this lands - the pending
+					// set is then empty and, without the bit, the tap would switch before the
+					// saved changes build.
 					SessionTransition(
 						QuickBuildSessionState.Ready(state.deployedGeneration),
-						if (askOutstanding) listOf(SessionEffect.TriggerLiveReload(userInitiated = true)) else emptyList(),
+						if (askOutstanding) {
+							listOf(SessionEffect.TriggerLiveReload(userInitiated = true, expectChanges = state.tapWroteSomething))
+						} else {
+							emptyList()
+						},
 					)
 				}
 			}
@@ -888,12 +896,13 @@ class SessionReducer {
 				// to the else below - that would answer the tap with no build, no message and no Build
 				// Output line, since that pane is driven by status transitions. The message goes out
 				// in both arms so the tap is never silent, and the ask is recorded in both so the
-				// respawn's landing (DaemonRespawned above) answers it.
+				// respawn's landing (DaemonRespawned above) answers it. Both arms also keep the
+				// tap's wroteSomething, because that respawn's live reload needs it.
 				if (state.restartFailed) {
 					// Nothing is scheduled any more, so the tap is the retry; clearing
 					// restartFailed puts the status back to "restarting".
 					SessionTransition(
-						state.copy(restartFailed = false),
+						state.copy(restartFailed = false, tapWroteSomething = state.tapWroteSomething || event.wroteSomething),
 						listOf(
 							SessionEffect.RecordAsk,
 							SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying),
@@ -905,7 +914,7 @@ class SessionReducer {
 					// daemon epoch - so a second RespawnDaemon here would RACE the first for
 					// the same daemon rather than be answered with Superseded. Ack only.
 					SessionTransition(
-						state,
+						state.copy(tapWroteSomething = state.tapWroteSomething || event.wroteSomething),
 						listOf(SessionEffect.RecordAsk, SessionEffect.SurfaceMessage(QuickBuildMessage.DaemonRestartRetrying)),
 					)
 				}

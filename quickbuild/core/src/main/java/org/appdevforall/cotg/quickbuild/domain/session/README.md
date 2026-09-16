@@ -76,12 +76,12 @@ stateDiagram-v2
     Invalidated --> Ready: BuildFailed (awaiting retry)
     Invalidated --> Invalidated: DaemonDied (awaiting retry, RespawnDaemon)
 
-    Degraded --> Ready: DaemonRespawned (not restartFailed; TriggerLiveReload if the ask is outstanding)
+    Degraded --> Ready: DaemonRespawned (not restartFailed; TriggerLiveReload with expectChanges = tapWroteSomething if the ask is outstanding)
     Degraded --> Degraded: DaemonRespawned (restartFailed - the announced daemon already died)
     Degraded --> Degraded: DaemonDied / DaemonRestartFailed (restartFailed = true, no auto-retry)
     Degraded --> Invalidated: InvalidationDetected
     Degraded --> Degraded: ExternalBuildCompleted (RefreshBaseline)
-    Degraded --> Degraded: QuickBuildTapped (RecordAsk; restartFailed - SurfaceMessage + RespawnDaemon; else ack only)
+    Degraded --> Degraded: QuickBuildTapped (RecordAsk, keep wroteSomething as tapWroteSomething; restartFailed - SurfaceMessage + RespawnDaemon; else ack only)
     Degraded --> Building: BuildStarted
     Degraded --> Deployed: BuildSucceeded (SwitchToProxyApp if the ask is outstanding)
     Degraded --> Ready: BuildFailed
