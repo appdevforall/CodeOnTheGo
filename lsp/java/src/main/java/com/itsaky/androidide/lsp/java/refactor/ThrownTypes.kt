@@ -82,8 +82,9 @@ internal fun thrownCheckedTypesIn(
 			is TryTree -> {
 				// A resource's close() throws too, and there is no invocation node to find it on.
 				leaf.resources.forEach { resource ->
-					val type = runCatching { trees.getTypeMirror(TreePath(path, resource)) }.getOrNull() ?: return@forEach
-					closeThrownTypesOf(type, elements).forEach { record(it, path) }
+					val resourcePath = TreePath(path, resource)
+					val type = runCatching { trees.getTypeMirror(resourcePath) }.getOrNull() ?: return@forEach
+					closeThrownTypesOf(type, elements).forEach { record(it, resourcePath) }
 				}
 			}
 

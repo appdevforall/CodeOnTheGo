@@ -333,6 +333,7 @@ private fun tailReturnOf(
 	if (anchor.method == null) return false
 	if (outputs.isNotEmpty()) return false
 	val last = region.statements.lastOrNull() as? ReturnTree ?: return false
+	if (last.expression == null) return false
 	if (exits.size != 1 || exits.single().tree !== last) return false
 	// enclosingExecutableBody answers the *declaration* that owns the body -- the MethodTree, the
 	// LambdaExpressionTree, or the initializer's own BlockTree -- so the anchor member's own tree is what
@@ -379,9 +380,6 @@ private fun bodyAndCallSite(
 	if (tailReturn) {
 		val element = anchorMethodElement as? ExecutableElement ?: return null
 		val returnType = element.returnType
-		if (returnType.kind == TypeKind.VOID) {
-			return Shape.Derived("void", ExtractedBody.StatementBody(trailingReturn = null), CallSiteForm.Return)
-		}
 		anchorTypeVariableIn(returnType, anchorMethodElement)
 			?.let { return Shape.Refusal(ExtractionRefusal.UsesTypeParameter(it)) }
 		val typeText = names.render(returnType) ?: return null
