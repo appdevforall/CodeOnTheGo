@@ -17,7 +17,6 @@
 package com.itsaky.androidide.lsp.java.debug
 
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.lsp.java.debug.utils.isInlinedRegion
 import com.itsaky.androidide.lsp.java.debug.utils.isSyntheticKotlinLocal
 import com.itsaky.androidide.lsp.java.debug.utils.kotlinLocalDisplayName
 import org.junit.Test
@@ -60,18 +59,9 @@ class KotlinLocalsTest {
 	}
 
 	@Test
-	fun `a frame holding an inline marker is an inlined region`() {
-		assertThat(isInlinedRegion(listOf("answer", "\$i\$f\$measured"))).isTrue()
-	}
-
-	@Test
-	fun `a frame without inline markers is not an inlined region`() {
-		assertThat(isInlinedRegion(listOf("answer", "savedInstanceState"))).isFalse()
-		assertThat(isInlinedRegion(emptyList())).isFalse()
-	}
-
-	@Test
-	fun `a suspend frame alone is not an inlined region`() {
-		assertThat(isInlinedRegion(listOf("\$continuation", "\$result"))).isFalse()
+	fun `an inlined lambda argument is hidden, not treated as library code`() {
+		// $i$a$ scopes a lambda the user wrote, inlined into the user's own class, so it is noise in
+		// the variables list but says nothing about whose code is executing.
+		assertThat(isSyntheticKotlinLocal("\$i\$a\$-forEach-MainActivity")).isTrue()
 	}
 }

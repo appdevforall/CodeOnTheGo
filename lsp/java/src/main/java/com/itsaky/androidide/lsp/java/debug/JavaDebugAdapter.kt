@@ -28,7 +28,6 @@ import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
-import com.itsaky.androidide.lsp.java.debug.utils.isInlinedRegion
 import com.itsaky.androidide.lsp.java.debug.utils.isKotlinSource
 import com.itsaky.androidide.lsp.java.debug.utils.kotlinBinaryNamesOf
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -72,7 +71,6 @@ internal class JavaDebugAdapter :
 
 	private var listenerThread: JDWPListenerThread? = null
 	private var _listenerState: ListenerState? = null
-	private var inlineStepCount = 0
 
 	val listenerState: ListenerState
 		get() =
@@ -96,8 +94,6 @@ internal class JavaDebugAdapter :
 				"kotlin.*",
 				"kotlinx.*",
 			)
-
-		private const val MAX_INLINE_STEPS = 64
 
 		/**
 		 * Get the current instance of the [JavaDebugAdapter].
@@ -459,7 +455,6 @@ internal class JavaDebugAdapter :
 			logger.debug("Step {} thread {}", request.type, suspendedThread.thread.name())
 
 			clearPreviousStep(vm.vm, suspendedThread.thread)
-			inlineStepCount = 0
 
 			val reqMgr = vm.vm.eventRequestManager()
 			val req =
@@ -526,57 +521,6 @@ internal class JavaDebugAdapter :
 			}
 		}
 
-	private fun resumeStepThroughInlinedBody(
-		vm: VmConnection,
-		e: StepEvent,
-		thread: ThreadReference,
-	): Boolean {
-		val request = e.request() as? StepRequest ?: return false
-
-		if (request.depth() == StepRequest.STEP_INTO) {
-			return false
-		}
-
-		val visibleLocalNames =
-			try {
-				thread.frame(0).visibleVariables().map { it.name() }
-			} catch (err: AbsentInformationException) {
-				return false
-			} catch (err: IncompatibleThreadStateException) {
-				return false
-			}
-
-		if (!isInlinedRegion(visibleLocalNames)) {
-			return false
-		}
-
-		if (++inlineStepCount > MAX_INLINE_STEPS) {
-			logger.warn(
-				"Still inside an inlined body after {} steps, reporting current location",
-				MAX_INLINE_STEPS,
-			)
-			return false
-		}
-
-		clearPreviousStep(vm.vm, thread)
-
-		val req =
-			vm.vm.eventRequestManager().createStepRequest(
-				thread,
-				StepRequest.STEP_LINE,
-				request.depth(),
-			)
-		for (pattern in DEFAULT_CLASS_EXCLUSION_FILTERS) {
-			req.addClassExclusionFilter(pattern)
-		}
-		req.setSuspendPolicy(EventRequest.SUSPEND_ALL)
-		req.addCountFilter(1)
-		req.enable()
-		thread.resume()
-		vm.threadState.invalidateAll()
-		return true
-	}
-
 	private fun clearPreviousStep(
 		vm: VirtualMachine,
 		thread: ThreadReference,
@@ -621,12 +565,6 @@ internal class JavaDebugAdapter :
 		val vm = connVm()
 		val location = e.location()
 		val thread = e.thread()
-
-		if (resumeStepThroughInlinedBody(vm, e, thread)) {
-			return
-		}
-
-		inlineStepCount = 0
 
 		listenerState.client.onStep(
 			event =
