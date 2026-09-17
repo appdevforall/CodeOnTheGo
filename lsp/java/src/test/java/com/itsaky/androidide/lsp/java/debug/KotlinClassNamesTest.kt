@@ -39,6 +39,12 @@ class KotlinClassNamesTest {
 	}
 
 	@Test
+	fun `a file name that cannot start a java identifier is prefixed`() {
+		assertThat(fileFacadeBinaryName("com.example", "2foo")).isEqualTo("com.example._2fooKt")
+		assertThat(fileFacadeBinaryName("com.example", "_foo")).isEqualTo("com.example._fooKt")
+	}
+
+	@Test
 	fun `classifier keys convert internal names to binary names`() {
 		assertThat(classifierBinaryNameOrNull("com/example/Greeter"))
 			.isEqualTo("com.example.Greeter")

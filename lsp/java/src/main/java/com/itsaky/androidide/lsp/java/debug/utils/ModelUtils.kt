@@ -107,15 +107,40 @@ private fun Location.asKotlinLspLocation(): LspLocation {
 	)
 }
 
-private fun resolveInSourceRoots(relativePath: String): File? =
-	ProjectManagerImpl
-		.getInstance()
-		.workspace
-		?.subProjects
-		?.filterIsInstance<ModuleProject>()
-		?.firstNotNullOfOrNull { module ->
+/**
+ * Resolve a stratum-relative source path to a file on disk.
+ *
+ * JDI builds that path from the class's package plus its `SourceFile` name, so it only addresses a
+ * real file where the directory layout mirrors the package. Kotlin does not require that, so a file
+ * under `src/main/kotlin/util/` declaring `package com.example.util` is looked up at
+ * `com/example/util/...` and missed. The fallback searches the module's source roots by file name.
+ */
+private fun resolveInSourceRoots(relativePath: String): File? {
+	val modules =
+		ProjectManagerImpl
+			.getInstance()
+			.workspace
+			?.subProjects
+			?.filterIsInstance<ModuleProject>()
+			.orEmpty()
+
+	val byPath =
+		modules.firstNotNullOfOrNull { module ->
 			module
 				.getCompileSourceDirectories()
 				.map { dir -> File(dir, relativePath) }
 				.firstOrNull(File::isFile)
 		}
+	if (byPath != null) {
+		return byPath
+	}
+
+	val fileName = relativePath.substringAfterLast('/')
+	return modules.firstNotNullOfOrNull { module ->
+		module
+			.getCompileSourceDirectories()
+			.asSequence()
+			.flatMap { dir -> dir.walkTopDown() }
+			.firstOrNull { candidate -> candidate.isFile && candidate.name == fileName }
+	}
+}

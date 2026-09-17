@@ -339,7 +339,9 @@ internal class JavaDebugAdapter :
 
 			allSpecs.forEach { spec ->
 				try {
-					spec.remove(vm.vm)
+					// delete() removes the spec from the list as well as retiring its requests;
+					// remove() alone leaves it in requestSpecs, which only ever grew.
+					specList.delete(spec)
 				} catch (e: Throwable) {
 					logger.error("failed to remove breakpoint {}", spec)
 				}
