@@ -72,6 +72,9 @@ class TsAnalyzeWorker(
   private val analyzerScope = CoroutineScope(analyzerContext)
   private val messageChannel = LinkedBlockingQueue<Message<*>>()
   private var analyzerJob: Job? = null
+  private val lifecycleLock = Any()
+  private var hasStarted = false
+  private var resourcesClosed = false
 
   private var isInitialized = false
   private var isDestroyed = false
@@ -103,31 +106,55 @@ class TsAnalyzeWorker(
   }
 
   fun stop() {
-    log.debug("Stopping TsAnalyzeWorker...")
-    isDestroyed = true
+    synchronized(lifecycleLock) {
+      if (resourcesClosed) {
+        return
+      }
 
-    document.requestCancellationAsync()
+      log.debug("Stopping TsAnalyzeWorker...")
+      isDestroyed = true
 
-    messageChannel.clear()
-    messageChannel.offer(Stop)
+      document.requestCancellationAsync()
 
-    analyzerJob?.cancel(CancellationException("Requested to be stopped"))
+      messageChannel.clear()
+      messageChannel.offer(Stop)
+
+      analyzerJob?.cancel(CancellationException("Requested to be stopped"))
+
+      if (!hasStarted) {
+        closeResources()
+      }
+    }
   }
 
   fun start() {
-    check(!isDestroyed) { "TsAnalyeWorker has already been destroyed" }
+    synchronized(lifecycleLock) {
+      check(!isDestroyed) { "TsAnalyeWorker has already been destroyed" }
+      hasStarted = true
 
-    analyzerJob = analyzerScope.launch {
-      try {
-        while (!isDestroyed && isActive) {
-          processNextMessage()
+      analyzerJob = analyzerScope.launch {
+        try {
+          while (!isDestroyed && isActive) {
+            processNextMessage()
+          }
+        } finally {
+          log.debug("Analyzer worker releasing resources")
+          closeResources()
         }
-      } finally {
-        log.debug("Analyzer worker releasing resources")
-        document.close()
-        analyzerContext.close()
       }
     }
+  }
+
+  private fun closeResources() {
+    synchronized(lifecycleLock) {
+      if (resourcesClosed) {
+        return
+      }
+      resourcesClosed = true
+    }
+
+    document.close()
+    analyzerContext.close()
   }
 
   fun addBreakpoint(line: Int) = toggleBreakpoint(line = line, addOnly = true)
