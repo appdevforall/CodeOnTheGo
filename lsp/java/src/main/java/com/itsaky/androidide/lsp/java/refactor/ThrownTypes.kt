@@ -75,38 +75,46 @@ internal fun thrownCheckedTypesIn(
 		if (text == null) unrenderable = true else rendered += text
 	}
 
+	collectThrownTypes(regionPaths, trees, types, elements) { type, sitePath -> record(type, sitePath) }
+
+	return if (unrenderable) null else rendered.toList()
+}
+
+/**
+ * Hands every type thrown under [regionPaths] to [sink], paired with the site that throws it.
+ *
+ * Nothing is filtered here. The caller decides what to keep, which is what lets a precise rethrow's
+ * types arrive at the `throw` that rethrows them and go through the same containment check as any
+ * other site.
+ */
+private fun collectThrownTypes(
+	regionPaths: List<TreePath>,
+	trees: Trees,
+	types: Types,
+	elements: Elements,
+	sink: (TypeMirror, TreePath) -> Unit,
+) {
 	fun consider(path: TreePath) {
 		when (val leaf = path.leaf) {
 			is MethodInvocationTree, is NewClassTree -> {
 				val element = runCatching { trees.getElement(path) }.getOrNull() as? ExecutableElement ?: return
-				element.thrownTypes.forEach { record(it, path) }
+				element.thrownTypes.forEach { sink(it, path) }
 			}
 
 			is ThrowTree -> {
 				// A rethrown catch parameter is precise (JLS 11.2.2): the enclosing method declares
-				// what the `try` block can throw, not the parameter's declared type. Recording the
-				// declared type would make `catch (Exception e) { throw e; }` declare Exception and
-				// leave the call site with an unreported exception.
-				val precise = preciseRethrowSourceOf(path, leaf, trees, positions, root)
+				// what the `try` block can throw and the clause catches, not the parameter's declared
+				// type. Those types are reported at this `throw` so the caller still sees them as
+				// thrown from here.
+				val precise = preciseRethrowSourceOf(path, leaf, trees)
 				if (precise != null) {
-					val fromTry =
-						thrownCheckedTypesIn(
-							regionPaths = listOf(precise.blockPath),
-							span = precise.blockSpan,
-							root = root,
-							trees = trees,
-							positions = positions,
-							types = types,
-							elements = elements,
-							names = names,
-						)
-					if (fromTry == null) unrenderable = true else rendered += fromTry
+					preciseRethrowTypesOf(precise, trees, types, elements).forEach { sink(it, path) }
 					return
 				}
 
 				val type =
 					runCatching { trees.getTypeMirror(TreePath(path, leaf.expression)) }.getOrNull() ?: return
-				record(type, path)
+				sink(type, path)
 			}
 
 			is TryTree -> {
@@ -114,7 +122,7 @@ internal fun thrownCheckedTypesIn(
 				leaf.resources.forEach { resource ->
 					val resourcePath = TreePath(path, resource)
 					val type = runCatching { trees.getTypeMirror(resourcePath) }.getOrNull() ?: return@forEach
-					closeThrownTypesOf(type, elements).forEach { record(it, resourcePath) }
+					closeThrownTypesOf(type, elements).forEach { sink(it, resourcePath) }
 				}
 			}
 
@@ -155,23 +163,74 @@ internal fun thrownCheckedTypesIn(
 		consider(path)
 		scanner.scan(path, null)
 	}
-
-	return if (unrenderable) null else rendered.toList()
 }
 
-/** The `try` block a precise rethrow draws its types from. */
+/** The `try` a precise rethrow draws its types from, and the clause that narrows them. */
 private class PreciseRethrow(
 	val blockPath: TreePath,
-	val blockSpan: TextSpan,
+	val tryPath: TreePath,
+	val clausePath: TreePath,
+	val clause: CatchTree,
 )
 
 /**
- * The `try` block behind [throwTree] when it rethrows a caught parameter, or null when it does not.
+ * The types a precise rethrow can actually throw, per JLS 11.2.2: what the `try` block throws, kept
+ * only where the clause catches it and no earlier clause already did.
  *
- * Under JLS 11.2.2 such a throw carries only what the `try` block can throw and the clause catches,
- * so the block is the thing to analyse. Answering the block rather than a narrowed type list keeps
- * this in terms the caller already handles: it runs the same analysis over it and unions the result,
- * which also covers a multi-catch parameter without enumerating alternatives.
+ * Intersecting matters in both directions. Taking the block's types whole over-declares, since a
+ * clause narrower than the block leaves the call site handling what the rethrow cannot raise; taking
+ * the parameter's declared type instead is the over-declaration this whole path exists to remove.
+ */
+private fun preciseRethrowTypesOf(
+	precise: PreciseRethrow,
+	trees: Trees,
+	types: Types,
+	elements: Elements,
+): List<TypeMirror> {
+	val caught = caughtAlternativesOf(precise.clausePath, precise.clause, trees)
+	if (caught.isEmpty()) return emptyList()
+
+	val fromTry = mutableListOf<TypeMirror>()
+	collectThrownTypes(listOf(precise.blockPath), trees, types, elements) { type, _ -> fromTry += type }
+
+	return fromTry
+		.flatMap(::alternativesOf)
+		.filter { type -> caught.any { alternative -> types.isAssignable(type, alternative) } }
+		.filterNot { type -> caughtByPrecedingClause(type, precise, trees, types) }
+}
+
+/** A multi-catch's alternatives are separate types; anything else stands for itself. */
+private fun alternativesOf(type: TypeMirror): List<TypeMirror> = if (type is UnionType) type.alternatives.toList() else listOf(type)
+
+private fun caughtAlternativesOf(
+	clausePath: TreePath,
+	clause: CatchTree,
+	trees: Trees,
+): List<TypeMirror> {
+	val caught =
+		runCatching { trees.getTypeMirror(TreePath(clausePath, clause.parameter)) }.getOrNull() ?: return emptyList()
+	return alternativesOf(caught)
+}
+
+/** Whether a clause before [precise]'s own already takes [type], which keeps it out of the rethrow. */
+private fun caughtByPrecedingClause(
+	type: TypeMirror,
+	precise: PreciseRethrow,
+	trees: Trees,
+	types: Types,
+): Boolean {
+	val clauses = (precise.tryPath.leaf as? TryTree)?.catches ?: return false
+	val index = clauses.indexOfFirst { it === precise.clause }
+	if (index <= 0) return false
+	return clauses.take(index).any { earlier -> catchesType(type, precise.tryPath, earlier, trees, types) }
+}
+
+/**
+ * The `try` behind [throwTree] when it rethrows a caught parameter, or null when it does not.
+ *
+ * The climb passes through any clause that does not declare the thrown parameter, because JLS 11.2.2
+ * attaches precise rethrow to the clause that *declares* it: a `throw e` sitting inside a second,
+ * inner `catch` is still precise with respect to `e`'s own clause.
  *
  * A parameter reassigned in the clause is not effectively final, so javac does not apply precise
  * rethrow to it and neither does this.
@@ -180,8 +239,6 @@ private fun preciseRethrowSourceOf(
 	path: TreePath,
 	throwTree: ThrowTree,
 	trees: Trees,
-	positions: SourcePositions,
-	root: CompilationUnitTree,
 ): PreciseRethrow? {
 	val thrown = throwTree.expression as? IdentifierTree ?: return null
 	val thrownElement =
@@ -193,13 +250,18 @@ private fun preciseRethrowSourceOf(
 		if (leaf is CatchTree) {
 			val parameterElement =
 				runCatching { trees.getElement(TreePath(cursor, leaf.parameter)) }.getOrNull()
-			if (parameterElement != thrownElement) return null
-			if (isReassignedIn(leaf, thrownElement, cursor, trees)) return null
+			if (parameterElement == thrownElement) {
+				if (isReassignedIn(leaf, thrownElement, cursor, trees)) return null
 
-			val tryTree = cursor.parentPath?.leaf as? TryTree ?: return null
-			val blockPath = TreePath(cursor.parentPath, tryTree.block)
-			val blockSpan = spanOf(root, positions, tryTree.block) ?: return null
-			return PreciseRethrow(blockPath, blockSpan)
+				val tryPath = cursor.parentPath ?: return null
+				val tryTree = tryPath.leaf as? TryTree ?: return null
+				return PreciseRethrow(
+					blockPath = TreePath(tryPath, tryTree.block),
+					tryPath = tryPath,
+					clausePath = cursor,
+					clause = leaf,
+				)
+			}
 		}
 		if (leaf is MethodTree || leaf is LambdaExpressionTree || leaf is ClassTree) return null
 		cursor = cursor.parentPath

@@ -142,6 +142,8 @@ internal fun analyseRegion(
 	)
 }
 
+private const val TEXT_BLOCK_DELIMITER = "\"\"\""
+
 /**
  * The offset just past the anchor member, or null when it cannot be found.
  *
@@ -166,6 +168,11 @@ private fun memberEndOffset(
 	var cursor = anchorEnd
 	var depth = 0
 	while (cursor < fileText.length) {
+		val skipped = endOfNonCodeAt(fileText, cursor)
+		if (skipped != null) {
+			cursor = skipped
+			continue
+		}
 		when (fileText[cursor]) {
 			'(', '[', '{' -> depth++
 			')', ']', '}' -> depth--
@@ -174,6 +181,42 @@ private fun memberEndOffset(
 		cursor++
 	}
 	return null
+}
+
+/**
+ * The offset just past the comment or literal starting at [start], or null when code starts there.
+ *
+ * A `;` inside a string or a comment is not a member terminator, and stopping on one puts the new
+ * method inside the literal it was found in.
+ */
+private fun endOfNonCodeAt(
+	text: String,
+	start: Int,
+): Int? =
+	when {
+		text.startsWith("//", start) -> text.indexOf('\n', start).let { if (it < 0) text.length else it + 1 }
+		text.startsWith("/*", start) -> text.indexOf("*/", start + 2).let { if (it < 0) text.length else it + 2 }
+		text.startsWith(TEXT_BLOCK_DELIMITER, start) -> endOfQuoted(text, start, TEXT_BLOCK_DELIMITER)
+		text[start] == '\"' -> endOfQuoted(text, start, "\"")
+		text[start] == '\'' -> endOfQuoted(text, start, "'")
+		else -> null
+	}
+
+/** The offset just past the literal opened at [start] by [delimiter], honouring backslash escapes. */
+private fun endOfQuoted(
+	text: String,
+	start: Int,
+	delimiter: String,
+): Int {
+	var cursor = start + delimiter.length
+	while (cursor < text.length) {
+		when {
+			text[cursor] == '\\' -> cursor++
+			text.startsWith(delimiter, cursor) -> return cursor + delimiter.length
+		}
+		cursor++
+	}
+	return text.length
 }
 
 /**
@@ -190,7 +233,7 @@ private fun spanCoversUnselectedSibling(
 	positions: SourcePositions,
 ): Boolean {
 	if (region !is ExtractionRegion.Statements) return false
-	val block = region.path.leaf as? BlockTree ?: return false
+	val block = region.path.parentPath?.leaf as? BlockTree ?: return false
 	val selected = region.statements.toSet()
 
 	return block.statements.any { statement ->
