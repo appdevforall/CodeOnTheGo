@@ -63,6 +63,9 @@ internal fun analyseRegion(
 	fileText: String,
 ): AnalysisResult {
 	val anchor = anchorMemberFor(region.path, root, trees, positions) ?: return refuse(ExtractionRefusal.NotASingleRegion)
+	if (spanCoversUnselectedSibling(region, root, positions)) {
+		return refuse(ExtractionRefusal.NotASingleRegion)
+	}
 	val span = region.span
 	val names = TypeNames(root)
 	val elements = task.elements
@@ -117,7 +120,8 @@ internal fun analyseRegion(
 			?: return refuse(ExtractionRefusal.UnrenderableType)
 
 	val takenNames = methodNamesIn(anchor.classPath, trees, elements)
-	val insertOffset = absorbTrailingSemicolon(fileText, anchor.span.end, fileText.length)
+	val insertOffset =
+		memberEndOffset(fileText, anchor.span.end) ?: return refuse(ExtractionRefusal.NotASingleRegion)
 
 	return AnalysisResult.Analysed(
 		ExtractMethodCandidate(
@@ -136,6 +140,64 @@ internal fun analyseRegion(
 			textBlockSpans = textBlockSpansIn(regionPaths, root, positions, fileText),
 		),
 	)
+}
+
+/**
+ * The offset just past the anchor member, or null when it cannot be found.
+ *
+ * A member's end position is normally its `}` or its `;`. A non-final declarator of
+ * `private Runnable a = () -> {}, b = () -> {};` ends at the comma instead, and inserting there puts
+ * the new method between the declarators. Walking to the declaration's own `;` moves the insertion
+ * past the whole member; anything else that ends at neither terminator is declined rather than
+ * guessed at, since an enum constant with arguments reaches the same path.
+ */
+private fun memberEndOffset(
+	fileText: String,
+	anchorEnd: Int,
+): Int? {
+	if (anchorEnd <= 0 || anchorEnd > fileText.length) return null
+	when (fileText.getOrNull(anchorEnd - 1)) {
+		'}' -> return anchorEnd
+		';' -> return anchorEnd
+		else -> Unit
+	}
+	if (fileText.getOrNull(anchorEnd) == ';') return anchorEnd + 1
+
+	var cursor = anchorEnd
+	var depth = 0
+	while (cursor < fileText.length) {
+		when (fileText[cursor]) {
+			'(', '[', '{' -> depth++
+			')', ']', '}' -> depth--
+			';' -> if (depth <= 0) return cursor + 1
+		}
+		cursor++
+	}
+	return null
+}
+
+/**
+ * Whether the region's span reaches a sibling statement the region does not contain.
+ *
+ * javac gives every declarator of `int a = 1, b = 2;` a span that starts at the type, so selecting
+ * `b = 2` yields a region holding only `b` whose span is the whole declaration. Extracting it would
+ * move both declarators into the new method while returning only `b`, and every later use of `a`
+ * would stop compiling. The same shape guards anything else whose spans overlap a sibling.
+ */
+private fun spanCoversUnselectedSibling(
+	region: ExtractionRegion,
+	root: CompilationUnitTree,
+	positions: SourcePositions,
+): Boolean {
+	if (region !is ExtractionRegion.Statements) return false
+	val block = region.path.leaf as? BlockTree ?: return false
+	val selected = region.statements.toSet()
+
+	return block.statements.any { statement ->
+		if (statement in selected) return@any false
+		val statementSpan = spanOf(root, positions, statement) ?: return@any false
+		statementSpan.start < region.span.end && region.span.start < statementSpan.end
+	}
 }
 
 private fun refuse(refusal: ExtractionRefusal): AnalysisResult = AnalysisResult.Refused(refusal)

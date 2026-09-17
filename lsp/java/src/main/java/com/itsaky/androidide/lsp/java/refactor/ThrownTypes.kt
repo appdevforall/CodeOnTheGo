@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
 import com.itsaky.androidide.lsp.refactor.TextSpan
+import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ExecutableElement
 import jdkx.lang.model.element.TypeElement
 import jdkx.lang.model.type.DeclaredType
@@ -9,9 +10,11 @@ import jdkx.lang.model.type.TypeMirror
 import jdkx.lang.model.type.UnionType
 import jdkx.lang.model.util.Elements
 import jdkx.lang.model.util.Types
+import openjdk.source.tree.AssignmentTree
 import openjdk.source.tree.CatchTree
 import openjdk.source.tree.ClassTree
 import openjdk.source.tree.CompilationUnitTree
+import openjdk.source.tree.IdentifierTree
 import openjdk.source.tree.LambdaExpressionTree
 import openjdk.source.tree.MethodInvocationTree
 import openjdk.source.tree.MethodTree
@@ -58,6 +61,12 @@ internal fun thrownCheckedTypesIn(
 			unrenderable = true
 			return
 		}
+		// `throw e` in `catch (A | B e)` is typed as the union, not as either alternative, so
+		// dropping it here would leave the moved body throwing what nothing declares.
+		if (type.kind == TypeKind.UNION) {
+			(type as UnionType).alternatives.forEach { alternative -> record(alternative, sitePath) }
+			return
+		}
 		if (type.kind != TypeKind.DECLARED) return
 		if (runtimeException != null && types.isAssignable(type, runtimeException)) return
 		if (error != null && types.isAssignable(type, error)) return
@@ -74,6 +83,27 @@ internal fun thrownCheckedTypesIn(
 			}
 
 			is ThrowTree -> {
+				// A rethrown catch parameter is precise (JLS 11.2.2): the enclosing method declares
+				// what the `try` block can throw, not the parameter's declared type. Recording the
+				// declared type would make `catch (Exception e) { throw e; }` declare Exception and
+				// leave the call site with an unreported exception.
+				val precise = preciseRethrowSourceOf(path, leaf, trees, positions, root)
+				if (precise != null) {
+					val fromTry =
+						thrownCheckedTypesIn(
+							regionPaths = listOf(precise.blockPath),
+							span = precise.blockSpan,
+							root = root,
+							trees = trees,
+							positions = positions,
+							types = types,
+							elements = elements,
+							names = names,
+						)
+					if (fromTry == null) unrenderable = true else rendered += fromTry
+					return
+				}
+
 				val type =
 					runCatching { trees.getTypeMirror(TreePath(path, leaf.expression)) }.getOrNull() ?: return
 				record(type, path)
@@ -127,6 +157,79 @@ internal fun thrownCheckedTypesIn(
 	}
 
 	return if (unrenderable) null else rendered.toList()
+}
+
+/** The `try` block a precise rethrow draws its types from. */
+private class PreciseRethrow(
+	val blockPath: TreePath,
+	val blockSpan: TextSpan,
+)
+
+/**
+ * The `try` block behind [throwTree] when it rethrows a caught parameter, or null when it does not.
+ *
+ * Under JLS 11.2.2 such a throw carries only what the `try` block can throw and the clause catches,
+ * so the block is the thing to analyse. Answering the block rather than a narrowed type list keeps
+ * this in terms the caller already handles: it runs the same analysis over it and unions the result,
+ * which also covers a multi-catch parameter without enumerating alternatives.
+ *
+ * A parameter reassigned in the clause is not effectively final, so javac does not apply precise
+ * rethrow to it and neither does this.
+ */
+private fun preciseRethrowSourceOf(
+	path: TreePath,
+	throwTree: ThrowTree,
+	trees: Trees,
+	positions: SourcePositions,
+	root: CompilationUnitTree,
+): PreciseRethrow? {
+	val thrown = throwTree.expression as? IdentifierTree ?: return null
+	val thrownElement =
+		runCatching { trees.getElement(TreePath(path, thrown)) }.getOrNull() ?: return null
+
+	var cursor: TreePath? = path
+	while (cursor != null) {
+		val leaf = cursor.leaf
+		if (leaf is CatchTree) {
+			val parameterElement =
+				runCatching { trees.getElement(TreePath(cursor, leaf.parameter)) }.getOrNull()
+			if (parameterElement != thrownElement) return null
+			if (isReassignedIn(leaf, thrownElement, cursor, trees)) return null
+
+			val tryTree = cursor.parentPath?.leaf as? TryTree ?: return null
+			val blockPath = TreePath(cursor.parentPath, tryTree.block)
+			val blockSpan = spanOf(root, positions, tryTree.block) ?: return null
+			return PreciseRethrow(blockPath, blockSpan)
+		}
+		if (leaf is MethodTree || leaf is LambdaExpressionTree || leaf is ClassTree) return null
+		cursor = cursor.parentPath
+	}
+	return null
+}
+
+/** Whether [element] is assigned anywhere in [clause], which would cost it precise rethrow. */
+private fun isReassignedIn(
+	clause: CatchTree,
+	element: Element,
+	clausePath: TreePath,
+	trees: Trees,
+): Boolean {
+	var reassigned = false
+	object : TreePathScanner<Unit, Unit>() {
+		override fun visitAssignment(
+			node: AssignmentTree,
+			p: Unit?,
+		): Unit? {
+			val target = node.variable
+			if (target is IdentifierTree) {
+				val targetElement =
+					runCatching { trees.getElement(TreePath(currentPath, target)) }.getOrNull()
+				if (targetElement == element) reassigned = true
+			}
+			return super.visitAssignment(node, p)
+		}
+	}.scan(clausePath, null)
+	return reassigned
 }
 
 /**
