@@ -163,14 +163,18 @@ open class AndroidModule(
 		} else {
 			result.addAll(getModuleClasspaths())
 		}
-		collectLibraries(
-			root = project,
-			libraries = variantDependencies.mainArtifact?.compileDependencyList ?: emptyList(),
-			result = result,
-			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
-			visited = HashSet(),
-			moduleVisited = visited,
-		)
+		val graph = variantDependencies.mainArtifact?.compileGraph
+		if (graph != null) {
+			collectLibraries(
+				root = project,
+				graph = graph,
+				nodeIds = graph.rootList,
+				result = result,
+				excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
+				visited = HashSet(),
+				moduleVisited = visited,
+			)
+		}
 		return result
 	}
 
@@ -265,20 +269,24 @@ open class AndroidModule(
 	 */
 	private fun collectLibraries(
 		root: Workspace,
-		libraries: List<AndroidModels.GraphItem>,
+		graph: AndroidModels.DependencyGraph,
+		nodeIds: List<Int>,
 		result: MutableSet<File>,
 		excludeSourceGeneratedClassPath: Boolean,
 		visited: MutableSet<String>,
 		moduleVisited: MutableSet<String>,
 	) {
 		val libraryMap = variantDependencies.librariesMap
-		for (library in libraries) {
+		for (nodeId in nodeIds) {
+			val node = graph.getNode(nodeId)
+			val key = graph.getKey(node.keyId)
+
 			// Guard against cyclic dependency graphs within this module: expand each graph node once.
-			if (!visited.add(library.key)) {
+			if (!visited.add(key)) {
 				continue
 			}
 
-			val lib = libraryMap[library.key] ?: continue
+			val lib = libraryMap[key] ?: continue
 			when {
 				lib.type == AndroidModels.LibraryType.Project -> {
 					val module = root.findByPath(lib.projectInfo!!.projectPath) ?: continue
@@ -301,7 +309,8 @@ open class AndroidModule(
 
 			collectLibraries(
 				root = root,
-				libraries = library.dependencyList,
+				graph = graph,
+				nodeIds = node.dependencyList,
 				result = result,
 				excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
 				visited = visited,
@@ -332,10 +341,10 @@ open class AndroidModule(
 		try {
 			val result = mutableListOf<ModuleProject>()
 
-			val libraries = variantDependencies.mainArtifact.compileDependencyList
+			val graph = variantDependencies.mainArtifact.compileGraph
 			val libraryMap = variantDependencies.librariesMap
-			for (library in libraries) {
-				val lib = libraryMap[library.key] ?: continue
+			for (nodeId in graph.rootList) {
+				val lib = libraryMap[graph.getKey(graph.getNode(nodeId).keyId)] ?: continue
 				if (lib.type != AndroidModels.LibraryType.Project) {
 					continue
 				}

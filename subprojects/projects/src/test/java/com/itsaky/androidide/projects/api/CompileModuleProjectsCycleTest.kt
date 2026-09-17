@@ -53,7 +53,8 @@ class CompileModuleProjectsCycleTest {
 	/**
 	 * Build a real [AndroidModule] at Gradle [path] whose compile-scope project dependencies are
 	 * [moduleDeps] (Gradle project paths). The dependency graph is encoded exactly the way the tooling
-	 * layer encodes it: a [AndroidModels.GraphItem] in the main artifact's compile graph keyed to a
+	 * layer encodes it: a [AndroidModels.GraphNode] in the main artifact's [AndroidModels.DependencyGraph],
+	 * listed as a root and keyed - through the graph's interned key table - to a
 	 * [AndroidModels.Library] of type [AndroidModels.LibraryType.Project] that points at the dependency
 	 * module via [AndroidModels.ProjectInfo.getProjectPath].
 	 */
@@ -61,15 +62,18 @@ class CompileModuleProjectsCycleTest {
 		path: String,
 		moduleDeps: List<String>,
 	): AndroidModule {
-		val mainArtifact = AndroidModels.ArtifactDependencies.newBuilder()
+		val graph = AndroidModels.DependencyGraph.newBuilder()
 		val variantDeps = AndroidModels.VariantDependencies.newBuilder().setName("debug")
 
 		for (depPath in moduleDeps) {
 			val key = "project$depPath"
-			mainArtifact.addCompileDependency(
-				AndroidModels.GraphItem
+			val keyId = graph.keyCount
+			graph.addKey(key)
+			graph.addRoot(graph.nodeCount)
+			graph.addNode(
+				AndroidModels.GraphNode
 					.newBuilder()
-					.setKey(key)
+					.setKeyId(keyId)
 					.build(),
 			)
 			variantDeps.putLibraries(
@@ -87,7 +91,12 @@ class CompileModuleProjectsCycleTest {
 					).build(),
 			)
 		}
-		variantDeps.setMainArtifact(mainArtifact.build())
+		variantDeps.setMainArtifact(
+			AndroidModels.ArtifactDependencies
+				.newBuilder()
+				.setCompileGraph(graph.build())
+				.build(),
+		)
 
 		val androidProject =
 			AndroidModels.AndroidProject
