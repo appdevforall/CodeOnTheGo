@@ -36,6 +36,7 @@ import io.github.rosemoe.sora.lang.styling.line.LineBackground
 import io.github.rosemoe.sora.lang.styling.line.LineGutterBackground
 import io.github.rosemoe.sora.text.ContentReference
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -132,7 +133,7 @@ class TsAnalyzeWorker(
       check(!isDestroyed) { "TsAnalyeWorker has already been destroyed" }
       hasStarted = true
 
-      analyzerJob = analyzerScope.launch {
+      analyzerJob = analyzerScope.launch(start = CoroutineStart.ATOMIC) {
         try {
           while (!isDestroyed && isActive) {
             processNextMessage()
