@@ -1235,7 +1235,7 @@
 	<string name="error_apk_not_exist">APK file specified does not exist: %1$s</string>
 	<string name="info_build_cancelled">Build was cancelled by the user.</string>
 	<string name="msg_build_cancel_failed">Could not stop the build.</string>
-	<string name="msg_build_slot_busy">Quick Build is setting up the app. Run will work once that finishes.</string>
+	<string name="msg_build_slot_busy">Quick Build is setting up the app. Try again once it finishes.</string>
 	<string name="error_quick_run_failed">Quick Run failed.</string>
 	<string name="status_building">Building…</string>
 	<string name="status_installing_plugin">Installing plugin…</string>
