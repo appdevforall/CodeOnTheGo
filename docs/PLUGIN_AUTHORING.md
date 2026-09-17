@@ -162,10 +162,103 @@ Example (adapted from `apk-viewer-plugin/src/main/AndroidManifest.xml`):
 </manifest>
 ```
 
-`extensions` and `build_actions` are not readable from
-`AndroidManifest.xml` meta-data — they're only honored when supplied
-via a `plugin.json` fallback manifest. If your plugin needs either,
-use the JSON form (see `PluginManifest.kt`).
+`extensions`, `build_actions`, and `code_actions` are not readable from
+`AndroidManifest.xml` meta-data — a `<meta-data>` tag holds one string,
+not a list of objects — so they're only honored when supplied via a
+`plugin.json` fallback manifest. See [JSON manifest](#json-manifest-pluginjson)
+below.
+
+## JSON manifest (`plugin.json`)
+
+Read by `PluginManifestParser.parseFromJar()`
+(`plugin-manager/src/main/kotlin/com/itsaky/androidide/plugins/manager/loaders/PluginManifest.kt`)
+only when the `AndroidManifest.xml` meta-data parse path throws. The
+JSON form carries every meta-data field above under `snake_case` keys
+(see `PluginManifest.kt` for the exact list), plus three fields with
+no meta-data equivalent:
+
+- `extensions` — reserved for future use; parsed into `ExtensionInfo`
+  but not consumed by any runtime code today.
+- `build_actions` — toolbar-triggered shell/Gradle commands, declared
+  once and auto-registered with no plugin code. See `ManifestBuildAction`.
+- `code_actions` — items in the editor's "Code actions" submenu,
+  auto-registered the same way. See below.
+
+### Naming: one authored value per level, everything else derived
+
+Per the plugin naming standard (`plugin-naming-standards.md`,
+`plugin-examples` repo), a plugin's name appears in up to six places,
+and letting each be typed independently is exactly how they drift out
+of sync. The standard's fix is to make one value — the GitHub src
+directory name — the only human decision, and derive everything else
+from it mechanically. Apply the same discipline here:
+
+- `plugin.id` MUST be the lowercased slug of the plugin's GitHub src
+  directory name (e.g. `APK-Analyzer` → `apk-analyzer`); `plugin.name`
+  MUST be that directory name with hyphens replaced by spaces
+  (`APK Analyzer`). Both are derived from the one authored value — the
+  directory name — not chosen independently. This isn't enforced by
+  the loader today (a mismatched `plugin.id` still loads), so treat it
+  as a review-time check.
+- Each `code_actions[]` entry below carries only `name` as an authored
+  value; `id` is derived from it (lowercase, spaces → hyphens) rather
+  than typed separately, for the same reason one level down.
+
+### `code_actions`
+
+Declares items in the editor's "Code actions" submenu
+(`ActionItem.Location.EDITOR_CODE_ACTIONS`) with no plugin code — the
+manifest-driven counterpart to `build_actions`, registered the same
+way (`PluginCodeActionManager`, mirroring `PluginBuildActionManager`)
+and executed through the same permission-gated `IdeCommandService`.
+
+| Key | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | yes | Source of truth; also the menu label. `id` is derived from this (see Naming above), never authored separately. |
+| `description` | string | no, default `""` | |
+| `file_extensions` | array of string | no, default `[]` | Gates visibility to files with a matching extension; empty means always visible. |
+| `icon` | string (ZIP path) | no | Same convention as `icon_day`/`icon_night` — a literal path inside the `.cgp`, e.g. `assets/format_icon.png`. |
+| `command` | string | one of `command`/`gradle_task` required | Shell executable, run via `IdeCommandService`. |
+| `gradle_task` | string | | Gradle task path, run via the project's `gradlew`. |
+| `arguments` | array of string | no, default `[]` | |
+| `working_directory` | string | no | Resolved relative to the project root; can't escape it. |
+| `environment` | object (string→string) | no, default `{}` | |
+| `timeout_ms` | int | no, default `600000` | |
+
+```json
+{
+  "id": "my-plugin",
+  "name": "My Plugin",
+  "code_actions": [
+    {
+      "name": "Format Imports",
+      "description": "Runs the project's import formatter",
+      "file_extensions": ["kt", "java"],
+      "gradle_task": "formatImports"
+    }
+  ]
+}
+```
+
+Runtime id: `plugin.codeAction.<pluginId>.<slug(name)>` — for the
+example above, `plugin.codeAction.my-plugin.format-imports`.
+
+**Permission.** Either `command` or `gradle_task` executes through
+`IdeCommandService`, which requires `system.commands` in
+`plugin.permissions` — same requirement as `build_actions`.
+
+**Cleanup.** Unloading the plugin clears its code actions from
+`PluginCodeActionManager` immediately, but the "Code actions" submenu
+itself is only rebuilt on the next editor-activity lifecycle event
+(`EditorActivityActions.register()`) — the same lazy-cleanup behavior
+`build_actions` already has, not something new here.
+
+**Not yet possible.** A code action that rewrites the buffer directly
+(an LSP-style quick-fix, distinct from a menu item that runs a
+command) needs a plugin-api service that doesn't exist yet —
+`lsp/api`/`lsp/java`/`lsp/kotlin`'s `CodeActionItem`/`TextEdit`
+pipeline has no plugin-facing surface today. Reserved for a future
+`code_action_provider` field naming a class, once that surface exists.
 
 ## Theme-aware icons
 
