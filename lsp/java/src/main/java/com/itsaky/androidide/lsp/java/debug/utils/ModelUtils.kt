@@ -7,6 +7,7 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.sun.jdi.Location
 import jdkx.tools.JavaFileObject
+import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.jvm.optionals.getOrNull
@@ -114,7 +115,8 @@ private fun Location.asKotlinLspLocation(): LspLocation {
  * JDI builds that path from the class's package plus its `SourceFile` name, so it only addresses a
  * real file where the directory layout mirrors the package. Kotlin does not require that, so a file
  * under `src/main/kotlin/util/` declaring `package com.example.util` is looked up at
- * `com/example/util/...` and missed. The fallback searches the module's source roots by file name.
+ * `com/example/util/...` and missed. The fallback asks the Kotlin file index, which already records
+ * every project `.kt` file by its declared package and is refreshed on sync.
  */
 private fun resolveInSourceRoots(relativePath: String): File? {
 	val modules =
@@ -137,11 +139,13 @@ private fun resolveInSourceRoots(relativePath: String): File? {
 	}
 
 	val fileName = relativePath.substringAfterLast('/')
-	return modules.firstNotNullOfOrNull { module ->
-		module
-			.getCompileSourceDirectories()
-			.asSequence()
-			.flatMap { dir -> dir.walkTopDown() }
-			.firstOrNull { candidate -> candidate.isFile && candidate.name == fileName }
-	}
+	val packageFqName = relativePath.substringBeforeLast('/', "").replace('/', '.')
+	return ProjectManagerImpl
+		.getInstance()
+		.indexingServiceManager
+		.registry
+		.get(KT_SOURCE_FILE_META_INDEX_KEY)
+		?.getFilePathsForPackage(packageFqName)
+		?.map(::File)
+		?.firstOrNull { candidate -> candidate.name == fileName }
 }
