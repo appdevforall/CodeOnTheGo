@@ -12,7 +12,6 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.requestBuildCancellation
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -73,16 +72,9 @@ abstract class AbstractCancellableRunAction(
 			return cancelBuild()
 		}
 
-		// An INTERNAL build (Quick Build's proxy app build) can own the single Gradle slot without
-		// driving the editor's build UI, so this button correctly still reads "Run" - but starting
-		// a second build would throw BuildInProgressException deep in the service and surface as a
-		// raw error string. The message names Quick Build, since the proxy app build is the only
-		// internal build there is. This reads the build service's own flag rather than the
-		// editor's: the slot really is busy even though the user has no build running.
-		if (buildService?.isBuildInProgress == true) {
-			data.getActivity()?.flashInfo(R.string.msg_build_slot_busy)
-			return false
-		}
+		// An internal build can own the slot without driving the editor's build UI, so this button
+		// correctly still reads "Run" rather than offering to cancel.
+		if (refuseWhileSlotBusy(data)) return false
 
 		return doExec(data)
 	}

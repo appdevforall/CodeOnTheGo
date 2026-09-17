@@ -46,6 +46,7 @@ class RunTasksAction(
 	}
 
 	override suspend fun execAction(data: ActionData): Any {
+		if (refuseWhileSlotBusy(data)) return false
 		data.requireActivity().saveAll(requestSync = false)
 		dialog?.dismiss()
 		dialog = null
