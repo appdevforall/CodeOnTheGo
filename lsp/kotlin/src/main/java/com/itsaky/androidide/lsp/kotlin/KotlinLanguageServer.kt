@@ -77,6 +77,7 @@ import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.io.path.extension
 
 class KotlinLanguageServer : ILanguageServer {
 	private var _client: ILanguageClient? = null
@@ -90,7 +91,12 @@ class KotlinLanguageServer : ILanguageServer {
 
 	override val serverId: String = SERVER_ID
 
-	override val supportsDebugging: Boolean = true
+	/**
+	 * True for `.kt` only. A `.kts` script is served by this language server but compiles to no
+	 * class the debuggee loads, so a breakpoint in one could be drawn and persisted and would then
+	 * never bind.
+	 */
+	override fun supportsDebugging(file: Path): Boolean = file.extension == KOTLIN_SOURCE_EXTENSION
 
 	override val client: ILanguageClient?
 		get() = _client
@@ -100,6 +106,7 @@ class KotlinLanguageServer : ILanguageServer {
 
 	companion object {
 		const val SERVER_ID = "ide.lsp.kotlin"
+		const val KOTLIN_SOURCE_EXTENSION = "kt"
 		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
 	}
 
