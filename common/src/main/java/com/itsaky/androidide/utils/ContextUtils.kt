@@ -24,6 +24,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -77,6 +78,13 @@ fun Theme.resolveAttr(
 	TypedValue().let {
 		resolveAttribute(id, it, resolveRefs)
 		it.data
+	}
+
+tailrec fun Context.findActivity(): Activity? =
+	when (this) {
+		is Activity -> this
+		is ContextWrapper -> baseContext?.findActivity()
+		else -> null
 	}
 
 fun Activity.restartApp() {
