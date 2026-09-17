@@ -44,6 +44,7 @@ fun DeleteTemplateConfirmationDialog(
 	)
 }
 
+/** Confirm before uninstalling [item], since it moves the file back to Downloads. */
 @Composable
 fun UninstallTemplateConfirmationDialog(
 	item: CgtFileItem,

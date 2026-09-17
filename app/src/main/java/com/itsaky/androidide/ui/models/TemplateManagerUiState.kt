@@ -50,6 +50,7 @@ sealed class TemplateManagerUiEffect {
 		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()
 
+	/** Ask before uninstalling [item], mirroring [ShowDeleteConfirmation]'s pattern for a Downloads file. */
 	data class ShowUninstallConfirmation(
 		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()

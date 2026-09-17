@@ -137,6 +137,11 @@ class TemplateRepositoryImpl(
 			}
 		}
 
+	/**
+	 * On a post-copy delete failure: rolls back (deletes the Downloads copy this call created) when
+	 * `overwrite` was false, but leaves the Downloads copy in place when `overwrite` was true, since
+	 * the pre-existing content there was already replaced and can't be recovered either way.
+	 */
 	override suspend fun uninstallTemplate(
 		item: CgtFileItem,
 		overwrite: Boolean,
