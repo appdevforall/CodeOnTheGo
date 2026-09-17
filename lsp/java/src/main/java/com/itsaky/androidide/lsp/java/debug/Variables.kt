@@ -197,7 +197,7 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
 			// TODO: Support other array-like types (like lists).
 			is ArrayType -> VariableKind.ARRAYLIKE
 
-			is ObjectReference -> VariableKind.REFERENCE
+			is ReferenceType -> VariableKind.REFERENCE
 
 			else -> VariableKind.UNKNOWN
 		}
@@ -332,7 +332,7 @@ internal open class JavaLocalVariable<ValueType : LspValue>(
 		thread = thread,
 		name = kotlinLocalDisplayName(variable.name()),
 		typeName = variable.typeName(),
-		type = if (variable is ObjectReference) variable.referenceType() else variable.type(),
+		type = variable.type(),
 		value = value,
 	) {
 	companion object {

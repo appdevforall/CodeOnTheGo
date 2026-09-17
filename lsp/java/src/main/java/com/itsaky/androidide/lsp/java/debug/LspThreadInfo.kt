@@ -119,7 +119,7 @@ class JavaStackFrame(
 											thread = thread,
 											stackFrame = this@JavaStackFrame,
 											variable = variable,
-											value = frame.getValue(variable),
+											value = getValue(variable),
 										)
 									} catch (e: VMDisconnectedException) {
 										throw e

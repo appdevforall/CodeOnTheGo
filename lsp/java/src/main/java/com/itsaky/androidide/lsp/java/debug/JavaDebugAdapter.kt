@@ -33,9 +33,7 @@ import com.itsaky.androidide.lsp.java.debug.utils.kotlinBinaryNamesOf
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.utils.withStopWatch
-import com.sun.jdi.AbsentInformationException
 import com.sun.jdi.Bootstrap
-import com.sun.jdi.IncompatibleThreadStateException
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VMDisconnectedException
 import com.sun.jdi.VirtualMachine

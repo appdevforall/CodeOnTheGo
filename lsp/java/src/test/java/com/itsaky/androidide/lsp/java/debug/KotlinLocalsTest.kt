@@ -30,6 +30,12 @@ class KotlinLocalsTest {
 	}
 
 	@Test
+	fun `an inline marker copied out of a nested inlining is still synthetic`() {
+		assertThat(isSyntheticKotlinLocal("\$i\$f\$measured\$iv")).isTrue()
+		assertThat(isSyntheticKotlinLocal("\$i\$f\$mapTo\$iv\$iv")).isTrue()
+	}
+
+	@Test
 	fun `suspend state machine locals are synthetic`() {
 		assertThat(isSyntheticKotlinLocal("\$continuation")).isTrue()
 		assertThat(isSyntheticKotlinLocal("\$result")).isTrue()
@@ -45,10 +51,25 @@ class KotlinLocalsTest {
 	}
 
 	@Test
-	fun `inline lambda receivers are kept and renamed`() {
-		assertThat(isSyntheticKotlinLocal("\$this\$run")).isFalse()
-		assertThat(kotlinLocalDisplayName("\$this\$run")).isEqualTo("this@run")
-		assertThat(kotlinLocalDisplayName("\$this\$apply")).isEqualTo("this@apply")
+	fun `a local copied out of an inlined body shows the name its source gave it`() {
+		assertThat(kotlinLocalDisplayName("started\$iv")).isEqualTo("started")
+		assertThat(kotlinLocalDisplayName("label\$iv")).isEqualTo("label")
+		assertThat(kotlinLocalDisplayName("item\$iv\$iv")).isEqualTo("item")
+	}
+
+	@Test
+	fun `an inline receiver keeps its label through the copy suffixes`() {
+		assertThat(isSyntheticKotlinLocal("\$this\$map\$iv")).isFalse()
+		assertThat(kotlinLocalDisplayName("\$this\$map\$iv")).isEqualTo("this@map")
+		assertThat(kotlinLocalDisplayName("\$this\$mapTo\$iv\$iv")).isEqualTo("this@mapTo")
+	}
+
+	@Test
+	fun `a synthetic lambda receiver is left alone rather than given a fabricated label`() {
+		// Kotlin names a lambda's receiver after the enclosing method's synthetic lambda, where _u24
+		// is a mangled '$'. No label the user wrote is recoverable from it.
+		assertThat(kotlinLocalDisplayName("\$this\$direct_u24lambda_u240"))
+			.isEqualTo("\$this\$direct_u24lambda_u240")
 	}
 
 	@Test
