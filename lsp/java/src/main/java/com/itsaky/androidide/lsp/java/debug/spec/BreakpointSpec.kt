@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.java.debug.spec
 import com.itsaky.androidide.lsp.debug.model.BreakpointDefinition
 import com.itsaky.androidide.lsp.debug.model.MethodBreakpoint
 import com.itsaky.androidide.lsp.debug.model.PositionalBreakpoint
+import com.itsaky.androidide.lsp.java.debug.utils.locationsOfLineInSource
 import com.itsaky.androidide.utils.StringUtil.isJavaIdentifier
 import com.sun.jdi.AbsentInformationException
 import com.sun.jdi.InvalidTypeException
@@ -125,7 +126,7 @@ internal class BreakpointSpec : EventRequestSpec {
 			val method = findMatchingMethod(vm, refType, this.data as BreakpointData.Method)
 			location = method.location()
 		} else {
-			val locations = refType.locationsOfLine(lineNumber)
+			val locations = refType.locationsOfLineInSource(lineNumber)
 			if (locations.isEmpty()) {
 				throw LineNotFoundException("no locations found for line $lineNumber")
 			}
