@@ -106,29 +106,26 @@ class TsAnalyzeWorker(
     log.debug("Stopping TsAnalyzeWorker...")
     isDestroyed = true
 
-    document.requestCancellationAndWaitIfParsing()
+    document.requestCancellationAsync()
 
-    analyzerContext.close()
     messageChannel.clear()
+    messageChannel.offer(Stop)
+
     analyzerJob?.cancel(CancellationException("Requested to be stopped"))
-    analyzerScope.cancel(CancellationException("Requested to be stopped"))
-    document.close()
   }
 
   fun start() {
     check(!isDestroyed) { "TsAnalyeWorker has already been destroyed" }
 
     analyzerJob = analyzerScope.launch {
-      while (!isDestroyed && isActive) {
-        processNextMessage()
-      }
-    }.also { job ->
-      job.invokeOnCompletion { error ->
-        if (error != null && error !is CancellationException) {
-          log.error("Analyzer job failed", error)
-        } else {
-          log.info("Analyzer job completed")
+      try {
+        while (!isDestroyed && isActive) {
+          processNextMessage()
         }
+      } finally {
+        log.debug("Analyzer worker releasing resources")
+        document.close()
+        analyzerContext.close()
       }
     }
   }
@@ -203,6 +200,7 @@ class TsAnalyzeWorker(
       when (message) {
         is Init -> doInit(message)
         is Mod -> doMod(message)
+        is Stop -> return
       }
     } catch (err: Throwable) {
       val langName = languageSpec.language.name
@@ -375,6 +373,11 @@ internal interface Message<T> {
 internal data class Init(override val data: TextInit) : Message<TextInit>
 
 internal data class Mod(override val data: TextMod) : Message<TextMod>
+
+internal object Stop : Message<Unit> {
+
+  override val data = Unit
+}
 
 internal data class TextInit(
   val text: String,

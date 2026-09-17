@@ -67,6 +67,10 @@ class TsTextDocument(
       parser.requestCancellationAndWait()
     }
   }
+  
+  fun requestCancellationAsync(): Boolean {
+    return parser.requestCancellationAsync()
+  }
 
   /**
    * Initialize the source text with the given initialization message. The caller is responsible
