@@ -71,7 +71,9 @@ class TemplateRepositoryImpl(
 			cgtFilesIn(downloadDir)
 				.filterNot { file -> file.name.lowercase() in installedNames }
 				.mapNotNull { file -> parseCgtFile(file, installed = false) }
-		return installed.filterNot { item -> item.name == TEMPLATE_CORE_ARCHIVE } + downloaded
+		// Filtered out of the combined list, not just `installed`: core.cgt must be excluded even
+		// if templatesDir doesn't have it yet (bootstrap incomplete) and only a Downloads copy exists.
+		return (installed + downloaded).filterNot { item -> item.name == TEMPLATE_CORE_ARCHIVE }
 	}
 
 	private fun cgtFilesIn(dir: File): List<File> =

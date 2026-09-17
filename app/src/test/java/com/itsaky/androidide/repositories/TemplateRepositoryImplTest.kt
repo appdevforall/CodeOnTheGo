@@ -240,4 +240,17 @@ class TemplateRepositoryImplTest {
 			// that path in templatesDir.
 			assertThat(items).isEmpty()
 		}
+
+	@Test
+	fun listTemplateFiles_excludesACoreArchiveFoundOnlyInDownloads() =
+		runTest {
+			// No core.cgt in templatesDir yet (e.g. asset bootstrap hasn't run) - the twin-hiding
+			// dedup above can't catch this case, since there's no installed name to match against.
+			// core.cgt must still be excluded outright, not shown as an installable USER template.
+			writeCgt(downloadDir, TEMPLATE_CORE_ARCHIVE)
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items).isEmpty()
+		}
 }
