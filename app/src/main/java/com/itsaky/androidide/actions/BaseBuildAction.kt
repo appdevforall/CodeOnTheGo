@@ -26,20 +26,19 @@ import com.itsaky.androidide.projects.builder.BuildService
  * @author Akash Yadav
  */
 abstract class BaseBuildAction : EditorActivityAction() {
+	protected val buildService: BuildService?
+		get() = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 
-  protected val buildService: BuildService?
-    get() = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		val context = data.getActivity()
+		if (context == null) {
+			visible = false
+			return
+		} else {
+			visible = true
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    val context = data.getActivity()
-    if (context == null) {
-      visible = false
-      return
-    } else {
-      visible = true
-    }
-
-    enabled = buildService?.let { !it.isBuildInProgress } == true
-  }
+		enabled = buildService?.let { !it.isBuildInProgress } == true
+	}
 }
