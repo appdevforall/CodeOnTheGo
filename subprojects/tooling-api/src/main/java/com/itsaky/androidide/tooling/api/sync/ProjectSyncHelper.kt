@@ -69,7 +69,8 @@ object ProjectSyncHelper {
 	 *
 	 * Weakly keyed: a caller that drops a channel without releasing it can still have the channel
 	 * collected, which closes the descriptor and frees the file lock. A strong map would pin it for
-	 * the life of the process.
+	 * the life of the process. The permit is not recovered that way, so callers still go through
+	 * [tryUseSyncLock], which releases in a `finally`.
 	 */
 	private val heldLocks: MutableMap<FileChannel, Semaphore> =
 		Collections.synchronizedMap(WeakHashMap())
@@ -418,6 +419,11 @@ object ProjectSyncHelper {
 	 * turns out to be unparseable, which leaves a cache nothing can vouch for. It does not run on
 	 * the early return taken when either file is already missing or unreadable. Deletion failures
 	 * are logged, never thrown.
+	 *
+	 * Because it deletes, a re-initialisation that hits the discard can pull the cache out from
+	 * under a read another coroutine already started, which surfaces as a cache read error. That
+	 * needs a version mismatch or corrupt metadata concurrent with an in-flight read, so in
+	 * practice it is the one-time window after a schema bump.
 	 *
 	 * @param projectDir The project directory.
 	 * @return `true` if a sync is needed, `false` otherwise.

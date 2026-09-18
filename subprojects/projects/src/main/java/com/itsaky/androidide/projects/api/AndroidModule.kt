@@ -292,8 +292,8 @@ open class AndroidModule(
 			 * IndexOutOfBoundsException out of a classpath getter, so skip instead. A silently
 			 * short classpath reads as phantom unresolved symbols, so say so in the log.
 			 */
-			val node = graph.nodeList.getOrNull(nodeId) ?: continue
-			val key = graph.keyList.getOrNull(node.keyId)
+			val node = graph.nodeList.getOrNull(nodeId)
+			val key = node?.let { graph.keyList.getOrNull(it.keyId) }
 			if (key == null) {
 				logLostGraphEntry(nodeId)
 				continue
