@@ -61,7 +61,7 @@ abstract class TreeSitterLanguage(
 			if (!this::_indentProvider.isInitialized) {
 				this._indentProvider = TreeSitterIndentProvider(
 					languageSpec,
-					analyzer.analyzeWorker!!,
+					analyzer,
 					getTabSize()
 				)
 			}

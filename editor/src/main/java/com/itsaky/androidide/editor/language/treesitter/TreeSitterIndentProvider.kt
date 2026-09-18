@@ -34,7 +34,7 @@ import com.itsaky.androidide.treesitter.TSQueryMatch
 import com.itsaky.androidide.treesitter.TSTree
 import com.itsaky.androidide.treesitter.predicate.SetDirectiveHandler
 import com.itsaky.androidide.utils.IntPair
-import io.github.rosemoe.sora.editor.ts.TsAnalyzeWorker
+import io.github.rosemoe.sora.editor.ts.TsAnalyzeManager
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.TextUtils
 import org.slf4j.LoggerFactory
@@ -51,7 +51,7 @@ import kotlin.math.min
  */
 class TreeSitterIndentProvider(
   private val languageSpec: TreeSitterLanguageSpec,
-  private val analyzer: TsAnalyzeWorker,
+  private val analyzer: TsAnalyzeManager,
   private val indentSize: Int
 ) {
 
@@ -91,7 +91,7 @@ class TreeSitterIndentProvider(
       return defaultIndents
     }
 
-    val document = analyzer.document
+    val document = analyzer.analyzeWorker?.document ?: return defaultIndents
     TSParser.create().use { parser ->
       parser.language = document.parser.language
 
