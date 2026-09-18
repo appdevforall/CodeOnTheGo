@@ -73,7 +73,25 @@ class DependencyGraphFlatteningTest {
 	private fun dependencyKeysOf(
 		graph: AndroidModels.DependencyGraph,
 		key: String,
-	): List<String> = dependencyKeysOf(graph, (0 until graph.nodeCount).single { keyOf(graph, it) == key })
+	): List<String> = dependencyKeysOf(graph, indexOf(graph, key))
+
+	/** The index of the node named [key]. */
+	private fun indexOf(
+		graph: AndroidModels.DependencyGraph,
+		key: String,
+	): Int = (0 until graph.nodeCount).single { keyOf(graph, it) == key }
+
+	/** The node named [key]. */
+	private fun nodeOf(
+		graph: AndroidModels.DependencyGraph,
+		key: String,
+	): AndroidModels.GraphNode = graph.getNode(indexOf(graph, key))
+
+	/** The requested coordinates recorded against the node named [key]. */
+	private fun coordinatesOf(
+		graph: AndroidModels.DependencyGraph,
+		key: String,
+	): String = graph.getRequestedCoordinates(nodeOf(graph, key).requestedCoordinatesId)
 
 	@Test
 	fun `a node shared by two paths is emitted once and referenced twice`() {
@@ -183,13 +201,22 @@ class DependencyGraphFlatteningTest {
 			graphOf(
 				FakeGraphItem("a", requestedCoordinates = "g:a:1.0"),
 				FakeGraphItem("b", requestedCoordinates = "g:a:1.0"),
-				FakeGraphItem("c"),
+				FakeGraphItem("c", requestedCoordinates = "g:c:2.0"),
+				FakeGraphItem("d"),
 			)
 
-		assertThat(graph.requestedCoordinatesList).containsExactly("g:a:1.0")
-		assertThat(graph.getNode(0).hasRequestedCoordinatesId()).isTrue()
-		assertThat(graph.getNode(1).requestedCoordinatesId).isEqualTo(graph.getNode(0).requestedCoordinatesId)
-		assertThat(graph.getNode(2).hasRequestedCoordinatesId()).isFalse()
+		assertThat(graph.requestedCoordinatesList).containsExactly("g:a:1.0", "g:c:2.0").inOrder()
+
+		// Two distinct values, so an intern table that collapsed everything onto one index fails here.
+		assertThat(coordinatesOf(graph, "a")).isEqualTo("g:a:1.0")
+		assertThat(coordinatesOf(graph, "b")).isEqualTo("g:a:1.0")
+		assertThat(coordinatesOf(graph, "c")).isEqualTo("g:c:2.0")
+
+		assertThat(nodeOf(graph, "b").requestedCoordinatesId)
+			.isEqualTo(nodeOf(graph, "a").requestedCoordinatesId)
+		assertThat(nodeOf(graph, "c").requestedCoordinatesId)
+			.isNotEqualTo(nodeOf(graph, "a").requestedCoordinatesId)
+		assertThat(nodeOf(graph, "d").hasRequestedCoordinatesId()).isFalse()
 	}
 
 	@Test

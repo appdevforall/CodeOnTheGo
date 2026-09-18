@@ -119,6 +119,80 @@ class CompileModuleProjectsCycleTest {
 		return AndroidModule(gradleProject)
 	}
 
+	/**
+	 * A module whose compile graph is `rootLib -> transitiveLib`, both external Java libraries.
+	 *
+	 * The transitive jar is reachable only by following a node's
+	 * [AndroidModels.GraphNode.getDependencyList] and resolving those indices against the graph, so
+	 * it covers the recursive half of the consumer that a flat root list never reaches.
+	 */
+	private fun moduleWithTransitiveLibrary(
+		path: String,
+		rootJar: String,
+		transitiveJar: String,
+	): AndroidModule {
+		val graph =
+			AndroidModels.DependencyGraph
+				.newBuilder()
+				.addKey("rootLib")
+				.addKey("transitiveLib")
+				.addNode(
+					AndroidModels.GraphNode
+						.newBuilder()
+						.setKeyId(0)
+						.addDependency(1)
+						.build(),
+				).addNode(
+					AndroidModels.GraphNode
+						.newBuilder()
+						.setKeyId(1)
+						.build(),
+				).addRoot(0)
+
+		val variantDeps =
+			AndroidModels.VariantDependencies
+				.newBuilder()
+				.setName("debug")
+				.putLibraries("rootLib", externalJavaLibrary("rootLib", rootJar))
+				.putLibraries("transitiveLib", externalJavaLibrary("transitiveLib", transitiveJar))
+				.setMainArtifact(
+					AndroidModels.ArtifactDependencies
+						.newBuilder()
+						.setCompileGraph(graph.build())
+						.build(),
+				)
+
+		val androidProject =
+			AndroidModels.AndroidProject
+				.newBuilder()
+				.setProjectType(AndroidModels.ProjectType.LibraryProject)
+				.setVariantDependencies(variantDeps.build())
+				.build()
+
+		return AndroidModule(
+			GradleModels.GradleProject
+				.newBuilder()
+				.setName(path.trimStart(':'))
+				.setPath(path)
+				.setProjectDirPath("/tmp/cycle-test${path.replace(':', '/')}")
+				.setBuildDirPath("/tmp/cycle-test${path.replace(':', '/')}/build")
+				.setBuildScriptPath("/tmp/cycle-test${path.replace(':', '/')}/build.gradle")
+				.setAndroidProject(androidProject)
+				.build(),
+		)
+	}
+
+	private fun externalJavaLibrary(
+		key: String,
+		artifactPath: String,
+	): AndroidModels.Library =
+		AndroidModels.Library
+			.newBuilder()
+			.setKey(key)
+			.setType(AndroidModels.LibraryType.ExternalJavaLibrary)
+			.setArtifactPath(artifactPath)
+			.build()
+
 	/** Install a real [Workspace] containing the given [modules] on the production [ProjectManagerImpl]. */
 	private fun installWorkspace(vararg modules: ModuleProject) {
 		val root =
@@ -146,6 +220,17 @@ class CompileModuleProjectsCycleTest {
 		val result = a.getCompileModuleProjects()
 
 		assertThat(result.map { it.path }).containsExactly(":b", ":a")
+	}
+
+	/** A transitive graph node is reached by resolving its index against the flat graph. */
+	@Test(timeout = 30_000)
+	fun `collects a library reachable only through a transitive graph node`() {
+		val a = moduleWithTransitiveLibrary(":a", "/tmp/root.jar", "/tmp/transitive.jar")
+		installWorkspace(a)
+
+		val classpaths = a.getCompileClasspaths(excludeSourceGeneratedClassPath = true, visited = HashSet())
+
+		assertThat(classpaths.map { it.path }).containsAtLeast("/tmp/root.jar", "/tmp/transitive.jar")
 	}
 
 	/** A self-dependency (`:a -> :a`) terminates and reports the module once. */
