@@ -6,6 +6,7 @@ import com.itsaky.androidide.project.SyncMeta
 import com.itsaky.androidide.project.SyncMetaModels
 import com.itsaky.androidide.utils.SharedEnvironment
 import com.itsaky.androidide.utils.sha256
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -15,6 +16,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.channels.FileChannel
+import java.nio.channels.OverlappingFileLockException
 import java.nio.file.FileSystems
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
@@ -129,7 +131,22 @@ object ProjectSyncHelper {
 			FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
 		val start = System.currentTimeMillis()
 		while (System.currentTimeMillis() - start < timeoutMs) {
-			val lock = channel.tryLock()
+			val lock =
+				try {
+					channel.tryLock()
+				} catch (err: OverlappingFileLockException) {
+					/*
+					 * Another thread in this JVM holds an overlapping lock. tryLock throws here
+					 * instead of returning null, so treat it as a failed attempt and retry until
+					 * the holder releases.
+					 */
+					null
+				} catch (err: IOException) {
+					logger.warn("Failed to acquire the sync lock", err)
+					channel.close()
+					return null
+				}
+
 			if (lock != null) return channel
 			Thread.sleep(50)
 		}
@@ -260,6 +277,28 @@ object ProjectSyncHelper {
 			projectCacheFile.canRead()
 
 	/**
+	 * Check whether the sync metadata at [syncMetaFile] was written by the current
+	 * [SYNC_META_VERSION].
+	 *
+	 * Metadata written by an older schema still parses -- a removed field reads back as its default
+	 * rather than failing -- so the project cache beside it can only be trusted once the stored
+	 * version has been checked. Callers that reach the cache without going through
+	 * [checkSyncNeeded] must gate on this.
+	 *
+	 * @param syncMetaFile The sync metadata file.
+	 * @return `true` if the stored version is current, `false` if it differs or cannot be read.
+	 */
+	fun isSyncMetaVersionCurrent(syncMetaFile: File): Boolean =
+		try {
+			syncMetaFile.inputStream().buffered().use { fileIn ->
+				SyncMetaModels.SyncMeta.parseFrom(fileIn).metaVersion == SYNC_META_VERSION
+			}
+		} catch (err: Throwable) {
+			logger.warn("Failed to read sync metadata file: {}", syncMetaFile, err)
+			false
+		}
+
+	/**
 	 * Check if a sync is needed for the given project directory.
 	 *
 	 * @param projectDir The project directory.
@@ -292,6 +331,8 @@ object ProjectSyncHelper {
 				logger.debug("NEED_SYNC: sync meta file not found")
 				discardSyncFiles(projectDir)
 				return true
+			} catch (err: CancellationException) {
+				throw err
 			} catch (err: Throwable) {
 				logger.warn("NEED_SYNC: failed to read sync metadata file", err)
 				discardSyncFiles(projectDir)
