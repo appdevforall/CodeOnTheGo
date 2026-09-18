@@ -16,10 +16,12 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.spyk
+import io.mockk.unmockkAll
 import io.mockk.verify
 import org.gradle.tooling.BuildCancelledException
 import org.gradle.tooling.GradleConnector
 import org.gradle.tooling.ProjectConnection
+import org.junit.After
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -50,6 +52,12 @@ class ToolingApiServerImplTest {
 		val connector: GradleConnector,
 		val connection: ProjectConnection,
 	)
+
+	@After
+	fun tearDown() {
+		// These tests mock singletons. Left in place they follow the JVM into the next test class.
+		unmockkAll()
+	}
 
 	private fun mockkToolingServer(): MockServer {
 		val server = spyk(ToolingApiServerImpl())
