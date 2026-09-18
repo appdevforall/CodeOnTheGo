@@ -210,6 +210,30 @@ class ToolingApiServerImplTest {
 	}
 
 	@Test
+	fun `GIVEN readable sync files WHEN the stored schema version is stale THEN sync anyway`() {
+		val initParams = testInitParams(forceSync = false)
+		val cacheFile = ProjectSyncHelper.cacheFileForProject(File(initParams.directory))
+
+		mockkObject(RootModelBuilder)
+		every { RootModelBuilder.build(any(), any()) } returns cacheFile
+
+		mockkObject(ProjectSyncHelper)
+		every { ProjectSyncHelper.areSyncFilesReadable(any(), any()) } returns true
+
+		// The cache is present and readable, and only the stored schema version rules it out.
+		every { ProjectSyncHelper.isSyncMetaVersionCurrent(any()) } returns false
+
+		val (server) = mockkToolingServer()
+		every { server.validateProjectDirectory(any()) } returns null
+
+		val result = server.initialize(initParams).get(5, TimeUnit.SECONDS)
+		assertThat(result).isInstanceOf(InitializeResult.Success::class.java)
+		assertThat((result as InitializeResult.Success).cacheFile).isEqualTo(cacheFile)
+
+		verify(exactly = 1) { RootModelBuilder.build(initParams, any()) }
+	}
+
+	@Test
 	fun `shutting the server down stops the daemon watcher`() {
 		// The defect this PR exists to fix, pinned at the caller. The watcher's own shutdown() was
 		// already correct on stage -- what was missing was anything calling it, so a test of
