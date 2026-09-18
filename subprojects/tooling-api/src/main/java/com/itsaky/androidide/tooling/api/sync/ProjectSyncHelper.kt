@@ -331,8 +331,16 @@ object ProjectSyncHelper {
 		val tempFile = Paths.get(targetFile.path + ".tmp")
 		runCatching {
 			tempFile
-				.outputStream(StandardOpenOption.CREATE, StandardOpenOption.WRITE)
-				.buffered()
+				.outputStream(
+					StandardOpenOption.CREATE,
+					StandardOpenOption.WRITE,
+					/*
+					 * Explicit: newOutputStream only implies truncation when no options are given.
+					 * A temp file left behind by a killed sync is otherwise written in place, and
+					 * a shorter model publishes with the previous one's tail still attached.
+					 */
+					StandardOpenOption.TRUNCATE_EXISTING,
+				).buffered()
 				.use { tempOut ->
 					write(tempOut)
 					tempOut.flush()

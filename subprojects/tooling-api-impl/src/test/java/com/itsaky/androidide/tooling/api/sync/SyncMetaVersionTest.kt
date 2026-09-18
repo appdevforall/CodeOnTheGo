@@ -126,6 +126,21 @@ class SyncMetaVersionTest {
 		).isFalse()
 	}
 
+	@Test
+	fun `writing the sync meta replaces a leftover temp file entirely`() {
+		val projectDir = seedProject()
+		val metaFile = ProjectSyncHelper.syncMetaFileForProject(projectDir)
+		metaFile.parentFile.mkdirs()
+
+		// What a sync killed between writing the temp file and publishing it leaves behind.
+		File(metaFile.path + ".tmp").writeBytes(ByteArray(4096) { 0x7f })
+
+		val meta = runBlocking { ProjectSyncHelper.createSyncMeta(projectDir, includeChecksum = false) }
+		ProjectSyncHelper.writeSyncMetaSync(meta, metaFile)
+
+		assertThat(metaFile.readBytes()).isEqualTo(meta.toByteArray())
+	}
+
 	private fun seedProject(): File {
 		val projectDir = temporaryFolder.newFolder("project")
 		projectDir.resolve("build.gradle").writeText("plugins { id 'java' }")
