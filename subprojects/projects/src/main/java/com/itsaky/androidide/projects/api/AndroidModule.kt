@@ -271,16 +271,20 @@ open class AndroidModule(
 	 * thousands of lines in the log on every classpath refresh. One line per traversal says the
 	 * same thing.
 	 */
-	private fun logLostGraphEntry(nodeId: Int) {
+	private fun logLostGraphEntry(
+		nodeId: Int,
+		keyId: Int?,
+	) {
 		if (reportedGraphDamage) {
 			return
 		}
 
 		reportedGraphDamage = true
+		val entry = if (keyId == null) "node index $nodeId" else "key index $keyId of node $nodeId"
 		log.warn(
-			"Dependency graph entry {} in module {} is out of range; the project cache looks damaged." +
+			"Dependency graph {} in module {} is out of range; the project cache looks damaged." +
 				" Re-sync the project if symbols fail to resolve.",
-			nodeId,
+			entry,
 			path,
 		)
 	}
@@ -319,7 +323,7 @@ open class AndroidModule(
 			val node = graph.nodeList.getOrNull(nodeId)
 			val key = node?.let { graph.keyList.getOrNull(it.keyId) }
 			if (key == null) {
-				logLostGraphEntry(nodeId)
+				logLostGraphEntry(nodeId, node?.keyId)
 				continue
 			}
 
@@ -392,7 +396,7 @@ open class AndroidModule(
 				val node = graph.nodeList.getOrNull(nodeId)
 				val key = node?.let { graph.keyList.getOrNull(it.keyId) }
 				if (key == null) {
-					logLostGraphEntry(nodeId)
+					logLostGraphEntry(nodeId, node?.keyId)
 					continue
 				}
 
