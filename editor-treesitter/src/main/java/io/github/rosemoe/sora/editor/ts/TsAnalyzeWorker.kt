@@ -76,7 +76,7 @@ class TsAnalyzeWorker(
   private val messageChannel = LinkedBlockingQueue<Message<*>>()
   private var analyzerJob: Job? = null
   private val lifecycleLock = Any()
-  private const val DOCUMENT_LOCK_TIMEOUT_MS = 100L
+  private val DOCUMENT_LOCK_TIMEOUT_MS = 100L
 
   private val documentLock = ReentrantLock()
   private var hasStarted = false
