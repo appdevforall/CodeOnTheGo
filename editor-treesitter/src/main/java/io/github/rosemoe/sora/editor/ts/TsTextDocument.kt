@@ -118,8 +118,14 @@ class TsTextDocument(
   }
 
   override fun close() {
-    text?.close()
-    tree?.close()
-    parser.close()
+    try {
+      text.close()
+    } finally {
+      try {
+        tree?.close()
+      } finally {
+        parser.close()
+      }
+    }
   }
 }
