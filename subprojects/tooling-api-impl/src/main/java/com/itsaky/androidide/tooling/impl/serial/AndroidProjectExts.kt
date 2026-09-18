@@ -174,17 +174,15 @@ private class DependencyGraphBuilder {
 		val node =
 			GraphNode(
 				keyId = id,
-				requestedCoordinatesId = item.requestedCoordinates?.let { intern(requestedCoordinates, it) },
+				requestedCoordinatesId =
+					item.requestedCoordinates?.let { coordinates ->
+						requestedCoordinates.getOrPut(coordinates) { requestedCoordinates.size }
+					},
 				dependencyList = item.dependencies.map(::nodeIdOf),
 			)
 		nodes[id] = node
 		return id
 	}
-
-	private fun intern(
-		table: LinkedHashMap<String, Int>,
-		value: String,
-	): Int = table.getOrPut(value) { table.size }
 }
 
 fun UnresolvedDependency.asProtoModel() =

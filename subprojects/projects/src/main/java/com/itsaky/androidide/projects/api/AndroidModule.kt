@@ -253,11 +253,12 @@ open class AndroidModule(
 	}
 
 	/**
-	 * Recursively collect the compile classpath entries contributed by the given dependency-graph
-	 * [libraries] into [result], guarding against cycles.
+	 * Recursively collect the compile classpath entries contributed by the [graph] nodes at
+	 * [nodeIds] into [result], guarding against cycles.
 	 *
 	 * @param root The workspace used to resolve project dependencies by path.
-	 * @param libraries The dependency-graph nodes to expand at this level.
+	 * @param graph The flat dependency graph the node indices address.
+	 * @param nodeIds Indices into [graph] of the nodes to expand at this level.
 	 * @param result The accumulating set of classpath files.
 	 * @param excludeSourceGeneratedClassPath Whether to exclude source-generated classpath entries.
 	 * @param visited Keys of dependency-graph nodes already expanded within this module; each node is
