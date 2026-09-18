@@ -175,6 +175,14 @@ object ProjectSyncHelper {
 		 * must return the permit, or the sync lock stays unavailable for the life of the process.
 		 */
 		var releasePermit = true
+
+		/*
+		 * Closing a channel drops every fcntl lock this process holds on the file, not just this
+		 * channel's. On the one path where another holder may exist -- an overlap the mutex failed
+		 * to prevent -- the descriptor is leaked instead, because taking their lock away is worse
+		 * than an fd.
+		 */
+		var closeChannel = true
 		var channel: FileChannel? = null
 		try {
 			channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
@@ -202,6 +210,7 @@ object ProjectSyncHelper {
 			return null
 		} catch (err: OverlappingFileLockException) {
 			// The semaphore above should have made this unreachable; report it rather than spin.
+			closeChannel = false
 			logger.warn("Sync lock is already held by this process", err)
 			return null
 		} catch (err: IOException) {
@@ -209,7 +218,9 @@ object ProjectSyncHelper {
 			return null
 		} finally {
 			if (releasePermit) {
-				channel?.close()
+				if (closeChannel) {
+					channel?.close()
+				}
 				inProcessLock.release()
 			}
 		}
@@ -227,7 +238,7 @@ object ProjectSyncHelper {
 	 */
 	@VisibleForTesting
 	fun lockKeyOf(lockFile: Path): String {
-		val parent = lockFile.parent
+		val parent = lockFile.parent ?: return lockFile.toAbsolutePath().normalize().pathString
 		val realParent =
 			try {
 				parent.toRealPath()
