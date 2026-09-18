@@ -19,6 +19,7 @@ package com.itsaky.androidide.tooling.api.sync
 
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.runBlocking
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -64,6 +65,23 @@ class SyncMetaVersionTest {
 
 		assertThat(runBlocking { ProjectSyncHelper.checkSyncNeeded(projectDir) }).isTrue()
 		assertSyncFilesDiscarded(projectDir)
+	}
+
+	@Test
+	fun `a sync is still requested when the stale sync files cannot be discarded`() {
+		val projectDir = seedProject()
+		seedSyncFiles(projectDir, metaVersion = "0")
+
+		// Blocks the lock file from being created, so the discard fails before it deletes anything.
+		val syncDir = ProjectSyncHelper.syncMetaFileForProject(projectDir).parentFile
+		assumeTrue(syncDir.setWritable(false))
+
+		try {
+			assertThat(runBlocking { ProjectSyncHelper.checkSyncNeeded(projectDir) }).isTrue()
+			assertSyncFilesExist(projectDir)
+		} finally {
+			syncDir.setWritable(true)
+		}
 	}
 
 	@Test

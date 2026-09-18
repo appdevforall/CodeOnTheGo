@@ -300,6 +300,10 @@ object ProjectSyncHelper {
 	/**
 	 * Check if a sync is needed for the given project directory.
 	 *
+	 * Not a pure query: sync files that are unusable -- unreadable, or written by a schema version
+	 * other than [SYNC_META_VERSION] -- are deleted, because they would otherwise parse into a
+	 * silently empty model. Deletion failures are logged, never thrown.
+	 *
 	 * @param projectDir The project directory.
 	 * @return `true` if a sync is needed, `false` otherwise.
 	 */
@@ -424,15 +428,28 @@ object ProjectSyncHelper {
 	 * Delete the sync metadata and project model cache files for the given project directory.
 	 *
 	 * Taken under the same lock the sync writes them under. Failing to acquire it means a sync is
-	 * already in flight and about to replace both files, so the deletion is skipped.
+	 * already in flight and about to replace both files, so the deletion is skipped. Acquiring it
+	 * does not mean the files are still stale, so staleness is rechecked under the lock.
 	 */
 	private suspend fun discardSyncFiles(projectDir: File) {
 		withContext(Dispatchers.IO) {
 			try {
 				val locked =
 					tryUseSyncLock(projectDir, DISCARD_LOCK_TIMEOUT_MS) {
-						deleteOrWarn(syncMetaFileForProject(projectDir))
-						deleteOrWarn(cacheFileForProject(projectDir))
+						val syncMetaFile = syncMetaFileForProject(projectDir)
+
+						/*
+						 * Staleness was decided outside the lock, and the metadata is written
+						 * non-atomically, so a reader can catch it truncated mid-write and a sync
+						 * can complete while we wait here. Re-read before deleting, or a discard
+						 * takes out the fresh files that sync just wrote.
+						 */
+						if (isSyncMetaVersionCurrent(syncMetaFile)) {
+							logger.debug("Sync files were rewritten while waiting for the lock, keeping them")
+						} else {
+							deleteOrWarn(syncMetaFile)
+							deleteOrWarn(cacheFileForProject(projectDir))
+						}
 					}
 
 				if (!locked) {
