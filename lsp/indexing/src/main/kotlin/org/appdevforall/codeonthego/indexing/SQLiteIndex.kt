@@ -405,6 +405,27 @@ class SQLiteIndex<T : Indexable>(
 	private fun effectiveLimit(query: IndexQuery) = if (query.limit > 0) query.limit else Int.MAX_VALUE
 
 	/**
+	 * The smallest string greater than every string starting with [prefix], or `null` when no such
+	 * bound exists because [prefix] ends in the highest representable characters.
+	 */
+	private fun exclusiveUpperBound(prefix: String): String? {
+		for (i in prefix.length - 1 downTo 0) {
+			val c = prefix[i]
+			if (c != Char.MAX_VALUE) {
+				return prefix.substring(0, i) + (c + 1)
+			}
+		}
+		return null
+	}
+
+	/** Escapes the LIKE metacharacters in [literal] so it matches only itself. */
+	private fun escapeLikeLiteral(literal: String) =
+		literal
+			.replace("\\", "\\\\")
+			.replace("%", "\\%")
+			.replace("_", "\\_")
+
+	/**
 	 * Splits [IndexQuery.sourceIds] into groups small enough for one `IN (...)` clause.
 	 *
 	 * Returns a single `null` chunk when the query is unscoped, and no chunks at all when it is
@@ -476,14 +497,31 @@ class SQLiteIndex<T : Indexable>(
 
 		for ((field, prefix) in query.prefixMatch) {
 			val lowerCol = prefixColumns[field]
-			if (lowerCol != null) {
-				// Use the pre-lowercased column for index-friendly LIKE
-				and("$lowerCol LIKE ?", "${prefix.lowercase()}%")
-			} else {
-				// Fallback: case-sensitive prefix on the regular column
-				val col = fieldColumns[field] ?: continue
-				and("$col LIKE ?", "$prefix%")
+			// Prefix-searchable fields match case-insensitively through their pre-lowercased column;
+			// everything else matches the stored value as-is.
+			val col = lowerCol ?: fieldColumns[field] ?: continue
+			val value = if (lowerCol != null) prefix.lowercase() else prefix
+
+			if (value.isEmpty()) {
+				// An empty prefix means "has a value", which is what `LIKE '%'` used to express.
+				and("$col IS NOT NULL")
+				continue
 			}
+
+			/*
+			 * The range bounds are what make this use the column's index: SQLite only optimises LIKE
+			 * into a range scan when case_sensitive_like is on or the column collates NOCASE, and
+			 * neither holds here, so a bare LIKE scans the whole table. The escaped LIKE stays as the
+			 * semantic guard -- it is what rejects a literal '_' or '%' in the prefix, which are valid
+			 * identifier characters that an unescaped pattern would treat as wildcards.
+			 */
+			val upperBound = exclusiveUpperBound(value)
+			if (upperBound != null) {
+				and("$col >= ? AND $col < ?", value, upperBound)
+			} else {
+				and("$col >= ?", value)
+			}
+			and("$col LIKE ? ESCAPE '\\'", "${escapeLikeLiteral(value)}%")
 		}
 
 		for ((field, mustExist) in query.presence) {
