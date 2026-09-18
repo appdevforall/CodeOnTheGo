@@ -1,6 +1,8 @@
 package com.itsaky.androidide.quickbuild
 
 import com.google.common.truth.Truth.assertThat
+import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
+import org.adfa.constants.KOTLIN_VERSION
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -105,10 +107,27 @@ class QuickBuildArtifactStagerTest {
 		assertThat(thrown).isInstanceOf(FileNotFoundException::class.java)
 	}
 
+	/** The one jar [daemonZip]'s linked-jars list names, kept real because the link uses the name. */
+	private val linkedJar = "kotlin-compiler-embeddable-$KOTLIN_VERSION.jar"
+
+	/**
+	 * A fake `gradle-dists/` holding the jar the staged list names. Staging links rather than
+	 * bundles these (ADFA-4931), and `Environment.GRADLE_DISTS` is unset off-device, so every
+	 * staging test has to point the link somewhere real.
+	 */
+	private val gradleDists: File by lazy {
+		val dists = tmp.newFolder("gradle-dists")
+		val lib = File(dists, "$GRADLE_DISTRIBUTION_NAME/lib")
+		assertThat(lib.mkdirs()).isTrue()
+		File(lib, linkedJar).writeText("linked-jar-bytes")
+		dists
+	}
+
 	private fun daemonZip(): ByteArrayInputStream =
 		zipOf(
 			"quickbuild-daemon.jar" to byteArrayOf(1, 2, 3),
 			"lib/runtime.jar" to byteArrayOf(4, 5),
+			QuickBuildArtifactStager.LINKED_JARS_LIST to "$linkedJar\n".toByteArray(),
 		)
 
 	@Test
@@ -118,7 +137,7 @@ class QuickBuildArtifactStagerTest {
 		var opened = 0
 
 		val ran =
-			QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) {
+			QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) {
 				opened++
 				daemonZip()
 			}
@@ -129,17 +148,36 @@ class QuickBuildArtifactStagerTest {
 		assertThat(File(daemonDir, QuickBuildArtifactStager.DAEMON_STAMP_FILE).readText()).isEqualTo("7:1000")
 	}
 
+	/**
+	 * The wiring, not the link itself - [QuickBuildArtifactStagerDistLinkTest] covers
+	 * `linkDistJars` directly, and passed throughout a rebase that left the call unreachable
+	 * behind a `return`. Staging is the only path that runs it in production, so this asserts
+	 * from there: the APK does not carry this jar, so if staging does not put it here the daemon
+	 * jar's manifest Class-Path names a file that is not on disk.
+	 */
+	@Test
+	fun `staging links the distribution's jars into the daemon dir`() {
+		val daemonDir = File(tmp.newFolder("home"), "daemon")
+		val jar = File(daemonDir, "quickbuild-daemon.jar")
+
+		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
+
+		// Content rather than existence: a symlink and a copy are both acceptable, and both must
+		// leave the bytes readable at this path.
+		assertThat(File(daemonDir, linkedJar).readText()).isEqualTo("linked-jar-bytes")
+	}
+
 	@Test
 	fun `a second stage for the same install leaves the directory untouched`() {
 		val daemonDir = File(tmp.newFolder("home"), "daemon")
 		val jar = File(daemonDir, "quickbuild-daemon.jar")
-		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { daemonZip() }
+		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
 		// A file the running daemon could depend on: gone means the directory was wiped.
 		val planted = File(daemonDir, "opened-by-a-live-daemon.jar").apply { writeBytes(byteArrayOf(9)) }
 		var opened = 0
 
 		val ran =
-			QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) {
+			QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) {
 				opened++
 				daemonZip()
 			}
@@ -153,10 +191,10 @@ class QuickBuildArtifactStagerTest {
 	fun `a new install re-stages from scratch`() {
 		val daemonDir = File(tmp.newFolder("home"), "daemon")
 		val jar = File(daemonDir, "quickbuild-daemon.jar")
-		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { daemonZip() }
+		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
 		val stale = File(daemonDir, "from-the-old-install.jar").apply { writeBytes(byteArrayOf(9)) }
 
-		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:2000", daemonDir, jar) { daemonZip() }
+		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:2000", daemonDir, jar, gradleDists) { daemonZip() }
 
 		assertThat(ran).isTrue()
 		assertThat(stale.exists()).isFalse()
@@ -167,10 +205,10 @@ class QuickBuildArtifactStagerTest {
 	fun `a matching stamp without the daemon jar re-stages`() {
 		val daemonDir = File(tmp.newFolder("home"), "daemon")
 		val jar = File(daemonDir, "quickbuild-daemon.jar")
-		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { daemonZip() }
+		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
 		assertThat(jar.delete()).isTrue()
 
-		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { daemonZip() }
+		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
 
 		assertThat(ran).isTrue()
 		assertThat(jar.exists()).isTrue()
@@ -183,12 +221,12 @@ class QuickBuildArtifactStagerTest {
 
 		val thrown =
 			runCatching {
-				QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { zipOf("lib/" to null) }
+				QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { zipOf("lib/" to null) }
 			}.exceptionOrNull()
 		assertThat(thrown).isInstanceOf(FileNotFoundException::class.java)
 		assertThat(File(daemonDir, QuickBuildArtifactStager.DAEMON_STAMP_FILE).exists()).isFalse()
 
-		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar) { daemonZip() }
+		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
 		assertThat(ran).isTrue()
 	}
 }
