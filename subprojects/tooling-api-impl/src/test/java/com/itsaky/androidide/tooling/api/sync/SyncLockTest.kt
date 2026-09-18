@@ -18,12 +18,17 @@
 package com.itsaky.androidide.tooling.api.sync
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.utils.SharedEnvironment
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.io.File
+import java.io.FileOutputStream
 import java.nio.channels.FileChannel
+import java.nio.file.Files
 import java.util.concurrent.Executors
 
 /**
@@ -61,7 +66,53 @@ class SyncLockTest {
 		ProjectSyncHelper.releaseSyncLock(reacquired)
 	}
 
-	private fun acquireOnAnotherThread(projectDir: java.io.File): FileChannel? {
+	@Test
+	fun `a failed channel open does not leak the in-process permit`() {
+		val projectDir = temporaryFolder.newFolder("project")
+		ProjectSyncHelper.releaseSyncLock(ProjectSyncHelper.tryAcquireSyncLock(projectDir, ACQUIRE_TIMEOUT_MS))
+
+		val lockFile = File(projectDir, SharedEnvironment.PROJECT_SYNC_CACHE_LOCK_FILE)
+		lockFile.setWritable(false)
+		try {
+			assumeTrue(runCatching { FileOutputStream(lockFile).use { } }.isFailure)
+			assertThat(ProjectSyncHelper.tryAcquireSyncLock(projectDir, CONTENDED_TIMEOUT_MS)).isNull()
+		} finally {
+			lockFile.setWritable(true)
+		}
+
+		// A permit held by the failed attempt would make the lock unavailable for this JVM's life.
+		val reacquired = ProjectSyncHelper.tryAcquireSyncLock(projectDir, ACQUIRE_TIMEOUT_MS)
+		assertThat(reacquired).isNotNull()
+		ProjectSyncHelper.releaseSyncLock(reacquired)
+	}
+
+	/**
+	 * Two spellings of one project directory contend for a single lock.
+	 *
+	 * This covers the aliasing, not the hazard behind it: a second mutex would open a second channel
+	 * whose close drops the first holder's fcntl lock, and only another process can observe that.
+	 */
+	@Test
+	fun `an aliased project path contends for the same lock`() {
+		val projectDir = temporaryFolder.newFolder("project")
+		val alias = File(temporaryFolder.root, "alias")
+		assumeTrue(runCatching { Files.createSymbolicLink(alias.toPath(), projectDir.toPath()) }.isSuccess)
+
+		val channel = ProjectSyncHelper.tryAcquireSyncLock(projectDir, ACQUIRE_TIMEOUT_MS)
+		assertThat(channel).isNotNull()
+
+		try {
+			assertThat(acquireOnAnotherThread(alias)).isNull()
+		} finally {
+			ProjectSyncHelper.releaseSyncLock(channel)
+		}
+
+		val viaAlias = acquireOnAnotherThread(alias)
+		assertThat(viaAlias).isNotNull()
+		ProjectSyncHelper.releaseSyncLock(viaAlias)
+	}
+
+	private fun acquireOnAnotherThread(projectDir: File): FileChannel? {
 		val executor = Executors.newSingleThreadExecutor()
 		try {
 			return executor

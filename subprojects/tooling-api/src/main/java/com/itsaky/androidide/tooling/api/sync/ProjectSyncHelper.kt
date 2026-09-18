@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.channels.FileChannel
 import java.nio.channels.OverlappingFileLockException
 import java.nio.file.FileSystems
@@ -144,21 +145,33 @@ object ProjectSyncHelper {
 		val lockFile = projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_LOCK_FILE)
 		Files.createDirectories(lockFile.parent)
 
-		val inProcessLock = inProcessLocks.computeIfAbsent(lockFile.toAbsolutePath().pathString) { Semaphore(1) }
-		if (!inProcessLock.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS)) {
+		// One deadline for both waits, so a caller's budget is not spent twice over.
+		val deadline = System.currentTimeMillis() + timeoutMs
+		val inProcessLock = inProcessLocks.computeIfAbsent(lockKeyOf(lockFile)) { Semaphore(1) }
+
+		try {
+			if (!inProcessLock.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS)) {
+				return null
+			}
+		} catch (err: InterruptedException) {
+			Thread.currentThread().interrupt()
 			return null
 		}
 
-		var pending: FileChannel? = null
+		/*
+		 * Held until the channel is handed to the caller, who gives it back through
+		 * releaseSyncLock. Every other exit -- including one thrown before the channel exists --
+		 * must return the permit, or the sync lock stays unavailable for the life of the process.
+		 */
+		var releasePermit = true
+		var channel: FileChannel? = null
 		try {
-			val channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
-			pending = channel
+			channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
 
-			val start = System.currentTimeMillis()
-			while (System.currentTimeMillis() - start < timeoutMs) {
+			while (System.currentTimeMillis() < deadline) {
 				if (channel.tryLock() != null) {
-					pending = null
 					heldLocks[channel] = inProcessLock
+					releasePermit = false
 					return channel
 				}
 				Thread.sleep(50)
@@ -176,11 +189,31 @@ object ProjectSyncHelper {
 			logger.warn("Failed to acquire the sync lock", err)
 			return null
 		} finally {
-			pending?.let { channel ->
-				channel.close()
+			if (releasePermit) {
+				channel?.close()
 				inProcessLock.release()
 			}
 		}
+	}
+
+	/**
+	 * The key a lock file's in-process mutex is stored under.
+	 *
+	 * Resolved through the parent's real path, so two spellings of one directory -- a symlink, a
+	 * relative path, a `..` component -- cannot each get their own mutex and open a second channel
+	 * on the same file. The parent exists by the time this runs; the lock file may not.
+	 */
+	private fun lockKeyOf(lockFile: Path): String {
+		val parent = lockFile.parent
+		val realParent =
+			try {
+				parent.toRealPath()
+			} catch (err: IOException) {
+				logger.debug("Falling back to the normalised sync lock path for {}", parent, err)
+				parent.toAbsolutePath().normalize()
+			}
+
+		return realParent.resolve(lockFile.fileName).pathString
 	}
 
 	/**
@@ -254,23 +287,42 @@ object ProjectSyncHelper {
 	fun writeGradleBuildSync(
 		gradleBuild: GradleModels.GradleBuild,
 		targetFile: File,
+	) = writeAtomically(targetFile) { out -> gradleBuild.writeTo(out) }
+
+	/**
+	 * Write the sync metadata synchronously.
+	 *
+	 * Atomic like the cache beside it: a reader that catches a truncated metadata file sees an
+	 * empty [SyncMetaModels.SyncMeta], whose blank version reads as a schema mismatch.
+	 *
+	 * @param syncMeta The sync metadata model.
+	 * @param targetFile The target file.
+	 */
+	fun writeSyncMetaSync(
+		syncMeta: SyncMetaModels.SyncMeta,
+		targetFile: File,
+	) = writeAtomically(targetFile) { out -> syncMeta.writeTo(out) }
+
+	private fun writeAtomically(
+		targetFile: File,
+		write: (OutputStream) -> Unit,
 	) {
 		// use a temporary file on the same path to allow atomic moves
 		// /data/data and /sdcard are different devices (partitions)
 		// atomic moves are not possible for cross-device moves
-		val tempCacheFile = Paths.get(targetFile.path + ".tmp")
+		val tempFile = Paths.get(targetFile.path + ".tmp")
 		runCatching {
-			tempCacheFile
+			tempFile
 				.outputStream(StandardOpenOption.CREATE, StandardOpenOption.WRITE)
 				.buffered()
 				.use { tempOut ->
-					gradleBuild.writeTo(tempOut)
+					write(tempOut)
 					tempOut.flush()
 				}
 		}.map {
 			// update atomically
 			Files.move(
-				tempCacheFile,
+				tempFile,
 				targetFile.toPath(),
 				StandardCopyOption.REPLACE_EXISTING,
 				StandardCopyOption.ATOMIC_MOVE,
@@ -345,10 +397,10 @@ object ProjectSyncHelper {
 	 *
 	 * Not a pure query: once the metadata has been read, files it shows to be unusable -- corrupt,
 	 * or written by a schema version other than [SYNC_META_VERSION] -- are deleted, because they
-	 * would otherwise parse into a silently empty model. The same discard runs when the metadata is
-	 * missing or unparseable, which leaves a cache nothing can vouch for. Only the case where both
-	 * files are already missing or unreadable skips it, since there is nothing to delete. Deletion
-	 * failures are logged, never thrown.
+	 * would otherwise parse into a silently empty model. The same discard runs when the metadata
+	 * turns out to be unparseable, which leaves a cache nothing can vouch for. It does not run on
+	 * the early return taken when either file is already missing or unreadable. Deletion failures
+	 * are logged, never thrown.
 	 *
 	 * @param projectDir The project directory.
 	 * @return `true` if a sync is needed, `false` otherwise.

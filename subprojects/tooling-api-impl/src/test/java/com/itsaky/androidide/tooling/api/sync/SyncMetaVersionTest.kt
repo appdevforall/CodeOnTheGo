@@ -76,13 +76,14 @@ class SyncMetaVersionTest {
 		val syncDir = ProjectSyncHelper.syncMetaFileForProject(projectDir).parentFile
 		syncDir.setWritable(false)
 
-		/*
-		 * Probe rather than trust the chmod's return value: running as root it succeeds and writes
-		 * still go through, which would fail this test for the wrong reason.
-		 */
-		assumeTrue(runCatching { File(syncDir, "probe").createNewFile() }.getOrDefault(false).not())
-
 		try {
+			/*
+			 * Probe rather than trust the chmod's return value: running as root it succeeds and
+			 * writes still go through, which would fail this test for the wrong reason. Inside the
+			 * try, so a skipped run still restores the directory.
+			 */
+			assumeTrue(runCatching { File(syncDir, "probe").createNewFile() }.getOrDefault(false).not())
+
 			assertThat(runBlocking { ProjectSyncHelper.checkSyncNeeded(projectDir) }).isTrue()
 			assertSyncFilesExist(projectDir)
 		} finally {
