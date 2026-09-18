@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
@@ -220,8 +221,12 @@ object ProjectSyncHelper {
 	 * Resolved through the parent's real path, so two spellings of one directory -- a symlink, a
 	 * relative path, a `..` component -- cannot each get their own mutex and open a second channel
 	 * on the same file. The parent exists by the time this runs; the lock file may not.
+	 *
+	 * Exposed so a test can assert that two spellings agree, which is the whole point of resolving
+	 * the path and is not observable from [tryAcquireSyncLock]'s return value.
 	 */
-	private fun lockKeyOf(lockFile: Path): String {
+	@VisibleForTesting
+	fun lockKeyOf(lockFile: Path): String {
 		val parent = lockFile.parent
 		val realParent =
 			try {

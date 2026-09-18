@@ -87,29 +87,35 @@ class SyncLockTest {
 	}
 
 	/**
-	 * Two spellings of one project directory contend for a single lock.
+	 * Two spellings of one project directory map to one mutex.
 	 *
-	 * This covers the aliasing, not the hazard behind it: a second mutex would open a second channel
-	 * whose close drops the first holder's fcntl lock, and only another process can observe that.
+	 * Asserted on the key rather than on `tryAcquireSyncLock`, which returns null either way: with
+	 * two mutexes the second caller opens a second channel and `tryLock` throws, which the catch
+	 * also turns into null. The key is the only in-process signal that tells the two apart.
 	 */
 	@Test
-	fun `an aliased project path contends for the same lock`() {
+	fun `an aliased project path maps to the same lock key`() {
 		val projectDir = temporaryFolder.newFolder("project")
 		val alias = File(temporaryFolder.root, "alias")
 		assumeTrue(runCatching { Files.createSymbolicLink(alias.toPath(), projectDir.toPath()) }.isSuccess)
 
-		val channel = ProjectSyncHelper.tryAcquireSyncLock(projectDir, ACQUIRE_TIMEOUT_MS)
-		assertThat(channel).isNotNull()
+		val lockPathOf = { dir: File -> dir.toPath().resolve(SharedEnvironment.PROJECT_SYNC_CACHE_LOCK_FILE) }
+		Files.createDirectories(lockPathOf(projectDir).parent)
 
-		try {
-			assertThat(acquireOnAnotherThread(alias)).isNull()
-		} finally {
-			ProjectSyncHelper.releaseSyncLock(channel)
-		}
+		assertThat(ProjectSyncHelper.lockKeyOf(lockPathOf(alias)))
+			.isEqualTo(ProjectSyncHelper.lockKeyOf(lockPathOf(projectDir)))
+	}
 
-		val viaAlias = acquireOnAnotherThread(alias)
-		assertThat(viaAlias).isNotNull()
-		ProjectSyncHelper.releaseSyncLock(viaAlias)
+	@Test
+	fun `a relative project path maps to the same lock key as its absolute form`() {
+		val projectDir = temporaryFolder.newFolder("project")
+		val lockPathOf = { dir: File -> dir.toPath().resolve(SharedEnvironment.PROJECT_SYNC_CACHE_LOCK_FILE) }
+		Files.createDirectories(lockPathOf(projectDir).parent)
+
+		val viaParent = File(projectDir, "..").toPath().resolve(projectDir.name)
+
+		assertThat(ProjectSyncHelper.lockKeyOf(viaParent.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_LOCK_FILE)))
+			.isEqualTo(ProjectSyncHelper.lockKeyOf(lockPathOf(projectDir)))
 	}
 
 	private fun acquireOnAnotherThread(projectDir: File): FileChannel? {
