@@ -19,9 +19,10 @@ enum ProjectType {
  * A node in a dependency graph, representing a direct or transitive dependency.
  *
  * This does not directly contain artifact information, instead it focuses on the graph
- * information (transitive dependencies) as well as the usage of this particular dependency
- * in this node of the graph (ie what are its modifiers: what version was originally requested.)
+ * information (transitive dependencies).
  *
+ * Nodes are deduplicated by key, so there is one node per resolved artifact rather than one per
+ * usage. Per-usage detail is therefore no longer representable: see [requestedCoordinatesId].
  */
 message GraphNode {
 
@@ -32,8 +33,12 @@ message GraphNode {
   uint32 keyId = 1;
 
   /**
-   * Index into [DependencyGraph.requestedCoordinates] of this library's Maven coordinates as
-   * requested in the build file.
+   * Index into [DependencyGraph.requestedCoordinates] of the Maven coordinates this library was
+   * requested with in the build file.
+   *
+   * Requested coordinates are a property of a usage, not of the resolved artifact, so where several
+   * dependents request the same artifact at different coordinates this records only the occurrence
+   * the flattening reached first.
    */
   optional uint32 requestedCoordinatesId = 2;
 

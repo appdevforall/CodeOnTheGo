@@ -163,18 +163,16 @@ open class AndroidModule(
 		} else {
 			result.addAll(getModuleClasspaths())
 		}
-		val graph = variantDependencies.mainArtifact?.compileGraph
-		if (graph != null) {
-			collectLibraries(
-				root = project,
-				graph = graph,
-				nodeIds = graph.rootList,
-				result = result,
-				excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
-				visited = HashSet(),
-				moduleVisited = visited,
-			)
-		}
+		val graph = variantDependencies.mainArtifact.compileGraph
+		collectLibraries(
+			root = project,
+			graph = graph,
+			nodeIds = graph.rootList,
+			result = result,
+			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
+			visited = HashSet(),
+			moduleVisited = visited,
+		)
 		return result
 	}
 

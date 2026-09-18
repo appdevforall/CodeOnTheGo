@@ -135,18 +135,24 @@ fun ArtifactDependencies.asProtoModel() =
  * AGP hands the dependency graph back as a tree: a node shared by several dependents is repeated
  * once per path, and each copy carries its own key string. On an 86-module project that expanded to
  * 786,554 nodes and 1,011,910 key strings covering 57,517 distinct values. Deduplicating by key and
- * interning the strings is lossless for consumers, which already expand each key at most once.
+ * interning the strings preserves every key and every edge, and consumers already expand each key at
+ * most once, so their results are unchanged. The one thing the flat form cannot express is per-usage
+ * requested coordinates -- see [AndroidModels.GraphNode].
  */
 private class DependencyGraphBuilder {
-	private val keys = LinkedHashMap<String, Int>()
+	/*
+	 * Node index per key, in insertion order. Nodes are deduplicated by key and each new node
+	 * contributes exactly one key, so a node's index into `nodes` is also its index into the
+	 * emitted key table -- these keys are the key table.
+	 */
+	private val nodeIds = LinkedHashMap<String, Int>()
 	private val requestedCoordinates = LinkedHashMap<String, Int>()
-	private val nodeIds = HashMap<String, Int>()
 	private val nodes = mutableListOf<AndroidModels.GraphNode>()
 
 	fun build(roots: Collection<GraphItem>): AndroidModels.DependencyGraph {
 		val rootIds = roots.map(::nodeIdOf)
 		return DependencyGraph(
-			keyList = keys.keys.toList(),
+			keyList = nodeIds.keys.toList(),
 			requestedCoordinatesList = requestedCoordinates.keys.toList(),
 			nodeList = nodes.toList(),
 			rootList = rootIds,
@@ -167,7 +173,7 @@ private class DependencyGraphBuilder {
 
 		val node =
 			GraphNode(
-				keyId = intern(keys, item.key),
+				keyId = id,
 				requestedCoordinatesId = item.requestedCoordinates?.let { intern(requestedCoordinates, it) },
 				dependencyList = item.dependencies.map(::nodeIdOf),
 			)
