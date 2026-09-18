@@ -26,7 +26,7 @@ class IndexWorkerDisposalTest : KtLspTest() {
 	private fun jvmIndex(): JvmSymbolIndex {
 		val backing = InMemoryIndex(JvmSymbolDescriptor)
 		return object : JvmSymbolIndex(backing, BackgroundIndexer(backing)) {
-			override fun isActive(sourceId: String) = true
+			override fun visibleSourceIds(): Collection<String>? = null
 		}
 	}
 

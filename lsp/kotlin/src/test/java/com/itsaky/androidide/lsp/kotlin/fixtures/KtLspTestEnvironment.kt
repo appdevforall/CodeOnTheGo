@@ -222,7 +222,7 @@ internal class KtLspTestEnvironment(
 		val inMemoryJvmSymbolIndex =
 			object : JvmSymbolIndex(inMemoryJvmBackingIndex, BackgroundIndexer(inMemoryJvmBackingIndex)) {
 				// ensure we're not filtering out anything
-				override fun isActive(sourceId: String) = true
+				override fun visibleSourceIds(): Collection<String>? = null
 
 				override fun query(query: IndexQuery): Sequence<JvmSymbol> {
 					onSymbolIndexQuery?.invoke(query)

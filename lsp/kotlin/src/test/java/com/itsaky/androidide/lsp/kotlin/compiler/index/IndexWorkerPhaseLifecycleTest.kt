@@ -45,7 +45,7 @@ class IndexWorkerPhaseLifecycleTest {
 		val symbolBacking = InMemoryIndex(JvmSymbolDescriptor)
 		val sourceIndex =
 			object : JvmSymbolIndex(symbolBacking, BackgroundIndexer(symbolBacking)) {
-				override fun isActive(sourceId: String) = true
+				override fun visibleSourceIds(): Collection<String>? = null
 			}
 
 		return IndexWorker(
