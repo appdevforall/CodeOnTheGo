@@ -277,8 +277,13 @@ open class AndroidModule(
 	) {
 		val libraryMap = variantDependencies.librariesMap
 		for (nodeId in nodeIds) {
-			val node = graph.getNode(nodeId)
-			val key = graph.getKey(node.keyId)
+			/*
+			 * Indices come off disk. The nested form carried each key inline, so a damaged cache
+			 * cost a classpath entry; addressing by index would turn the same damage into an
+			 * IndexOutOfBoundsException out of a classpath getter, so skip instead.
+			 */
+			val node = graph.nodeList.getOrNull(nodeId) ?: continue
+			val key = graph.keyList.getOrNull(node.keyId) ?: continue
 
 			// Guard against cyclic dependency graphs within this module: expand each graph node once.
 			if (!visited.add(key)) {
@@ -343,7 +348,9 @@ open class AndroidModule(
 			val graph = variantDependencies.mainArtifact.compileGraph
 			val libraryMap = variantDependencies.librariesMap
 			for (nodeId in graph.rootList) {
-				val lib = libraryMap[graph.getKey(graph.getNode(nodeId).keyId)] ?: continue
+				val node = graph.nodeList.getOrNull(nodeId) ?: continue
+				val key = graph.keyList.getOrNull(node.keyId) ?: continue
+				val lib = libraryMap[key] ?: continue
 				if (lib.type != AndroidModels.LibraryType.Project) {
 					continue
 				}
