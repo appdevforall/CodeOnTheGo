@@ -556,10 +556,9 @@ object ProjectSyncHelper {
 						val syncMetaFile = syncMetaFileForProject(projectDir)
 
 						/*
-						 * Staleness was decided outside the lock, and the metadata is written
-						 * non-atomically, so a reader can catch it truncated mid-write and a sync
-						 * can complete while we wait here. Re-read before deleting, or a discard
-						 * takes out the fresh files that sync just wrote.
+						 * Staleness was decided outside the lock, and a sync can complete while we
+						 * wait here. Re-read before deleting, or a discard takes out the fresh
+						 * files that sync just wrote.
 						 */
 						if (isSyncMetaVersionCurrent(syncMetaFile)) {
 							logger.debug("Sync files were rewritten while waiting for the lock, keeping them")

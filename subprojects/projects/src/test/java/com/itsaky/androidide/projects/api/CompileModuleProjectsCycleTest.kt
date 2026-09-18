@@ -183,8 +183,8 @@ class CompileModuleProjectsCycleTest {
 	}
 
 	/**
-	 * A module whose compile graph carries a dangling root index and a dangling dependency index,
-	 * as a `project.pb` damaged on disk would.
+	 * A module whose compile graph carries a dangling root index, a dangling dependency index and a
+	 * node whose key index is out of range, as a `project.pb` damaged on disk would.
 	 */
 	private fun moduleWithDanglingGraphIndices(path: String): AndroidModule {
 		val graph =
@@ -197,7 +197,13 @@ class CompileModuleProjectsCycleTest {
 						.setKeyId(0)
 						.addDependency(9)
 						.build(),
+				).addNode(
+					AndroidModels.GraphNode
+						.newBuilder()
+						.setKeyId(4)
+						.build(),
 				).addRoot(0)
+				.addRoot(1)
 				.addRoot(7)
 
 		val variantDeps =
