@@ -182,6 +182,54 @@ class CompileModuleProjectsCycleTest {
 		)
 	}
 
+	/**
+	 * A module whose compile graph carries a dangling root index and a dangling dependency index,
+	 * as a `project.pb` damaged on disk would.
+	 */
+	private fun moduleWithDanglingGraphIndices(path: String): AndroidModule {
+		val graph =
+			AndroidModels.DependencyGraph
+				.newBuilder()
+				.addKey("rootLib")
+				.addNode(
+					AndroidModels.GraphNode
+						.newBuilder()
+						.setKeyId(0)
+						.addDependency(9)
+						.build(),
+				).addRoot(0)
+				.addRoot(7)
+
+		val variantDeps =
+			AndroidModels.VariantDependencies
+				.newBuilder()
+				.setName("debug")
+				.putLibraries("rootLib", externalJavaLibrary("rootLib", "/tmp/root.jar"))
+				.setMainArtifact(
+					AndroidModels.ArtifactDependencies
+						.newBuilder()
+						.setCompileGraph(graph.build())
+						.build(),
+				)
+
+		return AndroidModule(
+			GradleModels.GradleProject
+				.newBuilder()
+				.setName(path.trimStart(':'))
+				.setPath(path)
+				.setProjectDirPath("/tmp/cycle-test${path.replace(':', '/')}")
+				.setBuildDirPath("/tmp/cycle-test${path.replace(':', '/')}/build")
+				.setBuildScriptPath("/tmp/cycle-test${path.replace(':', '/')}/build.gradle")
+				.setAndroidProject(
+					AndroidModels.AndroidProject
+						.newBuilder()
+						.setProjectType(AndroidModels.ProjectType.LibraryProject)
+						.setVariantDependencies(variantDeps.build())
+						.build(),
+				).build(),
+		)
+	}
+
 	private fun externalJavaLibrary(
 		key: String,
 		artifactPath: String,
@@ -231,6 +279,18 @@ class CompileModuleProjectsCycleTest {
 		val classpaths = a.getCompileClasspaths(excludeSourceGeneratedClassPath = true, visited = HashSet())
 
 		assertThat(classpaths.map { it.path }).containsAtLeast("/tmp/root.jar", "/tmp/transitive.jar")
+	}
+
+	/** A damaged cache whose indices dangle costs a classpath entry rather than throwing. */
+	@Test(timeout = 30_000)
+	fun `skips graph indices that are out of range`() {
+		val a = moduleWithDanglingGraphIndices(":a")
+		installWorkspace(a)
+
+		val classpaths = a.getCompileClasspaths(excludeSourceGeneratedClassPath = true, visited = HashSet())
+
+		assertThat(classpaths.map { it.path }).containsExactly("/tmp/root.jar")
+		assertThat(a.getCompileModuleProjects()).isEmpty()
 	}
 
 	/** A self-dependency (`:a -> :a`) terminates and reports the module once. */
