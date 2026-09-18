@@ -40,7 +40,25 @@ interface ReadableIndex<T : Indexable> {
 	 * @param fieldName Must be one of the fields declared in the
 	 *                  [IndexDescriptor].
 	 */
-	fun distinctValues(fieldName: String): Sequence<String>
+	fun distinctValues(fieldName: String): Sequence<String> = distinctValues(fieldName, IndexQuery(limit = 0))
+
+	/**
+	 * Returns the distinct values of [fieldName] among the entries matching [query].
+	 *
+	 * This projects a single column instead of materializing entries, which is what makes it usable
+	 * for enumerating a large field -- every package on a classpath, say -- where fetching the
+	 * matching entries and reducing them in memory would defeat the point.
+	 *
+	 * Values are deduplicated across the whole result, and their order is unspecified. If
+	 * [IndexQuery.limit] is 0, every distinct value is emitted.
+	 *
+	 * @param fieldName Must be one of the fields declared in the [IndexDescriptor].
+	 * @param query Restricts which entries contribute a value.
+	 */
+	fun distinctValues(
+		fieldName: String,
+		query: IndexQuery,
+	): Sequence<String>
 }
 
 /**

@@ -111,4 +111,43 @@ class SQLiteIndexScopeTest {
 
 			assertThat(found).containsExactly("wanted")
 		}
+
+	@Test
+	fun `distinctValues projects only the values of matching rows`() =
+		runTest {
+			index.insert(Entry("k1", "jarA", "Alpha", group = "one"))
+			index.insert(Entry("k2", "jarA", "Beta", group = "one"))
+			index.insert(Entry("k3", "jarB", "Gamma", group = "two"))
+
+			val groups =
+				index
+					.distinctValues("group", IndexQuery(sourceIds = listOf("jarA"), limit = 0))
+					.toList()
+
+			assertThat(groups).containsExactly("one")
+		}
+
+	@Test
+	fun `distinctValues deduplicates across source chunks`() =
+		runTest {
+			// One shared value spread over more sources than a single IN clause can hold: DISTINCT is
+			// per statement, so without cross-chunk deduplication this value comes back repeatedly.
+			val sourceIds = (0 until 1500).map { "jar$it" }
+			index.insertAll(
+				sourceIds.asSequence().mapIndexed { i, src -> Entry("k$i", src, "Cls$i", group = "shared") },
+			)
+
+			val groups = index.distinctValues("group", IndexQuery(sourceIds = sourceIds, limit = 0)).toList()
+
+			assertThat(groups).containsExactly("shared")
+		}
+
+	@Test
+	fun `distinctValues without a query still returns every value`() =
+		runTest {
+			index.insert(Entry("k1", "jarA", "Alpha", group = "one"))
+			index.insert(Entry("k2", "jarB", "Beta", group = "two"))
+
+			assertThat(index.distinctValues("group").toList()).containsExactly("one", "two")
+		}
 }
