@@ -71,6 +71,13 @@ class SQLiteIndex<T : Indexable>(
 		 * Kept well under SQLite's default 999 bound-parameter limit.
 		 */
 		private const val DELETE_CHUNK_SIZE = 900
+
+		/**
+		 * Max number of `_source_id` placeholders per source-scoped SELECT, under the same
+		 * bound-parameter limit as [DELETE_CHUNK_SIZE]. A scoped query runs one statement per chunk;
+		 * chunks are disjoint on `_source_id`, so no row can be returned by two of them.
+		 */
+		private const val SOURCE_ID_CHUNK_SIZE = 900
 	}
 
 	private val tableName = descriptor.name.replace(Regex("[^a-zA-Z0-9_]"), "_")
@@ -130,17 +137,23 @@ class SQLiteIndex<T : Indexable>(
 	override fun query(query: IndexQuery): Sequence<T> =
 		runBlocking {
 			ifOpen(emptySequence()) {
-				val (sql, args) = buildSelectQuery(query)
-				val cursor = db.query(sql, args.toTypedArray())
-				cursor
-					.use {
+				val limit = effectiveLimit(query)
+				val results = mutableListOf<T>()
+				for (chunk in sourceIdChunks(query)) {
+					if (results.size >= limit) {
+						break
+					}
+
+					val (sql, args) = buildSelectQuery(query, chunk, limit - results.size)
+					val cursor = db.query(sql, args.toTypedArray())
+					cursor.use {
 						val payloadIdx = it.getColumnIndexOrThrow("_payload")
-						buildList {
-							while (it.moveToNext()) {
-								add(descriptor.deserialize(it.getBlob(payloadIdx)))
-							}
+						while (it.moveToNext()) {
+							results.add(descriptor.deserialize(it.getBlob(payloadIdx)))
 						}
-					}.asSequence()
+					}
+				}
+				results.asSequence()
 			}
 		}
 
@@ -362,7 +375,53 @@ class SQLiteIndex<T : Indexable>(
 		val args: List<String>,
 	)
 
-	private fun buildSelectQuery(query: IndexQuery): SqlQuery {
+	private fun effectiveLimit(query: IndexQuery) = if (query.limit > 0) query.limit else Int.MAX_VALUE
+
+	/**
+	 * Splits [IndexQuery.sourceIds] into groups small enough for one `IN (...)` clause.
+	 *
+	 * Returns a single `null` chunk when the query is unscoped, and no chunks at all when it is
+	 * scoped to an empty set -- the caller then runs no statement and yields nothing, which is the
+	 * difference between "any source" and "none of them".
+	 */
+	private fun sourceIdChunks(query: IndexQuery): List<List<String>?> {
+		val sourceIds = query.sourceIds ?: return listOf(null)
+		if (sourceIds.isEmpty()) {
+			return emptyList()
+		}
+		return sourceIds.distinct().chunked(SOURCE_ID_CHUNK_SIZE)
+	}
+
+	private fun buildSelectQuery(
+		query: IndexQuery,
+		sourceIdChunk: List<String>?,
+		limit: Int,
+	): SqlQuery {
+		val (where, args) = buildWhereClause(query, sourceIdChunk)
+		val sql =
+			buildString {
+				append("SELECT _payload FROM $tableName")
+				if (where.isNotEmpty()) {
+					append(" WHERE ")
+					append(where)
+				}
+				if (limit != Int.MAX_VALUE) {
+					append(" LIMIT $limit")
+				}
+			}
+
+		return SqlQuery(sql, args)
+	}
+
+	/**
+	 * Builds the shared `WHERE` body for [query], restricted to [sourceIdChunk] when the query is
+	 * source-scoped. Returns the clause without the `WHERE` keyword so both the row select and the
+	 * distinct projection can splice it in.
+	 */
+	private fun buildWhereClause(
+		query: IndexQuery,
+		sourceIdChunk: List<String>?,
+	): Pair<String, List<String>> {
 		val where = StringBuilder()
 		val args = mutableListOf<String>()
 
@@ -377,6 +436,11 @@ class SQLiteIndex<T : Indexable>(
 
 		query.key?.let { and("_key = ?", it) }
 		query.sourceId?.let { and("_source_id = ?", it) }
+
+		if (sourceIdChunk != null) {
+			val placeholders = sourceIdChunk.joinToString(",") { "?" }
+			and("_source_id IN ($placeholders)", *sourceIdChunk.toTypedArray())
+		}
 
 		for ((field, value) in query.exactMatch) {
 			val col = fieldColumns[field] ?: continue
@@ -404,18 +468,6 @@ class SQLiteIndex<T : Indexable>(
 			}
 		}
 
-		val sql =
-			buildString {
-				append("SELECT _payload FROM $tableName")
-				if (where.isNotEmpty()) {
-					append(" WHERE ")
-					append(where)
-				}
-				if (query.limit > 0) {
-					append(" LIMIT ${query.limit}")
-				}
-			}
-
-		return SqlQuery(sql, args)
+		return where.toString() to args
 	}
 }

@@ -146,6 +146,13 @@ class InMemoryIndex<T : Indexable>(
 				candidates = intersect(candidates, sourceMap[query.sourceId])
 			}
 
+			val sourceIds = query.sourceIds
+			if (sourceIds != null) {
+				// An empty scope matches nothing, as distinct from an absent scope matching anything.
+				val scoped = sourceIds.flatMapTo(mutableSetOf()) { sourceMap[it].orEmpty() }
+				candidates = intersect(candidates, scoped)
+			}
+
 			for ((field, value) in query.exactMatch) {
 				val fieldMap = fieldMaps[field] ?: return@read emptySequence()
 				candidates = intersect(candidates, fieldMap[value])
