@@ -87,11 +87,11 @@ message UnresolvedDependency {
 
 // The dependencies information for a given artifact.
 //
-// It contains the compile graph, always, and optionally the runtime graph.
+// It contains the compile graph. The runtime graph is omitted for now.
 //
-// Each graph is fairly lightweight, with each artifact node being mostly an address, children,
-// and modifiers that are specific to this particular usage of the artifact rather than
-// artifact properties.
+// The graph is stored flat: nodes are deduplicated by key and strings interned, so each artifact
+// appears once and carries an address plus its children. Per-usage modifiers do not survive that
+// deduplication -- see GraphNode.
 message ArtifactDependencies {
 
   // The compile dependency graph, stored flat. See DependencyGraph.

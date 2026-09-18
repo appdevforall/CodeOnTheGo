@@ -291,9 +291,8 @@ object ProjectSyncHelper {
 	fun isSyncMetaVersionCurrent(syncMetaFile: File): Boolean =
 		try {
 			readSyncMeta(syncMetaFile).metaVersion == SYNC_META_VERSION
-		} catch (err: CancellationException) {
-			throw err
-		} catch (err: Throwable) {
+		} catch (err: IOException) {
+			// Covers a missing file and a corrupt one alike: InvalidProtocolBufferException is an IOException.
 			logger.warn("Failed to read sync metadata file: {}", syncMetaFile, err)
 			false
 		}
@@ -429,14 +428,23 @@ object ProjectSyncHelper {
 	 */
 	private suspend fun discardSyncFiles(projectDir: File) {
 		withContext(Dispatchers.IO) {
-			val locked =
-				tryUseSyncLock(projectDir, DISCARD_LOCK_TIMEOUT_MS) {
-					deleteOrWarn(syncMetaFileForProject(projectDir))
-					deleteOrWarn(cacheFileForProject(projectDir))
-				}
+			try {
+				val locked =
+					tryUseSyncLock(projectDir, DISCARD_LOCK_TIMEOUT_MS) {
+						deleteOrWarn(syncMetaFileForProject(projectDir))
+						deleteOrWarn(cacheFileForProject(projectDir))
+					}
 
-			if (!locked) {
-				logger.debug("Sync lock is held, leaving the stale sync files to the running sync")
+				if (!locked) {
+					logger.debug("Sync lock is held, leaving the stale sync files to the running sync")
+				}
+			} catch (err: IOException) {
+				/*
+				 * Creating or opening the lock file fails on a read-only volume. Callers treat
+				 * checkSyncNeeded as a boolean query and rethrow anything else, so letting this
+				 * escape would crash the project open instead of resyncing it.
+				 */
+				logger.warn("Failed to discard the stale sync files", err)
 			}
 		}
 	}
