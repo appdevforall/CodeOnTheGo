@@ -345,7 +345,7 @@ object ProjectSyncHelper {
 					write(tempOut)
 					tempOut.flush()
 				}
-		}.map {
+		}.mapCatching {
 			// update atomically
 			Files.move(
 				tempFile,
@@ -353,6 +353,13 @@ object ProjectSyncHelper {
 				StandardCopyOption.REPLACE_EXISTING,
 				StandardCopyOption.ATOMIC_MOVE,
 			)
+		}.onFailure {
+			/*
+			 * A cross-device move fails outright, and the temp file it leaves is what the next
+			 * write would have to overwrite. Truncation covers that case; clearing it here keeps
+			 * a failed write from leaving a stale model on disk at all.
+			 */
+			runCatching { Files.deleteIfExists(tempFile) }
 		}.getOrThrow()
 	}
 
