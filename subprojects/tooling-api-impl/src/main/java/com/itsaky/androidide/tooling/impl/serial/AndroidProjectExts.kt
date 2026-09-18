@@ -138,10 +138,13 @@ fun ArtifactDependencies.asProtoModel() =
  * keeps the first occurrence of each key and the edges recorded on it. The compile-classpath
  * consumer expands each key at most once over the same pre-order walk, so it sees the same graph;
  * the module-dependency consumer reads only the roots, whose order and multiplicity are unchanged.
- * What a later occurrence carried -- its requested coordinates, and its children if AGP ever
- * emitted different ones for the same key -- is not represented; see [AndroidModels.GraphNode].
- * That last case is the one where results could differ, because the classpath consumer prunes a
- * subtree whose key has no Library entry while this builder walks it regardless.
+ * What a later occurrence carried -- its requested coordinates -- is not represented; see
+ * [AndroidModels.GraphNode].
+ *
+ * Differing children per occurrence would matter, because the classpath consumer prunes a subtree
+ * whose key has no Library entry while this builder walks it regardless. AGP does not produce that:
+ * FullDependencyGraphBuilder.handleDependency memoises on a Map<ResolvedVariantResult, GraphItem>
+ * and hands back the same instance for every occurrence, so one key always carries one child list.
  */
 private class DependencyGraphBuilder {
 	/*
