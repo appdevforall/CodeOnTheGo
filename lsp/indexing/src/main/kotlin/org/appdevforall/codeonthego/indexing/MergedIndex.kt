@@ -49,11 +49,17 @@ class MergedIndex<T : Indexable>(
 
 	override suspend fun containsSource(sourceId: String): Boolean = indexes.any { it.containsSource(sourceId) }
 
-	override fun distinctValues(fieldName: String): Sequence<String> =
+	override fun distinctValues(
+		fieldName: String,
+		query: IndexQuery,
+	): Sequence<String> =
 		sequence {
+			val limit = if (query.limit <= 0) Int.MAX_VALUE else query.limit
 			val seen = mutableSetOf<String>()
 			for (index in indexes) {
-				for (value in index.distinctValues(fieldName)) {
+				if (seen.size >= limit) break
+				for (value in index.distinctValues(fieldName, query)) {
+					if (seen.size >= limit) break
 					if (seen.add(value)) yield(value)
 				}
 			}

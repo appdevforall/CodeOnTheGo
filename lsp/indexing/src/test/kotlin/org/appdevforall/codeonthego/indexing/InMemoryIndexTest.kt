@@ -311,4 +311,26 @@ class InMemoryIndexTest {
 					.toList()
 			assertThat(keys).containsExactly("k2")
 		}
+
+	@Test
+	fun `distinctValues projects only the values of matching rows`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "Foo", category = "alpha"))
+			index.insert(entry("k2", "src2", "Bar", category = "beta"))
+
+			val categories = index.distinctValues("category", IndexQuery(sourceIds = listOf("src1"), limit = 0)).toList()
+			assertThat(categories).containsExactly("alpha")
+		}
+
+	@Test
+	fun `distinctValues does not report values whose only entry was removed`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "Foo", category = "alpha"))
+			index.insert(entry("k2", "src2", "Bar", category = "beta"))
+			index.removeBySource("src1")
+
+			assertThat(index.distinctValues("category").toList()).containsExactly("beta")
+		}
 }

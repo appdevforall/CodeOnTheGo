@@ -187,21 +187,48 @@ class SQLiteIndex<T : Indexable>(
 			}
 		}
 
-	override fun distinctValues(fieldName: String): Sequence<String> =
+	override fun distinctValues(
+		fieldName: String,
+		query: IndexQuery,
+	): Sequence<String> =
 		runBlocking {
 			ifOpen(emptySequence()) {
 				val col =
 					fieldColumns[fieldName]
 						?: throw IllegalArgumentException("Unknown field: $fieldName")
-				val cursor = db.query("SELECT DISTINCT $col FROM $tableName WHERE $col IS NOT NULL")
-				cursor
-					.use {
-						buildList {
-							while (it.moveToNext()) {
-								add(it.getString(0))
+				val limit = effectiveLimit(query)
+
+				/*
+				 * Deduplicated here as well as in SQL: DISTINCT only applies within one statement, and
+				 * chunked source ids mean one statement per chunk. The same package name legitimately
+				 * appears in many JARs, so without this the caller would see it once per chunk.
+				 */
+				val values = LinkedHashSet<String>()
+				for (chunk in sourceIdChunks(query)) {
+					if (values.size >= limit) {
+						break
+					}
+
+					val (where, args) = buildWhereClause(query, chunk)
+					val sql =
+						buildString {
+							append("SELECT DISTINCT $col FROM $tableName WHERE $col IS NOT NULL")
+							if (where.isNotEmpty()) {
+								append(" AND ")
+								append(where)
+							}
+							if (limit != Int.MAX_VALUE) {
+								append(" LIMIT ${limit - values.size}")
 							}
 						}
-					}.asSequence()
+
+					db.query(sql, args.toTypedArray()).use {
+						while (it.moveToNext()) {
+							values.add(it.getString(0))
+						}
+					}
+				}
+				values.asSequence()
 			}
 		}
 

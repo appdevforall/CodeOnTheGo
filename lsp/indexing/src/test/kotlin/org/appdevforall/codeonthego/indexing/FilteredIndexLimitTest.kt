@@ -133,4 +133,13 @@ class FilteredIndexLimitTest {
 			assertThat(activeOnly("jarA").containsSource("jarA")).isTrue()
 			assertThat(activeOnly("otherJar").containsSource("jarA")).isFalse()
 		}
+
+	@Test
+	fun `distinctValues excludes inactive sources`() =
+		runTest {
+			backing.insert(Entry("a", "jarA", "Alpha"))
+			backing.insert(Entry("b", "jarB", "Beta"))
+
+			assertThat(activeOnly("jarA").distinctValues("value").toList()).containsExactly("Alpha")
+		}
 }

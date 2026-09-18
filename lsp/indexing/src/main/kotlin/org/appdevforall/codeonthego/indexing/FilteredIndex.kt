@@ -112,15 +112,10 @@ open class FilteredIndex<T : Indexable>(
 
 	override suspend fun containsSource(sourceId: String): Boolean = isActive(sourceId) && backing.containsSource(sourceId)
 
-	override fun distinctValues(fieldName: String): Sequence<String> {
-		// This is imprecise — the backing index may return values
-		// from inactive sources. For exact results, we'd need to
-		// query all entries and filter. For package enumeration
-		// (the main use case), this approximation is acceptable
-		// since packages from inactive JARs are harmless — they
-		// just produce empty results when queried further.
-		return backing.distinctValues(fieldName)
-	}
+	override fun distinctValues(
+		fieldName: String,
+		query: IndexQuery,
+	): Sequence<String> = backing.distinctValues(fieldName, scopedToActive(query))
 
 	override fun close() {
 		activeSources.clear()

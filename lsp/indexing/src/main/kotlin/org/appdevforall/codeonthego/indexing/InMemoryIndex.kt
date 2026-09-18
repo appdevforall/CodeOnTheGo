@@ -66,9 +66,34 @@ class InMemoryIndex<T : Indexable>(
 
 	override suspend fun containsSource(sourceId: String): Boolean = sourceMap.containsKey(sourceId)
 
-	override fun distinctValues(fieldName: String): Sequence<String> {
-		val fieldMap = fieldMaps[fieldName] ?: return emptySequence()
-		return lock.read { fieldMap.keys.toList() }.asSequence()
+	/**
+	 * Projects [fieldName] out of the matching entries.
+	 *
+	 * Unlike the SQLite index there is no column to scan, so this reduces over the matched entries.
+	 * That is acceptable at the sizes this index is built for (hundreds to low thousands of entries);
+	 * it is not a general substitute for a column projection.
+	 */
+	override fun distinctValues(
+		fieldName: String,
+		query: IndexQuery,
+	): Sequence<String> {
+		if (!fieldMaps.containsKey(fieldName)) {
+			return emptySequence()
+		}
+
+		val limit = if (query.limit <= 0) Int.MAX_VALUE else query.limit
+		return lock
+			.read {
+				val values = LinkedHashSet<String>()
+				for (key in resolveMatchingKeys(query)) {
+					if (values.size >= limit) {
+						break
+					}
+					val entry = primaryMap[key] ?: continue
+					descriptor.fieldValues(entry)[fieldName]?.let { values.add(it) }
+				}
+				values.toList()
+			}.asSequence()
 	}
 
 	override suspend fun insertAll(entries: Sequence<T>) {
