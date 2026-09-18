@@ -141,9 +141,7 @@ object ProjectSyncHelper {
 					 * the holder releases.
 					 */
 					null
-				} catch (err: CancellationException) {
-					throw err
-				} catch (err: Exception) {
+				} catch (err: IOException) {
 					logger.warn("Failed to acquire the sync lock", err)
 					channel.close()
 					return null
@@ -300,9 +298,10 @@ object ProjectSyncHelper {
 			throw err
 		} catch (err: Exception) {
 			/*
-			 * A corrupt file surfaces either as an IOException or, from protobuf-javalite on a
-			 * malformed length-delimited field, as an unchecked one. An Error is not ours to
-			 * answer, so it is left to propagate.
+			 * A corrupt file surfaces as an InvalidProtocolBufferException, an IOException. The
+			 * catch is wider than that because this runs inside checkSyncNeeded's own failure
+			 * handling, where an escaping exception crashes the project open rather than
+			 * resyncing it. An Error is not ours to answer, so it is left to propagate.
 			 */
 			logger.warn("Failed to read sync metadata file: {}", syncMetaFile, err)
 			false
@@ -348,7 +347,7 @@ object ProjectSyncHelper {
 				return true
 			} catch (err: CancellationException) {
 				throw err
-			} catch (err: Throwable) {
+			} catch (err: Exception) {
 				logger.warn("NEED_SYNC: failed to read sync metadata file", err)
 				discardSyncFiles(projectDir)
 				return true
@@ -470,11 +469,14 @@ object ProjectSyncHelper {
 				if (!locked) {
 					logger.debug("Sync lock unavailable, leaving the stale sync files to the running sync")
 				}
-			} catch (err: IOException) {
+			} catch (err: CancellationException) {
+				throw err
+			} catch (err: Exception) {
 				/*
-				 * Creating or opening the lock file fails on a read-only volume. Callers treat
-				 * checkSyncNeeded as a boolean query and rethrow anything else, so letting this
-				 * escape would crash the project open instead of resyncing it.
+				 * Creating or opening the lock file fails on a read-only volume, and the re-read
+				 * under the lock can fail on a corrupt file. Callers treat checkSyncNeeded as a
+				 * boolean query and rethrow anything else, so letting either escape would crash
+				 * the project open instead of resyncing it. An Error is left to propagate.
 				 */
 				logger.warn("Failed to discard the stale sync files", err)
 			}
