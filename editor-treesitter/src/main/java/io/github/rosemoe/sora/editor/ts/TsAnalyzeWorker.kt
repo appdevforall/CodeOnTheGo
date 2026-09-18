@@ -152,10 +152,20 @@ class TsAnalyzeWorker(
         return
       }
       resourcesClosed = true
-    }
 
-    document.close()
-    analyzerContext.close()
+      document.close()
+      analyzerContext.close()
+    }
+  }
+
+  internal fun <T> withDocument(block: (TsTextDocument) -> T): T? {
+    synchronized(lifecycleLock) {
+      if (resourcesClosed) {
+        return null
+      }
+
+      return block(document)
+    }
   }
 
   fun addBreakpoint(line: Int) = toggleBreakpoint(line = line, addOnly = true)

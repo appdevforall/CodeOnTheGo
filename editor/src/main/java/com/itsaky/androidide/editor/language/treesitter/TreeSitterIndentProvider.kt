@@ -91,44 +91,46 @@ class TreeSitterIndentProvider(
       return defaultIndents
     }
 
-    val document = analyzer.analyzeWorker?.document ?: return defaultIndents
-    TSParser.create().use { parser ->
-      parser.language = document.parser.language
+    val analyzerWorker = analyzer.analyzeWorker ?: return defaultIndents
+    return analyzerWorker.withDocument { document ->
+      TSParser.create().use { parser ->
+        parser.language = document.parser.language
 
-      var closeTree = true
-      val tree = if (content.documentVersion == document.version) {
-        // avoid converting the content to string if not really needed
-        log.info("Re-using cached tree from document version {}", document.version)
-        closeTree = false
-        document.tree
-      } else {
-        log.info(
-          "Re-parsing content for indentation as document version {} does not match version {}",
-          document.version,
-          content.documentVersion
-        )
+        var closeTree = true
+        val tree = if (content.documentVersion == document.version) {
+          // avoid converting the content to string if not really needed
+          log.info("Re-using cached tree from document version {}", document.version)
+          closeTree = false
+          document.tree
+        } else {
+          log.info(
+            "Re-parsing content for indentation as document version {} does not match version {}",
+            document.version,
+            content.documentVersion
+          )
 
-        (document.tree?.copy() ?: return defaultIndents).use { copiedTree ->
-          parser.parseString(copiedTree, content.toString())
-        }
-      }
-
-      if (tree == null) {
-        log.info("Parsed tree is null, returning default indent: {}", default)
-        return defaultIndents
-      }
-
-      try {
-        return computeIndents(tree, content, positions, defaultIndents)
-          .also { indents ->
-            log.debug("Computed indents: {}", indents.joinToString(","))
+          (document.tree?.copy() ?: return@use defaultIndents).use { copiedTree ->
+            parser.parseString(copiedTree, content.toString())
           }
-      } finally {
-        if (closeTree) {
-          tree.close()
+        }
+
+        if (tree == null) {
+          log.info("Parsed tree is null, returning default indent: {}", default)
+          return@use defaultIndents
+        }
+
+        try {
+          return@use computeIndents(tree, content, positions, defaultIndents)
+            .also { indents ->
+              log.debug("Computed indents: {}", indents.joinToString(","))
+            }
+        } finally {
+          if (closeTree) {
+            tree.close()
+          }
         }
       }
-    }
+    } ?: defaultIndents
   }
 
   private fun computeIndents(
