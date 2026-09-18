@@ -19,8 +19,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 open class FilteredIndex<T : Indexable>(
 	private val backing: ReadableIndex<T>,
-) : ReadableIndex<T>, Closeable {
-
+) : ReadableIndex<T>,
+	Closeable {
 	/**
 	 * The set of source IDs whose entries are visible.
 	 * Uses a concurrent set for thread-safe reads during queries.
@@ -57,14 +57,12 @@ open class FilteredIndex<T : Indexable>(
 	/**
 	 * Returns the current set of active source IDs.
 	 */
-	open fun activeSources(): Set<String> =
-		activeSources.toSet()
+	open fun activeSources(): Set<String> = activeSources.toSet()
 
 	/**
 	 * Returns true if the source is currently active (visible).
 	 */
-	open fun isActive(sourceId: String): Boolean =
-		sourceId in activeSources
+	open fun isActive(sourceId: String): Boolean = sourceId in activeSources
 
 	/**
 	 * Returns true if the source exists in the backing index,
@@ -72,8 +70,7 @@ open class FilteredIndex<T : Indexable>(
 	 *
 	 * Use this to check if a JAR needs indexing at all.
 	 */
-	open suspend fun isCached(sourceId: String): Boolean =
-		backing.containsSource(sourceId)
+	open suspend fun isCached(sourceId: String): Boolean = backing.containsSource(sourceId)
 
 	override fun query(query: IndexQuery): Sequence<T> {
 		if (query.sourceId != null && !isActive(query.sourceId)) {
@@ -88,9 +85,7 @@ open class FilteredIndex<T : Indexable>(
 		return if (isActive(entry.sourceId)) entry else null
 	}
 
-	override suspend fun containsSource(sourceId: String): Boolean {
-		return isActive(sourceId) && backing.containsSource(sourceId)
-	}
+	override suspend fun containsSource(sourceId: String): Boolean = isActive(sourceId) && backing.containsSource(sourceId)
 
 	override fun distinctValues(fieldName: String): Sequence<String> {
 		// This is imprecise — the backing index may return values
