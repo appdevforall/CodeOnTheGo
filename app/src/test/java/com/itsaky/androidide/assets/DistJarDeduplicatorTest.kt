@@ -1,6 +1,7 @@
 package com.itsaky.androidide.assets
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -188,5 +189,78 @@ class DistJarDeduplicatorTest {
 		// would mean a partial swap that a later pass could trip over.
 		val strays = mavenRepo.walkTopDown().filter { it.name.endsWith(".dedup") }.toList()
 		assertThat(strays).isEmpty()
+	}
+
+	@Test
+	fun `a distribution holding no jars is a no-op rather than a failure`() {
+		setUpTrees()
+		val untouched = mavenJar("com/example/thing/1.0", "thing-1.0.jar", "same-bytes")
+		// Same bytes, but neither entry is a jar: one is a plain file, the other a directory. An
+		// index built from either would make this jar look like a duplicate of something that is
+		// not a jar at all.
+		distJar("thing-1.0.pom", "same-bytes")
+		File(distLib, "plugins").mkdirs()
+
+		val outcome = DistJarDeduplicator.deduplicate(mavenRepo, distLib)
+
+		assertThat(outcome).isEqualTo(DistJarDeduplicator.Outcome(linked = 0, bytesReclaimed = 0))
+		assertThat(Files.isSymbolicLink(untouched.toPath())).isFalse()
+		assertThat(untouched.readText()).isEqualTo("same-bytes")
+	}
+
+	@Test
+	fun `two unreadable jars of the same size are never treated as identical`() {
+		setUpTrees()
+		// The danger in a half-extracted tree: if an unreadable file hashed to some sentinel instead
+		// of to nothing, two files nobody can read would look like twins and a user's jar would be
+		// linked onto bytes that are not its own. Equal lengths make them reach the hash comparison.
+		val unreadable = mavenJar("com/example/broken/1.0", "broken-1.0.jar", "AAAAAAAA")
+		val unreadableTwin = distJar("broken-twin.jar", "BBBBBBBB")
+		val readable = mavenJar("com/example/fine/1.0", "fine-1.0.jar", "readable-bytes")
+		distJar("fine-twin.jar", "readable-bytes")
+		assumeEnforcedPermission(unreadable.setReadable(false, false) && !unreadable.canRead())
+		assumeEnforcedPermission(unreadableTwin.setReadable(false, false) && !unreadableTwin.canRead())
+
+		val outcome = DistJarDeduplicator.deduplicate(mavenRepo, distLib)
+
+		assertThat(Files.isSymbolicLink(unreadable.toPath())).isFalse()
+		assertThat(unreadable.length()).isEqualTo("AAAAAAAA".length.toLong())
+		// The pass steps over the unreadable pair and keeps collapsing the rest - an unreadable jar
+		// is a reason to skip one file, not to abandon the optimisation or fail the install.
+		assertThat(Files.isSymbolicLink(readable.toPath())).isTrue()
+		assertThat(outcome.linked).isEqualTo(1)
+		assertThat(outcome.bytesReclaimed).isEqualTo("readable-bytes".length.toLong())
+	}
+
+	@Test
+	fun `a coordinate directory that refuses new entries leaves the jar as a real file`() {
+		setUpTrees()
+		val duplicate = mavenJar("com/example/thing/1.0", "thing-1.0.jar", "same-bytes")
+		distJar("thing-1.0.jar", "same-bytes")
+		val coordinateDir = checkNotNull(duplicate.parentFile)
+		assumeEnforcedPermission(coordinateDir.setWritable(false, false) && !coordinateDir.canWrite())
+
+		val outcome =
+			try {
+				DistJarDeduplicator.deduplicate(mavenRepo, distLib)
+			} finally {
+				// Restored here rather than in @After so TemporaryFolder can still clean up.
+				coordinateDir.setWritable(true, false)
+			}
+
+		// The staging link cannot be created, so the swap never happens. A pass that counted the
+		// attempt anyway would report bytes reclaimed that are still very much on disk.
+		assertThat(outcome).isEqualTo(DistJarDeduplicator.Outcome(linked = 0, bytesReclaimed = 0))
+		assertThat(Files.isSymbolicLink(duplicate.toPath())).isFalse()
+		assertThat(duplicate.readText()).isEqualTo("same-bytes")
+		assertThat(File(coordinateDir, "thing-1.0.jar.dedup").exists()).isFalse()
+	}
+
+	/**
+	 * Skip rather than pass vacuously where the filesystem ignores permission bits (a root user, or
+	 * a mount that does not enforce them) - a green run there would prove nothing.
+	 */
+	private fun assumeEnforcedPermission(enforced: Boolean) {
+		assumeTrue("needs a filesystem that enforces permission bits", enforced)
 	}
 }

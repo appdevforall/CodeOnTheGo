@@ -93,6 +93,23 @@ class QuickBuildArtifactStagerDistLinkTest {
 	}
 
 	@Test
+	fun `a jar that cannot be linked is copied instead, so the daemon still has the bytes`() {
+		val daemonDir = daemonDirListing()
+		// An occupied target is how a link gets refused in practice - a stale jar left by an earlier
+		// staging, or a filesystem that takes no links at all. Either way the daemon's manifest
+		// Class-Path still names this path, so the current bytes have to end up here.
+		val occupied = File(daemonDir, jarNames.first()).apply { writeText("stale-bytes") }
+
+		QuickBuildArtifactStager.linkDistJars(daemonDir, gradleDistsWith())
+
+		assertThat(Files.isSymbolicLink(occupied.toPath())).isFalse()
+		assertThat(occupied.readText()).isEqualTo("${jarNames.first()}-bytes")
+		// The fallback is per jar: one refused link must not cost the rest their cheap path.
+		assertThat(Files.isSymbolicLink(File(daemonDir, jarNames.last()).toPath())).isTrue()
+		assertThat(File(daemonDir, jarNames.last()).readText()).isEqualTo("${jarNames.last()}-bytes")
+	}
+
+	@Test
 	fun `missing distribution fails loudly and names the path a human has to fix`() {
 		val daemonDir = daemonDirListing()
 		val emptyDists = temp.newFolder("gradle-dists")
