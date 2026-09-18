@@ -73,6 +73,8 @@ object QuickBuildArtifactStager {
 	 * [installStamp] - the stamp file matches and [daemonJar] is present. Internal so the JVM
 	 * test can watch the skip, and the wipe, without an Android [Context].
 	 *
+	 * @param gradleDists passed through to [linkDistJars]; parameterised only so tests can point
+	 *   at a fake distribution, since [Environment.GRADLE_DISTS] is unset off-device.
 	 * @return whether an extraction ran.
 	 */
 	@Throws(IOException::class)
@@ -80,6 +82,7 @@ object QuickBuildArtifactStager {
 		installStamp: String,
 		daemonDir: File,
 		daemonJar: File,
+		gradleDists: File = Environment.GRADLE_DISTS,
 		openZip: () -> InputStream,
 	): Boolean {
 		val stamp = File(daemonDir, DAEMON_STAMP_FILE)
@@ -96,7 +99,7 @@ object QuickBuildArtifactStager {
 		// Before the stamp: the skip test above reads the stamp and the daemon jar, not the
 		// linked jars, so stamping a staging whose link failed would skip re-staging forever
 		// and leave the daemon without a compiler until the next install.
-		linkDistJars(daemonDir)
+		linkDistJars(daemonDir, gradleDists)
 		stamp.writeText(installStamp)
 		log.info("Staged {} daemon files into {}", count, daemonDir)
 		return true
