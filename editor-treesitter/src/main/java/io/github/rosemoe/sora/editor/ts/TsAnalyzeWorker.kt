@@ -81,6 +81,7 @@ class TsAnalyzeWorker(
   private var resourcesCloseRequested = false
 
   private var isInitialized = false
+  @Volatile
   private var isDestroyed = false
 
   val document = TsTextDocument(languageSpec.language)
