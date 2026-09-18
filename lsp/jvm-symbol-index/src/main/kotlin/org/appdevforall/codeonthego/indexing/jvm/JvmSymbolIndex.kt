@@ -10,6 +10,7 @@ import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.WritableIndex
 import org.appdevforall.codeonthego.indexing.api.indexQuery
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_CONTAINING_CLASS
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_KIND
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_NAME
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_PACKAGE
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_RECEIVER_TYPE
@@ -28,6 +29,10 @@ open class JvmSymbolIndex(
 	WritableIndex<JvmSymbol> by backing,
 	Closeable {
 	companion object {
+		/** Kind names as the descriptor stores them, for set-membership predicates. */
+		private val CLASSIFIER_KIND_NAMES = JvmSymbolKind.CLASSIFIER_KINDS.map { it.name }
+		private val CALLABLE_KIND_NAMES = JvmSymbolKind.CALLABLE_KINDS.map { it.name }
+
 		const val DB_NAME_DEFAULT = "jvm_symbol_index.db"
 		const val INDEX_NAME_LIBRARY = "jvm-library-cache"
 
@@ -111,6 +116,14 @@ open class JvmSymbolIndex(
 			},
 		)
 
+	/**
+	 * Top-level callables declared in [packageName].
+	 *
+	 * The kind and top-level conditions are part of the query rather than a filter over its result:
+	 * a package holds far more members than top-level callables, so filtering afterwards meant
+	 * fetching every symbol in the package to keep a handful. Top-level is expressible because the
+	 * descriptor stores a null containing class for it.
+	 */
 	fun findTopLevelCallablesInPackage(
 		packageName: String,
 		namePrefix: String = "",
@@ -119,11 +132,14 @@ open class JvmSymbolIndex(
 		query(
 			indexQuery {
 				eq(KEY_PACKAGE, packageName)
+				anyOf(KEY_KIND, CALLABLE_KIND_NAMES)
+				notExists(KEY_CONTAINING_CLASS)
 				if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
-				this.limit = 0
+				this.limit = limit
 			},
-		).filter { it.kind.isCallable && it.isTopLevel }.take(limit)
+		)
 
+	/** Classifiers declared in [packageName], filtered by kind in the query for the same reason. */
 	fun findClassifiersInPackage(
 		packageName: String,
 		namePrefix: String = "",
@@ -132,10 +148,11 @@ open class JvmSymbolIndex(
 		query(
 			indexQuery {
 				eq(KEY_PACKAGE, packageName)
+				anyOf(KEY_KIND, CLASSIFIER_KIND_NAMES)
 				if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
-				this.limit = 0
+				this.limit = limit
 			},
-		).filter { it.kind.isClassifier }.take(limit)
+		)
 
 	fun findMembersOf(
 		classFqName: String,
@@ -150,12 +167,21 @@ open class JvmSymbolIndex(
 			},
 		)
 
+	/**
+	 * Symbols whose simple name is exactly [name], optionally restricted to [kinds].
+	 *
+	 * Restricting by kind matters more than it looks: without it an exact-name lookup still returns
+	 * every method and field sharing that name, and a caller wanting only classifiers pays for all
+	 * of them.
+	 */
 	fun findBySimpleName(
 		name: String,
 		limit: Int = 200,
+		kinds: Set<JvmSymbolKind>? = null,
 	) = query(
 		indexQuery {
 			eq(KEY_NAME, name)
+			if (kinds != null) anyOf(KEY_KIND, kinds.map { it.name })
 			this.limit = limit
 		},
 	)

@@ -495,6 +495,18 @@ class SQLiteIndex<T : Indexable>(
 			and("$col = ?", value)
 		}
 
+		for ((field, values) in query.anyOf) {
+			val col = fieldColumns[field] ?: continue
+			if (values.isEmpty()) {
+				// Scoped to nothing, as opposed to unscoped: no row can satisfy it.
+				and("0 = 1")
+				continue
+			}
+			val distinct = values.distinct()
+			val placeholders = distinct.joinToString(",") { "?" }
+			and("$col IN ($placeholders)", *distinct.toTypedArray())
+		}
+
 		for ((field, prefix) in query.prefixMatch) {
 			val lowerCol = prefixColumns[field]
 			// Prefix-searchable fields match case-insensitively through their pre-lowercased column;

@@ -150,4 +150,45 @@ class SQLiteIndexScopeTest {
 
 			assertThat(index.distinctValues("group").toList()).containsExactly("one", "two")
 		}
+
+	@Test
+	fun `anyOf matches any of the listed values`() =
+		runTest {
+			index.insert(Entry("k1", "jarA", "Alpha", group = "one"))
+			index.insert(Entry("k2", "jarA", "Beta", group = "two"))
+			index.insert(Entry("k3", "jarA", "Gamma", group = "three"))
+
+			val keys =
+				index
+					.query(IndexQuery(anyOf = mapOf("group" to listOf("one", "three")), limit = 0))
+					.map { it.key }
+					.toList()
+
+			assertThat(keys).containsExactly("k1", "k3")
+		}
+
+	@Test
+	fun `an empty anyOf matches nothing`() =
+		runTest {
+			index.insert(Entry("k1", "jarA", "Alpha", group = "one"))
+
+			// Same distinction as an empty source scope: restricted to nothing, not unrestricted.
+			assertThat(index.query(IndexQuery(anyOf = mapOf("group" to emptyList()), limit = 0)).toList())
+				.isEmpty()
+		}
+
+	@Test
+	fun `anyOf narrows the rows the limit is spent on`() =
+		runTest {
+			repeat(20) { index.insert(Entry("other$it", "jarA", "Cls$it", group = "unwanted")) }
+			index.insert(Entry("wanted", "jarA", "ClsWanted", group = "wanted"))
+
+			val keys =
+				index
+					.query(IndexQuery(anyOf = mapOf("group" to listOf("wanted")), limit = 1))
+					.map { it.key }
+					.toList()
+
+			assertThat(keys).containsExactly("wanted")
+		}
 }

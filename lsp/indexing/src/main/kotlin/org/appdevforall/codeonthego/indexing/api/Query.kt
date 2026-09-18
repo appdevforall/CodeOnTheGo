@@ -13,6 +13,14 @@ data class IndexQuery(
 	/** Prefix match predicates: field name → prefix (case-insensitive). */
 	val prefixMatch: Map<String, String> = emptyMap(),
 	/**
+	 * Set-membership predicates: field name to the values that field may take.
+	 *
+	 * An empty collection matches nothing, on the same reasoning as [sourceIds]. This exists so a
+	 * caller wanting several values of one field -- every classifier kind, say -- can say so in the
+	 * query instead of fetching every value and discarding most of them.
+	 */
+	val anyOf: Map<String, Collection<String>> = emptyMap(),
+	/**
 	 * Presence predicates: field name → whether the field must be
 	 * non-null (true) or null (false).
 	 */
@@ -52,6 +60,7 @@ class IndexQueryBuilder {
 	private val exact = mutableMapOf<String, String>()
 	private val prefix = mutableMapOf<String, String>()
 	private val pres = mutableMapOf<String, Boolean>()
+	private val anyOfValues = mutableMapOf<String, Collection<String>>()
 	var sourceId: String? = null
 	var sourceIds: Collection<String>? = null
 	var key: String? = null
@@ -73,6 +82,14 @@ class IndexQueryBuilder {
 		prefix[field] = value
 	}
 
+	/** Field must hold one of [values]. */
+	fun anyOf(
+		field: String,
+		values: Collection<String>,
+	) {
+		anyOfValues[field] = values
+	}
+
 	/** Field must be non-null. */
 	fun exists(field: String) {
 		pres[field] = true
@@ -87,6 +104,7 @@ class IndexQueryBuilder {
 		IndexQuery(
 			exactMatch = exact.toMap(),
 			prefixMatch = prefix.toMap(),
+			anyOf = anyOfValues.toMap(),
 			presence = pres.toMap(),
 			sourceId = sourceId,
 			sourceIds = sourceIds,
