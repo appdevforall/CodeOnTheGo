@@ -89,6 +89,8 @@ internal class JavaDebugAdapter :
 				"jdk.*",
 				"com.sun.*",
 				"sun.*",
+				"kotlin.*",
+				"kotlinx.*",
 			)
 
 		/**

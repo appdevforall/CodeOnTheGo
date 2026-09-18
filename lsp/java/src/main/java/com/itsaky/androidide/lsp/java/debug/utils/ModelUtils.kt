@@ -42,8 +42,7 @@ fun Location.asLspLocation(useDeclTypeName: Boolean = true): LspLocation {
 
 				if (fo == null) {
 					val className =
-						this
-							.sourcePath()
+						(this.sourcePathOrNull() ?: "")
 							.replace('/', '.')
 							.substringBeforeLast(".java")
 					logger.debug("finding source file for class: '{}'", className)
