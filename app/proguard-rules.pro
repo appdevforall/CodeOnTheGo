@@ -210,6 +210,18 @@
 -keep class kotlin.** { *; }
 -keep class kotlinx.coroutines.** { *; }
 
+# Same hazard, libraries the app and plugins both ship: the app's shrunk copy
+# shadows the plugin's complete one. Union of plugin deps that overlap the app;
+# re-audit when a plugin adds one. See docs/research in plugin-examples.
+-keep class androidx.fragment.app.** { *; }
+-keep class androidx.appcompat.** { *; }
+-keep class androidx.core.** { *; }
+-keep class androidx.recyclerview.widget.** { *; }
+-keep class androidx.constraintlayout.** { *; }
+-keep class com.google.android.material.** { *; }
+-keep class io.noties.markwon.** { *; }
+-keep class com.google.gson.** { *; }
+
 -keep class com.google.firebase.** { *; }
 -keep class com.google.android.gms.** { *; }
 

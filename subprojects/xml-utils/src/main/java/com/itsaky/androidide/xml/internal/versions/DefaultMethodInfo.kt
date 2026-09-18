@@ -17,34 +17,33 @@
 
 package com.itsaky.androidide.xml.internal.versions
 
+import com.itsaky.androidide.xml.versions.ApiVersion
 import com.itsaky.androidide.xml.versions.MethodInfo
 
 /** @author Akash Yadav */
 internal class DefaultMethodInfo(
-  override val simpleName: String,
-  name: String,
-  since: Int,
-  removed: Int,
-  deprecated: Int
-) : DefaultInfo(name, since, removed, deprecated), MethodInfo {
+	override val simpleName: String,
+	name: String,
+	since: ApiVersion,
+	removed: ApiVersion,
+	deprecated: ApiVersion,
+) : DefaultInfo(name, since, removed, deprecated),
+	MethodInfo {
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (other !is DefaultMethodInfo) return false
+		if (!super.equals(other)) return false
 
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (other !is DefaultMethodInfo) return false
-    if (!super.equals(other)) return false
+		if (simpleName != other.simpleName) return false
 
-    if (simpleName != other.simpleName) return false
+		return true
+	}
 
-    return true
-  }
+	override fun hashCode(): Int {
+		var result = super.hashCode()
+		result = 31 * result + simpleName.hashCode()
+		return result
+	}
 
-  override fun hashCode(): Int {
-    var result = super.hashCode()
-    result = 31 * result + simpleName.hashCode()
-    return result
-  }
-
-  override fun toString(): String {
-    return "DefaultMethodInfo(simpleName='$simpleName')"
-  }
+	override fun toString(): String = "DefaultMethodInfo(simpleName='$simpleName')"
 }

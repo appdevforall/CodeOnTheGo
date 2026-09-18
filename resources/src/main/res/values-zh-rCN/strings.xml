@@ -85,9 +85,9 @@
 	<string name="get_started">开始使用</string>
 	<string name="msg_cannot_perform_fix">无法执行快速修复</string>
 	<string name="msg_performing_actions">正在执行代码操作…</string>
-	<string name="msg_api_info_since">自 API %d 起</string>
-	<string name="msg_api_info_removed">在 API %d 中移除</string>
-	<string name="msg_api_info_deprecated">在 API %d 中弃用</string>
+	<string name="msg_api_info_since">自 API %s 起</string>
+	<string name="msg_api_info_removed">在 API %s 中移除</string>
+	<string name="msg_api_info_deprecated">在 API %s 中弃用</string>
 	<string name="msg_finding_references">正在查找引用…</string>
 	<string name="msg_finding_definition">正在查找定义…</string>
 	<string name="msg_no_definition">未找到定义</string>
