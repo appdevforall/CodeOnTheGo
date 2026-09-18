@@ -144,6 +144,7 @@ open class AndroidModule(
 		excludeSourceGeneratedClassPath: Boolean,
 		visited: MutableSet<String>,
 	): Set<File> {
+		reportedGraphDamage = false
 		val project = IProjectManager.getInstance().workspace ?: return emptySet()
 
 		// Guard against cyclic project-dependency graphs: contribute each module's classpaths at most
@@ -252,6 +253,30 @@ open class AndroidModule(
 		return result
 	}
 
+	/** Whether the current traversal has already reported a damaged dependency-graph index. */
+	private var reportedGraphDamage = false
+
+	/**
+	 * Report the first out-of-range graph index seen in the current traversal.
+	 *
+	 * A truncated node table makes every index dangle, so warning per index would put tens of
+	 * thousands of lines in the log on every classpath refresh. One line per traversal says the
+	 * same thing.
+	 */
+	private fun logLostGraphEntry(nodeId: Int) {
+		if (reportedGraphDamage) {
+			return
+		}
+
+		reportedGraphDamage = true
+		log.warn(
+			"Dependency graph entry {} in module {} is out of range; the project cache looks damaged." +
+				" Re-sync the project if symbols fail to resolve.",
+			nodeId,
+			path,
+		)
+	}
+
 	/**
 	 * Recursively collect the compile classpath entries contributed by the [graph] nodes at
 	 * [nodeIds] into [result], guarding against cycles.
@@ -266,15 +291,6 @@ open class AndroidModule(
 	 * @param moduleVisited Module paths already expanded across modules; threaded into cross-module
 	 * recursion so a cyclic PROJECT graph terminates.
 	 */
-	private fun logLostGraphEntry(nodeId: Int) {
-		log.warn(
-			"Dependency graph entry {} in module {} is out of range; the project cache looks damaged." +
-				" Re-sync the project if symbols fail to resolve.",
-			nodeId,
-			path,
-		)
-	}
-
 	private fun collectLibraries(
 		root: Workspace,
 		graph: AndroidModels.DependencyGraph,
@@ -341,6 +357,7 @@ open class AndroidModule(
 		visited: MutableSet<String>,
 		recursionPath: ArrayDeque<String>,
 	): List<ModuleProject> {
+		reportedGraphDamage = false
 		val root = IProjectManager.getInstance().workspace ?: return emptyList()
 
 		// True cycle: this module is already an ancestor on the current recursion path
