@@ -274,4 +274,41 @@ class InMemoryIndexTest {
 			index.removeBySource("unknownSource")
 			assertThat(index.size).isEqualTo(1)
 		}
+
+	@Test
+	fun `query scoped to source ids returns only those sources`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "Foo"))
+			index.insert(entry("k2", "src2", "Bar"))
+			index.insert(entry("k3", "src3", "Baz"))
+
+			val keys = index.query(IndexQuery(sourceIds = listOf("src1", "src3"), limit = 0)).map { it.key }.toList()
+			assertThat(keys).containsExactly("k1", "k3")
+		}
+
+	@Test
+	fun `query scoped to an empty source set returns nothing`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "Foo"))
+
+			assertThat(index.query(IndexQuery(sourceIds = emptyList(), limit = 0)).toList()).isEmpty()
+			assertThat(index.query(IndexQuery(sourceIds = null, limit = 0)).toList()).hasSize(1)
+		}
+
+	@Test
+	fun `source scope is combined with the other predicates`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "Foo"))
+			index.insert(entry("k2", "src2", "Foo"))
+
+			val keys =
+				index
+					.query(IndexQuery(exactMatch = mapOf("name" to "Foo"), sourceIds = listOf("src2"), limit = 0))
+					.map { it.key }
+					.toList()
+			assertThat(keys).containsExactly("k2")
+		}
 }
