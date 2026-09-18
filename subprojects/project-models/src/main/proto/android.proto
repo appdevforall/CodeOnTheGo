@@ -60,8 +60,9 @@ message GraphNode {
  * values -- a 17.6x duplication, with one kotlin-stdlib key repeated 180,738 times.
  *
  * Nodes are deduplicated by key and strings interned, so each artifact and each string appears once.
- * Consumers already expand each key at most once via a visited set, so walking indices preserves
- * their behaviour exactly.
+ * The compile-classpath consumer already expands each key at most once via a visited set, over the
+ * same pre-order walk, so it sees the same graph. The module-dependency consumer reads only the
+ * roots, whose order and multiplicity are unchanged.
  */
 message DependencyGraph {
 

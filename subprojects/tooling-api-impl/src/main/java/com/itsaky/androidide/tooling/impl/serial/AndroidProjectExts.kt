@@ -135,12 +135,13 @@ fun ArtifactDependencies.asProtoModel() =
  * AGP hands the dependency graph back as a tree: a node shared by several dependents is repeated
  * once per path, and each copy carries its own key string. On an 86-module project that expanded to
  * 786,554 nodes and 1,011,910 key strings covering 57,517 distinct values. Deduplicating by key
- * keeps the first occurrence of each key and the edges recorded on it. Consumers already expand
- * each key at most once over the same pre-order walk, so in practice they see the same graph. What
- * a later occurrence carried -- its requested coordinates, and its children if AGP ever emitted
- * different ones for the same key -- is not represented; see [AndroidModels.GraphNode]. That last
- * case is the one where results could differ, because a consumer prunes a subtree whose key has no
- * Library entry while this builder walks it regardless.
+ * keeps the first occurrence of each key and the edges recorded on it. The compile-classpath
+ * consumer expands each key at most once over the same pre-order walk, so it sees the same graph;
+ * the module-dependency consumer reads only the roots, whose order and multiplicity are unchanged.
+ * What a later occurrence carried -- its requested coordinates, and its children if AGP ever
+ * emitted different ones for the same key -- is not represented; see [AndroidModels.GraphNode].
+ * That last case is the one where results could differ, because the classpath consumer prunes a
+ * subtree whose key has no Library entry while this builder walks it regardless.
  */
 private class DependencyGraphBuilder {
 	/*
