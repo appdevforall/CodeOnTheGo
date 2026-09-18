@@ -3,43 +3,74 @@ package org.appdevforall.codeonthego.indexing.jvm
 import org.appdevforall.codeonthego.indexing.api.Indexable
 
 enum class JvmSymbolKind {
-    CLASS, INTERFACE, ENUM, ENUM_ENTRY, ANNOTATION_CLASS,
-    OBJECT, COMPANION_OBJECT, DATA_CLASS, VALUE_CLASS,
-    SEALED_CLASS, SEALED_INTERFACE,
-    FUNCTION, EXTENSION_FUNCTION, CONSTRUCTOR,
-    PROPERTY, EXTENSION_PROPERTY, FIELD,
-    TYPE_ALIAS;
+	CLASS,
+	INTERFACE,
+	ENUM,
+	ENUM_ENTRY,
+	ANNOTATION_CLASS,
+	OBJECT,
+	COMPANION_OBJECT,
+	DATA_CLASS,
+	VALUE_CLASS,
+	SEALED_CLASS,
+	SEALED_INTERFACE,
+	FUNCTION,
+	EXTENSION_FUNCTION,
+	CONSTRUCTOR,
+	PROPERTY,
+	EXTENSION_PROPERTY,
+	FIELD,
+	TYPE_ALIAS,
+	;
 
-    val isCallable: Boolean
-        get() = this in CALLABLE_KINDS
+	val isCallable: Boolean
+		get() = this in CALLABLE_KINDS
 
-    val isClassifier: Boolean
-        get() = this in CLASSIFIER_KINDS
+	val isClassifier: Boolean
+		get() = this in CLASSIFIER_KINDS
 
-    val isExtension: Boolean
-        get() = this == EXTENSION_FUNCTION || this == EXTENSION_PROPERTY
+	val isExtension: Boolean
+		get() = this == EXTENSION_FUNCTION || this == EXTENSION_PROPERTY
 
-    companion object {
-        val CALLABLE_KINDS = setOf(
-            FUNCTION, EXTENSION_FUNCTION, CONSTRUCTOR,
-            PROPERTY, EXTENSION_PROPERTY, FIELD,
-        )
-        val CLASSIFIER_KINDS = setOf(
-            CLASS, INTERFACE, ENUM, ANNOTATION_CLASS,
-            OBJECT, COMPANION_OBJECT, DATA_CLASS,
-            VALUE_CLASS, SEALED_CLASS, SEALED_INTERFACE,
-            TYPE_ALIAS,
-        )
-    }
+	companion object {
+		val CALLABLE_KINDS =
+			setOf(
+				FUNCTION,
+				EXTENSION_FUNCTION,
+				CONSTRUCTOR,
+				PROPERTY,
+				EXTENSION_PROPERTY,
+				FIELD,
+			)
+		val CLASSIFIER_KINDS =
+			setOf(
+				CLASS,
+				INTERFACE,
+				ENUM,
+				ANNOTATION_CLASS,
+				OBJECT,
+				COMPANION_OBJECT,
+				DATA_CLASS,
+				VALUE_CLASS,
+				SEALED_CLASS,
+				SEALED_INTERFACE,
+				TYPE_ALIAS,
+			)
+	}
 }
 
 enum class JvmSourceLanguage { JAVA, KOTLIN }
 
 enum class JvmVisibility {
-    PUBLIC, PROTECTED, INTERNAL, PRIVATE, PACKAGE_PRIVATE;
+	PUBLIC,
+	PROTECTED,
+	INTERNAL,
+	PRIVATE,
+	PACKAGE_PRIVATE,
+	;
 
-    val isAccessibleOutsideClass: Boolean
-        get() = this == PUBLIC || this == PROTECTED || this == INTERNAL
+	val isAccessibleOutsideClass: Boolean
+		get() = this == PUBLIC || this == PROTECTED || this == INTERNAL
 }
 
 /**
@@ -56,7 +87,6 @@ enum class JvmVisibility {
 data class JvmSymbol(
 	override val key: String,
 	override val sourceId: String,
-
 	val name: String,
 	val shortName: String,
 	val packageName: String,
@@ -64,44 +94,45 @@ data class JvmSymbol(
 	val language: JvmSourceLanguage,
 	val visibility: JvmVisibility = JvmVisibility.PUBLIC,
 	val isDeprecated: Boolean = false,
-
 	val data: JvmSymbolInfo,
 ) : Indexable {
-
 	val fqName: String
 		get() = name.toFqName()
 
-    val isTopLevel: Boolean
-        get() = data.containingClassName.isEmpty()
+	val isTopLevel: Boolean
+		get() = data.containingClassName.isEmpty()
 
-    val isExtension: Boolean
-        get() = kind.isExtension
+	val isExtension: Boolean
+		get() = kind.isExtension
 
-    val receiverTypeName: String?
-        get() = when (val d = data) {
-            is JvmFunctionInfo -> d.kotlin?.receiverTypeName?.takeIf { it.isNotEmpty() }
-            is JvmFieldInfo -> d.kotlin?.receiverTypeName?.takeIf { it.isNotEmpty() }
-            else -> null
-        }
+	val receiverTypeName: String?
+		get() =
+			when (val d = data) {
+				is JvmFunctionInfo -> d.kotlin?.receiverTypeName?.takeIf { it.isNotEmpty() }
+				is JvmFieldInfo -> d.kotlin?.receiverTypeName?.takeIf { it.isNotEmpty() }
+				else -> null
+			}
 
 	val receiverTypeFqName: String?
 		get() = receiverTypeName?.toFqName()
 
-    val containingClassName: String
-        get() = data.containingClassName
+	val containingClassName: String
+		get() = data.containingClassName
 
-    val returnTypeDisplay: String
-        get() = when (val d = data) {
-            is JvmFunctionInfo -> d.returnTypeDisplayName
-            is JvmFieldInfo -> d.typeDisplayName
-            else -> ""
-        }
+	val returnTypeDisplay: String
+		get() =
+			when (val d = data) {
+				is JvmFunctionInfo -> d.returnTypeDisplayName
+				is JvmFieldInfo -> d.typeDisplayName
+				else -> ""
+			}
 
-    val signatureDisplay: String
-        get() = when (val d = data) {
-            is JvmFunctionInfo -> d.signatureDisplay
-            else -> ""
-        }
+	val signatureDisplay: String
+		get() =
+			when (val d = data) {
+				is JvmFunctionInfo -> d.signatureDisplay
+				else -> ""
+			}
 }
 
 /**
@@ -109,11 +140,10 @@ data class JvmSymbol(
  * Every variant provides [containingClassName] (empty for top-level).
  */
 sealed interface JvmSymbolInfo {
-
 	/**
 	 * The internal name of the containing class.
 	 */
-    val containingClassName: String
+	val containingClassName: String
 
 	/**
 	 * The fully qualified name of the containing class, in dot format.
@@ -135,15 +165,15 @@ data class JvmClassInfo(
 ) : JvmSymbolInfo
 
 data class KotlinClassInfo(
-    val isData: Boolean = false,
-    val isValue: Boolean = false,
-    val isSealed: Boolean = false,
-    val isFunInterface: Boolean = false,
-    val isExpect: Boolean = false,
-    val isActual: Boolean = false,
-    val isExternal: Boolean = false,
-    val sealedSubclasses: List<String> = emptyList(),
-    val companionObjectName: String = "",
+	val isData: Boolean = false,
+	val isValue: Boolean = false,
+	val isSealed: Boolean = false,
+	val isFunInterface: Boolean = false,
+	val isExpect: Boolean = false,
+	val isActual: Boolean = false,
+	val isExternal: Boolean = false,
+	val sealedSubclasses: List<String> = emptyList(),
+	val companionObjectName: String = "",
 )
 
 data class JvmFunctionInfo(
@@ -164,30 +194,30 @@ data class JvmFunctionInfo(
 }
 
 data class JvmParameterInfo(
-    val name: String,
-    val typeName: String,
-    val typeDisplayName: String,
-    val hasDefaultValue: Boolean = false,
-    val isCrossinline: Boolean = false,
-    val isNoinline: Boolean = false,
-    val isVararg: Boolean = false,
+	val name: String,
+	val typeName: String,
+	val typeDisplayName: String,
+	val hasDefaultValue: Boolean = false,
+	val isCrossinline: Boolean = false,
+	val isNoinline: Boolean = false,
+	val isVararg: Boolean = false,
 ) {
 	val typeFqName: String
 		get() = typeName.toFqName()
 }
 
 data class KotlinFunctionInfo(
-    val receiverTypeName: String = "",
-    val receiverTypeDisplayName: String = "",
-    val isSuspend: Boolean = false,
-    val isInline: Boolean = false,
-    val isInfix: Boolean = false,
-    val isOperator: Boolean = false,
-    val isTailrec: Boolean = false,
-    val isExternal: Boolean = false,
-    val isExpect: Boolean = false,
-    val isActual: Boolean = false,
-    val isReturnTypeNullable: Boolean = false,
+	val receiverTypeName: String = "",
+	val receiverTypeDisplayName: String = "",
+	val isSuspend: Boolean = false,
+	val isInline: Boolean = false,
+	val isInfix: Boolean = false,
+	val isOperator: Boolean = false,
+	val isTailrec: Boolean = false,
+	val isExternal: Boolean = false,
+	val isExpect: Boolean = false,
+	val isActual: Boolean = false,
+	val isReturnTypeNullable: Boolean = false,
 ) {
 	val receiverTypeFqName: String
 		get() = receiverTypeName.toFqName()
@@ -207,17 +237,17 @@ data class JvmFieldInfo(
 }
 
 data class KotlinPropertyInfo(
-    val receiverTypeName: String = "",
-    val receiverTypeDisplayName: String = "",
-    val isConst: Boolean = false,
-    val isLateinit: Boolean = false,
-    val hasGetter: Boolean = false,
-    val hasSetter: Boolean = false,
-    val isDelegated: Boolean = false,
-    val isExpect: Boolean = false,
-    val isActual: Boolean = false,
-    val isExternal: Boolean = false,
-    val isTypeNullable: Boolean = false,
+	val receiverTypeName: String = "",
+	val receiverTypeDisplayName: String = "",
+	val isConst: Boolean = false,
+	val isLateinit: Boolean = false,
+	val hasGetter: Boolean = false,
+	val hasSetter: Boolean = false,
+	val isDelegated: Boolean = false,
+	val isExpect: Boolean = false,
+	val isActual: Boolean = false,
+	val isExternal: Boolean = false,
+	val isTypeNullable: Boolean = false,
 ) {
 	val receiverTypeFqName: String
 		get() = receiverTypeName.toFqName()
