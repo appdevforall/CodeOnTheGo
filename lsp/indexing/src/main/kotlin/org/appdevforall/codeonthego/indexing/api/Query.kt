@@ -19,6 +19,15 @@ data class IndexQuery(
 	val presence: Map<String, Boolean> = emptyMap(),
 	/** Filter by source ID. */
 	val sourceId: String? = null,
+	/**
+	 * Filter by a set of source IDs. `null` imposes no restriction; an empty collection matches
+	 * nothing, which is what makes "scoped to a set that happens to be empty" distinguishable from
+	 * "unscoped".
+	 *
+	 * Implementations must apply this before any [limit], so a scoped query cannot lose matches to
+	 * rows that were only going to be discarded.
+	 */
+	val sourceIds: Collection<String>? = null,
 	/** Filter by key (exact). */
 	val key: String? = null,
 	/** Maximum number of results. 0 = unlimited (use with care). */
@@ -44,6 +53,7 @@ class IndexQueryBuilder {
 	private val prefix = mutableMapOf<String, String>()
 	private val pres = mutableMapOf<String, Boolean>()
 	var sourceId: String? = null
+	var sourceIds: Collection<String>? = null
 	var key: String? = null
 	var limit: Int = 200
 
@@ -79,6 +89,7 @@ class IndexQueryBuilder {
 			prefixMatch = prefix.toMap(),
 			presence = pres.toMap(),
 			sourceId = sourceId,
+			sourceIds = sourceIds,
 			key = key,
 			limit = limit,
 		)
