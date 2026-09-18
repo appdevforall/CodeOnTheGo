@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.java.refactor
 
 import com.itsaky.androidide.lsp.refactor.TextSpan
+import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ExecutableElement
 import jdkx.lang.model.element.TypeElement
 import jdkx.lang.model.type.DeclaredType
@@ -9,9 +10,11 @@ import jdkx.lang.model.type.TypeMirror
 import jdkx.lang.model.type.UnionType
 import jdkx.lang.model.util.Elements
 import jdkx.lang.model.util.Types
+import openjdk.source.tree.AssignmentTree
 import openjdk.source.tree.CatchTree
 import openjdk.source.tree.ClassTree
 import openjdk.source.tree.CompilationUnitTree
+import openjdk.source.tree.IdentifierTree
 import openjdk.source.tree.LambdaExpressionTree
 import openjdk.source.tree.MethodInvocationTree
 import openjdk.source.tree.MethodTree
@@ -58,6 +61,12 @@ internal fun thrownCheckedTypesIn(
 			unrenderable = true
 			return
 		}
+		// `throw e` in `catch (A | B e)` is typed as the union, not as either alternative, so
+		// dropping it here would leave the moved body throwing what nothing declares.
+		if (type.kind == TypeKind.UNION) {
+			(type as UnionType).alternatives.forEach { alternative -> record(alternative, sitePath) }
+			return
+		}
 		if (type.kind != TypeKind.DECLARED) return
 		if (runtimeException != null && types.isAssignable(type, runtimeException)) return
 		if (error != null && types.isAssignable(type, error)) return
@@ -66,17 +75,46 @@ internal fun thrownCheckedTypesIn(
 		if (text == null) unrenderable = true else rendered += text
 	}
 
+	collectThrownTypes(regionPaths, trees, types, elements) { type, sitePath -> record(type, sitePath) }
+
+	return if (unrenderable) null else rendered.toList()
+}
+
+/**
+ * Hands every type thrown under [regionPaths] to [sink], paired with the site that throws it.
+ *
+ * Nothing is filtered here. The caller decides what to keep, which is what lets a precise rethrow's
+ * types arrive at the `throw` that rethrows them and go through the same containment check as any
+ * other site.
+ */
+private fun collectThrownTypes(
+	regionPaths: List<TreePath>,
+	trees: Trees,
+	types: Types,
+	elements: Elements,
+	sink: (TypeMirror, TreePath) -> Unit,
+) {
 	fun consider(path: TreePath) {
 		when (val leaf = path.leaf) {
 			is MethodInvocationTree, is NewClassTree -> {
 				val element = runCatching { trees.getElement(path) }.getOrNull() as? ExecutableElement ?: return
-				element.thrownTypes.forEach { record(it, path) }
+				element.thrownTypes.forEach { sink(it, path) }
 			}
 
 			is ThrowTree -> {
+				// A rethrown catch parameter is precise (JLS 11.2.2): the enclosing method declares
+				// what the `try` block can throw and the clause catches, not the parameter's declared
+				// type. Those types are reported at this `throw` so the caller still sees them as
+				// thrown from here.
+				val precise = preciseRethrowSourceOf(path, leaf, trees)
+				if (precise != null) {
+					preciseRethrowTypesOf(precise, trees, types, elements).forEach { sink(it, path) }
+					return
+				}
+
 				val type =
 					runCatching { trees.getTypeMirror(TreePath(path, leaf.expression)) }.getOrNull() ?: return
-				record(type, path)
+				sink(type, path)
 			}
 
 			is TryTree -> {
@@ -84,7 +122,7 @@ internal fun thrownCheckedTypesIn(
 				leaf.resources.forEach { resource ->
 					val resourcePath = TreePath(path, resource)
 					val type = runCatching { trees.getTypeMirror(resourcePath) }.getOrNull() ?: return@forEach
-					closeThrownTypesOf(type, elements).forEach { record(it, resourcePath) }
+					closeThrownTypesOf(type, elements).forEach { sink(it, resourcePath) }
 				}
 			}
 
@@ -125,8 +163,135 @@ internal fun thrownCheckedTypesIn(
 		consider(path)
 		scanner.scan(path, null)
 	}
+}
 
-	return if (unrenderable) null else rendered.toList()
+/** The `try` a precise rethrow draws its types from, and the clause that narrows them. */
+private class PreciseRethrow(
+	val blockPath: TreePath,
+	val tryPath: TreePath,
+	val clausePath: TreePath,
+	val clause: CatchTree,
+)
+
+/**
+ * The types a precise rethrow can actually throw, per JLS 11.2.2: what the `try` block throws, kept
+ * only where the clause catches it and no earlier clause already did.
+ *
+ * Intersecting matters in both directions. Taking the block's types whole over-declares, since a
+ * clause narrower than the block leaves the call site handling what the rethrow cannot raise; taking
+ * the parameter's declared type instead is the over-declaration this whole path exists to remove.
+ */
+private fun preciseRethrowTypesOf(
+	precise: PreciseRethrow,
+	trees: Trees,
+	types: Types,
+	elements: Elements,
+): List<TypeMirror> {
+	val caught = caughtAlternativesOf(precise.clausePath, precise.clause, trees)
+	if (caught.isEmpty()) return emptyList()
+
+	val fromTry = mutableListOf<TypeMirror>()
+	collectThrownTypes(listOf(precise.blockPath), trees, types, elements) { type, _ -> fromTry += type }
+
+	return fromTry
+		.flatMap(::alternativesOf)
+		.filter { type -> caught.any { alternative -> types.isAssignable(type, alternative) } }
+		.filterNot { type -> caughtByPrecedingClause(type, precise, trees, types) }
+}
+
+/** A multi-catch's alternatives are separate types; anything else stands for itself. */
+private fun alternativesOf(type: TypeMirror): List<TypeMirror> = if (type is UnionType) type.alternatives.toList() else listOf(type)
+
+private fun caughtAlternativesOf(
+	clausePath: TreePath,
+	clause: CatchTree,
+	trees: Trees,
+): List<TypeMirror> {
+	val caught =
+		runCatching { trees.getTypeMirror(TreePath(clausePath, clause.parameter)) }.getOrNull() ?: return emptyList()
+	return alternativesOf(caught)
+}
+
+/** Whether a clause before [precise]'s own already takes [type], which keeps it out of the rethrow. */
+private fun caughtByPrecedingClause(
+	type: TypeMirror,
+	precise: PreciseRethrow,
+	trees: Trees,
+	types: Types,
+): Boolean {
+	val clauses = (precise.tryPath.leaf as? TryTree)?.catches ?: return false
+	val index = clauses.indexOfFirst { it === precise.clause }
+	if (index <= 0) return false
+	return clauses.take(index).any { earlier -> catchesType(type, precise.tryPath, earlier, trees, types) }
+}
+
+/**
+ * The `try` behind [throwTree] when it rethrows a caught parameter, or null when it does not.
+ *
+ * The climb passes through any clause that does not declare the thrown parameter, because JLS 11.2.2
+ * attaches precise rethrow to the clause that *declares* it: a `throw e` sitting inside a second,
+ * inner `catch` is still precise with respect to `e`'s own clause.
+ *
+ * A parameter reassigned in the clause is not effectively final, so javac does not apply precise
+ * rethrow to it and neither does this.
+ */
+private fun preciseRethrowSourceOf(
+	path: TreePath,
+	throwTree: ThrowTree,
+	trees: Trees,
+): PreciseRethrow? {
+	val thrown = throwTree.expression as? IdentifierTree ?: return null
+	val thrownElement =
+		runCatching { trees.getElement(TreePath(path, thrown)) }.getOrNull() ?: return null
+
+	var cursor: TreePath? = path
+	while (cursor != null) {
+		val leaf = cursor.leaf
+		if (leaf is CatchTree) {
+			val parameterElement =
+				runCatching { trees.getElement(TreePath(cursor, leaf.parameter)) }.getOrNull()
+			if (parameterElement == thrownElement) {
+				if (isReassignedIn(leaf, thrownElement, cursor, trees)) return null
+
+				val tryPath = cursor.parentPath ?: return null
+				val tryTree = tryPath.leaf as? TryTree ?: return null
+				return PreciseRethrow(
+					blockPath = TreePath(tryPath, tryTree.block),
+					tryPath = tryPath,
+					clausePath = cursor,
+					clause = leaf,
+				)
+			}
+		}
+		if (leaf is MethodTree || leaf is LambdaExpressionTree || leaf is ClassTree) return null
+		cursor = cursor.parentPath
+	}
+	return null
+}
+
+/** Whether [element] is assigned anywhere in [clause], which would cost it precise rethrow. */
+private fun isReassignedIn(
+	clause: CatchTree,
+	element: Element,
+	clausePath: TreePath,
+	trees: Trees,
+): Boolean {
+	var reassigned = false
+	object : TreePathScanner<Unit, Unit>() {
+		override fun visitAssignment(
+			node: AssignmentTree,
+			p: Unit?,
+		): Unit? {
+			val target = node.variable
+			if (target is IdentifierTree) {
+				val targetElement =
+					runCatching { trees.getElement(TreePath(currentPath, target)) }.getOrNull()
+				if (targetElement == element) reassigned = true
+			}
+			return super.visitAssignment(node, p)
+		}
+	}.scan(clausePath, null)
+	return reassigned
 }
 
 /**
