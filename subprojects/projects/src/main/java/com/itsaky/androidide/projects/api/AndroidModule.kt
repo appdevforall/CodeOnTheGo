@@ -266,6 +266,15 @@ open class AndroidModule(
 	 * @param moduleVisited Module paths already expanded across modules; threaded into cross-module
 	 * recursion so a cyclic PROJECT graph terminates.
 	 */
+	private fun logLostGraphEntry(nodeId: Int) {
+		log.warn(
+			"Dependency graph entry {} in module {} is out of range; the project cache looks damaged." +
+				" Re-sync the project if symbols fail to resolve.",
+			nodeId,
+			path,
+		)
+	}
+
 	private fun collectLibraries(
 		root: Workspace,
 		graph: AndroidModels.DependencyGraph,
@@ -280,10 +289,15 @@ open class AndroidModule(
 			/*
 			 * Indices come off disk. The nested form carried each key inline, so a damaged cache
 			 * cost a classpath entry; addressing by index would turn the same damage into an
-			 * IndexOutOfBoundsException out of a classpath getter, so skip instead.
+			 * IndexOutOfBoundsException out of a classpath getter, so skip instead. A silently
+			 * short classpath reads as phantom unresolved symbols, so say so in the log.
 			 */
 			val node = graph.nodeList.getOrNull(nodeId) ?: continue
-			val key = graph.keyList.getOrNull(node.keyId) ?: continue
+			val key = graph.keyList.getOrNull(node.keyId)
+			if (key == null) {
+				logLostGraphEntry(nodeId)
+				continue
+			}
 
 			// Guard against cyclic dependency graphs within this module: expand each graph node once.
 			if (!visited.add(key)) {
@@ -348,8 +362,13 @@ open class AndroidModule(
 			val graph = variantDependencies.mainArtifact.compileGraph
 			val libraryMap = variantDependencies.librariesMap
 			for (nodeId in graph.rootList) {
-				val node = graph.nodeList.getOrNull(nodeId) ?: continue
-				val key = graph.keyList.getOrNull(node.keyId) ?: continue
+				val node = graph.nodeList.getOrNull(nodeId)
+				val key = node?.let { graph.keyList.getOrNull(it.keyId) }
+				if (key == null) {
+					logLostGraphEntry(nodeId)
+					continue
+				}
+
 				val lib = libraryMap[key] ?: continue
 				if (lib.type != AndroidModels.LibraryType.Project) {
 					continue

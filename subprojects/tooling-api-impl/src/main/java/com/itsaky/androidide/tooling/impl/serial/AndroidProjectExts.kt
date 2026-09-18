@@ -134,10 +134,11 @@ fun ArtifactDependencies.asProtoModel() =
  *
  * AGP hands the dependency graph back as a tree: a node shared by several dependents is repeated
  * once per path, and each copy carries its own key string. On an 86-module project that expanded to
- * 786,554 nodes and 1,011,910 key strings covering 57,517 distinct values. Deduplicating by key and
- * interning the strings preserves every key and every edge, and consumers already expand each key at
- * most once, so their results are unchanged. The one thing the flat form cannot express is per-usage
- * requested coordinates -- see [AndroidModels.GraphNode].
+ * 786,554 nodes and 1,011,910 key strings covering 57,517 distinct values. Deduplicating by key
+ * keeps the first occurrence of each key and the edges recorded on it, which is what consumers see
+ * anyway: they already expand each key at most once, so their results are unchanged. What a later
+ * occurrence carried -- its requested coordinates, and its children if AGP ever emitted different
+ * ones for the same key -- is not represented; see [AndroidModels.GraphNode].
  */
 private class DependencyGraphBuilder {
 	/*
