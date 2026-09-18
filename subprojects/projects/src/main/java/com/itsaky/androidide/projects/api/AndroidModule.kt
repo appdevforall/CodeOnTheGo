@@ -144,7 +144,6 @@ open class AndroidModule(
 		excludeSourceGeneratedClassPath: Boolean,
 		visited: MutableSet<String>,
 	): Set<File> {
-		reportedGraphDamage = false
 		val project = IProjectManager.getInstance().workspace ?: return emptySet()
 
 		// Guard against cyclic project-dependency graphs: contribute each module's classpaths at most
@@ -152,6 +151,9 @@ open class AndroidModule(
 		if (!visited.add(path)) {
 			return emptySet()
 		}
+
+		// After the guard: a cyclic re-entry must not clear the flag while the outer walk is running.
+		reportedGraphDamage = false
 
 		val result = mutableSetOf<File>()
 		if (excludeSourceGeneratedClassPath) {
@@ -253,7 +255,13 @@ open class AndroidModule(
 		return result
 	}
 
-	/** Whether the current traversal has already reported a damaged dependency-graph index. */
+	/**
+	 * Whether the current traversal has already reported a damaged dependency-graph index.
+	 *
+	 * Deliberately unsynchronised: two concurrent classpath computations can at worst cost one
+	 * extra log line, which is not worth a lock on this path.
+	 */
+	@Volatile
 	private var reportedGraphDamage = false
 
 	/**
@@ -357,7 +365,6 @@ open class AndroidModule(
 		visited: MutableSet<String>,
 		recursionPath: ArrayDeque<String>,
 	): List<ModuleProject> {
-		reportedGraphDamage = false
 		val root = IProjectManager.getInstance().workspace ?: return emptyList()
 
 		// True cycle: this module is already an ancestor on the current recursion path
@@ -371,6 +378,9 @@ open class AndroidModule(
 		if (!visited.add(path)) {
 			return emptyList()
 		}
+
+		// After the guard: a cyclic re-entry must not clear the flag while the outer walk is running.
+		reportedGraphDamage = false
 
 		recursionPath.addLast(path)
 		try {

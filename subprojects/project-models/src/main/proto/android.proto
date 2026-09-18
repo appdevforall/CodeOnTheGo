@@ -39,6 +39,9 @@ message GraphNode {
    * Requested coordinates are a property of a usage, not of the resolved artifact, so where several
    * dependents request the same artifact at different coordinates this records only the occurrence
    * the flattening reached first.
+   *
+   * Check presence before reading: unset reads back as 0, which is also a valid index into
+   * [DependencyGraph.requestedCoordinates].
    */
   optional uint32 requestedCoordinatesId = 2;
 
