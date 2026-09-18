@@ -77,8 +77,28 @@ private const val KT_COMPLETION_PLACEHOLDER = "KT_COMPLETION_PLACEHOLDER"
 
 private val logger = LoggerFactory.getLogger("KotlinCompletions")
 
-/** Max unimported symbols pulled from each index for scope completion (see [collectUnimportedSymbols]). */
-private const val UNIMPORTED_SYMBOL_LIMIT = 100
+/**
+ * Max unimported symbols [collectUnimportedSymbols] adds to one completion result, across every
+ * index rather than per index.
+ *
+ * This counts items the user is actually offered. It used to be the query limit, which counted rows
+ * fetched -- so a prefix whose first rows were all rejected by the package, visibility or kind
+ * filters produced nothing while valid matches sat just past the limit.
+ */
+private const val UNIMPORTED_SYMBOL_DISPLAY_LIMIT = 100
+
+/**
+ * Rows each index may return before filtering, sized so ordinary filtering cannot starve the
+ * result.
+ *
+ * Measured against kotlin-stdlib 2.3.0 (8,704 indexed symbols): 29% of entries are member-level
+ * callables, which [buildUnimportedSymbolItem] drops outright, and the worst realistic prefix of
+ * those probed (`get`) kept only 80 of 236 matches -- a 34% survival rate before the package and
+ * visibility filters even run. Three times the display limit covers that worst case; the package
+ * and visibility filters then eat into the margin. It is deliberately not unbounded: an unrestricted
+ * prefix query over the symbol table runs on every keystroke.
+ */
+private const val UNIMPORTED_SYMBOL_FETCH_BUDGET = 3 * UNIMPORTED_SYMBOL_DISPLAY_LIMIT
 
 /**
  * The [ScheduledCancelChecker] for the completion running on this thread, set for the duration of
@@ -412,10 +432,10 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
 	val useSiteModule = this.useSiteModule
 	val visibilityChecker = env.symbolVisibilityChecker
 
-	fun addCompletionItem(symbol: JvmSymbol) {
+	fun addCompletionItem(symbol: JvmSymbol): Boolean {
 		abortIfCancelled()
 
-		if (symbol.packageName == currentPackage) return
+		if (symbol.packageName == currentPackage) return false
 
 		val isVisible =
 			visibilityChecker.isVisible(
@@ -424,22 +444,60 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
 				useSitePackage = currentPackage,
 			)
 
-		if (!isVisible) return
+		if (!isVisible) return false
 
-		buildUnimportedSymbolItem(symbol)?.let { to += it }
+		val item = buildUnimportedSymbolItem(symbol) ?: return false
+		to += item
+		return true
 	}
 
-	env.libraryIndex
-		?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
-		?.forEach(::addCompletionItem)
+	/*
+	 * Source first, library last. One shared cap across the indexes means whichever is queried last
+	 * loses when the cap binds, and a symbol from the user's own project is likelier to be the one
+	 * they are reaching for than one from a dependency.
+	 */
+	val indexes = listOfNotNull(env.sourceIndex, env.generatedIndex, env.libraryIndex)
 
-	env.sourceIndex
-		?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
-		?.forEach(::addCompletionItem)
+	collectUpToLimit(
+		limit = UNIMPORTED_SYMBOL_DISPLAY_LIMIT,
+		sources = indexes.map { index -> { index.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_FETCH_BUDGET) } },
+		accept = ::addCompletionItem,
+	)
+}
 
-	env.generatedIndex
-		?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
-		?.forEach(::addCompletionItem)
+/**
+ * Offers items from [sources] in order to [accept], stopping once [limit] of them have been
+ * accepted, and returns how many were.
+ *
+ * The limit counts *accepted* items, which is the whole point: capping the fetch instead lets
+ * rejected entries consume the budget, so a query whose leading rows are all filtered out yields
+ * nothing while valid matches sit just beyond the cap.
+ *
+ * Sources are suppliers, not sequences, because `SQLiteIndex.query` runs its query and collects the
+ * rows before returning -- the sequence it hands back is already a list. Taking a supplier is what
+ * keeps a source that the limit makes unnecessary from being queried at all; how many rows a source
+ * fetches when it is reached remains the job of the limit passed to the query itself.
+ */
+internal fun <T> collectUpToLimit(
+	limit: Int,
+	sources: List<() -> Sequence<T>>,
+	accept: (T) -> Boolean,
+): Int {
+	var accepted = 0
+	for (source in sources) {
+		if (accepted >= limit) {
+			break
+		}
+		for (item in source()) {
+			if (accepted >= limit) {
+				break
+			}
+			if (accept(item)) {
+				accepted++
+			}
+		}
+	}
+	return accepted
 }
 
 context(ctx: AnalysisContext)
