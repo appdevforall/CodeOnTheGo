@@ -153,8 +153,13 @@ class TsAnalyzeWorker(
       }
       resourcesClosed = true
 
-      document.close()
-      analyzerContext.close()
+      try {
+        document.close()
+      } catch (err: Throwable) {
+        log.error("Failed to close Tree-sitter document", err)
+      } finally {
+        analyzerContext.close()
+      }
     }
   }
 
