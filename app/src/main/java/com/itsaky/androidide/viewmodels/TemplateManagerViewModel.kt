@@ -3,6 +3,7 @@ package com.itsaky.androidide.viewmodels
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.repositories.TemplateReplaceConflictException
 import com.itsaky.androidide.repositories.TemplateRepository
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
@@ -42,7 +43,7 @@ class TemplateManagerViewModel(
 		when (event) {
 			is TemplateManagerUiEvent.LoadTemplates -> loadTemplates()
 			is TemplateManagerUiEvent.InstallTemplate -> installTemplate(event.item)
-			is TemplateManagerUiEvent.UninstallTemplate -> uninstallTemplate(event.item)
+			is TemplateManagerUiEvent.UninstallTemplate -> showUninstallConfirmation(event.item)
 			is TemplateManagerUiEvent.DeleteDownloadFile -> showDeleteConfirmation(event.item)
 			is TemplateManagerUiEvent.ShowTemplateDetails -> showTemplateDetails(event.item)
 			is TemplateManagerUiEvent.ShowTemplateList -> showTemplateList(event.item)
@@ -101,11 +102,26 @@ class TemplateManagerViewModel(
 		}
 	}
 
-	private fun uninstallTemplate(item: CgtFileItem) {
+	private fun showUninstallConfirmation(item: CgtFileItem) {
+		viewModelScope.launch {
+			_uiEffect.send(TemplateManagerUiEffect.ShowUninstallConfirmation(item))
+		}
+	}
+
+	/**
+	 * Uninstalls [item] (called after [TemplateManagerUiEffect.ShowUninstallConfirmation] is
+	 * confirmed). A [TemplateReplaceConflictException] means a same-named file already sits in
+	 * Downloads; [ShowReplaceConfirmation][TemplateManagerUiEffect.ShowReplaceConfirmation] asks
+	 * whether to replace it, and a confirmed replace re-enters this with [overwrite] set.
+	 */
+	fun confirmUninstallTemplate(
+		item: CgtFileItem,
+		overwrite: Boolean = false,
+	) {
 		viewModelScope.launch {
 			_uiState.update { it.copy(isLoading = true) }
 			templateRepository
-				.uninstallTemplate(item)
+				.uninstallTemplate(item, overwrite)
 				.onSuccess {
 					Log.d(TAG, "Template uninstalled successfully: ${item.name}")
 					_uiEffect.send(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_uninstalled))
@@ -113,12 +129,16 @@ class TemplateManagerViewModel(
 				}.onFailure { exception ->
 					Log.e(TAG, "Failed to uninstall template: ${item.name}", exception)
 					_uiState.update { it.copy(isLoading = false) }
-					_uiEffect.send(
-						TemplateManagerUiEffect.ShowError(
-							R.string.msg_template_uninstall_failed,
-							listOf(exception.message ?: ""),
-						),
-					)
+					if (exception is TemplateReplaceConflictException) {
+						_uiEffect.send(TemplateManagerUiEffect.ShowReplaceConfirmation(item))
+					} else {
+						_uiEffect.send(
+							TemplateManagerUiEffect.ShowError(
+								R.string.msg_template_uninstall_failed,
+								listOf(exception.message ?: ""),
+							),
+						)
+					}
 				}
 		}
 	}
