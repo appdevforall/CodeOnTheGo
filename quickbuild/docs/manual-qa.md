@@ -209,8 +209,14 @@ Expected:
 1. The save runs a real Gradle build, visibly longer than T2, and never hot-reloads.
 2. CoGo stays in the foreground.
 3. Narration reads "a full build is needed", then "rebuilding your app" - never "initial full build".
-4. The rebaseline relaunches the app itself - no tap is needed to get it running again.
-5. The following code save deploys onto that relaunched app, showing the new message.
+4. The rebaseline does not relaunch the app. The reinstall kills it, and a save is not a request
+   to see the app, so it stays closed. The status settles at READY, not DEPLOYED.
+5. The following code save builds, then reports "built - tap to start app". One tap starts the
+   app, showing the new message.
+
+Criterion 4 is deliberate, not a gap: only a rebuild you asked for with a Quick Build tap
+relaunches the app, so a save-triggered one cannot pull you out of the editor. See the
+`userAskOutstanding` gate in `ProxyAppBuildRunner.rebuildProxyApp`.
 
 ### T7b - A failed rebaseline recovers on save
 
@@ -535,12 +541,16 @@ Steps:
 2. Open `app/src/main/AndroidManifest.xml` and add, inside `<manifest>`,
    `<permission android:name="com.example.MY_PERM" />`.
 3. Save (Ctrl+S or the Save action). Change nothing else.
-4. In a source file, type `Manifest.permission.MY_PERM` (import `com.example.Manifest`, or the
-   project's applicationId) and wait for diagnostics to settle.
-5. Repeat step 3 on a Kotlin file with a whitespace-only edit.
+4. Repeat step 3 on a Kotlin file with a whitespace-only edit.
 
 Expected:
 
 1. After step 3 Build Output shows a Gradle generate-sources run, without a resource being saved.
-2. After step 4 the reference resolves with no "cannot find symbol" diagnostic.
-3. After step 5 no Gradle run appears: a source-only save still skips it.
+2. After step 4 no Gradle run appears: a source-only save still skips it.
+
+The editor-side symptom is currently unasserted. This case used to ask for
+`Manifest.permission.MY_PERM` to resolve after step 3, but AGP 9.3.1 emits no generated
+`Manifest` class at all - measured 2026-09-18, no `Manifest.*` anywhere under `app/build` - so
+that step failed for a reason unrelated to the save path. It needs a replacement proxy that
+works on AGP 9; until then this case checks only that the Gradle step runs and is skipped in
+the right cases.
