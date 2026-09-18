@@ -24,6 +24,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.checkerframework.checker.index.qual.NonNegative
@@ -602,9 +603,17 @@ internal fun KtSymbolIndex.subpackageNames(packageFqn: String) = fileIndex.getSu
  * [org.appdevforall.codeonthego.indexing.api.ReadableIndex.query] ("If IndexQuery.limit is 0, all
  * matches are emitted"). A plain `take(limit)` would turn the common `limit = 0` call into
  * `take(0)`, silently yielding no results.
+ *
+ * The limit is passed to each index rather than applied only to the concatenation. Applying it
+ * afterwards made every call fetch both indexes in full, so a caller asking for ten paid for all of
+ * them. [kinds] narrows the fetch for the same reason: an exact-name lookup otherwise returns every
+ * method and field that happens to share the name.
  */
 internal fun KtSymbolIndex.findSymbolBySimpleName(
 	name: String,
 	limit: Int,
-) = (sourceIndex.findBySimpleName(name, 0) + libraryIndex.findBySimpleName(name, 0))
-	.let { if (limit <= 0) it else it.take(limit) }
+	kinds: Set<JvmSymbolKind>? = null,
+) = (
+	sourceIndex.findBySimpleName(name, limit, kinds) +
+		libraryIndex.findBySimpleName(name, limit, kinds)
+).let { if (limit <= 0) it else it.take(limit) }

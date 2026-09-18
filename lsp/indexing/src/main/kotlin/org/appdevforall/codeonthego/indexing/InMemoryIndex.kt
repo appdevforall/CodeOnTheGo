@@ -183,6 +183,12 @@ class InMemoryIndex<T : Indexable>(
 				candidates = intersect(candidates, fieldMap[value])
 			}
 
+			for ((field, values) in query.anyOf) {
+				val fieldMap = fieldMaps[field] ?: return@read emptySequence()
+				val matching = values.flatMapTo(mutableSetOf()) { fieldMap[it].orEmpty() }
+				candidates = intersect(candidates, matching)
+			}
+
 			for ((field, prefix) in query.prefixMatch) {
 				val buckets = prefixBuckets[field]
 				val matching: Set<String> =
