@@ -176,6 +176,10 @@ private class DependencyGraphBuilder {
 	 * The index is reserved before the children are walked, so a cyclic graph terminates.
 	 */
 	private fun nodeIdOf(item: GraphItem): Int {
+		/*
+		 * Empty requested coordinates are treated as absent: AGP's own default is an empty string,
+		 * and interning it would report the field as present against the proto's presence contract.
+		 */
 		nodeIds[item.key]?.let { return it }
 
 		val id = nodes.size
@@ -186,7 +190,7 @@ private class DependencyGraphBuilder {
 			GraphNode(
 				keyId = id,
 				requestedCoordinatesId =
-					item.requestedCoordinates?.let { coordinates ->
+					item.requestedCoordinates?.takeIf { it.isNotEmpty() }?.let { coordinates ->
 						requestedCoordinates.getOrPut(coordinates) { requestedCoordinates.size }
 					},
 				dependencyList = item.dependencies.map(::nodeIdOf),

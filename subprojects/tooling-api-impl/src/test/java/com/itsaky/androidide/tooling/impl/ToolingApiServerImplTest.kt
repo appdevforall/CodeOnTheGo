@@ -226,6 +226,9 @@ class ToolingApiServerImplTest {
 		every { RootModelBuilder.build(any(), any()) } returns cacheFile
 
 		mockkObject(ProjectSyncHelper)
+
+		// The overload the server actually calls, so the stub does not ride on internal delegation.
+		every { ProjectSyncHelper.areSyncFilesReadable(any<File>()) } returns true
 		every { ProjectSyncHelper.areSyncFilesReadable(any(), any()) } returns true
 
 		// The cache is present and readable, and only the stored schema version rules it out.
