@@ -144,7 +144,8 @@ fun ArtifactDependencies.asProtoModel() =
  * Differing children per occurrence would matter, because the classpath consumer prunes a subtree
  * whose key has no Library entry while this builder walks it regardless. AGP does not produce that:
  * FullDependencyGraphBuilder.handleDependency memoises on a Map<ResolvedVariantResult, GraphItem>
- * and hands back the same instance for every occurrence, so one key always carries one child list.
+ * and hands back the same instance for every occurrence. The key is derived from that same variant,
+ * so one key resolves to one instance, and therefore to one child list.
  */
 private class DependencyGraphBuilder {
 	/*

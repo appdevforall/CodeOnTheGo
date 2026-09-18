@@ -559,7 +559,8 @@ object ProjectSyncHelper {
 		val hashResults = computeHashes(needsHash)
 		for ((draft, computedSha) in hashResults) {
 			val stored = storedMap[draft.relativePath] ?: continue
-			if (stored.sha256 == null) {
+			// sha256 is an optional string, so an absent one reads back as empty, never as null.
+			if (stored.sha256.isEmpty()) {
 				// stored metadata didn't have sha256, so we can't compare
 				// require sync
 				logger.debug(
