@@ -46,7 +46,7 @@ So a refactoring in `lsp/kotlin` either renders its own UI, or a new inversion m
 
 ## Revision: a shared `:lsp:ui` for UI that serves two languages
 
-- **Date:** 2026-09-05
+- **Date:** 2026-09-18
 - **Tickets:** ADFA-5047 (extract variable), ADFA-5048 (extract method)
 
 The decision above anticipated its own revisit: *"If three or more `lsp/*` modules end up with Compose UI, extracting a shared UI module becomes worthwhile"*, and *"Reconsider once extract-method and inline-variable have landed and the UI surface is known"*. Both refactorings have now landed in both languages, and the trigger turned out to be duplication between two modules rather than a third one appearing.
@@ -57,6 +57,10 @@ The decision above anticipated its own revisit: *"If three or more `lsp/*` modul
 - Language-specific wording stays with the language. `NameMessages` and the keyword set are passed in, because two of the four name-problem strings name the language ("Not a valid Java name") and a shared lookup would show a Java user Kotlin's wording.
 - The extract-method signature preview crosses the boundary as a **prefix and a suffix around the name**, not a rendered string: the preview follows what the user types, and each language keeps one derivation shared with its own edit builder.
 - `lsp/kotlin` keeps `InlineVariableSheet`, which has no Java counterpart, under the original decision.
+
+The "three or more Compose `lsp/*` modules" trigger in Consequences is superseded by this: the
+shared module now exists, so a new interactive refactoring renders through `:lsp:ui` instead of
+adding Compose to its own `lsp/*` module.
 
 Everything else in this ADR stands unchanged: the plain-data plan boundary, the `BottomSheetDialogFragment` hosting a `ComposeView`, the `ContextWrapper` walk for a `FragmentActivity`, and ADR 0009's UDF shape. The costs listed above are unchanged too, except that Compose now sits in one shared module rather than being added to each language server in turn.
 

@@ -343,6 +343,17 @@ class ExtractMethodPlanTest {
 		assertThat(plan.refusal).isEqualTo(ExtractionRefusal.NotASingleRegion)
 	}
 
+	@Test
+	fun `neither declarator of a multi-declarator local can be extracted`() {
+		val f =
+			fixture(
+				"""	void m() {${'\n'}		int a = 1, b = 2;${'\n'}		use(a);${'\n'}		use(b);${'\n'}	}""",
+			)
+
+		assertThat(f.methodPlanOver("b = 2").refusal).isEqualTo(ExtractionRefusal.NotASingleRegion)
+		assertThat(f.methodPlanOver("int a = 1").refusal).isEqualTo(ExtractionRefusal.NotASingleRegion)
+	}
+
 	// --- names (R12) ---
 
 	@Test

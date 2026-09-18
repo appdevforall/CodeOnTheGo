@@ -136,7 +136,12 @@ class JavacFixture(
 		val rewrites = buildExtractMethodRewrites(plan.fileText, candidate, name) ?: error("no rewrite for '$name'")
 		var result = text
 		// Descending, as the language client applies them: an earlier edit must not shift a later one.
-		rewrites.sortedByDescending { it.span.start }.forEach { rewrite ->
+		// Asserted rather than imposed -- re-sorting here would keep every caller green if the
+		// production sort were dropped.
+		check(rewrites == rewrites.sortedByDescending { it.span.start }) {
+			"rewrites are not in descending document order: ${rewrites.map { it.span.start }}"
+		}
+		rewrites.forEach { rewrite ->
 			result = result.substring(0, rewrite.span.start) + rewrite.newText + result.substring(rewrite.span.end)
 		}
 		return result

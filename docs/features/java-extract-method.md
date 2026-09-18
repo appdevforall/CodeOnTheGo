@@ -296,10 +296,17 @@ Unit tests in `:lsp:java` and `:lsp:ui`, mirroring the extract-variable split so
 
 ```bash
 flox activate -d flox/local -- ./gradlew \
-  :lsp:java:testV7DebugUnitTest --tests "com.itsaky.androidide.lsp.java.refactor.*" \
+  :lsp:java:testV7DebugUnitTest \
+    --tests "com.itsaky.androidide.lsp.java.refactor.*" \
+    --tests "com.itsaky.androidide.lsp.java.actions.*" \
   :lsp:ui:testV7DebugUnitTest :lsp:refactor-core:testV7DebugUnitTest \
   :lsp:kotlin:testV7DebugUnitTest --tests "com.itsaky.androidide.lsp.kotlin.utils.refactor.*"
 ```
+
+Both packages are needed. `JavaCodeActionTooltipTagTest` lives in `...lsp.java.actions` and asserts
+over every entry in `JavaCodeActionsMenu`, so a filter covering only `refactor` passes while the
+menu entry this feature adds breaks the suite. `AddImportTest` in the same package boots the
+tooling API in `setup()` and fails on a machine without it; that failure is environmental.
 
 The `--tests` filter is not optional on `:lsp:java`: its unqualified suite includes the Robolectric `JavaLSPTest` harness, which boots the Gradle tooling API in a separate process and exceeds the task's 10-minute timeout on a developer machine. The refactor package needs none of it. `JavacFixture` already gives one hermetic attributed compile of a source string with no project model, and `compiles(source)` already answers whether a rewritten file still compiles.
 

@@ -108,6 +108,7 @@ class ExtractMethodAction : BaseJavaCodeAction() {
 			) { selection -> applySelection(data, result, selection) }
 		if (!shown) {
 			log.warn("Fragment manager unavailable. Cannot show the extract sheet.")
+			flashError(R.string.msg_cannot_perform_fix)
 		}
 	}
 
