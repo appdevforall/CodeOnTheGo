@@ -27,6 +27,9 @@ import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 import kotlin.collections.iterator
 import kotlin.io.path.outputStream
 import kotlin.io.path.pathString
@@ -47,6 +50,19 @@ object ProjectSyncHelper {
 	const val SYNC_META_VERSION = "2"
 
 	private val logger = LoggerFactory.getLogger(ProjectSyncHelper::class.java)
+
+	/**
+	 * Per-lock-file mutex, keyed by the lock file's absolute path.
+	 *
+	 * Closing any channel on a file releases every lock the JVM holds on that file, so two threads
+	 * must never hold overlapping channels on one sync lock file -- the second one's close would
+	 * silently drop the first one's lock. `FileChannel.tryLock` cannot express that (it throws on a
+	 * same-JVM overlap), so in-process contention is settled here, before a channel is opened.
+	 */
+	private val inProcessLocks = ConcurrentHashMap<String, Semaphore>()
+
+	/** The in-process mutex held on behalf of each acquired channel, released when it is closed. */
+	private val heldLocks = ConcurrentHashMap<FileChannel, Semaphore>()
 	private val hashDispatcher =
 		Dispatchers.Default.limitedParallelism(Runtime.getRuntime().availableProcessors())
 
@@ -127,40 +143,56 @@ object ProjectSyncHelper {
 	): FileChannel? {
 		val lockFile = projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_LOCK_FILE)
 		Files.createDirectories(lockFile.parent)
-		val channel =
-			FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
-		val start = System.currentTimeMillis()
-		while (System.currentTimeMillis() - start < timeoutMs) {
-			val lock =
-				try {
-					channel.tryLock()
-				} catch (_: OverlappingFileLockException) {
-					/*
-					 * Another thread in this JVM holds an overlapping lock. tryLock throws here
-					 * instead of returning null, so treat it as a failed attempt and retry until
-					 * the holder releases.
-					 */
-					null
-				} catch (err: IOException) {
-					logger.warn("Failed to acquire the sync lock", err)
-					channel.close()
-					return null
-				}
 
-			if (lock != null) return channel
-			Thread.sleep(50)
+		val inProcessLock = inProcessLocks.computeIfAbsent(lockFile.toAbsolutePath().pathString) { Semaphore(1) }
+		if (!inProcessLock.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS)) {
+			return null
 		}
 
-		// Locking failed
-		channel.close()
-		return null
+		var pending: FileChannel? = null
+		try {
+			val channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
+			pending = channel
+
+			val start = System.currentTimeMillis()
+			while (System.currentTimeMillis() - start < timeoutMs) {
+				if (channel.tryLock() != null) {
+					pending = null
+					heldLocks[channel] = inProcessLock
+					return channel
+				}
+				Thread.sleep(50)
+			}
+
+			return null
+		} catch (err: InterruptedException) {
+			Thread.currentThread().interrupt()
+			return null
+		} catch (err: OverlappingFileLockException) {
+			// The semaphore above should have made this unreachable; report it rather than spin.
+			logger.warn("Sync lock is already held by this process", err)
+			return null
+		} catch (err: IOException) {
+			logger.warn("Failed to acquire the sync lock", err)
+			return null
+		} finally {
+			pending?.let { channel ->
+				channel.close()
+				inProcessLock.release()
+			}
+		}
 	}
 
 	/**
 	 * Release the sync lock.
 	 */
 	fun releaseSyncLock(channel: FileChannel?) {
-		channel?.close()
+		channel ?: return
+		try {
+			channel.close()
+		} finally {
+			heldLocks.remove(channel)?.release()
+		}
 	}
 
 	/**
@@ -296,12 +328,13 @@ object ProjectSyncHelper {
 			readSyncMeta(syncMetaFile).metaVersion == SYNC_META_VERSION
 		} catch (err: CancellationException) {
 			throw err
-		} catch (err: Exception) {
+		} catch (err: Throwable) {
 			/*
-			 * A corrupt file surfaces as an InvalidProtocolBufferException, an IOException. The
-			 * catch is wider than that because this runs inside checkSyncNeeded's own failure
-			 * handling, where an escaping exception crashes the project open rather than
-			 * resyncing it. An Error is not ours to answer, so it is left to propagate.
+			 * A corrupt file normally surfaces as an InvalidProtocolBufferException, but the catch
+			 * is deliberately total: this runs inside checkSyncNeeded's own failure handling, whose
+			 * callers rethrow anything but FileNotFoundException, so an escape here crashes the
+			 * project open instead of resyncing it. A parse that OOMs on a bogus length prefix is
+			 * exactly the case a resync recovers from.
 			 */
 			logger.warn("Failed to read sync metadata file: {}", syncMetaFile, err)
 			false
@@ -312,9 +345,10 @@ object ProjectSyncHelper {
 	 *
 	 * Not a pure query: once the metadata has been read, files it shows to be unusable -- corrupt,
 	 * or written by a schema version other than [SYNC_META_VERSION] -- are deleted, because they
-	 * would otherwise parse into a silently empty model. Files that are missing or unreadable in
-	 * the first place are left alone; the resync overwrites them. Deletion failures are logged,
-	 * never thrown.
+	 * would otherwise parse into a silently empty model. The same discard runs when the metadata is
+	 * missing or unparseable, which leaves a cache nothing can vouch for. Only the case where both
+	 * files are already missing or unreadable skips it, since there is nothing to delete. Deletion
+	 * failures are logged, never thrown.
 	 *
 	 * @param projectDir The project directory.
 	 * @return `true` if a sync is needed, `false` otherwise.
@@ -347,7 +381,7 @@ object ProjectSyncHelper {
 				return true
 			} catch (err: CancellationException) {
 				throw err
-			} catch (err: Exception) {
+			} catch (err: Throwable) {
 				logger.warn("NEED_SYNC: failed to read sync metadata file", err)
 				discardSyncFiles(projectDir)
 				return true
@@ -471,12 +505,12 @@ object ProjectSyncHelper {
 				}
 			} catch (err: CancellationException) {
 				throw err
-			} catch (err: Exception) {
+			} catch (err: Throwable) {
 				/*
 				 * Creating or opening the lock file fails on a read-only volume, and the re-read
 				 * under the lock can fail on a corrupt file. Callers treat checkSyncNeeded as a
 				 * boolean query and rethrow anything else, so letting either escape would crash
-				 * the project open instead of resyncing it. An Error is left to propagate.
+				 * the project open instead of resyncing it.
 				 */
 				logger.warn("Failed to discard the stale sync files", err)
 			}
