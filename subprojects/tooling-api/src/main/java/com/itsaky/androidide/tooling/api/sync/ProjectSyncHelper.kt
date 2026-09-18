@@ -28,6 +28,8 @@ import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.Collections
+import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
@@ -62,8 +64,15 @@ object ProjectSyncHelper {
 	 */
 	private val inProcessLocks = ConcurrentHashMap<String, Semaphore>()
 
-	/** The in-process mutex held on behalf of each acquired channel, released when it is closed. */
-	private val heldLocks = ConcurrentHashMap<FileChannel, Semaphore>()
+	/**
+	 * The in-process mutex held on behalf of each acquired channel, released when it is closed.
+	 *
+	 * Weakly keyed: a caller that drops a channel without releasing it can still have the channel
+	 * collected, which closes the descriptor and frees the file lock. A strong map would pin it for
+	 * the life of the process.
+	 */
+	private val heldLocks: MutableMap<FileChannel, Semaphore> =
+		Collections.synchronizedMap(WeakHashMap())
 	private val hashDispatcher =
 		Dispatchers.Default.limitedParallelism(Runtime.getRuntime().availableProcessors())
 
@@ -168,16 +177,24 @@ object ProjectSyncHelper {
 		try {
 			channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
 
-			while (System.currentTimeMillis() < deadline) {
+			/*
+			 * At least one attempt always runs. A semaphore wait that consumed the whole budget
+			 * means the previous holder just handed the lock over, so giving up without trying
+			 * would throw away a sync that was about to succeed.
+			 */
+			while (true) {
 				if (channel.tryLock() != null) {
 					heldLocks[channel] = inProcessLock
 					releasePermit = false
 					return channel
 				}
+
+				if (System.currentTimeMillis() >= deadline) {
+					return null
+				}
+
 				Thread.sleep(50)
 			}
-
-			return null
 		} catch (err: InterruptedException) {
 			Thread.currentThread().interrupt()
 			return null
