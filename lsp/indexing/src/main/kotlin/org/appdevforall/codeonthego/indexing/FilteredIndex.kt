@@ -60,9 +60,19 @@ open class FilteredIndex<T : Indexable>(
 	open fun activeSources(): Set<String> = activeSources.toSet()
 
 	/**
+	 * The source IDs whose entries are visible, or `null` if every source is.
+	 *
+	 * This, rather than [isActive], is the point to override to change what the filter admits.
+	 * Scoping is pushed into the query, so the filter has to be able to *describe* its scope and not
+	 * merely test one ID against it -- an override of [isActive] alone could not be honoured, and
+	 * would silently hide every entry instead.
+	 */
+	protected open fun visibleSourceIds(): Collection<String>? = activeSources
+
+	/**
 	 * Returns true if the source is currently active (visible).
 	 */
-	open fun isActive(sourceId: String): Boolean = sourceId in activeSources
+	fun isActive(sourceId: String): Boolean = visibleSourceIds()?.contains(sourceId) ?: true
 
 	/**
 	 * Returns true if the source exists in the backing index,
@@ -72,12 +82,27 @@ open class FilteredIndex<T : Indexable>(
 	 */
 	open suspend fun isCached(sourceId: String): Boolean = backing.containsSource(sourceId)
 
-	override fun query(query: IndexQuery): Sequence<T> {
-		if (query.sourceId != null && !isActive(query.sourceId)) {
-			return emptySequence()
+	override fun query(query: IndexQuery): Sequence<T> = backing.query(scopedToActive(query))
+
+	/**
+	 * Narrows [query] to the active sources by rewriting its scope, rather than by filtering the
+	 * rows it returns.
+	 *
+	 * Filtering afterwards is wrong whenever the query is limited: the backing index applies the
+	 * limit first, so a page full of inactive rows yields nothing even though matches exist. Pushing
+	 * the active set into the query makes the limit count only rows the caller can actually see.
+	 */
+	private fun scopedToActive(query: IndexQuery): IndexQuery {
+		val visible = visibleSourceIds()?.toSet() ?: return query
+
+		if (query.sourceId != null) {
+			// Already as narrow as a scope gets: it either survives the active set or matches nothing.
+			return if (query.sourceId in visible) query else query.copy(sourceIds = emptyList())
 		}
-		val original = backing.query(query)
-		return original.filter { isActive(it.sourceId) }
+
+		val requested = query.sourceIds
+		val scoped = requested?.filter { it in visible } ?: visible
+		return query.copy(sourceIds = scoped)
 	}
 
 	override suspend fun get(key: String): T? {

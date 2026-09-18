@@ -88,7 +88,7 @@ class IndexWorkerBatchRemovalTest {
 		val counting = CountingIndex(backing)
 		val index =
 			object : JvmSymbolIndex(counting, BackgroundIndexer(counting)) {
-				override fun isActive(sourceId: String): Boolean = true
+				override fun visibleSourceIds(): Collection<String>? = null
 			}
 		return counting to index
 	}
