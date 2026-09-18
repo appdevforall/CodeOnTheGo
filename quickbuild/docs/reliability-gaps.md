@@ -1,21 +1,29 @@
-# Decision: do the open Quick Build recovery gaps block v1?
+# Decision: the open Quick Build recovery gaps do not block v1
 
-**Decision: do #87, #89, #91 and the relink-crash recovery gap block v1? Proposed: no - all go to
-v1.1.** Correctness is not at risk in any of them - the never-stale invariant holds throughout.
+**Decision: no - #87, #91 and the relink-crash recovery gap go to v1.1.** Confirmed 2026-08-25;
+the decision as recorded then also covered #89, whose cited mechanisms have since been closed on
+this branch (see its section - still no device repro on either side of the fix). Correctness is
+not at risk in any of them - the never-stale invariant holds
+throughout.
 What is at stake is trust: a live reload path that goes slow, dead, or quiet. The rest of this page
 is the evidence for that call, one section per gap - symptom, root cause with file references,
 likely fix.
 
-Device testing (2026-07-25..28) surfaced five user-facing defects. Three are fixed on this branch
-(see the last section, which also closes the relink-stuck gap); three are open, alongside the
-relink-crash recovery gap.
+Device testing (2026-07-25..28) plus code reading surfaced **seven** user-facing defects. **Four
+are fixed on this branch** - the relink-stuck gap, #88 and #90 in the last section, and #89 in its
+own. **Three are open**: #87, #91 and the relink-crash recovery gap, which are the three this
+decision covers.
+
+The table below lists the three open gaps plus relink-stuck and #89, whose fixes are what closed
+them; #88 and #90 appear only in the last section. `Blocks v1?` reads `No` on all three open gaps -
+they are scheduled for v1.1.
 
 | Gap | What the user sees | Frequency | Blocks v1? |
 | --- | --- | --- | --- |
-| #89 | Red-alert icon; tapping Quick Build does nothing until "Restart session" | No device repro `[inferred]` | TBD |
-| #91 | Their own app crash is never surfaced; CoGo blames deploy infra | `[unmeasured]` | ADFA-5466 |
-| #87 | A one-line edit in a Room/KSP project runs a full ~200s rebuild + reinstall | 3/3 when attempted | TBD |
-| Relink crash | A reload that crashes the app repeats the crash at every process boot | Trigger fixed; net still absent | TBD |
+| #89 | Red-alert icon; tapping Quick Build does nothing until "Restart session" | No device repro `[inferred]` | No - fixed below |
+| #91 | Their own app crash is never surfaced; CoGo blames deploy infra | `[unmeasured]` | No - v1.1 (ADFA-5466) |
+| #87 | A one-line edit in a Room/KSP project runs a full ~200s rebuild + reinstall | 3/3 when attempted | No - v1.1 |
+| Relink crash | A reload that crashes the app repeats the crash at every process boot | Trigger fixed; net still absent | No - v1.1 |
 | Relink stuck | A failed relink re-fails on every later save until a gradle-file touch | `[unmeasured]` | No - fixed below |
 
 Provenance: `[measured on a56]` = Samsung A56. Untagged prose is code reading against `75483b6eb`.
@@ -26,7 +34,7 @@ Provenance: `[measured on a56]` = Samsung A56. Untagged prose is code reading ag
 flowchart LR
     A[Ready] -->|daemon dies| E[Degraded]
     E -->|respawn ok| A
-    E -->|respawn fails silently| F["Stuck: taps do nothing - #89"]
+    E -->|respawn fails| F["Failure surfaced; tap retries - #89 fixed"]
     E -->|annotation-processor project| H["Escalates to full rebuild - #87"]
     A -->|proxy app crashes on its own| G["Crash undetected - #91"]
     A -->|relink fails twice on the pipeline| V["Escalates to a proxy app rebuild - fixed"]
@@ -34,20 +42,29 @@ flowchart LR
     A -->|reload crashes on recreate| P["Poisoned generation reapplied - relink crash"]
 ```
 
-## #89 - a failed daemon respawn strands the session; taps do nothing
+## #89 - a failed daemon respawn stranded the session - fixed on this branch
 
-- **Root cause:** a respawn has two silent exits - superseded before start and mid-start
-  (`QuickBuildDaemonController.kt:121-133`, log-only) - whose caller arm in `respawnDaemon()` is a
-  bare no-op (`QuickBuildSessionManager.kt:905-907`), so neither ever dispatches `DaemonRespawned`;
-  and `reduceDegraded` has no arm for `QuickBuildTapped` (`SessionReducer.kt:374-408`), so the tap falls
-  into an empty-effects catch-all. `shrinkDaemonForMemory()` contributes: its guard is on `Building`
-  only, so in `Degraded` it bumps `daemonEpoch`, which is what makes an in-flight respawn discard
+- **Original finding** (against prototype `75483b6eb`): a respawn had two silent exits whose
+  caller arm was a bare no-op, so a failure never dispatched anything; `reduceDegraded` had no arm
+  for `QuickBuildTapped`, so the one recovery gesture fell into an empty-effects catch-all; and the
+  low-memory shrink path bumped `daemonEpoch` from `Degraded`, making an in-flight respawn discard
   itself.
-- **Evidence:** code reading only, no device repro. The swallowed tap is not race-dependent: any
-  time the session is Degraded, taps do nothing.
-- **Likely fix:** give `Degraded` a `QuickBuildTapped` arm re-issuing `RespawnDaemon`, guarded
-  against stacking respawns. Alternatives: explanatory text only; a mutex serializing the daemon
-  lifecycle (bigger, addresses the cause).
+- **All three mechanisms are closed in-stack** (code reading against the qb stack, 2026-09-01):
+  - `reduceDegraded` has a `QuickBuildTapped` arm: with no respawn in flight it re-issues
+    `RespawnDaemon`; with one in flight it acks with a message instead of racing it. Either way the
+    tap is never silent (`SessionReducer.kt`, landed with qb-08 + its review-fixes commit).
+  - A failed respawn now dispatches `DaemonRestartFailed` and surfaces
+    `QuickBuildMessage.DaemonRestartFailed`; the reducer marks `restartFailed` so the status stops
+    claiming a restart is under way and the next tap retries
+    (`QuickBuildSessionManager.respawnDaemon`, qb-08). The superseded exits remain deliberately
+    silent: the superseding respawn owns the lifecycle and reports for both.
+  - The trim-memory path was redesigned in qb-07: `QuickBuildDaemonController.onTrimMemory` defers
+    teardown via a pending flag and an intentional-transition mark; it never bumps the daemon
+    epoch, so it can no longer make a respawn discard itself.
+- **What remains:** no device repro existed before the fix and none exists after - the stranded
+  state was never reproduced on hardware, so the recovery arms are verified by host unit tests
+  only `[measured on host]`. A device walk of daemon-death recovery (kill the daemon, tap, watch
+  the retry narrate itself) is still owed to v1.1 QA.
 
 ## #91 - an organic proxy-app crash never reaches the crash surface
 

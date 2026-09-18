@@ -3,6 +3,7 @@
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
@@ -192,6 +193,46 @@ android {
 		targetCompatibility = JavaVersion.VERSION_17
 		isCoreLibraryDesugaringEnabled = true
 	}
+}
+
+// DoD coverage gate. Two path traps are baked in below; both fail silently rather
+// than erroring, so each is spelled out here to stop the next measurement repeating one.
+//
+// executionData: the root build attaches the jacoco agent to every Test task, but for an
+// Android module the exec lands under outputs/unit_test_code_coverage/<variant>UnitTest/,
+// not build/jacoco/. A report pointed at build/jacoco/ SKIPs and measures nothing.
+//
+// classDirectories: :app runs transformV8DebugClassesWithAsm, so the bytecode the tests
+// executed is NOT tmp/kotlin-classes/v8Debug. That path is right for the quickbuild
+// modules (they run no ASM transform) and wrong here: measured 2026-09-10 it makes 138
+// classes report "Execution data ... does not match" and count as fully uncovered, which
+// reads as a real coverage hole rather than a misconfiguration. The transformed dirs
+// below give 0 mismatches.
+tasks.register<JacocoReport>("jacocoTestReport") {
+	group = "verification"
+	description = "JaCoCo line+branch coverage for the v8Debug unit tests."
+	dependsOn("testV8DebugUnitTest")
+
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+	}
+
+	classDirectories.setFrom(
+		fileTree(
+			layout.buildDirectory.dir(
+				"intermediates/classes/v8Debug/transformV8DebugClassesWithAsm/dirs",
+			),
+		) {
+			exclude("**/BuildConfig*")
+		},
+	)
+	sourceDirectories.setFrom(files("src/main/java"))
+	executionData.setFrom(
+		layout.buildDirectory.file(
+			"outputs/unit_test_code_coverage/v8DebugUnitTest/testV8DebugUnitTest.exec",
+		),
+	)
 }
 
 // Sentry gradle plugin config (crash reporting to GlitchTip).
@@ -394,6 +435,7 @@ dependencies {
 	implementation(projects.floatingWindow)
 	implementation(projects.gitCore)
 	implementation(projects.profiler)
+	implementation(projects.quickbuild.core)
 
 	// This is to build the tooling-api-impl project before the app is built
 	// So we always copy the latest JAR file to assets
@@ -445,6 +487,69 @@ dependencies {
 	implementation(libs.androidx.lifecycle.process)
 	implementation(libs.androidx.lifecycle.runtime.ktx)
 	coreLibraryDesugaring(libs.desugar.jdk.libs.v215)
+}
+
+// Quick Build (ADFA-4128): stage the runtime AAR + daemon (jar + runtime classpath)
+// into APK assets, mirroring the LogSender AAR flow in AndroidIDEAssetsPlugin. The
+// artifacts are extracted to <ANDROIDIDE_HOME>/quickbuild/ at session start
+// (QuickBuildArtifactStager).
+evaluationDependsOn(":quickbuild:runtime")
+evaluationDependsOn(":quickbuild:daemon")
+
+val quickBuildDaemonZip =
+	tasks.register<Zip>("quickBuildDaemonZip") {
+		archiveFileName.set("quickbuild-daemon.zip")
+		destinationDirectory.set(layout.buildDirectory.dir("intermediates/quickbuild"))
+		val daemonProject = rootProject.project(":quickbuild:daemon")
+		dependsOn(daemonProject.tasks.named("daemonJar"))
+		from(daemonProject.tasks.named("daemonJar"))
+		// The daemon jar's manifest Class-Path names these by file name; they must sit
+		// next to the jar after extraction.
+		from(daemonProject.configurations.named("runtimeClasspath"))
+		// Compose compiler plugin, version-matched to the daemon's compiler; the stable
+		// name is the contract EnvironmentQuickBuildPaths.composeCompilerPlugin reads.
+		from(daemonProject.configurations.named("composeCompilerPlugin")) {
+			rename { "compose-compiler-plugin.jar" }
+		}
+	}
+
+androidComponents.onVariants { variant ->
+	val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
+	val flavorName = variant.flavorName!!
+
+	val copyRuntimeAar =
+		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildRuntimeAar") {
+			val runtimeProject = rootProject.project(":quickbuild:runtime")
+			dependsOn(
+				runtimeProject.tasks.named(
+					"assemble${flavorName.replaceFirstChar(Char::uppercaseChar)}Release",
+				),
+			)
+			inputFile.set(
+				runtimeProject.layout.buildDirectory.file(
+					"outputs/aar/quickbuild-runtime-$flavorName-release.aar",
+				),
+			)
+			baseAssetsPath.set("data/common")
+			// Flavor-agnostic asset name: the runtime AAR is pure Java, both flavors
+			// produce identical bits, and the stager doesn't need to care.
+			fileName.set("quickbuild-runtime.aar")
+		}
+	variant.sources.assets?.addGeneratedSourceDirectory(
+		copyRuntimeAar,
+		AddFileToAssetsTask::outputDirectory,
+	)
+
+	val copyDaemonZip =
+		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildDaemonZip") {
+			dependsOn(quickBuildDaemonZip)
+			inputFile.set(quickBuildDaemonZip.flatMap { it.archiveFile })
+			baseAssetsPath.set("data/common")
+		}
+	variant.sources.assets?.addGeneratedSourceDirectory(
+		copyDaemonZip,
+		AddFileToAssetsTask::outputDirectory,
+	)
 }
 
 tasks.register("downloadDocDb") {
