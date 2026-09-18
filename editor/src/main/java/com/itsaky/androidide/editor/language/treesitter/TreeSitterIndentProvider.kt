@@ -76,7 +76,14 @@ class TreeSitterIndentProvider(
     private val DELIMITER_REGEX = Regex("""[\-.+\[\]()$^\\?*]""")
     private const val CONTEXT_LINES_LIMIT = 5
   }
-
+  
+  /**
+   * Computes indentation for the requested positions in [content].
+   *
+   * @param positions Line and column positions packed with [IntPair.pack].
+   * @param default The value to use when indentation cannot be computed.
+   * @return One indentation result per position, in the same order as [positions].
+   */
   fun getIndentsForLines(
     content: Content,
     positions: LongArray,
