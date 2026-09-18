@@ -66,6 +66,41 @@ class SyncMetaVersionTest {
 		assertSyncFilesDiscarded(projectDir)
 	}
 
+	@Test
+	fun `the stored meta version is current when a sync wrote it`() {
+		val projectDir = seedProject()
+		seedSyncFiles(projectDir, ProjectSyncHelper.SYNC_META_VERSION)
+
+		assertThat(
+			ProjectSyncHelper.isSyncMetaVersionCurrent(
+				ProjectSyncHelper.syncMetaFileForProject(projectDir),
+			),
+		).isTrue()
+	}
+
+	@Test
+	fun `the stored meta version is not current when an older schema wrote it`() {
+		val projectDir = seedProject()
+		seedSyncFiles(projectDir, metaVersion = "0")
+
+		assertThat(
+			ProjectSyncHelper.isSyncMetaVersionCurrent(
+				ProjectSyncHelper.syncMetaFileForProject(projectDir),
+			),
+		).isFalse()
+	}
+
+	@Test
+	fun `the stored meta version is not current when the meta cannot be read`() {
+		val projectDir = seedProject()
+
+		assertThat(
+			ProjectSyncHelper.isSyncMetaVersionCurrent(
+				ProjectSyncHelper.syncMetaFileForProject(projectDir),
+			),
+		).isFalse()
+	}
+
 	private fun seedProject(): File {
 		val projectDir = temporaryFolder.newFolder("project")
 		projectDir.resolve("build.gradle").writeText("plugins { id 'java' }")

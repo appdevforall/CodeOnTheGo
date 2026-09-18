@@ -290,9 +290,9 @@ object ProjectSyncHelper {
 	 */
 	fun isSyncMetaVersionCurrent(syncMetaFile: File): Boolean =
 		try {
-			syncMetaFile.inputStream().buffered().use { fileIn ->
-				SyncMetaModels.SyncMeta.parseFrom(fileIn).metaVersion == SYNC_META_VERSION
-			}
+			readSyncMeta(syncMetaFile).metaVersion == SYNC_META_VERSION
+		} catch (err: CancellationException) {
+			throw err
 		} catch (err: Throwable) {
 			logger.warn("Failed to read sync metadata file: {}", syncMetaFile, err)
 			false
@@ -429,15 +429,25 @@ object ProjectSyncHelper {
 	 */
 	private suspend fun discardSyncFiles(projectDir: File) {
 		withContext(Dispatchers.IO) {
-			val deleted =
+			val locked =
 				tryUseSyncLock(projectDir, DISCARD_LOCK_TIMEOUT_MS) {
-					syncMetaFileForProject(projectDir).delete()
-					cacheFileForProject(projectDir).delete()
+					deleteOrWarn(syncMetaFileForProject(projectDir))
+					deleteOrWarn(cacheFileForProject(projectDir))
 				}
 
-			if (!deleted) {
+			if (!locked) {
 				logger.debug("Sync lock is held, leaving the stale sync files to the running sync")
 			}
+		}
+	}
+
+	/**
+	 * Delete [file], warning if it survives. A stale file left behind is read back on the next
+	 * launch, so a silent failure here is worth a log line.
+	 */
+	private fun deleteOrWarn(file: File) {
+		if (!file.delete() && file.exists()) {
+			logger.warn("Failed to delete stale sync file: {}", file)
 		}
 	}
 
@@ -581,8 +591,11 @@ object ProjectSyncHelper {
 	 */
 	suspend fun loadSyncMetaFromFile(file: File): SyncMetaModels.SyncMeta =
 		withContext(Dispatchers.IO) {
-			file.inputStream().buffered().use { fileIn ->
-				SyncMetaModels.SyncMeta.parseFrom(fileIn)
-			}
+			readSyncMeta(file)
+		}
+
+	private fun readSyncMeta(file: File): SyncMetaModels.SyncMeta =
+		file.inputStream().buffered().use { fileIn ->
+			SyncMetaModels.SyncMeta.parseFrom(fileIn)
 		}
 }
