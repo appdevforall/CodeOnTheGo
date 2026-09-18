@@ -74,7 +74,13 @@ class SyncMetaVersionTest {
 
 		// Blocks the lock file from being created, so the discard fails before it deletes anything.
 		val syncDir = ProjectSyncHelper.syncMetaFileForProject(projectDir).parentFile
-		assumeTrue(syncDir.setWritable(false))
+		syncDir.setWritable(false)
+
+		/*
+		 * Probe rather than trust the chmod's return value: running as root it succeeds and writes
+		 * still go through, which would fail this test for the wrong reason.
+		 */
+		assumeTrue(runCatching { File(syncDir, "probe").createNewFile() }.getOrDefault(false).not())
 
 		try {
 			assertThat(runBlocking { ProjectSyncHelper.checkSyncNeeded(projectDir) }).isTrue()

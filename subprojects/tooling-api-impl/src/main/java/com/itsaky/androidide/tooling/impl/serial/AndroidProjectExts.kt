@@ -144,6 +144,9 @@ private class DependencyGraphBuilder {
 	 * Node index per key, in insertion order. Nodes are deduplicated by key and each new node
 	 * contributes exactly one key, so a node's index into `nodes` is also its index into the
 	 * emitted key table -- these keys are the key table.
+	 *
+	 * [AndroidModels.GraphNode.getKeyId] is still written, rather than dropped in favour of that
+	 * identity, so the schema stays independent of this builder's ordering.
 	 */
 	private val nodeIds = LinkedHashMap<String, Int>()
 	private val requestedCoordinates = LinkedHashMap<String, Int>()

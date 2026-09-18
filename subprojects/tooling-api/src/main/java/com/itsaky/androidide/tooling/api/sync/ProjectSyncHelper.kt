@@ -134,14 +134,16 @@ object ProjectSyncHelper {
 			val lock =
 				try {
 					channel.tryLock()
-				} catch (err: OverlappingFileLockException) {
+				} catch (_: OverlappingFileLockException) {
 					/*
 					 * Another thread in this JVM holds an overlapping lock. tryLock throws here
 					 * instead of returning null, so treat it as a failed attempt and retry until
 					 * the holder releases.
 					 */
 					null
-				} catch (err: IOException) {
+				} catch (err: CancellationException) {
+					throw err
+				} catch (err: Exception) {
 					logger.warn("Failed to acquire the sync lock", err)
 					channel.close()
 					return null
@@ -285,14 +287,23 @@ object ProjectSyncHelper {
 	 * version has been checked. Callers that reach the cache without going through
 	 * [checkSyncNeeded] must gate on this.
 	 *
+	 * Blocking: reads and parses the file on the calling thread. Never call it from the main
+	 * thread.
+	 *
 	 * @param syncMetaFile The sync metadata file.
 	 * @return `true` if the stored version is current, `false` if it differs or cannot be read.
 	 */
 	fun isSyncMetaVersionCurrent(syncMetaFile: File): Boolean =
 		try {
 			readSyncMeta(syncMetaFile).metaVersion == SYNC_META_VERSION
-		} catch (err: IOException) {
-			// Covers a missing file and a corrupt one alike: InvalidProtocolBufferException is an IOException.
+		} catch (err: CancellationException) {
+			throw err
+		} catch (err: Exception) {
+			/*
+			 * A corrupt file surfaces either as an IOException or, from protobuf-javalite on a
+			 * malformed length-delimited field, as an unchecked one. An Error is not ours to
+			 * answer, so it is left to propagate.
+			 */
 			logger.warn("Failed to read sync metadata file: {}", syncMetaFile, err)
 			false
 		}
@@ -300,9 +311,11 @@ object ProjectSyncHelper {
 	/**
 	 * Check if a sync is needed for the given project directory.
 	 *
-	 * Not a pure query: sync files that are unusable -- unreadable, or written by a schema version
-	 * other than [SYNC_META_VERSION] -- are deleted, because they would otherwise parse into a
-	 * silently empty model. Deletion failures are logged, never thrown.
+	 * Not a pure query: once the metadata has been read, files it shows to be unusable -- corrupt,
+	 * or written by a schema version other than [SYNC_META_VERSION] -- are deleted, because they
+	 * would otherwise parse into a silently empty model. Files that are missing or unreadable in
+	 * the first place are left alone; the resync overwrites them. Deletion failures are logged,
+	 * never thrown.
 	 *
 	 * @param projectDir The project directory.
 	 * @return `true` if a sync is needed, `false` otherwise.
@@ -325,7 +338,6 @@ object ProjectSyncHelper {
 			return true
 		}
 
-		val draft = createSyncMeta(projectDir, includeChecksum = false)
 		val stored =
 			try {
 				loadSyncMetaFromFile(syncMetaFile)
@@ -357,6 +369,9 @@ object ProjectSyncHelper {
 			discardSyncFiles(projectDir)
 			return true
 		}
+
+		// Built only once the cheap version gate has passed: it walks every watched file.
+		val draft = createSyncMeta(projectDir, includeChecksum = false)
 
 		val draftFilePaths = draft.watchedFilesList.map { it.relativePath }.toSet()
 		val storedFilePaths = stored.watchedFilesList.map { it.relativePath }.toSet()
@@ -453,7 +468,7 @@ object ProjectSyncHelper {
 					}
 
 				if (!locked) {
-					logger.debug("Sync lock is held, leaving the stale sync files to the running sync")
+					logger.debug("Sync lock unavailable, leaving the stale sync files to the running sync")
 				}
 			} catch (err: IOException) {
 				/*
