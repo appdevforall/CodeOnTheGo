@@ -154,7 +154,14 @@ object ProjectSyncHelper {
 		timeoutMs: Long,
 	): FileChannel? {
 		val lockFile = projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_LOCK_FILE)
-		Files.createDirectories(lockFile.parent)
+
+		try {
+			Files.createDirectories(lockFile.parent)
+		} catch (err: IOException) {
+			// Every other failure here answers null; a read-only volume should not be the exception.
+			logger.warn("Failed to create the sync lock directory", err)
+			return null
+		}
 
 		// One deadline for both waits, so a caller's budget is not spent twice over.
 		val deadline = System.currentTimeMillis() + timeoutMs

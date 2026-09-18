@@ -258,8 +258,8 @@ open class AndroidModule(
 	/**
 	 * Whether the current traversal has already reported a damaged dependency-graph index.
 	 *
-	 * Deliberately unsynchronised: two concurrent classpath computations can at worst cost one
-	 * extra log line, which is not worth a lock on this path.
+	 * Deliberately unsynchronised: two concurrent classpath computations can cost an extra log line
+	 * or swallow one, neither of which is worth a lock on this path.
 	 */
 	@Volatile
 	private var reportedGraphDamage = false
