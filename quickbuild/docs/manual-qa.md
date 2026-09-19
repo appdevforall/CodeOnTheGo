@@ -548,18 +548,7 @@ Expected:
 1. After step 3 Build Output shows a Gradle generate-sources run, without a resource being saved.
 2. After step 4 no Gradle run appears: a source-only save still skips it.
 
-The editor-side symptom is currently unasserted. This case used to ask for
-`Manifest.permission.MY_PERM` to resolve after step 3, but no `Manifest` class is generated, so
-that step failed for a reason unrelated to the save path.
-
-The cause is `android.generateManifestClass`, which defaults to off - not, as first recorded
-here, something AGP 9 removed. Measured on the host 2026-09-19 against bare projects with no
-CoGo involved: AGP 9.3.1 emits no `Manifest.*` under `app/build` (70 files searched, 0 hits),
-and neither does AGP 8.8.2, so the case could not have passed under either. Setting
-`android.generateManifestClass=true` restores it - the same project then runs
-`:app:generateDebugManifestClass` and produces a `Manifest.jar` holding `Manifest.class` and
-`Manifest$permission.class`.
-
-So there are two ways back: set that flag in the fixture, or find a proxy that does not depend
-on it. Until one lands, this case checks only that the Gradle step runs and is skipped in the
-right cases.
+This case deliberately does not assert the editor-side symptom. It used to ask for
+`Manifest.permission.MY_PERM` to resolve after step 3, but AGP generates no `Manifest` class
+unless `android.generateManifestClass=true`, which is off by default on AGP 9.3.1 and 8.8.2
+alike - so the step could never have passed. Dropped 2026-09-19 rather than replaced.
