@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The S7 fix's decision, against a real on-disk store: which persisted payload, if any, a boot at a given STAMPED baseline generation adopts. Reverting the gate to a constant 0 makes the first test go green on the previous epoch's payload, which is exactly the on-device S7 hole.
+ * {@link PersistedSelection}'s decision, against a real on-disk store: which persisted payload, if any, a boot at a given STAMPED baseline generation adopts. Reverting the gate to a constant 0 makes the first test go green on the previous epoch's payload - the superseded-code boot the gate exists to prevent.
  */
 class PersistedSelectionTest {
 
