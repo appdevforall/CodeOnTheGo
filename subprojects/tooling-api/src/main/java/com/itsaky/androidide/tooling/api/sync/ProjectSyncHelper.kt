@@ -35,9 +35,23 @@ import kotlin.io.path.pathString
  * @author Akash Yadav
  */
 object ProjectSyncHelper {
+	/**
+	 * Version of the on-disk project sync files.
+	 *
+	 * Bump this whenever a persisted proto schema changes incompatibly. A stored version that
+	 * differs from this one discards the sync files and forces a full sync. The models are
+	 * produced and consumed only by the IDE and hold no user data, so discarding them is safe.
+	 */
+	const val SYNC_META_VERSION = "2"
+
 	private val logger = LoggerFactory.getLogger(ProjectSyncHelper::class.java)
 	private val hashDispatcher =
 		Dispatchers.Default.limitedParallelism(Runtime.getRuntime().availableProcessors())
+
+	/**
+	 * How long to wait for the sync lock before giving up on discarding the sync files.
+	 */
+	private const val DISCARD_LOCK_TIMEOUT_MS = 1_000L
 
 	/**
 	 * Path matchers for files that we need to watch.
@@ -276,11 +290,29 @@ object ProjectSyncHelper {
 			} catch (_: FileNotFoundException) {
 				// sync meta is not available, require sync
 				logger.debug("NEED_SYNC: sync meta file not found")
+				discardSyncFiles(projectDir)
 				return true
 			} catch (err: Throwable) {
 				logger.warn("NEED_SYNC: failed to read sync metadata file", err)
+				discardSyncFiles(projectDir)
 				return true
 			}
+
+		if (stored.metaVersion != SYNC_META_VERSION) {
+			/*
+			 * The cache file is written before the metadata under the same lock, so a stored
+			 * version matching ours implies the cache beside it uses the current schema. On a
+			 * mismatch the cache is unusable but still parses -- a removed field reads back as
+			 * its default rather than failing -- so it has to be discarded, not just resynced.
+			 */
+			logger.debug(
+				"NEED_SYNC: sync meta version mismatch: expected={}, actual={}",
+				SYNC_META_VERSION,
+				stored.metaVersion,
+			)
+			discardSyncFiles(projectDir)
+			return true
+		}
 
 		val draftFilePaths = draft.watchedFilesList.map { it.relativePath }.toSet()
 		val storedFilePaths = stored.watchedFilesList.map { it.relativePath }.toSet()
@@ -348,6 +380,26 @@ object ProjectSyncHelper {
 		return false
 	}
 
+	/**
+	 * Delete the sync metadata and project model cache files for the given project directory.
+	 *
+	 * Taken under the same lock the sync writes them under. Failing to acquire it means a sync is
+	 * already in flight and about to replace both files, so the deletion is skipped.
+	 */
+	private suspend fun discardSyncFiles(projectDir: File) {
+		withContext(Dispatchers.IO) {
+			val deleted =
+				tryUseSyncLock(projectDir, DISCARD_LOCK_TIMEOUT_MS) {
+					syncMetaFileForProject(projectDir).delete()
+					cacheFileForProject(projectDir).delete()
+				}
+
+			if (!deleted) {
+				logger.debug("Sync lock is held, leaving the stale sync files to the running sync")
+			}
+		}
+	}
+
 	private suspend fun computeHashes(files: List<SyncMetaModels.FileInfoOrBuilder>): Map<SyncMetaModels.FileInfoOrBuilder, String> =
 		coroutineScope {
 			withContext(hashDispatcher) {
@@ -398,7 +450,7 @@ object ProjectSyncHelper {
 		}
 		val projectDir = projectDir.toRealPath()
 		return SyncMeta(
-			metaVersion = "1",
+			metaVersion = SYNC_META_VERSION,
 			rootProjectPath = projectDir.pathString,
 			syncTime = System.currentTimeMillis().toString(),
 			watchedFilesList = createWatchedFilesList(projectDir, includeChecksum),

@@ -27,7 +27,8 @@ import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.project.AndroidProject
 import com.itsaky.androidide.project.AndroidVariant
 import com.itsaky.androidide.project.ArtifactDependencies
-import com.itsaky.androidide.project.GraphItem
+import com.itsaky.androidide.project.DependencyGraph
+import com.itsaky.androidide.project.GraphNode
 import com.itsaky.androidide.project.JavaCompilerSettings
 import com.itsaky.androidide.project.Library
 import com.itsaky.androidide.project.LibraryInfo
@@ -124,16 +125,61 @@ fun LibraryInfo.asProtoModel() =
 
 fun ArtifactDependencies.asProtoModel() =
 	ArtifactDependencies(
-		compileDependencyList = this.compileDependencies.map { it.asProtoModel() },
+		compileGraph = DependencyGraphBuilder().build(this.compileDependencies),
 		unresolvedDependencyList = this.unresolvedDependencies.map { it.asProtoModel() },
 	)
 
-fun GraphItem.asProtoModel(): AndroidModels.GraphItem =
-	GraphItem(
-		key = this.key,
-		requestedCoordinates = this.requestedCoordinates,
-		dependencyList = this.dependencies.map { it.asProtoModel() },
-	)
+/**
+ * Flattens AGP's nested [GraphItem] tree into a [AndroidModels.DependencyGraph].
+ *
+ * AGP hands the dependency graph back as a tree: a node shared by several dependents is repeated
+ * once per path, and each copy carries its own key string. On an 86-module project that expanded to
+ * 786,554 nodes and 1,011,910 key strings covering 57,517 distinct values. Deduplicating by key and
+ * interning the strings is lossless for consumers, which already expand each key at most once.
+ */
+private class DependencyGraphBuilder {
+	private val keys = LinkedHashMap<String, Int>()
+	private val requestedCoordinates = LinkedHashMap<String, Int>()
+	private val nodeIds = HashMap<String, Int>()
+	private val nodes = mutableListOf<AndroidModels.GraphNode>()
+
+	fun build(roots: Collection<GraphItem>): AndroidModels.DependencyGraph {
+		val rootIds = roots.map(::nodeIdOf)
+		return DependencyGraph(
+			keyList = keys.keys.toList(),
+			requestedCoordinatesList = requestedCoordinates.keys.toList(),
+			nodeList = nodes.toList(),
+			rootList = rootIds,
+		)
+	}
+
+	/**
+	 * The index of [item]'s node, adding it and its dependencies if this key is new.
+	 *
+	 * The index is reserved before the children are walked, so a cyclic graph terminates.
+	 */
+	private fun nodeIdOf(item: GraphItem): Int {
+		nodeIds[item.key]?.let { return it }
+
+		val id = nodes.size
+		nodeIds[item.key] = id
+		nodes += AndroidModels.GraphNode.getDefaultInstance()
+
+		val node =
+			GraphNode(
+				keyId = intern(keys, item.key),
+				requestedCoordinatesId = item.requestedCoordinates?.let { intern(requestedCoordinates, it) },
+				dependencyList = item.dependencies.map(::nodeIdOf),
+			)
+		nodes[id] = node
+		return id
+	}
+
+	private fun intern(
+		table: LinkedHashMap<String, Int>,
+		value: String,
+	): Int = table.getOrPut(value) { table.size }
+}
 
 fun UnresolvedDependency.asProtoModel() =
 	UnresolvedDependency(
