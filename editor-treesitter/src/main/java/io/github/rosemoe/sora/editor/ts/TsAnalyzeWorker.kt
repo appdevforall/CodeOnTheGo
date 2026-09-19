@@ -36,6 +36,7 @@ import io.github.rosemoe.sora.lang.styling.line.LineBackground
 import io.github.rosemoe.sora.lang.styling.line.LineGutterBackground
 import io.github.rosemoe.sora.text.ContentReference
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -46,6 +47,8 @@ import kotlinx.coroutines.newSingleThreadContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.TimeUnit
 
 /**
  * @author Akash Yadav
@@ -72,8 +75,17 @@ class TsAnalyzeWorker(
   private val analyzerScope = CoroutineScope(analyzerContext)
   private val messageChannel = LinkedBlockingQueue<Message<*>>()
   private var analyzerJob: Job? = null
+  private val lifecycleLock = Any()
+  private val DOCUMENT_LOCK_TIMEOUT_MS = 100L
+
+  private val documentLock = ReentrantLock()
+  private var hasStarted = false
+  private var resourcesClosed = false
+  private var activeDocumentUsers = 0
+  private var resourcesCloseRequested = false
 
   private var isInitialized = false
+  @Volatile
   private var isDestroyed = false
 
   val document = TsTextDocument(languageSpec.language)
@@ -101,33 +113,123 @@ class TsAnalyzeWorker(
 
     messageChannel.offer(mod)
   }
-
+  
+  /**
+   * Requests parser cancellation, discards queued work, and stops this worker.
+   *
+   * Owned resources are closed after any active [withDocument] calls finish. If the worker has not
+   * been started, resource closure is requested before this method returns.
+   */
   fun stop() {
-    log.debug("Stopping TsAnalyzeWorker...")
-    isDestroyed = true
-
-    document.requestCancellationAndWaitIfParsing()
-
-    analyzerContext.close()
-    messageChannel.clear()
-    analyzerJob?.cancel(CancellationException("Requested to be stopped"))
-    analyzerScope.cancel(CancellationException("Requested to be stopped"))
-    document.close()
-  }
-
-  fun start() {
-    check(!isDestroyed) { "TsAnalyeWorker has already been destroyed" }
-
-    analyzerJob = analyzerScope.launch {
-      while (!isDestroyed && isActive) {
-        processNextMessage()
+    synchronized(lifecycleLock) {
+      if (resourcesClosed) {
+        return
       }
-    }.also { job ->
-      job.invokeOnCompletion { error ->
-        if (error != null && error !is CancellationException) {
-          log.error("Analyzer job failed", error)
-        } else {
-          log.info("Analyzer job completed")
+
+      log.debug("Stopping TsAnalyzeWorker...")
+      isDestroyed = true
+
+      document.requestCancellationAsync()
+
+      messageChannel.clear()
+      messageChannel.offer(Stop)
+
+      analyzerJob?.cancel(CancellationException("Requested to be stopped"))
+
+      if (!hasStarted) {
+        closeResources()
+      }
+    }
+  }
+  
+  /**
+   * Starts processing queued analysis messages and releases owned resources when processing ends.
+   *
+   * @throws IllegalStateException If [stop] has already been requested.
+   */
+  fun start() {
+    synchronized(lifecycleLock) {
+      check(!isDestroyed) { "TsAnalyeWorker has already been destroyed" }
+      hasStarted = true
+
+      analyzerJob = analyzerScope.launch(start = CoroutineStart.ATOMIC) {
+        try {
+          while (!isDestroyed && isActive) {
+            processNextMessage()
+          }
+        } finally {
+          log.debug("Analyzer worker releasing resources")
+          closeResources()
+        }
+      }
+    }
+  }
+  
+  /**
+   * Closes the document and worker context, or defers closure until active document users finish.
+   */
+  private fun closeResources() {
+    synchronized(lifecycleLock) {
+      if (resourcesClosed) {
+        return
+      }
+
+      resourcesCloseRequested = true
+
+      if (activeDocumentUsers > 0) {
+        return
+      }
+
+      resourcesClosed = true
+
+      try {
+        document.close()
+      } catch (err: Throwable) {
+        log.error("Failed to close Tree-sitter document", err)
+      } finally {
+        analyzerContext.close()
+      }
+    }
+  }
+  
+  /**
+   * Runs [block] while keeping the document's native resources open.
+   *
+   * The document must not be retained after [block] returns.
+   *
+   * @return The result of [block], or `null` if worker shutdown has begun.
+   */
+  fun <T> withDocument(block: (TsTextDocument) -> T): T? {
+    synchronized(lifecycleLock) {
+      if (resourcesClosed || isDestroyed) {
+        return null
+      }
+
+      activeDocumentUsers++
+    }
+
+    try {
+      try {
+        if (!documentLock.tryLock(DOCUMENT_LOCK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+          log.warn("Timed out waiting for document lock")
+          return null
+        }
+      } catch (err: InterruptedException) {
+        Thread.currentThread().interrupt()
+        return null
+      }
+
+      try {
+        return block(document)
+      } finally {
+        documentLock.unlock()
+      }
+    } finally {
+      synchronized(lifecycleLock) {
+        activeDocumentUsers--
+
+        if (activeDocumentUsers == 0 && resourcesCloseRequested) {
+          closeResources()
         }
       }
     }
@@ -203,6 +305,7 @@ class TsAnalyzeWorker(
       when (message) {
         is Init -> doInit(message)
         is Mod -> doMod(message)
+        is Stop -> return
       }
     } catch (err: Throwable) {
       val langName = languageSpec.language.name
@@ -222,45 +325,66 @@ class TsAnalyzeWorker(
   }
 
   private fun doInit(init: Init) {
-    document.requestCancellationAndWaitIfParsing()
+    documentLock.lock()
+    try {
+      if (isDestroyed) {
+        return
+      }
 
-    check(!isInitialized) {
-      "'Init' must be the first message to TsAnalyzeWorker"
+      document.requestCancellationAndWaitIfParsing()
+
+      if (isDestroyed) {
+        return
+      }
+
+      check(!isInitialized) {
+        "'Init' must be the first message to TsAnalyzeWorker"
+      }
+
+      document.doInit(init.data)
+      document.reparse()
+      updateStyles()
+
+      isInitialized = true
+    } finally {
+      documentLock.unlock()
     }
-
-    document.doInit(init.data)
-    document.reparse()
-    updateStyles()
-
-    isInitialized = true
   }
 
   private fun doMod(mod: Mod) {
+    documentLock.lock()
+    try {
+      if (isDestroyed) {
+        return
+      }
 
-    check(isInitialized) {
-      "'Init' must be the first message to TsAnalyzeWorker"
+      check(isInitialized) {
+        "'Init' must be the first message to TsAnalyzeWorker"
+      }
+
+      val textMod = mod.data
+      val edit = textMod.edit
+
+      val oldTree = tree!!
+      oldTree.edit(edit)
+
+      document.doMod(textMod)
+
+      (edit as? TreeSitterInputEdit?)?.recycle()
+
+      document.requestCancellationAndWaitIfParsing()
+
+      if (isDestroyed) {
+        return
+      }
+
+      document.reparse(oldTree)
+
+      oldTree.close()
+      updateStyles()
+    } finally {
+      documentLock.unlock()
     }
-
-    val textMod = mod.data
-    val edit = textMod.edit
-
-    val oldTree = tree!!
-    oldTree.edit(edit)
-
-    document.doMod(textMod)
-
-    (edit as? TreeSitterInputEdit?)?.recycle()
-
-    document.requestCancellationAndWaitIfParsing()
-
-    if (isDestroyed) {
-      return
-    }
-
-    document.reparse(oldTree)
-
-    oldTree.close()
-    updateStyles()
   }
 
   private fun updateStyles() {
@@ -375,6 +499,11 @@ internal interface Message<T> {
 internal data class Init(override val data: TextInit) : Message<TextInit>
 
 internal data class Mod(override val data: TextMod) : Message<TextMod>
+
+internal object Stop : Message<Unit> {
+
+  override val data = Unit
+}
 
 internal data class TextInit(
   val text: String,

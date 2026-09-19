@@ -34,7 +34,7 @@ import com.itsaky.androidide.treesitter.TSQueryMatch
 import com.itsaky.androidide.treesitter.TSTree
 import com.itsaky.androidide.treesitter.predicate.SetDirectiveHandler
 import com.itsaky.androidide.utils.IntPair
-import io.github.rosemoe.sora.editor.ts.TsAnalyzeWorker
+import io.github.rosemoe.sora.editor.ts.TsAnalyzeManager
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.TextUtils
 import org.slf4j.LoggerFactory
@@ -51,7 +51,7 @@ import kotlin.math.min
  */
 class TreeSitterIndentProvider(
   private val languageSpec: TreeSitterLanguageSpec,
-  private val analyzer: TsAnalyzeWorker,
+  private val analyzer: TsAnalyzeManager,
   private val indentSize: Int
 ) {
 
@@ -76,7 +76,14 @@ class TreeSitterIndentProvider(
     private val DELIMITER_REGEX = Regex("""[\-.+\[\]()$^\\?*]""")
     private const val CONTEXT_LINES_LIMIT = 5
   }
-
+  
+  /**
+   * Computes indentation for the requested positions in [content].
+   *
+   * @param positions Line and column positions packed with [IntPair.pack].
+   * @param default The value to use when indentation cannot be computed.
+   * @return One indentation result per position, in the same order as [positions].
+   */
   fun getIndentsForLines(
     content: Content,
     positions: LongArray,
@@ -91,44 +98,46 @@ class TreeSitterIndentProvider(
       return defaultIndents
     }
 
-    val document = analyzer.document
-    TSParser.create().use { parser ->
-      parser.language = document.parser.language
+    val analyzerWorker = analyzer.analyzeWorker ?: return defaultIndents
+    return analyzerWorker.withDocument { document ->
+      TSParser.create().use { parser ->
+        parser.language = document.parser.language
 
-      var closeTree = true
-      val tree = if (content.documentVersion == document.version) {
-        // avoid converting the content to string if not really needed
-        log.info("Re-using cached tree from document version {}", document.version)
-        closeTree = false
-        document.tree
-      } else {
-        log.info(
-          "Re-parsing content for indentation as document version {} does not match version {}",
-          document.version,
-          content.documentVersion
-        )
+        var closeTree = true
+        val tree = if (content.documentVersion == document.version) {
+          // avoid converting the content to string if not really needed
+          log.info("Re-using cached tree from document version {}", document.version)
+          closeTree = false
+          document.tree
+        } else {
+          log.info(
+            "Re-parsing content for indentation as document version {} does not match version {}",
+            document.version,
+            content.documentVersion
+          )
 
-        (document.tree?.copy() ?: return defaultIndents).use { copiedTree ->
-          parser.parseString(copiedTree, content.toString())
-        }
-      }
-
-      if (tree == null) {
-        log.info("Parsed tree is null, returning default indent: {}", default)
-        return defaultIndents
-      }
-
-      try {
-        return computeIndents(tree, content, positions, defaultIndents)
-          .also { indents ->
-            log.debug("Computed indents: {}", indents.joinToString(","))
+          (document.tree?.copy() ?: return@use defaultIndents).use { copiedTree ->
+            parser.parseString(copiedTree, content.toString())
           }
-      } finally {
-        if (closeTree) {
-          tree.close()
+        }
+
+        if (tree == null) {
+          log.info("Parsed tree is null, returning default indent: {}", default)
+          return@use defaultIndents
+        }
+
+        try {
+          return@use computeIndents(tree, content, positions, defaultIndents)
+            .also { indents ->
+              log.debug("Computed indents: {}", indents.joinToString(","))
+            }
+        } finally {
+          if (closeTree) {
+            tree.close()
+          }
         }
       }
-    }
+    } ?: defaultIndents
   }
 
   private fun computeIndents(
