@@ -168,7 +168,7 @@ object ProxySourceGenerator {
 	private fun StringBuilder.appendActivityBody() {
 		append('\n')
 		append("\t/**\n")
-		append("	 * Context#getClassLoader() is otherwise fixed to the base APK's\n")
+		append("\t * Context#getClassLoader() is otherwise fixed to the base APK's\n")
 		append("\t * classloader regardless of which loader instantiated this activity, so\n")
 		append("\t * by-name resolution (LayoutInflater custom views, FragmentFactory/Navigation\n")
 		append("\t * destinations) can never see a payload-only class without this override.\n")
