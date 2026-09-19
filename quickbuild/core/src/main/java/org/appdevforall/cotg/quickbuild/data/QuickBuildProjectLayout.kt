@@ -12,7 +12,8 @@ import java.io.File
  *
  * Not all of it is arithmetic: [allSources], [watchedRoots] and [watchedFiles] walk the tree
  * (the latter two through the module scan), so they are disk reads and belong off the main
- * thread. The path accessors are arithmetic and cost nothing.
+ * thread. [resDirs] only stats rather than walks, but that is still a disk read. The remaining
+ * path accessors are arithmetic and cost nothing.
  *
  * @property projectRoot the user project's root directory, which the watched gradle config
  *   files and the module scan hang off.
