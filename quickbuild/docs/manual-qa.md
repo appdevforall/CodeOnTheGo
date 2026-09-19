@@ -549,8 +549,17 @@ Expected:
 2. After step 4 no Gradle run appears: a source-only save still skips it.
 
 The editor-side symptom is currently unasserted. This case used to ask for
-`Manifest.permission.MY_PERM` to resolve after step 3, but AGP 9.3.1 emits no generated
-`Manifest` class at all - measured 2026-09-18, no `Manifest.*` anywhere under `app/build` - so
-that step failed for a reason unrelated to the save path. It needs a replacement proxy that
-works on AGP 9; until then this case checks only that the Gradle step runs and is skipped in
-the right cases.
+`Manifest.permission.MY_PERM` to resolve after step 3, but no `Manifest` class is generated, so
+that step failed for a reason unrelated to the save path.
+
+The cause is `android.generateManifestClass`, which defaults to off - not, as first recorded
+here, something AGP 9 removed. Measured on the host 2026-09-19 against bare projects with no
+CoGo involved: AGP 9.3.1 emits no `Manifest.*` under `app/build` (70 files searched, 0 hits),
+and neither does AGP 8.8.2, so the case could not have passed under either. Setting
+`android.generateManifestClass=true` restores it - the same project then runs
+`:app:generateDebugManifestClass` and produces a `Manifest.jar` holding `Manifest.class` and
+`Manifest$permission.class`.
+
+So there are two ways back: set that flag in the fixture, or find a proxy that does not depend
+on it. Until one lands, this case checks only that the Gradle step runs and is skipped in the
+right cases.
