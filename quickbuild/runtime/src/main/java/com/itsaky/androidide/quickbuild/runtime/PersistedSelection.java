@@ -3,7 +3,7 @@ package com.itsaky.androidide.quickbuild.runtime;
 /**
  * The boot-time decision of whether a persisted payload supersedes the baked baseline.
  *
- * Extracted from {@link PayloadStore}'s boot path so it is JVM-testable: the classloader half of that path is dalvik-only, but this gate is not, and it is the S7 fix. A rebaseline can leave the baseline dex byte-identical (manifest/asset-only change), so the fingerprint alone would adopt the previous epoch's persisted payload over the fresh, strictly newer baseline and boot superseded code - only gating on the STAMPED generation, not a constant 0, prevents that.
+ * Extracted from {@link PayloadStore}'s boot path so it is JVM-testable: the classloader half of that path is dalvik-only, but this gate is not. A rebaseline can leave the baseline dex byte-identical (manifest/asset-only change), so the fingerprint alone would adopt the previous epoch's persisted payload over the fresh, strictly newer baseline and boot superseded code - only gating on the STAMPED generation, not a constant 0, prevents that.
  */
 final class PersistedSelection {
 
