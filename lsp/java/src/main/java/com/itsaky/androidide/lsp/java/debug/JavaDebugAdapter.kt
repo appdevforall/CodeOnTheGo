@@ -620,10 +620,15 @@ internal class JavaDebugAdapter :
 	 *
 	 * The continuation is always [StepRequest.STEP_OVER] whatever the user asked for, because an
 	 * inlined body has no frame of its own and [StepRequest.STEP_OUT] would pop the caller's real
-	 * frame on every iteration. It suspends only the event thread, since nothing else needs the world
-	 * stopped between silent iterations, and returning `false` leaves the resume to [EventHandler] so
-	 * every suspend is matched by one under the same policy. The budget rides on the request rather
+	 * frame on every iteration. Returning `false` leaves the resume to [EventHandler], so each silent
+	 * iteration's suspend is matched by the resume of the same event set rather than accumulating a
+	 * VM-wide count that only the user's Resume could pay off. The budget rides on the request rather
 	 * than on the adapter, so two threads stepping at once cannot spend each other's.
+	 *
+	 * The policy stays [EventRequest.SUSPEND_ALL]: [EventHandler] records the suspended thread only
+	 * for a set with that policy, so a continuation that suspended just the event thread would leave
+	 * `threadState.current` null and every later [step] would fail with "No thread is currently
+	 * suspended".
 	 *
 	 * @return whether a continuation was issued, in which case nothing is reported to the client.
 	 */
@@ -648,7 +653,7 @@ internal class JavaDebugAdapter :
 				vm = vm,
 				thread = thread,
 				depth = StepRequest.STEP_OVER,
-				suspendPolicy = EventRequest.SUSPEND_EVENT_THREAD,
+				suspendPolicy = EventRequest.SUSPEND_ALL,
 				countFilter = 1,
 			)
 
