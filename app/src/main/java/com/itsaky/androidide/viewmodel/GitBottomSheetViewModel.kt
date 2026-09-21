@@ -772,7 +772,7 @@ class GitBottomSheetViewModel(
 			try {
 				val projectDirPath = IProjectManager.getInstance().projectDirPath
 				if (projectDirPath.isNotBlank()) {
-					GitRepositoryManager.initRepository(File(projectDirPath))
+					GitRepositoryManager.initRepository(File(projectDirPath)).use { }
 					initializeRepository(force = true)
 				}
 			} catch (e: CancellationException) {
