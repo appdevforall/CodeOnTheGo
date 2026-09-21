@@ -1742,5 +1742,6 @@
 	<string name="cd_outline_kind_field">Field</string>
 	<string name="cd_outline_kind_property">Property</string>
 	<string name="cd_outline_kind_element">Element</string>
+    <string name="initialize_repository">Initialize Repository</string>
 </resources>
 
