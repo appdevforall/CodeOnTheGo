@@ -291,6 +291,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 				}
 			}
 
+			launch {
+				viewModel.initError.collectLatest {
+					flashError(getString(R.string.git_init_failed))
+				}
+			}
+
 			combine(
 				viewModel.isGitRepository,
 				viewModel.gitStatus,
