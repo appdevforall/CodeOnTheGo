@@ -18,7 +18,6 @@ package com.itsaky.androidide.lsp.java.debug
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.java.debug.utils.isSyntheticKotlinLocal
-import com.itsaky.androidide.lsp.java.debug.utils.kotlinLocalDisplayName
 import org.junit.Test
 
 class KotlinLocalsTest {
@@ -51,32 +50,19 @@ class KotlinLocalsTest {
 	}
 
 	@Test
-	fun `a local copied out of an inlined body shows the name its source gave it`() {
-		assertThat(kotlinLocalDisplayName("started\$iv")).isEqualTo("started")
-		assertThat(kotlinLocalDisplayName("label\$iv")).isEqualTo("label")
-		assertThat(kotlinLocalDisplayName("item\$iv\$iv")).isEqualTo("item")
+	fun `a local copied out of an inlined body is shown, suffix and all`() {
+		// mapTo's loop variable and accumulator reach the list under these names; the suffix is the
+		// only cue that they are not the user's, so it is neither hidden nor stripped.
+		assertThat(isSyntheticKotlinLocal("item\$iv\$iv")).isFalse()
+		assertThat(isSyntheticKotlinLocal("destination\$iv\$iv")).isFalse()
+		assertThat(isSyntheticKotlinLocal("started\$iv")).isFalse()
 	}
 
 	@Test
-	fun `an inline receiver keeps its label through the copy suffixes`() {
+	fun `an inline receiver is shown under the name the compiler emitted`() {
 		assertThat(isSyntheticKotlinLocal("\$this\$map\$iv")).isFalse()
-		assertThat(kotlinLocalDisplayName("\$this\$map\$iv")).isEqualTo("this@map")
-		assertThat(kotlinLocalDisplayName("\$this\$mapTo\$iv\$iv")).isEqualTo("this@mapTo")
-	}
-
-	@Test
-	fun `a synthetic lambda receiver is left alone rather than given a fabricated label`() {
-		// Kotlin names a lambda's receiver after the enclosing method's synthetic lambda, where _u24
-		// is a mangled '$'. No label the user wrote is recoverable from it.
-		assertThat(kotlinLocalDisplayName("\$this\$direct_u24lambda_u240"))
-			.isEqualTo("\$this\$direct_u24lambda_u240")
-	}
-
-	@Test
-	fun `ordinary names are not renamed`() {
-		assertThat(kotlinLocalDisplayName("answer")).isEqualTo("answer")
-		assertThat(kotlinLocalDisplayName("this")).isEqualTo("this")
-		assertThat(kotlinLocalDisplayName("\$this\$")).isEqualTo("\$this\$")
+		assertThat(isSyntheticKotlinLocal("\$this\$mapTo\$iv\$iv")).isFalse()
+		assertThat(isSyntheticKotlinLocal("\$this\$direct_u24lambda_u240")).isFalse()
 	}
 
 	@Test

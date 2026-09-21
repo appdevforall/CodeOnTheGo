@@ -1,9 +1,7 @@
 package com.itsaky.androidide.lsp.java.debug.utils
 
 private const val INLINE_MARKER_PREFIX = "\$i\$"
-private const val INLINE_RECEIVER_PREFIX = "\$this\$"
 private const val INLINE_COPY_SUFFIX = "\$iv"
-private const val MANGLED_DOLLAR = "_u24"
 
 private val SUSPEND_MACHINE_LOCALS =
 	setOf(
@@ -19,34 +17,21 @@ private val SUSPEND_MACHINE_LOCALS =
  * argument) and the suspend state machine's own locals. These carry no meaning for someone reading
  * their own code, so the variables list hides them.
  *
- * Every local copied out of an inlined body also carries one `$iv` per inlining, so the suffixes come
- * off first. Stripping does not separate a library body's locals from the user's own inline-function
- * locals -- both arrive suffixed -- so a stdlib internal such as `destination$iv$iv` survives this
- * predicate under its unsuffixed name. Telling the two apart needs the Kotlin stratum, which is the
- * same limit that applies to `$i$`.
+ * A marker says what to hide, not whose code is running: `$i$a$` scopes a lambda the user wrote,
+ * inlined into the user's own class, exactly as `$i$f$` scopes a library body inlined there.
+ *
+ * Every local copied out of an inlined body carries one `$iv` per inlining, so the suffixes come off
+ * before the prefix and set tests -- `$i$f$mapTo$iv$iv` is a marker just as `$i$f$mapTo` is.
+ *
+ * The suffix stays on the names that survive, and is deliberately not stripped for display.
+ * `item$iv$iv` and `destination$iv$iv` are `mapTo`'s loop variable and accumulator, not the user's,
+ * and the suffix is the only cue marking them so: shown as `item` and `destination` they sit beside
+ * a user's own `item` with nothing to tell them apart. The cost is that a user's own inline-function
+ * local reads `started$iv`. Separating the two needs the Kotlin stratum.
  */
 fun isSyntheticKotlinLocal(name: String): Boolean {
 	val base = withoutInlineCopySuffixes(name)
 	return base.startsWith(INLINE_MARKER_PREFIX) || base in SUSPEND_MACHINE_LOCALS
-}
-
-/**
- * The name to show for [name]: the source name for a local copied out of an inlined body, and the
- * Kotlin syntax for an inline receiver where one can be recovered.
- *
- * `$this$map$iv` reads as `this@map`. A lambda receiver is emitted named after the enclosing method's
- * synthetic lambda instead -- `$this$direct_u24lambda_u240`, where `_u24` is a mangled `$` -- and no
- * label the user could have written is recoverable from it, so that name is left alone rather than
- * turned into a `this@` that appears nowhere in their source.
- */
-fun kotlinLocalDisplayName(name: String): String {
-	val base = withoutInlineCopySuffixes(name)
-	if (!base.startsWith(INLINE_RECEIVER_PREFIX)) {
-		return base
-	}
-
-	val label = base.removePrefix(INLINE_RECEIVER_PREFIX)
-	return if (isSourceLabel(label)) "this@$label" else base
 }
 
 /** [name] with every `$iv` the inliner appended removed, one per inlining. */
@@ -57,9 +42,3 @@ private fun withoutInlineCopySuffixes(name: String): String {
 	}
 	return base
 }
-
-/** Whether [label] is a name the user could have written, rather than a synthetic lambda's. */
-private fun isSourceLabel(label: String): Boolean =
-	label.isNotEmpty() &&
-		!label.contains(MANGLED_DOLLAR) &&
-		label.all { it.isLetterOrDigit() || it == '_' }

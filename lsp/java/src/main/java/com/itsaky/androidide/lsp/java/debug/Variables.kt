@@ -7,7 +7,6 @@ import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableDescriptor
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.lsp.java.debug.utils.VariableValues
-import com.itsaky.androidide.lsp.java.debug.utils.kotlinLocalDisplayName
 import com.itsaky.androidide.lsp.java.debug.utils.mirrorOf
 import com.sun.jdi.ArrayReference
 import com.sun.jdi.ArrayType
@@ -30,6 +29,7 @@ import com.sun.jdi.ShortType
 import com.sun.jdi.StringReference
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.Type
+import com.sun.jdi.VMDisconnectedException
 import com.sun.jdi.Value
 import com.sun.jdi.VoidValue
 import org.slf4j.LoggerFactory
@@ -233,8 +233,15 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
 				.allFields()
 				.associateWith { field ->
 					if (field.isStatic) refType.getValue(field) else ref.getValue(field)
-				}.map { (field, value) ->
-					JavaFieldVariable<ValueT>(thread, ref, refType, field, value)
+				}.mapNotNull { (field, value) ->
+					try {
+						JavaFieldVariable<ValueT>(thread, ref, field, value)
+					} catch (err: VMDisconnectedException) {
+						throw err
+					} catch (err: Throwable) {
+						logger.error("Failed to create variable wrapper for field {}", field.name(), err)
+						null
+					}
 				}.toSet()
 		} ?: emptySet()
 	}
@@ -274,14 +281,13 @@ internal class ThisVariable<ValueT : LspValue>(
 internal class JavaFieldVariable<ValueT : LspValue>(
 	thread: ThreadReference,
 	private val ref: ObjectReference,
-	refType: ReferenceType,
 	private val field: Field,
 	value: Value?,
 ) : AbstractJavaVariable<ValueT>(
 		thread = thread,
 		name = field.name(),
 		typeName = field.typeName(),
-		type = refType,
+		type = field.type(),
 		value = value,
 	) {
 	companion object {
@@ -330,7 +336,7 @@ internal open class JavaLocalVariable<ValueType : LspValue>(
 	value: Value?,
 ) : AbstractJavaVariable<ValueType>(
 		thread = thread,
-		name = kotlinLocalDisplayName(variable.name()),
+		name = variable.name(),
 		typeName = variable.typeName(),
 		type = variable.type(),
 		value = value,

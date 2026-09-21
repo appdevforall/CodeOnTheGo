@@ -58,7 +58,20 @@ While it walks them, the editor is sent the **wrong file**, not only a line past
 `Greeter.greetAll` carries output lines 60-63, which the SMAP maps to `_Collections.kt:1557` and
 `1628-1630`, the stdlib `map` body. The Java stratum has one `SourceFile` per class, so those lines
 are reported as `DebugFixture.kt`: Step Over in `greetAll` walks `27 -> 60 -> 61 -> 62 -> 28` and
-asks the editor to highlight `DebugFixture.kt:60` in a 59-line file while execution is really in the
+asks the editor to highlight `DebugFixture.kt:60` in a 58-line file while execution is really in the
 standard library. The `kotlin.*` / `kotlinx.*` step filters do not prevent this, because the inlined
 body lives in the user's own class and a class-name filter never sees it. Reachable through any
 `map`, `forEach`, `let` or `run`.
+
+The call stack disagrees with the editor while that happens, and the call stack is the correct one.
+Its rows read the Kotlin stratum, the only stratum with a multi-file table, so the frame reads
+`_Collections.kt:1557` while the editor highlights `DebugFixture.kt:60`. Breakpoints are still
+placed and reported in the Java stratum, so the row is display-only and does not round-trip to a
+breakpoint. Expect the two to differ inside an inlined body and to agree everywhere else.
+
+The variables list carries a stdlib inline function's own locals alongside the user's. Stopped at
+line 28, in the lambda passed to `map`, it shows `item$iv$iv` and `destination$iv$iv` - `mapTo`'s
+loop variable and accumulator, not yours. The `$iv` suffix is left on deliberately: it is the only
+cue separating them from names the user wrote. The same suffix lands on a user's own inline-function
+locals, so stepping through `measured` inlined into `Greeter.timed` shows `started$iv`, `result$iv`
+and `label$iv`. Stripping it only where it is safe needs the Kotlin stratum.

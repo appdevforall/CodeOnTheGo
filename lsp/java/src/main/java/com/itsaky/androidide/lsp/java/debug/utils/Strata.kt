@@ -51,6 +51,28 @@ fun Location.sourceNameOrNull(): String? =
 fun Location.lineNumberInSource(): Int = lineNumber(JAVA_STRATUM)
 
 /**
+ * This location read in the Kotlin stratum, which is the only one with a multi-file table.
+ *
+ * The Java stratum has one `SourceFile` per class, so a body inlined from another file is reported
+ * under the caller's file name at a synthetic line past its end. The Kotlin stratum names the file
+ * the code was written in. The two agree outside inlined code.
+ *
+ * Placement must stay in the Java stratum ([locationsOfLineInSource]), so these are for display
+ * only: a position reported here does not round-trip to a breakpoint.
+ *
+ * JDI falls back to the declaring type's default stratum when [KOTLIN_STRATUM] is absent, so these
+ * are safe on a Java class.
+ */
+fun Location.lineNumberInKotlin(): Int = lineNumber(KOTLIN_STRATUM)
+
+fun Location.sourceNameInKotlinOrNull(): String? =
+	try {
+		sourceName(KOTLIN_STRATUM)
+	} catch (err: AbsentInformationException) {
+		null
+	}
+
+/**
  * Locations for [line] read in the same stratum [lineNumberInSource] reports in.
  *
  * The no-argument `locationsOfLine` resolves through the VM's default stratum, which is null here,

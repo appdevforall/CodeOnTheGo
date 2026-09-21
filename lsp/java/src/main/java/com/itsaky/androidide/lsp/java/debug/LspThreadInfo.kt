@@ -10,8 +10,8 @@ import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.lsp.java.debug.utils.isOpaque
 import com.itsaky.androidide.lsp.java.debug.utils.isSyntheticKotlinLocal
-import com.itsaky.androidide.lsp.java.debug.utils.lineNumberInSource
-import com.itsaky.androidide.lsp.java.debug.utils.sourceNameOrNull
+import com.itsaky.androidide.lsp.java.debug.utils.lineNumberInKotlin
+import com.itsaky.androidide.lsp.java.debug.utils.sourceNameInKotlinOrNull
 import com.sun.jdi.Location
 import com.sun.jdi.Method
 import com.sun.jdi.ObjectCollectedException
@@ -31,8 +31,8 @@ class JavaStackFrame(
 	val frame: StackFrame,
 	val location: Location = frame.location(),
 	val method: Method? = location.method(),
-	val sourceName: String = location.sourceNameOrNull() ?: "",
-	val lineNumber: Long = location.lineNumberInSource().toLong(),
+	val sourceName: String = location.sourceNameInKotlinOrNull() ?: "",
+	val lineNumber: Long = location.lineNumberInKotlin().toLong(),
 ) : LspStackFrame {
 	companion object {
 		private val logger = LoggerFactory.getLogger(JavaStackFrame::class.java)
