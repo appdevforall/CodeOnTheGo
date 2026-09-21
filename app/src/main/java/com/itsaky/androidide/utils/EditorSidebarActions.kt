@@ -39,20 +39,21 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionsRegistry
 import com.itsaky.androidide.actions.FillMenuParams
+import com.itsaky.androidide.actions.PluginSidebarActionItem
 import com.itsaky.androidide.actions.SidebarActionItem
+import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.actions.sidebar.BuildVariantsSidebarAction
 import com.itsaky.androidide.actions.sidebar.CloseProjectSidebarAction
 import com.itsaky.androidide.actions.sidebar.FileTreeSidebarAction
 import com.itsaky.androidide.actions.sidebar.HelpSideBarAction
+import com.itsaky.androidide.actions.sidebar.OutlineSidebarAction
 import com.itsaky.androidide.actions.sidebar.PreferencesSidebarAction
 import com.itsaky.androidide.actions.sidebar.TerminalSidebarAction
+import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.plugins.extensions.UIExtension
-import com.itsaky.androidide.actions.PluginSidebarActionItem
-import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
-import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import org.greenrobot.eventbus.EventBus
 import java.lang.ref.WeakReference
 
@@ -64,228 +65,242 @@ import java.lang.ref.WeakReference
  */
 
 object ContactDetails {
-    const val EMAIL_SUPPORT = "feedback@appdevforall.org"
+	const val EMAIL_SUPPORT = "feedback@appdevforall.org"
 }
 
 internal object EditorSidebarActions {
+	private var previousDestinationListener: NavController.OnDestinationChangedListener? = null
+	private var previousNavController: WeakReference<NavController>? = null
 
-    private var previousDestinationListener: NavController.OnDestinationChangedListener? = null
-    private var previousNavController: WeakReference<NavController>? = null
+	@JvmStatic
+	fun registerActions(context: Context) {
+		val registry = ActionsRegistry.getInstance()
+		var order = -1
 
-    @JvmStatic
-    fun registerActions(context: Context) {
-        val registry = ActionsRegistry.getInstance()
-        var order = -1
+		@Suppress("KotlinConstantConditions")
+		registry.registerAction(FileTreeSidebarAction(context, ++order))
+		registry.registerAction(OutlineSidebarAction(context, ++order))
+		registry.registerAction(BuildVariantsSidebarAction(context, ++order))
+		registry.registerAction(TerminalSidebarAction(context, ++order))
+		registry.registerAction(PreferencesSidebarAction(context, ++order))
+		registry.registerAction(CloseProjectSidebarAction(context, ++order))
+		registry.registerAction(HelpSideBarAction(context, ++order))
 
-        @Suppress("KotlinConstantConditions")
-        registry.registerAction(FileTreeSidebarAction(context, ++order))
-        registry.registerAction(BuildVariantsSidebarAction(context, ++order))
-        registry.registerAction(TerminalSidebarAction(context, ++order))
-        registry.registerAction(PreferencesSidebarAction(context, ++order))
-        registry.registerAction(CloseProjectSidebarAction(context, ++order))
-        registry.registerAction(HelpSideBarAction(context, ++order))
+		// Set built-in item count (7 items) for sidebar slot management
+		SidebarSlotManager.setBuiltInItemCount(order + 1)
 
-        // Set built-in item count (6 items) for sidebar slot management
-        SidebarSlotManager.setBuiltInItemCount(order + 1)
+		// Register plugin sidebar items
+		registerPluginSidebarActions(context, registry, ++order)
+	}
 
-        // Register plugin sidebar items
-        registerPluginSidebarActions(context, registry, ++order)
-    }
+	@JvmStatic
+	fun setup(sidebarFragment: EditorSidebarFragment) {
+		val binding = sidebarFragment.getBinding() ?: return
+		val controller = binding.editorSidebarFragmentContainer.getFragment<NavHostFragment>().navController
+		val context = sidebarFragment.requireContext()
+		val rail = binding.navigation
 
-    @JvmStatic
-    fun setup(sidebarFragment: EditorSidebarFragment) {
-        val binding = sidebarFragment.getBinding() ?: return
-        val controller = binding.editorSidebarFragmentContainer.getFragment<NavHostFragment>().navController
-        val context = sidebarFragment.requireContext()
-        val rail = binding.navigation
+		val registry = ActionsRegistry.getInstance()
+		val actions = registry.getActions(ActionItem.Location.EDITOR_SIDEBAR)
+		if (actions.isEmpty()) {
+			return
+		}
 
+		rail.background =
+			(rail.background as MaterialShapeDrawable).apply {
+				shapeAppearanceModel = shapeAppearanceModel.roundedOnRight()
+			}
 
-        val registry = ActionsRegistry.getInstance()
-        val actions = registry.getActions(ActionItem.Location.EDITOR_SIDEBAR)
-        if (actions.isEmpty()) {
-            return
-        }
+		rail.menu.clear()
 
-        rail.background = (rail.background as MaterialShapeDrawable).apply {
-            shapeAppearanceModel = shapeAppearanceModel.roundedOnRight()
-        }
+		val data = ActionData.create(context)
+		val titleRef = WeakReference(binding.title)
+		val params =
+			FillMenuParams(
+				data,
+				ActionItem.Location.EDITOR_SIDEBAR,
+				rail.menu,
+			) { actionsRegistry, action, item, actionsData ->
+				action as SidebarActionItem
 
-        rail.menu.clear()
+				if (action.fragmentClass == null) {
+					(actionsRegistry as DefaultActionsRegistry).executeAction(action, actionsData)
+					return@FillMenuParams true
+				}
 
-        val data = ActionData.create(context)
-        val titleRef = WeakReference(binding.title)
-        val params = FillMenuParams(
-            data,
-            ActionItem.Location.EDITOR_SIDEBAR,
-            rail.menu
-        ) { actionsRegistry, action, item, actionsData ->
-            action as SidebarActionItem
+				return@FillMenuParams try {
+					controller.navigate(
+						action.id,
+						navOptions {
+							launchSingleTop = true
+							restoreState = true
+						},
+					)
 
-            if (action.fragmentClass == null) {
-                (actionsRegistry as DefaultActionsRegistry).executeAction(action, actionsData)
-                return@FillMenuParams true
-            }
+					val result = controller.currentDestination?.matchDestination(action.id) == true
+					if (result) {
+						item.isChecked = true
+						titleRef.get()?.text = item.title
+					}
 
-            return@FillMenuParams try {
-                controller.navigate(action.id, navOptions {
-                    launchSingleTop = true
-                    restoreState = true
-                })
+					result
+				} catch (e: IllegalArgumentException) {
+					false
+				}
+			}
 
-                val result = controller.currentDestination?.matchDestination(action.id) == true
-                if (result) {
-                    item.isChecked = true
-                    titleRef.get()?.text = item.title
-                }
+		registry.fillMenu(params)
 
-                result
-            } catch (e: IllegalArgumentException) {
-                false
-            }
-        }
+		rail.menu.forEach { item ->
+			val view = rail.findViewById<View>(item.itemId)
+			val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
 
-        registry.fillMenu(params)
+			if (view != null && action != null) {
+				val tag = action.retrieveTooltipTag(false)
+				sidebarFragment.setupTooltip(view, tag, action.retrieveTooltipCategory())
+			}
+		}
 
-        rail.menu.forEach { item ->
-            val view = rail.findViewById<View>(item.itemId)
-            val action = actions.values.find { it.itemId == item.itemId } as? SidebarActionItem
+		controller.graph =
+			controller.createGraph(startDestination = FileTreeSidebarAction.ID) {
+				actions.forEach { (actionId, action) ->
+					if (action !is SidebarActionItem) {
+						throw IllegalStateException(
+							"Actions registered at location ${ActionItem.Location.EDITOR_SIDEBAR}" +
+								" must implement ${SidebarActionItem::class.java.simpleName}",
+						)
+					}
 
-            if (view != null && action != null) {
-                val tag = action.retrieveTooltipTag(false)
-                sidebarFragment.setupTooltip(view, tag, action.retrieveTooltipCategory())
-            }
-        }
+					val fragment = action.fragmentClass ?: return@forEach
 
-        controller.graph = controller.createGraph(startDestination = FileTreeSidebarAction.ID) {
-            actions.forEach { (actionId, action) ->
-                if (action !is SidebarActionItem) {
-                    throw IllegalStateException(
-                        "Actions registered at location ${ActionItem.Location.EDITOR_SIDEBAR}" +
-                                " must implement ${SidebarActionItem::class.java.simpleName}"
-                    )
-                }
+					val builder =
+						FragmentNavigatorDestinationBuilder(
+							provider[FragmentNavigator::class],
+							actionId,
+							fragment,
+						)
 
-                val fragment = action.fragmentClass ?: return@forEach
+					builder.apply {
+						action.apply { buildNavigation() }
+					}
 
-                val builder = FragmentNavigatorDestinationBuilder(
-                    provider[FragmentNavigator::class],
-                    actionId,
-                    fragment
-                )
+					destination(builder)
+				}
+			}
 
-                builder.apply {
-                    action.apply { buildNavigation() }
-                }
+		previousDestinationListener?.let { stale ->
+			previousNavController?.get()?.removeOnDestinationChangedListener(stale)
+		}
 
-                destination(builder)
-            }
-        }
+		val railRef = WeakReference(rail)
+		val destinationListener =
+			object : NavController.OnDestinationChangedListener {
+				override fun onDestinationChanged(
+					controller: NavController,
+					destination: NavDestination,
+					arguments: Bundle?,
+				) {
+					val railView = railRef.get()
+					if (railView == null) {
+						controller.removeOnDestinationChangedListener(this)
+						return
+					}
+					railView.menu.forEach { item ->
+						if (destination.matchDestination(item.itemId)) {
+							item.isChecked = true
+							titleRef.get()?.text = item.title
+						}
+					}
+				}
+			}
+		controller.addOnDestinationChangedListener(destinationListener)
+		previousDestinationListener = destinationListener
+		previousNavController = WeakReference(controller)
 
-        previousDestinationListener?.let { stale ->
-            previousNavController?.get()?.removeOnDestinationChangedListener(stale)
-        }
+		rail.menu.findItem(FileTreeSidebarAction.ID.hashCode())?.also {
+			it.isChecked = true
+			binding.title.text = it.title
+		}
+	}
 
-        val railRef = WeakReference(rail)
-        val destinationListener = object : NavController.OnDestinationChangedListener {
-            override fun onDestinationChanged(
-                controller: NavController,
-                destination: NavDestination,
-                arguments: Bundle?
-            ) {
-                val railView = railRef.get()
-                if (railView == null) {
-                    controller.removeOnDestinationChangedListener(this)
-                    return
-                }
-                railView.menu.forEach { item ->
-                    if (destination.matchDestination(item.itemId)) {
-                        item.isChecked = true
-                        titleRef.get()?.text = item.title
-                    }
-                }
-            }
-        }
-        controller.addOnDestinationChangedListener(destinationListener)
-        previousDestinationListener = destinationListener
-        previousNavController = WeakReference(controller)
+	/**
+	 * Determines whether the given `route` matches the NavDestination. This handles
+	 * both the default case (the destination's route matches the given route) and the nested case where
+	 * the given route is a parent/grandparent/etc of the destination.
+	 */
+	@JvmStatic
+	internal fun NavDestination.matchDestination(route: String): Boolean = hierarchy.any { it.route == route }
 
-        rail.menu.findItem(FileTreeSidebarAction.ID.hashCode())?.also {
-            it.isChecked = true
-            binding.title.text = it.title
-        }
-    }
+	@JvmStatic
+	internal fun NavDestination.matchDestination(
+		@IdRes destId: Int,
+	): Boolean = hierarchy.any { it.id == destId }
 
-    /**
-     * Determines whether the given `route` matches the NavDestination. This handles
-     * both the default case (the destination's route matches the given route) and the nested case where
-     * the given route is a parent/grandparent/etc of the destination.
-     */
-    @JvmStatic
-    internal fun NavDestination.matchDestination(route: String): Boolean =
-        hierarchy.any { it.route == route }
+	@JvmStatic
+	internal fun ShapeAppearanceModel.roundedOnRight(cornerSize: Float = 28f): ShapeAppearanceModel =
+		toBuilder().run {
+			setTopRightCorner(CornerFamily.ROUNDED, cornerSize)
+			setBottomRightCorner(CornerFamily.ROUNDED, cornerSize)
+			build()
+		}
 
-    @JvmStatic
-    internal fun NavDestination.matchDestination(@IdRes destId: Int): Boolean =
-        hierarchy.any { it.id == destId }
+	/**
+	 * Register plugin UI contributions to the sidebar.
+	 *
+	 * @param context The application context
+	 * @param registry The actions registry
+	 * @param startOrder The starting order for plugin actions
+	 */
+	@JvmStatic
+	private fun registerPluginSidebarActions(
+		context: Context,
+		registry: ActionsRegistry,
+		startOrder: Int,
+	) {
+		var order = startOrder
 
-    @JvmStatic
-    internal fun ShapeAppearanceModel.roundedOnRight(cornerSize: Float = 28f): ShapeAppearanceModel {
-        return toBuilder().run {
-            setTopRightCorner(CornerFamily.ROUNDED, cornerSize)
-            setBottomRightCorner(CornerFamily.ROUNDED, cornerSize)
-            build()
-        }
-    }
+		val pluginManager = PluginManager.getInstance() ?: return
 
-    /**
-     * Register plugin UI contributions to the sidebar.
-     *
-     * @param context The application context
-     * @param registry The actions registry
-     * @param startOrder The starting order for plugin actions
-     */
-    @JvmStatic
-    private fun registerPluginSidebarActions(context: Context, registry: ActionsRegistry, startOrder: Int) {
-        var order = startOrder
+		pluginManager
+			.getAllPluginInstances()
+			.filterIsInstance<UIExtension>()
+			.forEach { plugin ->
+				val pluginId =
+					pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin)
+						?: return@forEach
 
-        val pluginManager = PluginManager.getInstance() ?: return
+				try {
+					val declaredSlots = SidebarSlotManager.getDeclaredSlots(pluginId)
+					val sideMenuItems = plugin.getSideMenuItems()
 
-        pluginManager.getAllPluginInstances()
-            .filterIsInstance<UIExtension>()
-            .forEach { plugin ->
-                val pluginId = pluginManager.getPluginIdForInstance(plugin as com.itsaky.androidide.plugins.IPlugin)
-                    ?: return@forEach
+					if (sideMenuItems.isEmpty()) return@forEach
 
-                try {
-                    val declaredSlots = SidebarSlotManager.getDeclaredSlots(pluginId)
-                    val sideMenuItems = plugin.getSideMenuItems()
+					if (sideMenuItems.size > declaredSlots) {
+						Log.w(
+							"EditorSidebarActions",
+							"Plugin '$pluginId' returned ${sideMenuItems.size} sidebar items " +
+								"but only declared $declaredSlots in manifest — skipping",
+						)
+						return@forEach
+					}
 
-                    if (sideMenuItems.isEmpty()) return@forEach
-
-                    if (sideMenuItems.size > declaredSlots) {
-                        Log.w("EditorSidebarActions",
-                            "Plugin '$pluginId' returned ${sideMenuItems.size} sidebar items " +
-                            "but only declared $declaredSlots in manifest — skipping"
-                        )
-                        return@forEach
-                    }
-
-                    sideMenuItems.forEach { navItem ->
-                        val action = PluginSidebarActionItem(context, navItem, order++, pluginId)
-                        registry.registerAction(action)
-                    }
-                } catch (e: Exception) {
-                    Log.e("EditorSidebarActions", "Plugin '$pluginId' crashed in getSideMenuItems()", e)
-                    val result = pluginManager.recordPluginCrash(pluginId)
-                    val wasDisabled = result is PluginManager.CrashResult.Disabled
-                    val crashCount = when (result) {
-                        is PluginManager.CrashResult.Recorded -> result.crashCount
-                        is PluginManager.CrashResult.Disabled -> pluginManager.crashTracker.getCrashCount(pluginId)
-                    }
-                    EventBus.getDefault().post(
-                        PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, Log.getStackTraceString(e))
-                    )
-                }
-            }
-    }
+					sideMenuItems.forEach { navItem ->
+						val action = PluginSidebarActionItem(context, navItem, order++, pluginId)
+						registry.registerAction(action)
+					}
+				} catch (e: Exception) {
+					Log.e("EditorSidebarActions", "Plugin '$pluginId' crashed in getSideMenuItems()", e)
+					val result = pluginManager.recordPluginCrash(pluginId)
+					val wasDisabled = result is PluginManager.CrashResult.Disabled
+					val crashCount =
+						when (result) {
+							is PluginManager.CrashResult.Recorded -> result.crashCount
+							is PluginManager.CrashResult.Disabled -> pluginManager.crashTracker.getCrashCount(pluginId)
+						}
+					EventBus.getDefault().post(
+						PluginCrashedEvent(pluginId, result.pluginName, crashCount, wasDisabled, Log.getStackTraceString(e)),
+					)
+				}
+			}
+	}
 }

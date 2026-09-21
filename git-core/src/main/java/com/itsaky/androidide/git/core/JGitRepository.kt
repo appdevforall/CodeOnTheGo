@@ -6,6 +6,8 @@ import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.git.core.models.GitCommit
 import com.itsaky.androidide.git.core.models.GitStatus
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.CheckoutCommand
 import org.eclipse.jgit.api.CreateBranchCommand
@@ -42,7 +44,13 @@ import java.io.File
 class JGitRepository(
 	override val rootDir: File,
 ) : GitRepository {
+	companion object {
+		private const val CONFIG_SECTION_COTG = "cotg"
+		private const val CONFIG_KEY_WATERMARK = "commit-watermark"
+	}
+
 	private val log = LoggerFactory.getLogger(JGitRepository::class.java)
+	private val configMutex = Mutex()
 
 	private val repository: Repository =
 		FileRepositoryBuilder()
@@ -213,6 +221,28 @@ class JGitRepository(
 			if (hasAdds) addCommand.call()
 			if (hasRms) rmCommand.call()
 			Unit
+		}
+
+	override suspend fun isCommitWatermarkEnabled(): Boolean =
+		withContext(Dispatchers.IO) {
+			configMutex.withLock {
+				repository.config.load()
+				repository.config.getBoolean(CONFIG_SECTION_COTG, null, CONFIG_KEY_WATERMARK, true)
+			}
+		}
+
+	override suspend fun setCommitWatermarkEnabled(enabled: Boolean) =
+		withContext(Dispatchers.IO) {
+			configMutex.withLock {
+				repository.config.load()
+				repository.config.setBoolean(
+					CONFIG_SECTION_COTG,
+					null,
+					CONFIG_KEY_WATERMARK,
+					enabled,
+				)
+				repository.config.save()
+			}
 		}
 
 	override suspend fun commit(

@@ -26,9 +26,9 @@
   <string name="get_started">শুরু করুন</string>
   <string name="msg_cannot_perform_fix">দ্রুত সমাধান করতে অক্ষম</string>
   <string name="msg_performing_actions">কোড ক্রিয়া সম্পাদন করা হচ্ছে…</string>
-  <string name="msg_api_info_since">API %d থেকে</string>
-  <string name="msg_api_info_removed">API %d এ সরানো হয়েছে</string>
-  <string name="msg_api_info_deprecated">API %d থেকে অপ্রচলিত</string>
+  <string name="msg_api_info_since">API %s থেকে</string>
+  <string name="msg_api_info_removed">API %s এ সরানো হয়েছে</string>
+  <string name="msg_api_info_deprecated">API %s থেকে অপ্রচলিত</string>
   <string name="msg_finding_references">রেফারেন্স খোঁজা হচ্ছে…</string>
   <string name="msg_finding_definition">সংজ্ঞা খোঁজা হচ্ছে…</string>
   <string name="msg_no_definition">সংজ্ঞা পাওয়া যায়নি</string>

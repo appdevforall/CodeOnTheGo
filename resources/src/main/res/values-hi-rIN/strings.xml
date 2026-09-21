@@ -23,9 +23,9 @@
   <string name="get_started">प्रारंभ करें</string>
   <string name="msg_cannot_perform_fix">कोड क्रिया करने में असमर्थ</string>
   <string name="msg_performing_actions">सुधार कर रहे है…</string>
-  <string name="msg_api_info_since">API %d से उपलब्ध है</string>
-  <string name="msg_api_info_removed">API %d में हटाया गया</string>
-  <string name="msg_api_info_deprecated">API %d में बहिष्कृत हो गया हे</string>
+  <string name="msg_api_info_since">API %s से उपलब्ध है</string>
+  <string name="msg_api_info_removed">API %s में हटाया गया</string>
+  <string name="msg_api_info_deprecated">API %s में बहिष्कृत हो गया हे</string>
   <string name="msg_finding_references">सन्दर्भ ढूंढे जा रहे है…</string>
   <string name="msg_finding_definition">परिभासा ढूंढी जा रही है…</string>
   <string name="msg_no_definition">परिभाषा नहीं मिली</string>
