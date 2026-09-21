@@ -278,7 +278,7 @@ public interface LlmInferenceService {
 		 * Embeds a batch of texts in one call.
 		 *
 		 * @param texts
-		 *            the texts to embed; must not be null, must not be empty, and must contain no null element
+		 *            the texts to embed; must not be null, must not be empty, and must contain no null element. The implementation snapshots the list before it returns, so a caller may reuse or clear its own list the moment the call comes back without disturbing the batch in flight.
 		 * @return a future yielding one vector per input, in input order, each of {@link #getEmbeddingDimensions} length -- or completed exceptionally, leaving the whole batch unproduced (never null)
 		 * @throws IllegalArgumentException
 		 *             if {@code texts} is empty
