@@ -18,6 +18,7 @@
 package com.itsaky.androidide.lsp.java.providers.snippet
 
 import com.itsaky.androidide.lsp.snippets.ISnippet
+import com.itsaky.androidide.lsp.snippets.SnippetLanguage
 import com.itsaky.androidide.lsp.snippets.SnippetRegistry
 
 /**
@@ -26,13 +27,13 @@ import com.itsaky.androidide.lsp.snippets.SnippetRegistry
  * @author Akash Yadav
  */
 object JavaSnippetRepository {
-
 	val snippets: Map<JavaSnippetScope, List<ISnippet>>
-		get() = JavaSnippetScope.entries.associateWith { scope ->
-			SnippetRegistry.getSnippets("java", scope.filename)
-		}
+		get() =
+			JavaSnippetScope.entries.associateWith { scope ->
+				SnippetRegistry.getSnippets(SnippetLanguage.JAVA.id, scope.filename)
+			}
 
 	fun init() {
-		SnippetRegistry.initBuiltIn("java", JavaSnippetScope.entries)
+		SnippetRegistry.initBuiltIn(SnippetLanguage.JAVA.id, JavaSnippetScope.entries)
 	}
 }

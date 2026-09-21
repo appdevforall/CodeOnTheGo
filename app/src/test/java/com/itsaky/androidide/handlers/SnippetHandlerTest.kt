@@ -72,6 +72,25 @@ class SnippetHandlerTest {
 		assertThat(SnippetRegistry.getSnippets("kt", "local")).isEmpty()
 	}
 
+	@Test
+	fun `loadPluginSnippets lower-cases an unrecognised language id and keeps it`() {
+		registerPlugin(
+			SnippetContribution(
+				language = "Groovy",
+				scope = "local",
+				prefix = "groovyplugin",
+				description = "Contributed by a plugin",
+				body = listOf("println 'groovy'"),
+			),
+		)
+
+		SnippetHandler.loadPluginSnippets()
+
+		assertThat(SnippetRegistry.getSnippets("groovy", "local").map { it.prefix })
+			.containsExactly("groovyplugin")
+		assertThat(SnippetRegistry.getSnippets("kt", "local")).isEmpty()
+	}
+
 	private fun registerPlugin(vararg contributions: SnippetContribution) {
 		PluginSnippetManager.getInstance().registerPlugin(
 			PLUGIN_ID,
