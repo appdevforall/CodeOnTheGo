@@ -40,11 +40,16 @@ object SnippetHandler {
 		pluginId: String,
 		contributions: List<SnippetContribution>,
 	) {
-		contributions.groupBy { it.language to it.scope }.forEach { (key, group) ->
+		contributions.groupBy { normalizeLanguage(it.language) to it.scope }.forEach { (key, group) ->
 			val (language, scope) = key
 			val snippets = group.map { DefaultSnippet(it.prefix, it.description, it.body.toTypedArray()) }
 			SnippetRegistry.registerPluginSnippets(pluginId, language, scope, snippets)
 		}
+	}
+
+	private fun normalizeLanguage(language: String): String {
+		val id = language.lowercase()
+		return if (id == "kotlin") "kt" else id
 	}
 
 	fun removePluginSnippets(pluginId: String) {
