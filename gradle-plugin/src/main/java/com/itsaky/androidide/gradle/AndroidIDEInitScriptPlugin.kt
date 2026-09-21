@@ -39,6 +39,14 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 	override fun apply(target: Gradle) {
 		removeDaemonLogs(target)
 
+		target.beforeSettings { settings ->
+			settings.addLocalMavenRepoToBuildscript(logger)
+		}
+
+		target.beforeProject { project ->
+			project.addLocalMavenRepoToBuildscript(logger)
+		}
+
 		target.settingsEvaluated { settings ->
 			settings.pluginManager.apply(COTGSettingsPlugin::class.java)
 		}

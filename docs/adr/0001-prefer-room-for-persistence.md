@@ -32,8 +32,9 @@ If none of these hold, use Room. "It's a small table" or "I already know SQL" ar
 |---|---|---|
 | Symbol indexing | `lsp/indexing/.../SQLiteIndex.kt` | Performance/allocation-critical; granular schema & query control (condition 2). |
 | In-app tooltips | `idetooltips/.../ToolTipManager.kt` | Prebuilt DB opened read-only (condition 1). |
-| In-app / plugin help | `plugin-manager/.../documentation/PluginDocumentationManager.kt` | Prebuilt help-content DB (condition 1). |
+| In-app / plugin help | `plugin-manager/.../documentation/PluginDocumentationManager.kt` | Schema owned by `OfflineDocumentationTools`, shared across that boundary (condition 3). **Not** condition 1: this is the one component that writes to `documentation.db`, opening it `OPEN_READWRITE` to insert plugin-contributed tooltip and Tier 3 rows. Room is still wrong here — it would want to own and migrate a schema this repo is forbidden to change. |
 | Local web server | `app/.../localWebServer/WebServer.kt` | Reads databases (incl. project data) it doesn't own, read-only (conditions 1 & 3). |
+| Documentation compression | `common/.../utils/DocumentationCompression.kt` | Reads `CompressionDictionary` from whichever `documentation.db` its caller opened, so the reader and the writer above cannot disagree about how a row is compressed (conditions 1 & 3). |
 
 The tooltips and in-app/plugin-help rows, plus the local web server's Tier 3 serving, all read `documentation.db` — see [docs/documentation-database.md](../documentation-database.md) for its schema and consumers.
 
