@@ -69,6 +69,7 @@ class JavaCodeActionTooltipTagTest {
 				// Tag is reserved ahead of content, as with try/catch above: ADFA-5047 specifies
 				// editor.codeactions.extractvariable and the documentation.db row is a hand-off item.
 				"ide.editor.lsp.java.extractVariable" to TooltipTag.EDITOR_CODE_ACTIONS_EXTRACT_VARIABLE,
+				"ide.editor.lsp.java.extractMethod" to TooltipTag.EDITOR_CODE_ACTIONS_EXTRACT_METHOD,
 				// No tag pinned.
 				"ide.editor.lsp.java.diagnostics.variableToStatement" to "",
 				"ide.editor.lsp.java.diagnostics.fieldToBlock" to "",
