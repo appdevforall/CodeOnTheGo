@@ -44,6 +44,19 @@ So a refactoring in `lsp/kotlin` either renders its own UI, or a new inversion m
 - **Render in `app`.** `app` is the integration point and already hosts `BottomSheetDialogFragment`s and `ILanguageClient`. Rejected: same inversion problem, and it puts Kotlin-specific refactoring UI in the module where nothing else language-specific lives.
 - **A new `lsp/kotlin-ui` module.** Keeps Compose out of `lsp/kotlin` without inverting. Rejected for now: a new Gradle module in a ~80-module build is disproportionate for one sheet. Reconsider once extract-method and inline-variable have landed and the UI surface is known.
 
+## Revision (2026-09-14, ADFA-5048)
+
+The Alternatives section rejected "a new `lsp/kotlin-ui` module" *for now*, to be reconsidered "once extract-method and inline-variable have landed and the UI surface is known." That point has arrived: extract-variable and inline-variable shipped, and extract-method (this ticket) makes a second language — `lsp/java` — want the *same* sheet rather than a second copy of it.
+
+**Amendment: refactoring UI that two language servers share lives in `:lsp:ui`, behind plain-data contracts, not in the owning LSP module.** `:lsp:ui` holds the Compose sheets (`ExtractMethodSheet`, `ExtractVariableSheet`, …) and their `ViewModel`/state, and each is driven by a plain-data contract (`MethodCandidateView`, `CandidateView`, …) carrying only labels, names and rendered signature text — no PSI, no javac types, no analysis session. The owning LSP module still owns the analysis and the small adapter that maps its own candidate type onto the contract; only the shared UI moves.
+
+This narrows the original decision rather than reversing it:
+
+- **Shared refactoring sheets** (used by more than one `lsp/*` module) live in `:lsp:ui`.
+- **Single-language UI** stays with its owner — `lsp/java`'s `AutoFixImportsAction` dialog is unaffected, and a refactoring only one language offers has no reason to move.
+
+The "three or more Compose `lsp/*` modules" trigger in Consequences is superseded by this: the shared module now exists, so a new interactive refactoring renders through `:lsp:ui` instead of adding Compose to its own `lsp/*` module.
+
 ## Related
 
 - [ADR 0009](0009-jetpack-compose-for-new-ui.md) — Compose for new UI; this ADR answers *where*, not *what*.
