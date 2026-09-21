@@ -87,12 +87,13 @@ object GitRepositoryManager {
 	 * Initializes a new Git repository at the specified directory, and then returns a new
 	 * [JGitRepository]
 	 */
-	suspend fun initRepository(dir: File): GitRepository {
-		Git
-			.init()
-			.setDirectory(dir)
-			.call()
-			.close()
-		return JGitRepository(dir)
-	}
+	suspend fun initRepository(dir: File): GitRepository =
+		withContext(Dispatchers.IO) {
+			Git
+				.init()
+				.setDirectory(dir)
+				.call()
+				.close()
+			JGitRepository(dir)
+		}
 }
