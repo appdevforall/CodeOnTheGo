@@ -30,6 +30,11 @@ interface GitRepository : Closeable {
 	// Commit Operations
 	suspend fun stageFiles(files: List<File>)
 
+	// Git commit watermark configurations
+	suspend fun isCommitWatermarkEnabled(): Boolean
+
+	suspend fun setCommitWatermarkEnabled(enabled: Boolean)
+
 	suspend fun commit(
 		message: String,
 		authorName: String? = null,

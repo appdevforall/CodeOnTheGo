@@ -18,26 +18,23 @@
 package com.itsaky.androidide.documentation
 
 import android.database.sqlite.SQLiteDatabase
-import com.aayushatharva.brotli4j.Brotli4jLoader
-import com.aayushatharva.brotli4j.decoder.BrotliInputStream
+import androidx.annotation.VisibleForTesting
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
-import com.itsaky.androidide.utils.DatabaseVersionResolver
+import com.itsaky.androidide.utils.BrotliDictionaryCodec
+import com.itsaky.androidide.utils.loadCompressionDictionary
 import io.pebbletemplates.pebble.PebbleEngine
-import io.pebbletemplates.pebble.loader.StringLoader
-import io.pebbletemplates.pebble.template.PebbleTemplate
+import io.pebbletemplates.pebble.error.PebbleException
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.Closeable
 import java.io.File
-import java.io.IOException
 import java.io.InputStream
 import java.io.SequenceInputStream
 import java.io.StringWriter
 import java.net.URLDecoder
-import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Collections
 import java.util.Date
@@ -50,25 +47,7 @@ import kotlin.concurrent.read
 import kotlin.concurrent.write
 
 /**
- * Copies [bytes] into a direct [ByteBuffer] -- brotli4j's `attachDictionary` requires a direct
- * buffer, a heap-backed one throws `IllegalArgumentException`.
- *
- * The capacity must be exactly [bytes]`.size`: `attachDictionary` reads the whole capacity and
- * ignores position/limit, so trailing slack from an over-allocated buffer is treated as dictionary
- * content and every decode then fails with `IOException: corrupted input`.
- *
- * @param bytes The bytes to copy.
- * @return A direct byte buffer containing the copied bytes, positioned at the beginning.
- */
-fun toDirectByteBuffer(bytes: ByteArray): ByteBuffer =
-	ByteBuffer.allocateDirect(bytes.size).apply {
-		put(bytes)
-		flip()
-	}
-
-/**
  * Reads [chunks] back to back as one stream, without concatenating them into a new array.
- * Cheap to build twice, which the no-dictionary retry in [DocumentationContentSource] relies on.
  */
 fun chunksAsStream(chunks: List<ByteArray>): InputStream =
 	SequenceInputStream(Collections.enumeration(chunks.map { ByteArrayInputStream(it) }))
@@ -126,6 +105,24 @@ sealed interface DocumentationLookup {
 }
 
 /**
+ * A template could not be loaded, parsed or rendered.
+ *
+ * Exists so a caller can tell a template diagnostic apart from every other failure on the serving
+ * path. That matters because one caller puts the message in an HTTP response body: a template
+ * failure names a template, which is the whole point of the ADFA-5405 diagnostic and safe to send,
+ * while the [IllegalStateException] a closed or unopenable database raises carries the database's
+ * filesystem path, and a `SQLiteException` carries SQL text. Both of those were reaching the
+ * response because they share [IllegalStateException] with the diagnostics.
+ *
+ * Extends [IllegalStateException] rather than replacing it, so callers that only care that the
+ * render failed are unaffected.
+ */
+class TemplateRenderException(
+	message: String?,
+	cause: Throwable? = null,
+) : IllegalStateException(message, cause)
+
+/**
  * What [DocumentationContentSource.lookupRequestPath] found, plus the path form that produced it --
  * so a transport reporting a miss or a corrupt row can quote the string that was actually queried.
  */
@@ -136,8 +133,10 @@ data class RequestLookup(
 
 /**
  * Reads documentation content out of `documentation.db`: the row lookup, reassembly of chunked
- * rows, the shared-dictionary Brotli decode (ADFA-5153), and the swap to a newer database dropped
- * on the sdcard.
+ * rows, the shared-dictionary Brotli decode (ADFA-5153) -- one pass through
+ * [BrotliDictionaryCodec], with no plain-decode retry, since every brotli row in a
+ * dictionary-declaring database is compressed against that dictionary, plugin-contributed rows
+ * included (ADFA-5240) -- and the swap to a newer database dropped on the sdcard.
  *
  * One pipeline with two callers (ADFA-5176): `WebServer`, which wraps it in HTTP, and
  * [DocumentationRequestInterceptor], which answers a WebView in-process with no socket at all. A row
@@ -175,9 +174,11 @@ class DocumentationContentSource(
 	private var activeDatabasePath: String? = null
 
 	/**
-	 * Bumped on every swap, so a caller can tell that anything it cached from this source --
-	 * a compiled template, a looked-up template id -- belongs to a database that is gone.
+	 * Bumped on every swap. Nothing outside caches per database now that templates resolve by name
+	 * and the caches for them live here, so this has no production reader: it stays as the
+	 * observable a test asserts a swap happened on.
 	 */
+	@VisibleForTesting
 	@Volatile
 	var generation: Long = 0
 		private set
@@ -197,16 +198,27 @@ class DocumentationContentSource(
 	@Volatile
 	private var failedInstalledSwapTimestamp: Long = -1
 
-	// The dictionary the Content rows are compressed against. Loaded on the first decode that
-	// needs it after a swap rather than eagerly, and then cached for that database. Null when the
-	// active database predates the dictionary migration -- CompressionDictionary won't exist.
-	private var compressionDictionary: ByteBuffer? = null
-	private var compressionDictionaryStale = true
+	// Decodes Content's brotli rows against the shared dictionary they were compressed with (see
+	// ADFA-5153). Built on the first read that needs it after a swap rather than eagerly, then
+	// cached for that database. Holds no dictionary -- and so decodes plain brotli -- when the
+	// active database declares a version below the dictionary migration. Access only through
+	// [codec], which rebuilds it when stale.
+	private var codec: BrotliDictionaryCodec? = null
+	private var codecStale = true
 
-	private val pebbleEngine = PebbleEngine.Builder().loader(StringLoader()).build()
+	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
+	// makes the engine's own cache the compiled-template cache, keyed by name: a partial pulled in
+	// by several pages is compiled once, and dropping a database means invalidating that cache too.
+	private val pebbleEngine =
+		PebbleEngine
+			.Builder()
+			.loader(DatabaseTemplateLoader { database })
+			.maxRenderedSize(MAX_RENDERED_CHARS)
+			.build()
 
-	// Compiled templates for the active database, cleared when it is swapped.
-	private val templateCache = ConcurrentHashMap<Int, PebbleTemplate>()
+	// Template names by id, for the active database. Content rows reference a template by id; every
+	// reference between templates is by name, which is what the loader and the engine cache use.
+	private val templateNames = ConcurrentHashMap<Int, String>()
 
 	private val gson: Gson =
 		GsonBuilder()
@@ -253,7 +265,7 @@ class DocumentationContentSource(
 			try {
 				readContent(database, path)
 			} catch (e: Exception) {
-				log.error("Cannot read '{}': {}", path, e.message)
+				log.error("Cannot read '{}'", path, e)
 				DocumentationLookup.Failed(e)
 			}
 		}
@@ -294,8 +306,11 @@ class DocumentationContentSource(
 	/**
 	 * Ensures the documentation database is open and applies any pending database changes.
 	 *
-	 * Does nothing when the source is closed or the database cannot be opened.
+	 * Does nothing when the source is closed or the database cannot be opened. No production caller:
+	 * [lookup] and [withDatabase] apply a pending swap themselves, so this is the seam a test uses to
+	 * drive one directly.
 	 */
+	@VisibleForTesting
 	fun refreshDatabase() {
 		if (!openIfNeeded()) return
 		swapDatabaseIfChanged()
@@ -321,25 +336,43 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Renders a template using the supplied JSON context.
+	 * Renders the named template using the supplied JSON context.
 	 *
-	 * @param templateId The identifier of the template to render.
-	 * @param contextJson The JSON object used as the template context.
+	 * For a caller that knows a well-known template by name -- the bookshelf, say -- rather than
+	 * through a `Content` row's `templateId`.
+	 *
+	 * [contextJson] builds the payload from the same database the template is then loaded from,
+	 * under one acquisition. Building it through a separate [withDatabase] and passing the bytes in
+	 * would let a debug-database swap land between the two, rendering the new database's template
+	 * against the old one's payload. Nesting is not the alternative: [withDatabase] takes the write
+	 * lock to check for a swap before it takes the read lock, so a nested call deadlocks.
+	 *
+	 * @param name The template's `Templates.name`.
 	 * @param path The path associated with the rendering request for diagnostics.
+	 * @param contextJson Builds the JSON object used as the template context.
 	 * @return The rendered content encoded as UTF-8 bytes.
 	 */
-	fun renderTemplate(
-		templateId: Int,
-		contextJson: ByteArray,
+	fun renderNamedTemplate(
+		name: String,
 		path: String,
-	): ByteArray = withDatabase { database -> render(database, templateId, contextJson, path) }
+		contextJson: (SQLiteDatabase) -> ByteArray,
+	): ByteArray = withDatabase { database -> renderNamed(name, contextJson(database), path) }
 
 	/**
-	 * Clears all cached compiled templates.
+	 * Clears all cached templates, compiled and by name.
+	 *
+	 * Takes the write lock, which `ReentrantReadWriteLock` will not upgrade to from a read hold, so
+	 * `withDatabase { clearTemplateCache() }` deadlocks that thread permanently.
 	 */
-	fun clearTemplateCache() {
-		templateCache.clear()
-	}
+	fun clearTemplateCache() =
+		// All three under one write lock: clearing them piecemeal under a concurrent render can hand
+		// it a template from before the clear and a tag cache from after it. The engine's two caches
+		// are keyed by name, so a template edited under the same name survives without this.
+		databaseLock.write {
+			templateNames.clear()
+			pebbleEngine.templateCache.invalidateAll()
+			pebbleEngine.tagCache.invalidateAll()
+		}
 
 	/** The last-modified time of [file], or -1 when it does not exist. */
 	private fun timestampOf(
@@ -364,7 +397,7 @@ class DocumentationContentSource(
 			try {
 				database?.close()
 			} catch (e: Exception) {
-				log.error("Cannot close the documentation database: {}", e.message)
+				log.error("Cannot close the documentation database", e)
 			}
 			database = null
 		}
@@ -383,7 +416,7 @@ class DocumentationContentSource(
 			open()
 			database != null
 		} catch (e: Exception) {
-			log.error("Cannot open the documentation database '{}': {}", databaseFile, e.message)
+			log.error("Cannot open the documentation database '{}'", databaseFile, e)
 			false
 		}
 	}
@@ -408,7 +441,7 @@ class DocumentationContentSource(
 		// the next read retries, and a brotli row that genuinely cannot resolve its dictionary still
 		// fails loudly from decompressBrotli.
 		try {
-			compressionDictionary(database)
+			codec(database)
 		} catch (e: Exception) {
 			log.warn("Could not prime the compression dictionary; will retry on the next read: {}", e.message)
 		}
@@ -444,50 +477,99 @@ class DocumentationContentSource(
 		contextJson: ByteArray,
 		path: String,
 	): ByteArray {
-		val template =
-			templateCache.getOrPut(templateId) {
-				if (log.isDebugEnabled) log.debug("Template cache miss for id {}, path '{}'.", templateId, path)
-				compileTemplate(database, templateId, path)
+		val name =
+			templateNames.getOrPut(templateId) {
+				if (log.isDebugEnabled) log.debug("Template name cache miss for id {}, path '{}'.", templateId, path)
+				templateName(database, templateId, path)
 			}
 
-		val contextString = contextJson.toString(Charsets.UTF_8)
-		if (contextString.isBlank() || contextString.trim() == "null") {
-			throw IllegalStateException("Template ID $templateId has empty or null JSON context")
-		}
-		val context: Map<String, Any> = gson.fromJson(contextString, templateContextType)
-
-		return StringWriter().also { template.evaluate(it, context) }.toString().toByteArray()
+		return renderNamed(name, contextJson, path)
 	}
 
 	/**
-	 * Compiles the template identified by the given ID.
+	 * Renders the named template using the provided JSON context.
+	 *
+	 * Callers hold the read lock, since the loader the engine resolves through reads the active
+	 * database -- for this template and for every one it references.
+	 *
+	 * @param name The template's `Templates.name`.
+	 * @param contextJson The JSON-encoded context supplied to the template.
+	 * @param path The content path associated with the rendering request.
+	 * @return The rendered template content encoded as UTF-8 bytes.
+	 */
+	private fun renderNamed(
+		name: String,
+		contextJson: ByteArray,
+		path: String,
+	): ByteArray {
+		val contextString = contextJson.toString(Charsets.UTF_8)
+		if (contextString.isBlank() || contextString.trim() == "null") {
+			throw TemplateRenderException("Template '$name' has empty or null JSON context, for path '$path'")
+		}
+		val context: Map<String, Any> = gson.fromJson(contextString, templateContextType)
+
+		return try {
+			StringWriter().also { pebbleEngine.getTemplate(name).evaluate(it, context) }.toString().toByteArray()
+		} catch (e: PebbleException) {
+			// PebbleException formats getMessage() as "<text> (<file>:<line>)". When it carries
+			// neither -- the loader's throws, and the rendered-size limit -- that suffix is a bare
+			// "(?:?)" in the response body; when it carries both, as a parse error in a template
+			// does, it is the diagnostic that says which template and line to go fix.
+			val message = if (e.fileName == null && e.lineNumber == null) e.pebbleMessage else e.message
+			throw TemplateRenderException(message, e)
+		} catch (e: StackOverflowError) {
+			// Templates can reference each other now (ADFA-5405), so they can also reference each
+			// other in a cycle, which Pebble resolves by recursing until the stack runs out. Raised
+			// here as an exception because an Error passes through every catch on this path: the
+			// client would get a closed socket with no status line and nothing naming the template.
+			throw TemplateRenderException(
+				"Rendering template '$name' overflowed the stack; check for a reference cycle between templates",
+				e,
+			)
+		}
+	}
+
+	/**
+	 * Resolves a template id to the name the engine loads it by.
 	 *
 	 * @param templateId The database identifier of the template.
 	 * @param path The content path associated with the template.
-	 * @return The compiled template.
-	 * @throws IllegalStateException If the template is missing or has multiple database rows.
+	 * @return The template's name.
+	 * @throws TemplateRenderException If the template is missing, has multiple database rows, or
+	 * cannot be read.
 	 */
-	private fun compileTemplate(
+	private fun templateName(
 		database: SQLiteDatabase,
 		templateId: Int,
 		path: String,
-	): PebbleTemplate =
-		database.rawQuery("SELECT content FROM Templates WHERE id = ?", arrayOf(templateId.toString())).use { cursor ->
-			when {
-				cursor.count > 1 -> {
-					throw IllegalStateException("Template ID $templateId is shared by more than one template")
-				}
+	): String =
+		try {
+			database.rawQuery("SELECT name FROM Templates WHERE id = ?", arrayOf(templateId.toString())).use { cursor ->
+				when {
+					cursor.count > 1 -> {
+						throw TemplateRenderException("Template ID $templateId is shared by more than one template")
+					}
 
-				!cursor.moveToFirst() -> {
-					throw IllegalStateException("Template ID $templateId not found in the database, for path '$path'")
-				}
+					!cursor.moveToFirst() -> {
+						throw TemplateRenderException("Template ID $templateId not found in the database, for path '$path'")
+					}
 
-				else -> {
-					val body = cursor.getBlob(0)
-					if (log.isDebugEnabled) log.debug("Compiling template {}, {} bytes.", templateId, body.size)
-					pebbleEngine.getTemplate(body.toString(Charsets.UTF_8))
+					// The same guard the loader applies to getBlob. getString returns a platform
+					// type, so a NULL name column yields null and the implicit null check throws a
+					// bare NPE -- rewrapped below as the generic message, losing both the column
+					// and, unlike the loader's path, the template's identity.
+					else -> {
+						cursor.getString(0)
+							?: throw TemplateRenderException("Template ID $templateId has no name, for path '$path'")
+					}
 				}
 			}
+		} catch (e: TemplateRenderException) {
+			throw e
+		} catch (e: RuntimeException) {
+			// Not the raw exception: a SQLiteException's message carries SQL text and one caller
+			// puts a TemplateRenderException's message in an HTTP response body.
+			throw TemplateRenderException("Cannot read the template for ID $templateId", e)
 		}
 
 	/**
@@ -519,20 +601,11 @@ class DocumentationContentSource(
 	}
 
 	/**
-	 * Ensures Brotli native support is available for content decoding.
-	 *
-	 * @throws IOException If the Brotli native library cannot be loaded.
-	 */
-	private fun ensureBrotliAvailable() {
-		try {
-			Brotli4jLoader.ensureAvailability()
-		} catch (e: UnsatisfiedLinkError) {
-			throw IOException("brotli4j's native library is unavailable, so brotli content cannot be decoded", e)
-		}
-	}
-
-	/**
-	 * Decompresses Brotli-compressed content, retrying without the database dictionary when dictionary-based decoding fails.
+	 * Decompresses one Brotli-compressed Content row, attaching the shared dictionary when the
+	 * active database declares one. Every brotli row in such a database is compressed against it,
+	 * whether built offline or contributed by a plugin (ADFA-5240), so a single decode is enough
+	 * and a failure is a real failure -- not, as it once was, a row that might simply have been
+	 * written the other way.
 	 *
 	 * @param database The database used to obtain the Brotli dictionary.
 	 * @param chunks The compressed content chunks.
@@ -541,96 +614,29 @@ class DocumentationContentSource(
 	private fun decompressBrotli(
 		database: SQLiteDatabase,
 		chunks: List<ByteArray>,
-	): ByteArray {
-		ensureBrotliAvailable()
-		val dictionary = compressionDictionary(database)
-		if (dictionary != null) {
-			try {
-				return BrotliInputStream(chunksAsStream(chunks)).use { stream ->
-					stream.attachDictionary(dictionary)
-					stream.readBytes()
-				}
-			} catch (e: IOException) {
-				log.debug(
-					"Dictionary decode failed for a brotli row (likely dictionary-free plugin content); retrying without a dictionary: {}",
-					e.message,
-				)
-			}
-		}
-
-		return BrotliInputStream(chunksAsStream(chunks)).use { it.readBytes() }
-	}
+	): ByteArray = codec(database).decompress(chunksAsStream(chunks))
 
 	/**
-	 * Loads the active database's shared compression dictionary when needed.
+	 * The codec for the active database, (re)built on the first use after a swap.
+	 *
+	 * Only clears the staleness flag on a clean build -- a definitive dictionary or a definitive
+	 * absence, per [loadCompressionDictionary]'s contract -- so an unexpected exception leaves it
+	 * set and the next read retries, rather than caching a transient failure as "no dictionary"
+	 * for the rest of this database's lifetime.
 	 *
 	 * @param database The active documentation database.
-	 * @return The dictionary as a direct byte buffer, or `null` when the database has no usable dictionary.
+	 * @return The codec holding that database's dictionary, dictionary-free when it declares none.
 	 */
-	private fun compressionDictionary(database: SQLiteDatabase): ByteBuffer? =
+	private fun codec(database: SQLiteDatabase): BrotliDictionaryCodec =
 		synchronized(this) {
-			if (compressionDictionaryStale) {
-				compressionDictionary = dictionaryBytes(database)?.let { toDirectByteBuffer(it) }
-				compressionDictionaryStale = false
+			var current = codec
+			if (codecStale || current == null) {
+				current = BrotliDictionaryCodec(loadCompressionDictionary(database))
+				codec = current
+				codecStale = false
 			}
-			compressionDictionary
+			current
 		}
-
-	/**
-	 * Loads the Brotli compression dictionary declared by the database.
-	 *
-	 * @return The dictionary bytes, or `null` when the database does not support a dictionary or has no usable dictionary row.
-	 */
-	private fun dictionaryBytes(database: SQLiteDatabase): ByteArray? {
-		val majorVersion = DatabaseVersionResolver.resolveMajorVersion(database)
-		if (majorVersion == null ||
-			majorVersion < DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY
-		) {
-			log.warn(
-				"Database declares documentation version {}, below {}; decoding brotli content without a dictionary.",
-				majorVersion ?: "none",
-				DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY,
-			)
-			return null
-		}
-
-		val tableExists =
-			database
-				.rawQuery(
-					"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'CompressionDictionary'",
-					null,
-				).use { it.moveToFirst() }
-		if (!tableExists) {
-			log.warn("CompressionDictionary table not found; decoding brotli content without a dictionary.")
-			return null
-		}
-
-		return database.rawQuery("SELECT data FROM CompressionDictionary WHERE id = 1", null).use { cursor ->
-			if (!cursor.moveToFirst()) {
-				log.warn("CompressionDictionary table is empty; decoding brotli content without a dictionary.")
-				return null
-			}
-
-			val bytes = cursor.getBlob(0)
-			when {
-				bytes == null -> {
-					log.warn("CompressionDictionary row has a NULL data column; decoding brotli content without a dictionary.")
-					null
-				}
-
-				// An empty blob yields a 0-capacity buffer, which attachDictionary rejects -- every
-				// decode would then fail with nothing above DEBUG to say why.
-				bytes.isEmpty() -> {
-					log.warn("CompressionDictionary row has an empty data column; decoding brotli content without a dictionary.")
-					null
-				}
-
-				else -> {
-					bytes
-				}
-			}
-		}
-	}
 
 	/**
 	 * Applies a pending database replacement when the active database file is stale.
@@ -738,19 +744,40 @@ class DocumentationContentSource(
 		database = opened
 		activeDatabasePath = path
 		databaseTimestamp = timestamp
-		compressionDictionaryStale = true
-		templateCache.clear()
+		// Nulled as well as marked stale: a different database can carry a different dictionary
+		// (or none), and decoding its rows against the previous one can succeed with wrong bytes
+		// rather than fail (see BrotliDictionaryCodec). A null codec can only be rebuilt, never
+		// reused.
+		codec = null
+		codecStale = true
+		clearTemplateCache()
 		generation++
 
 		try {
 			previous?.close()
 		} catch (e: Exception) {
-			log.error("Cannot close previous database: {}", e.message)
+			log.error("Cannot close previous database", e)
 		}
 	}
 
 	companion object {
 		const val CONTENT_CHUNK_SIZE = 1024 * 1024
+
+		// Bounds a render whose output grows without end -- a runaway {% for %}, say -- which would
+		// otherwise raise OutOfMemoryError, an Error every catch on this path misses. Pebble's own
+		// default is unbounded, so this is a cap where there was none: it has to be high enough
+		// that no real page reaches it and low enough that it fires before the heap does.
+		//
+		// Pebble counts characters, so 4 Mi chars is an 8 MB char[], and the doubling step that
+		// reaches it holds the old 8 MB and the new 16 MB at once, then toString() copies another
+		// 8 MB -- ~32 MB transient against a 192-256 MB heap. 16 MiB failed that test, which is
+		// why it never fired. The largest rendered page is not measurable from this repo, so the
+		// margin above it is deliberately wide rather than tight: the only thing this has to
+		// catch is unbounded growth, and unbounded growth passes any finite number.
+		//
+		// Untemplated content is irrelevant to it. render() runs only for templateId > 0, so the
+		// multi-megabyte rows readChunks exists for -- the bundled PDFs -- never reach the writer.
+		private const val MAX_RENDERED_CHARS = 4 * 1024 * 1024
 
 		private const val CONTENT_QUERY = """
 			SELECT C.content, CT.value, CT.compression, C.templateId

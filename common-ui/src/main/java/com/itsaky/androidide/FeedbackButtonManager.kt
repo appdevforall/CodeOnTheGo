@@ -16,105 +16,121 @@ import kotlinx.coroutines.launch
  * Uses normalized ratios instead of absolute coordinates to keep the FAB correctly
  * positioned across layout size changes (e.g. resizing, multi-window, DeX).
  */
-class FeedbackButtonManager(
-    private val activity: AppCompatActivity,
-    private val feedbackFab: FloatingActionButton?,
-    private val getLogContent: (() -> String?)? = null,
-) {
-    private val repository = FabPositionRepository(activity.applicationContext)
-    private val calculator = FabPositionCalculator()
+class FeedbackButtonManager
+	// Java callers construct this positionally (TermuxActivity), and Kotlin's default arguments are
+	// invisible from Java, so the shorter forms have to be generated.
+	@JvmOverloads
+	constructor(
+		private val activity: AppCompatActivity,
+		private val feedbackFab: FloatingActionButton?,
+		private val getLogContent: (() -> String?)? = null,
+		/** The metrics file to attach, or null for none. Suspending: it writes a file (ADFA-5534). */
+		private val getMetricsAttachment: (suspend () -> java.io.File?)? = null,
+	) {
+		private val repository = FabPositionRepository(activity.applicationContext)
+		private val calculator = FabPositionCalculator()
 
-    // This function is called in the onCreate method of the activity that contains the FAB
-    fun setupDraggableFab() {
-        val fab = feedbackFab ?: return
-        loadFabPosition()
-        setupLayoutChangeListener(fab)
-        setupTouchAndClickListeners(fab)
-    }
+		// This function is called in the onCreate method of the activity that contains the FAB
+		fun setupDraggableFab() {
+			val fab = feedbackFab ?: return
+			loadFabPosition()
+			setupLayoutChangeListener(fab)
+			setupTouchAndClickListeners(fab)
+		}
 
-    // Called in onResume for returning activities to reload FAB position
-    fun loadFabPosition() {
-        val fab = feedbackFab ?: return
-        activity.lifecycleScope.launch {
-            val (xRatio, yRatio) = repository.readPositionRatios()
-            if (xRatio == -1f || yRatio == -1f) return@launch
+		// Called in onResume for returning activities to reload FAB position
+		fun loadFabPosition() {
+			val fab = feedbackFab ?: return
+			activity.lifecycleScope.launch {
+				val (xRatio, yRatio) = repository.readPositionRatios()
+				if (xRatio == -1f || yRatio == -1f) return@launch
 
-            fab.post { applySavedPosition(fab, xRatio, yRatio) }
-        }
-    }
+				fab.post { applySavedPosition(fab, xRatio, yRatio) }
+			}
+		}
 
-    private fun applySavedPosition(fab: FloatingActionButton, xRatio: Float, yRatio: Float) {
-        val parentView = fab.parent as? ViewGroup ?: return
-        val safeBounds = calculator.getSafeDraggingBounds(parentView, fab)
-        val availableWidth = (safeBounds.right - safeBounds.left).toFloat()
-        val availableHeight = (safeBounds.bottom - safeBounds.top).toFloat()
+		private fun applySavedPosition(
+			fab: FloatingActionButton,
+			xRatio: Float,
+			yRatio: Float,
+		) {
+			val parentView = fab.parent as? ViewGroup ?: return
+			val safeBounds = calculator.getSafeDraggingBounds(parentView, fab)
+			val availableWidth = (safeBounds.right - safeBounds.left).toFloat()
+			val availableHeight = (safeBounds.bottom - safeBounds.top).toFloat()
 
-        val x = calculator.fromRatio(xRatio, safeBounds.left, availableWidth)
-        val y = calculator.fromRatio(yRatio, safeBounds.top, availableHeight)
-        val (validX, validY) = calculator.validateAndCorrectPosition(x, y, parentView, fab)
+			val x = calculator.fromRatio(xRatio, safeBounds.left, availableWidth)
+			val y = calculator.fromRatio(yRatio, safeBounds.top, availableHeight)
+			val (validX, validY) = calculator.validateAndCorrectPosition(x, y, parentView, fab)
 
-        fab.x = validX
-        fab.y = validY
+			fab.x = validX
+			fab.y = validY
 
-        if (validX != x || validY != y) {
-            saveFabPosition(fab, validX, validY)
-        }
-    }
+			if (validX != x || validY != y) {
+				saveFabPosition(fab, validX, validY)
+			}
+		}
 
-    private fun setupLayoutChangeListener(fab: FloatingActionButton) {
-        fab.post {
-            val parentView = fab.parent as? ViewGroup ?: return@post
+		private fun setupLayoutChangeListener(fab: FloatingActionButton) {
+			fab.post {
+				val parentView = fab.parent as? ViewGroup ?: return@post
 
-            parentView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
-                val newWidth = right - left
-                val newHeight = bottom - top
-                val oldWidth = oldRight - oldLeft
-                val oldHeight = oldBottom - oldTop
-                if (newWidth != oldWidth || newHeight != oldHeight) {
-                    loadFabPosition()
-                }
-            }
-        }
-    }
+				parentView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+					val newWidth = right - left
+					val newHeight = bottom - top
+					val oldWidth = oldRight - oldLeft
+					val oldHeight = oldBottom - oldTop
+					if (newWidth != oldWidth || newHeight != oldHeight) {
+						loadFabPosition()
+					}
+				}
+			}
+		}
 
-    @SuppressLint("ClickableViewAccessibility")
-    private fun setupTouchAndClickListeners(fab: FloatingActionButton) {
-        val touchListener = DraggableTouchListener(
-            context = activity,
-            calculator = calculator,
-            onSavePosition = { x, y -> saveFabPosition(fab, x, y) },
-            onShowTooltip = { showTooltip(fab) }
-        )
+		@SuppressLint("ClickableViewAccessibility")
+		private fun setupTouchAndClickListeners(fab: FloatingActionButton) {
+			val touchListener =
+				DraggableTouchListener(
+					context = activity,
+					calculator = calculator,
+					onSavePosition = { x, y -> saveFabPosition(fab, x, y) },
+					onShowTooltip = { showTooltip(fab) },
+				)
 
-        fab.setOnTouchListener(touchListener)
-        fab.setOnClickListener { performFeedbackAction() }
-    }
+			fab.setOnTouchListener(touchListener)
+			fab.setOnClickListener { performFeedbackAction() }
+		}
 
-    private fun saveFabPosition(fab: FloatingActionButton, x: Float, y: Float) {
-        val parentView = fab.parent as? ViewGroup ?: return
-        // Get safe dragging bounds that account for system UI
-        val safeBounds = calculator.getSafeDraggingBounds(parentView, fab)
-        val availableWidth = (safeBounds.right - safeBounds.left).toFloat()
-        val availableHeight = (safeBounds.bottom - safeBounds.top).toFloat()
+		private fun saveFabPosition(
+			fab: FloatingActionButton,
+			x: Float,
+			y: Float,
+		) {
+			val parentView = fab.parent as? ViewGroup ?: return
+			// Get safe dragging bounds that account for system UI
+			val safeBounds = calculator.getSafeDraggingBounds(parentView, fab)
+			val availableWidth = (safeBounds.right - safeBounds.left).toFloat()
+			val availableHeight = (safeBounds.bottom - safeBounds.top).toFloat()
 
-        val xRatio = calculator.toRatio(x, safeBounds.left, availableWidth)
-        val yRatio = calculator.toRatio(y, safeBounds.top, availableHeight)
+			val xRatio = calculator.toRatio(x, safeBounds.left, availableWidth)
+			val yRatio = calculator.toRatio(y, safeBounds.top, availableHeight)
 
-        repository.savePositionRatios(xRatio, yRatio)
-    }
+			repository.savePositionRatios(xRatio, yRatio)
+		}
 
-    private fun showTooltip(fab: FloatingActionButton) {
-        TooltipManager.showIdeCategoryTooltip(
-            context = activity,
-            anchorView = fab,
-            tag = TooltipTag.FEEDBACK,
-        )
-    }
+		private fun showTooltip(fab: FloatingActionButton) {
+			TooltipManager.showIdeCategoryTooltip(
+				context = activity,
+				anchorView = fab,
+				tag = TooltipTag.FEEDBACK,
+			)
+		}
 
-    private fun performFeedbackAction() {
-        FeedbackManager.showFeedbackDialog(
-            activity = activity,
-            logContent = getLogContent?.invoke()
-        )
-    }
-}
+		private fun performFeedbackAction() {
+			FeedbackManager.showFeedbackDialog(
+				activity = activity,
+				logContent = getLogContent?.invoke(),
+				metricsAttachment = getMetricsAttachment,
+			)
+		}
+	}
