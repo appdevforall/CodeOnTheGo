@@ -51,23 +51,24 @@ different thread and JDI's step request is thread-scoped, so the step is lost. B
 suspend bodies still hit. See ADFA-4175.
 
 Step Over does not treat an inlined body as one step: it walks the inlined lines the same way it
-walks any other. Skipping them needs the Kotlin stratum to tell a library body inlined into the
-user's class apart from a lambda the user wrote there, which the inline markers alone cannot do.
+walks any other. `Greeter.greetAll` carries output lines 60-63, the stdlib `map` body inlined into
+it, so Step Over from line 27 walks `27 -> 60 -> 61 -> 62 -> 28` and takes four presses to reach the
+lambda body. The `kotlin.*` / `kotlinx.*` step filters do not prevent this, because the inlined body
+lives in the user's own class and a class-name filter never sees it. Reachable through any `map`,
+`forEach`, `let` or `run`.
 
-While it walks them, the editor is sent the **wrong file**, not only a line past the end of one.
-`Greeter.greetAll` carries output lines 60-63, which the SMAP maps to `_Collections.kt:1557` and
-`1628-1630`, the stdlib `map` body. The Java stratum has one `SourceFile` per class, so those lines
-are reported as `DebugFixture.kt`: Step Over in `greetAll` walks `27 -> 60 -> 61 -> 62 -> 28` and
-asks the editor to highlight `DebugFixture.kt:60` in a 58-line file while execution is really in the
-standard library. The `kotlin.*` / `kotlinx.*` step filters do not prevent this, because the inlined
-body lives in the user's own class and a class-name filter never sees it. Reachable through any
-`map`, `forEach`, `let` or `run`.
+The editor stays on a real line throughout. The `KotlinDebug` stratum maps output lines 60-63 back
+to `DebugFixture.kt:27`, the `names.map { ... }` call site, and 64-67 back to `DebugFixture.kt:33`,
+the `measured("greeter")` call site, so the highlight sits on the call site for each intervening
+press instead of moving to line 60 of a 58-line file. Step Over therefore looks like it does nothing
+until the press that leaves the inlined body. That is the remaining half of ADFA-4175's inline
+stepping item: the position is right, the number of presses is not.
 
-The call stack disagrees with the editor while that happens, and the call stack is the correct one.
-Its rows read the Kotlin stratum, the only stratum with a multi-file table, so the frame reads
-`_Collections.kt:1557` while the editor highlights `DebugFixture.kt:60`. Breakpoints are still
-placed and reported in the Java stratum, so the row is display-only and does not round-trip to a
-breakpoint. Expect the two to differ inside an inlined body and to agree everywhere else.
+The call stack disagrees with the editor while that happens, and each is right about a different
+question. Its rows read the Kotlin stratum, the only stratum with a multi-file table, so the frame
+reads `_Collections.kt:1557` - where the code was written - while the editor highlights
+`DebugFixture.kt:27` - where the user wrote the call. Breakpoints are still placed and reported in
+the Java stratum. Expect the two to differ inside an inlined body and to agree everywhere else.
 
 The variables list carries a stdlib inline function's own locals alongside the user's. Stopped at
 line 28, in the lambda passed to `map`, it shows `item$iv$iv` and `destination$iv$iv` - `mapTo`'s
@@ -75,3 +76,44 @@ loop variable and accumulator, not yours. The `$iv` suffix is left on deliberate
 cue separating them from names the user wrote. The same suffix lands on a user's own inline-function
 locals, so stepping through `measured` inlined into `Greeter.timed` shows `started$iv`, `result$iv`
 and `label$iv`. Stripping it only where it is safe needs the Kotlin stratum.
+
+The receiver of a `run` or `apply` block is hidden along with the compiler's own. It reaches the
+frame as `$this$<caller>_u24lambda_u24<n>`, no label a user could have written is recoverable from
+that, and ADFA-4191 section 3 asks for `$this$` to be filtered. The object is still reachable under
+the name it was called on.
+
+## Steps to QA
+
+For ADFA-4175. `acli` cannot write the `Steps to QA` custom field, so this is the text to paste in.
+
+```gherkin
+Given a project made from the Kotlin template with DebugFixture.kt added per Setup
+When a breakpoint is set on line 22 and runAll() runs under the debugger
+Then execution suspends and the call stack names DebugFixture.kt:22
+
+Given execution is suspended on line 27 of DebugFixture.kt
+When the user taps Step Over
+Then the editor highlight stays within DebugFixture.kt and never a line past 58
+And repeated Step Over reaches line 28
+
+Given execution is suspended on line 22 of DebugFixture.kt
+When the user taps Step Over on the string template that null-checks name
+Then execution does not stop inside kotlin.jvm.internal.Intrinsics
+
+Given execution is suspended on line 28, inside the lambda passed to map
+When the user opens the variables tree
+Then no entry whose name starts with $i$, $this$ or $continuation is shown
+And the user's own each and greeting are shown
+
+Given execution is suspended on line 41, inside the anonymous Runnable
+When the breakpoint on line 41 is set before Greeter loads
+Then the breakpoint still binds and hits
+
+Given execution is suspended anywhere in DebugFixture.kt
+When the user expands this on a Greeter instance
+Then the name field is listed and is not offered as editable
+```
+
+A breakpoint on line 7 is expected **not** to hit; see the line map. A breakpoint inside
+`suspending` hits, but stepping across the suspension point does not resume - both are known
+limitations above, not QA failures.

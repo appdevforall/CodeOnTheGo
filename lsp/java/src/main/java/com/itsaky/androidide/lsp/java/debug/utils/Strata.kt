@@ -4,14 +4,18 @@ import com.sun.jdi.AbsentInformationException
 import com.sun.jdi.Location
 import com.sun.jdi.ObjectCollectedException
 import com.sun.jdi.ReferenceType
+import org.jetbrains.kotlin.codegen.inline.KOTLIN_DEBUG_STRATA_NAME
+import org.jetbrains.kotlin.codegen.inline.KOTLIN_STRATA_NAME
 
 const val JAVA_STRATUM = "Java"
-const val KOTLIN_STRATUM = "Kotlin"
+
+/** The compiler's placeholder file for generated code, which belongs to no call site. */
+private const val FAKE_SOURCE_NAME = "fake.kt"
 
 val ReferenceType.isKotlinType: Boolean
 	get() =
 		try {
-			availableStrata().contains(KOTLIN_STRATUM)
+			availableStrata().contains(KOTLIN_STRATA_NAME)
 		} catch (err: AbsentInformationException) {
 			false
 		} catch (err: ObjectCollectedException) {
@@ -60,17 +64,60 @@ fun Location.lineNumberInSource(): Int = lineNumber(JAVA_STRATUM)
  * Placement must stay in the Java stratum ([locationsOfLineInSource]), so these are for display
  * only: a position reported here does not round-trip to a breakpoint.
  *
- * JDI falls back to the declaring type's default stratum when [KOTLIN_STRATUM] is absent, so these
- * are safe on a Java class.
+ * JDI falls back to the declaring type's default stratum when the Kotlin stratum is absent, so these
+ * are safe on a Java class. A code index the stratum does not map reads back as -1, which would
+ * render as `:-1`, so the Java-stratum line stands in for it.
  */
-fun Location.lineNumberInKotlin(): Int = lineNumber(KOTLIN_STRATUM)
+fun Location.lineNumberInKotlin(): Int = lineNumber(KOTLIN_STRATA_NAME).takeIf { it > 0 } ?: lineNumberInSource()
 
 fun Location.sourceNameInKotlinOrNull(): String? =
 	try {
-		sourceName(KOTLIN_STRATUM)
+		sourceName(KOTLIN_STRATA_NAME)
 	} catch (err: AbsentInformationException) {
 		null
 	}
+
+/**
+ * The line of this class's own source that produced this location, or null when none did.
+ *
+ * `KotlinDebug` maps an inlined body's synthetic output lines back to the call site the user wrote,
+ * so it is the one stratum that names a position the editor can open and a breakpoint can bind to.
+ * Its line table covers those lines and nothing else: `SMAPBuilder` builds it solely from mappings
+ * carrying a call site.
+ *
+ * JDI answers an unmapped code index by best match rather than by failing. `ConcreteMethodImpl`
+ * drops the lines a stratum does not map, then `codeIndexToLineInfo` returns the nearest preceding
+ * line it kept, so in a method that inlines anywhere a line outside every inlined body reads back as
+ * some unrelated call site. Gating on [isInlinedBody] rather than on a non-positive result is what
+ * keeps that out; a method with no inlining at all is the only case that does return -1.
+ */
+fun Location.inlineCallSiteLineOrNull(): Int? {
+	if (!isInlinedBody()) {
+		return null
+	}
+
+	return try {
+		lineNumber(KOTLIN_DEBUG_STRATA_NAME).takeIf { it > 0 }
+	} catch (err: AbsentInformationException) {
+		null
+	}
+}
+
+/**
+ * Whether this location is code inlined into the declaring class from elsewhere.
+ *
+ * The Kotlin stratum maps the class's own lines to themselves and writes everything inlined into it
+ * past the end of that range, so the two strata agree exactly off inlined code. `fake.kt` also reads
+ * as a foreign file but is generated code rather than an inlining, so it has no call site to find.
+ */
+private fun Location.isInlinedBody(): Boolean {
+	val kotlinName = sourceNameInKotlinOrNull() ?: return false
+	if (kotlinName == FAKE_SOURCE_NAME) {
+		return false
+	}
+
+	return kotlinName != sourceNameOrNull() || lineNumberInKotlin() != lineNumberInSource()
+}
 
 /**
  * Locations for [line] read in the same stratum [lineNumberInSource] reports in.

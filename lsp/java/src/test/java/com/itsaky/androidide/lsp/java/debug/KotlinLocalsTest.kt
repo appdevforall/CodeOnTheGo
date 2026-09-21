@@ -59,10 +59,12 @@ class KotlinLocalsTest {
 	}
 
 	@Test
-	fun `an inline receiver is shown under the name the compiler emitted`() {
-		assertThat(isSyntheticKotlinLocal("\$this\$map\$iv")).isFalse()
-		assertThat(isSyntheticKotlinLocal("\$this\$mapTo\$iv\$iv")).isFalse()
-		assertThat(isSyntheticKotlinLocal("\$this\$direct_u24lambda_u240")).isFalse()
+	fun `inline receivers are synthetic`() {
+		// map's and mapTo's extension receivers, and the receiver of a lambda the user wrote. No
+		// label a user could have typed is recoverable from any of them, so all three are hidden.
+		assertThat(isSyntheticKotlinLocal("\$this\$map\$iv")).isTrue()
+		assertThat(isSyntheticKotlinLocal("\$this\$mapTo\$iv\$iv")).isTrue()
+		assertThat(isSyntheticKotlinLocal("\$this\$direct_u24lambda_u240")).isTrue()
 	}
 
 	@Test

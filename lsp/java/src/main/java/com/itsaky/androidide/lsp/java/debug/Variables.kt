@@ -13,6 +13,7 @@ import com.sun.jdi.ArrayType
 import com.sun.jdi.BooleanType
 import com.sun.jdi.ByteType
 import com.sun.jdi.CharType
+import com.sun.jdi.ClassNotLoadedException
 import com.sun.jdi.DoubleType
 import com.sun.jdi.Field
 import com.sun.jdi.FloatType
@@ -231,10 +232,9 @@ internal abstract class AbstractJavaVariable<ValueT : LspValue>(
 		return evaluationContext.evaluate(thread) {
 			refType
 				.allFields()
-				.associateWith { field ->
-					if (field.isStatic) refType.getValue(field) else ref.getValue(field)
-				}.mapNotNull { (field, value) ->
+				.mapNotNull { field ->
 					try {
+						val value = if (field.isStatic) refType.getValue(field) else ref.getValue(field)
 						JavaFieldVariable<ValueT>(thread, ref, field, value)
 					} catch (err: VMDisconnectedException) {
 						throw err
@@ -278,6 +278,24 @@ internal class ThisVariable<ValueT : LspValue>(
 	}
 }
 
+/**
+ * The field's declared type, standing in the owner's type for one the VM has never loaded.
+ *
+ * [Field.type] throws [ClassNotLoadedException] for a field whose declared type no code has touched
+ * yet, which is exactly the case where seeing the row read `null` is informative. An unloaded field
+ * type is a reference type by definition, so the stand-in classifies the same and leaves
+ * `VariableValues.canMutate` false.
+ */
+private fun fieldType(
+	ref: ObjectReference,
+	field: Field,
+): Type =
+	try {
+		field.type()
+	} catch (err: ClassNotLoadedException) {
+		ref.referenceType()
+	}
+
 internal class JavaFieldVariable<ValueT : LspValue>(
 	thread: ThreadReference,
 	private val ref: ObjectReference,
@@ -287,7 +305,7 @@ internal class JavaFieldVariable<ValueT : LspValue>(
 		thread = thread,
 		name = field.name(),
 		typeName = field.typeName(),
-		type = field.type(),
+		type = fieldType(ref, field),
 		value = value,
 	) {
 	companion object {
@@ -295,6 +313,13 @@ internal class JavaFieldVariable<ValueT : LspValue>(
 	}
 
 	override suspend fun jdiValue() = value
+
+	/**
+	 * No JDI path can write a final field: `ObjectReferenceImpl.setValue` and `ClassTypeImpl.setValue`
+	 * both reject one before any JDWP traffic, so offering the edit can only end in a failure message
+	 * blaming the user's input. A Kotlin `val` compiles to a final backing field.
+	 */
+	override suspend fun isMutable(): Boolean = !field.isFinal && super.isMutable()
 
 	@Suppress("UNCHECKED_CAST")
 	override suspend fun value(): ValueT {

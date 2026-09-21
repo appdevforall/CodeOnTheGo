@@ -82,6 +82,16 @@ fun Location.asLspLocation(useDeclTypeName: Boolean = true): LspLocation {
 	)
 }
 
+/**
+ * The [LspLocation] for a Kotlin location, reported in the file the user can open.
+ *
+ * Inside a body inlined from elsewhere the Java-stratum line is a synthetic number past the end of
+ * the caller's file, so the editor is asked to highlight a line that does not exist. The
+ * `KotlinDebug` stratum maps that line back to the call site the user wrote, which is a real line in
+ * this same file and round-trips to a breakpoint. The call-stack row keeps the Kotlin stratum, which
+ * names the library file the code was written in, so the two disagree inside an inlined body by
+ * design.
+ */
 private fun Location.asKotlinLspLocation(): LspLocation {
 	val relativePath = sourcePathOrNull()
 	val resolved = relativePath?.let(::resolveInSourceRoots)
@@ -102,7 +112,7 @@ private fun Location.asKotlinLspLocation(): LspLocation {
 
 	return LspLocation(
 		source = source,
-		line = lineNumberInSource() - 1,
+		line = (inlineCallSiteLineOrNull() ?: lineNumberInSource()) - 1,
 		column = null,
 	)
 }
