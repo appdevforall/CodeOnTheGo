@@ -37,7 +37,7 @@ interface EventConsumer {
 
 	fun fieldWatchEvent(e: WatchpointEvent) {}
 
-	fun stepEvent(e: StepEvent) {}
+	fun stepEvent(e: StepEvent): Boolean = true
 
 	fun exceptionEvent(e: ExceptionEvent) {}
 

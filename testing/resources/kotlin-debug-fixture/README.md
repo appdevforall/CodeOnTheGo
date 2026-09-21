@@ -50,25 +50,23 @@ Stepping across a coroutine suspension point does not work. A suspend function r
 different thread and JDI's step request is thread-scoped, so the step is lost. Breakpoints inside
 suspend bodies still hit. See ADFA-4175.
 
-Step Over does not treat an inlined body as one step: it walks the inlined lines the same way it
-walks any other. `Greeter.greetAll` carries output lines 60-63, the stdlib `map` body inlined into
-it, so Step Over from line 27 walks `27 -> 60 -> 61 -> 62 -> 28` and takes four presses to reach the
-lambda body. The `kotlin.*` / `kotlinx.*` step filters do not prevent this, because the inlined body
-lives in the user's own class and a class-name filter never sees it. Reachable through any `map`,
-`forEach`, `let` or `run`.
+Step Over treats an inlined body as part of the call that produced it. `Greeter.greetAll` carries
+output lines 60-63, the stdlib `map` body inlined into it, so the thread really walks
+`27 -> 60 -> 61 -> 62 -> 28`, but 60-63 are stepped through without being reported and the user sees
+`27 -> 28 -> 29 -> 30`. `Greeter.timed` behaves the same way over the `measured` body it inlines at
+64-67, reporting `33 -> 34 -> 35 -> 36`. The `kotlin.*` / `kotlinx.*` step filters play no part in
+this: an inlined body lives in the user's own class, so a class-name filter never sees it.
 
-The editor stays on a real line throughout. The `KotlinDebug` stratum maps output lines 60-63 back
-to `DebugFixture.kt:27`, the `names.map { ... }` call site, and 64-67 back to `DebugFixture.kt:33`,
-the `measured("greeter")` call site, so the highlight sits on the call site for each intervening
-press instead of moving to line 60 of a 58-line file. Step Over therefore looks like it does nothing
-until the press that leaves the inlined body. That is the remaining half of ADFA-4175's inline
-stepping item: the position is right, the number of presses is not.
+A landing counts as inlined when the Kotlin and Java strata disagree about it, and the continuation
+is capped at 64 silent steps per press. Past the cap the thread stops where it is, which is the one
+way a step can still come to rest inside an inlined body.
 
-The call stack disagrees with the editor while that happens, and each is right about a different
-question. Its rows read the Kotlin stratum, the only stratum with a multi-file table, so the frame
-reads `_Collections.kt:1557` - where the code was written - while the editor highlights
-`DebugFixture.kt:27` - where the user wrote the call. Breakpoints are still placed and reported in
-the Java stratum. Expect the two to differ inside an inlined body and to agree everywhere else.
+When it does, the editor and the call stack disagree, and each is right about a different question.
+The editor is sent the `KotlinDebug` position - `DebugFixture.kt:27` for output lines 60-63, the
+`names.map { ... }` call site - which is a real line it can open and a breakpoint can bind to. The
+call-stack row reads the Kotlin stratum, the only one with a multi-file table, so it reads
+`_Collections.kt:1557`, where the code was written. Breakpoints are still placed and reported in the
+Java stratum. Expect the two to differ inside an inlined body and to agree everywhere else.
 
 The variables list carries a stdlib inline function's own locals alongside the user's. Stopped at
 line 28, in the lambda passed to `map`, it shows `item$iv$iv` and `destination$iv$iv` - `mapTo`'s
@@ -92,9 +90,9 @@ When a breakpoint is set on line 22 and runAll() runs under the debugger
 Then execution suspends and the call stack names DebugFixture.kt:22
 
 Given execution is suspended on line 27 of DebugFixture.kt
-When the user taps Step Over
-Then the editor highlight stays within DebugFixture.kt and never a line past 58
-And repeated Step Over reaches line 28
+When the user taps Step Over once
+Then execution suspends on line 28, the lambda body
+And no line past 58 is shown at any point
 
 Given execution is suspended on line 22 of DebugFixture.kt
 When the user taps Step Over on the string template that null-checks name

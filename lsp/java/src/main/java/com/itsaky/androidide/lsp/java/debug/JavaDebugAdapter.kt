@@ -28,12 +28,14 @@ import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
+import com.itsaky.androidide.lsp.java.debug.utils.inlineCallSiteLineOrNull
 import com.itsaky.androidide.lsp.java.debug.utils.isKotlinSource
 import com.itsaky.androidide.lsp.java.debug.utils.kotlinBinaryNamesOf
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.utils.withStopWatch
 import com.sun.jdi.Bootstrap
+import com.sun.jdi.Location
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VMDisconnectedException
 import com.sun.jdi.VirtualMachine
@@ -92,6 +94,16 @@ internal class JavaDebugAdapter :
 				"kotlin.*",
 				"kotlinx.*",
 			)
+
+		/**
+		 * The most silent steps taken to leave one inlined body, after which the thread stops where
+		 * it is. A bound is needed because an inlined body's length is the callee's, not the
+		 * caller's, and a pathological one would otherwise hold the UI.
+		 */
+		private const val MAX_INLINE_STEPS = 64
+
+		/** Key for the silent-step budget carried on a continuation [StepRequest]. */
+		private const val INLINE_STEP_BUDGET = "inlineStepBudget"
 
 		/**
 		 * Get the current instance of the [JavaDebugAdapter].
@@ -452,22 +464,15 @@ internal class JavaDebugAdapter :
 
 			logger.debug("Step {} thread {}", request.type, suspendedThread.thread.name())
 
-			clearPreviousStep(vm.vm, suspendedThread.thread)
-
-			val reqMgr = vm.vm.eventRequestManager()
 			val req =
-				reqMgr.createStepRequest(
-					suspendedThread.thread,
-					StepRequest.STEP_LINE,
-					request.type.asDepthInt(),
+				createStepRequest(
+					vm = vm.vm,
+					thread = suspendedThread.thread,
+					depth = request.type.asDepthInt(),
+					suspendPolicy = EventRequest.SUSPEND_ALL,
+					countFilter = request.countFilter,
 				)
 
-			for (pattern in DEFAULT_CLASS_EXCLUSION_FILTERS) {
-				req.addClassExclusionFilter(pattern)
-			}
-
-			req.setSuspendPolicy(EventRequest.SUSPEND_ALL)
-			req.addCountFilter(request.countFilter)
 			req.enable()
 			suspendedThread.thread.resume()
 			vm.threadState.invalidateAll()
@@ -519,6 +524,31 @@ internal class JavaDebugAdapter :
 			}
 		}
 
+	private fun createStepRequest(
+		vm: VirtualMachine,
+		thread: ThreadReference,
+		depth: Int,
+		suspendPolicy: Int,
+		countFilter: Int,
+	): StepRequest {
+		clearPreviousStep(vm, thread)
+
+		val req =
+			vm.eventRequestManager().createStepRequest(
+				thread,
+				StepRequest.STEP_LINE,
+				depth,
+			)
+
+		for (pattern in DEFAULT_CLASS_EXCLUSION_FILTERS) {
+			req.addClassExclusionFilter(pattern)
+		}
+
+		req.setSuspendPolicy(suspendPolicy)
+		req.addCountFilter(countFilter)
+		return req
+	}
+
 	private fun clearPreviousStep(
 		vm: VirtualMachine,
 		thread: ThreadReference,
@@ -556,13 +586,17 @@ internal class JavaDebugAdapter :
 		)
 	}
 
-	override fun stepEvent(e: StepEvent) {
+	override fun stepEvent(e: StepEvent): Boolean {
 		logger.debug("stepEvent: {}", e)
 		e.virtualMachine().checkIsCurrentVm()
 
 		val vm = connVm()
 		val location = e.location()
 		val thread = e.thread()
+
+		if (stepOnThroughInlinedBody(vm.vm, e, location, thread)) {
+			return false
+		}
 
 		listenerState.client.onStep(
 			event =
@@ -572,6 +606,55 @@ internal class JavaDebugAdapter :
 					threadId = thread.uniqueID().toString(),
 				),
 		)
+
+		return true
+	}
+
+	/**
+	 * Step on without reporting when a step lands inside a body inlined from elsewhere.
+	 *
+	 * An inline function's body compiles into its caller, so line stepping walks it one line at a
+	 * time and every one of those lines is a position the user never wrote. Continuing until the
+	 * thread leaves the inlined region is what makes Step Over cost one press per call rather than
+	 * one per line of the callee.
+	 *
+	 * The continuation is always [StepRequest.STEP_OVER] whatever the user asked for, because an
+	 * inlined body has no frame of its own and [StepRequest.STEP_OUT] would pop the caller's real
+	 * frame on every iteration. It suspends only the event thread, since nothing else needs the world
+	 * stopped between silent iterations, and returning `false` leaves the resume to [EventHandler] so
+	 * every suspend is matched by one under the same policy. The budget rides on the request rather
+	 * than on the adapter, so two threads stepping at once cannot spend each other's.
+	 *
+	 * @return whether a continuation was issued, in which case nothing is reported to the client.
+	 */
+	private fun stepOnThroughInlinedBody(
+		vm: VirtualMachine,
+		e: StepEvent,
+		location: Location,
+		thread: ThreadReference,
+	): Boolean {
+		if (location.inlineCallSiteLineOrNull() == null) {
+			return false
+		}
+
+		val taken = (e.request().getProperty(INLINE_STEP_BUDGET) as? Int) ?: 0
+		if (taken >= MAX_INLINE_STEPS) {
+			logger.warn("Stopping in an inlined body after {} steps at {}", taken, location)
+			return false
+		}
+
+		val req =
+			createStepRequest(
+				vm = vm,
+				thread = thread,
+				depth = StepRequest.STEP_OVER,
+				suspendPolicy = EventRequest.SUSPEND_EVENT_THREAD,
+				countFilter = 1,
+			)
+
+		req.putProperty(INLINE_STEP_BUDGET, taken + 1)
+		req.enable()
+		return true
 	}
 
 	override fun vmDisconnectEvent(e: VMDisconnectEvent) {

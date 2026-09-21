@@ -191,10 +191,7 @@ internal class EventHandler(
 	/**
 	 * @see [handleEvent]
 	 */
-	private fun stepEvent(event: StepEvent): Boolean {
-		consumer.stepEvent(event)
-		return true
-	}
+	private fun stepEvent(event: StepEvent): Boolean = consumer.stepEvent(event)
 
 	/**
 	 * @see [handleEvent]
