@@ -18,6 +18,7 @@
 package com.itsaky.androidide.handlers
 
 import android.os.SystemClock
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.R
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
@@ -26,10 +27,14 @@ import com.itsaky.androidide.projects.builder.LaunchResult
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.tooling.api.messages.result.BuildInfo
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.tooling.events.configuration.ProjectConfigurationStartEvent
+import com.itsaky.androidide.tooling.events.task.TaskFinishEvent
 import com.itsaky.androidide.tooling.events.task.TaskStartEvent
+import com.itsaky.androidide.utils.MetricsAnnotationStore
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import org.slf4j.LoggerFactory
@@ -45,6 +50,17 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
 	private var buildStartTimeMs: Long = System.currentTimeMillis()
 	private var lastOutputTimeMs: Long = SystemClock.elapsedRealtime()
+
+	/**
+	 * Whether the build now running drew a "Build started" marker.
+	 *
+	 * The outcome callbacks used to decide for themselves, from the task list they are handed --
+	 * a different list from the one prepareBuild sees. If those two ever disagreed the chart got
+	 * a start with no finish, or a finish with no start, which is the one thing a pair of markers
+	 * exists to avoid. The build that started decides, and its outcome follows.
+	 */
+	@VisibleForTesting
+	internal var annotatedBuild = false
 
 	private var enabled = true
 	private var activityReference: WeakReference<EditorHandlerActivity> = WeakReference(null)
@@ -77,32 +93,106 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 		this.enabled = false
 	}
 
+	override fun onGradleDaemonStarted(pid: Int) {
+		checkActivity("onGradleDaemonStarted") ?: return
+		activity.watchGradleDaemon(pid)
+	}
+
+	override fun onGradleDaemonExited(pid: Int) {
+		checkActivity("onGradleDaemonExited") ?: return
+		activity.unwatchGradleDaemon(pid)
+	}
+
 	override fun prepareBuild(buildInfo: BuildInfo) {
-		checkActivity("prepareBuild") ?: return
+		// Before the activity check, not after: this listener outlives any one activity, so a
+		// build whose outcome arrived with none attached would otherwise leave the flag set for
+		// the next build to inherit and draw a finish for a build that never started.
+		annotatedBuild = false
+
+		val act = checkActivity("prepareBuild") ?: return
+
+		// A project sync runs through the same callbacks with no tasks, so annotating every
+		// prepareBuild put a "Build started" marker on the chart merely for opening a project --
+		// and blamed the sync's own memory spike on a build the user never ran.
+		//
+		// The outcome callbacks are handed their own task list, which is not this one. Recorded
+		// here so the pair is decided once, by the build that started.
+		if (buildInfo.tasks.isNotEmpty()) {
+			annotatedBuild = true
+			act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_STARTED)
+		}
 
 		pluginBuildService?.setBuildInProgress(true)
 
 		val isFirstBuild = GeneralPreferences.isFirstBuild
-		activity
+		act
 			.setStatus(
-				activity.getString(if (isFirstBuild) string.preparing_first else string.preparing),
+				act.getString(if (isFirstBuild) string.preparing_first else string.preparing),
 			)
 
 		if (isFirstBuild) {
-			activity.showFirstBuildNotice()
+			act.showFirstBuildNotice()
 		}
 
 		resetBuildTimers()
 
-		activity.editorViewModel.isBuildInProgress = true
-		activity.content.bottomSheet.clearBuildOutput()
+		act.editorViewModel.isBuildInProgress = true
+		act.content.bottomSheet.clearBuildOutput()
 
 		if (buildInfo.tasks.isNotEmpty()) {
 			onOutput(
-				activity.getString(R.string.title_run_tasks) + " : " + buildInfo.tasks,
+				act.getString(R.string.title_run_tasks) + " : " + buildInfo.tasks,
 			)
 		}
 	}
+
+	/**
+	 * Whether [failure] is the user's own Stop rather than something going wrong.
+	 *
+	 * One definition, because this callback used to ask the same question three times -- once in
+	 * [failureMessage], once in [outcomeKind] and once inline -- which is how the chart and the
+	 * messages beside it came to disagree in the first place.
+	 */
+	@VisibleForTesting
+	internal fun isCancelled(failure: TaskExecutionResult.Failure?): Boolean = failure == TaskExecutionResult.Failure.BUILD_CANCELLED
+
+	/**
+	 * What a failed build is reported as, to the plugins and in the result the editor posts.
+	 *
+	 * [cancelledText] is passed in rather than resolved here so this can be asserted without an
+	 * activity, for the same reason [outcomeKind] is separate: [onBuildFailed] returns early
+	 * without one, so anything decided inside it is unreachable from a test.
+	 */
+	@VisibleForTesting
+	internal fun failureMessage(
+		failure: TaskExecutionResult.Failure?,
+		cancelledText: String,
+	): String =
+		when {
+			isCancelled(failure) -> cancelledText
+			lastStatusLine.contains("BUILD FAILED") -> lastStatusLine
+			else -> "Build failed. Check build output for details."
+		}
+
+	/**
+	 * Which marker a failed build gets: the user's own cancel, or a real failure (ADFA-5542).
+	 *
+	 * [failure] is the server's own classification of the throwable Gradle raised. The listener
+	 * used to answer this from a flag it set when the cancel was requested, which meant deciding
+	 * from the order two main-thread runnables happened to run in -- and a cancel that overtook
+	 * [prepareBuild] was cleared by it, so the build the user stopped was reported back to them as
+	 * an error.
+	 *
+	 * Separated from [onBuildFailed] so the decision can be tested: that method needs a live
+	 * activity before it reaches this point, and returns early without one.
+	 */
+	@VisibleForTesting
+	internal fun outcomeKind(failure: TaskExecutionResult.Failure?): MetricsAnnotationStore.Kind =
+		if (isCancelled(failure)) {
+			MetricsAnnotationStore.Kind.BUILD_CANCELLED
+		} else {
+			MetricsAnnotationStore.Kind.BUILD_FAILED
+		}
 
 	private fun resetBuildTimers() {
 		buildStartTimeMs = System.currentTimeMillis()
@@ -111,6 +201,11 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 
 	override fun onBuildSuccessful(tasks: List<String?>) {
 		val act = checkActivity("onBuildSuccessful") ?: return
+
+		if (annotatedBuild) {
+			act.recordBuildAnnotation(MetricsAnnotationStore.Kind.BUILD_FINISHED)
+		}
+		annotatedBuild = false
 
 		pluginBuildService?.notifyBuildFinished()
 
@@ -140,24 +235,68 @@ class EditorBuildEventListener : GradleBuildService.EventListener {
 	}
 
 	override fun onProgressEvent(event: ProgressEvent) {
-		checkActivity("onProgressEvent") ?: return
+		val act = checkActivity("onProgressEvent") ?: return
 
 		if (event is ProjectConfigurationStartEvent || event is TaskStartEvent) {
-			activity.setStatus(event.descriptor.displayName)
+			act.setStatus(event.descriptor.displayName)
+		}
+
+		if (isAnnotated(event)) {
+			act.recordMetricsAnnotation(event.descriptor.displayName)
 		}
 	}
 
-	override fun onBuildFailed(tasks: List<String?>) {
+	/**
+	 * Whether [event] is one the metrics charts annotate (ADFA-5486).
+	 *
+	 * Task starts and stops, and nothing else. Gradle emits these far faster than a chart can show
+	 * them -- dozens a second during configuration -- so the store throttles to one every five
+	 * seconds and keeps the first of each quiet period.
+	 *
+	 * Separated from [onProgressEvent] so the decision can be tested: that method needs a live
+	 * activity before it reaches this point, and returns early without one.
+	 */
+	@VisibleForTesting
+	internal fun isAnnotated(event: ProgressEvent): Boolean = event is TaskStartEvent || event is TaskFinishEvent
+
+	override fun onBuildFailed(
+		tasks: List<String?>,
+		failure: TaskExecutionResult.Failure?,
+	) {
 		val act = checkActivity("onBuildFailed") ?: return
+
+		val cancelled = isCancelled(failure)
+
+		if (annotatedBuild) {
+			// A build the user stopped arrives through this same callback. Marking it as a failure
+			// would report their own deliberate action back to them in the error colour.
+			act.recordBuildAnnotation(outcomeKind(failure))
+		}
+		annotatedBuild = false
 
 		analyzeCurrentFile()
 		GeneralPreferences.isFirstBuild = false
 		act.editorViewModel.isBuildInProgress = false
-		act.flashError(R.string.build_status_failed)
+		// Everything this method says, not only the chart marker. The annotation was fixed first
+		// and the three reports beside it were not, so a user who pressed Stop still got a red
+		// "Build failed" bar, a "Build failed" notification and an isSuccess=false result -- their
+		// own action read back to them as an error in every place but one.
+		val cancelledText = act.getString(R.string.info_build_cancelled)
+		if (cancelled) {
+			act.flashInfo(R.string.info_build_cancelled)
+			// The status line under the output too. Gradle prints "BUILD FAILED" for a cancelled
+			// build like any other, and [onOutput] copies that line into the label, so the label
+			// sat there contradicting the bar that had just said the build was stopped. This runs
+			// after onOutput, so it has the last word.
+			act.setStatus(cancelledText)
+		} else {
+			act.flashError(R.string.build_status_failed)
+		}
 
-		val message =
-			if (lastStatusLine.contains("BUILD FAILED")) lastStatusLine else "Build failed. Check build output for details."
+		val message = failureMessage(failure, cancelledText)
 
+		// The plugin API has no way to say "cancelled" -- IdeServices.onBuildFailed takes an error
+		// string and nothing else -- so the message is the whole of what a plugin can be told.
 		pluginBuildService?.notifyBuildFailed(message)
 
 		act.notifyBuildResult(BuildResult(isSuccess = false, message = message, launchResult = null))

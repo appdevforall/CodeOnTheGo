@@ -17,9 +17,9 @@
 
 package org.adfa.constants
 
-const val ANDROID_GRADLE_PLUGIN_VERSION = "8.11.0"
-const val GRADLE_DISTRIBUTION_VERSION = "8.14.3"
-const val KOTLIN_VERSION = "1.9.22"
+const val ANDROID_GRADLE_PLUGIN_VERSION = "9.3.1"
+const val GRADLE_DISTRIBUTION_VERSION = "9.6.1"
+const val KOTLIN_VERSION = "2.3.21"
 
 val TARGET_SDK_VERSION = Sdk.Baklava
 val COMPILE_SDK_VERSION = Sdk.Baklava

@@ -137,10 +137,14 @@ class FeedbackEmailHandler(
 		emailRecipient: String,
 		subject: String,
 		body: String,
+		metricsUri: Uri? = null,
 	): Intent {
 		val attachmentUris = mutableListOf<Uri>()
 		screenshotUri?.let { attachmentUris.add(it) }
 		logContentUri?.let { attachmentUris.add(it) }
+		// The performance history from the session being complained about (ADFA-5534). Absent when
+		// nothing has been sampled yet, which is the one case worth sending nothing for.
+		metricsUri?.let { attachmentUris.add(it) }
 
 		return getIntentBasedOnAttachments(
 			emailRecipient = emailRecipient,

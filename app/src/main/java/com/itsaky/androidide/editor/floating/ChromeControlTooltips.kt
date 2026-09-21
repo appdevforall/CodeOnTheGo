@@ -7,7 +7,6 @@ import com.itsaky.androidide.idetooltips.TooltipCategory
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 
-
 object ChromeControlTooltips {
 	val handler: (ChromeControl, View) -> Unit = { control, anchor ->
 		tagFor(control)?.let { tag ->
@@ -20,6 +19,6 @@ object ChromeControlTooltips {
 			ChromeControl.MINIMIZE -> TooltipTag.WINDOW_MINIMIZE
 			ChromeControl.MAXIMIZE -> TooltipTag.WINDOW_MAXIMIZE
 			ChromeControl.DOCK -> TooltipTag.WINDOW_DOCK
-			ChromeControl.CLOSE -> TooltipTag.WINDOW_UNDOCK
+			ChromeControl.CLOSE -> TooltipTag.WINDOW_CLOSE
 		}
 }
