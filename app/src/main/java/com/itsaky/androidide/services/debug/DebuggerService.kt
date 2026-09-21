@@ -46,6 +46,9 @@ class DebuggerService : Service() {
 
 	internal var targetPackage: String? = null
 
+	internal val hasOverlayManager: Boolean
+		get() = overlayManager != null
+
 	override fun onCreate() {
 		logger.debug("onCreate()")
 		super.onCreate()
@@ -104,6 +107,7 @@ class DebuggerService : Service() {
 		serviceScope.cancelIfActive("DebuggerService is being destroyed")
 
 		detachOverlay()
+		overlayManager = null
 		super.onDestroy()
 
 		actionsList.forEach(actionsRegistry::unregisterAction)
@@ -139,7 +143,7 @@ class DebuggerService : Service() {
 			overlayManager =
 				DebugOverlayManager.create(
 					ctx = this,
-					displayId = displayId
+					displayId = displayId,
 				)
 		}
 	}

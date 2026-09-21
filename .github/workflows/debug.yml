@@ -466,15 +466,15 @@ jobs:
           
           echo "Found Jira ticket: $JIRA_TICKET"
           
-          # Validate NEXT_RELEASE_VERSION exists and exactly two digits, dot, two digits
+          # Validate NEXT_RELEASE_VERSION format
           if [ -z "$NEXT_RELEASE_VERSION" ]; then
             echo "ERROR: NEXT_RELEASE_VERSION variable is not set"
             exit 1
           fi
           
-          if [[ ! "$NEXT_RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}$ ]]; then
+          if [[ ! "$NEXT_RELEASE_VERSION" =~ ^[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
             echo "ERROR: NEXT_RELEASE_VERSION format is invalid: $NEXT_RELEASE_VERSION"
-            echo "Expected format: YY.ww (two digits, dot, two digits, e.g., 25.50)"
+            echo "Expected format: YY.ww[.patch] (e.g., 25.50 or 25.50.1)"
             exit 1
           fi
           

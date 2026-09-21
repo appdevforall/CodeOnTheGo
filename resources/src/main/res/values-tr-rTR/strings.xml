@@ -26,9 +26,9 @@
   <string name="get_started">Başla</string>
   <string name="msg_cannot_perform_fix">Hızlı düzeltme gerçekleştirilemiyor</string>
   <string name="msg_performing_actions">Kod eylemi gerçekleştiriliyor…</string>
-  <string name="msg_api_info_since">API %d \'den beri</string>
-  <string name="msg_api_info_removed">API %d \'den kaldırıldı</string>
-  <string name="msg_api_info_deprecated">API %d\'de kullanımdan kaldırıldı</string>
+  <string name="msg_api_info_since">API %s \'den beri</string>
+  <string name="msg_api_info_removed">API %s \'den kaldırıldı</string>
+  <string name="msg_api_info_deprecated">API %s\'de kullanımdan kaldırıldı</string>
   <string name="msg_finding_references">Referanslar aranıyor…</string>
   <string name="msg_finding_definition">Tanım aranıyor…</string>
   <string name="msg_no_definition">Tanım bulunamadı</string>
