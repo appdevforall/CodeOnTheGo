@@ -762,4 +762,14 @@ class GitBottomSheetViewModel(
 				}
 			}
 	}
+
+	fun initGitRepository() {
+		viewModelScope.launch {
+			val projectDirPath = IProjectManager.getInstance().projectDirPath
+			if (projectDirPath.isNotBlank()) {
+				GitRepositoryManager.initRepository(File(projectDirPath))
+				initializeRepository(force = true)
+			}
+		}
+	}
 }
