@@ -67,8 +67,6 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   the Vector-Search plugin is a live caller. Floor `plugin.min_ide_version` at `26.40` if
   you implement or consume `EmbeddingBackend`; an older IDE has no such type, and a
   consumer's `instanceof` against it there fails to resolve the class.
-
-### 26.36 — unreleased
 - **added — `SnippetContribution.language` accepts `kotlin`** _(ADFA-6189)_
   The host keys Kotlin snippets under `kt`, so a contribution declaring `kotlin` registered
   under a language nothing looks up and never appeared in a `.kt` file. The id is now
@@ -76,6 +74,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   Accepted ids are `java`, `kt` (or `kotlin`) and `xml` — anything else registers but is
   never queried.
 
+### 26.37 — 2026-09-08
 - **added — Build provenance in every `.cgp`** _(ADFA-5394)_ **[verified]**
   A plugin artifact now records the commit it was built from, so a crash report or a
   support question can be traced back to source. Nothing in the pipeline carried a git
@@ -130,6 +129,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   either state. Neither can be applied by the IDE
   on a plugin's behalf: `Window` has no theme attribute for its type, and a toast is
   posted by the system against whatever context built it.
+
+### 26.36 — 2026-09-01
 - **added — File-targeted editor save** _(ADFA-5259)_
   Save a named file's open buffer and find out whether the bytes actually landed.
   `saveCurrentFile` follows whichever tab the user has focused and returns as soon
@@ -415,3 +416,6 @@ Map any commit to the release that first shipped it:
 ```bash
 git tag --list --contains <sha> | grep -E '^[0-9]{2}\.[0-9]{2}$' | sort -V | head -1
 ```
+
+When a release is tagged, replace its bucket's `unreleased` with the tag date and move
+any entry the tag does not contain up to the next bucket.
