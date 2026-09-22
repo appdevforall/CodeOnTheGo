@@ -86,6 +86,9 @@ class GitBottomSheetViewModel(
 	private val _watermarkError = MutableSharedFlow<Throwable>(extraBufferCapacity = 1)
 	val watermarkError: SharedFlow<Throwable> = _watermarkError.asSharedFlow()
 
+	private val _initError = MutableSharedFlow<Throwable>(extraBufferCapacity = 1)
+	val initError: SharedFlow<Throwable> = _initError.asSharedFlow()
+
 	private var initJob: Job? = null
 	private var pullResetJob: Job? = null
 	private var pushResetJob: Job? = null
@@ -184,6 +187,7 @@ class GitBottomSheetViewModel(
 				val status = repo.getStatus()
 				_gitStatus.value = status
 				_currentBranch.value = repo.getCurrentBranch()?.name
+				_isProjectWatermarkEnabled.value = repo.isCommitWatermarkEnabled()
 				getLocalCommitsCount()
 			} catch (e: CancellationException) {
 				throw e
@@ -761,5 +765,22 @@ class GitBottomSheetViewModel(
 					onError?.invoke(e)
 				}
 			}
+	}
+
+	fun initGitRepository() {
+		viewModelScope.launch {
+			try {
+				val projectDirPath = IProjectManager.getInstance().projectDirPath
+				if (projectDirPath.isNotBlank()) {
+					GitRepositoryManager.initRepository(File(projectDirPath)).use { }
+					initializeRepository(force = true)
+				}
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.error("Failed to initialize repository", e)
+				_initError.tryEmit(e)
+			}
+		}
 	}
 }
