@@ -35,7 +35,7 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
-### 26.39 — unreleased
+### 26.40 — unreleased
 - **added — An embedding capability a backend can declare** _(ADFA-6053)_ **[verified]**
   A backend that has an embedding model can now say so. The only embedding entry point
   before this was `LlmInferenceService.getEmbeddings(String, String)`, which addresses a
@@ -59,11 +59,12 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   comes back. It reports every failure by
   completing the future exceptionally and throws synchronously only for a caller's own
   mistake — `NullPointerException` for a null argument or element, `IllegalArgumentException`
-  for an empty list.
-  Purely additive: a new interface with three new methods, nothing existing changed (the
-  ABI dump diff is six added lines and no removals), so an already-built `.cgp` keeps
+  for an empty list. The static `EmbeddingBackend.requireValidBatch(List<String>)` does
+  those checks and returns the snapshot, so a backend calls it first in `embed`.
+  Purely additive: a new interface with three new methods and one static helper, nothing
+  existing changed (the ABI dump diff is seven added lines and no removals), so an already-built `.cgp` keeps
   loading and running against the refreshed jar. `getEmbeddings(String, String)` stays —
-  the Vector-Search plugin is a live caller. Floor `plugin.min_ide_version` at `26.39` if
+  the Vector-Search plugin is a live caller. Floor `plugin.min_ide_version` at `26.40` if
   you implement or consume `EmbeddingBackend`; an older IDE has no such type, and a
   consumer's `instanceof` against it there fails to resolve the class.
 

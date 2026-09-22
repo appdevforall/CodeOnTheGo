@@ -275,6 +275,29 @@ public interface LlmInferenceService {
 	interface EmbeddingBackend extends LlmBackend {
 
 		/**
+		 * Validates a batch against {@link #embed}'s synchronous contract and snapshots it, so every backend enforces the contract the same way. Call it first in {@code embed}, before starting any work.
+		 *
+		 * @param texts
+		 *            the batch as passed to {@link #embed}
+		 * @return a copy of {@code texts} that later caller mutations cannot reach
+		 * @throws IllegalArgumentException
+		 *             if {@code texts} is empty
+		 * @throws NullPointerException
+		 *             if {@code texts} or any element of it is null
+		 */
+		@NonNull
+		static List<String> requireValidBatch(List<String> texts) {
+			List<String> batch = new ArrayList<>(Objects.requireNonNull(texts, "texts"));
+			if (batch.isEmpty()) {
+				throw new IllegalArgumentException("texts must not be empty");
+			}
+			for (String text : batch) {
+				Objects.requireNonNull(text, "texts must not contain a null element");
+			}
+			return batch;
+		}
+
+		/**
 		 * Embeds a batch of texts in one call.
 		 *
 		 * @param texts

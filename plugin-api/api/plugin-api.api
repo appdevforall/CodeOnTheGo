@@ -1608,6 +1608,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun embed (Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun getEmbeddingDimensions ()I
 	public abstract fun getEmbeddingModelId ()Ljava/lang/String;
+	public static fun requireValidBatch (Ljava/util/List;)Ljava/util/List;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$HistoryCapableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {

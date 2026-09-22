@@ -35,7 +35,7 @@ public class LlmInferenceServiceTest {
 	private static float[] expectedVector(String text, int dimensions) {
 		float[] vector = new float[dimensions];
 		for (int i = 0; i < dimensions; i++) {
-			vector[i] = (text.hashCode() >> i) & 1;
+			vector[i] = Objects.hash(text, i) & 1;
 		}
 		return vector;
 	}
@@ -305,13 +305,7 @@ public class LlmInferenceServiceTest {
 
 		@Override
 		public CompletableFuture<List<float[]>> embed(List<String> texts) {
-			List<String> batch = new ArrayList<>(Objects.requireNonNull(texts, "texts"));
-			if (batch.isEmpty()) {
-				throw new IllegalArgumentException("texts must not be empty");
-			}
-			for (String text : batch) {
-				Objects.requireNonNull(text, "texts must not contain a null element");
-			}
+			List<String> batch = LlmInferenceService.EmbeddingBackend.requireValidBatch(texts);
 			int dimensions = getEmbeddingDimensions();
 			return CompletableFuture.supplyAsync(() -> {
 				List<float[]> vectors = new ArrayList<>(batch.size());
