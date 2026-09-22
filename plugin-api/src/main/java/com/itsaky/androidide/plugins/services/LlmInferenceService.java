@@ -302,7 +302,7 @@ public interface LlmInferenceService {
 		 *
 		 * @param texts
 		 *            the texts to embed; must not be null, must not be empty, and must contain no null element. The implementation snapshots the list before it returns, so a caller may reuse or clear its own list the moment the call comes back without disturbing the batch in flight.
-		 * @return a future yielding one vector per input, in input order, each of {@link #getEmbeddingDimensions} length -- or completed exceptionally, leaving the whole batch unproduced (never null)
+		 * @return a future yielding one vector per input, in input order, each of {@link #getEmbeddingDimensions} length -- or completed exceptionally, leaving the whole batch unproduced (never null). The caller owns the returned list and its arrays outright; the implementation must not retain or share them, for example from a cache.
 		 * @throws IllegalArgumentException
 		 *             if {@code texts} is empty
 		 * @throws NullPointerException

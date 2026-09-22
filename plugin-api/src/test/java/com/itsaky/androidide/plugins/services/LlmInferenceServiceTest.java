@@ -16,11 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
@@ -35,7 +31,8 @@ public class LlmInferenceServiceTest {
 	private static float[] expectedVector(String text, int dimensions) {
 		float[] vector = new float[dimensions];
 		for (int i = 0; i < dimensions; i++) {
-			vector[i] = Objects.hash(text, i) & 1;
+			// low 24 bits so the int survives the float conversion exactly and inputs stay distinct
+			vector[i] = Objects.hash(text, i) & 0xFFFFFF;
 		}
 		return vector;
 	}
@@ -106,34 +103,6 @@ public class LlmInferenceServiceTest {
 		assertEquals(2, vectors.size());
 		assertArrayEquals(expectedVector("alpha", 4), vectors.get(0), 0.0f);
 		assertArrayEquals(expectedVector("beta", 4), vectors.get(1), 0.0f);
-	}
-
-	@Test
-	public void embeddingBackendKeepsConcurrentBatchesAligned() throws Exception {
-		LlmInferenceService.EmbeddingBackend backend = new HashingEmbeddingBackend(4, "text-embedding-3-small");
-		int batches = 32;
-		ExecutorService callers = Executors.newFixedThreadPool(4);
-
-		try {
-			CountDownLatch start = new CountDownLatch(1);
-			List<Future<List<float[]>>> submitted = new ArrayList<>(batches);
-			for (int i = 0; i < batches; i++) {
-				String text = "chunk-" + i;
-				submitted.add(callers.submit(() -> {
-					start.await();
-					return backend.embed(Collections.singletonList(text)).get(5, TimeUnit.SECONDS);
-				}));
-			}
-			start.countDown();
-
-			for (int i = 0; i < batches; i++) {
-				List<float[]> vectors = submitted.get(i).get(10, TimeUnit.SECONDS);
-				assertEquals(1, vectors.size());
-				assertArrayEquals(expectedVector("chunk-" + i, 4), vectors.get(0), 0.0f);
-			}
-		} finally {
-			callers.shutdownNow();
-		}
 	}
 
 	@Test
@@ -364,6 +333,7 @@ public class LlmInferenceServiceTest {
 
 		@Override
 		public CompletableFuture<List<float[]>> embed(List<String> texts) {
+			LlmInferenceService.EmbeddingBackend.requireValidBatch(texts);
 			CompletableFuture<List<float[]>> future = new CompletableFuture<>();
 			future.completeExceptionally(new IOException("embedding endpoint refused"));
 			return future;

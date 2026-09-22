@@ -56,7 +56,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   batch. `embed` must not block the calling thread and must be safe for concurrent calls
   (indexing and a user's query can be in flight at once), and it snapshots the caller's
   list before returning, so a caller may reuse or clear its own list as soon as the call
-  comes back. It reports every failure by
+  comes back; the caller owns the returned list and arrays outright. It reports every failure by
   completing the future exceptionally and throws synchronously only for a caller's own
   mistake — `NullPointerException` for a null argument or element, `IllegalArgumentException`
   for an empty list. The static `EmbeddingBackend.requireValidBatch(List<String>)` does
