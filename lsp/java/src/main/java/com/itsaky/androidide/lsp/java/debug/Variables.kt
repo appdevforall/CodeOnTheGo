@@ -354,6 +354,24 @@ internal class JavaFieldVariable<ValueT : LspValue>(
 	}
 }
 
+/**
+ * The local's declared type, standing in the frame's own type for one the VM has never loaded.
+ *
+ * [LocalVariable.type] throws [ClassNotLoadedException] exactly as [Field.type] does, and without a
+ * stand-in the throw escapes into the caller's guard and drops the whole row, which is the case
+ * where seeing `parser = null` is informative. An unloaded local type is a reference type by
+ * definition, so the stand-in classifies the same and leaves `VariableValues.canMutate` false.
+ */
+private fun localType(
+	stackFrame: JavaStackFrame,
+	variable: LocalVariable,
+): Type =
+	try {
+		variable.type()
+	} catch (err: ClassNotLoadedException) {
+		stackFrame.location.declaringType()
+	}
+
 internal open class JavaLocalVariable<ValueType : LspValue>(
 	thread: ThreadReference,
 	protected val stackFrame: JavaStackFrame,
@@ -363,7 +381,7 @@ internal open class JavaLocalVariable<ValueType : LspValue>(
 		thread = thread,
 		name = variable.name(),
 		typeName = variable.typeName(),
-		type = variable.type(),
+		type = localType(stackFrame, variable),
 		value = value,
 	) {
 	companion object {
@@ -375,7 +393,7 @@ internal open class JavaLocalVariable<ValueType : LspValue>(
 			variable: LocalVariable,
 			value: Value?,
 		): JavaLocalVariable<*> =
-			when (variable.type()) {
+			when (localType(stackFrame, variable)) {
 				is PrimitiveType -> JavaPrimitiveVariable(thread, stackFrame, variable, value)
 				else -> JavaLocalVariable<LspValue>(thread, stackFrame, variable, value)
 			}

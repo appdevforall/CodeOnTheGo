@@ -6,11 +6,12 @@ import com.sun.jdi.ObjectCollectedException
 import com.sun.jdi.ReferenceType
 import org.jetbrains.kotlin.codegen.inline.KOTLIN_DEBUG_STRATA_NAME
 import org.jetbrains.kotlin.codegen.inline.KOTLIN_STRATA_NAME
+import org.jetbrains.kotlin.codegen.inline.SourceMapper
 
 const val JAVA_STRATUM = "Java"
 
 /** The compiler's placeholder file for generated code, which belongs to no call site. */
-private const val FAKE_SOURCE_NAME = "fake.kt"
+private val FAKE_SOURCE_NAME = SourceMapper.FAKE_FILE_NAME
 
 val ReferenceType.isKotlinType: Boolean
 	get() =
@@ -110,13 +111,31 @@ fun Location.inlineCallSiteLineOrNull(): Int? {
  * past the end of that range, so the two strata agree exactly off inlined code. `fake.kt` also reads
  * as a foreign file but is generated code rather than an inlining, so it has no call site to find.
  */
-private fun Location.isInlinedBody(): Boolean {
-	val kotlinName = sourceNameInKotlinOrNull() ?: return false
-	if (kotlinName == FAKE_SOURCE_NAME) {
+private fun Location.isInlinedBody(): Boolean =
+	isInlinedBody(
+		kotlinSourceName = sourceNameInKotlinOrNull(),
+		javaSourceName = sourceNameOrNull(),
+		kotlinLine = lineNumberInKotlin(),
+		javaLine = lineNumberInSource(),
+	)
+
+/**
+ * [isInlinedBody] over the four values it reads, so the decision can be tested without a live VM.
+ *
+ * Comparing the line as well as the name is what catches an inline function declared in the same
+ * file as its caller: the Kotlin stratum then answers the same file name and only the line differs.
+ */
+fun isInlinedBody(
+	kotlinSourceName: String?,
+	javaSourceName: String?,
+	kotlinLine: Int,
+	javaLine: Int,
+): Boolean {
+	if (kotlinSourceName == null || kotlinSourceName == FAKE_SOURCE_NAME) {
 		return false
 	}
 
-	return kotlinName != sourceNameOrNull() || lineNumberInKotlin() != lineNumberInSource()
+	return kotlinSourceName != javaSourceName || kotlinLine != javaLine
 }
 
 /**

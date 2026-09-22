@@ -68,6 +68,23 @@ class KotlinLocalsTest {
 	}
 
 	@Test
+	fun `declaration-site receivers are synthetic`() {
+		// A member inline function leaves its receiver behind as the bare `this_`, which shares no
+		// prefix with the `$this` family, plus one `$iv` per inlining.
+		assertThat(isSyntheticKotlinLocal("this_")).isTrue()
+		assertThat(isSyntheticKotlinLocal("this_\$iv")).isTrue()
+		assertThat(isSyntheticKotlinLocal("this_\$iv\$iv")).isTrue()
+		assertThat(isSyntheticKotlinLocal("\$this_foo")).isTrue()
+		assertThat(isSyntheticKotlinLocal("\$this")).isTrue()
+	}
+
+	@Test
+	fun `a user local that merely starts with this_ is kept`() {
+		assertThat(isSyntheticKotlinLocal("this_count")).isFalse()
+		assertThat(isSyntheticKotlinLocal("this_thing")).isFalse()
+	}
+
+	@Test
 	fun `an inlined lambda argument is hidden, not treated as library code`() {
 		// $i$a$ scopes a lambda the user wrote, inlined into the user's own class, so it is noise in
 		// the variables list but says nothing about whose code is executing.

@@ -630,6 +630,10 @@ internal class JavaDebugAdapter :
 	 * `threadState.current` null and every later [step] would fail with "No thread is currently
 	 * suspended".
 	 *
+	 * A [StepRequest.STEP_INTO] is left alone: the user asked to enter the callee, and for an inline
+	 * function the body is the callee. Skipping it would make an `inline fun` undebuggable, since a
+	 * breakpoint on its body does not bind at the inlined call sites either.
+	 *
 	 * @return whether a continuation was issued, in which case nothing is reported to the client.
 	 */
 	private fun stepOnThroughInlinedBody(
@@ -638,6 +642,10 @@ internal class JavaDebugAdapter :
 		location: Location,
 		thread: ThreadReference,
 	): Boolean {
+		if ((e.request() as? StepRequest)?.depth() == StepRequest.STEP_INTO) {
+			return false
+		}
+
 		if (location.inlineCallSiteLineOrNull() == null) {
 			return false
 		}

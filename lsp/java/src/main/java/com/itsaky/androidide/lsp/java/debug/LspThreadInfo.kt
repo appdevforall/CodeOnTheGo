@@ -31,7 +31,7 @@ class JavaStackFrame(
 	val frame: StackFrame,
 	val location: Location = frame.location(),
 	val method: Method? = location.method(),
-	val sourceName: String = location.sourceNameInKotlinOrNull() ?: "",
+	val sourceName: String = location.sourceNameInKotlinOrNull() ?: "<unknown>",
 	val lineNumber: Long = location.lineNumberInKotlin().toLong(),
 ) : LspStackFrame {
 	companion object {

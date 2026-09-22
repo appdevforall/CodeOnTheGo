@@ -69,21 +69,24 @@ internal class EventHandler(
 				while (connected && job.isActive && !job.isCancelled) {
 					try {
 						val events = queue.remove()
-						var resumeVm = false
+						// A stop from any event in the set wins over a resume from any other: a
+						// composite can pair a silently handled event with one the client is told
+						// about, and resuming then runs the app while the IDE shows it paused.
+						var stopForSet = false
 						for (event in events.eventIterator()) {
 							logger.info("startListening: received event: {}", event)
 							val stopForEvent = handleEvent(event)
 							logger.info(
-								"startListening: handled event: {}, resumeVm={}, stopForEvent={}",
+								"startListening: handled event: {}, stopForSet={}, stopForEvent={}",
 								event,
-								resumeVm,
+								stopForSet,
 								stopForEvent,
 							)
 
-							resumeVm = resumeVm || !stopForEvent
+							stopForSet = stopForSet || stopForEvent
 						}
 
-						if (resumeVm) {
+						if (!stopForSet) {
 							logger.debug("resuming VM")
 							events.resume()
 						} else if (events.suspendPolicy() == EventRequest.SUSPEND_ALL) {

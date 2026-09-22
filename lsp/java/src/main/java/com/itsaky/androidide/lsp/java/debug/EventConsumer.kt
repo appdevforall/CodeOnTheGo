@@ -37,6 +37,11 @@ interface EventConsumer {
 
 	fun fieldWatchEvent(e: WatchpointEvent) {}
 
+	/**
+	 * Called for a step event.
+	 *
+	 * @return `true` to keep the VM suspended for this event, `false` to let it resume.
+	 */
 	fun stepEvent(e: StepEvent): Boolean = true
 
 	fun exceptionEvent(e: ExceptionEvent) {}
