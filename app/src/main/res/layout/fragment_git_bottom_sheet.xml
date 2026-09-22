@@ -2,7 +2,6 @@
 <androidx.core.widget.NestedScrollView
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto"
-	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
 	android:fillViewport="true">
@@ -100,18 +99,34 @@
 			app:layout_constraintStart_toStartOf="parent"
 			app:layout_constraintTop_toBottomOf="@id/tv_branch_name" />
 
-		<TextView
+		<LinearLayout
 			android:id="@+id/emptyView"
-			android:layout_width="0dp"
-			android:layout_height="0dp"
-			android:gravity="center"
-			android:text="@string/no_uncommitted_changes"
-			android:textAppearance="?attr/textAppearanceBody2"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:orientation="vertical"
 			android:visibility="gone"
 			app:layout_constraintBottom_toBottomOf="parent"
 			app:layout_constraintEnd_toEndOf="parent"
 			app:layout_constraintStart_toStartOf="parent"
-			app:layout_constraintTop_toBottomOf="@id/cbCheckAll" />
+			app:layout_constraintTop_toBottomOf="@id/cbCheckAll">
+
+			<TextView
+				android:id="@+id/tvRepoStatus"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:gravity="center"
+				android:text="@string/no_uncommitted_changes"
+				android:textAppearance="?attr/textAppearanceBody2" />
+
+			<com.google.android.material.button.MaterialButton
+				android:id="@+id/btn_init_repo"
+				style="@style/Widget.Material3.Button.OutlinedButton"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_gravity="center"
+				android:layout_marginTop="8dp"
+				android:text="@string/initialize_repository" />
+		</LinearLayout>
 
 		<androidx.recyclerview.widget.RecyclerView
 			android:id="@+id/recyclerView"
