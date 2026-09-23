@@ -13,7 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** Source scoping and column projection on the SQLite-backed index. */
+/** Source scoping, chunked multi-statement queries, and column projection on the SQLite-backed index. */
 @RunWith(RobolectricTestRunner::class)
 class SQLiteIndexScopeTest {
 	data class Entry(
@@ -63,6 +63,15 @@ class SQLiteIndexScopeTest {
 		index.close()
 	}
 
+	private fun smallChunkIndex(chunkSize: Int) =
+		SQLiteIndex(
+			descriptor = descriptor,
+			context = ApplicationProvider.getApplicationContext<Context>(),
+			dbName = null,
+			formatVersion = 1,
+			sourceIdChunkSize = chunkSize,
+		)
+
 	@Test
 	fun `query scoped to source ids returns only those sources`() =
 		runTest {
@@ -100,6 +109,115 @@ class SQLiteIndexScopeTest {
 
 			assertThat(found).hasSize(2100)
 			assertThat(found.toSet()).hasSize(2100)
+		}
+
+	@Test
+	fun `query scoped across multiple small chunks returns every match`() =
+		runTest {
+			/*
+			 * Robolectric's native SQLite allows far more than 999 bound parameters, so the 2100-id
+			 * test above passes even with chunking deleted. A small chunk size exercises the same
+			 * multi-statement path on real hardware.
+			 */
+			smallChunkIndex(2).use { idx ->
+				val sourceIds = (0 until 5).map { "jar$it" }
+				idx.insertAll(sourceIds.asSequence().mapIndexed { i, src -> Entry("k$i", src, "Cls$i") })
+
+				val found = idx.query(IndexQuery(sourceIds = sourceIds, limit = 0)).map { it.key }.toList()
+
+				assertThat(found.toSet()).containsExactly("k0", "k1", "k2", "k3", "k4")
+			}
+		}
+
+	@Test
+	fun `limit is honored across chunk boundaries`() =
+		runTest {
+			// Three sources, one chunk each: the limit must be spent across chunks rather than per
+			// chunk, and the loop must stop querying once it is met.
+			smallChunkIndex(1).use { idx ->
+				idx.insert(Entry("k1", "s1", "Alpha"))
+				idx.insert(Entry("k2", "s1", "Alpha"))
+				idx.insert(Entry("k3", "s2", "Alpha"))
+				idx.insert(Entry("k4", "s2", "Alpha"))
+				idx.insert(Entry("k5", "s3", "Alpha"))
+				idx.insert(Entry("k6", "s3", "Alpha"))
+
+				val found =
+					idx
+						.query(IndexQuery(sourceIds = listOf("s1", "s2", "s3"), limit = 3))
+						.map { it.key }
+						.toList()
+
+				assertThat(found).hasSize(3)
+				assertThat(found).containsAtLeast("k1", "k2")
+				assertThat(found).containsNoneOf("k5", "k6")
+			}
+		}
+
+	@Test
+	fun `a source id repeated across chunks is not returned twice`() =
+		runTest {
+			smallChunkIndex(1).use { idx ->
+				idx.insert(Entry("ka", "a", "Alpha"))
+				idx.insert(Entry("kb", "b", "Beta"))
+
+				val found =
+					idx
+						.query(IndexQuery(sourceIds = listOf("a", "a", "b"), limit = 0))
+						.map { it.key }
+						.toList()
+
+				assertThat(found).containsExactly("ka", "kb")
+			}
+		}
+
+	@Test
+	fun `distinctValues does not starve a later chunk's new values on the shrinking limit`() =
+		runTest {
+			/*
+			 * Old bug: each chunk was queried with `limit - values.size`, the remaining budget, so a
+			 * value repeating across chunks could exhaust that budget before a later chunk's genuinely
+			 * new values were ever read. Chunk one already contributes "g1"; chunk two repeats "g1"
+			 * (ordered first, by source id and by value) ahead of the newly-seen "g3", so a
+			 * budget-of-one second query returns the duplicate and misses "g3" entirely.
+			 */
+			smallChunkIndex(2).use { idx ->
+				idx.insert(Entry("k1", "s1", "V1", group = "g1"))
+				idx.insert(Entry("k2", "s2", "V2", group = "g2"))
+				idx.insert(Entry("k3", "s3", "V3", group = "g1"))
+				idx.insert(Entry("k4", "s4", "V4", group = "g3"))
+
+				val groups =
+					idx
+						.distinctValues("group", IndexQuery(sourceIds = listOf("s1", "s2", "s3", "s4"), limit = 3))
+						.toList()
+
+				assertThat(groups).containsExactly("g1", "g2", "g3")
+			}
+		}
+
+	@Test
+	fun `distinctValues stops adding once the limit is reached mid-chunk`() =
+		runTest {
+			/*
+			 * Old bug: querying a chunk with the full limit fixed the starvation above, but nothing
+			 * capped the total afterward -- the inner cursor loop added every row a chunk returned. A
+			 * chunk holding more new distinct values than remain in the budget must stop partway
+			 * through, not push the total past the limit.
+			 */
+			smallChunkIndex(2).use { idx ->
+				idx.insert(Entry("k1", "s1", "V1", group = "g1"))
+				idx.insert(Entry("k2", "s2", "V2", group = "g1"))
+				idx.insert(Entry("k3", "s3", "V3", group = "g2"))
+				idx.insert(Entry("k4", "s4", "V4", group = "g3"))
+
+				val groups =
+					idx
+						.distinctValues("group", IndexQuery(sourceIds = listOf("s1", "s2", "s3", "s4"), limit = 2))
+						.toList()
+
+				assertThat(groups).hasSize(2)
+			}
 		}
 
 	@Test

@@ -127,13 +127,69 @@ class SQLiteIndexPrefixTest {
 		}
 
 	@Test
-	fun `a prefix ending at the highest character still matches`() =
+	fun `a prefix ending in the highest character still matches`() =
 		runTest {
-			// No exclusive upper bound exists here, so only the lower bound can be emitted.
+			// The trailing U+FFFF carries into the preceding character, giving an upper bound of "{".
 			val high = "z${Char.MAX_VALUE}"
 			index.insert(Entry("k1", "s", "${high}tail", "p"))
 			index.insert(Entry("k2", "s", "zzz", "p"))
 
 			assertThat(namesMatching(high)).containsExactly("${high}tail")
+		}
+
+	@Test
+	fun `a prefix consisting only of the highest character still matches`() =
+		runTest {
+			// Every character carries here, so no exclusive upper bound exists at all: only the lower
+			// bound is emitted.
+			val high = "${Char.MAX_VALUE}"
+			index.insert(Entry("k1", "s", "${high}tail", "p"))
+			index.insert(Entry("k2", "s", "notIt", "p"))
+
+			assertThat(namesMatching(high)).containsExactly("${high}tail")
+		}
+
+	@Test
+	fun `a prefix ending just below the surrogate range steps over it`() =
+		runTest {
+			// Naively incrementing 0xD7FF by one lands on 0xD800, the first high surrogate, which
+			// encodes no character by itself; the bound must step over the whole surrogate block.
+			val prefix = "a\uD7FF"
+			index.insert(Entry("k1", "s", "${prefix}tail", "p"))
+			index.insert(Entry("k2", "s", "b", "p"))
+
+			assertThat(namesMatching(prefix)).containsExactly("${prefix}tail")
+		}
+
+	@Test
+	fun `the LIKE guard rejects a row the carried range bound alone would admit`() =
+		runTest {
+			/*
+			 * The trailing U+FFFF carries, giving the prefix an upper bound of "b": a row whose
+			 * second character is any code point at or above U+FFFF -- including a supplementary
+			 * character, which sorts above the whole basic plane -- falls inside that range without
+			 * actually starting with the prefix. Only the LIKE clause (built through
+			 * escapeLikeLiteral) rejects it.
+			 */
+			val prefix = "a${Char.MAX_VALUE}"
+			index.insert(Entry("k1", "s", "${prefix}match", "p"))
+			index.insert(Entry("k2", "s", "a\uD800\uDC00reject", "p"))
+
+			assertThat(namesMatching(prefix)).containsExactly("${prefix}match")
+		}
+
+	@Test
+	fun `a prefix ending in a supplementary character increments the whole code point`() =
+		runTest {
+			/*
+			 * U+1D7FF is the surrogate pair \uD835\uDFFF. Incrementing only the trailing low surrogate
+			 * (the old, per-code-unit bug) produces \uD835\uE000, which SQLite decodes as a different,
+			 * smaller code point than the prefix itself, so the range would match nothing.
+			 */
+			val prefix = "a\uD835\uDFFF"
+			index.insert(Entry("k1", "s", "${prefix}tail", "p"))
+			index.insert(Entry("k2", "s", "b", "p"))
+
+			assertThat(namesMatching(prefix)).containsExactly("${prefix}tail")
 		}
 }
