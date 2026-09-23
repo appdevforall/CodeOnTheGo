@@ -103,15 +103,19 @@ open class JvmSymbolIndex(
 	 *
 	 * @param prefix The prefix to search for.
 	 * @param limit The result limit.
+	 * @param kinds When non-null, only symbols of these kinds, filtered in the query so that the
+	 * limit is not spent on rows the caller would discard.
 	 * @see query
 	 */
 	fun findByPrefix(
 		prefix: String,
 		limit: Int = 200,
+		kinds: Set<JvmSymbolKind>? = null,
 	): Sequence<JvmSymbol> =
 		query(
 			indexQuery {
 				prefix(KEY_NAME, prefix)
+				if (kinds != null) anyOf(KEY_KIND, kinds.map { it.name })
 				this.limit = limit
 			},
 		)
