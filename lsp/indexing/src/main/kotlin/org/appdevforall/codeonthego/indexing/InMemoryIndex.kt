@@ -26,6 +26,7 @@ import kotlin.concurrent.write
  * - [fieldMaps]: fieldName -> (fieldValue -> rows) (equality filter)
  * - [prefixBuckets]: fieldName -> (lowercased first char -> list of (value, row))
  *                    Provides a ~36-way partition for prefix search.
+ * - [fingerprints]: sourceId -> fingerprint recorded by [insertSource]
  *
  * All mutations go through [lock] in write mode for consistency
  * across the multiple maps. Reads use read mode.
@@ -42,6 +43,7 @@ class InMemoryIndex<T : Indexable>(
 	private val keyMap = ConcurrentHashMap<String, MutableSet<RowId>>(256)
 	private val fieldMaps = ConcurrentHashMap<String, ConcurrentHashMap<String, MutableSet<RowId>>>()
 	private val prefixBuckets = ConcurrentHashMap<String, ConcurrentHashMap<Char, MutableList<PrefixEntry>>>()
+	private val fingerprints = ConcurrentHashMap<String, String>()
 
 	private val lock = ReentrantReadWriteLock()
 
@@ -121,6 +123,20 @@ class InMemoryIndex<T : Indexable>(
 
 	override suspend fun insert(entry: T) = lock.write { insertSingleLocked(entry) }
 
+	/** Inserts under one write lock, so readers never see the fingerprint without every entry. */
+	override suspend fun insertSource(
+		sourceId: String,
+		fingerprint: String,
+		entries: Sequence<T>,
+	) = lock.write {
+		for (entry in entries) {
+			insertSingleLocked(entry)
+		}
+		fingerprints[sourceId] = fingerprint
+	}
+
+	override suspend fun sourceFingerprint(sourceId: String): String? = fingerprints[sourceId]
+
 	override suspend fun removeBySource(sourceId: String) =
 		lock.write {
 			removeBySourceLocked(sourceId)
@@ -141,10 +157,11 @@ class InMemoryIndex<T : Indexable>(
 		}
 
 	/**
-	 * Remove all entries for [sourceId] from the primary, source, and secondary
-	 * indexes. Caller MUST already hold the write lock; this method does not lock.
+	 * Remove all entries and the fingerprint for [sourceId] from every map.
+	 * Caller MUST already hold the write lock; this method does not lock.
 	 */
 	private fun removeBySourceLocked(sourceId: String) {
+		fingerprints.remove(sourceId)
 		val sourceRows = sourceMap.remove(sourceId) ?: return
 		for (row in sourceRows) {
 			val entry = rows.remove(row) ?: continue
@@ -161,6 +178,7 @@ class InMemoryIndex<T : Indexable>(
 			rows.clear()
 			sourceMap.clear()
 			keyMap.clear()
+			fingerprints.clear()
 			fieldMaps.values.forEach { it.clear() }
 			prefixBuckets.values.forEach { it.clear() }
 		}
