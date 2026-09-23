@@ -159,5 +159,9 @@ class JvmLibraryIndexingService(
 /**
  * Identifies the content of [jar] by its size and last-modified time, which a rewrite of the file
  * changes without the cost of reading it. Stats the file, so never call it on the main thread.
+ *
+ * Accepted limitation: a rewrite that keeps the exact same size and lands within the
+ * filesystem's modification-time granularity (a second on some filesystems) produces the same
+ * fingerprint as the original, so that rewrite goes undetected.
  */
 internal fun jarFingerprint(jar: File): String = "${jar.length()}:${jar.lastModified()}"
