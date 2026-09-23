@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import com.google.common.truth.Truth.assertThat
-import org.junit.Assume.assumeTrue
+import com.google.common.truth.Truth.assertWithMessage
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -15,24 +15,26 @@ import java.util.jar.JarFile
  */
 @RunWith(JUnit4::class)
 class KotlinMetadataScannerShapeTest {
-	private val stdlibJar: File? =
-		runCatching {
+	private val stdlibJar: File by lazy {
+		val location =
 			File(
 				Unit::class.java.protectionDomain.codeSource.location
 					.toURI(),
 			)
-		}.getOrNull()
-			?.takeIf { it.isFile && it.name.endsWith(".jar") }
+		assertWithMessage("kotlin-stdlib must resolve to a JAR on the test classpath, got $location")
+			.that(location.isFile && location.name.endsWith(".jar"))
+			.isTrue()
+		location
+	}
 
-	private fun symbolsFor(entryName: String): List<JvmSymbol> {
-		val jar = stdlibJar
-		assumeTrue("kotlin-stdlib jar not resolvable from the test classpath", jar != null)
-		return JarFile(jar).use { file ->
+	private fun symbolsFor(entryName: String): List<JvmSymbol> =
+		JarFile(stdlibJar).use { file ->
 			val entry = file.getJarEntry(entryName)
-			assumeTrue("$entryName missing from ${jar!!.name}", entry != null)
+			assertWithMessage("$entryName in ${stdlibJar.name}").that(entry).isNotNull()
 			file.getInputStream(entry).use { KotlinMetadataScanner.parseKotlinClass(it, "stdlib") }
 		} ?: emptyList()
-	}
+
+	private fun classifierFor(entryName: String): JvmSymbol = symbolsFor(entryName).single { it.kind.isClassifier }
 
 	@Test
 	fun `a nested class reports its simple name, not the outer-qualified one`() {
@@ -50,8 +52,6 @@ class KotlinMetadataScannerShapeTest {
 		assertThat(companion.isTopLevel).isFalse()
 		assertThat(companion.data.containingClassFqName).isEqualTo("kotlin.text.Regex")
 	}
-
-	private fun classifierFor(entryName: String): JvmSymbol = symbolsFor(entryName).single { it.kind.isClassifier }
 
 	@Test
 	fun `a nested class is keyed by its class file name, as the Java scanner keys it`() {
