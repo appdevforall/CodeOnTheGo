@@ -1,11 +1,12 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.projects.classpath.JarFsClasspathReader
-import org.junit.Assume.assumeTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
+import org.junit.runners.Parameterized
 import java.io.File
 import java.nio.file.Paths
 
@@ -16,24 +17,41 @@ import java.nio.file.Paths
  * literally what filled `ModuleProject.compileClasspathClasses`. Building it from the index instead
  * would let the new code agree with itself and pin nothing.
  *
- * It runs against a real JAR because the cases that matter -- Kotlin file facades, multi-file class
- * parts, package-private classes, anonymous and nested types, multi-release entries -- do not occur
- * in a hand-built fixture. Two defects were found this way: anonymous Kotlin classes surfacing as
- * top-level classes named `1`, and `module-info` from a multi-release JAR indexed as a class.
+ * It runs against real JARs because the cases that matter do not occur in a hand-built fixture:
+ * Kotlin file facades, multi-file class parts and anonymous Kotlin classes in kotlin-stdlib, and
+ * package-private, anonymous and nested Java classes in JUnit.
  */
-@RunWith(JUnit4::class)
-class ClasspathTrieDifferentialTest {
-	private val jar: File? =
-		runCatching {
+@RunWith(Parameterized::class)
+class ClasspathTrieDifferentialTest(
+	private val corpus: String,
+	private val anchor: Class<*>,
+) {
+	companion object {
+		@JvmStatic
+		@Parameterized.Parameters(name = "{0}")
+		fun corpora(): List<Array<Any>> =
+			listOf(
+				arrayOf("kotlin-stdlib", Unit::class.java),
+				arrayOf("junit", Test::class.java),
+			)
+	}
+
+	private val jar: File by lazy {
+		val location =
 			File(
-				Unit::class.java.protectionDomain.codeSource.location
+				anchor.protectionDomain.codeSource.location
 					.toURI(),
 			)
-		}.getOrNull()
-			?.takeIf { it.isFile && it.name.endsWith(".jar") }
+		assertWithMessage("$corpus must resolve to a JAR on the test classpath, got $location")
+			.that(location.isFile && location.name.endsWith(".jar"))
+			.isTrue()
+		location
+	}
+
+	private val isKotlinCorpus get() = anchor == Unit::class.java
 
 	/** What the trie held: every top-level class the classpath reader found. */
-	private fun trieNames(jar: File): Set<String> =
+	private fun trieNames(): Set<String> =
 		JarFsClasspathReader()
 			.listClasses(listOf(jar))
 			.asSequence()
@@ -41,13 +59,14 @@ class ClasspathTrieDifferentialTest {
 			.map { it.name }
 			.toSet()
 
-	/** What the index offers for the same JAR. */
-	private fun indexNames(jar: File): Set<String> =
+	private fun indexClasses(): List<JvmSymbol> =
 		CombinedJarScanner
 			.scan(Paths.get(jar.absolutePath), "differential")
 			.filter { it.kind.isJvmClass && it.isTopLevel }
-			.map { it.fqName }
-			.toSet()
+			.toList()
+
+	/** What the index offers for the same JAR. */
+	private fun indexNames(): Set<String> = indexClasses().map { it.fqName }.toSet()
 
 	/**
 	 * A fragment of a `@JvmMultifileClass` facade, e.g. `LazyKt__LazyJVMKt`.
@@ -57,44 +76,40 @@ class ClasspathTrieDifferentialTest {
 	 */
 	private fun isMultiFilePart(qualifiedName: String) = qualifiedName.substringAfterLast('.').contains("__")
 
-	private fun requireJar(): File {
-		assumeTrue("kotlin-stdlib not resolvable from the test classpath", jar != null)
-		return jar!!
-	}
-
 	@Test
 	fun `every class the trie held is offered by the index, bar multi-file parts`() {
-		val jar = requireJar()
-
-		val missing = trieNames(jar) - indexNames(jar)
+		val missing = trieNames() - indexNames()
 
 		assertThat(missing.filterNot(::isMultiFilePart)).isEmpty()
 	}
 
 	@Test
 	fun `the index offers nothing the trie did not hold`() {
-		val jar = requireJar()
-
-		// Anonymous Kotlin classes and multi-release `module-info` entries both used to land here.
-		assertThat(indexNames(jar) - trieNames(jar)).isEmpty()
+		assertThat(indexNames() - trieNames()).isEmpty()
 	}
 
 	@Test
-	fun `the withheld classes really are multi-file parts, and there are some`() {
-		val jar = requireJar()
-
-		val missing = trieNames(jar) - indexNames(jar)
+	fun `the withheld classes really are multi-file parts, and a Kotlin corpus has some`() {
+		val missing = trieNames() - indexNames()
 
 		// Guards the exception itself: if the corpus stopped containing parts, the first test would
 		// start passing for the wrong reason.
-		assertThat(missing).isNotEmpty()
 		assertThat(missing.all(::isMultiFilePart)).isTrue()
+		if (isKotlinCorpus) assertThat(missing).isNotEmpty()
 	}
 
 	@Test
 	fun `the corpus is large enough for the comparison to mean something`() {
-		val jar = requireJar()
+		assertThat(trieNames().size).isGreaterThan(if (isKotlinCorpus) 500 else 150)
+	}
 
-		assertThat(trieNames(jar).size).isGreaterThan(500)
+	@Test
+	fun `a Java corpus holds the package-private, anonymous and nested classes it is here for`() {
+		assumeFalse("only the Java corpus is chosen for these shapes", isKotlinCorpus)
+		val classes = JarFsClasspathReader().listClasses(listOf(jar))
+
+		assertThat(indexClasses().any { it.visibility == JvmVisibility.PACKAGE_PRIVATE }).isTrue()
+		assertThat(classes.any { it.isAnonymous }).isTrue()
+		assertThat(classes.any { it.isInner }).isTrue()
 	}
 }
