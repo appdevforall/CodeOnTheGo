@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
+import org.appdevforall.codeonthego.indexing.api.PackageTree
 import org.appdevforall.codeonthego.indexing.api.ReadableIndex
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
@@ -16,12 +17,16 @@ import java.util.concurrent.ConcurrentHashMap
  * This view controls which subset is visible based on which
  * sources (JAR paths, etc.) are currently "active."
  *
+ * It is a [PackageTree] of the active sources' packages when [backing] is one, and an empty tree
+ * otherwise.
+ *
  * @param T The indexed type.
  * @param backing The underlying index that holds all data.
  */
 open class FilteredIndex<T : Indexable>(
 	private val backing: ReadableIndex<T>,
 ) : ReadableIndex<T>,
+	PackageTree,
 	Closeable {
 	/**
 	 * The set of source IDs whose entries are visible.
@@ -99,10 +104,30 @@ open class FilteredIndex<T : Indexable>(
 			return if (query.sourceId in visible) query else query.copy(sourceIds = emptyList())
 		}
 
-		val requested = query.sourceIds
-		val scoped = requested?.filter { it in visible } ?: visible
-		return query.copy(sourceIds = scoped)
+		return query.copy(sourceIds = scopedToActive(query.sourceIds, visible))
 	}
+
+	/** Narrows a requested source scope to [visible]; an unscoped request becomes [visible] itself. */
+	private fun scopedToActive(
+		requested: Collection<String>?,
+		visible: Set<String>,
+	): Collection<String> = requested?.filter { it in visible } ?: visible
+
+	/** The requested source scope narrowed to the active sources, as [scopedToActive] does for a query. */
+	private fun activeScope(requested: Collection<String>?): Collection<String>? {
+		val visible = visibleSourceIds()?.toSet() ?: return requested
+		return scopedToActive(requested, visible)
+	}
+
+	override fun subpackages(
+		parent: String,
+		sourceIds: Collection<String>?,
+	): Set<String> = (backing as? PackageTree)?.subpackages(parent, activeScope(sourceIds)) ?: emptySet()
+
+	override fun containsPackage(
+		name: String,
+		sourceIds: Collection<String>?,
+	): Boolean = (backing as? PackageTree)?.containsPackage(name, activeScope(sourceIds)) ?: false
 
 	/**
 	 * Returns the visible entry for [key], the one with the smallest source id among the visible
