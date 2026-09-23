@@ -16,6 +16,7 @@ import io.mockk.every
 import io.mockk.spyk
 import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
+import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import org.jetbrains.org.objectweb.asm.ClassWriter
 import org.jetbrains.org.objectweb.asm.Opcodes
 import org.junit.After
@@ -68,7 +69,7 @@ class JvmModuleOutputIndexingServiceTest {
 		installWorkspace(lib)
 		val jar = lib.getGeneratedJar()
 		writeClassJar(jar, "p/Aa")
-		val service = JvmModuleOutputIndexingService(context)
+		val service = JvmModuleOutputIndexingService(context, IndexingProgressTracker())
 		try {
 			val index = initializeAndAwait(service)
 
@@ -91,7 +92,7 @@ class JvmModuleOutputIndexingServiceTest {
 		installWorkspace(lib)
 		val jar = lib.getGeneratedJar()
 		writeClassJar(jar, "p/Aa")
-		val service = JvmModuleOutputIndexingService(context)
+		val service = JvmModuleOutputIndexingService(context, IndexingProgressTracker())
 		try {
 			val index = initializeAndAwait(service)
 

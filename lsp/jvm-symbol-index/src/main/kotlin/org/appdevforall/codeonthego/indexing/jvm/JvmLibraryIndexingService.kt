@@ -6,6 +6,7 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.bootClassPaths
 import org.appdevforall.codeonthego.indexing.service.IndexKey
+import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import java.nio.file.Path
 import kotlin.io.path.extension
 
@@ -26,7 +27,8 @@ val JVM_LIBRARY_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-library-symbols")
  */
 class JvmLibraryIndexingService(
 	context: Context,
-) : JarIndexingService(context) {
+	progressTracker: IndexingProgressTracker,
+) : JarIndexingService(context, progressTracker) {
 	companion object {
 		const val ID = "jvm-indexing-service"
 	}

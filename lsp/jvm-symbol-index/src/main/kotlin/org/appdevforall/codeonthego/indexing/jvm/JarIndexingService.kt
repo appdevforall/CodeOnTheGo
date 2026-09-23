@@ -14,6 +14,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
+import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import org.appdevforall.codeonthego.indexing.service.IndexingService
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -28,12 +29,16 @@ import java.nio.file.Paths
  * indexed is re-scanned, and [JvmSymbolIndex.optimizeAfter] runs once the whole pass finishes. A
  * subclass supplies [indexKey], [dbName], [indexName] and [jarsToIndex].
  *
+ * Every pass reports the JARs it submits to [progressTracker] and closes its tracker pass in a
+ * `finally`, so a pass that throws or is cancelled cannot leave the indexing state stuck.
+ *
  * The scope carries a [SupervisorJob] and a [CoroutineExceptionHandler]: a [refresh] whose
  * [jarsToIndex] throws logs the failure instead of cancelling the scope, so a later [refresh]
  * still runs its pass.
  */
 abstract class JarIndexingService(
 	protected val context: Context,
+	private val progressTracker: IndexingProgressTracker,
 	private val workspaceSupplier: () -> Workspace? = { ProjectManagerImpl.getInstance().workspace },
 ) : IndexingService {
 	companion object {
@@ -85,12 +90,22 @@ abstract class JarIndexingService(
 	 */
 	fun refresh(): Job =
 		coroutineScope.launch {
-			val jobs = indexingMutex.withLock { reindex() }
-			jarIndex?.optimizeAfter(jobs)
+			progressTracker.openPass().use { pass ->
+				val jobs = indexingMutex.withLock { reindex(pass) }
+				completePass(jobs)
+			}
 		}
 
-	/** Submits every JAR whose fingerprint changed since it was last indexed and returns the submitted jobs. */
-	private suspend fun reindex(): List<Job> {
+	/** Waits for [jobs], every JAR one pass submitted, then optimizes the index; runs outside the mutex. */
+	protected open suspend fun completePass(jobs: List<Job>) {
+		jarIndex?.optimizeAfter(jobs)
+	}
+
+	/**
+	 * Submits every JAR whose fingerprint changed since it was last indexed, tracking each on [pass],
+	 * and returns the submitted jobs.
+	 */
+	private suspend fun reindex(pass: IndexingProgressTracker.Pass): List<Job> {
 		val index =
 			this.jarIndex ?: run {
 				log.warn("[{}] Not indexing. Index not initialized.", id)
@@ -121,10 +136,12 @@ abstract class JarIndexingService(
 		for (jarPath in jars) {
 			val fingerprint = jarFingerprint(File(jarPath))
 			if (index.sourceFingerprint(jarPath) != fingerprint) {
-				jobs +=
+				val job =
 					index.indexSource(jarPath, skipIfExists = true, fingerprint = fingerprint) { sourceId ->
 						CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
 					}
+				pass.track(jarPath, job)
+				jobs += job
 			}
 		}
 
