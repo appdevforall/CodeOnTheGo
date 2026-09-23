@@ -65,7 +65,7 @@ object KotlinMetadataScanner {
 
 		return when (metadata) {
 			is KotlinClassMetadata.Class -> {
-				extractFromClass(metadata.kmClass, sourceId)
+				extractFromClass(metadata.kmClass, collector.internalName, sourceId)
 			}
 
 			is KotlinClassMetadata.FileFacade -> {
@@ -123,37 +123,44 @@ object KotlinMetadataScanner {
 		)
 	}
 
+	/**
+	 * Symbols for [klass] and its members.
+	 *
+	 * [className] is the class file's internal name (`kotlin/text/Regex$Companion`), not the metadata
+	 * name (`kotlin/text/Regex.Companion`): JarSymbolScanner and SourceFileIndexer key and nest by the
+	 * former, and a containing-class lookup only matches when every scanner spells it the same way.
+	 */
 	private fun extractFromClass(
 		klass: KmClass,
+		className: String,
 		sourceId: String,
 	): List<JvmSymbol> {
 		val symbols = mutableListOf<JvmSymbol>()
-		val className = klass.name
+		val metadataName = klass.name
 		val packageName =
-			className
-				.substringBeforeLast('/')
+			metadataName
+				.substringBeforeLast('/', "")
 				.replace('/', '.')
 		/*
 		 * A leading '.' marks a local or anonymous class. The classpath trie never held these -- it
 		 * treated any name containing '$' as not top level -- and neither language names them, so
 		 * offering one as a completion would be noise. JarSymbolScanner drops its equivalents too.
 		 */
-		if (className.startsWith('.')) {
+		if (metadataName.startsWith('.')) {
 			return symbols
 		}
 
 		/*
-		 * Kotlin metadata nests with '.' in source order and with '$' once compiled, so a nested class
-		 * has to be split on either. Splitting on '$' alone left the short name as "Outer.Inner", which
-		 * no prefix search for "Inner" could match; splitting on '.' alone left a compiled-nested class
-		 * looking top level.
+		 * Metadata nests with '.', so here a '$' can only be part of a declared name. It is still split
+		 * on because the classpath trie treated every '$' as nesting, and the index should hold the
+		 * same top-level classes.
 		 */
-		val simpleNames = className.substringAfterLast('/')
+		val simpleNames = metadataName.substringAfterLast('/')
 		val lastSeparator = maxOf(simpleNames.lastIndexOf('.'), simpleNames.lastIndexOf('$'))
 		val shortName = if (lastSeparator >= 0) simpleNames.substring(lastSeparator + 1) else simpleNames
 		val containingClassName =
 			if (lastSeparator >= 0) {
-				className.substring(0, className.length - (simpleNames.length - lastSeparator))
+				className.substring(0, className.length - shortName.length - 1)
 			} else {
 				""
 			}
