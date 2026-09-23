@@ -861,22 +861,39 @@ private fun KaSession.kindOf(symbol: KaSymbol): CompletionItemKind =
 private fun KaSession.kindOf(symbol: JvmSymbol): CompletionItemKind =
 	when (symbol.kind) {
 		JvmSymbolKind.CLASS -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.INTERFACE -> CompletionItemKind.INTERFACE
+
 		JvmSymbolKind.ENUM -> CompletionItemKind.ENUM
+
 		JvmSymbolKind.ENUM_ENTRY -> CompletionItemKind.ENUM_MEMBER
+
 		JvmSymbolKind.ANNOTATION_CLASS -> CompletionItemKind.ANNOTATION_TYPE
+
 		JvmSymbolKind.OBJECT -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.COMPANION_OBJECT -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.DATA_CLASS -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.VALUE_CLASS -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.SEALED_CLASS -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.SEALED_INTERFACE -> CompletionItemKind.INTERFACE
+
 		JvmSymbolKind.FUNCTION -> CompletionItemKind.FUNCTION
+
 		JvmSymbolKind.EXTENSION_FUNCTION -> CompletionItemKind.FUNCTION
+
 		JvmSymbolKind.CONSTRUCTOR -> CompletionItemKind.CONSTRUCTOR
+
 		JvmSymbolKind.PROPERTY -> CompletionItemKind.PROPERTY
+
 		JvmSymbolKind.EXTENSION_PROPERTY -> CompletionItemKind.PROPERTY
+
 		JvmSymbolKind.FIELD -> CompletionItemKind.FIELD
+
 		JvmSymbolKind.TYPE_ALIAS -> CompletionItemKind.CLASS
 	}
 
