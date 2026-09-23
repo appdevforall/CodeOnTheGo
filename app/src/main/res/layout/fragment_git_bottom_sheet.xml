@@ -125,7 +125,7 @@
 				android:layout_height="wrap_content"
 				android:layout_gravity="center"
 				android:layout_marginTop="8dp"
-				android:text="@string/initialize_repository" />
+				android:text="@string/initialize_git_repository" />
 		</LinearLayout>
 
 		<androidx.recyclerview.widget.RecyclerView
