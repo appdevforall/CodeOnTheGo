@@ -8,9 +8,10 @@ import java.io.Closeable
 /**
  * Merges query results from multiple [ReadableIndex] instances.
  *
- * Indexes are queried sequentially in the order they are provided.
- * Duplicate keys (same entry present in more than one backing index)
- * are deduplicated — the first occurrence wins.
+ * Indexes are queried sequentially in the order they are provided. A key already seen is skipped
+ * and the first occurrence wins, whether the repeat comes from a later backing index or from the
+ * same index yielding it again under a different source, which a composite source-and-key primary
+ * key allows.
  *
  * @param T The indexed type.
  * @param indexes The indexes to merge, in priority order.

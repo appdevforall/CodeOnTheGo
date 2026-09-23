@@ -47,15 +47,19 @@ class IndexWorkerDisposalTest : KtLspTest() {
 					scope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
 				)
 
-			// Dispose the project out from under the worker, exactly as happens on LSP shutdown
-			// (env.close() disposes the project via its parent Disposable, the production path).
-			// IntelliJ requires model teardown to run inside a write action.
+			/*
+			 * Dispose the project out from under the worker, exactly as happens on LSP shutdown
+			 * (env.close() disposes the project via its parent Disposable, the production path).
+			 * IntelliJ requires model teardown to run inside a write action.
+			 */
 			ApplicationManager.getApplication().runWriteAction { env.close() }
 			assertThat(env.project.isDisposed).isTrue()
 
-			// Pre-fix, processing either command calls PsiManager.findFile on the disposed project
-			// and throws AssertionError("Project is already disposed"). Post-fix, the disposal guard
-			// breaks the loop, so start() returns cleanly instead of throwing.
+			/*
+			 * Pre-fix, processing either command calls PsiManager.findFile on the disposed project
+			 * and throws AssertionError("Project is already disposed"). Post-fix, the disposal guard
+			 * breaks the loop, so start() returns cleanly instead of throwing.
+			 */
 			worker.submitCommand(IndexCommand.ScanSourceFile(vf))
 			worker.submitCommand(IndexCommand.IndexSourceFile(vf))
 			worker.submitCommand(IndexCommand.Stop)

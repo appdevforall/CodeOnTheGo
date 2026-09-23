@@ -26,7 +26,7 @@ import java.time.Instant
  * commands must collapse BOTH the symbol-index deletes AND the per-file metadata deletes
  * into ONE batched call each ([JvmSymbolIndex.removeBySources] /
  * [KtFileMetadataIndex.removeAll], a single SQLite transaction apiece) instead of N separate
- * [Index.removeBySource] calls (N transactions — the Sentry N+1).
+ * [Index.removeBySource] calls (N transactions - the Sentry N+1).
  */
 @RunWith(JUnit4::class)
 class IndexWorkerBatchRemovalTest {
@@ -124,7 +124,7 @@ class IndexWorkerBatchRemovalTest {
 				pushBack = { pushedBack.add(it) },
 			)
 
-			// The fix: exactly one batched transaction, zero per-source deletes — for BOTH indexes.
+			// The fix: exactly one batched transaction, zero per-source deletes - for BOTH indexes.
 			assertThat(counting.removeBySourcesBatches).isEqualTo(1)
 			assertThat(counting.removeBySourceCalls).isEqualTo(0)
 			assertThat(counting.removedInLargestBatch).containsExactlyElementsIn(paths)

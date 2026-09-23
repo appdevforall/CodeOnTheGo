@@ -100,10 +100,12 @@ internal class KtLspTestEnvironment(
 		try {
 			initialize(::buildModules, ::buildKtSymbolIndex)
 		} catch (failure: Throwable) {
-			// A throwing constructor never hands the instance to KtLspTestRule, so its finally has
-			// nothing to close and the refcounted, process-wide application environment leaks for the
-			// rest of the suite - one bad TestSourceModuleSpec would reproduce the suite-wide OOM.
-			// Release it here, where the half-built instance is still reachable.
+			/*
+			 * A throwing constructor never hands the instance to KtLspTestRule, so its finally has
+			 * nothing to close and the refcounted, process-wide application environment leaks for the
+			 * rest of the suite - one bad TestSourceModuleSpec would reproduce the suite-wide OOM.
+			 * Release it here, where the half-built instance is still reachable.
+			 */
 			runCatching { closeInWriteAction() }.exceptionOrNull()?.let(failure::addSuppressed)
 			throw failure
 		}

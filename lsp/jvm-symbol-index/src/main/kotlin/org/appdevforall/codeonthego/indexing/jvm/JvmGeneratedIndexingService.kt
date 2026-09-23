@@ -85,13 +85,13 @@ class JvmGeneratedIndexingService(
 	private suspend fun reindexGeneratedJars(): List<Job> {
 		val index =
 			this.generatedIndex ?: run {
-				log.warn("Not indexing generated JARs — index not initialized.")
+				log.warn("Not indexing generated JARs - index not initialized.")
 				return emptyList()
 			}
 
 		val workspace =
 			ProjectManagerImpl.getInstance().workspace ?: run {
-				log.warn("Not indexing generated JARs — workspace model not available.")
+				log.warn("Not indexing generated JARs - workspace model not available.")
 				return emptyList()
 			}
 

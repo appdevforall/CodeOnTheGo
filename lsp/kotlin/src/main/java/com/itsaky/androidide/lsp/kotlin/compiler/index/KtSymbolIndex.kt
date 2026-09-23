@@ -451,9 +451,11 @@ internal class KtSymbolIndex(
 			null
 		}
 
-		// Applied on the way out rather than during the pin: the version bump that arrived while the path
-		// was frozen still has to reach the FIR session. Skipped once the document is gone, since
-		// invalidateCurrent already unregistered it.
+		/*
+		 * Applied on the way out rather than during the pin: the version bump that arrived while the path
+		 * was frozen still has to reach the FIR session. Skipped once the document is gone, since
+		 * invalidateCurrent already unregistered it.
+		 */
 		if (refreshOwed && FileManager.isActive(path)) {
 			scope.launch { refreshCurrentKtFile(path) }
 		}
@@ -576,11 +578,13 @@ internal class KtSymbolIndex(
 		scanningJob?.cancelAndJoin()
 		indexingJob?.join()
 
-		// Cancel AND JOIN the index's own scope. Beyond the main worker loop drained above, the
-		// debounced modifiedFileIndexer and queueOnFileChangedAsync coroutines also run
-		// project.read { PsiManager … }. Joining guarantees none survive into the caller's
-		// Disposer.dispose(...), which would otherwise crash with "Project is already disposed"
-		// (APPDEVFORALL-17R). This index owns `scope`.
+		/*
+		 * Cancel AND JOIN the index's own scope. Beyond the main worker loop drained above, the
+		 * debounced modifiedFileIndexer and queueOnFileChangedAsync coroutines also run
+		 * project.read { PsiManager ... }. Joining guarantees none survive into the caller's
+		 * Disposer.dispose(...), which would otherwise crash with "Project is already disposed" once
+		 * one of them touches the project after it is gone. This index owns `scope`.
+		 */
 		scope.coroutineContext[Job]?.cancelAndJoin()
 
 		// Drain the refresh pool before disposal: refreshToCurrent runs project.read/write on it (same
