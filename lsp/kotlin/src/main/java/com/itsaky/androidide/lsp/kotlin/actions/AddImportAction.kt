@@ -27,7 +27,10 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
+import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
+import org.appdevforall.codeonthego.indexing.jvm.dedupeKey
 import java.nio.file.Path
 
 class AddImportAction : BaseKotlinCodeAction() {
@@ -49,9 +52,11 @@ class AddImportAction : BaseKotlinCodeAction() {
 			return
 		}
 
-		// Optimistic visibility: decide from the in-memory unresolved-reference marker only. The
-		// importable-classifier resolution runs in the background execAction; doing it here would be
-		// main-thread SQLite I/O, because fillMenu() calls prepare() synchronously on the UI thread.
+		/*
+		 * Optimistic visibility: decide from the in-memory unresolved-reference marker only. The
+		 * importable-classifier resolution runs in the background execAction; doing it here would be
+		 * main-thread SQLite I/O, because fillMenu() calls prepare() synchronously on the UI thread.
+		 */
 		val resolveReferenceActionDiagnostic =
 			data.findDiagnosticExtra<DiagnosticAction.ResolveReference>()
 		if (resolveReferenceActionDiagnostic == null) {
@@ -97,10 +102,17 @@ class AddImportAction : BaseKotlinCodeAction() {
 		 * to classifier kinds, so the row count is the number of classes with that simple name, not a
 		 * scan. The kind restriction also keeps Kotlin from being offered a file facade, which is not
 		 * a classifier.
+		 *
+		 * Deduplicated by qualified name, keeping the first occurrence in query order (source before
+		 * library): the same class indexed from two JARs on the active source set is two rows here.
+		 * The `associate` below already folds duplicate keys together for a classifier, so this list
+		 * is redundant with it today; it is kept so this result's own identity does not depend on
+		 * how it happens to get folded downstream.
 		 */
 		val classifiers =
 			env.ktSymbolIndex
 				.findSymbolBySimpleName(referenceName, limit = 0, kinds = JvmSymbolKind.CLASSIFIER_KINDS)
+				.distinctBy { it.dedupeKey }
 				.toList()
 
 		if (classifiers.isEmpty()) {
@@ -117,7 +129,10 @@ class AddImportAction : BaseKotlinCodeAction() {
 
 			val candidates =
 				live.read { ktFile ->
-					classifiers.associate { it.fqName to insertImport(ktFile, it.fqName) }
+					val currentPackage = ktFile.packageFqName.asString().ifEmpty { null }
+					classifiers
+						.filter { it.isImportableFrom(currentPackage) }
+						.associate { it.fqName to insertImport(ktFile, it.fqName) }
 				}
 
 			if (live.isStale) {
@@ -238,6 +253,21 @@ class AddImportAction : BaseKotlinCodeAction() {
 		)
 	}
 }
+
+/**
+ * Whether [this] classifier is one a file in [currentPackage] could actually import.
+ *
+ * A private declaration is never importable, and a package-private one only from its own package.
+ * Public, protected, and internal candidates pass through unchanged: telling them apart needs the
+ * use-site module that completion's visibility checker resolves, which is not available here, so
+ * this only covers the visibility distinctions that a package name settles on its own.
+ */
+private fun JvmSymbol.isImportableFrom(currentPackage: String?): Boolean =
+	when (visibility) {
+		JvmVisibility.PRIVATE -> false
+		JvmVisibility.PACKAGE_PRIVATE -> packageName == currentPackage
+		JvmVisibility.PUBLIC, JvmVisibility.PROTECTED, JvmVisibility.INTERNAL -> true
+	}
 
 /**
  * The outcome of resolving import candidates.
