@@ -52,8 +52,8 @@ interface ReadableIndex<T : Indexable> {
 	 * for enumerating a large field -- every package on a classpath, say -- where fetching the
 	 * matching entries and reducing them in memory would defeat the point.
 	 *
-	 * Values are deduplicated across the whole result, and their order is unspecified. If
-	 * [IndexQuery.limit] is 0, every distinct value is emitted.
+	 * Values are deduplicated across the whole result, and their order is unspecified. A positive
+	 * [IndexQuery.limit] caps how many distinct values are emitted; 0 or negative means unlimited.
 	 *
 	 * @param fieldName Must be one of the fields declared in the [IndexDescriptor].
 	 * @param query Restricts which entries contribute a value.
