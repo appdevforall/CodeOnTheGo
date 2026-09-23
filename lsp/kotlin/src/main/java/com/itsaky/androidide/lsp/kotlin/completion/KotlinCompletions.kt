@@ -460,7 +460,10 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
 
 	collectUpToLimit(
 		limit = UNIMPORTED_SYMBOL_DISPLAY_LIMIT,
-		sources = indexes.map { index -> { index.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_FETCH_BUDGET) } },
+		sources =
+			indexes.map { index ->
+				{ index.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_FETCH_BUDGET, kinds = UNIMPORTED_SYMBOL_KINDS) }
+			},
 		accept = ::addCompletionItem,
 	)
 }
@@ -500,13 +503,28 @@ internal fun <T> collectUpToLimit(
 	return accepted
 }
 
+/**
+ * The kinds unimported-symbol completion can offer: classifiers and callables.
+ *
+ * A file facade is neither, and Kotlin cannot name one. A companion object is reached through its
+ * class, so offering every `Companion` in the index by that bare name only adds noise.
+ */
+internal val UNIMPORTED_SYMBOL_KINDS: Set<JvmSymbolKind> =
+	(JvmSymbolKind.CLASSIFIER_KINDS - JvmSymbolKind.COMPANION_OBJECT) + JvmSymbolKind.CALLABLE_KINDS
+
+/**
+ * Whether [symbol] can be offered as an unimported completion, whose bare name Kotlin resolves once
+ * the item's auto-import is applied.
+ */
+internal fun isUnimportedSymbolCandidate(symbol: JvmSymbol): Boolean {
+	if (symbol.kind !in UNIMPORTED_SYMBOL_KINDS) return false
+	// A member callable is reached through its receiver, never imported by name.
+	return !symbol.kind.isCallable || symbol.isTopLevel || symbol.isExtension
+}
+
 context(ctx: AnalysisContext)
 private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionItem? {
-	if (symbol.kind.isCallable && !symbol.isTopLevel && !symbol.isExtension) {
-		// member-level, non-extension callable symbols should not be
-		// completed in scope completions
-		return null
-	}
+	if (!isUnimportedSymbolCandidate(symbol)) return null
 
 	abortIfCancelled()
 
@@ -580,7 +598,9 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 			)
 		}
 
-		else -> {}
+		else -> {
+			return null
+		}
 	}
 
 	return item
@@ -954,8 +974,8 @@ private fun KaSession.kindOf(symbol: JvmSymbol): CompletionItemKind =
 
 		JvmSymbolKind.TYPE_ALIAS -> CompletionItemKind.CLASS
 
-		// Kotlin completion should never reach a facade -- it is not a classifier, and the
-		// declarations it holds are offered individually -- but the mapping has to be total.
+		// Unimported-symbol completion rejects facades before building an item, since Kotlin
+		// cannot name one; this branch only keeps the mapping total.
 		JvmSymbolKind.FILE_FACADE -> CompletionItemKind.CLASS
 	}
 
