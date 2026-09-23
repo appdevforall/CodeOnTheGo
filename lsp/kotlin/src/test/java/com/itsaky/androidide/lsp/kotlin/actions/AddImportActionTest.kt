@@ -9,6 +9,7 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
+import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -47,6 +48,8 @@ class AddImportActionTest : KtLspTest() {
 
 	private fun index(vararg symbols: JvmSymbol) = runBlocking { symbols.forEach { env.ktSymbolIndex.sourceIndex.insert(it) } }
 
+	private fun indexLibrary(vararg symbols: JvmSymbol) = runBlocking { symbols.forEach { env.ktSymbolIndex.libraryIndex.insert(it) } }
+
 	@Test
 	fun `resolves a single classifier candidate by simple name`() {
 		index(classSymbol("lib", "Foo"))
@@ -78,6 +81,36 @@ class AddImportActionTest : KtLspTest() {
 		val candidates = AddImportAction().computeImportCandidates(env, mainPath, "Foo").found()
 
 		assertEquals(setOf("a.Foo"), candidates.keys)
+	}
+
+	/**
+	 * Pins the contract, not a bug this test caught: `associate`'s own dedup-by-fqName already makes
+	 * this pass without `computeImportCandidates`'s explicit `.distinctBy { it.dedupeKey }`, which
+	 * exists as insurance against a future change to how candidates are folded into the chooser, not
+	 * because this ever surfaced a duplicate.
+	 */
+	@Test
+	fun `import candidates list each qualified name once, even from two jars`() {
+		indexLibrary(classSymbol("lib", "Foo").copy(sourceId = "jarA.jar"), classSymbol("lib", "Foo").copy(sourceId = "jarB.jar"))
+		createSourceFile("Main.kt", "package p\nfun f(x: Foo) {}")
+
+		val candidates = AddImportAction().computeImportCandidates(env, mainPath, "Foo").found()
+
+		assertEquals(setOf("lib.Foo"), candidates.keys)
+		assertEquals(1, candidates.size)
+	}
+
+	@Test
+	fun `drops a package-private library classifier when a public one shares the simple name`() {
+		indexLibrary(
+			classSymbol("androidx.recyclerview.widget", "AdapterHelper").copy(visibility = JvmVisibility.PACKAGE_PRIVATE),
+			classSymbol("com.example", "AdapterHelper"),
+		)
+		createSourceFile("Main.kt", "package p\nfun f(x: AdapterHelper) {}")
+
+		val candidates = AddImportAction().computeImportCandidates(env, mainPath, "AdapterHelper").found()
+
+		assertEquals(setOf("com.example.AdapterHelper"), candidates.keys)
 	}
 
 	@Test
