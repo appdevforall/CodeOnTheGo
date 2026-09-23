@@ -34,41 +34,46 @@ import org.eclipse.lemminx.dom.DOMDocument
  *
  * @author Akash Yadav
  */
-class SimpleTagCompleter(provider: ICompletionProvider) : LayoutTagCompletionProvider(provider) {
+class SimpleTagCompleter(
+	provider: ICompletionProvider,
+) : LayoutTagCompletionProvider(provider) {
+	override fun doComplete(
+		params: CompletionParams,
+		pathData: ResourcePathData,
+		document: DOMDocument,
+		type: NodeType,
+		prefix: String,
+	): CompletionResult {
+		val widgets =
+			Lookup.getDefault().lookup(WidgetTable.COMPLETION_LOOKUP_KEY)?.getAllWidgets()
+				?: return CompletionResult.EMPTY
+		val result = mutableListOf<CompletionItem>()
 
-  override fun doComplete(
-    params: CompletionParams,
-    pathData: ResourcePathData,
-    document: DOMDocument,
-    type: NodeType,
-    prefix: String
-  ): CompletionResult {
-    val widgets =
-      Lookup.getDefault().lookup(WidgetTable.COMPLETION_LOOKUP_KEY)?.getAllWidgets()
-        ?: return CompletionResult.EMPTY
-    val result = mutableListOf<CompletionItem>()
+		// Complete all tags which do not require fully qualified name
+		for (widget in widgets) {
+			val match = matchLevel(widget.simpleName, prefix)
+			result.add(createTagCompletionItem(widget.simpleName, widget.qualifiedName, match, true))
+		}
 
-    // Complete all tags which do not require fully qualified name
-    for (widget in widgets) {
-      val match = matchLevel(widget.simpleName, prefix)
-      result.add(createTagCompletionItem(widget.simpleName, widget.qualifiedName, match, true))
-    }
+		// Complete the root package names if possible
+		val module =
+			Lookup.getDefault().lookup(ModuleProject.COMPLETION_MODULE_KEY) ?: return CompletionResult(result)
 
-    // Complete the root package names if possible
-    val module =
-      Lookup.getDefault().lookup(ModuleProject.COMPLETION_MODULE_KEY) ?: return CompletionResult(result)
+		// Add root packages from the compile classpath and source paths
+		addFromTrie(module.compileClasspathClasses, prefix, result)
+		addFromTrie(module.compileJavaSourceClasses, prefix, result)
 
-    // Add root packages from the compile classpath and source paths
-    addFromTrie(module.compileClasspathClasses, prefix, result)
-    addFromTrie(module.compileJavaSourceClasses, prefix, result)
+		return CompletionResult(result)
+	}
 
-    return CompletionResult(result)
-  }
-
-  private fun addFromTrie(trie: ClassTrie, prefix: String, result: MutableList<CompletionItem>) {
-    trie.root.children.values.forEach {
-      val match = matchLevel(it.name, prefix)
-      result.add(createTagCompletionItem(it.name, it.qualifiedName, match))
-    }
-  }
+	private fun addFromTrie(
+		trie: ClassTrie,
+		prefix: String,
+		result: MutableList<CompletionItem>,
+	) {
+		trie.root.children.values.forEach {
+			val match = matchLevel(it.name, prefix)
+			result.add(createTagCompletionItem(it.name, it.qualifiedName, match))
+		}
+	}
 }
