@@ -110,7 +110,7 @@ typealias TemplateRecipeFinalizer = RecipeExecutor.() -> Unit
  * @property useKts Whether to use Kotlin DSL for Gradle build scripts.
  */
 abstract class BaseTemplateData(val name: String, val projectDir: File, var language: Language?,
-val useKts: Boolean, val useToml: Boolean = false) : TemplateData() {
+val useKts: Boolean, val useToml: Boolean = false, val initGit: Boolean = false) : TemplateData() {
 
 /**
 * Get the `build.gradle[.kts]` file for the project.
@@ -198,7 +198,7 @@ private fun javaVersionPrefix(version: String): String = "JavaVersion.VERSION_${
  * @property version The version information for this project.
  */
 class ProjectTemplateData(name: String, projectDir: File, val version: ProjectVersionData,
-language: Language?, useKts: Boolean, useToml: Boolean = false) : BaseTemplateData(name, projectDir, language, useKts, useToml)
+						language: Language?, useKts: Boolean, useToml: Boolean = false, initGit: Boolean = false) : BaseTemplateData(name, projectDir, language, useKts, useToml, initGit)
 
 /**
  * Data for creating module projects.
@@ -213,8 +213,8 @@ language: Language?, useKts: Boolean, useToml: Boolean = false) : BaseTemplateDa
  */
 open class ModuleTemplateData(name: String, val appName: String?, val packageName: String,
 							projectDir: File, val type: ModuleType, language: Language?, useKts: Boolean = true, minSdk: Sdk?,
-							val versions: ModuleVersionData = ModuleVersionData(minSdk), useToml: Boolean = false) :
-BaseTemplateData(name, projectDir, language, useKts, useToml) {
+							val versions: ModuleVersionData = ModuleVersionData(minSdk), useToml: Boolean = false, initGit: Boolean = false) :
+BaseTemplateData(name, projectDir, language, useKts, useToml, initGit) {
 
 private val srcDirs = mutableMapOf<SrcSet, File>()
 
