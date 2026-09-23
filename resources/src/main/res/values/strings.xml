@@ -98,6 +98,10 @@
 	<string name="msg_no_references">No references found</string>
 	<string name="msg_no_imports_found">No imports found</string>
 	<string name="msg_import_file_changed">The file changed. Try importing again.</string>
+	<!-- Shown when the "Import class(es)" quick fix finds no class matching an unresolved symbol. %1$s is the unresolved simple name. -->
+	<string name="msg_no_importable_class">No importable class named \'%1$s\'.</string>
+	<!-- Same as msg_no_importable_class, shown instead of it while library indexing is still in progress, since a matching class may still turn up once indexing finishes. %1$s is the unresolved simple name. -->
+	<string name="msg_no_importable_class_indexing">No importable class named \'%1$s\'. Libraries are still being indexed.</string>
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
 	<string name="error_installation_failed">Failed to install assets</string>
