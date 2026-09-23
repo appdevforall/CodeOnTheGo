@@ -31,39 +31,38 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.DEFAULT_VALUE_STRING)
 class AddImportTest {
+	@Before
+	fun setup() {
+		JavaLSPTest.setup()
+	}
 
-  @Before
-  fun setup() {
-    JavaLSPTest.setup()
-  }
-  
-  @Suppress("UNCHECKED_CAST")
-  @Test
-  fun addImport() {
-    JavaLSPTest.apply {
-      openFile("actions/AddImportAction")
-      val diagnostic =
-        runBlocking {
-          server.analyze(file!!).diagnostics.firstOrNull {
-            it.code == "compiler.err.cant.resolve.location"
-          }
-        }
+	@Suppress("UNCHECKED_CAST")
+	@Test
+	fun addImport() {
+		JavaLSPTest.apply {
+			openFile("actions/AddImportAction")
+			val diagnostic =
+				runBlocking {
+					server.analyze(file!!).diagnostics.firstOrNull {
+						it.code == "compiler.err.cant.resolve.location"
+					}
+				}
 
-      assertThat(diagnostic).isNotNull()
+			assertThat(diagnostic).isNotNull()
 
-      val file = this.file!!.toFile()
-      val data = createActionData(diagnostic!!, file, this.file!!, this.server)
+			val file = this.file!!.toFile()
+			val data = createActionData(diagnostic!!, file, this.file!!, this.server)
 
-      val action = AddImportAction()
-      action.prepare(data)
-      assertThat(action.visible).isTrue()
-      assertThat(action.enabled).isTrue()
+			val action = AddImportAction()
+			action.prepare(data)
+			assertThat(action.visible).isTrue()
+			assertThat(action.enabled).isTrue()
 
-      val execResult = runBlocking { action.execAction(data) }
-      assertThat(execResult::class.java).isAssignableTo(Pair::class.java)
+			val execResult = runBlocking { action.execAction(data) }
+			assertThat(execResult::class.java).isAssignableTo(Pair::class.java)
 
-      val result = execResult as Pair<List<String>, *>
-      assertThat(result.first).contains("java.util.stream.Stream")
-    }
-  }
+			val result = execResult as Pair<List<String>, *>
+			assertThat(result.first).contains("java.util.stream.Stream")
+		}
+	}
 }
