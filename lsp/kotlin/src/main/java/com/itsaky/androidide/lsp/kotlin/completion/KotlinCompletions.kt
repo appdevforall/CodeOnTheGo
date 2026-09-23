@@ -31,8 +31,10 @@ import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
+import org.appdevforall.codeonthego.indexing.jvm.dedupeKey
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession
@@ -81,22 +83,23 @@ private val logger = LoggerFactory.getLogger("KotlinCompletions")
  * Max unimported symbols [collectUnimportedSymbols] adds to one completion result, across every
  * index rather than per index.
  *
- * This counts items the user is actually offered. It used to be the query limit, which counted rows
- * fetched -- so a prefix whose first rows were all rejected by the package, visibility or kind
- * filters produced nothing while valid matches sat just past the limit.
+ * This counts items the user is actually offered, not rows a query returned, so a prefix whose
+ * leading rows are all rejected by the package, visibility, or kind filters still yields whatever
+ * valid matches exist instead of coming up empty.
  */
 private const val UNIMPORTED_SYMBOL_DISPLAY_LIMIT = 100
 
 /**
- * Rows each index may return before filtering, sized so ordinary filtering cannot starve the
- * result.
+ * Rows each index's prefix query may return before filtering, sized so ordinary filtering cannot
+ * starve the result.
  *
- * Measured against kotlin-stdlib 2.3.0 (8,704 indexed symbols): 29% of entries are member-level
- * callables, which [buildUnimportedSymbolItem] drops outright, and the worst realistic prefix of
- * those probed (`get`) kept only 80 of 236 matches -- a 34% survival rate before the package and
- * visibility filters even run. Three times the display limit covers that worst case; the package
- * and visibility filters then eat into the margin. It is deliberately not unbounded: an unrestricted
- * prefix query over the symbol table runs on every keystroke.
+ * The query's `kinds` filter already excludes every kind unimported-symbol completion can never
+ * offer (a file facade, a companion object, anything neither classifier nor callable), but it
+ * cannot tell a top-level or extension callable from a member one -- that distinction is
+ * [isUnimportedSymbolCandidate]'s job, run after the fetch, and member callables dominate most
+ * packages. The budget covers that remaining rejection, plus the current-package and visibility
+ * filters, without being unbounded: an unrestricted prefix query over the symbol table runs on
+ * every keystroke.
  */
 private const val UNIMPORTED_SYMBOL_FETCH_BUDGET = 3 * UNIMPORTED_SYMBOL_DISPLAY_LIMIT
 
@@ -458,14 +461,72 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
 	 */
 	val indexes = listOfNotNull(env.sourceIndex, env.generatedIndex, env.libraryIndex)
 
-	collectUpToLimit(
+	collectUnimportedSymbolMatches(
+		indexes = indexes,
+		partial = ctx.partial,
+		kinds = UNIMPORTED_SYMBOL_KINDS,
 		limit = UNIMPORTED_SYMBOL_DISPLAY_LIMIT,
-		sources =
-			indexes.map { index ->
-				{ index.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_FETCH_BUDGET, kinds = UNIMPORTED_SYMBOL_KINDS) }
-			},
+		fetchBudget = UNIMPORTED_SYMBOL_FETCH_BUDGET,
 		accept = ::addCompletionItem,
 	)
+}
+
+/**
+ * The unimported-symbol matches [collectUnimportedSymbols] considers for [partial] across [indexes],
+ * handed to [accept] in query order and capped at [limit] accepted symbols.
+ *
+ * An exact simple-name match from every index is collected before any index's prefix match. The
+ * exact stage is a small, indexed equality query, cheap enough to run unconditionally, and running
+ * it first keeps a cap the prefix stage fills on its own from crowding out an exact match sitting in
+ * a later index -- typically the library index, the last one queried, where the class the user is
+ * actually typing is likeliest to live. Within each stage, indexes are queried in [indexes] order.
+ *
+ * A match is deduplicated by [JvmSymbol] identity ([dedupeKey]), keeping the first *accepted*
+ * occurrence in that order and discarding the rest: since a row's key is unique only per source, the
+ * same class indexed from two JARs on the active source set otherwise yields two rows for what is
+ * one class. A key is recorded only once [accept] has taken it, not merely seen it, so a row rejected
+ * by [accept] (for instance, a module that cannot reach that row's source) does not block a later
+ * duplicate from a source [accept] does allow through. A rejected row's own source and key are
+ * remembered too, so the same physical row surfacing again from the prefix stage is skipped without
+ * a second call to [accept].
+ */
+internal fun collectUnimportedSymbolMatches(
+	indexes: List<JvmSymbolIndex>,
+	partial: String,
+	kinds: Set<JvmSymbolKind>,
+	limit: Int,
+	fetchBudget: Int,
+	accept: (JvmSymbol) -> Boolean,
+): Int {
+	val seen = mutableSetOf<String>()
+	val rejectedRows = mutableSetOf<Pair<String, String>>()
+
+	fun acceptFirstOccurrence(symbol: JvmSymbol): Boolean {
+		val key = symbol.dedupeKey
+		if (key in seen) return false
+
+		/*
+		 * Identifies this exact row (source and key), not the class it names: the exact and prefix
+		 * stages can both return the very same row for one index, and a row `accept` already turned
+		 * down is not worth asking about again. A different source sharing `key`'s dedup identity is
+		 * untouched by this and still gets its own `accept` call.
+		 */
+		val row = symbol.sourceId to symbol.key
+		if (row in rejectedRows) return false
+
+		if (!accept(symbol)) {
+			rejectedRows += row
+			return false
+		}
+
+		seen += key
+		return true
+	}
+
+	val exactSources = indexes.map { index -> { index.findBySimpleName(partial, limit = limit, kinds = kinds) } }
+	val prefixSources = indexes.map { index -> { index.findByPrefix(partial, limit = fetchBudget, kinds = kinds) } }
+
+	return collectUpToLimit(limit = limit, sources = exactSources + prefixSources, accept = ::acceptFirstOccurrence)
 }
 
 /**
@@ -480,6 +541,10 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
  * rows before returning -- the sequence it hands back is already a list. Taking a supplier is what
  * keeps a source that the limit makes unnecessary from being queried at all; how many rows a source
  * fetches when it is reached remains the job of the limit passed to the query itself.
+ *
+ * A [limit] of zero or less accepts nothing and returns 0 without querying any source. This is the
+ * opposite of an index query's own convention, where a limit of zero means unbounded -- this helper
+ * has no unbounded case, since every caller caps how many items a user is offered.
  */
 internal fun <T> collectUpToLimit(
 	limit: Int,
