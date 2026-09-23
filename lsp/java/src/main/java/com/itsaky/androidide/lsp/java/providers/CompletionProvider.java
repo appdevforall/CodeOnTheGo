@@ -44,6 +44,7 @@ import com.itsaky.androidide.lsp.java.utils.CancelChecker;
 import com.itsaky.androidide.lsp.java.visitors.FindCompletionsAt;
 import com.itsaky.androidide.lsp.models.CompletionParams;
 import com.itsaky.androidide.lsp.models.CompletionResult;
+import com.itsaky.androidide.projects.ProjectManagerImpl;
 import com.itsaky.androidide.utils.DocumentUtils;
 import io.github.rosemoe.sora.lang.completion.snippet.CodeSnippet;
 import java.nio.file.Path;
@@ -54,6 +55,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import openjdk.source.tree.Tree;
 import openjdk.source.util.TreePath;
+import org.appdevforall.codeonthego.indexing.service.IndexingState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,6 +63,21 @@ public class CompletionProvider extends AbstractServiceProvider implements IComp
 
 	public static final int MAX_COMPLETION_ITEMS = CompletionResult.MAX_ITEMS;
 	private static final Logger LOG = LoggerFactory.getLogger(CompletionProvider.class);
+
+	/**
+	 * Whether a completion result computed while the indexing state moved between {@code stateAtStart} and {@code stateAtEnd} is safe to cache.
+	 *
+	 * A result computed while indexing was in flight at either end of the request may be missing symbols the index has or will soon have, so it must not be reused for later requests.
+	 */
+	static boolean canCacheCompletion(IndexingState stateAtStart, IndexingState stateAtEnd) {
+		return !(stateAtStart instanceof IndexingState.Indexing) && !(stateAtEnd instanceof IndexingState.Indexing);
+	}
+
+	/** The indexing state at the moment this is called, read fresh (never cached). */
+	private static IndexingState currentIndexingState() {
+		return ProjectManagerImpl.getInstance().getIndexingServiceManager().getState().getValue();
+	}
+
 	private final AtomicBoolean completing = new AtomicBoolean(false);
 	private JavaCompilerService compiler;
 	private CachedCompletion cache;
@@ -205,6 +222,8 @@ public class CompletionProvider extends AbstractServiceProvider implements IComp
 			LOG.info("...cannot use cached completions");
 		}
 
+		final IndexingState stateAtStart = currentIndexingState();
+
 		abortCompletionIfCancelled();
 		final long cursor = params.getPosition().requireIndex();
 		final var sourceObject = new SourceFileObject(file);
@@ -238,7 +257,7 @@ public class CompletionProvider extends AbstractServiceProvider implements IComp
 		logCompletionDuration(started, result);
 
 		abortCompletionIfCancelled();
-		if (this.nextCacheConsumer != null) {
+		if (this.nextCacheConsumer != null && canCacheCompletion(stateAtStart, currentIndexingState())) {
 			this.nextCacheConsumer.accept(CachedCompletion.cache(params, result));
 		}
 
