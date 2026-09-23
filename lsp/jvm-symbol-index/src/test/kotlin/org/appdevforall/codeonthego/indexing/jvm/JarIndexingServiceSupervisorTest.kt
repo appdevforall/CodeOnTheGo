@@ -8,6 +8,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
+import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,6 +39,7 @@ class JarIndexingServiceSupervisorTest {
 		val service =
 			object : JarIndexingService(
 				context = context,
+				progressTracker = IndexingProgressTracker(),
 				workspaceSupplier = { mockk<Workspace>() },
 			) {
 				override val id = "jar-indexing-service-supervisor-test"
