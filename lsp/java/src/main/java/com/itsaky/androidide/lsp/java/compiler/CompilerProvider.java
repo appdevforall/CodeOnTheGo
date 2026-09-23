@@ -30,37 +30,37 @@ import java.util.stream.Collectors;
 import jdkx.tools.JavaFileObject;
 
 public interface CompilerProvider {
-  Path NOT_FOUND = Paths.get("");
+	Path NOT_FOUND = Paths.get("");
 
-  TreeSet<String> publicTopLevelTypes();
+	default SynchronizedTask compile(Collection<? extends JavaFileObject> sources) {
+		return compile(new CompilationRequest(sources));
+	}
 
-  TreeSet<String> packagePrivateTopLevelTypes(String packageName);
+	SynchronizedTask compile(CompilationRequest request);
 
-  Optional<JavaFileObject> findAnywhere(String className);
+	default SynchronizedTask compile(Path... files) {
+		return compile(Arrays.stream(files).map(SourceFileObject::new).collect(Collectors.toList()));
+	}
 
-  Path findTypeDeclaration(String className);
+	Optional<JavaFileObject> findAnywhere(String className);
 
-  Path[] findTypeReferences(String className);
+	Path[] findMemberReferences(String className, String memberName);
 
-  Path[] findMemberReferences(String className, String memberName);
+	default List<String> findQualifiedNames(String simpleName) {
+		return findQualifiedNames(simpleName, false);
+	}
 
-  default List<String> findQualifiedNames(String simpleName) {
-    return findQualifiedNames(simpleName, false);
-  }
+	List<String> findQualifiedNames(String simpleName, boolean onlyOne);
 
-  List<String> findQualifiedNames(String simpleName, boolean onlyOne);
+	Path findTypeDeclaration(String className);
 
-  ParseTask parse(Path file);
+	Path[] findTypeReferences(String className);
 
-  ParseTask parse(JavaFileObject file);
+	TreeSet<String> packagePrivateTopLevelTypes(String packageName);
 
-  default SynchronizedTask compile(Path... files) {
-    return compile(Arrays.stream(files).map(SourceFileObject::new).collect(Collectors.toList()));
-  }
+	ParseTask parse(JavaFileObject file);
 
-  default SynchronizedTask compile(Collection<? extends JavaFileObject> sources) {
-    return compile(new CompilationRequest(sources));
-  }
+	ParseTask parse(Path file);
 
-  SynchronizedTask compile(CompilationRequest request);
+	TreeSet<String> publicTopLevelTypes();
 }
