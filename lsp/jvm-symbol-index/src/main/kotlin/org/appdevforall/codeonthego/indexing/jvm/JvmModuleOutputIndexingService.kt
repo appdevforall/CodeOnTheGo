@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
-import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.JavaModule
 import com.itsaky.androidide.projects.api.ModuleProject
@@ -39,9 +38,8 @@ val JVM_MODULE_OUTPUT_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-module-output
 class JvmModuleOutputIndexingService(
 	context: Context,
 	progressTracker: IndexingProgressTracker,
-	workspaceSupplier: () -> Workspace? = { ProjectManagerImpl.getInstance().workspace },
 	unreadableJarFilter: (Collection<String>) -> List<String> = { it.toList() },
-) : JarIndexingService(context, progressTracker, workspaceSupplier, unreadableJarFilter = unreadableJarFilter) {
+) : JarIndexingService(context, progressTracker, unreadableJarFilter = unreadableJarFilter) {
 	companion object {
 		const val ID = "jvm-module-output-indexing-service"
 		private const val DB_NAME = "jvm_module_output_symbol_index.db"
