@@ -19,6 +19,7 @@ package com.itsaky.androidide.lsp.java.compiler;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.core.util.Pair;
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent;
 import com.itsaky.androidide.javac.services.compiler.ReusableCompiler;
@@ -83,6 +84,7 @@ public class JavaCompilerService implements CompilerProvider {
 	protected final SynchronizedTask synchronizedTask = new SynchronizedTask();
 	protected final SourceFileManager fileManager;
 	protected final ModuleProject module;
+	private final ClasspathTypeLookup types;
 	public ReusableCompiler compiler = new JCReusableCompiler();
 	protected Set<String> bootClasspathClasses = BootClasspathProvider.getTopLevelClasses(
 			Collections.singleton(Environment.ANDROID_JAR.getAbsolutePath()));
@@ -104,17 +106,21 @@ public class JavaCompilerService implements CompilerProvider {
 			this.classPathClasses = Collections.unmodifiableSet(module.compileClasspathClasses.allClassNames());
 			this.bootClasspathClasses = Collections.unmodifiableSet(getBootclasspathClasses());
 		}
+		this.types = ClasspathTypeLookup.forModule(module, () -> this.bootClasspathClasses);
 	}
 
-	private JavaCompilerService(
+	@VisibleForTesting
+	JavaCompilerService(
 			@Nullable ModuleProject module,
 			SourceFileManager fileManager,
 			Set<String> bootClasspathClasses,
-			Set<String> classPathClasses) {
+			Set<String> classPathClasses,
+			ClasspathTypeLookup types) {
 		this.module = module;
 		this.fileManager = fileManager;
 		this.bootClasspathClasses = bootClasspathClasses;
 		this.classPathClasses = classPathClasses;
+		this.types = types;
 	}
 
 	public synchronized void close() {
@@ -131,7 +137,7 @@ public class JavaCompilerService implements CompilerProvider {
 
 	public JavaCompilerService copy() {
 		final JavaCompilerService compiler = new JavaCompilerService(
-				this.module, this.fileManager, this.bootClasspathClasses, this.classPathClasses);
+				this.module, this.fileManager, this.bootClasspathClasses, this.classPathClasses, this.types);
 		compiler.cachedCompile = null;
 		compiler.newCursorPosition = Position.NONE;
 		compiler.lastReparsePosition = Position.NONE;
@@ -176,21 +182,7 @@ public class JavaCompilerService implements CompilerProvider {
 
 	@Override
 	public List<String> findQualifiedNames(String simpleName, boolean onlyOne) {
-		final var names = new ArrayList<String>();
-		for (var name : publicTopLevelTypes()) {
-			// This will be true in a test environment
-			if (name.contains("/")) {
-				name = name.replace('/', '.');
-			}
-
-			if (name.endsWith("." + simpleName)) {
-				names.add(name);
-				if (onlyOne) {
-					break;
-				}
-			}
-		}
-		return names;
+		return types.findQualifiedNames(simpleName, onlyOne);
 	}
 
 	@Override
@@ -212,6 +204,16 @@ public class JavaCompilerService implements CompilerProvider {
 			}
 		}
 		return NOT_FOUND;
+	}
+
+	/**
+	 * Returns up to {@code limit} qualified names of top-level classes whose simple name starts with {@code partial}, ignoring case, exact simple-name matches first.
+	 *
+	 * <p>
+	 * Blocks on the class index's disk I/O, so never call it on the main thread.
+	 */
+	public List<String> findTypeNamesMatching(String partial, int limit) {
+		return types.findTypeNamesMatching(partial, limit);
 	}
 
 	@Override
