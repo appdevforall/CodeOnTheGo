@@ -92,12 +92,20 @@ abstract class JarIndexingService(
 		coroutineScope.launch {
 			progressTracker.openPass().use { pass ->
 				val jobs = indexingMutex.withLock { reindex(pass) }
-				completePass(jobs)
+				completePass(jobs, pass.newlyCounted)
 			}
 		}
 
-	/** Waits for [jobs], every JAR one pass submitted, then optimizes the index; runs outside the mutex. */
-	protected open suspend fun completePass(jobs: List<Job>) {
+	/**
+	 * Waits for [jobs], every JAR one pass submitted, then optimizes the index; runs outside the mutex.
+	 *
+	 * [newlyCounted] is how many of [jobs] the pass added to the progress total rather than folded
+	 * into another pass's still-running jobs.
+	 */
+	protected open suspend fun completePass(
+		jobs: List<Job>,
+		newlyCounted: Int,
+	) {
 		jarIndex?.optimizeAfter(jobs)
 	}
 

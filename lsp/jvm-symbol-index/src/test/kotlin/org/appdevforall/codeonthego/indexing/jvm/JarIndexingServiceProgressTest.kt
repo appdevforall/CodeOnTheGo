@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.indexing.jvm
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.memprof.Memprof
 import com.itsaky.androidide.projects.api.Workspace
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
@@ -32,6 +33,7 @@ class JarIndexingServiceProgressTest {
 
 	@After
 	fun tearDown() {
+		Memprof.sink = null
 		context.deleteDatabase(DB_NAME)
 	}
 
@@ -84,6 +86,17 @@ class JarIndexingServiceProgressTest {
 		assertThat(tracker.state.value).isEqualTo(IndexingState.Idle)
 	}
 
+	@Test
+	fun `a pass of a service other than the library one records no Memprof phase`() {
+		val sink = RecordingMemprofSink()
+		Memprof.sink = sink
+		val service = TestService(jars = setOf(jar("a.jar")))
+
+		service.refreshAndAwait()
+
+		assertThat(sink.phases).isEmpty()
+	}
+
 	private fun TestService.refreshAndAwait() {
 		use {
 			runBlocking {
@@ -111,10 +124,13 @@ class JarIndexingServiceProgressTest {
 
 		override fun jarsToIndex(workspace: Workspace): Set<String> = jars
 
-		override suspend fun completePass(jobs: List<Job>) {
+		override suspend fun completePass(
+			jobs: List<Job>,
+			newlyCounted: Int,
+		) {
 			stateWhileCompleting = tracker.state.value
 			onComplete()
-			super.completePass(jobs)
+			super.completePass(jobs, newlyCounted)
 		}
 	}
 
