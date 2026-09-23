@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.nio.file.Path
 import java.util.jar.JarFile
+import kotlin.io.path.notExists
 import kotlin.io.path.pathString
 
 /**
@@ -46,6 +47,14 @@ object CombinedJarScanner {
 			}
 		}
 
+	/**
+	 * Scans [jarPath], routing each class to [KotlinMetadataScanner] or [JarSymbolScanner].
+	 *
+	 * @throws UnreadableJarException if [jarPath] cannot be opened as a JAR (a truncated download,
+	 * corrupt file, etc.). A per-entry parse failure is logged and skipped instead, since the JAR as
+	 * a whole is still readable. A JAR that no longer exists (deleted after the caller listed it)
+	 * rethrows the open failure unwrapped instead, since the file is gone rather than unreadable.
+	 */
 	fun scan(
 		jarPath: Path,
 		sourceId: String = jarPath.pathString,
@@ -55,8 +64,8 @@ object CombinedJarScanner {
 				try {
 					JarFile(jarPath.toFile())
 				} catch (e: Exception) {
-					log.warn("Failed to open JAR: {}", jarPath, e)
-					return@sequence
+					if (jarPath.notExists()) throw e
+					throw UnreadableJarException(jarPath, e)
 				}
 
 			jar.use {
@@ -120,3 +129,9 @@ object CombinedJarScanner {
 		return found
 	}
 }
+
+/** Thrown by [CombinedJarScanner.scan] when [path] cannot be opened as a JAR. */
+class UnreadableJarException(
+	val path: Path,
+	cause: Throwable,
+) : Exception("Failed to open JAR: $path", cause)
