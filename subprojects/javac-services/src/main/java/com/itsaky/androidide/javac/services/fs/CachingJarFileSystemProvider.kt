@@ -33,67 +33,71 @@ import kotlin.io.path.pathString
  * @author Akash Yadav
  */
 object CachingJarFileSystemProvider : JarFileSystemProvider() {
-  private val cachedFs = ConcurrentHashMap<String, CachedJarFileSystem>()
+	private val cachedFs = ConcurrentHashMap<String, CachedJarFileSystem>()
 
-  private val log = LoggerFactory.getLogger(CachingJarFileSystemProvider::class.java)
+	private val log = LoggerFactory.getLogger(CachingJarFileSystemProvider::class.java)
 
-  override fun createFs(path: Path, env: MutableMap<String, *>?): ZipFileSystem {
-    val cached = cachedFs[path.normalize().pathString]
-    if (cached != null) {
-      return cached
-    }
-    return createAndCache(path, env)
-  }
+	override fun createFs(
+		path: Path,
+		env: MutableMap<String, *>?,
+	): ZipFileSystem {
+		val cached = cachedFs[path.normalize().pathString]
+		if (cached != null) {
+			return cached
+		}
+		return createAndCache(path, env)
+	}
 
-  fun newFileSystem(path: Path): FileSystem? {
-    return newFileSystem(path, mutableMapOf<String, Any>())
-  }
+	fun newFileSystem(path: Path): FileSystem? = newFileSystem(path, mutableMapOf<String, Any>())
 
-  fun clearCache() {
-    cachedFs.values.forEach(this::closeFs)
-    cachedFs.clear()
-  }
+	fun clearCache() {
+		cachedFs.values.forEach(this::closeFs)
+		cachedFs.clear()
+	}
 
-  fun clearCaches(predicate: (Path) -> Boolean) {
-    return clearCachesForPaths { predicate(Paths.get(it)) }
-  }
+	fun clearCaches(predicate: (Path) -> Boolean) = clearCachesForPaths { predicate(Paths.get(it)) }
 
-  fun clearCachesForPaths(predicate: (String) -> Boolean) {
-    val toRemove =
-      this.cachedFs.keys.mapNotNull {
-        return@mapNotNull if (predicate(it)) {
-          it
-        } else null
-      }
+	fun clearCachesForPaths(predicate: (String) -> Boolean) {
+		val toRemove =
+			this.cachedFs.keys.mapNotNull {
+				return@mapNotNull if (predicate(it)) {
+					it
+				} else {
+					null
+				}
+			}
 
-    if (toRemove.isNotEmpty()) {
-      toRemove.forEach(this::clearCache)
-    }
-  }
+		if (toRemove.isNotEmpty()) {
+			toRemove.forEach(this::clearCache)
+		}
+	}
 
-  fun clearCache(path: Path) {
-    clearCache(path.normalize().pathString)
-  }
+	fun clearCache(path: Path) {
+		clearCache(path.normalize().pathString)
+	}
 
-  fun clearCache(path: String) {
-    val fs = cachedFs.remove(path)
-    if (fs != null) {
-      log.debug("Clearing cached JAR file system for path: {}", path)
-      closeFs(fs)
-    }
-  }
+	fun clearCache(path: String) {
+		val fs = cachedFs.remove(path)
+		if (fs != null) {
+			log.debug("Clearing cached JAR file system for path: {}", path)
+			closeFs(fs)
+		}
+	}
 
-  private fun closeFs(fs: CachedJarFileSystem) {
-    try {
-      fs.doClose()
-    } catch (err: Throwable) {
-      log.error("Failed to close cached zip file system: {}", fs, err)
-    }
-  }
+	private fun closeFs(fs: CachedJarFileSystem) {
+		try {
+			fs.doClose()
+		} catch (err: Throwable) {
+			log.error("Failed to close cached zip file system: {}", fs, err)
+		}
+	}
 
-  private fun createAndCache(path: Path, env: MutableMap<String, *>?): CachedJarFileSystem {
-    val fs = CachedJarFileSystem(this, path, env)
-    cachedFs[path.normalize().pathString] = fs
-    return fs
-  }
+	private fun createAndCache(
+		path: Path,
+		env: MutableMap<String, *>?,
+	): CachedJarFileSystem {
+		val fs = CachedJarFileSystem(this, path, env)
+		cachedFs[path.normalize().pathString] = fs
+		return fs
+	}
 }
