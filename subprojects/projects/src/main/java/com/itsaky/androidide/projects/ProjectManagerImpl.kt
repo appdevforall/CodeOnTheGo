@@ -29,6 +29,7 @@ import com.itsaky.androidide.eventbus.events.file.FileEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.eventbus.events.project.ProjectInitializedEvent
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.memprof.Memprof
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.api.AndroidModule
@@ -146,6 +147,7 @@ class ProjectManagerImpl :
 			)
 
 		val workspace = this.workspace!!
+		Memprof.mark("workspace_built")
 
 		// build variants must be updated before the sources and class paths are indexed
 		updateBuildVariants { buildVariants ->
@@ -163,26 +165,28 @@ class ProjectManagerImpl :
 		}
 
 		withStopWatch("Setup project") {
-			val indexerScope = CoroutineScope(Dispatchers.Default)
-			val modulesFlow =
-				flow {
-					workspace.subProjects.filterIsInstance<ModuleProject>().forEach {
-						emit(it)
-					}
-				}
-
-			val jobs =
-				modulesFlow.map { module ->
-					indexerScope.async {
-						module.indexSourcesAndClasspaths()
-						if (module is AndroidModule) {
-							module.readResources()
+			Memprof.phase("Index module classpaths and sources", "indexing_complete") {
+				val indexerScope = CoroutineScope(Dispatchers.Default)
+				val modulesFlow =
+					flow {
+						workspace.subProjects.filterIsInstance<ModuleProject>().forEach {
+							emit(it)
 						}
 					}
-				}
 
-			// wait for the indexing to finish
-			jobs.toList().awaitAll()
+				val jobs =
+					modulesFlow.map { module ->
+						indexerScope.async {
+							module.indexSourcesAndClasspaths()
+							if (module is AndroidModule) {
+								module.readResources()
+							}
+						}
+					}
+
+				// wait for the indexing to finish
+				jobs.toList().awaitAll()
+			}
 		}
 
 		reportUnreadableClasspathJars(workspace)

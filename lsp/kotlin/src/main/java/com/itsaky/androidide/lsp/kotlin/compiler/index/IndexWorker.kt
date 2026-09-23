@@ -4,6 +4,8 @@ import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
+import com.itsaky.androidide.memprof.Memprof
+import com.itsaky.androidide.memprof.MemprofSpan
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.utils.KeyedDebouncingAction
 import kotlinx.coroutines.CoroutineScope
@@ -65,112 +67,169 @@ internal class IndexWorker(
 					}
 				}
 
-			while (isActive) {
-				// Defensive guard: if the project was disposed out from under us (e.g. a disposal
-				// path that didn't first drain this worker), stop instead of calling PsiManager on a
-				// disposed project, which throws "Project is already disposed" (APPDEVFORALL-17R).
-				if (project.isDisposed) break
+			var scanPhase: MemprofSpan? = null
+			var indexPhase: MemprofSpan? = null
+			try {
+				while (isActive) {
+					// Defensive guard: if the project was disposed out from under us (e.g. a disposal
+					// path that didn't first drain this worker), stop instead of calling PsiManager on a
+					// disposed project, which throws "Project is already disposed" (APPDEVFORALL-17R).
+					if (project.isDisposed) break
 
-				when (val cmd = queue.take()) {
-					is IndexCommand.RemoveFromIndex -> {
-						applyRemovals(
-							first = cmd,
-							fileIndex = fileIndex,
-							sourceIndex = sourceIndex,
-							pollNext = { queue.pollIndexQueue() },
-							pushBack = { queue.pushBackIndexQueue(it) },
-						)
-					}
-
-					is IndexCommand.IndexSourceFile -> {
-						if (cmd.vf.fileSystem.protocol != "file") {
-							logger.warn("Unknown source file protocol: {}", cmd.vf.path)
-							continue
-						}
-
-						if (project.isDisposed) break
-
-						val ktFile =
-							project.read {
-								PsiManager
-									.getInstance(project)
-									.findFile(cmd.vf) as? KtFile
-							}
-
-						if (ktFile == null) {
-							// probably a non-kotlin file
-							continue
-						}
-
-						try {
-							indexSourceFile(
-								project = project,
-								ktFile = ktFile,
+					when (val cmd = queue.take()) {
+						is IndexCommand.RemoveFromIndex -> {
+							applyRemovals(
+								first = cmd,
 								fileIndex = fileIndex,
-								symbolsIndex = sourceIndex,
-								// A real (cancellable) checker so the scheduler can preempt this pass
-								// in favour of completion/diagnostics.
-								cancelChecker = ICancelChecker.Default(),
+								sourceIndex = sourceIndex,
+								pollNext = { queue.pollIndexQueue() },
+								pushBack = { queue.pushBackIndexQueue(it) },
 							)
-
-							sourceIndexCount++
-						} catch (e: AnalysisPreemptedException) {
-							// Preempted by higher-priority analysis; re-queue so the file still gets indexed.
-							logger.debug("Indexing of {} preempted; re-queueing", cmd.vf.path)
-							scope.launch { submitCommand(cmd) }
 						}
-					}
 
-					is IndexCommand.IndexModifiedFile -> {
-						modifiedFileIndexer.schedule(
-							ModFileIndexKey(
-								cmd.ktFile.backingFilePath!!,
-								cmd.ktFile,
-							),
-						)
-					}
-
-					IndexCommand.IndexingComplete -> {
-						logger.info(
-							"Indexing complete: scanned={}, sourceIndexCount={}",
-							scanCount,
-							sourceIndexCount,
-						)
-					}
-
-					is IndexCommand.ScanSourceFile -> {
-						if (project.isDisposed) break
-
-						val ktFile =
-							project.read {
-								PsiManager.getInstance(project).findFile(cmd.vf) as? KtFile
+						is IndexCommand.IndexSourceFile -> {
+							if (cmd.vf.fileSystem.protocol != "file") {
+								logger.warn("Unknown source file protocol: {}", cmd.vf.path)
+								continue
 							}
-								?: continue
 
-						val newFile = ktFile.toMetadata(project, isIndexed = false)
-						val existingFile = fileIndex.get(newFile.filePath)
-						if (KtFileMetadata.shouldBeSkipped(existingFile, newFile)) {
-							continue
+							if (project.isDisposed) break
+
+							val ktFile =
+								project.read {
+									PsiManager
+										.getInstance(project)
+										.findFile(cmd.vf) as? KtFile
+								}
+
+							if (ktFile == null) {
+								// probably a non-kotlin file
+								continue
+							}
+
+							try {
+								// cmd.vf.path is not a plain field read (it builds a system-independent
+								// path string), so it must not be computed when nothing records it.
+								val detail = if (Memprof.sink != null) cmd.vf.path else null
+								Memprof.section("Index Kotlin file", detail) {
+									indexSourceFile(
+										project = project,
+										ktFile = ktFile,
+										fileIndex = fileIndex,
+										symbolsIndex = sourceIndex,
+										// A real (cancellable) checker so the scheduler can preempt this pass
+										// in favour of completion/diagnostics.
+										cancelChecker = ICancelChecker.Default(),
+									)
+								}
+
+								sourceIndexCount++
+							} catch (e: AnalysisPreemptedException) {
+								// Preempted by higher-priority analysis; re-queue so the file still gets indexed.
+								logger.debug("Indexing of {} preempted; re-queueing", cmd.vf.path)
+								scope.launch { submitCommand(cmd) }
+							}
 						}
 
-						fileIndex.upsert(newFile)
-						scanCount++
-					}
+						is IndexCommand.IndexModifiedFile -> {
+							modifiedFileIndexer.schedule(
+								ModFileIndexKey(
+									cmd.ktFile.backingFilePath!!,
+									cmd.ktFile,
+								),
+							)
+						}
 
-					IndexCommand.SourceScanningComplete -> {
-						logger.info("Scanning complete. Found {} files to index.", scanCount)
-					}
+						IndexCommand.IndexingComplete -> {
+							logger.info(
+								"Indexing complete: scanned={}, sourceIndexCount={}",
+								scanCount,
+								sourceIndexCount,
+							)
+							/*
+							 * No open index phase (e.g. IndexingComplete with nothing indexed) means
+							 * there is no real phase to mark; ?.apply leaves the marker unemitted
+							 * rather than begin-and-immediately-end a zero-length one.
+							 */
+							indexPhase?.apply {
+								put("scanned", scanCount.toLong())
+								put("indexed", sourceIndexCount.toLong())
+								end()
+							}
+							indexPhase = null
+						}
 
-					IndexCommand.Stop -> {
-						break
+						IndexCommand.SourceScanningStarted -> {
+							/*
+							 * A scan can be cancelled before it reaches SourceScanningComplete (e.g.
+							 * KtSymbolIndex.refreshSources() restarting it), leaving scanPhase stale
+							 * and open; a fresh scan starting must not fold into it.
+							 */
+							scanPhase?.abandon()
+							scanPhase = beginScanPhase()
+						}
+
+						is IndexCommand.ScanSourceFile -> {
+							if (project.isDisposed) break
+							if (scanPhase == null) {
+								scanPhase = beginScanPhase()
+							}
+
+							val ktFile =
+								project.read {
+									PsiManager.getInstance(project).findFile(cmd.vf) as? KtFile
+								}
+									?: continue
+
+							val newFile = ktFile.toMetadata(project, isIndexed = false)
+							val existingFile = fileIndex.get(newFile.filePath)
+							if (KtFileMetadata.shouldBeSkipped(existingFile, newFile)) {
+								continue
+							}
+
+							fileIndex.upsert(newFile)
+							scanCount++
+						}
+
+						IndexCommand.SourceScanningComplete -> {
+							logger.info("Scanning complete. Found {} files to index.", scanCount)
+							/*
+							 * The index phase must begin before the scan phase ends, so the report's
+							 * open-phase count never touches zero at this handoff (which is what
+							 * printed the logcat report 3-4 times per open).
+							 */
+							if (indexPhase == null) {
+								indexPhase = beginIndexPhase()
+							}
+							(scanPhase ?: beginScanPhase()).apply {
+								put("files", scanCount.toLong())
+								end()
+							}
+							scanPhase = null
+						}
+
+						IndexCommand.Stop -> {
+							break
+						}
 					}
 				}
+			} finally {
+				// The worker can stop before the queue reports either phase as complete.
+				scanPhase?.abandon()
+				indexPhase?.abandon()
 			}
 		}
 
+	private fun beginScanPhase() = Memprof.beginPhase("Scan Kotlin sources", "source_scan_complete")
+
+	private fun beginIndexPhase() = Memprof.beginPhase("Index Kotlin sources", "source_index_complete")
+
 	suspend fun submitCommand(cmd: IndexCommand) {
 		when (cmd) {
-			is IndexCommand.ScanSourceFile, IndexCommand.SourceScanningComplete -> {
+			is IndexCommand.ScanSourceFile,
+			IndexCommand.SourceScanningStarted,
+			IndexCommand.SourceScanningComplete,
+			-> {
 				queue.putScanQueue(cmd)
 			}
 

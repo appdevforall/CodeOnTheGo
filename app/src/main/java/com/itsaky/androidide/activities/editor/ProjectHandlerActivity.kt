@@ -58,6 +58,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
+import com.itsaky.androidide.memprof.Memprof
 import com.itsaky.androidide.models.EditorIntentExtras
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
@@ -770,9 +771,22 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	}
 
 	protected open fun onProjectInitialized(result: InitializeResult.Success) {
+		Memprof.mark("sync_complete")
 		editorActivityScope.launch(Dispatchers.IO) {
 			val manager = ProjectManagerImpl.getInstance()
-			val gradleBuildResult = ProjectSyncHelper.readGradleBuild(result.cacheFile)
+			val gradleBuildResult =
+				Memprof.phase("Parse project model", "cache_parsed") { span ->
+					val startMs = if (span.isRecording) System.currentTimeMillis() else 0L
+					val parsed = ProjectSyncHelper.readGradleBuild(result.cacheFile)
+					if (span.isRecording) {
+						span.put("bytes", result.cacheFile.length())
+						span.put("durationMs", System.currentTimeMillis() - startMs)
+						if (parsed.isFailure) {
+							span.put("failed", 1)
+						}
+					}
+					parsed
+				}
 			if (gradleBuildResult.isFailure) {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)

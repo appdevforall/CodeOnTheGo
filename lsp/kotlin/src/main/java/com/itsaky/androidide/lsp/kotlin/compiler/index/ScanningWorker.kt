@@ -22,6 +22,8 @@ internal class ScanningWorker(
     }
 
     suspend fun scan() = coroutineScope {
+        indexWorker.submitCommand(IndexCommand.SourceScanningStarted)
+
         val sourceFiles = modules.asFlatSequence()
             .filter { it.isSourceModule }
             .flatMap { it.computeFiles(extended = true) }
