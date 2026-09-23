@@ -36,7 +36,8 @@ class JvmLibraryIndexingService(
 	context: Context,
 	progressTracker: IndexingProgressTracker,
 	workspaceSupplier: () -> Workspace? = { ProjectManagerImpl.getInstance().workspace },
-) : JarIndexingService(context, progressTracker, workspaceSupplier) {
+	unreadableJarFilter: (Collection<String>) -> List<String> = { it.toList() },
+) : JarIndexingService(context, progressTracker, workspaceSupplier, unreadableJarFilter = unreadableJarFilter) {
 	companion object {
 		const val ID = "jvm-indexing-service"
 	}

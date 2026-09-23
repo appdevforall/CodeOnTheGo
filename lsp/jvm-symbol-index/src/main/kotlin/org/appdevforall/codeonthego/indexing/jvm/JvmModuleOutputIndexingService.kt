@@ -39,7 +39,8 @@ class JvmModuleOutputIndexingService(
 	context: Context,
 	progressTracker: IndexingProgressTracker,
 	workspaceSupplier: () -> Workspace? = { ProjectManagerImpl.getInstance().workspace },
-) : JarIndexingService(context, progressTracker, workspaceSupplier) {
+	unreadableJarFilter: (Collection<String>) -> List<String> = { it.toList() },
+) : JarIndexingService(context, progressTracker, workspaceSupplier, unreadableJarFilter = unreadableJarFilter) {
 	companion object {
 		const val ID = "jvm-module-output-indexing-service"
 		private const val DB_NAME = "jvm_module_output_symbol_index.db"
