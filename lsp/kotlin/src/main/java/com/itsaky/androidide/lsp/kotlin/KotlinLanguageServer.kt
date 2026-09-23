@@ -35,6 +35,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX_KEY
+import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetRepository
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.navigation.findDefinitionAt
@@ -207,6 +208,8 @@ class KotlinLanguageServer : ILanguageServer {
 					?.openFileIfNeeded(document.file)
 			}
 		}
+
+		KotlinSnippetRepository.init()
 
 		initialized = true
 		logger.info("Kotlin project initialized")
