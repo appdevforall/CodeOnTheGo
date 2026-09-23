@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -61,6 +62,12 @@ class IndexingServiceManager(
 	 * Consumers (LSPs, etc.) retrieve indexes from here.
 	 */
 	val registry = IndexRegistry()
+
+	/** Collects the progress of every service's indexing passes; supplied to a service when it is registered. */
+	val progressTracker = IndexingProgressTracker()
+
+	/** Whether indexing is in flight and how far it got, across every service reporting to [progressTracker]. */
+	val state: StateFlow<IndexingState> get() = progressTracker.state
 
 	private val services = ConcurrentHashMap<String, IndexingService>()
 	private var initialized = false
@@ -158,6 +165,7 @@ class IndexingServiceManager(
 		val toClose = services.values.toList()
 		services.clear()
 		initialized = false
+		progressTracker.reset()
 
 		val previous = pendingClose
 		pendingClose =
