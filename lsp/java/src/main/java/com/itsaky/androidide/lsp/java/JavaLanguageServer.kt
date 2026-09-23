@@ -73,19 +73,24 @@ import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.VMUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.jvm.JarIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmGeneratedIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmModuleOutputIndexingService
+import org.appdevforall.codeonthego.indexing.service.IndexingState
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Objects
+import java.util.concurrent.atomic.AtomicLong
 
 class JavaLanguageServer : ILanguageServer {
 	private val completionProvider: CompletionProvider = CompletionProvider()
@@ -96,7 +101,15 @@ class JavaLanguageServer : ILanguageServer {
 	private var _settings: IServerSettings? = null
 	private var selectedFile: Path? = null
 	private val timer = AnalyzeTimer { analyzeSelected() }
-	private var cachedCompletion: CachedCompletion
+
+	/**
+	 * The last completion result, guarded against a reset racing its own store. Read from
+	 * completion requests and reset from the indexing-state collector, so it crosses threads.
+	 */
+	private val completionCache = CompletionCacheGuard()
+
+	private val serverScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+	private var indexingStateCollectorJob: Job? = null
 
 	val settings: IServerSettings
 		get() {
@@ -115,8 +128,6 @@ class JavaLanguageServer : ILanguageServer {
 	}
 
 	init {
-		cachedCompletion = CachedCompletion.EMPTY
-
 		applySettings(JavaServerSettings.getInstance())
 
 		if (!EventBus.getDefault().isRegistered(this)) {
@@ -163,6 +174,7 @@ class JavaLanguageServer : ILanguageServer {
 		clearCache()
 		EventBus.getDefault().unregister(this)
 		timer.cancel()
+		serverScope.cancel()
 	}
 
 	override fun connectClient(client: ILanguageClient?) {
@@ -191,6 +203,19 @@ class JavaLanguageServer : ILanguageServer {
 		for (serviceId in listOf(JvmLibraryIndexingService.ID, JvmModuleOutputIndexingService.ID)) {
 			(indexingServiceManager.getService(serviceId) as? JarIndexingService)?.refresh()
 		}
+
+		/*
+		 * Closing a project nulls ProjectManagerImpl's indexing service manager and a later
+		 * access recreates it, so the collector is restarted here against whichever instance is
+		 * current rather than assumed to still be the one it was started against.
+		 */
+		indexingStateCollectorJob?.cancel()
+		indexingStateCollectorJob =
+			serverScope.launch {
+				collectIndexingStateResets(indexingServiceManager.state) {
+					completionCache.reset()
+				}
+			}
 
 		// Once we have project initialized
 		// Destory the NO_MODULE_COMPILER instance
@@ -229,12 +254,13 @@ class JavaLanguageServer : ILanguageServer {
 			diagnosticProvider.cancel()
 		}
 
+		val generationAtStart = completionCache.currentGeneration()
 		completionProvider.reset(
 			compiler,
 			settings,
-			cachedCompletion,
-		) { cachedCompletion: CachedCompletion ->
-			updateCachedCompletion(cachedCompletion)
+			completionCache.cachedCompletion,
+		) { candidate: CachedCompletion ->
+			completionCache.store(candidate, generationAtStart)
 		}
 
 		return completionProvider.complete(params)
@@ -313,11 +339,6 @@ class JavaLanguageServer : ILanguageServer {
 		return JavaCompilerProvider.get(module)
 	}
 
-	private fun updateCachedCompletion(cachedCompletion: CachedCompletion) {
-		Objects.requireNonNull(cachedCompletion)
-		this.cachedCompletion = cachedCompletion
-	}
-
 	private fun startOrRestartAnalyzeTimer() {
 		if (VMUtils.isJvm) {
 			return
@@ -383,6 +404,68 @@ class JavaLanguageServer : ILanguageServer {
 			withContext(Dispatchers.Main) {
 				client?.publishDiagnostics(result)
 			}
+		}
+	}
+}
+
+/**
+ * Collects [state], invoking [onIndexingFinished] every time it transitions from
+ * [IndexingState.Indexing] to [IndexingState.Idle].
+ *
+ * A cached completion computed while indexing was in flight can be missing symbols the index
+ * has since gained, so the cache must be dropped exactly when indexing finishes, not on every
+ * intermediate progress update.
+ */
+internal suspend fun collectIndexingStateResets(
+	state: StateFlow<IndexingState>,
+	onIndexingFinished: () -> Unit,
+) {
+	var previous = state.value
+	state.collect { current ->
+		if (previous is IndexingState.Indexing && current is IndexingState.Idle) {
+			onIndexingFinished()
+		}
+		previous = current
+	}
+}
+
+/**
+ * A completion cache guarded by a generation counter, so a reset that happens while a completion
+ * is in flight cannot be clobbered by that completion's own (now-stale) result.
+ *
+ * [reset] bumps the generation before clearing the cache. [store] only takes effect if the
+ * generation captured by [currentGeneration] at the start of that completion is still current;
+ * [reset] and [store] are mutually exclusive, so there is no window in which a [store] can read
+ * the pre-reset generation and still land after [reset] has cleared the cache.
+ */
+internal class CompletionCacheGuard {
+	private val generation = AtomicLong(0)
+	private val lock = Any()
+
+	@Volatile
+	var cachedCompletion: CachedCompletion = CachedCompletion.EMPTY
+		private set
+
+	/** The generation to capture at the start of a completion, for a later [store] call. */
+	fun currentGeneration(): Long = generation.get()
+
+	/** Caches [candidate], unless a [reset] has run since [capturedGeneration] was captured. */
+	fun store(
+		candidate: CachedCompletion,
+		capturedGeneration: Long,
+	) {
+		synchronized(lock) {
+			if (generation.get() == capturedGeneration) {
+				cachedCompletion = candidate
+			}
+		}
+	}
+
+	/** Bumps the generation and drops the cache, so no in-flight [store] can land after this. */
+	fun reset() {
+		synchronized(lock) {
+			generation.incrementAndGet()
+			cachedCompletion = CachedCompletion.EMPTY
 		}
 	}
 }
