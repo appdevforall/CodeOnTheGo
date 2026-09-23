@@ -35,7 +35,6 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.idetooltips.attachTooltip
 import com.itsaky.androidide.interfaces.IEditorHandler
 import com.itsaky.androidide.preferences.internal.GitPreferences
-import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.onLongPress
@@ -292,6 +291,12 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 				}
 			}
 
+			launch {
+				viewModel.initError.collectLatest {
+					flashError(getString(R.string.git_init_failed))
+				}
+			}
+
 			combine(
 				viewModel.isGitRepository,
 				viewModel.gitStatus,
@@ -302,7 +307,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					!isRepo -> {
 						binding.apply {
 							emptyView.visibility = View.VISIBLE
-							emptyView.text = getString(R.string.not_a_git_repo)
+							tvRepoStatus.text = getString(R.string.not_a_git_repo)
+							btnInitRepo.isVisible = true
 							recyclerView.visibility = View.GONE
 							cbCheckAll.visibility = View.GONE
 							commitSection.visibility = View.GONE
@@ -316,7 +322,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					allChanges.isEmpty() -> {
 						binding.apply {
 							emptyView.visibility = View.VISIBLE
-							emptyView.text = getString(R.string.no_uncommitted_changes)
+							btnInitRepo.isVisible = false
+							tvRepoStatus.text = getString(R.string.no_uncommitted_changes)
 							recyclerView.visibility = View.GONE
 							cbCheckAll.visibility = View.VISIBLE
 							cbCheckAll.isEnabled = false
@@ -334,6 +341,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						val hasSelectable = allChanges.hasSelectable()
 						binding.apply {
 							emptyView.visibility = View.GONE
+							btnInitRepo.isVisible = false
 							recyclerView.visibility = View.VISIBLE
 							cbCheckAll.visibility = View.VISIBLE
 							cbCheckAll.isEnabled = hasSelectable
@@ -365,6 +373,8 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		}
 
 		setupPullUI()
+
+		binding.btnInitRepo.setOnClickListener { viewModel.initGitRepository() }
 	}
 
 	override fun onResume() {

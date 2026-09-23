@@ -181,6 +181,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS = "editor.codeactions.organizeimports"
 	const val EDITOR_CODE_ACTIONS_TRY_CATCH = "editor.codeactions.trycatch"
 	const val EDITOR_CODE_ACTIONS_EXTRACT_VARIABLE = "editor.codeactions.extractvariable"
+	const val EDITOR_CODE_ACTIONS_EXTRACT_METHOD = "editor.codeactions.extractmethod"
 
 	// Kotlin code actions. Tags are per-language even where the action exists in both languages,
 	// so the tooltip can describe the Kotlin behaviour (see ADFA-4730).
@@ -325,6 +326,7 @@ object TooltipTag {
 	const val GIT_DIALOG_ABORT_MERGE = "git.dialog.abortmerge"
 	const val GIT_PUSH = "git.action.push"
 	const val GIT_PULL = "git.action.pull"
+	const val GIT_BRANCHES = "project.git.branchmgt"
 
 	// Editor metrics carousel (ADFA-5510). Unprefixed like every other tag here: the lookup is by
 	// tag AND category, and the category column already carries "ide".
