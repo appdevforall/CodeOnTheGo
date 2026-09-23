@@ -333,4 +333,83 @@ class InMemoryIndexTest {
 
 			assertThat(index.distinctValues("category").toList()).containsExactly("beta")
 		}
+
+	@Test
+	fun `the same key in two sources keeps an entry for each`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "FromOne"))
+			index.insert(entry("k1", "src2", "FromTwo"))
+
+			val fromOne = index.query(IndexQuery(key = "k1", sourceIds = listOf("src1"), limit = 0)).single()
+			val fromTwo = index.query(IndexQuery(key = "k1", sourceIds = listOf("src2"), limit = 0)).single()
+			assertThat(fromOne.name).isEqualTo("FromOne")
+			assertThat(fromTwo.name).isEqualTo("FromTwo")
+			assertThat(index.size).isEqualTo(2)
+		}
+
+	@Test
+	fun `get returns the entry with the smallest source id when several sources share the key`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src2", "FromTwo"))
+			index.insert(entry("k1", "src1", "FromOne"))
+			index.insert(entry("k1", "src3", "FromThree"))
+
+			assertThat(index.get("k1")!!.sourceId).isEqualTo("src1")
+			assertThat(index.query(IndexQuery.byKey("k1")).single().sourceId).isEqualTo("src1")
+		}
+
+	@Test
+	fun `removing one source keeps the same key in another source`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "FromOne", category = "alpha"))
+			index.insert(entry("k1", "src2", "FromTwo", category = "alpha"))
+			index.removeBySource("src1")
+
+			assertThat(index.get("k1")!!.sourceId).isEqualTo("src2")
+			assertThat(index.query(IndexQuery(exactMatch = mapOf("category" to "alpha"), limit = 0)).single().sourceId)
+				.isEqualTo("src2")
+		}
+
+	@Test
+	fun `a key query still applies its source scope`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "Foo"))
+
+			assertThat(index.query(IndexQuery(key = "k1", sourceIds = listOf("src2"), limit = 0)).toList()).isEmpty()
+			assertThat(index.query(IndexQuery(key = "k1", sourceId = "src2", limit = 0)).toList()).isEmpty()
+		}
+
+	@Test
+	fun `a key query still applies its field predicates`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "Foo", category = "alpha"))
+
+			assertThat(index.query(IndexQuery(key = "k1", exactMatch = mapOf("category" to "beta"), limit = 0)).toList())
+				.isEmpty()
+			assertThat(index.query(IndexQuery(key = "k1", exactMatch = mapOf("category" to "alpha"), limit = 0)).toList())
+				.hasSize(1)
+		}
+
+	@Test
+	fun `an exact match on a value no entry has matches nothing`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "Foo", category = "alpha"))
+
+			assertThat(index.query(IndexQuery(exactMatch = mapOf("category" to "missing"), limit = 0)).toList()).isEmpty()
+		}
+
+	@Test
+	fun `a query for a source with no entries matches nothing`() =
+		runTest {
+			val index = makeIndex()
+			index.insert(entry("k1", "src1", "Foo"))
+
+			assertThat(index.query(IndexQuery.bySource("src999")).toList()).isEmpty()
+		}
 }

@@ -38,8 +38,8 @@ class KtFileMetadataIndex(
 	/**
 	 * Insert or replace the metadata record for a single file.
 	 *
-	 * Because [KtFileMetadata.key] == [KtFileMetadata.filePath], the
-	 * underlying `CONFLICT_REPLACE` strategy ensures this is a true upsert.
+	 * Because [KtFileMetadata.key] and [KtFileMetadata.sourceId] are both the
+	 * file path, a file has at most one row and an insert replaces it.
 	 */
 	suspend fun upsert(metadata: KtFileMetadata) = backing.insert(metadata)
 
@@ -55,7 +55,7 @@ class KtFileMetadataIndex(
 	 * batched, transactional operation.
 	 *
 	 * Equivalent to calling [remove] once per path, but issues the deletes as one
-	 * transaction instead of N — see [Index.removeBySources]. Paths not present in
+	 * transaction instead of N - see [Index.removeBySources]. Paths not present in
 	 * the index are ignored.
 	 */
 	suspend fun removeAll(filePaths: Collection<String>) = backing.removeBySources(filePaths)

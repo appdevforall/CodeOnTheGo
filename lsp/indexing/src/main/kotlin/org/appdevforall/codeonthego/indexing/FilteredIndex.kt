@@ -1,5 +1,7 @@
 package org.appdevforall.codeonthego.indexing
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.appdevforall.codeonthego.indexing.api.ReadableIndex
@@ -105,10 +107,18 @@ open class FilteredIndex<T : Indexable>(
 		return query.copy(sourceIds = scoped)
 	}
 
-	override suspend fun get(key: String): T? {
-		val entry = backing.get(key) ?: return null
-		return if (isActive(entry.sourceId)) entry else null
-	}
+	/**
+	 * Returns the visible entry for [key], the one with the smallest source id among the visible
+	 * sources that have it.
+	 *
+	 * This is a scoped key query rather than a check on the backing index's own [get]: that returns
+	 * the smallest source id overall, and when that source is inactive a visible entry for the same
+	 * key would be missed.
+	 */
+	override suspend fun get(key: String): T? =
+		withContext(Dispatchers.IO) {
+			backing.query(scopedToActive(IndexQuery.byKey(key))).firstOrNull()
+		}
 
 	override suspend fun containsSource(sourceId: String): Boolean = isActive(sourceId) && backing.containsSource(sourceId)
 
