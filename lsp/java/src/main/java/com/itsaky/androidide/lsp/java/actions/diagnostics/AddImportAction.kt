@@ -35,14 +35,19 @@ import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.lsp.java.actions.BaseJavaCodeAction
 import com.itsaky.androidide.lsp.java.models.DiagnosticCode
 import com.itsaky.androidide.lsp.java.rewrite.AddImport
-import com.itsaky.androidide.lsp.java.rewrite.Rewrite
 import com.itsaky.androidide.lsp.models.CodeActionItem
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.projects.util.StringSearch
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.applyLongPressRecursively
+import com.itsaky.androidide.utils.flashError
 import jdkx.tools.Diagnostic
 import jdkx.tools.JavaFileObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.service.IndexingState
 import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
@@ -72,16 +77,12 @@ class AddImportAction : BaseJavaCodeAction() {
 			return
 		}
 
-		val file = data.requireFile()
-		val module =
-			IProjectManager.getInstance().findModuleForFile(file, false)
-				?: run {
-					markInvisible()
-					return
-				}
-
-		val compiler = JavaCompilerProvider.get(module)
-
+		/*
+		 * Optimistic visibility: decide from the diagnostic alone. Resolving actual candidates queries
+		 * the index, which is SQLite-backed I/O that must not run here -- this runs synchronously on
+		 * the UI thread when the code-action menu is filled. execAction resolves candidates in the
+		 * background instead.
+		 */
 		@Suppress("UNCHECKED_CAST")
 		val jcDiagnostic =
 			JavaDiagnosticUtils.asJCDiagnostic(diagnostic.extra as Diagnostic<out JavaFileObject>)
@@ -90,12 +91,8 @@ class AddImportAction : BaseJavaCodeAction() {
 			return
 		}
 
-		val found =
-			jcDiagnostic.args[1]?.toString()?.let { compiler.findQualifiedNames(it, true).isNotEmpty() }
-				?: false
-
-		visible = found
-		enabled = found
+		visible = true
+		enabled = true
 	}
 
 	override suspend fun execAction(data: ActionData): Any {
@@ -104,66 +101,68 @@ class AddImportAction : BaseJavaCodeAction() {
 			JavaDiagnosticUtils.asUnwrapper(
 				data.get(DiagnosticItem::class.java)!!.extra as Diagnostic<out JavaFileObject>,
 			)!!
-		val file = data.requireFile()
-		val module =
-			IProjectManager.getInstance().findModuleForFile(file, false)
-				?: run {
-					markInvisible()
-					return Any()
-				}
+		val simpleName = diagnostic.d.args[1].toString()
+		val nioPath = data.requirePath()
 
-		val compiler = JavaCompilerProvider.get(module)
-
-		val titles = mutableListOf<String>()
-		val rewrites = mutableListOf<AddImport>()
-		val simpleName = diagnostic.d.args[1]
-		for (name in compiler.publicTopLevelTypes()) {
-			var klass = name
-			if (klass.contains('/')) {
-				klass = klass.replace('/', '.')
+		return withContext(Dispatchers.IO) {
+			val module = IProjectManager.getInstance().findModuleForFile(data.requireFile(), false)
+			if (module == null) {
+				return@withContext ImportCandidates.None(simpleName)
 			}
 
-			if (!klass.endsWith(".$simpleName")) {
-				continue
+			val compiler = JavaCompilerProvider.get(module)
+			val importingPackage = StringSearch.packageName(nioPath)
+			val candidates = compiler.findImportableQualifiedNames(simpleName, importingPackage)
+
+			if (candidates.isEmpty()) {
+				return@withContext ImportCandidates.None(simpleName)
 			}
 
-			titles.add(klass)
-			rewrites.add(AddImport(data.requirePath(), klass))
+			ImportCandidates.Found(
+				titles = candidates,
+				rewrites = candidates.map { AddImport(nioPath, it) },
+			)
 		}
-
-		if (rewrites.isEmpty()) {
-			return false
-		}
-
-		return Pair(titles, rewrites)
 	}
 
-	@Suppress("UNCHECKED_CAST")
 	override fun postExec(
 		data: ActionData,
 		result: Any,
 	) {
-		if (result !is Pair<*, *>) {
+		if (result is ImportCandidates.None) {
+			val context = data.requireContext()
+			val state =
+				ProjectManagerImpl
+					.getInstance()
+					.indexingServiceManager.state.value
+			flashError(
+				noImportableClassMessage(
+					simpleName = result.simpleName,
+					state = state,
+					template = context.getString(R.string.msg_no_importable_class),
+					indexingTemplate = context.getString(R.string.msg_no_importable_class_indexing),
+				),
+			)
 			return
 		}
 
-		val file = data.requireFile()
-		val module =
-			IProjectManager.getInstance().findModuleForFile(file, false)
-				?: run {
-					markInvisible()
-					return
-				}
+		if (result !is ImportCandidates.Found) {
+			return
+		}
 
-		val compiler = JavaCompilerProvider.get(module)
+		val module = IProjectManager.getInstance().findModuleForFile(data.requireFile(), false)
+		if (module == null) {
+			markInvisible()
+			return
+		}
+
 		val client = data.getLanguageClient() ?: return
+		val compiler = JavaCompilerProvider.get(module)
 		val actions = mutableListOf<CodeActionItem>()
-		val titles = result.first as List<String>
-		val rewrites = result.second as List<Rewrite>
 
-		for (index in rewrites.indices) {
-			val name = titles[index]
-			val rewrite = rewrites[index]
+		for (index in result.rewrites.indices) {
+			val name = result.titles[index]
+			val rewrite = result.rewrites[index]
 			rewrite.asCodeActions(compiler, name)?.let { actions.add(it) }
 		}
 
@@ -177,7 +176,7 @@ class AddImportAction : BaseJavaCodeAction() {
 			}
 
 			else -> {
-				showImportChooser(data, titles, actions, client)
+				showImportChooser(data, result.titles, actions, client)
 			}
 		}
 	}
@@ -230,4 +229,35 @@ class AddImportAction : BaseJavaCodeAction() {
 			TooltipTag.EDITOR_CODE_ACTIONS_FIX_IMPORTS_DIALOG,
 		)
 	}
+}
+
+/**
+ * The outcome of resolving import candidates for an unresolved symbol.
+ */
+internal sealed interface ImportCandidates {
+	/** A candidate class per title, each mapped to the rewrite that imports it. */
+	data class Found(
+		val titles: List<String>,
+		val rewrites: List<AddImport>,
+	) : ImportCandidates
+
+	/** No importable class named [simpleName] was found. */
+	data class None(
+		val simpleName: String,
+	) : ImportCandidates
+}
+
+/**
+ * The message [AddImportAction.postExec] flashes when no importable class is named [simpleName]:
+ * [template] normally, or [indexingTemplate] while [state] says library indexing is still in
+ * progress, since a class matching [simpleName] can still turn up once indexing finishes.
+ */
+internal fun noImportableClassMessage(
+	simpleName: String,
+	state: IndexingState,
+	template: String,
+	indexingTemplate: String,
+): String {
+	val chosen = if (state is IndexingState.Indexing) indexingTemplate else template
+	return String.format(chosen, simpleName)
 }
