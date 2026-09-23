@@ -16,10 +16,12 @@ import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.spyk
+import io.mockk.unmockkAll
 import io.mockk.verify
 import org.gradle.tooling.BuildCancelledException
 import org.gradle.tooling.GradleConnector
 import org.gradle.tooling.ProjectConnection
+import org.junit.After
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -50,6 +52,12 @@ class ToolingApiServerImplTest {
 		val connector: GradleConnector,
 		val connection: ProjectConnection,
 	)
+
+	@After
+	fun tearDown() {
+		// These tests mock singletons. Left in place they follow the JVM into the next test class.
+		unmockkAll()
+	}
 
 	private fun mockkToolingServer(): MockServer {
 		val server = spyk(ToolingApiServerImpl())
@@ -207,6 +215,33 @@ class ToolingApiServerImplTest {
 			// ensure gradle sync was requested
 			RootModelBuilder.build(initParams, any())
 		}
+	}
+
+	@Test
+	fun `GIVEN readable sync files WHEN the stored schema version is stale THEN sync anyway`() {
+		val initParams = testInitParams(forceSync = false)
+		val cacheFile = ProjectSyncHelper.cacheFileForProject(File(initParams.directory))
+
+		mockkObject(RootModelBuilder)
+		every { RootModelBuilder.build(any(), any()) } returns cacheFile
+
+		mockkObject(ProjectSyncHelper)
+
+		// The overload the server actually calls, so the stub does not ride on internal delegation.
+		every { ProjectSyncHelper.areSyncFilesReadable(any<File>()) } returns true
+		every { ProjectSyncHelper.areSyncFilesReadable(any(), any()) } returns true
+
+		// The cache is present and readable, and only the stored schema version rules it out.
+		every { ProjectSyncHelper.isSyncMetaVersionCurrent(any()) } returns false
+
+		val (server) = mockkToolingServer()
+		every { server.validateProjectDirectory(any()) } returns null
+
+		val result = server.initialize(initParams).get(5, TimeUnit.SECONDS)
+		assertThat(result).isInstanceOf(InitializeResult.Success::class.java)
+		assertThat((result as InitializeResult.Success).cacheFile).isEqualTo(cacheFile)
+
+		verify(exactly = 1) { RootModelBuilder.build(initParams, any()) }
 	}
 
 	@Test
