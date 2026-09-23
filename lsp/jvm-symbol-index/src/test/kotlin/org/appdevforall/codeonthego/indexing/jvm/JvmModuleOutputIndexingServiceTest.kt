@@ -67,7 +67,10 @@ class JvmModuleOutputIndexingServiceTest {
 			val index = initializeAndAwait(service)
 
 			writeClassJar(jar, "p/Bb")
-			// Passes run one at a time, so joining a later pass waits out the build's pass too.
+			/*
+			 * The build-completed pass and this join()'d pass race for the mutex; either order
+			 * leaves the jar unindexed here, since its fingerprint has not changed.
+			 */
 			runBlocking {
 				service.onBuildCompleted()
 				service.refresh().join()

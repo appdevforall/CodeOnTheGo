@@ -11,6 +11,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import org.jetbrains.org.objectweb.asm.ClassWriter
@@ -107,7 +108,7 @@ class JvmLibraryIndexingServicePhaseTest {
 				assertThat(secondPassSubmitted.await(5, TimeUnit.SECONDS)).isTrue()
 
 				FileOutputStream(fifo).close()
-				(others + first).joinAll()
+				withTimeout(10_000) { (others + first).joinAll() }
 			}
 		}
 
@@ -123,7 +124,7 @@ class JvmLibraryIndexingServicePhaseTest {
 
 	private suspend fun refreshAndAwait(service: JvmLibraryIndexingService) {
 		service.initialize(IndexRegistry())
-		service.refresh().join()
+		withTimeout(10_000) { service.refresh().join() }
 	}
 
 	private fun libraryService(vararg jars: String): JvmLibraryIndexingService {
