@@ -71,6 +71,8 @@ import kotlin.collections.iterator
  *               discards every table in it; each index sharing the file recreates its own table
  *               when it opens. Indexes sharing a file must therefore pass the same version.
  * @param batchSize Number of rows per INSERT transaction.
+ * @param sourceIdChunkSize Max number of `_source_id` placeholders per source-scoped statement.
+ *               See [SOURCE_ID_CHUNK_SIZE].
  */
 class SQLiteIndex<T : Indexable>(
 	override val descriptor: IndexDescriptor<T>,
@@ -79,6 +81,7 @@ class SQLiteIndex<T : Indexable>(
 	formatVersion: Int,
 	override val name: String = "sqlite:${descriptor.name}",
 	private val batchSize: Int = 500,
+	@param:VisibleForTesting internal val sourceIdChunkSize: Int = SOURCE_ID_CHUNK_SIZE,
 ) : Index<T> {
 	companion object {
 		private val log = LoggerFactory.getLogger(SQLiteIndex::class.java)
@@ -90,9 +93,15 @@ class SQLiteIndex<T : Indexable>(
 		private const val DELETE_CHUNK_SIZE = 900
 
 		/**
-		 * Max number of `_source_id` placeholders per source-scoped SELECT, under the same
-		 * bound-parameter limit as [DELETE_CHUNK_SIZE]. A scoped query runs one statement per chunk;
-		 * chunks are disjoint on `_source_id`, so no row can be returned by two of them.
+		 * Default max number of `_source_id` placeholders per source-scoped statement (see
+		 * [sourceIdChunkSize]), under the same bound-parameter limit as [DELETE_CHUNK_SIZE]. A scoped
+		 * query runs one statement per chunk; chunks are disjoint on `_source_id`, so no row can be
+		 * returned by two of them.
+		 *
+		 * The gap between 900 and SQLite's 999 limit is headroom for the statement's other bound
+		 * parameters -- an `anyOf` or an exact-match value adds one placeholder each, on top of the
+		 * chunk's own. A single statement combining a full chunk with a large `anyOf` must still stay
+		 * under 999 placeholders in total.
 		 */
 		private const val SOURCE_ID_CHUNK_SIZE = 900
 
@@ -258,6 +267,13 @@ class SQLiteIndex<T : Indexable>(
 				 * Deduplicated here as well as in SQL: DISTINCT only applies within one statement, and
 				 * chunked source ids mean one statement per chunk. The same package name legitimately
 				 * appears in many JARs, so without this the caller would see it once per chunk.
+				 *
+				 * Each chunk is queried with the full limit, not the remaining budget: a value already
+				 * seen in an earlier chunk does not free up SQL-side room in a later one, since a
+				 * chunk-local `LIMIT` counts rows before dedup -- a value repeating across chunks would
+				 * otherwise starve a later chunk's still-unseen values out of a shrinking budget. The
+				 * overall cap is enforced separately, while collecting a chunk's rows: a chunk queried
+				 * with the full limit can itself hold more distinct new values than remain in the budget.
 				 */
 				val values = LinkedHashSet<String>()
 				for (chunk in sourceIdChunks(query)) {
@@ -265,9 +281,9 @@ class SQLiteIndex<T : Indexable>(
 						break
 					}
 
-					val (sql, args) = buildDistinctQuery(col, query, chunk, limit - values.size)
+					val (sql, args) = buildDistinctQuery(col, query, chunk, limit)
 					db.query(sql, args.toTypedArray()).use {
-						while (it.moveToNext()) {
+						while (it.moveToNext() && values.size < limit) {
 							values.add(it.getString(0))
 						}
 					}
@@ -555,14 +571,42 @@ class SQLiteIndex<T : Indexable>(
 
 	/**
 	 * The smallest string greater than every string starting with [prefix], or `null` when no such
-	 * bound exists because [prefix] ends in the highest representable characters.
+	 * bound exists because [prefix] consists only of the highest representable character, U+FFFF.
+	 *
+	 * Increments the trailing character by code point, not by UTF-16 code unit: a supplementary
+	 * character (one stored as a surrogate pair) is incremented as the single code point it
+	 * represents. Incrementing only the low surrogate, in isolation, would produce a code unit pair
+	 * SQLite decodes as an unrelated, smaller code point, putting the bound below [prefix] itself and
+	 * making the range it feeds ([SQLiteIndex.buildWhereClause]) match nothing. When an increment
+	 * would land in the surrogate range (`0xD800`-`0xDFFF`, which by itself encodes no character), the
+	 * result steps over it to the first ordinary character above it, `0xE000`.
 	 */
 	private fun exclusiveUpperBound(prefix: String): String? {
-		for (i in prefix.length - 1 downTo 0) {
-			val c = prefix[i]
-			if (c != Char.MAX_VALUE) {
-				return prefix.substring(0, i) + (c + 1)
+		var end = prefix.length
+		while (end > 0) {
+			val isSupplementary = end >= 2 && Character.isSurrogatePair(prefix[end - 2], prefix[end - 1])
+			val start = if (isSupplementary) end - 2 else end - 1
+			val codePoint =
+				if (isSupplementary) {
+					Character.toCodePoint(prefix[end - 2], prefix[end - 1])
+				} else {
+					prefix[end - 1].code
+				}
+			val maxAtThisPosition = if (isSupplementary) Character.MAX_CODE_POINT else Char.MAX_VALUE.code
+
+			if (codePoint == maxAtThisPosition) {
+				end = start
+				continue
 			}
+
+			val incremented = codePoint + 1
+			val next =
+				if (incremented in Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code) {
+					Character.MAX_SURROGATE.code + 1
+				} else {
+					incremented
+				}
+			return prefix.substring(0, start) + String(Character.toChars(next))
 		}
 		return null
 	}
@@ -590,7 +634,7 @@ class SQLiteIndex<T : Indexable>(
 		if (sourceIds.isEmpty()) {
 			return emptyList()
 		}
-		return sourceIds.toSortedSet().chunked(SOURCE_ID_CHUNK_SIZE)
+		return sourceIds.toSortedSet().chunked(sourceIdChunkSize)
 	}
 
 	private fun buildSelectQuery(
@@ -755,7 +799,7 @@ class SQLiteIndex<T : Indexable>(
 			val value = if (lowerCol != null) prefix.lowercase() else prefix
 
 			if (value.isEmpty()) {
-				// An empty prefix means "has a value", which is what `LIKE '%'` used to express.
+				// An empty prefix means the field must simply be present.
 				and("$filter$col IS NOT NULL")
 				continue
 			}
@@ -763,9 +807,13 @@ class SQLiteIndex<T : Indexable>(
 			/*
 			 * The range bounds are what make this use the column's index: SQLite only optimises LIKE
 			 * into a range scan when case_sensitive_like is on or the column collates NOCASE, and
-			 * neither holds here, so a bare LIKE scans the whole table. The escaped LIKE stays as the
-			 * semantic guard -- it is what rejects a literal '_' or '%' in the prefix, which are valid
-			 * identifier characters that an unescaped pattern would treat as wildcards.
+			 * neither holds here, so a bare LIKE scans the whole table. The range already rejects a
+			 * literal '_' or '%' substituted for another character -- e.g. prefix "my_f" against a row
+			 * "myXfield" -- because that changes the value's ordering, not just what a LIKE wildcard
+			 * would match. The escaped LIKE stays as a second guard for the rare case the range alone
+			 * is not tight: [exclusiveUpperBound] returns `null` for a prefix with no upper bound, or a
+			 * looser bound when its last character carries into an earlier one, and either lets through
+			 * a value that only differs from the prefix after the point the range stops constraining it.
 			 */
 			val upperBound = exclusiveUpperBound(value)
 			if (upperBound != null) {
