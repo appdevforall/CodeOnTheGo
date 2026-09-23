@@ -36,22 +36,6 @@ class JarSymbolScannerVisibilityTest {
 
 	private fun scan(bytes: ByteArray): List<JvmSymbol> = JarSymbolScanner.parseClassFile(bytes.inputStream(), "test.jar")
 
-	private val nestedClasses: Map<String, ByteArray> by lazy {
-		compileJava(
-			"com.example.Outer",
-			"""
-			package com.example;
-
-			public class Outer {
-				private static class Hidden {}
-				protected static class Guarded {}
-				public static class Open {}
-				class Pkg {}
-			}
-			""".trimIndent(),
-		)
-	}
-
 	private fun scanNested(simpleName: String): List<JvmSymbol> = scan(nestedClasses.getValue("com/example/Outer\$$simpleName"))
 
 	private fun nestedClass(simpleName: String): JvmSymbol = scanNested(simpleName).single { it.kind.isJvmClass }
@@ -130,6 +114,29 @@ class JarSymbolScannerVisibilityTest {
 		assertThat(nested.shortName).isEqualTo("Inner")
 		assertThat(nested.isTopLevel).isFalse()
 		assertThat(nested.data.containingClassFqName).isEqualTo("com.example.Outer")
+	}
+
+	companion object {
+		/**
+		 * JUnit4 builds a fresh test instance per `@Test` method, so an instance-level `by lazy`
+		 * would recompile this fixture once per test. A companion `by lazy` is shared by every
+		 * instance in the class, so javac runs once for the whole class.
+		 */
+		private val nestedClasses: Map<String, ByteArray> by lazy {
+			compileJava(
+				"com.example.Outer",
+				"""
+				package com.example;
+
+				public class Outer {
+					private static class Hidden {}
+					protected static class Guarded {}
+					public static class Open {}
+					class Pkg {}
+				}
+				""".trimIndent(),
+			)
+		}
 	}
 }
 

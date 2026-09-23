@@ -79,13 +79,17 @@ class CombinedJarScannerMultiReleaseTest {
 	fun `a virtual file scan skips versioned entries`() {
 		val jar = multiReleaseJar()
 		val disposable = Disposer.newDisposable()
+		val jarFileSystem = CoreJarFileSystem()
 		try {
 			// Reading a jar entry's contents consults the application's file size limits.
 			ApplicationManager.setApplication(MockApplication(disposable), disposable)
-			val root = CoreJarFileSystem().findFileByPath("${jar.absolutePath}!/")!!
+			val root = jarFileSystem.findFileByPath("${jar.absolutePath}!/")!!
 
 			assertOnlyBaseClasses(CombinedJarScanner.scan(root, "mr").toList())
 		} finally {
+			// The handler this test opened for the jar keeps its file handle open; releasing it here
+			// is what lets TemporaryFolder delete the jar afterwards.
+			jarFileSystem.clearHandlersCache()
 			Disposer.dispose(disposable)
 		}
 	}
