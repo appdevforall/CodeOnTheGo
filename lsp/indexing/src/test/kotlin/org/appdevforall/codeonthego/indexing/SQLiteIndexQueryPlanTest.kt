@@ -1,8 +1,10 @@
 package org.appdevforall.codeonthego.indexing
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.test.runTest
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexField
 import org.appdevforall.codeonthego.indexing.api.Indexable
@@ -161,6 +163,31 @@ class SQLiteIndexQueryPlanTest {
 		val plan = index.explainQuery(indexQuery { sourceIds = SOURCES })
 
 		assertThat(plan).contains(PRIMARY_KEY_INDEX)
+	}
+
+	@Test
+	fun `optimize collects planner statistics for the table's indexes`() =
+		runTest {
+			index.insertAll((0 until 10).asSequence().map { Entry("com.example.Foo$it", "/libs/lib$it.jar") })
+
+			index.optimize()
+
+			assertThat(indexesWithStatistics()).containsAtLeast(KEY_INDEX, NAME_INDEX, PACKAGE_INDEX)
+		}
+
+	/** Reads `sqlite_stat1` over a second connection, since the index exposes no statistics. */
+	private fun indexesWithStatistics(): List<String> {
+		val path = context.getDatabasePath(DB_NAME).path
+		return SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+			val hasStatTable =
+				db.rawQuery("SELECT 1 FROM sqlite_master WHERE name = 'sqlite_stat1'", null).use { it.moveToFirst() }
+			if (!hasStatTable) {
+				return@use emptyList()
+			}
+			db.rawQuery("SELECT idx FROM sqlite_stat1 WHERE tbl = 'test_plan'", null).use { cursor ->
+				buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
+			}
+		}
 	}
 
 	private companion object {
