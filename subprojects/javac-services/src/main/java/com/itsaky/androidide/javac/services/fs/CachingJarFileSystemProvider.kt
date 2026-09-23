@@ -41,11 +41,15 @@ object CachingJarFileSystemProvider : JarFileSystemProvider() {
 		path: Path,
 		env: MutableMap<String, *>?,
 	): ZipFileSystem {
-		val cached = cachedFs[path.normalize().pathString]
-		if (cached != null) {
-			return cached
+		/*
+		 * computeIfAbsent, not get-then-put: project setup opens the same JAR from many threads at
+		 * once, and a check-then-act would build a file system per racing caller. Only the last would
+		 * reach the map, so the others are never closed while a walk still holds them -- and the JARs
+		 * most exposed to it are the most shared ones.
+		 */
+		return cachedFs.computeIfAbsent(path.normalize().pathString) {
+			CachedJarFileSystem(this, path, env)
 		}
-		return createAndCache(path, env)
 	}
 
 	fun newFileSystem(path: Path): FileSystem? = newFileSystem(path, mutableMapOf<String, Any>())
@@ -90,14 +94,5 @@ object CachingJarFileSystemProvider : JarFileSystemProvider() {
 		} catch (err: Throwable) {
 			log.error("Failed to close cached zip file system: {}", fs, err)
 		}
-	}
-
-	private fun createAndCache(
-		path: Path,
-		env: MutableMap<String, *>?,
-	): CachedJarFileSystem {
-		val fs = CachedJarFileSystem(this, path, env)
-		cachedFs[path.normalize().pathString] = fs
-		return fs
 	}
 }
