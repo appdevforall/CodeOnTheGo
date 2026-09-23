@@ -63,7 +63,10 @@ object CombinedJarScanner {
 				while (entries.hasMoreElements()) {
 					val entry = entries.nextElement()
 					if (!entry.name.endsWith(".class")) continue
-					if (entry.name == "module-info.class" || entry.name == "package-info.class") continue
+					// Compared on the file name, not the full entry path: a multi-release JAR carries these
+					// under META-INF/versions/<n>/, where an exact-path match lets them through as classes.
+					val entryFileName = entry.name.substringAfterLast('/')
+					if (entryFileName == "module-info.class" || entryFileName == "package-info.class") continue
 
 					try {
 						val bytes =
