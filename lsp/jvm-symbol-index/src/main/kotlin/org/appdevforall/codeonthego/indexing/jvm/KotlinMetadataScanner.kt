@@ -34,10 +34,10 @@ import kotlin.metadata.modality
 import kotlin.metadata.visibility
 
 /**
- * Parses Kotlin metadata from class files into [JvmSymbol]s
- * with full Kotlin semantics (extensions, suspend, inline, etc.).
+ * Parses a Kotlin class file's `@Metadata` into [JvmSymbol]s with full Kotlin semantics
+ * (extensions, suspend, inline, etc.).
  *
- * Skips non-Kotlin class files (no `@Metadata` annotation).
+ * Returns nothing for a class file without `@Metadata`.
  */
 object KotlinMetadataScanner {
 	private val log = LoggerFactory.getLogger(KotlinMetadataScanner::class.java)

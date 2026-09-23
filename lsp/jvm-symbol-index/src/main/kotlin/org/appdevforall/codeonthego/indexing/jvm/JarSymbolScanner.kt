@@ -10,12 +10,10 @@ import org.jetbrains.org.objectweb.asm.Type
 import java.io.InputStream
 
 /**
- * Parses class files with ASM into [JvmSymbol]s.
+ * Parses a Java class file with ASM into [JvmSymbol]s.
  *
- * For Java class files, this gives complete information.
- * For Kotlin class files, use [KotlinMetadataScanner] or
- * [CombinedJarScanner] instead — ASM cannot see Kotlin-specific
- * semantics like extensions, suspend, or nullable types.
+ * [CombinedJarScanner] routes Kotlin class files to [KotlinMetadataScanner] instead: ASM cannot see
+ * Kotlin-specific semantics like extensions, suspend, or nullable types.
  */
 object JarSymbolScanner {
 	internal fun parseClassFile(
