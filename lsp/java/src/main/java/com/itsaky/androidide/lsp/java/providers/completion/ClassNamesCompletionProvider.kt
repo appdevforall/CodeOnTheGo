@@ -72,19 +72,12 @@ class ClassNamesCompletionProvider(
 
 		abortCompletionIfCancelled()
 
-		val topLevelTypes = compiler.publicTopLevelTypes()
-		for (className in topLevelTypes) {
-			val matchLevel = matchLevel(simpleName(className), partial)
-			if (matchLevel == NO_MATCH) {
+		for (className in compiler.findTypeNamesMatching(partial, CompletionProvider.MAX_COMPLETION_ITEMS)) {
+			if (!uniques.add(className)) {
 				continue
 			}
 
-			if (uniques.contains(className)) {
-				continue
-			}
-
-			list.add(classItem(imports, file, className, matchLevel))
-			uniques.add(className)
+			list.add(classItem(imports, file, className, matchLevel(simpleName(className), partial)))
 		}
 		abortCompletionIfCancelled()
 		for (t in root.typeDecls) {
