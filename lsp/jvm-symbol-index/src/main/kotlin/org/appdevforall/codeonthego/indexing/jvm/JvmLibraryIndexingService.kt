@@ -8,6 +8,7 @@ import com.itsaky.androidide.projects.models.bootClassPaths
 import com.itsaky.androidide.tasks.cancelIfActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -75,23 +76,23 @@ class JvmLibraryIndexingService(
 
 	fun refresh() {
 		coroutineScope.launch {
-			indexingMutex.withLock {
-				reindexLibraries()
-			}
+			val jobs = indexingMutex.withLock { reindexLibraries() }
+			libraryIndex?.optimizeAfter(jobs)
 		}
 	}
 
-	private suspend fun reindexLibraries() {
+	/** Submits every library JAR that needs indexing and returns the submitted jobs. */
+	private suspend fun reindexLibraries(): List<Job> {
 		val index =
 			this.libraryIndex ?: run {
 				log.warn("Not indexing libraries. Index not initialized.")
-				return
+				return emptyList()
 			}
 
 		val workspace =
 			ProjectManagerImpl.getInstance().workspace ?: run {
 				log.warn("Not indexing libraries. Workspace model not available.")
-				return
+				return emptyList()
 			}
 
 		val currentJars =
@@ -124,22 +125,23 @@ class JvmLibraryIndexingService(
 		 * a JAR rebuilt at the same path (a snapshot, a local file dependency) is re-scanned.
 		 * Newly cached JARs are automatically visible because they're already in the active set.
 		 */
-		var newCount = 0
+		val jobs = mutableListOf<Job>()
 		for (jarPath in currentJars) {
 			val fingerprint = jarFingerprint(File(jarPath))
 			if (index.sourceFingerprint(jarPath) != fingerprint) {
-				newCount++
-				index.indexSource(jarPath, skipIfExists = true, fingerprint = fingerprint) { sourceId ->
-					CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
-				}
+				jobs +=
+					index.indexSource(jarPath, skipIfExists = true, fingerprint = fingerprint) { sourceId ->
+						CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
+					}
 			}
 		}
 
-		if (newCount > 0) {
-			log.info("{} new or changed JARs submitted for background indexing", newCount)
+		if (jobs.isNotEmpty()) {
+			log.info("{} new or changed JARs submitted for background indexing", jobs.size)
 		} else {
 			log.info("All JARs already cached, nothing to index")
 		}
+		return jobs
 	}
 
 	override fun close() {

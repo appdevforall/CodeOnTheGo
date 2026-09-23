@@ -135,5 +135,11 @@ interface Index<T : Indexable> :
 	/** Returns the fingerprint recorded for [sourceId] by [insertSource], or `null` if there is none. */
 	suspend fun sourceFingerprint(sourceId: String): String?
 
+	/**
+	 * Refreshes whatever the index keeps to plan its queries, after a bulk change to its entries.
+	 * Does nothing by default.
+	 */
+	suspend fun optimize() {}
+
 	override fun close() {}
 }

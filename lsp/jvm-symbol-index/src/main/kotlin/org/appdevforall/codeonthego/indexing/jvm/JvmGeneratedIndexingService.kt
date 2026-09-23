@@ -6,6 +6,7 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.tasks.cancelIfActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -65,9 +66,8 @@ class JvmGeneratedIndexingService(
 
 		// Kick off an initial index pass for any already-built JARs.
 		coroutineScope.launch {
-			indexingMutex.withLock {
-				reindexGeneratedJars(forceReindex = false)
-			}
+			val jobs = indexingMutex.withLock { reindexGeneratedJars(forceReindex = false) }
+			generatedIndex?.optimizeAfter(jobs)
 		}
 	}
 
@@ -75,23 +75,23 @@ class JvmGeneratedIndexingService(
 		// Generated JARs (especially R.jar) always change after a build —
 		// their field values are regenerated. Force a full re-index.
 		coroutineScope.launch {
-			indexingMutex.withLock {
-				reindexGeneratedJars(forceReindex = true)
-			}
+			val jobs = indexingMutex.withLock { reindexGeneratedJars(forceReindex = true) }
+			generatedIndex?.optimizeAfter(jobs)
 		}
 	}
 
-	private suspend fun reindexGeneratedJars(forceReindex: Boolean) {
+	/** Submits every generated JAR that needs indexing and returns the submitted jobs. */
+	private suspend fun reindexGeneratedJars(forceReindex: Boolean): List<Job> {
 		val index =
 			this.generatedIndex ?: run {
 				log.warn("Not indexing generated JARs — index not initialized.")
-				return
+				return emptyList()
 			}
 
 		val workspace =
 			ProjectManagerImpl.getInstance().workspace ?: run {
 				log.warn("Not indexing generated JARs — workspace model not available.")
-				return
+				return emptyList()
 			}
 
 		val generatedJars =
@@ -109,21 +109,22 @@ class JvmGeneratedIndexingService(
 		// Make exactly these JARs visible; remove stale ones from scope.
 		index.setActiveSources(generatedJars)
 
-		var submitted = 0
+		val jobs = mutableListOf<Job>()
 		for (jarPath in generatedJars) {
 			if (forceReindex || !index.isCached(jarPath)) {
-				submitted++
-				index.indexSource(jarPath, skipIfExists = false) { sourceId ->
-					CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
-				}
+				jobs +=
+					index.indexSource(jarPath, skipIfExists = false) { sourceId ->
+						CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
+					}
 			}
 		}
 
-		if (submitted > 0) {
-			log.info("{} generated JARs submitted for background indexing (force={})", submitted, forceReindex)
+		if (jobs.isNotEmpty()) {
+			log.info("{} generated JARs submitted for background indexing (force={})", jobs.size, forceReindex)
 		} else {
 			log.info("All generated JARs already cached, nothing to index")
 		}
+		return jobs
 	}
 
 	override fun close() {

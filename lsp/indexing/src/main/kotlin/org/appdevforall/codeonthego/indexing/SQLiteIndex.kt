@@ -48,7 +48,8 @@ import kotlin.collections.iterator
  *
  * When a query has a selective predicate (a key, a prefix, or a match on a
  * [selective][org.appdevforall.codeonthego.indexing.api.IndexField.selective] field), its source
- * scope and its other terms only filter rows and never choose the index.
+ * scope and its other terms only filter rows and never choose the index. [optimize] collects the
+ * planner statistics for everything else.
  *
  * File-backed databases use WAL journal mode: a commit appends to the write-ahead log instead
  * of writing a rollback journal and the main file. In-memory databases have no journal to set.
@@ -94,6 +95,29 @@ class SQLiteIndex<T : Indexable>(
 		 * chunks are disjoint on `_source_id`, so no row can be returned by two of them.
 		 */
 		private const val SOURCE_ID_CHUNK_SIZE = 900
+
+		/** Rows [optimize] samples per SQL index, which bounds its cost on a large table. */
+		private const val ANALYSIS_LIMIT = 1000
+
+		/** The first SQLite version with `PRAGMA analysis_limit`. */
+		private val ANALYSIS_LIMIT_SINCE = listOf(3, 32, 0)
+
+		/**
+		 * Whether SQLite [version] (as `sqlite_version()` reports it, e.g. `3.32.2`) supports
+		 * `PRAGMA analysis_limit`. Compares the numeric components, so `3.9` is older than `3.32`;
+		 * a version that does not parse counts as unsupported.
+		 */
+		@VisibleForTesting
+		internal fun supportsAnalysisLimit(version: String): Boolean {
+			val parts = version.split('.').map { it.toIntOrNull() ?: return false }
+			for (i in ANALYSIS_LIMIT_SINCE.indices) {
+				val part = parts.getOrElse(i) { 0 }
+				if (part != ANALYSIS_LIMIT_SINCE[i]) {
+					return part > ANALYSIS_LIMIT_SINCE[i]
+				}
+			}
+			return true
+		}
 
 		/** Every table in a database except SQLite's and Android's own bookkeeping tables. */
 		private const val USER_TABLES_QUERY =
@@ -340,6 +364,38 @@ class SQLiteIndex<T : Indexable>(
 				try {
 					db.execSQL("DELETE FROM $tableName")
 					db.execSQL("DELETE FROM $sourcesTableName")
+					db.setTransactionSuccessful()
+				} finally {
+					db.endTransaction()
+				}
+			}
+		}
+
+	/**
+	 * Collects the statistics SQLite's query planner uses to choose between this table's indexes.
+	 *
+	 * This runs `ANALYZE` rather than `PRAGMA optimize`, which decides per table whether to analyze
+	 * and, in older SQLite versions, only considers tables queried on the same connection: reads run
+	 * on the pool's other connections, so right after indexing it could analyze nothing. The
+	 * analysis limit samples each index instead of reading all of it. Both statements share one
+	 * transaction so they run on the same connection.
+	 *
+	 * On SQLite older than 3.32 (API 30 and below) this does nothing. Those versions ignore the
+	 * unknown analysis limit and read every index in full, which on a large table holds the lock
+	 * that queries wait on for too long. Queries there rely on their selective predicates alone.
+	 */
+	override suspend fun optimize() =
+		withContext(Dispatchers.IO) {
+			ifOpen {
+				val version = db.query("SELECT sqlite_version()").use { if (it.moveToFirst()) it.getString(0) else "" }
+				if (!supportsAnalysisLimit(version)) {
+					log.debug("Not analyzing {}: SQLite {} has no analysis limit", tableName, version)
+					return@ifOpen
+				}
+				db.beginTransaction()
+				try {
+					db.query("PRAGMA analysis_limit = $ANALYSIS_LIMIT").close()
+					db.execSQL("ANALYZE $tableName")
 					db.setTransactionSuccessful()
 				} finally {
 					db.endTransaction()

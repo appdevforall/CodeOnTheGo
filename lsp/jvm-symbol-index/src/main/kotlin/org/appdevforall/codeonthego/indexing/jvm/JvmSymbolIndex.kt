@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.indexing.jvm
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
 import org.appdevforall.codeonthego.indexing.FilteredIndex
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.api.Index
@@ -206,6 +207,20 @@ open class JvmSymbolIndex(
 	fun allPackages(): Sequence<String> = distinctValues(KEY_PACKAGE)
 
 	suspend fun awaitIndexing() = indexer.awaitAll()
+
+	/**
+	 * Optimizes the backing index once every job in [jobs] has finished, or does nothing if [jobs]
+	 * is empty.
+	 *
+	 * Whoever submits a pass of sources calls this with the jobs it submitted, because only it knows
+	 * when the pass is over: the indexer can sit idle between two submissions while the submitter
+	 * works out what to submit next, so an idle indexer is not a finished pass.
+	 */
+	suspend fun optimizeAfter(jobs: Collection<Job>) {
+		if (jobs.isEmpty()) return
+		jobs.joinAll()
+		backing.optimize()
+	}
 
 	override fun close() {
 		indexer.close()
