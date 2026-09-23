@@ -195,15 +195,26 @@ object KotlinMetadataScanner {
 				.substringBeforeLast('/')
 				.replace('/', '.')
 		/*
-		 * Kotlin metadata separates a nested class from its outer one with '.', not '$', so
-		 * "com/example/Outer.Inner" has to be split on both. Splitting only on '$' left the short name
-		 * as "Outer.Inner", which no prefix search for "Inner" could match.
+		 * A leading '.' marks a local or anonymous class. The classpath trie never held these -- it
+		 * treated any name containing '$' as not top level -- and neither language names them, so
+		 * offering one as a completion would be noise. JarSymbolScanner drops its equivalents too.
+		 */
+		if (className.startsWith('.')) {
+			return symbols
+		}
+
+		/*
+		 * Kotlin metadata nests with '.' in source order and with '$' once compiled, so a nested class
+		 * has to be split on either. Splitting on '$' alone left the short name as "Outer.Inner", which
+		 * no prefix search for "Inner" could match; splitting on '.' alone left a compiled-nested class
+		 * looking top level.
 		 */
 		val simpleNames = className.substringAfterLast('/')
-		val shortName = simpleNames.substringAfterLast('.').substringAfterLast('$')
+		val lastSeparator = maxOf(simpleNames.lastIndexOf('.'), simpleNames.lastIndexOf('$'))
+		val shortName = if (lastSeparator >= 0) simpleNames.substring(lastSeparator + 1) else simpleNames
 		val containingClassName =
-			if (simpleNames.contains('.')) {
-				className.substringBeforeLast('.')
+			if (lastSeparator >= 0) {
+				className.substring(0, className.length - (simpleNames.length - lastSeparator))
 			} else {
 				""
 			}
