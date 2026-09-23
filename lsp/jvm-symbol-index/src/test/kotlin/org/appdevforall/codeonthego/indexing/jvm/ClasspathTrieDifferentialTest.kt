@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.projects.classpath.JarFsClasspathReader
 import org.junit.Assume.assumeFalse
 import org.junit.Test
@@ -36,17 +35,7 @@ class ClasspathTrieDifferentialTest(
 			)
 	}
 
-	private val jar: File by lazy {
-		val location =
-			File(
-				anchor.protectionDomain.codeSource.location
-					.toURI(),
-			)
-		assertWithMessage("$corpus must resolve to a JAR on the test classpath, got $location")
-			.that(location.isFile && location.name.endsWith(".jar"))
-			.isTrue()
-		location
-	}
+	private val jar: File by lazy { testClasspathJar(anchor) }
 
 	private val isKotlinCorpus get() = anchor == Unit::class.java
 
@@ -67,14 +56,6 @@ class ClasspathTrieDifferentialTest(
 
 	/** What the index offers for the same JAR. */
 	private fun indexNames(): Set<String> = indexClasses().map { it.fqName }.toSet()
-
-	/**
-	 * A fragment of a `@JvmMultifileClass` facade, e.g. `LazyKt__LazyJVMKt`.
-	 *
-	 * The only thing the index deliberately withholds: the declarations belong to the facade, which
-	 * is indexed, and neither Java nor Kotlin names the part.
-	 */
-	private fun isMultiFilePart(qualifiedName: String) = qualifiedName.substringAfterLast('.').contains("__")
 
 	@Test
 	fun `every class the trie held is offered by the index, bar multi-file parts`() {
