@@ -255,6 +255,22 @@ open class JvmSymbolIndex(
 		limit: Int = 0,
 	): Sequence<JvmSymbol> = findTopLevelClasses(sourceIds, limit) { eq(KEY_PACKAGE, packageName) }
 
+	/**
+	 * Returns whether any of [sourceIds] has a top-level class named [simpleName] declared directly
+	 * in [packageName] (`""` for the default package).
+	 *
+	 * Top-level and [sourceIds] are as in [findTopLevelClassesNamed].
+	 */
+	fun containsTopLevelClass(
+		packageName: String,
+		simpleName: String,
+		sourceIds: Collection<String>?,
+	): Boolean =
+		findTopLevelClasses(sourceIds, limit = 1) {
+			eq(KEY_PACKAGE, packageName)
+			eq(KEY_NAME, simpleName)
+		}.any()
+
 	private inline fun findTopLevelClasses(
 		sourceIds: Collection<String>?,
 		limit: Int,
