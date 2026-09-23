@@ -48,6 +48,27 @@ class IndexingProgressTrackerTest {
 	}
 
 	@Test
+	fun `a pass that tracks a source another pass has pending counts nothing new`() {
+		val job = Job()
+		tracker.openPass().track("a", job)
+		val folding = tracker.openPass()
+
+		folding.track("a", job)
+
+		assertThat(folding.newlyCounted).isEqualTo(0)
+	}
+
+	@Test
+	fun `a pass counts each source it adds to the total`() {
+		val pass = tracker.openPass()
+
+		pass.track("a", Job())
+		pass.track("b", Job())
+
+		assertThat(pass.newlyCounted).isEqualTo(2)
+	}
+
+	@Test
 	fun `a completed job counts toward done`() {
 		val pass = tracker.openPass()
 		val first = Job()

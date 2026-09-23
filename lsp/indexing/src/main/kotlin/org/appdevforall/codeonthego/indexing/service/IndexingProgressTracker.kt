@@ -48,6 +48,14 @@ class IndexingProgressTracker {
 		internal var hasTracked = false
 			private set
 
+		/**
+		 * How many sources this pass added to the total: those it tracked while not already pending,
+		 * so not a job it merely folded into another pass's running one.
+		 */
+		var newlyCounted = 0
+			get() = synchronized(lock) { field }
+			private set
+
 		/** Counts [job], which indexes [sourceId], toward the state until it completes. */
 		fun track(
 			sourceId: String,
@@ -58,6 +66,7 @@ class IndexingProgressTracker {
 				hasTracked = true
 				if (pending.put(sourceId, job) == null) {
 					total++
+					newlyCounted++
 				}
 				publish()
 			}
