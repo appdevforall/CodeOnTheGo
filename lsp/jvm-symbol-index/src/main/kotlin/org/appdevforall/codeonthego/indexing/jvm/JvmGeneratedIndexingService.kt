@@ -5,6 +5,7 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
+import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import kotlin.io.path.extension
 
 /**
@@ -28,7 +29,8 @@ val JVM_GENERATED_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-generated-symbols
  */
 class JvmGeneratedIndexingService(
 	context: Context,
-) : JarIndexingService(context) {
+	progressTracker: IndexingProgressTracker,
+) : JarIndexingService(context, progressTracker) {
 	companion object {
 		const val ID = "jvm-generated-indexing-service"
 		private const val DB_NAME = "jvm_generated_symbol_index.db"

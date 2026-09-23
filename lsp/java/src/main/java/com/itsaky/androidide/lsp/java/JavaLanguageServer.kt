@@ -123,15 +123,17 @@ class JavaLanguageServer : ILanguageServer {
 			EventBus.getDefault().register(this)
 		}
 
-		val projectManager = ProjectManagerImpl.getInstance()
-		projectManager.indexingServiceManager.register(
-			service = JvmLibraryIndexingService(context = BaseApplication.baseInstance),
+		val indexingServiceManager = ProjectManagerImpl.getInstance().indexingServiceManager
+		val context = BaseApplication.baseInstance
+		val tracker = indexingServiceManager.progressTracker
+		indexingServiceManager.register(
+			service = JvmLibraryIndexingService(context = context, progressTracker = tracker),
 		)
-		projectManager.indexingServiceManager.register(
-			service = JvmGeneratedIndexingService(context = BaseApplication.baseInstance),
+		indexingServiceManager.register(
+			service = JvmGeneratedIndexingService(context = context, progressTracker = tracker),
 		)
-		projectManager.indexingServiceManager.register(
-			service = JvmModuleOutputIndexingService(context = BaseApplication.baseInstance),
+		indexingServiceManager.register(
+			service = JvmModuleOutputIndexingService(context = context, progressTracker = tracker),
 		)
 
 		JavaSnippetRepository.init()
