@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.completion
 
 import com.google.common.truth.Truth.assertThat
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
+import org.appdevforall.codeonthego.indexing.jvm.JvmEnumEntryInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
@@ -71,9 +72,22 @@ class UnimportedSymbolCandidateTest {
 	}
 
 	@Test
-	fun `the prefix query asks for exactly the kinds that can be offered`() {
-		assertThat(UNIMPORTED_SYMBOL_KINDS).doesNotContain(JvmSymbolKind.FILE_FACADE)
-		assertThat(UNIMPORTED_SYMBOL_KINDS).doesNotContain(JvmSymbolKind.COMPANION_OBJECT)
-		assertThat(UNIMPORTED_SYMBOL_KINDS).containsAtLeastElementsIn(JvmSymbolKind.CALLABLE_KINDS)
+	fun `an enum entry is not offered`() {
+		// Inserting a bare enum entry name with no import does not resolve; it must be qualified by
+		// its enum class.
+		val entry =
+			symbol(
+				"REGEX_OPTION",
+				JvmSymbolKind.ENUM_ENTRY,
+				JvmEnumEntryInfo(containingClassName = "kotlin/text/RegexOption"),
+			)
+
+		assertThat(isUnimportedSymbolCandidate(entry)).isFalse()
+	}
+
+	@Test
+	fun `the query asks for exactly the kinds that can be offered`() {
+		assertThat(UNIMPORTED_SYMBOL_KINDS)
+			.containsExactlyElementsIn(JvmSymbolKind.CLASSIFIER_KINDS - JvmSymbolKind.COMPANION_OBJECT + JvmSymbolKind.CALLABLE_KINDS)
 	}
 }
