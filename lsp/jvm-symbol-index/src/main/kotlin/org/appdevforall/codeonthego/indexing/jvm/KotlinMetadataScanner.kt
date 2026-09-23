@@ -69,17 +69,58 @@ object KotlinMetadataScanner {
 			}
 
 			is KotlinClassMetadata.FileFacade -> {
+				facadeSymbol(collector, sourceId) +
+					extractFromPackage(metadata.kmPackage, collector.packageName, sourceId)
+			}
+
+			/*
+			 * A part class is a compiler-generated fragment of a facade ("FooKt__Part"). Its
+			 * declarations belong to the facade, so they are extracted, but neither language ever names
+			 * the part class itself, so it is deliberately left out.
+			 */
+			is KotlinClassMetadata.MultiFileClassPart -> {
 				extractFromPackage(metadata.kmPackage, collector.packageName, sourceId)
 			}
 
-			is KotlinClassMetadata.MultiFileClassPart -> {
-				extractFromPackage(metadata.kmPackage, collector.packageName, sourceId)
+			/*
+			 * The facade of a @JvmMultifileClass. It declares nothing of its own -- the parts hold the
+			 * declarations -- but Java calls the top-level functions through it, so the class still has
+			 * to be findable.
+			 */
+			is KotlinClassMetadata.MultiFileClassFacade -> {
+				facadeSymbol(collector, sourceId)
 			}
 
 			else -> {
 				null
 			}
 		}
+	}
+
+	/**
+	 * The symbol for a facade class itself, as opposed to the declarations it carries.
+	 *
+	 * Metadata for a facade describes a package rather than a class, so without this the class is
+	 * absent from the index entirely and a Java file importing `FooKt` has nothing to resolve
+	 * against.
+	 */
+	private fun facadeSymbol(
+		collector: MetadataCollector,
+		sourceId: String,
+	): List<JvmSymbol> {
+		val internalName = collector.internalName.ifEmpty { return emptyList() }
+		return listOf(
+			JvmSymbol(
+				key = internalName,
+				sourceId = sourceId,
+				name = internalName,
+				shortName = internalName.substringAfterLast('/'),
+				packageName = collector.packageName,
+				kind = JvmSymbolKind.FILE_FACADE,
+				language = JvmSourceLanguage.KOTLIN,
+				data = JvmClassInfo(internalName = internalName),
+			),
+		)
 	}
 
 	private fun extractFromClass(
@@ -92,10 +133,19 @@ object KotlinMetadataScanner {
 			className
 				.substringBeforeLast('/')
 				.replace('/', '.')
-		val shortName =
-			className
-				.substringAfterLast('/')
-				.substringAfterLast('$')
+		/*
+		 * Kotlin metadata separates a nested class from its outer one with '.', not '$', so
+		 * "com/example/Outer.Inner" has to be split on both. Splitting only on '$' left the short name
+		 * as "Outer.Inner", which no prefix search for "Inner" could match.
+		 */
+		val simpleNames = className.substringAfterLast('/')
+		val shortName = simpleNames.substringAfterLast('.').substringAfterLast('$')
+		val containingClassName =
+			if (simpleNames.contains('.')) {
+				className.substringBeforeLast('.')
+			} else {
+				""
+			}
 
 		val kind =
 			when (klass.kind) {
@@ -128,6 +178,8 @@ object KotlinMetadataScanner {
 				visibility = kmVisibility(klass.visibility),
 				data =
 					JvmClassInfo(
+						internalName = className,
+						containingClassName = containingClassName,
 						supertypeNames = supertypes,
 						typeParameters = klass.typeParameters.map { it.name },
 						isAbstract = klass.modality == Modality.ABSTRACT,
@@ -375,6 +427,9 @@ object KotlinMetadataScanner {
 		var metadataHeader: Metadata? = null
 		var packageName = ""
 
+		/** The visited class's internal name, e.g. `com/example/FooKt`. */
+		var internalName = ""
+
 		private var metadataKind: Int? = null
 		private var metadataVersion: IntArray? = null
 		private var data1: Array<String>? = null
@@ -391,6 +446,7 @@ object KotlinMetadataScanner {
 			superName: String?,
 			interfaces: Array<out String>?,
 		) {
+			internalName = name
 			val lastSlash = name.lastIndexOf('/')
 			packageName = if (lastSlash >= 0) name.substring(0, lastSlash).replace('/', '.') else ""
 		}

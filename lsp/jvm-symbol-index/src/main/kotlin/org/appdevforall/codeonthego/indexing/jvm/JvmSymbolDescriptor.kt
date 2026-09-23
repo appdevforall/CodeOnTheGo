@@ -391,6 +391,7 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 			JvmSymbolKind.EXTENSION_PROPERTY -> JvmSymbolProtos.JvmSymbolKind.KIND_EXTENSION_PROPERTY
 			JvmSymbolKind.FIELD -> JvmSymbolProtos.JvmSymbolKind.KIND_FIELD
 			JvmSymbolKind.TYPE_ALIAS -> JvmSymbolProtos.JvmSymbolKind.KIND_TYPE_ALIAS
+			JvmSymbolKind.FILE_FACADE -> JvmSymbolProtos.JvmSymbolKind.KIND_FILE_FACADE
 		}
 
 	private fun kindFromProto(k: JvmSymbolProtos.JvmSymbolKind) =
@@ -413,6 +414,7 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 			JvmSymbolProtos.JvmSymbolKind.KIND_EXTENSION_PROPERTY -> JvmSymbolKind.EXTENSION_PROPERTY
 			JvmSymbolProtos.JvmSymbolKind.KIND_FIELD -> JvmSymbolKind.FIELD
 			JvmSymbolProtos.JvmSymbolKind.KIND_TYPE_ALIAS -> JvmSymbolKind.TYPE_ALIAS
+			JvmSymbolProtos.JvmSymbolKind.KIND_FILE_FACADE -> JvmSymbolKind.FILE_FACADE
 			else -> JvmSymbolKind.CLASS
 		}
 

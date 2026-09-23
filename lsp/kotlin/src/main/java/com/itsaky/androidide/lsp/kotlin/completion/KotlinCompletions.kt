@@ -895,6 +895,10 @@ private fun KaSession.kindOf(symbol: JvmSymbol): CompletionItemKind =
 		JvmSymbolKind.FIELD -> CompletionItemKind.FIELD
 
 		JvmSymbolKind.TYPE_ALIAS -> CompletionItemKind.CLASS
+
+		// Kotlin completion should never reach a facade -- it is not a classifier, and the
+		// declarations it holds are offered individually -- but the mapping has to be total.
+		JvmSymbolKind.FILE_FACADE -> CompletionItemKind.CLASS
 	}
 
 private fun partialIdentifier(prefix: String): String = prefix.takeLastWhile { char -> Character.isJavaIdentifierPart(char) }
