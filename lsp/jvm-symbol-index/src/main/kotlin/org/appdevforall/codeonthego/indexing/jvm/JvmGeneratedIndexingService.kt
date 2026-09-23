@@ -14,6 +14,7 @@ import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingService
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.nio.file.Paths
 import kotlin.io.path.extension
 
@@ -30,9 +31,11 @@ val JVM_GENERATED_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-generated-symbols
  * [IndexingService] that scans build-generated JARs (R.jar, etc.) and
  * maintains a dedicated [JvmSymbolIndex] for them.
  *
- * Generated JARs are re-indexed unconditionally on every build completion
- * because their contents change (new R-field values, new resource IDs) even
- * when the set of JARs doesn't change.
+ * A build completion re-scans every generated JAR's size and modification time (see
+ * [jarFingerprint]) and only re-indexes those whose fingerprint changed, the same check
+ * [JvmLibraryIndexingService] uses. This also catches a generated JAR rewritten outside an
+ * in-app build, or left half-indexed by a killed process, which staying cached by path alone
+ * would otherwise miss until some later build happened to touch it again.
  */
 class JvmGeneratedIndexingService(
 	private val context: Context,
@@ -66,22 +69,20 @@ class JvmGeneratedIndexingService(
 
 		// Kick off an initial index pass for any already-built JARs.
 		coroutineScope.launch {
-			val jobs = indexingMutex.withLock { reindexGeneratedJars(forceReindex = false) }
+			val jobs = indexingMutex.withLock { reindexGeneratedJars() }
 			generatedIndex?.optimizeAfter(jobs)
 		}
 	}
 
 	override suspend fun onBuildCompleted() {
-		// Generated JARs (especially R.jar) always change after a build —
-		// their field values are regenerated. Force a full re-index.
 		coroutineScope.launch {
-			val jobs = indexingMutex.withLock { reindexGeneratedJars(forceReindex = true) }
+			val jobs = indexingMutex.withLock { reindexGeneratedJars() }
 			generatedIndex?.optimizeAfter(jobs)
 		}
 	}
 
-	/** Submits every generated JAR that needs indexing and returns the submitted jobs. */
-	private suspend fun reindexGeneratedJars(forceReindex: Boolean): List<Job> {
+	/** Submits every generated JAR whose fingerprint changed and returns the submitted jobs. */
+	private suspend fun reindexGeneratedJars(): List<Job> {
 		val index =
 			this.generatedIndex ?: run {
 				log.warn("Not indexing generated JARs — index not initialized.")
@@ -111,16 +112,17 @@ class JvmGeneratedIndexingService(
 
 		val jobs = mutableListOf<Job>()
 		for (jarPath in generatedJars) {
-			if (forceReindex || !index.isCached(jarPath)) {
+			val fingerprint = jarFingerprint(File(jarPath))
+			if (index.sourceFingerprint(jarPath) != fingerprint) {
 				jobs +=
-					index.indexSource(jarPath, skipIfExists = false) { sourceId ->
+					index.indexSource(jarPath, skipIfExists = true, fingerprint = fingerprint) { sourceId ->
 						CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
 					}
 			}
 		}
 
 		if (jobs.isNotEmpty()) {
-			log.info("{} generated JARs submitted for background indexing (force={})", jobs.size, forceReindex)
+			log.info("{} generated JARs submitted for background indexing", jobs.size)
 		} else {
 			log.info("All generated JARs already cached, nothing to index")
 		}
