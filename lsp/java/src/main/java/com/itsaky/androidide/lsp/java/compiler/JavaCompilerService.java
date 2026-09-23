@@ -123,6 +123,17 @@ public class JavaCompilerService implements CompilerProvider {
 		this.types = types;
 	}
 
+	/**
+	 * Returns the packages and top-level classes of the module's compile classpath, or {@code null} without a module.
+	 *
+	 * <p>
+	 * Use the result for one request only. Its lookups block on the class index's disk I/O, so never call them on the main thread.
+	 */
+	@Nullable
+	public ClasspathPackages classpathPackages() {
+		return types.classpathPackages();
+	}
+
 	public synchronized void close() {
 		if (cachedCompile != null) {
 			cachedCompile.close();

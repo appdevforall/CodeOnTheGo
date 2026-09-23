@@ -6,8 +6,20 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
 import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
 
+/** The packages and top-level classes of one module's compile classpath, as import paths name them. */
+interface ClasspathPackages {
+	/** Returns whether [qualifiedName] names a top-level class of the classpath. */
+	fun isClass(qualifiedName: String): Boolean
+
+	/**
+	 * Returns the direct subpackages of [packageName], then its top-level classes. [packageName] `""`
+	 * is the default package, whose children are the root packages and the default-package classes.
+	 */
+	fun children(packageName: String): List<ModuleClasspathLookup.Child>
+}
+
 /** The top-level classes of one module's compile classpath, as the JVM symbol indexes hold them. */
-internal interface ClasspathClassNames {
+internal interface ClasspathClassNames : ClasspathPackages {
 	/** Returns the qualified names of the top-level classes whose simple name is exactly [simpleName]. */
 	fun qualifiedNamesOf(simpleName: String): List<String>
 
@@ -125,6 +137,15 @@ class ClasspathTypeLookup internal constructor(
 		return names.sorted().toList()
 	}
 
+	/**
+	 * Returns the packages and top-level classes of the module's compile classpath, or `null` without a
+	 * module.
+	 *
+	 * Source and boot classes are not included. Like every lookup here, the result answers from the
+	 * classpath and indexes as they are when it is created, so use it for one request only.
+	 */
+	fun classpathPackages(): ClasspathPackages? = classpath()
+
 	private fun simpleNameOf(qualifiedName: String) = qualifiedName.substringAfterLast('.')
 
 	companion object {
@@ -159,6 +180,10 @@ class ClasspathTypeLookup internal constructor(
 				) = lookup.qualifiedNamesByPrefix(prefix, limit)
 
 				override fun classesNamed(simpleName: String) = lookup.classesNamed(simpleName)
+
+				override fun isClass(qualifiedName: String) = lookup.isClass(qualifiedName)
+
+				override fun children(packageName: String) = lookup.children(packageName)
 			}
 		}
 	}

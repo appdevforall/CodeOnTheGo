@@ -7,6 +7,7 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,6 +49,10 @@ class JavaCompilerServiceClassLookupTest {
 						data = JvmClassInfo(),
 					)
 				}
+
+			override fun isClass(qualifiedName: String) = qualifiedName == "com.indexed.Indexed"
+
+			override fun children(packageName: String) = emptyList<ModuleClasspathLookup.Child>()
 		}
 
 	private fun compilerWithTrieClass(trieClass: String): JavaCompilerService {
