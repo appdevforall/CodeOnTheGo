@@ -9,6 +9,7 @@ import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.bootClassPaths
 import kotlinx.coroutines.Job
 import org.appdevforall.codeonthego.indexing.service.IndexKey
+import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import java.nio.file.Path
 import kotlin.io.path.extension
@@ -23,6 +24,13 @@ val JVM_LIBRARY_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-library-symbols")
 
 /**
  * [JarIndexingService] that scans classpath JARs/AARs and builds a [JvmSymbolIndex].
+ *
+ * A pass runs on initialization and whenever a language server calls [refresh] at project setup. The
+ * initialization pass is what indexes the libraries when those calls came before initialization,
+ * since a [refresh] before then finds no index and does nothing. Every pass sets the active source
+ * set and stats each JAR; one already indexed costs only that stat and fingerprint read and opens no
+ * "Index libraries" phase, but a JAR the earlier pass failed to index still has no fingerprint and is
+ * rescanned, opening a phase of its own.
  *
  * A pass that submits at least one JAR not already being indexed is profiled as the [Memprof] phase
  * "Index libraries", which ends, emitting `library_index_complete`, once the pass's JARs are indexed
@@ -46,6 +54,11 @@ class JvmLibraryIndexingService(
 	override val indexKey = JVM_LIBRARY_SYMBOL_INDEX
 	override val dbName = JvmSymbolIndex.DB_NAME_DEFAULT
 	override val indexName = JvmSymbolIndex.INDEX_NAME_LIBRARY
+
+	override suspend fun initialize(registry: IndexRegistry) {
+		super.initialize(registry)
+		refresh()
+	}
 
 	override suspend fun completePass(
 		jobs: List<Job>,
