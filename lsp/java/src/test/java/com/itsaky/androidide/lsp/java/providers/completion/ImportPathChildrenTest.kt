@@ -118,4 +118,45 @@ class ImportPathChildrenTest {
 
 		assertThat(children.ofPackage("com").names()).containsExactly("app", "boot")
 	}
+
+	@Test
+	fun `requireNotClass throws for a class in the sources`() {
+		val children = children(sources = trie("com.app.Main"))
+
+		assertThrows(RequireMemberCompletionException::class.java) {
+			children.requireNotClass("com.app.Main")
+		}
+	}
+
+	@Test
+	fun `requireNotClass throws for a class in the classpath`() {
+		val children = children(classpath = FakeClasspathPackages(listOf("com.lib.Widget")))
+
+		assertThrows(RequireMemberCompletionException::class.java) {
+			children.requireNotClass("com.lib.Widget")
+		}
+	}
+
+	@Test
+	fun `requireNotClass throws for a class in the boot classpath`() {
+		val children = children(boot = listOf(trie("java.util.List")))
+
+		assertThrows(RequireMemberCompletionException::class.java) {
+			children.requireNotClass("java.util.List")
+		}
+	}
+
+	@Test
+	fun `requireNotClass does not throw for a package`() {
+		val children =
+			children(
+				sources = trie("com.app.Main"),
+				classpath = FakeClasspathPackages(listOf("com.lib.Widget")),
+				boot = listOf(trie("java.util.List")),
+			)
+
+		children.requireNotClass("com.app")
+		children.requireNotClass("com.lib")
+		children.requireNotClass("java.util")
+	}
 }
