@@ -9,10 +9,16 @@ import com.itsaky.androidide.templates.StringParameter
 import com.itsaky.androidide.templates.Template
 import com.itsaky.androidide.templates.impl.ConstraintVerifier
 import org.eclipse.jgit.api.Git
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 class ProjectCreationManager(
 	private val context: Context,
 ) {
+	companion object {
+		private val log = LoggerFactory.getLogger(ProjectCreationManager::class.java)
+	}
+
 	fun execute(
 		template: Template<*>,
 		onStart: () -> Unit,
@@ -41,7 +47,7 @@ class ProjectCreationManager(
 						.call()
 						.use { }
 				} catch (e: Exception) {
-					e.printStackTrace()
+					log.error("Failed to initialize git repository", e)
 				}
 			}
 			result
