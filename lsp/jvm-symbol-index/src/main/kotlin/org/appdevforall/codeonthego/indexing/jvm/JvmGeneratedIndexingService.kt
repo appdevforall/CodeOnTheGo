@@ -36,7 +36,6 @@ val JVM_GENERATED_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-generated-symbols
 class JvmGeneratedIndexingService(
 	private val context: Context,
 ) : IndexingService {
-
 	companion object {
 		const val ID = "jvm-generated-indexing-service"
 		private const val DB_NAME = "jvm_generated_symbol_index.db"
@@ -53,11 +52,12 @@ class JvmGeneratedIndexingService(
 	private val coroutineScope = CoroutineScope(Dispatchers.Default)
 
 	override suspend fun initialize(registry: IndexRegistry) {
-		val index = JvmSymbolIndex.createSqliteIndex(
-			context = context,
-			dbName = DB_NAME,
-			indexName = INDEX_NAME,
-		)
+		val index =
+			JvmSymbolIndex.createSqliteIndex(
+				context = context,
+				dbName = DB_NAME,
+				indexName = INDEX_NAME,
+			)
 
 		this.generatedIndex = index
 		registry.register(JVM_GENERATED_SYMBOL_INDEX, index)
@@ -82,15 +82,17 @@ class JvmGeneratedIndexingService(
 	}
 
 	private suspend fun reindexGeneratedJars(forceReindex: Boolean) {
-		val index = this.generatedIndex ?: run {
-			log.warn("Not indexing generated JARs — index not initialized.")
-			return
-		}
+		val index =
+			this.generatedIndex ?: run {
+				log.warn("Not indexing generated JARs — index not initialized.")
+				return
+			}
 
-		val workspace = ProjectManagerImpl.getInstance().workspace ?: run {
-			log.warn("Not indexing generated JARs — workspace model not available.")
-			return
-		}
+		val workspace =
+			ProjectManagerImpl.getInstance().workspace ?: run {
+				log.warn("Not indexing generated JARs — workspace model not available.")
+				return
+			}
 
 		val generatedJars =
 			workspace.subProjects
