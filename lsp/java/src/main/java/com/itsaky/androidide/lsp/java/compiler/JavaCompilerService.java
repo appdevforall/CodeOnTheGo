@@ -167,6 +167,16 @@ public class JavaCompilerService implements CompilerProvider {
 		return Optional.empty();
 	}
 
+	/**
+	 * Returns the qualified names of the top-level classes whose simple name is exactly {@code simpleName} that a file in {@code importingPackage} may import.
+	 *
+	 * <p>
+	 * Blocks on the class index's disk I/O, so never call it on the main thread.
+	 */
+	public List<String> findImportableQualifiedNames(String simpleName, String importingPackage) {
+		return types.findImportableQualifiedNames(simpleName, importingPackage);
+	}
+
 	@Override
 	public Path[] findMemberReferences(String className, String memberName) {
 		List<Path> candidates = new ArrayList<>();
