@@ -1,12 +1,5 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
-import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.org.objectweb.asm.AnnotationVisitor
 import org.jetbrains.org.objectweb.asm.ClassReader
 import org.jetbrains.org.objectweb.asm.ClassVisitor
@@ -14,79 +7,15 @@ import org.jetbrains.org.objectweb.asm.FieldVisitor
 import org.jetbrains.org.objectweb.asm.MethodVisitor
 import org.jetbrains.org.objectweb.asm.Opcodes
 import org.jetbrains.org.objectweb.asm.Type
-import org.slf4j.LoggerFactory
 import java.io.InputStream
-import java.nio.file.Path
-import java.util.jar.JarFile
-import kotlin.io.path.pathString
 
 /**
- * Scans JAR files using ASM and produces [JvmSymbol]s lazily.
+ * Parses a Java class file with ASM into [JvmSymbol]s.
  *
- * For Java class files, this gives complete information.
- * For Kotlin class files, use [KotlinMetadataScanner] or
- * [CombinedJarScanner] instead — ASM cannot see Kotlin-specific
- * semantics like extensions, suspend, or nullable types.
+ * [CombinedJarScanner] routes Kotlin class files to [KotlinMetadataScanner] instead: ASM cannot see
+ * Kotlin-specific semantics like extensions, suspend, or nullable types.
  */
 object JarSymbolScanner {
-	private val log = LoggerFactory.getLogger(JarSymbolScanner::class.java)
-
-	@OptIn(KaImplementationDetail::class)
-	fun scan(
-		rootVf: VirtualFile,
-		sourceId: String = rootVf.path,
-	): Flow<JvmSymbol> =
-		flow {
-			val allFiles = LibraryUtils.getAllVirtualFilesFromRoot(rootVf, includeRoot = true)
-			for (vf in allFiles) {
-				if (!vf.name.endsWith(".class")) continue
-				if (vf.name == "module-info.class" || vf.name == "package-info.class") continue
-				try {
-					vf.contentsToByteArray().inputStream().use { input ->
-						for (symbol in parseClassFile(input, sourceId)) {
-							emit(symbol)
-						}
-					}
-				} catch (e: Exception) {
-					log.debug("Failed to parse {}: {}", vf.path, e.message)
-				}
-			}
-		}.flowOn(Dispatchers.IO)
-
-	fun scan(
-		jarPath: Path,
-		sourceId: String = jarPath.pathString,
-	): Flow<JvmSymbol> =
-		flow {
-			val jar =
-				try {
-					JarFile(jarPath.toFile())
-				} catch (e: Exception) {
-					log.warn("Failed to open JAR: {}", jarPath, e)
-					return@flow
-				}
-
-			jar.use {
-				val entries = jar.entries()
-				while (entries.hasMoreElements()) {
-					val entry = entries.nextElement()
-					if (!entry.name.endsWith(".class")) continue
-					if (entry.name == "module-info.class") continue
-					if (entry.name == "package-info.class") continue
-
-					try {
-						jar.getInputStream(entry).use { input ->
-							for (symbol in parseClassFile(input, sourceId)) {
-								emit(symbol)
-							}
-						}
-					} catch (e: Exception) {
-						log.debug("Failed to parse {}: {}", entry.name, e.message)
-					}
-				}
-			}
-		}.flowOn(Dispatchers.IO)
-
 	internal fun parseClassFile(
 		input: InputStream,
 		sourceId: String,
