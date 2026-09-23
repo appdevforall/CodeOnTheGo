@@ -36,76 +36,78 @@ import java.util.Objects
  * @author Akash Yadav
  */
 class ClassNamesCompletionProvider(
-  completingFile: Path,
-  cursor: Long,
-  compiler: JavaCompilerService,
-  settings: IServerSettings,
-  val root: CompilationUnitTree,
+	completingFile: Path,
+	cursor: Long,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
+	val root: CompilationUnitTree,
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {
+	override fun doComplete(
+		task: CompileTask,
+		path: TreePath,
+		partial: String,
+		endsWithParen: Boolean,
+	): CompletionResult {
+		val list = mutableListOf<com.itsaky.androidide.lsp.models.CompletionItem>()
+		val packageName = Objects.toString(root.packageName, "")
+		val uniques: MutableSet<String> = HashSet()
 
-  override fun doComplete(
-    task: CompileTask,
-    path: TreePath,
-    partial: String,
-    endsWithParen: Boolean,
-  ): CompletionResult {
-    val list = mutableListOf<com.itsaky.androidide.lsp.models.CompletionItem>()
-    val packageName = Objects.toString(root.packageName, "")
-    val uniques: MutableSet<String> = HashSet()
+		val file: Path = Paths.get(root.sourceFile.toUri())
+		val imports: Set<String> =
+			root.imports
+				.map { it.qualifiedIdentifier }
+				.mapNotNull { it.toString() }
+				.toSet()
 
-    val file: Path = Paths.get(root.sourceFile.toUri())
-    val imports: Set<String> =
-      root.imports.map { it.qualifiedIdentifier }.mapNotNull { it.toString() }.toSet()
+		abortCompletionIfCancelled()
+		for (className in compiler.packagePrivateTopLevelTypes(packageName)) {
+			val matchLevel = matchLevel(className, partial)
+			if (matchLevel == NO_MATCH) {
+				continue
+			}
 
-    abortCompletionIfCancelled()
-    for (className in compiler.packagePrivateTopLevelTypes(packageName)) {
-      val matchLevel = matchLevel(className, partial)
-      if (matchLevel == NO_MATCH) {
-        continue
-      }
+			list.add(classItem(imports, file, className, matchLevel))
+			uniques.add(className)
+		}
 
-      list.add(classItem(imports, file, className, matchLevel))
-      uniques.add(className)
-    }
+		abortCompletionIfCancelled()
 
-    abortCompletionIfCancelled()
+		val topLevelTypes = compiler.publicTopLevelTypes()
+		for (className in topLevelTypes) {
+			val matchLevel = matchLevel(simpleName(className), partial)
+			if (matchLevel == NO_MATCH) {
+				continue
+			}
 
-    val topLevelTypes = compiler.publicTopLevelTypes()
-    for (className in topLevelTypes) {
-      val matchLevel = matchLevel(simpleName(className), partial)
-      if (matchLevel == NO_MATCH) {
-        continue
-      }
+			if (uniques.contains(className)) {
+				continue
+			}
 
-      if (uniques.contains(className)) {
-        continue
-      }
+			list.add(classItem(imports, file, className, matchLevel))
+			uniques.add(className)
+		}
+		abortCompletionIfCancelled()
+		for (t in root.typeDecls) {
+			if (t !is ClassTree) {
+				continue
+			}
+			val candidate = if (t.simpleName == null) "" else t.simpleName
 
-      list.add(classItem(imports, file, className, matchLevel))
-      uniques.add(className)
-    }
-    abortCompletionIfCancelled()
-    for (t in root.typeDecls) {
-      if (t !is ClassTree) {
-        continue
-      }
-      val candidate = if (t.simpleName == null) "" else t.simpleName
+			val matchLevel = matchLevel(candidate, partial)
+			if (matchLevel == NO_MATCH) {
+				continue
+			}
 
-      val matchLevel = matchLevel(candidate, partial)
-      if (matchLevel == NO_MATCH) {
-        continue
-      }
+			val name = packageName + "." + t.simpleName
+			list.add(classItem(name, matchLevel))
 
-      val name = packageName + "." + t.simpleName
-      list.add(classItem(name, matchLevel))
+			if (list.size > CompletionProvider.MAX_COMPLETION_ITEMS) {
+				break
+			}
+		}
 
-      if (list.size > CompletionProvider.MAX_COMPLETION_ITEMS) {
-        break
-      }
-    }
+		log.info("...found {} class names", list.size)
 
-    log.info("...found {} class names", list.size)
-
-    return CompletionResult(list)
-  }
+		return CompletionResult(list)
+	}
 }
