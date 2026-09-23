@@ -254,7 +254,8 @@ internal fun doComplete(params: CompletionParams): CompletionResult {
 					throw e
 				}
 
-				logger.warn("An error occurred while computing completions for {}", params.file, e)
+				// The user sees an empty popup, identical to "no matches", so the log must not hide it.
+				logger.error("Completion analysis failed for {}, returning no items", params.file, e)
 				CompletionResult.EMPTY
 			} finally {
 				currentCancelChecker.remove()
