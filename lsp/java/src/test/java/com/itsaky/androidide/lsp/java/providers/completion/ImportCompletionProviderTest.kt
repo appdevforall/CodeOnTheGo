@@ -16,6 +16,7 @@ import com.itsaky.androidide.utils.Environment
 import io.mockk.every
 import io.mockk.mockk
 import openjdk.source.util.TreePath
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test
@@ -104,5 +105,28 @@ class ImportCompletionProviderTest {
 		val items = complete("", module = null, classpath = null, bootClasses = setOf("java.util.List"))
 
 		assertThat(items.labels()).containsExactly("static")
+	}
+
+	@Test
+	fun `one completion request queries the classpath children at most once`() {
+		val classpath =
+			CountingChildrenClasspathPackages(FakeClasspathPackages(listOf("com.lib.Widget", "com.lib.impl.Engine")))
+
+		complete("com.lib.", module(), classpath)
+
+		assertThat(classpath.childrenCalls).isAtMost(1)
+	}
+}
+
+/** Counts calls to [children] so a test can assert the classpath is queried at most once per request. */
+private class CountingChildrenClasspathPackages(
+	private val delegate: ClasspathClassNames,
+) : ClasspathClassNames by delegate {
+	var childrenCalls = 0
+		private set
+
+	override fun children(packageName: String): List<Child> {
+		childrenCalls++
+		return delegate.children(packageName)
 	}
 }
