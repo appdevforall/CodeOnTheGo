@@ -14,6 +14,5 @@ internal fun compilerWithClasspath(
 	module,
 	SourceFileManager.NO_MODULE,
 	bootClasses,
-	emptySet(),
 	ClasspathTypeLookup({ emptyList() }, { classpath }, { bootClasses }),
 )
