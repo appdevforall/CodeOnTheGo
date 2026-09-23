@@ -30,6 +30,7 @@ class KtFileMetadataIndex(
 					descriptor = KtFileMetadataDescriptor,
 					context = context,
 					dbName = dbName,
+					formatVersion = JvmSymbolIndex.FORMAT_VERSION,
 					name = "kt-file-metadata",
 				),
 			)
