@@ -56,6 +56,28 @@ internal class ImportPathChildren(
 			bootClasses.forEach { yieldAll(childrenOfNode(it, qualifiedName)) }
 		}.filter { offered.add(it.name) }
 
+	/**
+	 * Throws [RequireMemberCompletionException] when [qualifiedName] itself names a class in the
+	 * sources, the classpath or the boot classpath, so the path continues into that class's members.
+	 *
+	 * Unlike [of], this offers no children: use it to recheck a name whose children [ofPackage]
+	 * already offered, where asking the classpath for them again would only be discarded by the
+	 * offered-name dedup.
+	 */
+	fun requireNotClass(qualifiedName: String) {
+		if (isClassNode(sourceClasses, qualifiedName)) {
+			throw RequireMemberCompletionException()
+		}
+		classpath?.let {
+			if (qualifiedName.isNotEmpty() && it.isClass(qualifiedName)) {
+				throw RequireMemberCompletionException()
+			}
+		}
+		if (bootClasses.any { isClassNode(it, qualifiedName) }) {
+			throw RequireMemberCompletionException()
+		}
+	}
+
 	private fun walkToNode(
 		trie: ClassTrie,
 		packageName: String,
@@ -81,16 +103,26 @@ internal class ImportPathChildren(
 		}
 	}
 
+	private fun findNode(
+		trie: ClassTrie,
+		qualifiedName: String,
+	): ClassTrie.Node? = if (qualifiedName.isEmpty()) trie.root else trie.findNode(qualifiedName)
+
 	private fun childrenOfNode(
 		trie: ClassTrie,
 		qualifiedName: String,
 	): List<Child> {
-		val node = (if (qualifiedName.isEmpty()) trie.root else trie.findNode(qualifiedName)) ?: return emptyList()
+		val node = findNode(trie, qualifiedName) ?: return emptyList()
 		if (node.isClass) {
 			throw RequireMemberCompletionException()
 		}
 		return childrenOf(node)
 	}
+
+	private fun isClassNode(
+		trie: ClassTrie,
+		qualifiedName: String,
+	): Boolean = findNode(trie, qualifiedName)?.isClass == true
 
 	private fun childrenOf(node: ClassTrie.Node) = node.children.values.map { Child(it.name, it.qualifiedName, it.isClass) }
 }
