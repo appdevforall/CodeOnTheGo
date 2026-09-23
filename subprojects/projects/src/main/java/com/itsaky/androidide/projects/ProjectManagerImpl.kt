@@ -77,7 +77,6 @@ import kotlin.io.path.pathString
 class ProjectManagerImpl :
 	IProjectManager,
 	EventReceiver {
-
 	private var _indexingServiceManager: IndexingServiceManager? = null
 	lateinit var projectPath: String
 
@@ -90,8 +89,8 @@ class ProjectManagerImpl :
 			return _indexingServiceManager!!
 		}
 
-    @Volatile
-    internal var pluginProjectCached: Boolean? = null
+	@Volatile
+	internal var pluginProjectCached: Boolean? = null
 
 	override var gradleBuild: GradleModels.GradleBuild? = null
 	override var workspace: Workspace? = null
@@ -125,9 +124,10 @@ class ProjectManagerImpl :
 			log.warn("Project path not initialized before setup(); skipping plugin project cache check.")
 			pluginProjectCached = null
 		} else {
-			pluginProjectCached = withContext(Dispatchers.IO) {
-				File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
-			}
+			pluginProjectCached =
+				withContext(Dispatchers.IO) {
+					File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
+				}
 		}
 
 		this.gradleBuild = gradleBuild
@@ -194,11 +194,12 @@ class ProjectManagerImpl :
 	 * offering a recovery path (re-sync) — instead of silently dropping its code-completion symbols.
 	 */
 	private fun reportUnreadableClasspathJars(workspace: Workspace) {
-		val names = workspace.subProjects
-			.filterIsInstance<ModuleProject>()
-			.flatMap { it.unreadableClasspathJars }
-			.map { it.name }
-			.distinct()
+		val names =
+			workspace.subProjects
+				.filterIsInstance<ModuleProject>()
+				.flatMap { it.unreadableClasspathJars }
+				.map { it.name }
+				.distinct()
 		if (names.isEmpty()) {
 			return
 		}
