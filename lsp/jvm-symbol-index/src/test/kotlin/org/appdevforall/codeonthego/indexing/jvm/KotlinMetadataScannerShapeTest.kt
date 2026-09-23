@@ -51,6 +51,32 @@ class KotlinMetadataScannerShapeTest {
 		assertThat(companion.data.containingClassFqName).isEqualTo("kotlin.text.Regex")
 	}
 
+	private fun classifierFor(entryName: String): JvmSymbol = symbolsFor(entryName).single { it.kind.isClassifier }
+
+	@Test
+	fun `a nested class is keyed by its class file name, as the Java scanner keys it`() {
+		val companion = classifierFor("kotlin/text/Regex\$Companion.class")
+
+		// Metadata spells it "kotlin/text/Regex.Companion"; the class file and JarSymbolScanner use '$'.
+		assertThat(companion.key).isEqualTo("kotlin/text/Regex\$Companion")
+		assertThat((companion.data as JvmClassInfo).internalName).isEqualTo("kotlin/text/Regex\$Companion")
+	}
+
+	@Test
+	fun `a doubly nested class names its containing class in class file form`() {
+		val companion = classifierFor("kotlin/text/Regex\$Serialized\$Companion.class")
+
+		assertThat(companion.containingClassName).isEqualTo("kotlin/text/Regex\$Serialized")
+	}
+
+	@Test
+	fun `members of a nested class name it in class file form`() {
+		val members = symbolsFor("kotlin/text/Regex\$Companion.class").filter { it.kind.isCallable }
+
+		assertThat(members).isNotEmpty()
+		assertThat(members.map { it.containingClassName }.toSet()).containsExactly("kotlin/text/Regex\$Companion")
+	}
+
 	@Test
 	fun `a file facade is indexed as a class in its own right`() {
 		val symbols = symbolsFor("kotlin/io/CloseableKt.class")
