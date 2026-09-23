@@ -45,8 +45,8 @@ open class JvmSymbolIndex(
 		 * source file's symbols are re-indexed only when its metadata row says so; dropping the
 		 * symbols alone would leave files recorded as indexed with no symbols.
 		 *
-		 * Version 3 keys extension callables by their receiver, stores the key in the payload, and
-		 * stops treating a top-level class with '$' in its name as nested.
+		 * Version 3 added the package table: a version 2 file holds symbols with no packages, and an
+		 * unchanged source is never re-indexed, so it would answer every package lookup with nothing.
 		 */
 		const val FORMAT_VERSION = 3
 
