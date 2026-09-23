@@ -14,9 +14,7 @@ import java.io.Closeable
 class KtFileMetadataIndex(
 	private val backing: Index<KtFileMetadata>,
 ) : Closeable {
-
 	companion object {
-
 		/**
 		 * Creates a [KtFileMetadataIndex] backed by a SQLite database.
 		 *
@@ -25,7 +23,7 @@ class KtFileMetadataIndex(
 		 */
 		fun sqliteBacked(
 			context: Context,
-			dbName: String? = null
+			dbName: String? = null,
 		): KtFileMetadataIndex =
 			KtFileMetadataIndex(
 				SQLiteIndex(
@@ -33,7 +31,7 @@ class KtFileMetadataIndex(
 					context = context,
 					dbName = dbName,
 					name = "kt-file-metadata",
-				)
+				),
 			)
 	}
 
@@ -82,15 +80,14 @@ class KtFileMetadataIndex(
 			indexQuery {
 				eq(KEY_PACKAGE, packageFqName)
 				limit = 0
-			}
+			},
 		)
 
 	/**
 	 * Returns a [Sequence] of absolute file paths whose declared package exactly
 	 * matches [packageFqName].
 	 */
-	fun getFilePathsForPackage(packageFqName: String): Sequence<String> =
-		getFilesForPackage(packageFqName).map { it.filePath }
+	fun getFilePathsForPackage(packageFqName: String): Sequence<String> = getFilesForPackage(packageFqName).map { it.filePath }
 
 	/**
 	 * Returns `true` if at least one file with package [packageFqName] is
@@ -99,10 +96,13 @@ class KtFileMetadataIndex(
 	 * Pass an empty string for the root (default) package.
 	 */
 	fun packageExists(packageFqName: String): Boolean =
-		backing.query(indexQuery {
-			eq(KEY_PACKAGE, packageFqName)
-			limit = 1
-		}).firstOrNull() != null
+		backing
+			.query(
+				indexQuery {
+					eq(KEY_PACKAGE, packageFqName)
+					limit = 1
+				},
+			).firstOrNull() != null
 
 	/**
 	 * Returns the simple names of the direct child packages of [packageFqName].
@@ -140,10 +140,13 @@ class KtFileMetadataIndex(
 	 * symbols have not yet been extracted ([KtFileMetadata.isIndexed] is `false`).
 	 */
 	fun getUnindexedFiles(): Sequence<String> =
-		backing.query(indexQuery {
-			eq(KEY_IS_INDEXED, false.toString())
-			limit = 0
-		}).map { it.filePath }
+		backing
+			.query(
+				indexQuery {
+					eq(KEY_IS_INDEXED, false.toString())
+					limit = 0
+				},
+			).map { it.filePath }
 
 	/** Remove all records from the index. */
 	suspend fun clear() = backing.clear()

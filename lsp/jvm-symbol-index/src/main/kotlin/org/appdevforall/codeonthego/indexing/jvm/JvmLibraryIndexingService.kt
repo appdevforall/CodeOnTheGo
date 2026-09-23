@@ -40,7 +40,6 @@ val JVM_LIBRARY_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-library-symbols")
 class JvmLibraryIndexingService(
 	private val context: Context,
 ) : IndexingService {
-
 	companion object {
 		const val ID = "jvm-indexing-service"
 		private val log = LoggerFactory.getLogger(JvmLibraryIndexingService::class.java)
@@ -55,11 +54,12 @@ class JvmLibraryIndexingService(
 	private val coroutineScope = CoroutineScope(Dispatchers.Default)
 
 	override suspend fun initialize(registry: IndexRegistry) {
-		val jvmIndex = JvmSymbolIndex.createSqliteIndex(
-			context = context,
-			dbName = JvmSymbolIndex.DB_NAME_DEFAULT,
-			indexName = JvmSymbolIndex.INDEX_NAME_LIBRARY
-		)
+		val jvmIndex =
+			JvmSymbolIndex.createSqliteIndex(
+				context = context,
+				dbName = JvmSymbolIndex.DB_NAME_DEFAULT,
+				indexName = JvmSymbolIndex.INDEX_NAME_LIBRARY,
+			)
 
 		this.libraryIndex = jvmIndex
 		registry.register(JVM_LIBRARY_SYMBOL_INDEX, jvmIndex)
@@ -81,15 +81,17 @@ class JvmLibraryIndexingService(
 	}
 
 	private suspend fun reindexLibraries() {
-		val index = this.libraryIndex ?: run {
-			log.warn("Not indexing libraries. Index not initialized.")
-			return
-		}
+		val index =
+			this.libraryIndex ?: run {
+				log.warn("Not indexing libraries. Index not initialized.")
+				return
+			}
 
-		val workspace = ProjectManagerImpl.getInstance().workspace ?: run {
-			log.warn("Not indexing libraries. Workspace model not available.")
-			return
-		}
+		val workspace =
+			ProjectManagerImpl.getInstance().workspace ?: run {
+				log.warn("Not indexing libraries. Workspace model not available.")
+				return
+			}
 
 		val currentJars =
 			workspace.subProjects
@@ -104,8 +106,7 @@ class JvmLibraryIndexingService(
 
 						addAll(project.getCompileClasspaths(excludeSourceGeneratedClassPath = true))
 					}
-				}
-				.filter { jar -> jar.exists() && isIndexableJar(jar.toPath()) }
+				}.filter { jar -> jar.exists() && isIndexableJar(jar.toPath()) }
 				.map { jar -> jar.absolutePath }
 				.toSet()
 
