@@ -10,7 +10,12 @@ package org.appdevforall.codeonthego.indexing.api
 data class IndexQuery(
 	/** Exact match predicates: field name -> expected value. */
 	val exactMatch: Map<String, String> = emptyMap(),
-	/** Prefix match predicates: field name -> prefix (case-insensitive). */
+	/**
+	 * Prefix match predicates: field name -> prefix.
+	 *
+	 * Case-insensitive on a field declared [prefixSearchable][IndexField.prefixSearchable];
+	 * case-sensitive on any other field.
+	 */
 	val prefixMatch: Map<String, String> = emptyMap(),
 	/**
 	 * Set-membership predicates: field name to the values that field may take.
@@ -68,6 +73,8 @@ class IndexQueryBuilder {
 	private val pres = mutableMapOf<String, Boolean>()
 	private val anyOfValues = mutableMapOf<String, Collection<String>>()
 	var sourceId: String? = null
+
+	/** See [IndexQuery.sourceIds]. */
 	var sourceIds: Collection<String>? = null
 	var key: String? = null
 	var limit: Int = 200
@@ -80,7 +87,7 @@ class IndexQueryBuilder {
 		exact[field] = value
 	}
 
-	/** Prefix match on a field (case-insensitive). */
+	/** See [IndexQuery.prefixMatch]. */
 	fun prefix(
 		field: String,
 		value: String,
@@ -88,12 +95,16 @@ class IndexQueryBuilder {
 		prefix[field] = value
 	}
 
-	/** Field must hold one of [values]. */
+	/**
+	 * Field must hold one of [values].
+	 *
+	 * Copies [values] so a later mutation of the caller's collection cannot change the built query.
+	 */
 	fun anyOf(
 		field: String,
 		values: Collection<String>,
 	) {
-		anyOfValues[field] = values
+		anyOfValues[field] = values.toList()
 	}
 
 	/** Field must be non-null. */
