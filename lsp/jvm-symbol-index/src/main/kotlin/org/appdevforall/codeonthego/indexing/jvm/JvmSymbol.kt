@@ -174,6 +174,19 @@ data class JvmSymbol(
 }
 
 /**
+ * The identity two rows stand for "the same symbol" when deduplicating matches drawn from more than
+ * one source or index.
+ *
+ * A classifier's qualified name already identifies it uniquely, but a callable's does not -- two
+ * overloads share one -- so a callable is identified by its full [JvmSymbol.key] instead. This is why
+ * the same class indexed from two JARs on the active source set (composite-keyed by
+ * `(sourceId, key)`, so both rows exist) collapses to one match: both rows share this identity even
+ * though their `(sourceId, key)` pairs differ.
+ */
+val JvmSymbol.dedupeKey: String
+	get() = if (kind.isCallable) key else fqName
+
+/**
  * Base for all type-specific symbol data.
  * Every variant provides [containingClassName] (empty for top-level).
  */
