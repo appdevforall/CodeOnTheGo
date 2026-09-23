@@ -120,6 +120,18 @@ class JvmSymbolIndexKindScopeTest {
 		}
 
 	@Test
+	fun `a prefix lookup can be restricted by kind`() =
+		runTest {
+			val index = index()
+			index.insert(classifier("Widget"))
+			index.insert(member("WidgetFactory", owner = "Factory"))
+
+			val found = index.findByPrefix("Widget", kinds = JvmSymbolKind.CLASSIFIER_KINDS).toList()
+
+			assertThat(found.map { it.shortName }).containsExactly("Widget")
+		}
+
+	@Test
 	fun `a file facade is not offered as a classifier`() =
 		runTest {
 			val index = index()
