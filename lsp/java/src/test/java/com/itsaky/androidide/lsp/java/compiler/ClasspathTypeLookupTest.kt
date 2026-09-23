@@ -6,6 +6,7 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -41,6 +42,10 @@ class ClasspathTypeLookupTest {
 					data = JvmClassInfo(),
 				)
 			}
+
+		override fun isClass(qualifiedName: String) = qualifiedName in names
+
+		override fun children(packageName: String) = emptyList<ModuleClasspathLookup.Child>()
 	}
 
 	private fun lookup(
