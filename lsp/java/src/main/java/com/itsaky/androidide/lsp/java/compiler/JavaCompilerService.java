@@ -197,11 +197,6 @@ public class JavaCompilerService implements CompilerProvider {
 	}
 
 	@Override
-	public List<String> findQualifiedNames(String simpleName, boolean onlyOne) {
-		return types.findQualifiedNames(simpleName, onlyOne);
-	}
-
-	@Override
 	public Path findTypeDeclaration(String className) {
 		Path fastFind = findPublicTypeDeclaration(className);
 		if (fastFind != NOT_FOUND) {

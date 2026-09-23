@@ -65,16 +65,16 @@ class JavaCompilerServiceClassLookupTest {
 		}
 
 	@Test
-	fun `qualified names come from the index`() {
+	fun `importable qualified names come from the index`() {
 		val compiler = compilerWithClasspath(null, indexed)
 
-		assertThat(compiler.findQualifiedNames("Indexed", false)).containsExactly("com.indexed.Indexed")
+		assertThat(compiler.findImportableQualifiedNames("Indexed", "com.app")).containsExactly("com.indexed.Indexed")
 	}
 
 	@Test
 	fun `a copy answers from the same class lookup`() {
 		val compiler = compilerWithClasspath(null, indexed).copy()
 
-		assertThat(compiler.findQualifiedNames("Indexed", true)).containsExactly("com.indexed.Indexed")
+		assertThat(compiler.findImportableQualifiedNames("Indexed", "com.app")).containsExactly("com.indexed.Indexed")
 	}
 }
