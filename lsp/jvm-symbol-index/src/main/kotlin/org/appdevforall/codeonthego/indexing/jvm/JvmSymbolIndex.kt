@@ -44,8 +44,11 @@ open class JvmSymbolIndex(
 		 * produced by an older scanner get replaced. [KtFileMetadataIndex] shares it because a
 		 * source file's symbols are re-indexed only when its metadata row says so; dropping the
 		 * symbols alone would leave files recorded as indexed with no symbols.
+		 *
+		 * Version 3 added the package table: a version 2 file holds symbols with no packages, and an
+		 * unchanged source is never re-indexed, so it would answer every package lookup with nothing.
 		 */
-		const val FORMAT_VERSION = 2
+		const val FORMAT_VERSION = 3
 
 		/**
 		 * Create (or get) a JVM symbol index backed by SQLite.
