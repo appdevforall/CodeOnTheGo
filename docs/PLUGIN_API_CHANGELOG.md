@@ -36,6 +36,13 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.36 — unreleased
+- **added — `SnippetContribution.language` accepts `kotlin`** _(ADFA-6189)_
+  The host keys Kotlin snippets under `kt`, so a contribution declaring `kotlin` registered
+  under a language nothing looks up and never appeared in a `.kt` file. The id is now
+  lower-cased and `kotlin` is aliased to `kt`; `java`, `kt` and `xml` are unchanged.
+  Accepted ids are `java`, `kt` (or `kotlin`) and `xml` — anything else registers but is
+  never queried.
+
 - **added — Build provenance in every `.cgp`** _(ADFA-5394)_ **[verified]**
   A plugin artifact now records the commit it was built from, so a crash report or a
   support question can be traced back to source. Nothing in the pipeline carried a git
