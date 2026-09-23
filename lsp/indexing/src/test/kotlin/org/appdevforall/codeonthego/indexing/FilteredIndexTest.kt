@@ -176,4 +176,24 @@ class FilteredIndexTest {
 			filtered.close()
 			assertThat(filtered.activeSources()).isEmpty()
 		}
+
+	@Test
+	fun `byKey returns nothing for a key only in an inactive source`() =
+		runTest {
+			val (_, filtered) = setupBackingAndFiltered()
+			filtered.activateSource("src1")
+
+			assertThat(filtered.query(IndexQuery.byKey("k3")).toList()).isEmpty()
+		}
+
+	@Test
+	fun `get returns the active source's entry when an inactive source shares the key`() =
+		runTest {
+			val backing = InMemoryIndex(descriptor)
+			backing.insert(Entry("shared", "src1", "inactive"))
+			backing.insert(Entry("shared", "src2", "active"))
+			val filtered = FilteredIndex(backing).apply { activateSource("src2") }
+
+			assertThat(filtered.get("shared")!!.value).isEqualTo("active")
+		}
 }

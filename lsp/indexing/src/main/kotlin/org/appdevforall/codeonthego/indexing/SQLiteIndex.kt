@@ -25,20 +25,25 @@ import kotlin.collections.iterator
  * Creates a table dynamically based on the [IndexDescriptor]:
  * ```
  * CREATE TABLE IF NOT EXISTS {name} (
- *     _key TEXT PRIMARY KEY,
+ *     _key TEXT NOT NULL,
  *     _source_id TEXT NOT NULL,
  *     f_{field1} TEXT,
  *     f_{field1}_lower TEXT,  -- if prefix-searchable
  *     f_{field2} TEXT,
  *     ...
- *     _payload BLOB NOT NULL
+ *     _payload BLOB NOT NULL,
+ *     PRIMARY KEY (_source_id, _key)
  * );
  * ```
  *
+ * A row is identified by its source and key together, so the same key (a class present in two
+ * JARs, say) has one row per source. The primary key leads with `_source_id`, which is what serves
+ * source-scoped reads and bulk removal.
+ *
  * SQL indexes are created on:
- * - `_source_id` (for bulk removal)
+ * - `(_key, _source_id)` (for key lookups, already ordered by source)
  * - Each `f_{field}` (for equality filter)
- * - Each `f_{field}_lower` (for prefix search via `LIKE 'prefix%'`)
+ * - Each `f_{field}_lower` (for prefix search)
  *
  * Uses WAL journal mode for concurrent read/write performance.
  * Inserts are batched inside transactions for throughput.
@@ -82,13 +87,13 @@ class SQLiteIndex<T : Indexable>(
 
 	private val tableName = descriptor.name.replace(Regex("[^a-zA-Z0-9_]"), "_")
 
-	// Field column names: "f_{fieldName}"
+	/** Field column names: `f_{fieldName}`. */
 	private val fieldColumns =
 		descriptor.fields.associate { field ->
 			field.name to "f_${field.name}"
 		}
 
-	// Prefix-searchable fields also get a "_lower" column
+	/** Prefix-searchable fields also get a lowercased `f_{fieldName}_lower` column. */
 	private val prefixColumns =
 		descriptor.fields
 			.filter { it.prefixSearchable }
@@ -162,7 +167,7 @@ class SQLiteIndex<T : Indexable>(
 			ifOpen(null) {
 				val cursor =
 					db.query(
-						"SELECT _payload FROM $tableName WHERE _key = ? LIMIT 1",
+						"SELECT _payload FROM $tableName WHERE _key = ? ORDER BY _source_id LIMIT 1",
 						arrayOf(key),
 					)
 				cursor.use {
@@ -324,7 +329,7 @@ class SQLiteIndex<T : Indexable>(
 	private fun createTable(db: SupportSQLiteDatabase) {
 		val columns =
 			buildString {
-				append("_key TEXT PRIMARY KEY, ")
+				append("_key TEXT NOT NULL, ")
 				append("_source_id TEXT NOT NULL, ")
 
 				for (field in descriptor.fields) {
@@ -337,14 +342,14 @@ class SQLiteIndex<T : Indexable>(
 					}
 				}
 
-				append("_payload BLOB NOT NULL")
+				append("_payload BLOB NOT NULL, ")
+				append("PRIMARY KEY (_source_id, _key)")
 			}
 
 		db.execSQL("CREATE TABLE IF NOT EXISTS $tableName ($columns)")
 
-		// Indexes
 		db.execSQL(
-			"CREATE INDEX IF NOT EXISTS idx_${tableName}_source ON $tableName(_source_id)",
+			"CREATE INDEX IF NOT EXISTS idx_${tableName}_key ON $tableName(_key, _source_id)",
 		)
 
 		for (field in descriptor.fields) {
@@ -431,13 +436,17 @@ class SQLiteIndex<T : Indexable>(
 	 * Returns a single `null` chunk when the query is unscoped, and no chunks at all when it is
 	 * scoped to an empty set -- the caller then runs no statement and yields nothing, which is the
 	 * difference between "any source" and "none of them".
+	 *
+	 * Chunks come in ascending source id order. Together with the per-statement `ORDER BY` on key
+	 * queries, that is what makes a limited key lookup return the smallest source id overall rather
+	 * than the smallest within whichever chunk happened to run first.
 	 */
 	private fun sourceIdChunks(query: IndexQuery): List<List<String>?> {
 		val sourceIds = query.sourceIds ?: return listOf(null)
 		if (sourceIds.isEmpty()) {
 			return emptyList()
 		}
-		return sourceIds.distinct().chunked(SOURCE_ID_CHUNK_SIZE)
+		return sourceIds.toSortedSet().chunked(SOURCE_ID_CHUNK_SIZE)
 	}
 
 	private fun buildSelectQuery(
@@ -452,6 +461,9 @@ class SQLiteIndex<T : Indexable>(
 				if (where.isNotEmpty()) {
 					append(" WHERE ")
 					append(where)
+				}
+				if (query.key != null) {
+					append(" ORDER BY _source_id")
 				}
 				if (limit != Int.MAX_VALUE) {
 					append(" LIMIT $limit")

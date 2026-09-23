@@ -8,9 +8,9 @@ package org.appdevforall.codeonthego.indexing.api
  * for Kotlin symbols, Android resources, Python declarations, etc.
  */
 data class IndexQuery(
-	/** Exact match predicates: field name → expected value. */
+	/** Exact match predicates: field name -> expected value. */
 	val exactMatch: Map<String, String> = emptyMap(),
-	/** Prefix match predicates: field name → prefix (case-insensitive). */
+	/** Prefix match predicates: field name -> prefix (case-insensitive). */
 	val prefixMatch: Map<String, String> = emptyMap(),
 	/**
 	 * Set-membership predicates: field name to the values that field may take.
@@ -21,7 +21,7 @@ data class IndexQuery(
 	 */
 	val anyOf: Map<String, Collection<String>> = emptyMap(),
 	/**
-	 * Presence predicates: field name → whether the field must be
+	 * Presence predicates: field name -> whether the field must be
 	 * non-null (true) or null (false).
 	 */
 	val presence: Map<String, Boolean> = emptyMap(),
@@ -36,7 +36,13 @@ data class IndexQuery(
 	 * rows that were only going to be discarded.
 	 */
 	val sourceIds: Collection<String>? = null,
-	/** Filter by key (exact). */
+	/**
+	 * Filter by key (exact).
+	 *
+	 * Several sources can hold the same key. A key query returns its matches in ascending source id
+	 * order, so with a limit of 1 it yields the one with the smallest source id among the sources in
+	 * scope.
+	 */
 	val key: String? = null,
 	/** Maximum number of results. 0 = unlimited (use with care). */
 	val limit: Int = 200,
@@ -45,7 +51,7 @@ data class IndexQuery(
 		/** Match everything up to [limit]. */
 		val ALL = IndexQuery()
 
-		/** Exact key lookup. */
+		/** Exact key lookup: the entry with the smallest source id among those holding [key]. */
 		fun byKey(key: String) = IndexQuery(key = key, limit = 1)
 
 		/** All entries from a specific source. */

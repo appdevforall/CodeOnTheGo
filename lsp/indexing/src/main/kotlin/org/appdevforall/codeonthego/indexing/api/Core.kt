@@ -3,9 +3,10 @@ package org.appdevforall.codeonthego.indexing.api
 /**
  * Any object that can be stored in an index.
  *
- * The only requirements are a unique key (for deduplication and
- * point lookups) and a source identifier (for bulk operations
- * when the source changes).
+ * The only requirements are a key (for deduplication and point
+ * lookups) and a source identifier (for bulk operations when the
+ * source changes). An entry is identified by the two together: the
+ * same key may appear once in each of several sources.
  *
  * What constitutes a "key" and "source" depends entirely on
  * the consumer:
@@ -14,7 +15,7 @@ package org.appdevforall.codeonthego.indexing.api
  * - For Python symbols: key = qualified name, source = .py file path
  */
 interface Indexable {
-	/** Unique identifier within the index. */
+	/** Identifies the entry within its source. */
 	val key: String
 
 	/**

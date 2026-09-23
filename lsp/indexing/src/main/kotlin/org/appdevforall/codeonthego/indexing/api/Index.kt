@@ -23,6 +23,9 @@ interface ReadableIndex<T : Indexable> {
 
 	/**
 	 * Point lookup by key. Returns null if not found.
+	 *
+	 * When several sources hold an entry for [key], returns the one with the smallest source id, so
+	 * the answer does not depend on insertion order.
 	 */
 	suspend fun get(key: String): T?
 
@@ -69,8 +72,8 @@ interface WritableIndex<T : Indexable> {
 	 * Insert entries from a [Sequence].
 	 *
 	 * Entries are consumed lazily from the sequence and batched
-	 * internally for throughput. If an entry with the same key
-	 * already exists, it is replaced.
+	 * internally for throughput. If an entry with the same source
+	 * and key already exists, it is replaced.
 	 */
 	suspend fun insertAll(entries: Sequence<T>)
 
