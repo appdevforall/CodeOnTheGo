@@ -16,6 +16,9 @@ import java.io.InputStream
  * Kotlin-specific semantics like extensions, suspend, or nullable types.
  */
 object JarSymbolScanner {
+	private const val VISIBILITY_AND_STATIC_FLAGS =
+		Opcodes.ACC_PUBLIC or Opcodes.ACC_PRIVATE or Opcodes.ACC_PROTECTED or Opcodes.ACC_STATIC
+
 	internal fun parseClassFile(
 		input: InputStream,
 		sourceId: String,
@@ -67,6 +70,21 @@ object JarSymbolScanner {
 			shortClassName = afterPackage.replace('$', '.')
 
 			isInnerClass = name.contains('$')
+		}
+
+		/*
+		 * JVMS 4.1 forbids ACC_PRIVATE, ACC_PROTECTED and ACC_STATIC in a class file header, so javac
+		 * records a nested class's declared visibility and staticness only in its own InnerClasses
+		 * entry. ASM visits that entry before any member, so the member gates below see the real flags.
+		 */
+		override fun visitInnerClass(
+			name: String,
+			outerName: String?,
+			innerName: String?,
+			access: Int,
+		) {
+			if (name != className) return
+			classAccess = (classAccess and VISIBILITY_AND_STATIC_FLAGS.inv()) or (access and VISIBILITY_AND_STATIC_FLAGS)
 		}
 
 		override fun visitAnnotation(
