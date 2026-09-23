@@ -30,7 +30,8 @@ val JVM_GENERATED_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-generated-symbols
 class JvmGeneratedIndexingService(
 	context: Context,
 	progressTracker: IndexingProgressTracker,
-) : JarIndexingService(context, progressTracker) {
+	unreadableJarFilter: (Collection<String>) -> List<String> = { it.toList() },
+) : JarIndexingService(context, progressTracker, unreadableJarFilter = unreadableJarFilter) {
 	companion object {
 		const val ID = "jvm-generated-indexing-service"
 		private const val DB_NAME = "jvm_generated_symbol_index.db"

@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.indexing.jvm
 import android.content.Context
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.Workspace
+import com.itsaky.androidide.projects.reportUnreadableClasspathJars
 import com.itsaky.androidide.tasks.cancelIfActive
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,7 @@ import org.appdevforall.codeonthego.indexing.service.IndexingService
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Paths
+import java.util.Collections
 
 /**
  * Base [IndexingService] for a persistent [JvmSymbolIndex] over a set of JARs derived from the
@@ -32,6 +34,18 @@ import java.nio.file.Paths
  * Every pass reports the JARs it submits to [progressTracker] and closes its tracker pass in a
  * `finally`, so a pass that throws or is cancelled cannot leave the indexing state stuck.
  *
+ * A JAR whose scan throws [UnreadableJarException] (see [CombinedJarScanner.scan]) is recorded and
+ * rethrown, so [BackgroundIndexer][org.appdevforall.codeonthego.indexing.util.BackgroundIndexer]
+ * logs the failure and writes no fingerprint for it, which makes the next pass retry it. Once the
+ * pass's jobs have all finished, every recorded JAR is passed through [unreadableJarFilter] - which
+ * a caller shares across every service built against the same project session (typically
+ * [IndexingServiceManager.filterNewlyUnreadableJars][org.appdevforall.codeonthego.indexing.service.IndexingServiceManager.filterNewlyUnreadableJars])
+ * so a JAR already reported this session is not reported again - and [unreadableJarReporter] is
+ * called once with the names of whatever [unreadableJarFilter] returns, or not at all if that is
+ * empty. The JAR is still retried every pass either way, since retry depends only on the missing
+ * fingerprint. A JAR deleted between [jarsToIndex] and its scan also gets no fingerprint, but is
+ * neither recorded nor reported.
+ *
  * The scope carries a [SupervisorJob] and a [CoroutineExceptionHandler]: a [refresh] whose
  * [jarsToIndex] throws logs the failure instead of cancelling the scope, so a later [refresh]
  * still runs its pass.
@@ -40,6 +54,8 @@ abstract class JarIndexingService(
 	protected val context: Context,
 	private val progressTracker: IndexingProgressTracker,
 	private val workspaceSupplier: () -> Workspace? = { ProjectManagerImpl.getInstance().workspace },
+	private val unreadableJarReporter: (List<String>) -> Unit = ::reportUnreadableClasspathJars,
+	private val unreadableJarFilter: (Collection<String>) -> List<String> = { it.toList() },
 ) : IndexingService {
 	companion object {
 		private val log = LoggerFactory.getLogger(JarIndexingService::class.java)
@@ -91,8 +107,15 @@ abstract class JarIndexingService(
 	fun refresh(): Job =
 		coroutineScope.launch {
 			progressTracker.openPass().use { pass ->
-				val jobs = indexingMutex.withLock { reindex(pass) }
+				val unreadableJars = Collections.synchronizedSet(linkedSetOf<String>())
+				val jobs = indexingMutex.withLock { reindex(pass, unreadableJars) }
 				completePass(jobs, pass.newlyCounted)
+				if (unreadableJars.isNotEmpty()) {
+					val newlyUnreadable = unreadableJarFilter(unreadableJars)
+					if (newlyUnreadable.isNotEmpty()) {
+						unreadableJarReporter(newlyUnreadable.map { File(it).name }.distinct())
+					}
+				}
 			}
 		}
 
@@ -111,9 +134,13 @@ abstract class JarIndexingService(
 
 	/**
 	 * Submits every JAR whose fingerprint changed since it was last indexed, tracking each on [pass],
-	 * and returns the submitted jobs.
+	 * and returns the submitted jobs. A JAR whose scan cannot open it has its path added to
+	 * [unreadableJars].
 	 */
-	private suspend fun reindex(pass: IndexingProgressTracker.Pass): List<Job> {
+	private suspend fun reindex(
+		pass: IndexingProgressTracker.Pass,
+		unreadableJars: MutableSet<String>,
+	): List<Job> {
 		val index =
 			this.jarIndex ?: run {
 				log.warn("[{}] Not indexing. Index not initialized.", id)
@@ -146,7 +173,7 @@ abstract class JarIndexingService(
 			if (index.sourceFingerprint(jarPath) != fingerprint) {
 				val job =
 					index.indexSource(jarPath, skipIfExists = true, fingerprint = fingerprint) { sourceId ->
-						CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
+						scanTrackingUnreadable(jarPath, sourceId, unreadableJars)
 					}
 				pass.track(jarPath, job)
 				jobs += job
@@ -166,6 +193,25 @@ abstract class JarIndexingService(
 		jarIndex?.close()
 		jarIndex = null
 	}
+
+	/**
+	 * Scans [jarPath], adding it to [unreadableJars] and rethrowing if the scan throws
+	 * [UnreadableJarException]. The caller's consumption of the returned sequence, not this call
+	 * itself, is what actually runs the scan.
+	 */
+	private fun scanTrackingUnreadable(
+		jarPath: String,
+		sourceId: String,
+		unreadableJars: MutableSet<String>,
+	): Sequence<JvmSymbol> =
+		sequence {
+			try {
+				yieldAll(CombinedJarScanner.scan(Paths.get(jarPath), sourceId))
+			} catch (e: UnreadableJarException) {
+				unreadableJars += jarPath
+				throw e
+			}
+		}
 }
 
 /**

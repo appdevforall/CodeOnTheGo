@@ -43,17 +43,17 @@ class JarFsClasspathReader : IClasspathReader {
 
 	/**
 	 * JARs skipped during the most recent [listClasses] call because they were corrupt or could not
-	 * be read (e.g. a truncated download / incomplete offline provisioning). Exposed so a caller can
-	 * surface them to the user and offer a recovery path, instead of silently dropping that library's
-	 * symbols. Reset at the start of every [listClasses] call.
+	 * be read (e.g. a truncated download / incomplete offline provisioning). Not reported to the
+	 * user: the JAR indexing pass in `:lsp:jvm-symbol-index` is what surfaces an unreadable JAR now,
+	 * from its own scan of the same JARs. Reset at the start of every [listClasses] call.
 	 */
 	val unreadableJars: List<File>
 		get() = _unreadableJars.toList()
 
 	/**
 	 * Lists the classes contained in the given JAR files. Any JAR that is corrupt or cannot be read is
-	 * skipped (rather than aborting the whole scan) and recorded in [unreadableJars] for reporting.
-	 * [unreadableJars] is reset at the start of each call.
+	 * skipped (rather than aborting the whole scan) and recorded in [unreadableJars]. [unreadableJars]
+	 * is reset at the start of each call.
 	 */
 	override fun listClasses(files: Collection<File>): ImmutableSet<ClassInfo> {
 		_unreadableJars.clear()
