@@ -20,6 +20,7 @@ package com.itsaky.androidide.templates
 import android.view.View
 import androidx.annotation.StringRes
 import androidx.annotation.StyleableRes
+import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.templates.Language.Java
 import com.itsaky.androidide.templates.Language.Kotlin
 import com.itsaky.androidide.templates.ParameterConstraint.NONEMPTY
@@ -450,7 +451,7 @@ inline fun projectNameParameter(
 			android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
 		imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
 		maxLines = 1
-		this.tooltipTag = "setup.app.name"
+		this.tooltipTag = TooltipTag.PROJECT_NAME_PARAM
 		configure()
 	}
 
@@ -466,7 +467,7 @@ inline fun packageNameParameter(
 			android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
 		imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_NEXT
 		maxLines = 1
-		this.tooltipTag = "setup.package.name"
+		this.tooltipTag = TooltipTag.PACKAGE_NAME_PARAM
 		configure()
 	}
 
@@ -483,7 +484,7 @@ inline fun projectLanguageParameter(
 			R.drawable.ic_language_java
 		}
 	}
-	this.tooltipTag = "setup.project.language"
+	this.tooltipTag = TooltipTag.PROJECT_LANGUAGE_PARAM
 	configure()
 	val userFilter = filter
 	filter = { it != Language.Unknown && (userFilter == null || userFilter(it)) }
@@ -497,7 +498,7 @@ inline fun minSdkParameter(
 		default = Sdk.Lollipop
 		displayName = Sdk::displayName
 		startIcon = { R.drawable.ic_min_sdk }
-		this.tooltipTag = "setup.minimum.sdk"
+		this.tooltipTag = TooltipTag.MIN_SDK_PARAM
 		configure()
 	}
 
@@ -507,7 +508,7 @@ inline fun useKtsParameter(
 	booleanParameter {
 		name = string.msg_use_kts
 		default = true
-		this.tooltipTag = "setup.kotlin.script.language"
+		this.tooltipTag = TooltipTag.USE_KTS_PARAM
 		configure()
 	}
 
@@ -517,6 +518,6 @@ inline fun initGitParameter(
 	booleanParameter {
 		name = string.initialize_git_repository
 		default = false
-		this.tooltipTag = ""
+		this.tooltipTag = TooltipTag.INIT_GIT_REPO
 		configure()
 	}

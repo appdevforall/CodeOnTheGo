@@ -278,6 +278,12 @@ object TooltipTag {
 	const val SETUP_PREVIOUS = "setup.previous"
 	const val SETUP_OVERVIEW = "setup.overview"
 	const val SETUP_CREATE_PROJECT = "setup.create.project"
+	const val PROJECT_NAME_PARAM = "setup.app.name"
+	const val PACKAGE_NAME_PARAM = "setup.package.name"
+	const val PROJECT_LANGUAGE_PARAM = "setup.project.language"
+	const val MIN_SDK_PARAM = "setup.minimum.sdk"
+	const val USE_KTS_PARAM = "setup.kotlin.script.language"
+	const val INIT_GIT_REPO = "project.git.init"
 
 	// Debugger
 	const val PROJECT_DEBUGGER_OUTPUT = "project.debugger.output"
