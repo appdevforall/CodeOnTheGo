@@ -1,7 +1,6 @@
 package com.itsaky.androidide.lsp.java.compiler
 
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.utils.ClassTrie
 import com.itsaky.androidide.utils.Environment
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
@@ -55,34 +54,16 @@ class JavaCompilerServiceClassLookupTest {
 			override fun children(packageName: String) = emptyList<ModuleClasspathLookup.Child>()
 		}
 
-	private fun compilerWithTrieClass(trieClass: String): JavaCompilerService {
-		val trie = ClassTrie().apply { append(trieClass) }
-		return JavaCompilerService(
-			null,
-			SourceFileManager.NO_MODULE,
-			emptySet(),
-			trie.allClassNames(),
-			ClasspathTypeLookup({ emptyList() }, { indexed }, { emptySet() }),
-		)
-	}
-
-	@Test
-	fun `qualified names do not come from the classpath trie`() {
-		val compiler = compilerWithTrieClass("com.trie.OnlyInTrie")
-
-		assertThat(compiler.findQualifiedNames("OnlyInTrie", false)).isEmpty()
-	}
-
 	@Test
 	fun `qualified names come from the index`() {
-		val compiler = compilerWithTrieClass("com.trie.OnlyInTrie")
+		val compiler = compilerWithClasspath(null, indexed)
 
 		assertThat(compiler.findQualifiedNames("Indexed", false)).containsExactly("com.indexed.Indexed")
 	}
 
 	@Test
 	fun `a copy answers from the same class lookup`() {
-		val compiler = compilerWithTrieClass("com.trie.OnlyInTrie").copy()
+		val compiler = compilerWithClasspath(null, indexed).copy()
 
 		assertThat(compiler.findQualifiedNames("Indexed", true)).containsExactly("com.indexed.Indexed")
 	}

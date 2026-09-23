@@ -61,6 +61,4 @@ public interface CompilerProvider {
 	ParseTask parse(JavaFileObject file);
 
 	ParseTask parse(Path file);
-
-	TreeSet<String> publicTopLevelTypes();
 }

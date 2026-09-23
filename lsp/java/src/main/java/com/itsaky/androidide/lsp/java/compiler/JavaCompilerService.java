@@ -77,7 +77,6 @@ public class JavaCompilerService implements CompilerProvider {
 	private static final Cache<String, Boolean> cacheContainsWord = new Cache<>();
 	private static final Cache<Void, List<String>> cacheContainsType = new Cache<>();
 	private static final Logger LOG = LoggerFactory.getLogger(JavaCompilerService.class);
-	protected final Set<String> classPathClasses;
 	protected final List<Diagnostic<? extends JavaFileObject>> diagnostics = new ArrayList<>();
 	protected final Map<JavaFileObject, Long> cachedModified = new HashMap<>();
 	protected final Cache<Void, List<String>> cacheFileImports = new Cache<>();
@@ -100,10 +99,8 @@ public class JavaCompilerService implements CompilerProvider {
 		this.module = module;
 		if (module == null) {
 			this.fileManager = SourceFileManager.NO_MODULE;
-			this.classPathClasses = Collections.emptySet();
 		} else {
 			this.fileManager = SourceFileManager.forModule(module);
-			this.classPathClasses = Collections.unmodifiableSet(module.compileClasspathClasses.allClassNames());
 			this.bootClasspathClasses = Collections.unmodifiableSet(getBootclasspathClasses());
 		}
 		this.types = ClasspathTypeLookup.forModule(module, () -> this.bootClasspathClasses);
@@ -114,12 +111,10 @@ public class JavaCompilerService implements CompilerProvider {
 			@Nullable ModuleProject module,
 			SourceFileManager fileManager,
 			Set<String> bootClasspathClasses,
-			Set<String> classPathClasses,
 			ClasspathTypeLookup types) {
 		this.module = module;
 		this.fileManager = fileManager;
 		this.bootClasspathClasses = bootClasspathClasses;
-		this.classPathClasses = classPathClasses;
 		this.types = types;
 	}
 
@@ -148,7 +143,7 @@ public class JavaCompilerService implements CompilerProvider {
 
 	public JavaCompilerService copy() {
 		final JavaCompilerService compiler = new JavaCompilerService(
-				this.module, this.fileManager, this.bootClasspathClasses, this.classPathClasses, this.types);
+				this.module, this.fileManager, this.bootClasspathClasses, this.types);
 		compiler.cachedCompile = null;
 		compiler.newCursorPosition = Position.NONE;
 		compiler.lastReparsePosition = Position.NONE;
@@ -283,18 +278,6 @@ public class JavaCompilerService implements CompilerProvider {
 	public ParseTask parse(Path file) {
 		Parser parser = Parser.parseFile(file);
 		return new ParseTask(parser.task, parser.root);
-	}
-
-	@Override
-	public TreeSet<String> publicTopLevelTypes() {
-		TreeSet<String> all = new TreeSet<>();
-		List<SourceClassTrie.SourceNode> sourceClasses = module != null ? module.compileJavaSourceClasses.allSources() : Collections.emptyList();
-		for (SourceClassTrie.SourceNode node : sourceClasses) {
-			all.add(node.getQualifiedName());
-		}
-		all.addAll(classPathClasses);
-		all.addAll(bootClasspathClasses);
-		return all;
 	}
 
 	@Nullable
