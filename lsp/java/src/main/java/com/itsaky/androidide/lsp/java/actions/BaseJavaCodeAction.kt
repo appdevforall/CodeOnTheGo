@@ -33,7 +33,6 @@ import com.itsaky.androidide.lsp.java.R
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.rewrite.Rewrite
 import com.itsaky.androidide.projects.IProjectManager
-import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.flashError
 import java.io.File
@@ -66,7 +65,7 @@ abstract class BaseJavaCodeAction : EditorActionItem {
 		}
 
 		val file = data.requireFile()
-		val isJava = DocumentUtils.isJavaFile(file.toPath())
+		val isJava = isJavaFileName(file.name)
 		val module = IProjectManager.getInstance().findModuleForFile(file, false)
 
 		visible = isJava
@@ -114,3 +113,12 @@ abstract class BaseJavaCodeAction : EditorActionItem {
 		return JavaCompilerProvider.get(module)
 	}
 }
+
+/**
+ * Returns whether [name] names a regular Java source file, excluding `module-info.java` and
+ * `package-info.java`, which declare no importable type.
+ *
+ * Decided by name alone, with no file-system access -- [BaseJavaCodeAction.prepare] runs on the UI
+ * thread.
+ */
+internal fun isJavaFileName(name: String): Boolean = name.endsWith(".java") && name != "module-info.java" && name != "package-info.java"
