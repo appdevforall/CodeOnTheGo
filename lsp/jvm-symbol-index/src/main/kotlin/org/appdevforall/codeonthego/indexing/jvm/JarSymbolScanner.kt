@@ -150,7 +150,14 @@ object JarSymbolScanner {
 		}
 
 		override fun visitEnd() {
-			if (!isPublicOrProtected(classAccess)) return
+			/*
+			 * Package-private classes are indexed, not dropped: they are real classpath entries and
+			 * same-package code may legitimately reference them, so the caller decides by visibility
+			 * whether to offer one. Private classes stay out - nothing outside the declaring class can
+			 * name them. Members remain gated on the class being public or protected, so a
+			 * package-private class contributes its own name and nothing else.
+			 */
+			if (hasFlag(classAccess, Opcodes.ACC_PRIVATE)) return
 
 			val isAnonymous =
 				isInnerClass &&

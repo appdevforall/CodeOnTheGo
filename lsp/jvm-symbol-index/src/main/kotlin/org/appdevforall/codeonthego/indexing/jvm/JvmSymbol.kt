@@ -21,6 +21,16 @@ enum class JvmSymbolKind {
 	EXTENSION_PROPERTY,
 	FIELD,
 	TYPE_ALIAS,
+
+	/**
+	 * The synthetic class a Kotlin file's top-level declarations compile into, named after the file
+	 * (`Foo.kt` -> `FooKt`).
+	 *
+	 * Deliberately not in [CLASSIFIER_KINDS]: Kotlin code names the declarations inside it and never
+	 * the class, so offering it as a Kotlin type would be wrong. It is in [JVM_CLASS_KINDS] because a
+	 * class file by that name really exists, and Java calls the top-level functions through it.
+	 */
+	FILE_FACADE,
 	;
 
 	val isCallable: Boolean
@@ -28,6 +38,10 @@ enum class JvmSymbolKind {
 
 	val isClassifier: Boolean
 		get() = this in CLASSIFIER_KINDS
+
+	/** Whether a class file exists under this symbol's name. */
+	val isJvmClass: Boolean
+		get() = this in JVM_CLASS_KINDS
 
 	val isExtension: Boolean
 		get() = this == EXTENSION_FUNCTION || this == EXTENSION_PROPERTY
@@ -42,6 +56,8 @@ enum class JvmSymbolKind {
 				EXTENSION_PROPERTY,
 				FIELD,
 			)
+
+		/** Kinds that declare a type in the source language. */
 		val CLASSIFIER_KINDS =
 			setOf(
 				CLASS,
@@ -55,6 +71,28 @@ enum class JvmSymbolKind {
 				SEALED_CLASS,
 				SEALED_INTERFACE,
 				TYPE_ALIAS,
+			)
+
+		/**
+		 * Kinds backed by an actual class file, which is what a classpath scan finds and what an
+		 * import has to resolve to.
+		 *
+		 * This is not [CLASSIFIER_KINDS]: a type alias declares a type but compiles to no class, and a
+		 * file facade is a class that declares no type.
+		 */
+		val JVM_CLASS_KINDS =
+			setOf(
+				CLASS,
+				INTERFACE,
+				ENUM,
+				ANNOTATION_CLASS,
+				OBJECT,
+				COMPANION_OBJECT,
+				DATA_CLASS,
+				VALUE_CLASS,
+				SEALED_CLASS,
+				SEALED_INTERFACE,
+				FILE_FACADE,
 			)
 	}
 }
