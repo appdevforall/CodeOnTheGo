@@ -9,6 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -315,6 +316,11 @@ class SQLiteIndex<T : Indexable>(
 	 * Inserts [entries] in transactions of [batchSize] rows, taking the lock per batch so reads can
 	 * interleave with a long insert. A [fingerprint] goes into the last transaction, which runs
 	 * even when there are no entries, so an empty source is still recorded as indexed.
+	 *
+	 * Checks for cancellation before each transaction: [Mutex.withLock] only checks it while
+	 * actually suspended waiting for the lock, and its uncontended fast path never suspends, so a
+	 * caller cancelled mid-scan (see [org.appdevforall.codeonthego.indexing.util.BackgroundIndexer])
+	 * would otherwise keep committing batches indefinitely.
 	 */
 	private suspend fun insertBatched(
 		entries: Sequence<T>,
@@ -324,11 +330,13 @@ class SQLiteIndex<T : Indexable>(
 		for (entry in entries) {
 			batch.add(entry)
 			if (batch.size >= batchSize) {
+				ensureActive()
 				ifOpen { insertBatchLocked(batch, fingerprint = null) }
 				batch.clear()
 			}
 		}
 		if (batch.isNotEmpty() || fingerprint != null) {
+			ensureActive()
 			ifOpen { insertBatchLocked(batch, fingerprint) }
 		}
 	}
