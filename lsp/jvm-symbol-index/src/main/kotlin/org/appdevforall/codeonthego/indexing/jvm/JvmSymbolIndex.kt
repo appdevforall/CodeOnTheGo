@@ -76,23 +76,29 @@ open class JvmSymbolIndex(
 	/**
 	 * Index a single source. The [provider] returns a [Flow] that is
 	 * collected on [Dispatchers.IO] and inserted in batches through
-	 * [Index.insertAll].
+	 * [Index.insertAll], or [Index.insertSource] when a [fingerprint] is given.
 	 *
-	 * If [skipIfExists] is true and the source is already indexed,
-	 * this is a no-op.
+	 * If [skipIfExists] is true and the source is already indexed (with the
+	 * same [fingerprint], when one is given), this is a no-op.
 	 *
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
+	 * @param fingerprint  Identifies the source's current content, or `null` to not track it.
 	 * @param provider     Lambda returning a [Flow] of entries. Resources the flow opens
 	 *                     (e.g. a JAR) are released when collection completes, fails or is
 	 *                     cancelled, so Flow operators such as `.filter {}` are safe.
-	 * @return The launched job.
+	 * @return The launched job, or the already-running job for the same fingerprint if one exists.
+	 * @see BackgroundIndexer.indexSource
 	 */
 	fun indexSource(
 		sourceId: String,
 		skipIfExists: Boolean = true,
+		fingerprint: String? = null,
 		provider: (sourceId: String) -> Flow<JvmSymbol>,
-	): Job = indexer.indexSource(sourceId, skipIfExists, provider)
+	): Job = indexer.indexSource(sourceId, skipIfExists, fingerprint, provider)
+
+	/** Returns the fingerprint [sourceId] was last indexed with, or `null` if it has none. */
+	suspend fun sourceFingerprint(sourceId: String): String? = backing.sourceFingerprint(sourceId)
 
 	/**
 	 * Find symbols matching the given prefix.

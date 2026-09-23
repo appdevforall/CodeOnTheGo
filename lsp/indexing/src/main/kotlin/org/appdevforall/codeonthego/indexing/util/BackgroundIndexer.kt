@@ -75,13 +75,18 @@ class BackgroundIndexer<T : Indexable>(
 	/**
 	 * Index a single source. The [provider] returns a [Flow] that is
 	 * collected on [Dispatchers.IO] and inserted in batches through
-	 * [Index.insertAll].
+	 * [Index.insertAll]; with a [fingerprint], the last batch goes through
+	 * [Index.insertSource] so the fingerprint is recorded only on success.
 	 *
-	 * If [skipIfExists] is true and the source is already indexed,
-	 * this is a no-op.
+	 * If [skipIfExists] is true and the source is already indexed, this is a
+	 * no-op. With a [fingerprint], "already indexed" means the index holds
+	 * that same fingerprint for the source, so a source whose content changed
+	 * at the same id is re-indexed; without one, it means the index holds any
+	 * entry from the source.
 	 *
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
+	 * @param fingerprint  Identifies the source's current content, or `null` to not track it.
 	 * @param provider     Lambda returning a [Flow] of entries. Resources the flow opens
 	 *                     are released when collection completes, fails or is cancelled.
 	 * @return The launched job.
@@ -89,6 +94,7 @@ class BackgroundIndexer<T : Indexable>(
 	fun indexSource(
 		sourceId: String,
 		skipIfExists: Boolean = true,
+		fingerprint: String? = null,
 		provider: (sourceId: String) -> Flow<T>,
 	): Job {
 		// Cancel any in-flight job for this source
@@ -97,7 +103,7 @@ class BackgroundIndexer<T : Indexable>(
 		val job =
 			scope.launch {
 				try {
-					if (skipIfExists && index.containsSource(sourceId)) {
+					if (skipIfExists && isIndexed(sourceId, fingerprint)) {
 						log.debug("Skipping already-indexed: {}", sourceId)
 						progressListener?.onProgress(sourceId, IndexingEvent.Skipped)
 						return@launch
@@ -139,7 +145,11 @@ class BackgroundIndexer<T : Indexable>(
 							// also leaves a partial source that containsSource() treats as indexed.
 							error = e
 						}
-						if (batch.isNotEmpty()) index.insertAll(batch.asSequence())
+						if (fingerprint != null && error == null) {
+							index.insertSource(sourceId, fingerprint, batch.asSequence())
+						} else if (batch.isNotEmpty()) {
+							index.insertAll(batch.asSequence())
+						}
 						error?.let { throw it }
 					}
 
@@ -161,6 +171,16 @@ class BackgroundIndexer<T : Indexable>(
 		job.invokeOnCompletion { activeJobs.remove(sourceId, job) }
 		return job
 	}
+
+	private suspend fun isIndexed(
+		sourceId: String,
+		fingerprint: String?,
+	): Boolean =
+		if (fingerprint != null) {
+			index.sourceFingerprint(sourceId) == fingerprint
+		} else {
+			index.containsSource(sourceId)
+		}
 
 	/**
 	 * Index multiple sources sequentially in the background.

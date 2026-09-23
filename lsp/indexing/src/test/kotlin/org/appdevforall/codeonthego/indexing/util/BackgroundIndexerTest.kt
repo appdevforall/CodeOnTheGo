@@ -365,4 +365,38 @@ class BackgroundIndexerTest {
 
 			assertThat(indexer.activeJobCount).isEqualTo(0)
 		}
+
+	@Test
+	fun `an unchanged fingerprint skips re-indexing`() =
+		runTest {
+			val (index, indexer) = makeIndexAndIndexer()
+
+			indexer.indexSource("src1", fingerprint = "100:1") { flowOf(Entry("k1", it, "original")) }.join()
+			indexer.indexSource("src1", fingerprint = "100:1") { flowOf(Entry("k1", it, "updated")) }.join()
+
+			assertThat(index.get("k1")!!.value).isEqualTo("original")
+		}
+
+	@Test
+	fun `a changed fingerprint re-indexes the source`() =
+		runTest {
+			val (index, indexer) = makeIndexAndIndexer()
+
+			indexer.indexSource("src1", fingerprint = "100:1") { flowOf(Entry("k1", it, "original")) }.join()
+			indexer.indexSource("src1", fingerprint = "120:2") { flowOf(Entry("k1", it, "rebuilt")) }.join()
+
+			assertThat(index.get("k1")!!.value).isEqualTo("rebuilt")
+			assertThat(index.sourceFingerprint("src1")).isEqualTo("120:2")
+		}
+
+	@Test
+	fun `a fingerprint re-indexes a source that was indexed without one`() =
+		runTest {
+			val (index, indexer) = makeIndexAndIndexer()
+
+			indexer.indexSource("src1") { flowOf(Entry("k1", it, "original")) }.join()
+			indexer.indexSource("src1", fingerprint = "100:1") { flowOf(Entry("k1", it, "fingerprinted")) }.join()
+
+			assertThat(index.get("k1")!!.value).isEqualTo("fingerprinted")
+		}
 }

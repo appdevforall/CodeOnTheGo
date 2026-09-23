@@ -83,7 +83,7 @@ interface WritableIndex<T : Indexable> {
 	suspend fun insert(entry: T)
 
 	/**
-	 * Remove all entries from the given source.
+	 * Remove all entries from the given source, and its fingerprint if one is recorded.
 	 */
 	suspend fun removeBySource(sourceId: String)
 
@@ -98,7 +98,7 @@ interface WritableIndex<T : Indexable> {
 	suspend fun removeBySources(sourceIds: Collection<String>)
 
 	/**
-	 * Remove all entries.
+	 * Remove all entries and fingerprints.
 	 */
 	suspend fun clear()
 }
@@ -117,6 +117,23 @@ interface Index<T : Indexable> :
 
 	/** The descriptor governing serialization and field extraction. */
 	val descriptor: IndexDescriptor<T>
+
+	/**
+	 * Inserts [entries], all from [sourceId], and records [fingerprint] as that source's.
+	 *
+	 * The fingerprint is opaque to the index; it is what lets a caller tell whether the source has
+	 * changed since it was indexed. It is committed with the last batch of rows, so it is present
+	 * only once every entry is stored: an insert that fails or is cancelled part-way leaves none.
+	 * Removing the source's entries removes it too.
+	 */
+	suspend fun insertSource(
+		sourceId: String,
+		fingerprint: String,
+		entries: Sequence<T>,
+	)
+
+	/** Returns the fingerprint recorded for [sourceId] by [insertSource], or `null` if there is none. */
+	suspend fun sourceFingerprint(sourceId: String): String?
 
 	override fun close() {}
 }
