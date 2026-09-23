@@ -18,11 +18,11 @@ import kotlin.time.Duration.Companion.seconds
  * Manages the lifecycle of [IndexingService]s and the [IndexRegistry].
  */
 class IndexingServiceManager(
-	private val scope: CoroutineScope = CoroutineScope(
-		SupervisorJob() + Dispatchers.Default
-	),
+	private val scope: CoroutineScope =
+		CoroutineScope(
+			SupervisorJob() + Dispatchers.Default,
+		),
 ) : Closeable {
-
 	companion object {
 		private val log = LoggerFactory.getLogger(IndexingServiceManager::class.java)
 
@@ -111,14 +111,12 @@ class IndexingServiceManager(
 	/**
 	 * Returns the registered service with the given ID, or null.
 	 */
-	fun getService(id: String): IndexingService? =
-		services[id]
+	fun getService(id: String): IndexingService? = services[id]
 
 	/**
 	 * Returns all registered services.
 	 */
-	fun allServices(): List<IndexingService> =
-		services.values.toList()
+	fun allServices(): List<IndexingService> = services.values.toList()
 
 	/**
 	 * Shut down all services and clear the registry.
@@ -136,36 +134,39 @@ class IndexingServiceManager(
 		// cooperatively-cancellable service cannot stall teardown indefinitely.
 		// Failures are isolated per service.
 		runBlocking {
-			val serviceJobs = services.values.map { service ->
+			val serviceJobs =
+				services.values.map { service ->
+					launch(Dispatchers.Default) {
+						withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
+							try {
+								service.close()
+								log.debug("Closed service: {}", service.id)
+							} catch (e: Exception) {
+								if (e is CancellationException) throw e
+								log.error("Failed to close service: {}", service.id, e)
+							}
+						} ?: log.warn(
+							"Indexing service {} failed to close within timeout period: {}ms",
+							service.id,
+							SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds,
+						)
+					}
+				}
+
+			val closeRegistryJob =
 				launch(Dispatchers.Default) {
 					withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
 						try {
-							service.close()
-							log.debug("Closed service: {}", service.id)
+							registry.close()
 						} catch (e: Exception) {
 							if (e is CancellationException) throw e
-							log.error("Failed to close service: {}", service.id, e)
+							log.error("Failed to close index registry", e)
 						}
 					} ?: log.warn(
-						"Indexing service {} failed to close within timeout period: {}ms",
-						service.id, SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds,
+						"Index registry failed to close within timeout: {}ms",
+						SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds,
 					)
 				}
-			}
-
-			val closeRegistryJob = launch(Dispatchers.Default) {
-				withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
-					try {
-						registry.close()
-					} catch (e: Exception) {
-						if (e is CancellationException) throw e
-						log.error("Failed to close index registry", e)
-					}
-				} ?: log.warn(
-					"Index registry failed to close within timeout: {}ms",
-					SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds,
-				)
-			}
 
 			joinAll(*serviceJobs.toTypedArray(), closeRegistryJob)
 		}
@@ -186,7 +187,8 @@ class IndexingServiceManager(
 		for (service in allServices) {
 			try {
 				service.initialize(registry)
-				log.info("Initialized service: {} (provides: {})",
+				log.info(
+					"Initialized service: {} (provides: {})",
 					service.id,
 					service.providedKeys.joinToString { it.name },
 				)
@@ -201,7 +203,8 @@ class IndexingServiceManager(
 				if (!registry.isRegistered(key)) {
 					log.warn(
 						"Service '{}' promised index '{}' but did not register it",
-						service.id, key.name,
+						service.id,
+						key.name,
 					)
 				}
 			}
