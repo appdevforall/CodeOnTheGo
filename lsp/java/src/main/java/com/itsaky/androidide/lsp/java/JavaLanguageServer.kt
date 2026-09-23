@@ -75,8 +75,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.jvm.JarIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmGeneratedIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
+import org.appdevforall.codeonthego.indexing.jvm.JvmModuleOutputIndexingService
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -128,6 +130,9 @@ class JavaLanguageServer : ILanguageServer {
 		projectManager.indexingServiceManager.register(
 			service = JvmGeneratedIndexingService(context = BaseApplication.baseInstance),
 		)
+		projectManager.indexingServiceManager.register(
+			service = JvmModuleOutputIndexingService(context = BaseApplication.baseInstance),
+		)
 
 		JavaSnippetRepository.init()
 	}
@@ -163,12 +168,11 @@ class JavaLanguageServer : ILanguageServer {
 	override fun setupWithProject(workspace: Workspace) {
 		LSPEditorActions.ensureActionsMenuRegistered(JavaCodeActionsMenu)
 
-		(
-			ProjectManagerImpl
-				.getInstance()
-				.indexingServiceManager
-				.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
-		)?.refresh()
+		// A sync can change the modules and their dependencies; the generated scope follows builds instead.
+		val indexingServiceManager = ProjectManagerImpl.getInstance().indexingServiceManager
+		for (serviceId in listOf(JvmLibraryIndexingService.ID, JvmModuleOutputIndexingService.ID)) {
+			(indexingServiceManager.getService(serviceId) as? JarIndexingService)?.refresh()
+		}
 
 		// Once we have project initialized
 		// Destory the NO_MODULE_COMPILER instance
