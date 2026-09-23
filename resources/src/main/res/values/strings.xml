@@ -1173,6 +1173,8 @@
 	<string name="error_quick_run_failed">Quick Run failed.</string>
 	<string name="status_building">Building…</string>
 	<string name="status_installing_plugin">Installing plugin…</string>
+	<!-- Editor status line while library JARs are indexed for code completion. %1$d is the number of JARs finished, %2$d the number queued so far. -->
+	<string name="status_indexing_libraries">Indexing libraries (%1$d/%2$d)</string>
 	<string name="title_install_plugin">Install Plugin</string>
 	<string name="title_plugin_already_installed">Plugin Already Installed</string>
 	<string name="msg_plugin_overwrite_confirm">\'%1$s\' v%2$s is already installed. Replace it with v%3$s?</string>
