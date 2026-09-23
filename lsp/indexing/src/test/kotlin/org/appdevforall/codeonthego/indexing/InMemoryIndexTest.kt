@@ -412,4 +412,21 @@ class InMemoryIndexTest {
 
 			assertThat(index.query(IndexQuery.bySource("src999")).toList()).isEmpty()
 		}
+
+	@Test
+	fun `insertSource records the fingerprint and removing the source drops it`() =
+		runTest {
+			val index = makeIndex()
+			index.insertSource("src1", "100:1", sequenceOf(entry("k1", "src1", "Foo")))
+			index.insertSource("src2", "200:2", emptySequence())
+
+			assertThat(index.sourceFingerprint("src1")).isEqualTo("100:1")
+			assertThat(index.sourceFingerprint("src2")).isEqualTo("200:2")
+
+			index.removeBySource("src1")
+			index.removeBySource("src2")
+
+			assertThat(index.sourceFingerprint("src1")).isNull()
+			assertThat(index.sourceFingerprint("src2")).isNull()
+		}
 }

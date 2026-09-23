@@ -71,20 +71,25 @@ class BackgroundIndexer<T : Indexable>(
 
 	/**
 	 * Index a single source. The [provider] returns a [Sequence] that
-	 * lazily produces entries — it is consumed on [Dispatchers.IO] by
-	 * [Index.insertAll].
+	 * lazily produces entries - it is consumed on [Dispatchers.IO] by
+	 * [Index.insertAll], or [Index.insertSource] when a [fingerprint] is given.
 	 *
-	 * If [skipIfExists] is true and the source is already indexed,
-	 * this is a no-op.
+	 * If [skipIfExists] is true and the source is already indexed, this is a
+	 * no-op. With a [fingerprint], "already indexed" means the index holds
+	 * that same fingerprint for the source, so a source whose content changed
+	 * at the same id is re-indexed; without one, it means the index holds any
+	 * entry from the source.
 	 *
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
+	 * @param fingerprint  Identifies the source's current content, or `null` to not track it.
 	 * @param provider     Lambda returning a [Sequence] of entries.
 	 * @return The launched job.
 	 */
 	fun indexSource(
 		sourceId: String,
 		skipIfExists: Boolean = true,
+		fingerprint: String? = null,
 		provider: (sourceId: String) -> Sequence<T>,
 	): Job {
 		// Cancel any in-flight job for this source
@@ -93,7 +98,7 @@ class BackgroundIndexer<T : Indexable>(
 		val job =
 			scope.launch {
 				try {
-					if (skipIfExists && index.containsSource(sourceId)) {
+					if (skipIfExists && isIndexed(sourceId, fingerprint)) {
 						log.debug("Skipping already-indexed: {}", sourceId)
 						progressListener?.onProgress(sourceId, IndexingEvent.Skipped)
 						return@launch
@@ -118,7 +123,11 @@ class BackgroundIndexer<T : Indexable>(
 							entry
 						}
 
-					index.insertAll(tracked)
+					if (fingerprint != null) {
+						index.insertSource(sourceId, fingerprint, tracked)
+					} else {
+						index.insertAll(tracked)
+					}
 
 					progressListener?.onProgress(sourceId, IndexingEvent.Completed(count))
 					log.info("Indexed {} entries from {}", count, sourceId)
@@ -136,6 +145,16 @@ class BackgroundIndexer<T : Indexable>(
 		activeJobs[sourceId] = job
 		return job
 	}
+
+	private suspend fun isIndexed(
+		sourceId: String,
+		fingerprint: String?,
+	): Boolean =
+		if (fingerprint != null) {
+			index.sourceFingerprint(sourceId) == fingerprint
+		} else {
+			index.containsSource(sourceId)
+		}
 
 	/**
 	 * Index multiple sources sequentially in the background.

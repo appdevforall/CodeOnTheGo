@@ -97,6 +97,9 @@ class SQLiteIndex<T : Indexable>(
 
 	private val tableName = descriptor.name.replace(Regex("[^a-zA-Z0-9_]"), "_")
 
+	/** One row per source that was indexed with a fingerprint, see [insertSource]. */
+	private val sourcesTableName = "${tableName}_sources"
+
 	/** Field column names: `f_{fieldName}`. */
 	private val fieldColumns =
 		descriptor.fields.associate { field ->
@@ -250,37 +253,60 @@ class SQLiteIndex<T : Indexable>(
 			}
 		}
 
-	override suspend fun insertAll(entries: Sequence<T>) =
-		withContext(Dispatchers.IO) {
-			val batch = mutableListOf<T>()
-			for (entry in entries) {
-				batch.add(entry)
-				if (batch.size >= batchSize) {
-					ifOpen { insertBatchLocked(batch) }
-					batch.clear()
-				}
-			}
-			if (batch.isNotEmpty()) {
-				ifOpen { insertBatchLocked(batch) }
-			}
-		}
+	override suspend fun insertAll(entries: Sequence<T>) = insertBatched(entries, fingerprint = null)
 
-	override suspend fun insert(entry: T) =
-		withContext(Dispatchers.IO) {
-			ifOpen { insertBatchLocked(listOf(entry)) }
-		}
+	override suspend fun insertSource(
+		sourceId: String,
+		fingerprint: String,
+		entries: Sequence<T>,
+	) = insertBatched(entries, SourceFingerprint(sourceId, fingerprint))
 
-	override suspend fun removeBySource(sourceId: String) =
+	override suspend fun sourceFingerprint(sourceId: String): String? =
 		withContext(Dispatchers.IO) {
-			ifOpen { db.execSQL("DELETE FROM $tableName WHERE _source_id = ?", arrayOf(sourceId)) }
+			ifOpen(null) {
+				db
+					.query(
+						"SELECT _fingerprint FROM $sourcesTableName WHERE _source_id = ?",
+						arrayOf(sourceId),
+					).use { if (it.moveToFirst()) it.getString(0) else null }
+			}
 		}
 
 	/**
-	 * Remove every row whose `_source_id` is in [sourceIds] using a single SQLite
-	 * transaction. The ids are split into chunks of at most [DELETE_CHUNK_SIZE] so
-	 * each `DELETE ... IN (?, ?, ...)` stays within SQLite's bound-parameter limit;
-	 * all chunks run inside the one transaction, so the batch commits atomically
-	 * (an empty [sourceIds] is a no-op and opens no transaction).
+	 * Inserts [entries] in transactions of [batchSize] rows, taking the lock per batch so reads can
+	 * interleave with a long insert. A [fingerprint] goes into the last transaction, which runs
+	 * even when there are no entries, so an empty source is still recorded as indexed.
+	 */
+	private suspend fun insertBatched(
+		entries: Sequence<T>,
+		fingerprint: SourceFingerprint?,
+	) = withContext(Dispatchers.IO) {
+		val batch = mutableListOf<T>()
+		for (entry in entries) {
+			batch.add(entry)
+			if (batch.size >= batchSize) {
+				ifOpen { insertBatchLocked(batch, fingerprint = null) }
+				batch.clear()
+			}
+		}
+		if (batch.isNotEmpty() || fingerprint != null) {
+			ifOpen { insertBatchLocked(batch, fingerprint) }
+		}
+	}
+
+	override suspend fun insert(entry: T) =
+		withContext(Dispatchers.IO) {
+			ifOpen { insertBatchLocked(listOf(entry), fingerprint = null) }
+		}
+
+	override suspend fun removeBySource(sourceId: String) = removeBySources(listOf(sourceId))
+
+	/**
+	 * Remove every row whose `_source_id` is in [sourceIds], with those sources' fingerprints,
+	 * using a single SQLite transaction. The ids are split into chunks of at most
+	 * [DELETE_CHUNK_SIZE] so each `DELETE ... IN (?, ?, ...)` stays within SQLite's
+	 * bound-parameter limit; all chunks run inside the one transaction, so the batch commits
+	 * atomically (an empty [sourceIds] is a no-op and opens no transaction).
 	 *
 	 * @param sourceIds Source ids whose rows should be deleted.
 	 */
@@ -296,6 +322,10 @@ class SQLiteIndex<T : Indexable>(
 							"DELETE FROM $tableName WHERE _source_id IN ($placeholders)",
 							chunk.toTypedArray(),
 						)
+						db.execSQL(
+							"DELETE FROM $sourcesTableName WHERE _source_id IN ($placeholders)",
+							chunk.toTypedArray(),
+						)
 					}
 					db.setTransactionSuccessful()
 				} finally {
@@ -306,7 +336,16 @@ class SQLiteIndex<T : Indexable>(
 
 	override suspend fun clear() =
 		withContext(Dispatchers.IO) {
-			ifOpen { db.execSQL("DELETE FROM $tableName") }
+			ifOpen {
+				db.beginTransaction()
+				try {
+					db.execSQL("DELETE FROM $tableName")
+					db.execSQL("DELETE FROM $sourcesTableName")
+					db.setTransactionSuccessful()
+				} finally {
+					db.endTransaction()
+				}
+			}
 		}
 
 	override fun close() {
@@ -378,6 +417,9 @@ class SQLiteIndex<T : Indexable>(
 			}
 
 		db.execSQL("CREATE TABLE IF NOT EXISTS $tableName ($columns)")
+		db.execSQL(
+			"CREATE TABLE IF NOT EXISTS $sourcesTableName (_source_id TEXT NOT NULL PRIMARY KEY, _fingerprint TEXT NOT NULL)",
+		)
 
 		db.execSQL(
 			"CREATE INDEX IF NOT EXISTS idx_${tableName}_key ON $tableName(_key, _source_id)",
@@ -398,7 +440,10 @@ class SQLiteIndex<T : Indexable>(
 		}
 	}
 
-	private fun insertBatchLocked(entries: List<T>) {
+	private fun insertBatchLocked(
+		entries: List<T>,
+		fingerprint: SourceFingerprint?,
+	) {
 		db.beginTransaction()
 		try {
 			for (entry in entries) {
@@ -427,11 +472,24 @@ class SQLiteIndex<T : Indexable>(
 					cv,
 				)
 			}
+			if (fingerprint != null) {
+				val cv =
+					ContentValues().apply {
+						put("_source_id", fingerprint.sourceId)
+						put("_fingerprint", fingerprint.value)
+					}
+				db.insert(sourcesTableName, SQLiteDatabase.CONFLICT_REPLACE, cv)
+			}
 			db.setTransactionSuccessful()
 		} finally {
 			db.endTransaction()
 		}
 	}
+
+	private data class SourceFingerprint(
+		val sourceId: String,
+		val value: String,
+	)
 
 	private data class SqlQuery(
 		val sql: String,

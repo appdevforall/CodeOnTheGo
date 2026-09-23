@@ -17,6 +17,7 @@ import org.appdevforall.codeonthego.indexing.service.IndexingService
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.extension
@@ -112,28 +113,30 @@ class JvmLibraryIndexingService(
 
 		log.info("{} JARs on classpath", currentJars.size)
 
-		// Step 1: Set the active set - this is instant.
-		// JARs not in the set become invisible to queries.
-		// JARs in the set that are already cached become
-		// visible immediately.
+		/*
+		 * Step 1: Set the active set - this is instant. JARs not in the set become invisible to
+		 * queries; JARs in the set that are already cached become visible immediately.
+		 */
 		index.setActiveSources(currentJars)
 
-		// Step 2: Index any JARs not yet in the cache.
-		// Already-cached JARs are skipped (cheap existence check).
-		// Newly cached JARs are automatically visible because
-		// they're already in the active set.
+		/*
+		 * Step 2: Index any JAR that is not cached, or was cached with a different fingerprint:
+		 * a JAR rebuilt at the same path (a snapshot, a local file dependency) is re-scanned.
+		 * Newly cached JARs are automatically visible because they're already in the active set.
+		 */
 		var newCount = 0
 		for (jarPath in currentJars) {
-			if (!index.isCached(jarPath)) {
+			val fingerprint = jarFingerprint(File(jarPath))
+			if (index.sourceFingerprint(jarPath) != fingerprint) {
 				newCount++
-				index.indexSource(jarPath, skipIfExists = true) { sourceId ->
+				index.indexSource(jarPath, skipIfExists = true, fingerprint = fingerprint) { sourceId ->
 					CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
 				}
 			}
 		}
 
 		if (newCount > 0) {
-			log.info("{} new JARs submitted for background indexing", newCount)
+			log.info("{} new or changed JARs submitted for background indexing", newCount)
 		} else {
 			log.info("All JARs already cached, nothing to index")
 		}
@@ -150,3 +153,9 @@ class JvmLibraryIndexingService(
 		return ext == "jar" || ext == "aar"
 	}
 }
+
+/**
+ * Identifies the content of [jar] by its size and last-modified time, which a rewrite of the file
+ * changes without the cost of reading it. Stats the file, so never call it on the main thread.
+ */
+internal fun jarFingerprint(jar: File): String = "${jar.length()}:${jar.lastModified()}"
