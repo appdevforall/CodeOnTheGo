@@ -35,7 +35,38 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
-### 26.36 — unreleased
+### 26.40 — unreleased
+- **added — An embedding capability a backend can declare** _(ADFA-6053)_ **[verified]**
+  A backend that has an embedding model can now say so. The only embedding entry point
+  before this was `LlmInferenceService.getEmbeddings(String, String)`, which addresses a
+  backend by id and hands back a bare `float[]`: the caller learns neither which model
+  produced the vector nor how long it is, and pays one round trip per text. Indexing a
+  project is thousands of chunks, so that is thousands of requests, and a stored vector
+  carries no provenance — swapping the model behind a backend silently degrades every
+  vector already on disk instead of invalidating it.
+  `LlmInferenceService.EmbeddingBackend extends LlmBackend` is an optional capability
+  interface, like `ToolCallingBackend` and `HistoryCapableBackend`: implement it and the
+  consumer finds it with `instanceof`, there is no flag to set. It declares
+  `embed(List<String>)` returning `CompletableFuture<List<float[]>>` index-aligned with
+  the input, `getEmbeddingDimensions()`, and `getEmbeddingModelId()` — the model's
+  identity, not the backend's, because two models of equal width are mutually
+  incomparable and a width check alone cannot detect a swap.
+  The batch either completes whole or fails whole; it never yields a short list, a list
+  padded with nulls, or a placeholder vector, so a caller can never store a partially-real
+  batch. `embed` must not block the calling thread and must be safe for concurrent calls
+  (indexing and a user's query can be in flight at once), and it snapshots the caller's
+  list before returning, so a caller may reuse or clear its own list as soon as the call
+  comes back; the caller owns the returned list and arrays outright. It reports every failure by
+  completing the future exceptionally and throws synchronously only for a caller's own
+  mistake — `NullPointerException` for a null argument or element, `IllegalArgumentException`
+  for an empty list. The static `EmbeddingBackend.requireValidBatch(List<String>)` does
+  those checks and returns the snapshot, so a backend calls it first in `embed`.
+  Purely additive: a new interface with three new methods and one static helper, nothing
+  existing changed (the ABI dump diff is seven added lines and no removals), so an already-built `.cgp` keeps
+  loading and running against the refreshed jar. `getEmbeddings(String, String)` stays —
+  the Vector-Search plugin is a live caller. Floor `plugin.min_ide_version` at `26.40` if
+  you implement or consume `EmbeddingBackend`; an older IDE has no such type, and a
+  consumer's `instanceof` against it there fails to resolve the class.
 - **added — `SnippetContribution.language` accepts `kotlin`** _(ADFA-6189)_
   The host keys Kotlin snippets under `kt`, so a contribution declaring `kotlin` registered
   under a language nothing looks up and never appeared in a `.kt` file. The id is now
@@ -43,6 +74,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   Accepted ids are `java`, `kt` (or `kotlin`) and `xml` — anything else registers but is
   never queried.
 
+### 26.37 — 2026-09-08
 - **added — Build provenance in every `.cgp`** _(ADFA-5394)_ **[verified]**
   A plugin artifact now records the commit it was built from, so a crash report or a
   support question can be traced back to source. Nothing in the pipeline carried a git
@@ -97,6 +129,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   either state. Neither can be applied by the IDE
   on a plugin's behalf: `Window` has no theme attribute for its type, and a toast is
   posted by the system against whatever context built it.
+
+### 26.36 — 2026-09-01
 - **added — File-targeted editor save** _(ADFA-5259)_
   Save a named file's open buffer and find out whether the bytes actually landed.
   `saveCurrentFile` follows whichever tab the user has focused and returns as soon
@@ -382,3 +416,6 @@ Map any commit to the release that first shipped it:
 ```bash
 git tag --list --contains <sha> | grep -E '^[0-9]{2}\.[0-9]{2}$' | sort -V | head -1
 ```
+
+When a release is tagged, replace its bucket's `unreleased` with the tag date and move
+any entry the tag does not contain up to the next bucket.
