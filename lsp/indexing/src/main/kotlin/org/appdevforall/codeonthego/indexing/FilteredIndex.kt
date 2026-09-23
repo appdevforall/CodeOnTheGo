@@ -59,15 +59,12 @@ open class FilteredIndex<T : Indexable>(
 	/**
 	 * Returns the current set of active source IDs.
 	 */
-	open fun activeSources(): Set<String> = activeSources.toSet()
+	fun activeSources(): Set<String> = activeSources.toSet()
 
 	/**
 	 * The source IDs whose entries are visible, or `null` if every source is.
 	 *
-	 * This, rather than [isActive], is the point to override to change what the filter admits.
-	 * Scoping is pushed into the query, so the filter has to be able to *describe* its scope and not
-	 * merely test one ID against it -- an override of [isActive] alone could not be honoured, and
-	 * would silently hide every entry instead.
+	 * Override this to change what the filter admits; `null` admits every source.
 	 */
 	protected open fun visibleSourceIds(): Collection<String>? = activeSources
 
