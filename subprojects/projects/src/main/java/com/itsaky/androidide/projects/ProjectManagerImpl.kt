@@ -78,17 +78,22 @@ import kotlin.io.path.pathString
 class ProjectManagerImpl :
 	IProjectManager,
 	EventReceiver {
+	private val indexingServiceManagerLock = Any()
 	private var _indexingServiceManager: IndexingServiceManager? = null
 	lateinit var projectPath: String
 
+	/**
+	 * The indexing service manager of the current project session, created on first access after
+	 * construction or [destroy].
+	 *
+	 * Read from language-server worker threads as well as the main thread, so creation is guarded by
+	 * a lock: two racing first reads must not each create, and leak, a manager.
+	 */
 	val indexingServiceManager: IndexingServiceManager
-		get() {
-			if (_indexingServiceManager == null) {
-				_indexingServiceManager = IndexingServiceManager()
+		get() =
+			synchronized(indexingServiceManagerLock) {
+				_indexingServiceManager ?: IndexingServiceManager().also { _indexingServiceManager = it }
 			}
-
-			return _indexingServiceManager!!
-		}
 
 	@Volatile
 	internal var pluginProjectCached: Boolean? = null
@@ -258,8 +263,13 @@ class ProjectManagerImpl :
 		this.workspace = null
 		pluginProjectCached = null
 
-		_indexingServiceManager?.close()
-		_indexingServiceManager = null
+		// Closed outside the lock: close() blocks until every service has shut down, and a worker
+		// thread reading the manager meanwhile must not wait on that.
+		val indexingServiceManager =
+			synchronized(indexingServiceManagerLock) {
+				_indexingServiceManager.also { _indexingServiceManager = null }
+			}
+		indexingServiceManager?.close()
 
 		(this.androidBuildVariants as? MutableMap?)?.clear()
 	}
