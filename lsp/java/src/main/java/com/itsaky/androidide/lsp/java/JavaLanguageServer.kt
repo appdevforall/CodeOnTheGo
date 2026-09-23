@@ -123,10 +123,10 @@ class JavaLanguageServer : ILanguageServer {
 
 		val projectManager = ProjectManagerImpl.getInstance()
 		projectManager.indexingServiceManager.register(
-			service = JvmLibraryIndexingService(context = BaseApplication.baseInstance)
+			service = JvmLibraryIndexingService(context = BaseApplication.baseInstance),
 		)
 		projectManager.indexingServiceManager.register(
-			service = JvmGeneratedIndexingService(context = BaseApplication.baseInstance)
+			service = JvmGeneratedIndexingService(context = BaseApplication.baseInstance),
 		)
 
 		JavaSnippetRepository.init()
@@ -163,10 +163,12 @@ class JavaLanguageServer : ILanguageServer {
 	override fun setupWithProject(workspace: Workspace) {
 		LSPEditorActions.ensureActionsMenuRegistered(JavaCodeActionsMenu)
 
-		(ProjectManagerImpl.getInstance()
-			.indexingServiceManager
-			.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?)
-			?.refresh()
+		(
+			ProjectManagerImpl
+				.getInstance()
+				.indexingServiceManager
+				.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
+		)?.refresh()
 
 		// Once we have project initialized
 		// Destory the NO_MODULE_COMPILER instance
@@ -196,8 +198,7 @@ class JavaLanguageServer : ILanguageServer {
 
 	override fun complete(params: CompletionParams?): CompletionResult {
 		val compiler = getCompiler(params!!.file)
-		if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file)
-		) {
+		if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file)) {
 			return CompletionResult.EMPTY
 		}
 
@@ -265,8 +266,7 @@ class JavaLanguageServer : ILanguageServer {
 		}
 	}
 
-	override fun formatCode(params: FormatCodeParams?): CodeFormatResult =
-		CodeFormatProvider(settings).format(params)
+	override fun formatCode(params: FormatCodeParams?): CodeFormatResult = CodeFormatProvider(settings).format(params)
 
 	override fun handleFailure(failure: LSPFailure?): Boolean {
 		return when (failure!!.type) {
