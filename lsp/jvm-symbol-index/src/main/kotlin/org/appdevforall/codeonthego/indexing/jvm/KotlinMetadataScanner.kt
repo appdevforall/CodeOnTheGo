@@ -1,21 +1,11 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
-import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.org.objectweb.asm.AnnotationVisitor
 import org.jetbrains.org.objectweb.asm.ClassReader
 import org.jetbrains.org.objectweb.asm.ClassVisitor
 import org.jetbrains.org.objectweb.asm.Opcodes
 import org.slf4j.LoggerFactory
 import java.io.InputStream
-import java.nio.file.Path
-import java.util.jar.JarFile
-import kotlin.io.path.pathString
 import kotlin.metadata.ClassKind
 import kotlin.metadata.KmClass
 import kotlin.metadata.KmClassifier
@@ -44,64 +34,13 @@ import kotlin.metadata.modality
 import kotlin.metadata.visibility
 
 /**
- * Scans JAR files using Kotlin metadata to produce [JvmSymbol]s
- * with full Kotlin semantics (extensions, suspend, inline, etc.).
+ * Parses a Kotlin class file's `@Metadata` into [JvmSymbol]s with full Kotlin semantics
+ * (extensions, suspend, inline, etc.).
  *
- * Skips non-Kotlin class files (no `@Metadata` annotation).
+ * Returns nothing for a class file without `@Metadata`.
  */
 object KotlinMetadataScanner {
 	private val log = LoggerFactory.getLogger(KotlinMetadataScanner::class.java)
-
-	@OptIn(KaImplementationDetail::class)
-	fun scan(
-		rootVf: VirtualFile,
-		sourceId: String = rootVf.path,
-	): Flow<JvmSymbol> =
-		flow {
-			val allFiles = LibraryUtils.getAllVirtualFilesFromRoot(rootVf, includeRoot = true)
-			for (vf in allFiles) {
-				if (!vf.name.endsWith(".class")) continue
-				if (vf.name == "module-info.class") continue
-				try {
-					vf.contentsToByteArray().inputStream().use { input ->
-						parseKotlinClass(input, sourceId)?.forEach { emit(it) }
-					}
-				} catch (e: Exception) {
-					log.debug("Failed to parse {}: {}", vf.path, e.message)
-				}
-			}
-		}.flowOn(Dispatchers.IO)
-
-	fun scan(
-		jarPath: Path,
-		sourceId: String = jarPath.pathString,
-	): Flow<JvmSymbol> =
-		flow {
-			val jar =
-				try {
-					JarFile(jarPath.toFile())
-				} catch (e: Exception) {
-					log.warn("Failed to open JAR: {}", jarPath, e)
-					return@flow
-				}
-
-			jar.use {
-				val entries = jar.entries()
-				while (entries.hasMoreElements()) {
-					val entry = entries.nextElement()
-					if (!entry.name.endsWith(".class")) continue
-					if (entry.name == "module-info.class") continue
-
-					try {
-						jar.getInputStream(entry).use { input ->
-							parseKotlinClass(input, sourceId)?.forEach { emit(it) }
-						}
-					} catch (e: Exception) {
-						log.debug("Failed to parse {}: {}", entry.name, e.message)
-					}
-				}
-			}
-		}.flowOn(Dispatchers.IO)
 
 	internal fun parseKotlinClass(
 		input: InputStream,
