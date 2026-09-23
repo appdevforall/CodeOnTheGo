@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VfsUtilCore
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.org.objectweb.asm.AnnotationVisitor
 import org.jetbrains.org.objectweb.asm.ClassReader
@@ -30,8 +31,8 @@ object CombinedJarScanner {
 		sequence {
 			val allFiles = LibraryUtils.getAllVirtualFilesFromRoot(rootVf, includeRoot = true)
 			for (vf in allFiles) {
-				if (!vf.name.endsWith(".class")) continue
-				if (vf.name == "module-info.class" || vf.name == "package-info.class") continue
+				val relativePath = VfsUtilCore.getRelativePath(vf, rootVf)?.takeIf { it.isNotEmpty() } ?: vf.name
+				if (!isIndexableClassEntry(relativePath)) continue
 				try {
 					val bytes = vf.contentsToByteArray()
 					val symbols =
@@ -65,11 +66,7 @@ object CombinedJarScanner {
 				val entries = jar.entries()
 				while (entries.hasMoreElements()) {
 					val entry = entries.nextElement()
-					if (!entry.name.endsWith(".class")) continue
-					// Compared on the file name, not the full entry path: a multi-release JAR carries these
-					// under META-INF/versions/<n>/, where an exact-path match lets them through as classes.
-					val entryFileName = entry.name.substringAfterLast('/')
-					if (entryFileName == "module-info.class" || entryFileName == "package-info.class") continue
+					if (!isIndexableClassEntry(entry.name)) continue
 
 					// emit stays outside the try so cancellation is not swallowed.
 					val symbols =
@@ -95,6 +92,18 @@ object CombinedJarScanner {
 				}
 			}
 		}
+
+	/*
+	 * Everything under META-INF is skipped. A multi-release JAR's META-INF/versions/<n>/ copy of a
+	 * class shares the base class's key within one source, so indexing it would replace the base
+	 * row.
+	 */
+	private fun isIndexableClassEntry(relativePath: String): Boolean {
+		if (!relativePath.endsWith(".class")) return false
+		if (relativePath.startsWith("META-INF/")) return false
+		val fileName = relativePath.substringAfterLast('/')
+		return fileName != "module-info.class" && fileName != "package-info.class"
+	}
 
 	private fun hasKotlinMetadata(classBytes: ByteArray): Boolean {
 		var found = false
