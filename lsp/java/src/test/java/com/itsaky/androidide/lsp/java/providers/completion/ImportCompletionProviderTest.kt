@@ -57,12 +57,13 @@ class ImportCompletionProviderTest {
 		importPath: String,
 		module: ModuleProject?,
 		classpath: ClasspathClassNames?,
+		bootClasses: Set<String> = emptySet(),
 	): List<CompletionItem> {
 		val file: Path = Paths.get("Fixture.java")
 		val task = mockk<CompileTask> { every { root(any<Path>()) } returns fixture.root }
 		val importTree = TreePath(TreePath(fixture.root), fixture.root.imports.single())
-		val provider =
-			ImportCompletionProvider(file, 0, compilerWithClasspath(module, classpath), DefaultServerSettings())
+		val compiler = compilerWithClasspath(module, classpath, bootClasses)
+		val provider = ImportCompletionProvider(file, 0, compiler, DefaultServerSettings())
 		provider.importPath = importPath
 		return provider.complete(task, importTree, "", false).items
 	}
@@ -96,5 +97,12 @@ class ImportCompletionProviderTest {
 
 		assertThat(items.associate { it.ideLabel to it.completionKind })
 			.containsExactly("impl", CompletionItemKind.MODULE, "Widget", CompletionItemKind.CLASS)
+	}
+
+	@Test
+	fun `without a module only the static keyword is offered`() {
+		val items = complete("", module = null, classpath = null, bootClasses = setOf("java.util.List"))
+
+		assertThat(items.labels()).containsExactly("static")
 	}
 }
