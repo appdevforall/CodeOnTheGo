@@ -78,13 +78,16 @@ abstract class JarIndexingService(
 		log.info("[{}] index initialized", id)
 	}
 
-	/** Submits a reindex pass under the single-submitter mutex, then optimizes once it completes. */
-	fun refresh() {
+	/**
+	 * Submits a reindex pass under the single-submitter mutex, then optimizes once it completes.
+	 *
+	 * Returns the pass's job, which completes once every JAR it submitted is indexed.
+	 */
+	fun refresh(): Job =
 		coroutineScope.launch {
 			val jobs = indexingMutex.withLock { reindex() }
 			jarIndex?.optimizeAfter(jobs)
 		}
-	}
 
 	/** Submits every JAR whose fingerprint changed since it was last indexed and returns the submitted jobs. */
 	private suspend fun reindex(): List<Job> {
