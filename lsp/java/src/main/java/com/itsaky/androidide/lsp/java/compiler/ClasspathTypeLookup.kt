@@ -2,10 +2,12 @@ package com.itsaky.androidide.lsp.java.compiler
 
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
 import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
 
 /** The top-level classes of one module's compile classpath, as the JVM symbol indexes hold them. */
-interface ClasspathClassNames {
+internal interface ClasspathClassNames {
 	/** Returns the qualified names of the top-level classes whose simple name is exactly [simpleName]. */
 	fun qualifiedNamesOf(simpleName: String): List<String>
 
@@ -17,6 +19,12 @@ interface ClasspathClassNames {
 		prefix: String,
 		limit: Int,
 	): List<String>
+
+	/**
+	 * Returns the top-level classes whose simple name is exactly [simpleName], each carrying its
+	 * visibility and package.
+	 */
+	fun classesNamed(simpleName: String): List<JvmSymbol>
 }
 
 /**
@@ -29,7 +37,7 @@ interface ClasspathClassNames {
  * classpath or a closed index. While the index is being built, lookups answer with what it holds so
  * far.
  */
-class ClasspathTypeLookup(
+class ClasspathTypeLookup internal constructor(
 	private val sourceClasses: () -> Collection<String>,
 	private val classpath: () -> ClasspathClassNames?,
 	private val bootClasses: () -> Collection<String>,
@@ -87,6 +95,36 @@ class ClasspathTypeLookup(
 		return names.toList()
 	}
 
+	/**
+	 * Returns the qualified names of the top-level classes whose simple name is exactly [simpleName]
+	 * that a file in [importingPackage] may import.
+	 *
+	 * Source and boot classes are returned unconditionally, matching what the classpath trie offered.
+	 * A classpath (index-backed) class is excluded when it is package-private or file-private outside
+	 * [importingPackage]: unlike the trie, the index can hold classes visible only within their own
+	 * package. A Kotlin file-private top-level class compiles to package-private bytecode, but the
+	 * index records its declared Kotlin visibility as [JvmVisibility.PRIVATE], so it needs the same
+	 * package check.
+	 */
+	fun findImportableQualifiedNames(
+		simpleName: String,
+		importingPackage: String,
+	): List<String> {
+		val names =
+			sequence {
+				yieldAll(sourceClasses().filter { simpleNameOf(it) == simpleName })
+				classpath()?.classesNamed(simpleName)?.forEach { symbol ->
+					val isPackageScoped =
+						symbol.visibility == JvmVisibility.PACKAGE_PRIVATE || symbol.visibility == JvmVisibility.PRIVATE
+					if (!isPackageScoped || symbol.packageName == importingPackage) {
+						yield(symbol.fqName)
+					}
+				}
+				yieldAll(bootClasses().filter { simpleNameOf(it) == simpleName })
+			}.distinct()
+		return names.sorted().toList()
+	}
+
 	private fun simpleNameOf(qualifiedName: String) = qualifiedName.substringAfterLast('.')
 
 	companion object {
@@ -119,6 +157,8 @@ class ClasspathTypeLookup(
 					prefix: String,
 					limit: Int,
 				) = lookup.qualifiedNamesByPrefix(prefix, limit)
+
+				override fun classesNamed(simpleName: String) = lookup.classesNamed(simpleName)
 			}
 		}
 	}

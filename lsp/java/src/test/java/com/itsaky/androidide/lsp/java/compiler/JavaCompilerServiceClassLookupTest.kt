@@ -3,6 +3,10 @@ package com.itsaky.androidide.lsp.java.compiler
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.utils.ClassTrie
 import com.itsaky.androidide.utils.Environment
+import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
+import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,6 +34,20 @@ class JavaCompilerServiceClassLookupTest {
 				prefix: String,
 				limit: Int,
 			) = emptyList<String>()
+
+			override fun classesNamed(simpleName: String): List<JvmSymbol> =
+				qualifiedNamesOf(simpleName).map { fqName ->
+					JvmSymbol(
+						key = fqName,
+						sourceId = "fake",
+						name = fqName.replace('.', '/'),
+						shortName = simpleName,
+						packageName = fqName.substringBeforeLast('.', missingDelimiterValue = ""),
+						kind = JvmSymbolKind.CLASS,
+						language = JvmSourceLanguage.JAVA,
+						data = JvmClassInfo(),
+					)
+				}
 		}
 
 	private fun compilerWithTrieClass(trieClass: String): JavaCompilerService {
