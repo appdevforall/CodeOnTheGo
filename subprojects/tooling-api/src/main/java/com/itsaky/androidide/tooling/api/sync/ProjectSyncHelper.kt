@@ -17,6 +17,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.OutputStream
+import java.nio.channels.Channels
 import java.nio.channels.FileChannel
 import java.nio.channels.OverlappingFileLockException
 import java.nio.file.FileSystems
@@ -35,7 +36,6 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import kotlin.collections.iterator
-import kotlin.io.path.outputStream
 import kotlin.io.path.pathString
 
 /**
@@ -353,20 +353,25 @@ object ProjectSyncHelper {
 		// atomic moves are not possible for cross-device moves
 		val tempFile = Paths.get(targetFile.path + ".tmp")
 		runCatching {
-			tempFile
-				.outputStream(
+			FileChannel
+				.open(
+					tempFile,
 					StandardOpenOption.CREATE,
 					StandardOpenOption.WRITE,
 					/*
-					 * Explicit: newOutputStream only implies truncation when no options are given.
 					 * A temp file left behind by a killed sync is otherwise written in place, and
 					 * a shorter model publishes with the previous one's tail still attached.
 					 */
 					StandardOpenOption.TRUNCATE_EXISTING,
-				).buffered()
-				.use { tempOut ->
+				).use { channel ->
+					val tempOut = Channels.newOutputStream(channel).buffered()
 					write(tempOut)
 					tempOut.flush()
+					/*
+					 * flush() only drains the JVM buffer. Without forcing the data to disk, a
+					 * power loss after the rename can leave a truncated model that still parses.
+					 */
+					channel.force(true)
 				}
 		}.mapCatching {
 			// update atomically
@@ -376,6 +381,7 @@ object ProjectSyncHelper {
 				StandardCopyOption.REPLACE_EXISTING,
 				StandardCopyOption.ATOMIC_MOVE,
 			)
+			forceDirectory(targetFile.toPath().parent)
 		}.onFailure {
 			/*
 			 * A cross-device move fails outright, and the temp file it leaves is what the next
@@ -384,6 +390,16 @@ object ProjectSyncHelper {
 			 */
 			runCatching { Files.deleteIfExists(tempFile) }
 		}.getOrThrow()
+	}
+
+	/*
+	 * Persists the rename itself. Best effort: the move has already succeeded, and failing the
+	 * write here would report a model as unpublished while it is in place.
+	 */
+	private fun forceDirectory(directory: Path) {
+		runCatching {
+			FileChannel.open(directory, StandardOpenOption.READ).use { it.force(true) }
+		}.onFailure { logger.warn("Unable to sync directory {}", directory, it) }
 	}
 
 	/**
