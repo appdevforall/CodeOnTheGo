@@ -7,6 +7,7 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
+import org.junit.AfterClass
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -16,13 +17,22 @@ import java.io.File
 @RunWith(JUnit4::class)
 class JavaCompilerServiceClassLookupTest {
 	companion object {
+		private var previousAndroidJar: File? = null
+
 		@JvmStatic
 		@BeforeClass
 		fun setUpEnvironment() {
 			// JavaCompilerService's static initializer reads it; only a device sets it.
+			previousAndroidJar = Environment.ANDROID_JAR
 			if (Environment.ANDROID_JAR == null) {
 				Environment.ANDROID_JAR = File("android.jar")
 			}
+		}
+
+		@JvmStatic
+		@AfterClass
+		fun tearDownEnvironment() {
+			Environment.ANDROID_JAR = previousAndroidJar
 		}
 	}
 
