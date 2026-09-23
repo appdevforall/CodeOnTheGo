@@ -12,6 +12,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.io.Closeable
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 
@@ -45,6 +46,24 @@ class IndexingServiceManager(
 
 	private val services = ConcurrentHashMap<String, IndexingService>()
 	private var initialized = false
+
+	/**
+	 * JAR paths already reported unreadable this project session (see [filterNewlyUnreadableJars]).
+	 * Cleared in [close], so a new session reports the same JAR again.
+	 */
+	private val reportedUnreadableJars = Collections.synchronizedSet(mutableSetOf<String>())
+
+	/**
+	 * Returns the subset of [jarPaths] not yet reported unreadable this session, recording every one
+	 * of [jarPaths] as reported.
+	 *
+	 * Shared by every [IndexingService] built against this manager, so a JAR that stays unreadable
+	 * across many passes - a library JAR whose scan two language servers both trigger at project
+	 * open, or a generated JAR re-scanned after every build - is reported to the user once, not once
+	 * per pass. It is still retried every pass regardless: this only dedupes the report, since no
+	 * fingerprint is ever written for a JAR whose scan failed.
+	 */
+	fun filterNewlyUnreadableJars(jarPaths: Collection<String>): List<String> = jarPaths.filter { reportedUnreadableJars.add(it) }
 
 	/**
 	 * Register an [IndexingService].
@@ -184,6 +203,7 @@ class IndexingServiceManager(
 		services.clear()
 		initialized = false
 		progressTracker.reset()
+		reportedUnreadableJars.clear()
 
 		log.info("Indexing services shut down")
 	}

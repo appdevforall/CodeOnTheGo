@@ -126,14 +126,30 @@ class JavaLanguageServer : ILanguageServer {
 		val indexingServiceManager = ProjectManagerImpl.getInstance().indexingServiceManager
 		val context = BaseApplication.baseInstance
 		val tracker = indexingServiceManager.progressTracker
+		val unreadableJarFilter = indexingServiceManager::filterNewlyUnreadableJars
 		indexingServiceManager.register(
-			service = JvmLibraryIndexingService(context = context, progressTracker = tracker),
+			service =
+				JvmLibraryIndexingService(
+					context = context,
+					progressTracker = tracker,
+					unreadableJarFilter = unreadableJarFilter,
+				),
 		)
 		indexingServiceManager.register(
-			service = JvmGeneratedIndexingService(context = context, progressTracker = tracker),
+			service =
+				JvmGeneratedIndexingService(
+					context = context,
+					progressTracker = tracker,
+					unreadableJarFilter = unreadableJarFilter,
+				),
 		)
 		indexingServiceManager.register(
-			service = JvmModuleOutputIndexingService(context = context, progressTracker = tracker),
+			service =
+				JvmModuleOutputIndexingService(
+					context = context,
+					progressTracker = tracker,
+					unreadableJarFilter = unreadableJarFilter,
+				),
 		)
 
 		JavaSnippetRepository.init()
