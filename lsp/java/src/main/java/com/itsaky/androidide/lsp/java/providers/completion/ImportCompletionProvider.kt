@@ -27,8 +27,6 @@ import com.itsaky.androidide.lsp.models.MatchLevel.CASE_SENSITIVE_EQUAL
 import com.itsaky.androidide.lsp.models.MatchLevel.NO_MATCH
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.util.BootClasspathProvider
-import com.itsaky.androidide.utils.ClassTrie
-import com.itsaky.androidide.utils.ClassTrie.Node
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.ElementKind.ANNOTATION_TYPE
@@ -48,6 +46,7 @@ import openjdk.tools.javac.api.JavacTrees
 import openjdk.tools.javac.code.Symbol.MethodSymbol
 import openjdk.tools.javac.model.JavacTypes
 import openjdk.tools.javac.tree.JCTree.JCImport
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 import java.nio.file.Path
 
 /**
@@ -63,7 +62,6 @@ class ImportCompletionProvider(
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {
 	lateinit var importPath: String
 
-	// TODO add tests for this
 	override fun doComplete(
 		task: CompileTask,
 		path: TreePath,
@@ -108,21 +106,16 @@ class ImportCompletionProvider(
 			return CompletionResult(list)
 		}
 
-		if (pkgName.isEmpty() || pkgName.isBlank()) {
+		val children = importPathChildren(module)
+		if (pkgName.isBlank()) {
 			// User is typing first segment of package name
 			// Javac APIs will not work here
-			tryCompleteImport(pkgName, incomplete, list, names, module)
+			addChildItems(children.of(pkgName), incomplete, list)
 			return CompletionResult(list)
 		}
 
 		try {
-			val packages = collectPackageNodes(module, pkgName)
-			abortCompletionIfCancelled()
-			if (packages.isNotEmpty()) {
-				for (node in packages) {
-					addDirectChildNodes(node, incomplete, list, names, false)
-				}
-			}
+			addChildItems(children.ofPackage(pkgName), incomplete, list)
 		} catch (err: RequireMemberCompletionException) {
 			// If pkgName is not an existing package name, check if it is a qualified classname
 			// A user might be trying to acess members of a member class. So, we keep replacing last '.'
@@ -134,7 +127,7 @@ class ImportCompletionProvider(
 
 		try {
 			// This maybe reached only in some rare cases
-			tryCompleteImport(pkgName, incomplete, list, names, module)
+			addChildItems(children.of(pkgName), incomplete, list)
 		} catch (e: RequireMemberCompletionException) {
 			// User is trying to access members of a class
 			if (completeTypeMembers(task, path, pkgName, incomplete, list)) {
@@ -182,74 +175,6 @@ class ImportCompletionProvider(
 			return true
 		}
 		return false
-	}
-
-	/**
-	 * Collects package nodes for [pkgName] in source paths, classpaths and bootclasspaths. If any
-	 * segment of [pkgName] is a class, [RequireMemberCompletionException] is thrown to indicate that
-	 * class members must be completed.
-	 *
-	 * @param module The project module
-	 * @param pkgName The package name to collect nodes for.
-	 */
-	private fun collectPackageNodes(
-		module: ModuleProject,
-		pkgName: String,
-	): List<Node> {
-		abortCompletionIfCancelled()
-		val result = mutableListOf<Node>()
-		val fromSource = collectPackageNode(module.compileJavaSourceClasses, pkgName)
-		if (fromSource != null) {
-			result.add(fromSource)
-		}
-
-		abortCompletionIfCancelled()
-		val fromClasspath = collectPackageNode(module.compileClasspathClasses, pkgName)
-		if (fromClasspath != null) {
-			result.add(fromClasspath)
-		}
-
-		BootClasspathProvider.getAllEntries().forEach {
-			abortCompletionIfCancelled()
-			val fromBootclasspath = collectPackageNode(it, pkgName)
-			if (fromBootclasspath != null) {
-				result.add(fromBootclasspath)
-			}
-		}
-		return result
-	}
-
-	/**
-	 * Collect package nodes from the [trie] for the given [pkgName]. If any segment of [pkgName] is a
-	 * class, [RequireMemberCompletionException] is thrown to indicate that class members must be
-	 * completed.
-	 *
-	 * @param trie The [ClassTrie] to find package names from.
-	 * @param pkgName The package name of the package to find node for.
-	 * @return The found package name. Or `null` if no package can be found.
-	 */
-	private fun collectPackageNode(
-		trie: com.itsaky.androidide.utils.ClassTrie,
-		pkgName: String,
-	): Node? {
-		val segments = trie.segments(pkgName)
-		var node: Node? = trie.root
-		for (segment in segments) {
-			abortCompletionIfCancelled()
-			if (node == null) {
-				break
-			}
-
-			if (node.isClass) {
-				// If any of the segment in pkgName is a class
-				// We need to complete memebers of a class
-				throw RequireMemberCompletionException()
-			}
-
-			node = node.children[segment]
-		}
-
-		return node
 	}
 
 	private fun completeTypeMembers(
@@ -316,70 +241,15 @@ class ImportCompletionProvider(
 		return list
 	}
 
-	@Throws(RequireMemberCompletionException::class)
-	private fun tryCompleteImport(
-		pkgName: String,
+	private fun importPathChildren(module: ModuleProject) =
+		ImportPathChildren(module.compileJavaSourceClasses, compiler.classpathPackages(), BootClasspathProvider.getAllEntries())
+
+	private fun addChildItems(
+		children: Sequence<Child>,
 		incomplete: String,
 		list: MutableList<CompletionItem>,
-		names: MutableSet<String>,
-		module: ModuleProject,
-		packageOnly: Boolean = false,
 	) {
-		abortCompletionIfCancelled()
-		val sourceNode =
-			if (pkgName.isEmpty()) {
-				module.compileJavaSourceClasses.root
-			} else {
-				module.compileJavaSourceClasses.findNode(pkgName)
-			}
-		if (sourceNode != null) {
-			if (sourceNode.isClass) {
-				throw RequireMemberCompletionException()
-			}
-
-			addDirectChildNodes(sourceNode, incomplete, list, names, packageOnly)
-		}
-
-		abortCompletionIfCancelled()
-		val classpathNode =
-			if (pkgName.isEmpty()) {
-				module.compileClasspathClasses.root
-			} else {
-				module.compileClasspathClasses.findNode(pkgName)
-			}
-		if (classpathNode != null) {
-			if (classpathNode.isClass) {
-				throw RequireMemberCompletionException()
-			}
-
-			addDirectChildNodes(classpathNode, incomplete, list, names, packageOnly)
-		}
-
-		BootClasspathProvider.getAllEntries().forEach {
-			abortCompletionIfCancelled()
-			val node =
-				if (pkgName.isEmpty()) {
-					it.root
-				} else {
-					it.findNode(pkgName)
-				}
-			if (node != null) {
-				if (node.isClass) {
-					throw RequireMemberCompletionException()
-				}
-				addDirectChildNodes(node, incomplete, list, names, packageOnly)
-			}
-		}
-	}
-
-	private fun addDirectChildNodes(
-		sourceNode: Node,
-		incomplete: String,
-		list: MutableList<CompletionItem>,
-		names: MutableSet<String>,
-		packageOnly: Boolean,
-	) {
-		for (child in sourceNode.children.values) {
+		for (child in children) {
 			abortCompletionIfCancelled()
 			val match =
 				if (incomplete.isEmpty()) {
@@ -388,11 +258,7 @@ class ImportCompletionProvider(
 					matchLevel(child.name, incomplete)
 				}
 
-			if (match == NO_MATCH || names.contains(child.name)) {
-				continue
-			}
-
-			if (packageOnly && child.isClass) {
+			if (match == NO_MATCH) {
 				continue
 			}
 
@@ -401,8 +267,6 @@ class ImportCompletionProvider(
 			} else {
 				list.add(packageItem(child.qualifiedName, match))
 			}
-
-			names.add(child.name)
 		}
 	}
 
