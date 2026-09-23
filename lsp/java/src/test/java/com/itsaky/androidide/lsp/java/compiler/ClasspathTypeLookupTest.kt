@@ -1,6 +1,11 @@
 package com.itsaky.androidide.lsp.java.compiler
 
 import com.google.common.truth.Truth.assertThat
+import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
+import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
+import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -10,6 +15,7 @@ class ClasspathTypeLookupTest {
 	/** A stand-in for the index-backed classpath lookup: exact matches first, then case-insensitive prefix. */
 	private class FakeClasspath(
 		private val names: List<String>,
+		private val visibilityOf: (String) -> JvmVisibility = { JvmVisibility.PUBLIC },
 	) : ClasspathClassNames {
 		override fun qualifiedNamesOf(simpleName: String) = names.filter { it.substringAfterLast('.') == simpleName }
 
@@ -20,6 +26,21 @@ class ClasspathTypeLookupTest {
 			val prefixed = names.filter { it.substringAfterLast('.').startsWith(prefix, ignoreCase = true) }
 			return (qualifiedNamesOf(prefix) + prefixed).distinct().take(limit)
 		}
+
+		override fun classesNamed(simpleName: String): List<JvmSymbol> =
+			qualifiedNamesOf(simpleName).map { fqName ->
+				JvmSymbol(
+					key = fqName,
+					sourceId = "fake",
+					name = fqName.replace('.', '/'),
+					shortName = fqName.substringAfterLast('.'),
+					packageName = fqName.substringBeforeLast('.', missingDelimiterValue = ""),
+					kind = JvmSymbolKind.CLASS,
+					language = JvmSourceLanguage.JAVA,
+					visibility = visibilityOf(fqName),
+					data = JvmClassInfo(),
+				)
+			}
 	}
 
 	private fun lookup(
@@ -165,5 +186,85 @@ class ClasspathTypeLookupTest {
 		}, { emptyList() })
 
 		assertThat(created).isEqualTo(0)
+	}
+
+	@Test
+	fun `a package-private classpath class from another package is not importable`() {
+		val types =
+			lookup(
+				classpath =
+					FakeClasspath(
+						listOf("com.lib.Hidden"),
+						visibilityOf = { JvmVisibility.PACKAGE_PRIVATE },
+					),
+			)
+
+		assertThat(types.findImportableQualifiedNames("Hidden", importingPackage = "com.app")).isEmpty()
+	}
+
+	@Test
+	fun `a package-private classpath class in the importing package is importable`() {
+		val types =
+			lookup(
+				classpath =
+					FakeClasspath(
+						listOf("com.lib.Hidden"),
+						visibilityOf = { JvmVisibility.PACKAGE_PRIVATE },
+					),
+			)
+
+		assertThat(types.findImportableQualifiedNames("Hidden", importingPackage = "com.lib"))
+			.containsExactly("com.lib.Hidden")
+	}
+
+	@Test
+	fun `a file-private classpath class from another package is not importable`() {
+		val types =
+			lookup(
+				classpath =
+					FakeClasspath(
+						listOf("com.lib.Hidden"),
+						visibilityOf = { JvmVisibility.PRIVATE },
+					),
+			)
+
+		assertThat(types.findImportableQualifiedNames("Hidden", importingPackage = "com.app")).isEmpty()
+	}
+
+	@Test
+	fun `a file-private classpath class in the importing package is importable`() {
+		val types =
+			lookup(
+				classpath =
+					FakeClasspath(
+						listOf("com.lib.Hidden"),
+						visibilityOf = { JvmVisibility.PRIVATE },
+					),
+			)
+
+		assertThat(types.findImportableQualifiedNames("Hidden", importingPackage = "com.lib"))
+			.containsExactly("com.lib.Hidden")
+	}
+
+	@Test
+	fun `source and boot classes are importable regardless of visibility`() {
+		val types =
+			lookup(
+				sources = listOf("com.app.PackagePrivateSource"),
+				boot = listOf("android.PackagePrivateBoot"),
+			)
+
+		assertThat(types.findImportableQualifiedNames("PackagePrivateSource", importingPackage = "com.other"))
+			.containsExactly("com.app.PackagePrivateSource")
+		assertThat(types.findImportableQualifiedNames("PackagePrivateBoot", importingPackage = "com.other"))
+			.containsExactly("android.PackagePrivateBoot")
+	}
+
+	@Test
+	fun `a public classpath class is importable from any package`() {
+		val types = lookup(classpath = FakeClasspath(listOf("com.lib.Widget")))
+
+		assertThat(types.findImportableQualifiedNames("Widget", importingPackage = "com.app"))
+			.containsExactly("com.lib.Widget")
 	}
 }
