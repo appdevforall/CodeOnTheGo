@@ -45,7 +45,8 @@ import kotlin.collections.iterator
  * - Each `f_{field}` (for equality filter)
  * - Each `f_{field}_lower` (for prefix search)
  *
- * Uses WAL journal mode for concurrent read/write performance.
+ * File-backed databases use WAL journal mode: a commit appends to the write-ahead log instead
+ * of writing a rollback journal and the main file. In-memory databases have no journal to set.
  * Inserts are batched inside transactions for throughput.
  *
  * [query] and [distinctValues] eagerly collect results and return a
@@ -142,10 +143,10 @@ class SQLiteIndex<T : Indexable>(
 					},
 				).build()
 
-		db =
-			FrameworkSQLiteOpenHelperFactory()
-				.create(config)
-				.writableDatabase
+		val helper = FrameworkSQLiteOpenHelperFactory().create(config)
+		// androidx disables WAL unless asked, and it only takes effect if set before the first open.
+		helper.setWriteAheadLoggingEnabled(true)
+		db = helper.writableDatabase
 
 		// Ensure table exists (for shared databases)
 		createTable(db)
