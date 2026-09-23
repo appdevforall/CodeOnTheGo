@@ -55,7 +55,7 @@ class ClasspathTypeLookupTest {
 	) = ClasspathTypeLookup({ sources }, { classpath }, { boot })
 
 	@Test
-	fun `qualified names union source, classpath and boot classes`() {
+	fun `importable qualified names union source, classpath and boot classes`() {
 		val types =
 			lookup(
 				sources = listOf("com.app.Widget"),
@@ -63,8 +63,9 @@ class ClasspathTypeLookupTest {
 				boot = listOf("android.widget.Widget"),
 			)
 
-		assertThat(types.findQualifiedNames("Widget", false))
+		assertThat(types.findImportableQualifiedNames("Widget", importingPackage = "com.app"))
 			.containsExactly("android.widget.Widget", "com.app.Widget", "com.lib.Widget")
+			.inOrder()
 	}
 
 	@Test
@@ -76,27 +77,15 @@ class ClasspathTypeLookupTest {
 				boot = listOf("com.shared.Thing"),
 			)
 
-		assertThat(types.findQualifiedNames("Thing", false)).containsExactly("com.shared.Thing")
+		assertThat(types.findImportableQualifiedNames("Thing", importingPackage = "com.app")).containsExactly("com.shared.Thing")
 		assertThat(types.findTypeNamesMatching("Th", 10)).containsExactly("com.shared.Thing")
 	}
 
 	@Test
-	fun `qualified names match the whole simple name only`() {
+	fun `importable qualified names match the whole simple name only`() {
 		val types = lookup(boot = listOf("java.util.ArrayList", "java.util.List"))
 
-		assertThat(types.findQualifiedNames("List", false)).containsExactly("java.util.List")
-	}
-
-	@Test
-	fun `only one qualified name is returned when asked for one`() {
-		val types =
-			lookup(
-				sources = listOf("com.app.Widget"),
-				classpath = FakeClasspath(listOf("com.lib.Widget")),
-				boot = listOf("android.widget.Widget"),
-			)
-
-		assertThat(types.findQualifiedNames("Widget", true)).hasSize(1)
+		assertThat(types.findImportableQualifiedNames("List", importingPackage = "com.app")).containsExactly("java.util.List")
 	}
 
 	@Test
@@ -163,7 +152,7 @@ class ClasspathTypeLookupTest {
 	fun `no classpath lookup contributes nothing`() {
 		val types = lookup(sources = listOf("com.app.Widget"), classpath = null)
 
-		assertThat(types.findQualifiedNames("Widget", false)).containsExactly("com.app.Widget")
+		assertThat(types.findImportableQualifiedNames("Widget", importingPackage = "com.app")).containsExactly("com.app.Widget")
 		assertThat(types.findTypeNamesMatching("Wid", 10)).containsExactly("com.app.Widget")
 	}
 
@@ -176,7 +165,7 @@ class ClasspathTypeLookupTest {
 				FakeClasspath(emptyList())
 			}, { emptyList() })
 
-		types.findQualifiedNames("A", false)
+		types.findImportableQualifiedNames("A", importingPackage = "com.app")
 		types.findTypeNamesMatching("A", 5)
 
 		assertThat(created).isEqualTo(2)

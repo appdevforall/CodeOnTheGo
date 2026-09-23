@@ -55,23 +55,6 @@ class ClasspathTypeLookup internal constructor(
 	private val bootClasses: () -> Collection<String>,
 ) {
 	/**
-	 * Returns the qualified names of the top-level classes whose simple name is exactly [simpleName],
-	 * sorted, or at most one of them when [onlyOne].
-	 */
-	fun findQualifiedNames(
-		simpleName: String,
-		onlyOne: Boolean,
-	): List<String> {
-		val names =
-			sequence {
-				yieldAll(sourceClasses().filter { simpleNameOf(it) == simpleName })
-				classpath()?.let { yieldAll(it.qualifiedNamesOf(simpleName)) }
-				yieldAll(bootClasses().filter { simpleNameOf(it) == simpleName })
-			}.distinct()
-		return if (onlyOne) names.take(1).toList() else names.sorted().toList()
-	}
-
-	/**
 	 * Returns up to [limit] qualified names of top-level classes whose simple name starts with
 	 * [partial], ignoring case.
 	 *
