@@ -182,7 +182,7 @@ class CodeEditorView(
 				if (region == REGION_LINE_NUMBER) {
 					val language = editorLanguage as? IDELanguage? ?: return@subscribeEvent
 					val server = languageServer ?: return@subscribeEvent
-					if (server.debugAdapter != null) {
+					if (server.supportsDebugging(editorFile.toPath())) {
 						event.intercept(InterceptTarget.TARGET_EDITOR)
 
 						// If we already have a breakpoint added, we won't have received this event
