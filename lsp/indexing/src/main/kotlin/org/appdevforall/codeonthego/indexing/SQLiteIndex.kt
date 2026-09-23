@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.os.Looper
+import androidx.annotation.VisibleForTesting
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
@@ -230,19 +231,7 @@ class SQLiteIndex<T : Indexable>(
 						break
 					}
 
-					val (where, args) = buildWhereClause(query, chunk)
-					val sql =
-						buildString {
-							append("SELECT DISTINCT $col FROM $tableName WHERE $col IS NOT NULL")
-							if (where.isNotEmpty()) {
-								append(" AND ")
-								append(where)
-							}
-							if (limit != Int.MAX_VALUE) {
-								append(" LIMIT ${limit - values.size}")
-							}
-						}
-
+					val (sql, args) = buildDistinctQuery(col, query, chunk, limit - values.size)
 					db.query(sql, args.toTypedArray()).use {
 						while (it.moveToNext()) {
 							values.add(it.getString(0))
@@ -561,6 +550,60 @@ class SQLiteIndex<T : Indexable>(
 
 		return SqlQuery(sql, args)
 	}
+
+	private fun buildDistinctQuery(
+		column: String,
+		query: IndexQuery,
+		sourceIdChunk: List<String>?,
+		limit: Int,
+	): SqlQuery {
+		val (where, args) = buildWhereClause(query, sourceIdChunk)
+		val sql =
+			buildString {
+				append("SELECT DISTINCT $column FROM $tableName WHERE $column IS NOT NULL")
+				if (where.isNotEmpty()) {
+					append(" AND ")
+					append(where)
+				}
+				if (limit != Int.MAX_VALUE) {
+					append(" LIMIT $limit")
+				}
+			}
+		return SqlQuery(sql, args)
+	}
+
+	/** Returns the plan of the first statement [query] runs, one plan row per line. */
+	@VisibleForTesting
+	internal fun explainQuery(query: IndexQuery): String {
+		val select = buildSelectQuery(query, firstSourceIdChunk(query), effectiveLimit(query))
+		return explain(select)
+	}
+
+	/** Returns the plan of the first statement [distinctValues] runs for [fieldName] and [query]. */
+	@VisibleForTesting
+	internal fun explainDistinctValues(
+		fieldName: String,
+		query: IndexQuery,
+	): String {
+		val col = fieldColumns[fieldName] ?: throw IllegalArgumentException("Unknown field: $fieldName")
+		return explain(buildDistinctQuery(col, query, firstSourceIdChunk(query), effectiveLimit(query)))
+	}
+
+	private fun firstSourceIdChunk(query: IndexQuery): List<String>? {
+		val chunks = sourceIdChunks(query)
+		require(chunks.isNotEmpty()) { "A query scoped to no sources runs no statement" }
+		return chunks.first()
+	}
+
+	private fun explain(query: SqlQuery): String =
+		runBlocking {
+			ifOpen("") {
+				db.query("EXPLAIN QUERY PLAN ${query.sql}", query.args.toTypedArray()).use { cursor ->
+					val detail = cursor.getColumnIndexOrThrow("detail")
+					buildList { while (cursor.moveToNext()) add(cursor.getString(detail)) }.joinToString("\n")
+				}
+			}
+		}
 
 	/**
 	 * Builds the shared `WHERE` body for [query], restricted to [sourceIdChunk] when the query is

@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.indexing
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.test.runTest
@@ -109,7 +108,7 @@ class SQLiteIndexIdentityTest {
 		runTest {
 			index.insert(Entry("com.example.Foo", "jarA", "fromA"))
 
-			val plan = explain("SELECT _payload FROM test_identity WHERE _source_id = ?", "jarA")
+			val plan = index.explainQuery(IndexQuery.bySource("jarA"))
 
 			assertThat(plan).contains("sqlite_autoindex_test_identity_1")
 		}
@@ -119,7 +118,7 @@ class SQLiteIndexIdentityTest {
 		runTest {
 			index.insert(Entry("com.example.Foo", "jarA", "fromA"))
 
-			val plan = explain("SELECT _payload FROM test_identity WHERE _key = ?", "com.example.Foo")
+			val plan = index.explainQuery(IndexQuery.byKey("com.example.Foo"))
 
 			assertThat(plan).contains("USING INDEX")
 			assertThat(plan).doesNotContain("SCAN")
@@ -132,20 +131,6 @@ class SQLiteIndexIdentityTest {
 		.query(IndexQuery(key = key, sourceIds = listOf(sourceId), limit = 0))
 		.single()
 		.value
-
-	/** Returns the query plan for [sql], read over a second connection because the index exposes none. */
-	private fun explain(
-		sql: String,
-		vararg args: String,
-	): String {
-		val path = context.getDatabasePath(DB_NAME).path
-		return SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
-			db.rawQuery("EXPLAIN QUERY PLAN $sql", args).use { cursor ->
-				val detail = cursor.getColumnIndexOrThrow("detail")
-				buildList { while (cursor.moveToNext()) add(cursor.getString(detail)) }.joinToString("\n")
-			}
-		}
-	}
 
 	private companion object {
 		const val DB_NAME = "identity_test.db"
