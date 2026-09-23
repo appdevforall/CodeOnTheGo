@@ -120,8 +120,8 @@ class ImportCompletionProvider(
 		}
 
 		try {
-			// This maybe reached only in some rare cases
-			addChildItems(children.of(pkgName), incomplete, list)
+			// pkgName may itself be a class name; its children were already offered by ofPackage above.
+			children.requireNotClass(pkgName)
 		} catch (e: RequireMemberCompletionException) {
 			// User is trying to access members of a class
 			if (completeTypeMembers(task, path, pkgName, incomplete, list)) {
