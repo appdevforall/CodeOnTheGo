@@ -36,6 +36,17 @@ open class JvmSymbolIndex(
 		const val INDEX_NAME_LIBRARY = "jvm-library-cache"
 
 		/**
+		 * Storage format version of the SQLite-backed JVM symbol and Kotlin file metadata indexes.
+		 *
+		 * Bump it whenever the index schema or any scanner's output changes: an install holding a
+		 * different version drops its rows and re-indexes every source, which is the only way rows
+		 * produced by an older scanner get replaced. [KtFileMetadataIndex] shares it because a
+		 * source file's symbols are re-indexed only when its metadata row says so; dropping the
+		 * symbols alone would leave files recorded as indexed with no symbols.
+		 */
+		const val FORMAT_VERSION = 2
+
+		/**
 		 * Create (or get) a JVM symbol index backed by SQLite.
 		 *
 		 * @param context The context to use for accessing the SQLite database.
@@ -52,6 +63,7 @@ open class JvmSymbolIndex(
 					descriptor = JvmSymbolDescriptor,
 					context = context,
 					dbName = dbName,
+					formatVersion = FORMAT_VERSION,
 					name = indexName,
 				)
 

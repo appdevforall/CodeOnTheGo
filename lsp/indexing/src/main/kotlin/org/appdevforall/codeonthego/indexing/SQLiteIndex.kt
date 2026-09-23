@@ -59,12 +59,17 @@ import kotlin.collections.iterator
  * @param dbName Database file name. Pass `null` to create an in-memory database
  *               that is discarded when closed. Different index types can share
  *               a database (each gets its own table) or use separate files.
+ * @param formatVersion Version of the stored format: the schema and whatever produced the rows.
+ *               It belongs to the database file, so opening a file stored at any other version
+ *               discards every table in it; each index sharing the file recreates its own table
+ *               when it opens. Indexes sharing a file must therefore pass the same version.
  * @param batchSize Number of rows per INSERT transaction.
  */
 class SQLiteIndex<T : Indexable>(
 	override val descriptor: IndexDescriptor<T>,
 	context: Context,
 	dbName: String?,
+	formatVersion: Int,
 	override val name: String = "sqlite:${descriptor.name}",
 	private val batchSize: Int = 500,
 ) : Index<T> {
@@ -83,6 +88,10 @@ class SQLiteIndex<T : Indexable>(
 		 * chunks are disjoint on `_source_id`, so no row can be returned by two of them.
 		 */
 		private const val SOURCE_ID_CHUNK_SIZE = 900
+
+		/** Every table in a database except SQLite's and Android's own bookkeeping tables. */
+		private const val USER_TABLES_QUERY =
+			"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'android_metadata'"
 	}
 
 	private val tableName = descriptor.name.replace(Regex("[^a-zA-Z0-9_]"), "_")
@@ -110,7 +119,7 @@ class SQLiteIndex<T : Indexable>(
 				.builder(context)
 				.name(dbName)
 				.callback(
-					object : SupportSQLiteOpenHelper.Callback(1) {
+					object : SupportSQLiteOpenHelper.Callback(formatVersion) {
 						override fun onCreate(db: SupportSQLiteDatabase) {
 							createTable(db)
 						}
@@ -120,12 +129,15 @@ class SQLiteIndex<T : Indexable>(
 							oldVersion: Int,
 							newVersion: Int,
 						) {
-							// TODO: Add migration support
-							db.execSQL("DROP TABLE IF EXISTS $tableName")
-							createTable(db)
+							rebuild(db)
 						}
 
-						override fun onOpen(db: SupportSQLiteDatabase) {
+						override fun onDowngrade(
+							db: SupportSQLiteDatabase,
+							oldVersion: Int,
+							newVersion: Int,
+						) {
+							rebuild(db)
 						}
 					},
 				).build()
@@ -325,6 +337,24 @@ class SQLiteIndex<T : Indexable>(
 				cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
 			}
 		}
+
+	/**
+	 * Discards every table in [db] and recreates this index's own.
+	 *
+	 * The index is a cache of what the scanners produce, so a format change is handled by
+	 * rebuilding rather than migrating: rows written by an older scanner are wrong, not just
+	 * differently shaped.
+	 */
+	private fun rebuild(db: SupportSQLiteDatabase) {
+		val tables =
+			db.query(USER_TABLES_QUERY).use {
+				buildList { while (it.moveToNext()) add(it.getString(0)) }
+			}
+		for (table in tables) {
+			db.execSQL("DROP TABLE IF EXISTS \"$table\"")
+		}
+		createTable(db)
+	}
 
 	private fun createTable(db: SupportSQLiteDatabase) {
 		val columns =
