@@ -6,10 +6,26 @@ import java.nio.file.Path
 
 internal sealed interface IndexCommand {
 	data object Stop : IndexCommand
-	data object SourceScanningComplete: IndexCommand
-	data object IndexingComplete: IndexCommand
-	data class ScanSourceFile(val vf: VirtualFile): IndexCommand
-	data class IndexModifiedFile(val ktFile: KtFile): IndexCommand
-	data class IndexSourceFile(val vf: VirtualFile): IndexCommand
-	data class RemoveFromIndex(val path: Path): IndexCommand
+
+	data object SourceScanningStarted : IndexCommand
+
+	data object SourceScanningComplete : IndexCommand
+
+	data object IndexingComplete : IndexCommand
+
+	data class ScanSourceFile(
+		val vf: VirtualFile,
+	) : IndexCommand
+
+	data class IndexModifiedFile(
+		val ktFile: KtFile,
+	) : IndexCommand
+
+	data class IndexSourceFile(
+		val vf: VirtualFile,
+	) : IndexCommand
+
+	data class RemoveFromIndex(
+		val path: Path,
+	) : IndexCommand
 }
