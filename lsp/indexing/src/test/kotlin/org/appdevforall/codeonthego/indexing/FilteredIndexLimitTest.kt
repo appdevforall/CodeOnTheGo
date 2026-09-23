@@ -142,4 +142,14 @@ class FilteredIndexLimitTest {
 
 			assertThat(activeOnly("jarA").distinctValues("value").toList()).containsExactly("Alpha")
 		}
+
+	@Test
+	fun `a point lookup finds the active source's row when an inactive source shares the key`() =
+		runTest {
+			backing.insert(Entry("shared", "jarA", "Inactive"))
+			backing.insert(Entry("shared", "jarB", "Active"))
+
+			assertThat(activeOnly("jarB").get("shared")!!.value).isEqualTo("Active")
+			assertThat(activeOnly("jarB").query(IndexQuery.byKey("shared")).single().value).isEqualTo("Active")
+		}
 }
