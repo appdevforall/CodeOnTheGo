@@ -575,7 +575,7 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 			item.detail = symbol.fqName
 			item.setClassCompletionData(
 				className = symbol.fqName,
-				isNested = classInfo.isInner,
+				isNested = !symbol.isTopLevel,
 				topLevelClass = classInfo.containingClassFqName,
 			)
 		}
