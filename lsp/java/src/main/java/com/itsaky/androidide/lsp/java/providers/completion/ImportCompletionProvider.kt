@@ -20,7 +20,6 @@ package com.itsaky.androidide.lsp.java.providers.completion
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.java.compiler.CompileTask
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
-import com.itsaky.androidide.lsp.java.providers.CompletionProvider.MAX_COMPLETION_ITEMS
 import com.itsaky.androidide.lsp.models.CompletionItem
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.MatchLevel.CASE_SENSITIVE_EQUAL
@@ -75,7 +74,6 @@ class ImportCompletionProvider(
 
 		log.info("...complete import for path: {}", importPath)
 
-		val names: MutableSet<String> = HashSet()
 		val list = mutableListOf<CompletionItem>()
 
 		var pkgName = importPath
@@ -100,11 +98,7 @@ class ImportCompletionProvider(
 		}
 
 		abortCompletionIfCancelled()
-		val module = compiler.module
-		if (module == null) {
-			legacyImportPathCompletion(partial, names, list)
-			return CompletionResult(list)
-		}
+		val module = compiler.module ?: return CompletionResult(list)
 
 		val children = importPathChildren(module)
 		if (pkgName.isBlank()) {
@@ -266,41 +260,6 @@ class ImportCompletionProvider(
 				list.add(classItem(child.qualifiedName, match))
 			} else {
 				list.add(packageItem(child.qualifiedName, match))
-			}
-		}
-	}
-
-	private fun legacyImportPathCompletion(
-		partial: String,
-		names: MutableSet<String>,
-		list: MutableList<CompletionItem>,
-	) {
-		abortCompletionIfCancelled()
-		for (className in compiler.publicTopLevelTypes()) {
-			val matchLevel = matchLevel(className, partial)
-			if (matchLevel == NO_MATCH) {
-				continue
-			}
-
-			val start = importPath.lastIndexOf('.')
-			var end = className.indexOf('.', importPath.length)
-			if (end == -1) {
-				end = className.length
-			}
-			val segment = className.substring(start + 1, end)
-			if (names.contains(segment)) {
-				continue
-			}
-			names.add(segment)
-			val isClass = end == importPath.length
-			if (isClass) {
-				list.add(classItem(className, matchLevel))
-			} else {
-				list.add(packageItem(segment, matchLevel))
-			}
-
-			if (list.size > MAX_COMPLETION_ITEMS) {
-				break
 			}
 		}
 	}
