@@ -32,10 +32,10 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 		listOf(
 			IndexField(name = KEY_NAME, prefixSearchable = true),
 			IndexField(name = KEY_PACKAGE),
-			IndexField(name = KEY_KIND),
+			IndexField(name = KEY_KIND, selective = false),
 			IndexField(name = KEY_RECEIVER_TYPE),
 			IndexField(name = KEY_CONTAINING_CLASS),
-			IndexField(name = KEY_LANGUAGE),
+			IndexField(name = KEY_LANGUAGE, selective = false),
 		)
 
 	override fun fieldValues(entry: JvmSymbol): Map<String, String?> =
