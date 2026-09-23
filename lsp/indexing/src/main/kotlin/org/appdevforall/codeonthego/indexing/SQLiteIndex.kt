@@ -46,6 +46,10 @@ import kotlin.collections.iterator
  * - Each `f_{field}` (for equality filter)
  * - Each `f_{field}_lower` (for prefix search)
  *
+ * When a query has a selective predicate (a key, a prefix, or a match on a
+ * [selective][org.appdevforall.codeonthego.indexing.api.IndexField.selective] field), its source
+ * scope and its other terms only filter rows and never choose the index.
+ *
  * File-backed databases use WAL journal mode: a commit appends to the write-ahead log instead
  * of writing a rollback journal and the main file. In-memory databases have no journal to set.
  * Inserts are batched inside transactions for throughput.
@@ -112,6 +116,12 @@ class SQLiteIndex<T : Indexable>(
 		descriptor.fields
 			.filter { it.prefixSearchable }
 			.associate { it.name to "f_${it.name}_lower" }
+
+	/** Fields whose value matches may choose the SQL index a query is served by. */
+	private val selectiveFields =
+		descriptor.fields
+			.filter { it.selective }
+			.mapTo(HashSet()) { it.name }
 
 	private val mutex = Mutex()
 
@@ -558,9 +568,10 @@ class SQLiteIndex<T : Indexable>(
 		limit: Int,
 	): SqlQuery {
 		val (where, args) = buildWhereClause(query, sourceIdChunk)
+		val filter = filterOnlyMarker(query)
 		val sql =
 			buildString {
-				append("SELECT DISTINCT $column FROM $tableName WHERE $column IS NOT NULL")
+				append("SELECT DISTINCT $column FROM $tableName WHERE $filter$column IS NOT NULL")
 				if (where.isNotEmpty()) {
 					append(" AND ")
 					append(where)
@@ -606,6 +617,31 @@ class SQLiteIndex<T : Indexable>(
 		}
 
 	/**
+	 * Whether [query] has a predicate its own SQL index narrows to few rows: a key, a non-empty
+	 * prefix, or a value match on a selective field.
+	 */
+	private fun hasSelectivePredicate(query: IndexQuery): Boolean =
+		query.key != null ||
+			query.exactMatch.keys.any { it in selectiveFields } ||
+			query.anyOf.any { (field, values) -> field in selectiveFields && values.isNotEmpty() } ||
+			query.prefixMatch.any { (field, prefix) -> field in fieldColumns && prefix.isNotEmpty() }
+
+	/**
+	 * The unary `+` that keeps a term out of SQL index selection when [query] has a selective
+	 * predicate, and nothing otherwise. The term is still evaluated against every candidate row.
+	 *
+	 * Without statistics SQLite rates an `IN` list or an equality on any indexed column as good as a
+	 * range, so a scope over hundreds of sources, or a kind, would otherwise choose the index and
+	 * leave the selective predicate to be checked row by row. A query with no selective predicate
+	 * keeps every term eligible, so its scope can still be served by the primary key.
+	 *
+	 * The trade-off: any non-empty prefix wins over the scope, even a one-character prefix under a
+	 * single-source scope, where the scope would be narrower. Production scopes span hundreds of
+	 * sources, so the prefix is the right choice for the queries that matter.
+	 */
+	private fun filterOnlyMarker(query: IndexQuery) = if (hasSelectivePredicate(query)) "+" else ""
+
+	/**
 	 * Builds the shared `WHERE` body for [query], restricted to [sourceIdChunk] when the query is
 	 * source-scoped. Returns the clause without the `WHERE` keyword so both the row select and the
 	 * distinct projection can splice it in.
@@ -626,17 +662,21 @@ class SQLiteIndex<T : Indexable>(
 			args.addAll(values)
 		}
 
+		val filter = filterOnlyMarker(query)
+
+		fun filterUnlessSelective(field: String) = if (field in selectiveFields) "" else filter
+
 		query.key?.let { and("_key = ?", it) }
-		query.sourceId?.let { and("_source_id = ?", it) }
+		query.sourceId?.let { and("${filter}_source_id = ?", it) }
 
 		if (sourceIdChunk != null) {
 			val placeholders = sourceIdChunk.joinToString(",") { "?" }
-			and("_source_id IN ($placeholders)", *sourceIdChunk.toTypedArray())
+			and("${filter}_source_id IN ($placeholders)", *sourceIdChunk.toTypedArray())
 		}
 
 		for ((field, value) in query.exactMatch) {
 			val col = fieldColumns[field] ?: continue
-			and("$col = ?", value)
+			and("${filterUnlessSelective(field)}$col = ?", value)
 		}
 
 		for ((field, values) in query.anyOf) {
@@ -648,7 +688,7 @@ class SQLiteIndex<T : Indexable>(
 			}
 			val distinct = values.distinct()
 			val placeholders = distinct.joinToString(",") { "?" }
-			and("$col IN ($placeholders)", *distinct.toTypedArray())
+			and("${filterUnlessSelective(field)}$col IN ($placeholders)", *distinct.toTypedArray())
 		}
 
 		for ((field, prefix) in query.prefixMatch) {
@@ -660,7 +700,7 @@ class SQLiteIndex<T : Indexable>(
 
 			if (value.isEmpty()) {
 				// An empty prefix means "has a value", which is what `LIKE '%'` used to express.
-				and("$col IS NOT NULL")
+				and("$filter$col IS NOT NULL")
 				continue
 			}
 
@@ -683,9 +723,9 @@ class SQLiteIndex<T : Indexable>(
 		for ((field, mustExist) in query.presence) {
 			val col = fieldColumns[field] ?: continue
 			if (mustExist) {
-				and("$col IS NOT NULL")
+				and("$filter$col IS NOT NULL")
 			} else {
-				and("$col IS NULL")
+				and("$filter$col IS NULL")
 			}
 		}
 

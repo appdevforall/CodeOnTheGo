@@ -21,6 +21,7 @@ class SQLiteIndexScopeTest {
 		override val sourceId: String,
 		val value: String,
 		val group: String = "",
+		val kind: String = "",
 	) : Indexable
 
 	private val descriptor =
@@ -30,19 +31,22 @@ class SQLiteIndexScopeTest {
 				listOf(
 					IndexField("value", prefixSearchable = true),
 					IndexField("group"),
+					IndexField("kind", selective = false),
 				)
 
 			override fun fieldValues(entry: Entry) =
 				mapOf(
 					"value" to entry.value,
 					"group" to entry.group,
+					"kind" to entry.kind,
 				)
 
-			override fun serialize(entry: Entry) = "${entry.key}|${entry.sourceId}|${entry.value}|${entry.group}".toByteArray()
+			override fun serialize(entry: Entry) =
+				listOf(entry.key, entry.sourceId, entry.value, entry.group, entry.kind).joinToString("|").toByteArray()
 
 			override fun deserialize(bytes: ByteArray): Entry {
 				val parts = String(bytes).split("|")
-				return Entry(parts[0], parts[1], parts[2], parts[3])
+				return Entry(parts[0], parts[1], parts[2], parts[3], parts[4])
 			}
 		}
 
@@ -191,5 +195,26 @@ class SQLiteIndexScopeTest {
 					.toList()
 
 			assertThat(keys).containsExactly("wanted")
+		}
+
+	@Test
+	fun `scope and kind terms that only filter still exclude non-matching rows`() =
+		runTest {
+			index.insert(Entry("match", "jarA", "Widget1", kind = "CLASS"))
+			index.insert(Entry("otherKind", "jarA", "Widget2", kind = "METHOD"))
+			index.insert(Entry("otherSource", "jarB", "Widget3", kind = "CLASS"))
+			index.insert(Entry("otherName", "jarA", "Gadget", kind = "CLASS"))
+
+			val byAnyOf =
+				IndexQuery(
+					prefixMatch = mapOf("value" to "Widget"),
+					anyOf = mapOf("kind" to listOf("CLASS")),
+					sourceIds = listOf("jarA"),
+					limit = 0,
+				)
+			val byExact = byAnyOf.copy(anyOf = emptyMap(), exactMatch = mapOf("kind" to "CLASS"))
+
+			assertThat(index.query(byAnyOf).map { it.key }.toList()).containsExactly("match")
+			assertThat(index.query(byExact).map { it.key }.toList()).containsExactly("match")
 		}
 }

@@ -83,8 +83,13 @@ interface IndexDescriptor<T : Indexable> {
  * @param prefixSearchable  Whether this field supports prefix queries
  *                          (e.g. name prefix for completions). Affects how
  *                          the persistent layer creates SQL indexes.
+ * @param selective         Whether matching this field to a value narrows a query to few entries.
+ *                          Pass `false` for a field with few distinct values, such as a kind or a
+ *                          flag: a match on it then only filters a query that has a selective
+ *                          predicate, instead of choosing the SQL index the query is served by.
  */
 data class IndexField(
 	val name: String,
 	val prefixSearchable: Boolean = false,
+	val selective: Boolean = true,
 )
