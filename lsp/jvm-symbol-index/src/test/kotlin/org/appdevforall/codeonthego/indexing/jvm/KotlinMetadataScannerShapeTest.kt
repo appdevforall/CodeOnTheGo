@@ -1,0 +1,91 @@
+package org.appdevforall.codeonthego.indexing.jvm
+
+import com.google.common.truth.Truth.assertThat
+import org.junit.Assume.assumeTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import java.io.File
+import java.util.jar.JarFile
+
+/**
+ * [KotlinMetadataScanner] against the real Kotlin standard library, which is the only convenient
+ * source of genuine `@kotlin.Metadata` in the shapes that matter: a file facade, a multi-file facade
+ * and a nested class.
+ */
+@RunWith(JUnit4::class)
+class KotlinMetadataScannerShapeTest {
+	private val stdlibJar: File? =
+		runCatching {
+			File(
+				Unit::class.java.protectionDomain.codeSource.location
+					.toURI(),
+			)
+		}.getOrNull()
+			?.takeIf { it.isFile && it.name.endsWith(".jar") }
+
+	private fun symbolsFor(entryName: String): List<JvmSymbol> {
+		val jar = stdlibJar
+		assumeTrue("kotlin-stdlib jar not resolvable from the test classpath", jar != null)
+		return JarFile(jar).use { file ->
+			val entry = file.getJarEntry(entryName)
+			assumeTrue("$entryName missing from ${jar!!.name}", entry != null)
+			file.getInputStream(entry).use { KotlinMetadataScanner.parseKotlinClass(it, "stdlib") }
+		} ?: emptyList()
+	}
+
+	@Test
+	fun `a nested class reports its simple name, not the outer-qualified one`() {
+		val companion = symbolsFor("kotlin/text/Regex\$Companion.class").first { it.kind.isClassifier }
+
+		// Kotlin metadata spells this "kotlin/text/Regex.Companion", so splitting on '$' alone left
+		// the short name as "Regex.Companion" and no prefix search could reach it.
+		assertThat(companion.shortName).isEqualTo("Companion")
+	}
+
+	@Test
+	fun `a nested class is not reported as top level`() {
+		val companion = symbolsFor("kotlin/text/Regex\$Companion.class").first { it.kind.isClassifier }
+
+		assertThat(companion.isTopLevel).isFalse()
+		assertThat(companion.data.containingClassFqName).isEqualTo("kotlin.text.Regex")
+	}
+
+	@Test
+	fun `a file facade is indexed as a class in its own right`() {
+		val symbols = symbolsFor("kotlin/io/CloseableKt.class")
+
+		val facade = symbols.singleOrNull { it.kind == JvmSymbolKind.FILE_FACADE }
+		assertThat(facade).isNotNull()
+		assertThat(facade!!.shortName).isEqualTo("CloseableKt")
+		assertThat(facade.fqName).isEqualTo("kotlin.io.CloseableKt")
+		assertThat(facade.packageName).isEqualTo("kotlin.io")
+	}
+
+	@Test
+	fun `a multi-file facade is indexed even though it declares nothing itself`() {
+		val symbols = symbolsFor("kotlin/collections/CollectionsKt.class")
+
+		val facade = symbols.singleOrNull { it.kind == JvmSymbolKind.FILE_FACADE }
+		assertThat(facade).isNotNull()
+		assertThat(facade!!.fqName).isEqualTo("kotlin.collections.CollectionsKt")
+	}
+
+	@Test
+	fun `a facade is a JVM class but not a classifier`() {
+		val facade =
+			symbolsFor("kotlin/io/CloseableKt.class").single { it.kind == JvmSymbolKind.FILE_FACADE }
+
+		// Java calls top-level functions through the facade, so it must be findable as a class.
+		assertThat(facade.kind.isJvmClass).isTrue()
+		// Kotlin refers to the declarations, never the facade, so it must not be offered as a type.
+		assertThat(facade.kind.isClassifier).isFalse()
+	}
+
+	@Test
+	fun `the declarations inside a facade are still indexed alongside it`() {
+		val symbols = symbolsFor("kotlin/io/CloseableKt.class")
+
+		assertThat(symbols.any { it.kind.isCallable }).isTrue()
+	}
+}
