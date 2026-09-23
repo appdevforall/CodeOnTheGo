@@ -48,6 +48,7 @@ class FilteredIndexLimitTest {
 			descriptor = descriptor,
 			context = ApplicationProvider.getApplicationContext<Context>(),
 			dbName = null,
+			formatVersion = 1,
 		)
 
 	@After

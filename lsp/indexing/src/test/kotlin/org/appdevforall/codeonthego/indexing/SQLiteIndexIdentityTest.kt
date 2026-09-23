@@ -40,7 +40,7 @@ class SQLiteIndexIdentityTest {
 
 	private val context = ApplicationProvider.getApplicationContext<Context>()
 
-	private val index = SQLiteIndex(descriptor = descriptor, context = context, dbName = DB_NAME)
+	private val index = SQLiteIndex(descriptor = descriptor, context = context, dbName = DB_NAME, formatVersion = 1)
 
 	@After
 	fun tearDown() {
