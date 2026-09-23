@@ -17,7 +17,8 @@ import kotlin.io.path.extension
  * A scope of its own rather than part of [JVM_LIBRARY_SYMBOL_INDEX] or
  * [JVM_GENERATED_SYMBOL_INDEX]: the Kotlin LSP resolves project classes from its source index and
  * also reads those two, so folding these JARs into either would show it every project class twice.
- * Only the Java LSP, which resolves project classes from the compile classpath, reads this one.
+ * The Java and XML layout-completion LSPs, which resolve project classes from the compile
+ * classpath, read this one through [ModuleClasspathLookup].
  */
 val JVM_MODULE_OUTPUT_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-module-output-symbols")
 
