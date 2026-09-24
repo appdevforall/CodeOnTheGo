@@ -1604,6 +1604,13 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun getSettingsFragmentClassName ()Ljava/lang/String;
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$EmbeddingBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun embed (Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getEmbeddingDimensions ()I
+	public abstract fun getEmbeddingModelId ()Ljava/lang/String;
+	public static fun requireValidBatch (Ljava/util/List;)Ljava/util/List;
+}
+
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$HistoryCapableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
 	public abstract fun generateStreamingWithHistory (Ljava/util/List;Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback;)V
 }
