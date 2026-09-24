@@ -125,9 +125,15 @@ mid-construction cannot leave a fingerprint describing snapshots that were never
 ## Traps
 
 - **Never print to stdout.** Use the injected `log` / `warn` channels, which reach stderr.
-- **`kotlin-daemon-client` and `kotlin-daemon-embeddable` look like dead weight and are not.**
-  Excluding them throws `NoClassDefFoundError` from inside the in-process path. `build.gradle.kts`
-  records which exclusion is safe and why.
+- **Eight of the jars beside the daemon jar on device are not in the APK.** `:app`'s
+  `quickBuildDaemonZip` leaves out `kotlin-compiler-embeddable` and seven others, and
+  `QuickBuildArtifactStager` links the on-device Gradle distribution's copies in under the same
+  names, which the manifest `Class-Path` matches by exact file name. So the daemon's Kotlin version
+  must equal the distribution's; `:app:quickBuildDistJarCheck` fails the build when it does not.
+- **`kotlin-daemon-embeddable` and `kotlin-reflect` look like dead weight and are not.**
+  Excluding either throws `NoClassDefFoundError` from inside the in-process path. `build.gradle.kts`
+  records which exclusion is safe and why. (`kotlin-daemon-client`, which this bullet used to name,
+  is not on the 2.3.21 graph at all.)
 - **A `Result.Failed` diagnostic list is bounded.** kotlinc emits one unresolved-reference error per
   use site, so a deleted dependency yields hundreds; the whole list rides one protocol line into a
   phone-screen panel. kotlinc, javac and aapt2 diagnostics cap at 50 entries each with a "+K more
