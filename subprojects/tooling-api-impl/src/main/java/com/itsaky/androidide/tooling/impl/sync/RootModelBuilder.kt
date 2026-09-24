@@ -181,9 +181,9 @@ object RootModelBuilder :
 						)
 
 						runBlocking {
-							syncMetaFile.outputStream().buffered().use { out ->
-								ProjectSyncHelper
-									.createSyncMeta(
+							ProjectSyncHelper.writeSyncMetaSync(
+								syncMeta =
+									ProjectSyncHelper.createSyncMeta(
 										projectDir = projectDir,
 										includeChecksum = true,
 										projectModelInfo =
@@ -191,9 +191,9 @@ object RootModelBuilder :
 												projectCacheFile.absolutePath,
 												projectCacheFile.sha256(),
 											),
-									).writeTo(out)
-								out.flush()
-							}
+									),
+								targetFile = syncMetaFile,
+							)
 						}
 					}
 
