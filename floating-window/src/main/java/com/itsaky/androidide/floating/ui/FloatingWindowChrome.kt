@@ -396,16 +396,24 @@ private fun DrawScope.drawRestore(color: Color) {
 	drawRect(color, Offset(size.width - pad - square, pad), Size(square, square), style = Stroke(strokePx()))
 	drawRect(color, Offset(pad, size.height - pad - square), Size(square, square), style = Stroke(strokePx()))
 }
-
 private fun DrawScope.drawDock(color: Color) {
-	val w = size.width
-	val h = size.height
-	val stroke = strokePx()
-	drawLine(color, Offset(w * 0.26f, h * 0.78f), Offset(w * 0.74f, h * 0.78f), stroke, StrokeCap.Round)
-	drawLine(color, Offset(w * 0.5f, h * 0.22f), Offset(w * 0.5f, h * 0.6f), stroke, StrokeCap.Round)
-	drawLine(color, Offset(w * 0.5f, h * 0.6f), Offset(w * 0.37f, h * 0.46f), stroke, StrokeCap.Round)
-	drawLine(color, Offset(w * 0.5f, h * 0.6f), Offset(w * 0.63f, h * 0.46f), stroke, StrokeCap.Round)
+	val pad = size.minDimension * 0.24f
+	val barHeight = size.minDimension * 0.22f
+	// Outer window outline (same padding as drawMaximize, for visual consistency)
+	drawRect(
+		color = color,
+		topLeft = Offset(pad, pad),
+		size = Size(size.width - 2 * pad, size.height - 2 * pad),
+		style = Stroke(strokePx()),
+	)
+	// Filled strip at the top edge: where the window docks back to
+	drawRect(
+		color = color,
+		topLeft = Offset(pad, pad),
+		size = Size(size.width - 2 * pad, barHeight),
+	)
 }
+
 
 private fun DrawScope.drawClose(color: Color) {
 	val pad = size.minDimension * 0.28f
