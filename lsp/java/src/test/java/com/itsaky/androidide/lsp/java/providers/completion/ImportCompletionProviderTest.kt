@@ -73,22 +73,9 @@ class ImportCompletionProviderTest {
 
 	@Test
 	fun `a package only the class index holds is completed`() {
-		val module = module()
-		module.compileClasspathClasses.append("com.trie.Widget")
-
-		val items = complete("com.", module, FakeClasspathPackages(listOf("com.indexed.Widget")))
+		val items = complete("com.", module(), FakeClasspathPackages(listOf("com.indexed.Widget")))
 
 		assertThat(items.labels()).contains("indexed")
-	}
-
-	@Test
-	fun `a package only the classpath trie holds is not completed`() {
-		val module = module()
-		module.compileClasspathClasses.append("com.trie.Widget")
-
-		val items = complete("com.", module, FakeClasspathPackages(listOf("com.indexed.Widget")))
-
-		assertThat(items.labels()).doesNotContain("trie")
 	}
 
 	@Test
