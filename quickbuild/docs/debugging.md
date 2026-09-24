@@ -179,7 +179,7 @@ to CoGo.
 | Path | What | How to read it |
 | --- | --- | --- |
 | `files/home/.cg/quickbuild/quickbuild-runtime.aar` | staged runtime AAR, re-staged every provision | `run-as com.itsaky.androidide` |
-| `files/home/.cg/quickbuild/daemon/` | daemon jar, its full runtime classpath, `compose-compiler-plugin.jar`; deleted and re-extracted every provision | `run-as com.itsaky.androidide` |
+| `files/home/.cg/quickbuild/daemon/` | daemon jar, its full runtime classpath, `compose-compiler-plugin.jar`; deleted and re-extracted every provision. The jars named in `dist-linked-jars.txt`, the Kotlin compiler among them, are symlinks into the Gradle distribution's `lib/` rather than extracted files - `ls -l` here, since a broken one surfaces as a `NoClassDefFoundError` on the first compile | `run-as com.itsaky.androidide` |
 | `files/home/.cg/quickbuild/bench-events.jsonl` | session event log; bench flag only | `run-as com.itsaky.androidide` |
 | `no_backup/quickbuild-scratch/<name>-<16 hex>/work` | executor payload staging | `run-as com.itsaky.androidide`; **deleted on teardown** |
 | `no_backup/quickbuild-scratch/<name>-<16 hex>/out` | daemon output: classes, dex, relinked resources | as above |
