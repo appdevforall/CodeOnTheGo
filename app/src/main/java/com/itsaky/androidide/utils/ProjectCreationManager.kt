@@ -2,14 +2,14 @@ package com.itsaky.androidide.utils
 
 import android.content.Context
 import com.itsaky.androidide.R
+import com.itsaky.androidide.git.core.GitRepositoryManager
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.tasks.executeAsyncProvideError
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.StringParameter
 import com.itsaky.androidide.templates.Template
 import com.itsaky.androidide.templates.impl.ConstraintVerifier
-import org.eclipse.jgit.api.Git
-import org.slf4j.Logger
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 
 class ProjectCreationManager(
@@ -41,11 +41,9 @@ class ProjectCreationManager(
 			val result = template.recipe.execute(TemplateRecipeExecutor(context.applicationContext))
 			if (result is ProjectTemplateRecipeResult && result.data.initGit) {
 				try {
-					Git
-						.init()
-						.setDirectory(result.data.projectDir)
-						.call()
-						.use { }
+					runBlocking {
+						GitRepositoryManager.initRepository(result.data.projectDir).use { }
+					}
 				} catch (e: Exception) {
 					log.error("Failed to initialize git repository", e)
 				}
