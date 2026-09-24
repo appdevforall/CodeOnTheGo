@@ -148,7 +148,7 @@ class IDEApplication :
 		/**
 		 * [Context.getFilesDir] does a real disk check (`File.exists()`) on every call, not just
 		 * the first - callers on the main thread (e.g. Koin's [pluginModule] resolving on first
-		 * navigation to the Extensions Manager) trip StrictMode's DiskReadViolation. Cache it once,
+		 * navigation to the Addons Manager) trip StrictMode's DiskReadViolation. Cache it once,
 		 * off-main, before Koin starts (see the `onCreate()` warmup) so later reads are a plain
 		 * field access instead of a syscall, and pluginModule/templateModule can never be the
 		 * first to trigger the underlying disk read.
@@ -213,7 +213,7 @@ class IDEApplication :
 		// https://appdevforall-inc-9p.sentry.io/issues/6860179170/events/7177c576e7b3491c9e9746c76f806d37/
 
 		// Warm cachedFilesDir on an IO thread before Koin starts, so pluginModule/templateModule
-		// (resolved on the main thread on first navigation to the Extensions Manager) can never
+		// (resolved on the main thread on first navigation to the Addons Manager) can never
 		// race the disk read - see cachedFilesDir's doc. The disk access itself runs off-main;
 		// this only blocks onCreate() waiting for that fast, one-time result. Only safe when
 		// credential-protected storage is already unlocked - instance.filesDir uses the default
