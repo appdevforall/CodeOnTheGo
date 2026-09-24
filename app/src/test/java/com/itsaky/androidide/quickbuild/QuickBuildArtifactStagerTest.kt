@@ -15,12 +15,8 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * The zip-slip guard is a security control: the daemon zip is a bundled asset today, but the
- * extraction must never write outside the daemon dir no matter what the archive says. These
- * tests watch the guard go red - a `../` entry must throw BEFORE any byte lands outside.
- *
- * The staging tests pin the other invariant: an already-staged daemon directory is left alone
- * for the same install, because a rebaseline stages while the compile daemon is running off it.
+ * Covers two invariants: extraction never writes outside the daemon dir, and an already-staged
+ * directory is left alone for the same install.
  */
 class QuickBuildArtifactStagerTest {
 	@get:Rule
@@ -107,14 +103,10 @@ class QuickBuildArtifactStagerTest {
 		assertThat(thrown).isInstanceOf(FileNotFoundException::class.java)
 	}
 
-	/** The one jar [daemonZip]'s linked-jars list names, kept real because the link uses the name. */
+	/** The one jar [daemonZip]'s linked-jars list names. */
 	private val linkedJar = "kotlin-compiler-embeddable-$KOTLIN_VERSION.jar"
 
-	/**
-	 * A fake `gradle-dists/` holding the jar the staged list names. Staging links rather than
-	 * bundles these (ADFA-4931), and `Environment.GRADLE_DISTS` is unset off-device, so every
-	 * staging test has to point the link somewhere real.
-	 */
+	/** A fake `gradle-dists/` for the link to point at, since the real one is unset off-device. */
 	private val gradleDists: File by lazy {
 		val dists = tmp.newFolder("gradle-dists")
 		val lib = File(dists, "$GRADLE_DISTRIBUTION_NAME/lib")
@@ -149,11 +141,8 @@ class QuickBuildArtifactStagerTest {
 	}
 
 	/**
-	 * The wiring, not the link itself - [QuickBuildArtifactStagerDistLinkTest] covers
-	 * `linkDistJars` directly, and passed throughout a rebase that left the call unreachable
-	 * behind a `return`. Staging is the only path that runs it in production, so this asserts
-	 * from there: the APK does not carry this jar, so if staging does not put it here the daemon
-	 * jar's manifest Class-Path names a file that is not on disk.
+	 * Checks that staging actually calls the link step, which a rebase once left unreachable
+	 * behind a `return` while the direct tests stayed green.
 	 */
 	@Test
 	fun `staging links the distribution's jars into the daemon dir`() {
@@ -162,8 +151,7 @@ class QuickBuildArtifactStagerTest {
 
 		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
 
-		// Content rather than existence: a symlink and a copy are both acceptable, and both must
-		// leave the bytes readable at this path.
+		// Asserts content, not existence, because a symlink and a copy are both acceptable.
 		assertThat(File(daemonDir, linkedJar).readText()).isEqualTo("linked-jar-bytes")
 	}
 

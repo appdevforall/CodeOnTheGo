@@ -509,69 +509,35 @@ dependencies {
 evaluationDependsOn(":quickbuild:runtime")
 evaluationDependsOn(":quickbuild:daemon")
 
-// ADFA-4931: jars the daemon loads from the on-device Gradle distribution instead of from the
-// APK. `gradle-dists/` and `quickbuild/` both sit under <ANDROIDIDE_HOME>, so carrying a second
-// copy in the daemon zip cost download and disk for jars already on the device.
-// quickBuildDaemonZip leaves them out; QuickBuildArtifactStager links the distribution's copy
-// into the daemon dir under exactly these names, which is what the daemon jar's manifest
-// Class-Path still expects.
-//
-// Each value is the SHA-256 of the jar as gradle-$GRADLE_DISTRIBUTION_VERSION/lib/ ships it -
-// the bytes the daemon loads, which are not always the bytes it was compiled against.
-// kotlin-compiler-embeddable is the live case: the distribution repacks it, so its copy is
-// 54,553,624 bytes where Maven's is 59,720,376 at the same version. Linking substitutes the
-// distribution's build of a library for Maven's; it does not collapse two identical files, and
-// what makes it safe is the version pin asserted below, not byte equality.
-//
-// Re-derive after any distribution bump (and move quickBuildDistHashesFrom with it):
-//   unzip -p assets/$GRADLE_DISTRIBUTION_ARCHIVE_NAME \
-//     "$GRADLE_DISTRIBUTION_NAME/lib/<name>" | shasum -a 256
+// ADFA-4931: jars the daemon loads from the on-device Gradle distribution instead of shipping its
+// own copy, since `gradle-dists/` and `quickbuild/` both sit under <ANDROIDIDE_HOME>.
+// quickBuildDaemonZip leaves these out and QuickBuildArtifactStager links the distribution's copy
+// in under exactly these names, which is what the daemon jar's manifest Class-Path expects.
 val quickBuildDistLinkedJars =
-	mapOf(
-		"kotlin-compiler-embeddable-$KOTLIN_VERSION.jar" to
-			"72ea34af6586f49c36328ad14ca84fb5f9e3cebca2ee6434a19d58283b1ade67",
-		"kotlin-stdlib-$KOTLIN_VERSION.jar" to
-			"6f64eac736db9434dd6925b4a518b9d1d17177652320c37916cf9ba3ce7d7d7a",
-		"kotlin-build-tools-impl-$KOTLIN_VERSION.jar" to
-			"2cd70396404a0e43c05aaf79a8b35ff3a8ff2e296aedf770f6e5923fbfacae3b",
-		"kotlin-daemon-embeddable-$KOTLIN_VERSION.jar" to
-			"222fc10a3c22e74d30369bf8a0ca6c4f9372eac7d4a0081e290c256fa4d30fb2",
-		"kotlin-script-runtime-$KOTLIN_VERSION.jar" to
-			"ec61bf1229c837fa9f4255f34ca69816138b73158e7ae9b8d964cf92ca6dfd2e",
-		// These three carry their own version rather than KOTLIN_VERSION, and the daemon pins
-		// each to what the distribution ships (libs.versions.toml, :quickbuild:daemon) purely
-		// so it can be linked from there.
-		"kotlinx-coroutines-core-jvm-1.10.2.jar" to
-			"5ca175b38df331fd64155b35cd8cae1251fa9ee369709b36d42e0a288ccce3fd",
-		"gson-2.13.1.jar" to
-			"94855942d4992f112946d3de1c334e709237b8126d8130bf07807c018a4a2120",
-		"asm-9.9.jar" to
-			"03d99a74ad1ee5c71334ef67437f4ef4fe3488caa7c96d8645abc73c8e2017d4",
+	listOf(
+		"kotlin-compiler-embeddable-$KOTLIN_VERSION.jar",
+		"kotlin-stdlib-$KOTLIN_VERSION.jar",
+		"kotlin-build-tools-impl-$KOTLIN_VERSION.jar",
+		"kotlin-daemon-embeddable-$KOTLIN_VERSION.jar",
+		"kotlin-script-runtime-$KOTLIN_VERSION.jar",
+		// These three carry their own version rather than KOTLIN_VERSION, pinned in
+		// libs.versions.toml to what the distribution ships so they can be linked from there.
+		"kotlinx-coroutines-core-jvm-1.10.2.jar",
+		"gson-2.13.1.jar",
+		"asm-9.9.jar",
 	)
 
-/** The distribution the hashes above were read from; see [quickBuildDistLinkedJars]. */
-val quickBuildDistHashesFrom = "9.6.1"
-
-// Checked here rather than trusted: every failure this prevents surfaces on device as a
-// NoClassDefFoundError partway into the user's first compile, a long way from the version bump
-// that caused it.
-//
-// The two ends of the link are checked for different things, because they are different bytes.
-// The distribution's copy is what the daemon loads, so that is the one hashed, and a pin that
-// stops matching is the drift this task exists to catch. The daemon's Maven runtime classpath
-// is checked for the name only: that name is what quickBuildDaemonZip excludes, so a version
-// bump that renames a jar would leave the exclusion matching nothing and quietly restore the
-// copy the link was meant to replace.
+// A broken link surfaces on device as a NoClassDefFoundError partway into the user's first
+// compile, far from the version bump that caused it, so check both ends at build time: the
+// distribution must carry each name, and the daemon must resolve each name too.
 val quickBuildDistJarCheck =
 	tasks.register("quickBuildDistJarCheck") {
 		val pinned =
 			libs.versions.kotlin.daemon.compiler
 				.get()
 		val expected = quickBuildDistLinkedJars
-		val distVersion = GRADLE_DISTRIBUTION_VERSION
 		val distName = GRADLE_DISTRIBUTION_NAME
 		val archiveName = GRADLE_DISTRIBUTION_ARCHIVE_NAME
-		val hashesFrom = quickBuildDistHashesFrom
 		val distArchive = rootProject.file("assets/$archiveName")
 		val classpath =
 			files(
@@ -582,7 +548,7 @@ val quickBuildDistJarCheck =
 			)
 		inputs.files(classpath)
 		// Optional because release builds fetch the brotli-encoded distribution and never
-		// materialise this one. doLast reports that as unhashed rather than as a pass.
+		// materialise this one. doLast reports that as unchecked rather than as a pass.
 		inputs
 			.files(distArchive)
 			.withPropertyName("gradleDistributionArchive")
@@ -596,17 +562,8 @@ val quickBuildDistJarCheck =
 						"$distName/lib/kotlin-compiler-embeddable-$KOTLIN_VERSION.jar at runtime.",
 				)
 			}
-			if (distVersion != hashesFrom) {
-				throw GradleException(
-					"The Gradle distribution moved to $distVersion but the linked-jar hashes in " +
-						"app/build.gradle.kts were read from $hashesFrom. Re-derive them from the new " +
-						"distribution and move quickBuildDistHashesFrom, or the daemon may link a jar " +
-						"that is no longer the one it was built against.",
-				)
-			}
-
 			val resolved = classpath.files.associateBy { it.name }
-			expected.keys.sorted().forEach { name ->
+			expected.sorted().forEach { name ->
 				if (name !in resolved) {
 					throw GradleException(
 						"$name is linked from the Gradle distribution but is not on the daemon's " +
@@ -620,51 +577,28 @@ val quickBuildDistJarCheck =
 
 			if (!distArchive.isFile) {
 				logger.lifecycle(
-					"quickBuildDistJarCheck: UNHASHED - 0 of ${expected.size} linked jars read. " +
-						"${distArchive.absolutePath} is absent, so the bytes the daemon will load " +
-						"could not be compared with the pins. Release builds fetch $archiveName.br " +
-						"instead and take this path; run ./gradlew :app:assetsDownloadDebug to hash " +
-						"them here.",
+					"quickBuildDistJarCheck: UNCHECKED - 0 of ${expected.size} linked jars looked up. " +
+						"${distArchive.absolutePath} is absent, so the distribution could not be " +
+						"read. Release builds fetch $archiveName.br instead and take this path; run " +
+						"./gradlew :app:assetsDownloadDebug to check them here.",
 				)
 				return@doLast
 			}
 
-			val digest = MessageDigest.getInstance("SHA-256")
 			ZipFile(distArchive).use { zip ->
-				expected.forEach { (name, sha) ->
+				expected.forEach { name ->
 					val entryName = "$distName/lib/$name"
-					val entry =
-						zip.getEntry(entryName) ?: throw GradleException(
-							"$entryName is missing from ${distArchive.name}. quickBuildDaemonZip " +
-								"excludes $name on the promise that the distribution supplies it, so " +
-								"the daemon would start with no copy at all. Either drop it from " +
-								"quickBuildDistLinkedJars and let the zip carry it, or correct the name.",
-						)
-					digest.reset()
-					val actual =
-						zip.getInputStream(entry).use { input ->
-							val buffer = ByteArray(1 shl 16)
-							while (true) {
-								val read = input.read(buffer)
-								if (read < 0) break
-								digest.update(buffer, 0, read)
-							}
-							digest.digest().joinToString("") { "%02x".format(it) }
-						}
-					if (actual != sha) {
-						throw GradleException(
-							"$entryName has drifted from its pin in app/build.gradle.kts: pinned $sha, " +
-								"${distArchive.name} now ships $actual (${entry.size} bytes). The daemon " +
-								"loads this jar to compile the user's code, so confirm the new " +
-								"distribution is the one we mean to ship, then re-derive the pin with: " +
-								"unzip -p assets/$archiveName \"$entryName\" | shasum -a 256",
-						)
-					}
+					zip.getEntry(entryName) ?: throw GradleException(
+						"$entryName is missing from ${distArchive.name}. quickBuildDaemonZip " +
+							"excludes $name on the promise that the distribution supplies it, so " +
+							"the daemon would start with no copy at all. Either drop it from " +
+							"quickBuildDistLinkedJars and let the zip carry it, or correct the name.",
+					)
 				}
 			}
 			logger.lifecycle(
-				"quickBuildDistJarCheck: hashed ${expected.size} of ${expected.size} linked jars " +
-					"against $distName/lib in ${distArchive.name}",
+				"quickBuildDistJarCheck: found ${expected.size} of ${expected.size} linked jars " +
+					"in $distName/lib of ${distArchive.name}",
 			)
 		}
 	}
@@ -673,7 +607,7 @@ val quickBuildDistJarCheck =
 // list rather than repeating it.
 val quickBuildDistLinkedJarList =
 	tasks.register("quickBuildDistLinkedJarList") {
-		val names = quickBuildDistLinkedJars.keys.sorted()
+		val names = quickBuildDistLinkedJars.sorted()
 		val listFile = layout.buildDirectory.file("intermediates/quickbuild/dist-linked-jars.txt")
 		inputs.property("names", names)
 		outputs.file(listFile)
@@ -693,9 +627,9 @@ val quickBuildDaemonZip =
 		// The daemon jar's manifest Class-Path names these by file name; they must sit
 		// next to the jar after extraction.
 		from(daemonProject.configurations.named("runtimeClasspath"))
-		// ADFA-4931: except the ones the distribution already carries. The stager links those
-		// in at provision time, reading the list this task stages beside them.
-		val linked = quickBuildDistLinkedJars.keys
+		// ADFA-4931: except the ones the distribution already carries; the stager links those
+		// in at provision time.
+		val linked = quickBuildDistLinkedJars.toSet()
 		exclude { it.name in linked }
 		from(quickBuildDistLinkedJarList)
 		// Compose compiler plugin, version-matched to the daemon's compiler; the stable

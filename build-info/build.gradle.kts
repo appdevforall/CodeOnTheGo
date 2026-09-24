@@ -76,11 +76,8 @@ tasks.create("generateBuildInfo") {
 					"AGP_VERSION_LATEST" to
 						libs.versions.agp.tooling
 							.get(),
-					// The Gradle version AGP_VERSION_LATEST gets exercised against: the
-					// distribution the IDE bundles. Read from the constant rather than
-					// repeated, because AGP refuses to configure on a distribution older
-					// than it expects (8.11 needed 8.13; 9.3 needs 9.5), so a stale copy
-					// here fails every TestKit test at plugin-application time.
+					// Read from the constant rather than repeated: AGP refuses to configure on a Gradle
+					// distribution older than it expects, so a stale copy here fails every TestKit test.
 					"AGP_VERSION_GRADLE_LATEST" to GRADLE_DISTRIBUTION_VERSION,
 					"SNAPSHOTS_REPOSITORY" to VersionUtils.SONATYPE_SNAPSHOTS_REPO,
 					"PUBLIC_REPOSITORY" to VersionUtils.SONATYPE_PUBLIC_REPO,
