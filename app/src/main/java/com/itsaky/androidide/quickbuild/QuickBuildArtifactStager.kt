@@ -2,7 +2,6 @@ package com.itsaky.androidide.quickbuild
 
 import android.content.Context
 import androidx.core.content.pm.PackageInfoCompat
-import com.itsaky.androidide.assets.JarLinks
 import com.itsaky.androidide.utils.Environment
 import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
 import org.slf4j.LoggerFactory
@@ -10,6 +9,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
+import java.nio.file.Files
 import java.util.zip.ZipInputStream
 
 /**
@@ -73,8 +73,7 @@ object QuickBuildArtifactStager {
 	 * [installStamp] - the stamp file matches and [daemonJar] is present. Internal so the JVM
 	 * test can watch the skip, and the wipe, without an Android [Context].
 	 *
-	 * @param gradleDists passed through to [linkDistJars]; parameterised only so tests can point
-	 *   at a fake distribution, since [Environment.GRADLE_DISTS] is unset off-device.
+	 * @param gradleDists exists so tests can point at a fake distribution.
 	 * @return whether an extraction ran.
 	 */
 	@Throws(IOException::class)
@@ -96,9 +95,8 @@ object QuickBuildArtifactStager {
 		Environment.mkdirIfNotExists(daemonDir)
 
 		val count = extractDaemonZip(openZip(), daemonDir)
-		// Before the stamp: the skip test above reads the stamp and the daemon jar, not the
-		// linked jars, so stamping a staging whose link failed would skip re-staging forever
-		// and leave the daemon without a compiler until the next install.
+		// Must run before the stamp is written, or a failed link would be stamped as done and
+		// never retried.
 		linkDistJars(daemonDir, gradleDists)
 		stamp.writeText(installStamp)
 		log.info("Staged {} daemon files into {}", count, daemonDir)
@@ -146,25 +144,12 @@ object QuickBuildArtifactStager {
 	}
 
 	/**
-	 * Put the jars the APK deliberately does not carry where the daemon jar's manifest
-	 * Class-Path expects them.
+	 * Links the jars the APK leaves out into the daemon dir, where its manifest Class-Path
+	 * expects them.
 	 *
-	 * ADFA-4931: the on-device Gradle distribution already ships these artifacts at the same
-	 * versions, byte for byte - the compiler alone is ~57 MB - so a second copy in the daemon
-	 * zip was pure duplication. `gradle-dists/` and `quickbuild/` are always on one filesystem
-	 * (both under `<ANDROIDIDE_HOME>`), so a symlink costs nothing; a copy is the fallback for
-	 * a filesystem that refuses one.
-	 *
-	 * The names come from [LINKED_JARS_LIST], staged into the daemon dir by :app's
-	 * `quickBuildDistLinkedJarList`, so the build's exclusion list and this link step cannot
-	 * drift apart.
-	 *
-	 * @param gradleDists parameterised only so tests can point at a fake distribution; production
-	 *   callers take the default.
-	 * @throws FileNotFoundException when the list is absent, or when the distribution has not
-	 *   been extracted yet. There is deliberately no bundled fallback: the alternative to
-	 *   failing here is a NoClassDefFoundError partway into the user's first compile, which is
-	 *   far harder to read.
+	 * @param gradleDists exists so tests can point at a fake distribution.
+	 * @throws FileNotFoundException if a jar or the list is missing, which fails loudly here
+	 *   rather than as a NoClassDefFoundError during the user's first compile.
 	 */
 	@Throws(IOException::class)
 	internal fun linkDistJars(
@@ -182,33 +167,30 @@ object QuickBuildArtifactStager {
 			}
 
 			val target = File(daemonDir, jarName)
-			if (JarLinks.trySymlink(target, source)) {
-				log.info("Linked {} -> {}", target, source)
-			} else {
-				// The daemon has to have these bytes one way or another, so a filesystem that
-				// refuses links costs us the copy.
-				log.info("Copying {} into the daemon dir instead", source)
+			try {
+				Files.createSymbolicLink(target.toPath(), source.toPath())
+			} catch (e: Exception) {
+				// A filesystem without symlinks still needs these bytes, so copy instead.
+				log.warn("Symlink {} -> {} failed ({}), copying", target, source, e.toString())
 				source.inputStream().use { input -> target.outputStream().use { input.copyTo(it) } }
 			}
 		}
 	}
 
-	/**
-	 * The jar names the build left out of the zip for the distribution to supply. A missing or
-	 * empty list means the zip was built without the staging task, which would otherwise show up
-	 * as a first compile failing on a jar nobody linked.
-	 */
+	/** The jar names the build left out of the zip for the distribution to supply. */
 	private fun readLinkedJarNames(daemonDir: File): List<String> {
 		val list = File(daemonDir, LINKED_JARS_LIST)
-		if (!list.isFile) {
-			throw FileNotFoundException(
-				"$LINKED_JARS_LIST missing from the staged daemon at $daemonDir. It names the jars " +
-					"Quick Build links from the Gradle distribution rather than shipping in the APK.",
-			)
-		}
-		val names = list.readLines().map(String::trim).filter(String::isNotEmpty)
+		val names =
+			if (list.isFile) {
+				list.readLines().map(String::trim).filter(String::isNotEmpty)
+			} else {
+				emptyList()
+			}
 		if (names.isEmpty()) {
-			throw FileNotFoundException("$LINKED_JARS_LIST at $list names no jars")
+			throw FileNotFoundException(
+				"$LINKED_JARS_LIST at $list names no jars. It lists the jars Quick Build links " +
+					"from the Gradle distribution rather than shipping in the APK.",
+			)
 		}
 		return names
 	}
