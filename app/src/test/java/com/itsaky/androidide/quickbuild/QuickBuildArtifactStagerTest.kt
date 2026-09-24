@@ -203,6 +203,25 @@ class QuickBuildArtifactStagerTest {
 	}
 
 	@Test
+	fun `a failed link leaves no stamp so the next stage retries`() {
+		val daemonDir = File(tmp.newFolder("home-link-fail"), "daemon")
+		val jar = File(daemonDir, "quickbuild-daemon.jar")
+		val emptyDists = tmp.newFolder("gradle-dists-empty")
+
+		// Stamping a failed link would serve a daemon whose classpath names jars that are not
+		// there, and the early return would never stage again.
+		val thrown =
+			runCatching {
+				QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, emptyDists) { daemonZip() }
+			}.exceptionOrNull()
+		assertThat(thrown).isInstanceOf(FileNotFoundException::class.java)
+		assertThat(File(daemonDir, QuickBuildArtifactStager.DAEMON_STAMP_FILE).exists()).isFalse()
+
+		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
+		assertThat(ran).isTrue()
+	}
+
+	@Test
 	fun `a failed extraction leaves no stamp so the next stage retries`() {
 		val daemonDir = File(tmp.newFolder("home"), "daemon")
 		val jar = File(daemonDir, "quickbuild-daemon.jar")
