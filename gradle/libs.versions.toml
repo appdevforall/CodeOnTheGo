@@ -20,10 +20,9 @@ junit-jupiter = "5.10.2"
 anroidx-test-core = "2.2.0"
 koinAndroid = "4.1.1"
 kotlin = "2.3.0"
-# The Quick Build daemon's compiler. Must equal org.adfa.constants.KOTLIN_VERSION -- the
-# Kotlin the on-device Gradle distribution embeds -- because the daemon loads that
-# distribution's kotlin-compiler-embeddable instead of shipping its own copy. :app's
-# quickBuildDistJarCheck asserts the two agree.
+# The Quick Build daemon's compiler, which it loads from the on-device Gradle distribution
+# rather than shipping its own. Must equal org.adfa.constants.KOTLIN_VERSION (the Kotlin that
+# distribution embeds); :app's quickBuildDistJarCheck fails the build if they differ.
 kotlin-daemon-compiler = "2.3.21"
 kotlin-coroutines = "1.9.0"
 kotlinxCoroutinesCore = "1.10.2"
@@ -247,14 +246,13 @@ androidx-work-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "
 # Google
 google-material = { module = "com.google.android.material:material", version = "1.12.0" }
 google-gson = { module = "com.google.code.gson:gson", version = "2.12.1" }
-# Quick Build's daemon runs its own JVM and takes this from the on-device Gradle
-# distribution rather than the APK, so its version is the distribution's choice, not ours
-# (:app's quickBuildDistJarCheck asserts the bytes match). Kept separate from google-gson
-# above so an app-wide bump cannot silently break that link.
+# The Quick Build daemon takes this from the on-device Gradle distribution rather than the APK,
+# so the version is the distribution's choice, not ours. Kept separate from google-gson above so
+# an app-wide bump cannot silently break that link.
 gson-quickBuildDaemon = { module = "com.google.code.gson:gson", version = "2.13.1" }
-# Same story for the coroutines the Kotlin compiler pulls in transitively. Names the -jvm
-# platform module rather than the KMP root because that is what the compiler depends on
-# directly, and a constraint on the root would not govern it.
+# Same story for the coroutines the Kotlin compiler pulls in. Names the -jvm module rather than
+# the KMP root because that is what the compiler depends on, and a constraint on the root would
+# not govern it.
 kotlinx-coroutines-core-jvm-quickBuildDaemon = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm", version = "1.10.2" }
 google-guava = { module = "com.google.guava:guava", version = "33.4.0-android" }
 google-auto-value-annotations = { module = "com.google.auto.value:auto-value-annotations", version = "1.11.0" }
