@@ -112,6 +112,35 @@ class TemplateRepositoryImplTest {
 		}
 
 	@Test
+	fun uninstallTemplate_pluginProvenance_neverChecksOrTouchesDownloads() =
+		runTest {
+			val source = File(templatesDir, "plugin_flutter_activity.cgt").apply { writeText("installed") }
+			val pluginItem =
+				CgtFileItem(
+					file = source,
+					name = source.name,
+					templates = listOf(TemplateMetadata("T", "d", "1.0")),
+					installed = true,
+					provenance = TemplateProvenance.PLUGIN,
+				)
+			// A same-named file already sitting in Downloads must not trip a collision check for
+			// a plugin-provided template (ADFA-5444): it never came from Downloads, so there's
+			// nothing to restore there. templatesDir is made read-only so the only way to reach
+			// this specific IOException is the plugin branch's own delete - the old
+			// restore-to-Downloads path would instead fail earlier with an IllegalStateException
+			// from the (wrongly reached) "already exists" check.
+			val existingDownload = File(downloadDir, "plugin_flutter_activity.cgt").apply { writeText("unrelated") }
+			check(templatesDir.setWritable(false)) { "test setup: could not make templatesDir read-only" }
+
+			val result = repository.uninstallTemplate(pluginItem)
+
+			assertThat(result.isFailure).isTrue()
+			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
+			assertThat(source.exists()).isTrue()
+			assertThat(existingDownload.readText()).isEqualTo("unrelated")
+		}
+
+	@Test
 	fun uninstallTemplate_deleteFails_rollsBackAndLeavesExactlyOneCopy() =
 		runTest {
 			val source = File(templatesDir, "uninstall.cgt").apply { writeText("installed") }
