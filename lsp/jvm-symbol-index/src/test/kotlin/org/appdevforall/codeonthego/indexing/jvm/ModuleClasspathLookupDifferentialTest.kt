@@ -21,8 +21,8 @@ import java.nio.file.Paths
  * A module's [ModuleClasspathLookup] answers every query its consumers asked of the module's
  * classpath trie the way the trie did.
  *
- * The oracle is built the way `ModuleProject.indexClasspaths` fills the trie: `JarFsClasspathReader`
- * filtered to top-level classes, appended to a [ClassTrie]. The lookup reads real SQLite-backed
+ * The oracle is built the way `ModuleProject.indexClasspaths` used to fill the trie:
+ * `JarFsClasspathReader` filtered to top-level classes, appended to a [ClassTrie]. The lookup reads real SQLite-backed
  * indexes filled by [CombinedJarScanner], so the scanner, the package table and the query layer are
  * all under test. kotlin-stdlib sits in the library index and, like `R.jar`, in the generated index
  * too, so every answer must be deduplicated; JUnit sits in the module-output index, standing in for
