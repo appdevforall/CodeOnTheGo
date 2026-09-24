@@ -10,6 +10,7 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.Files
+import java.nio.file.Path
 import java.util.zip.ZipInputStream
 
 /**
@@ -148,6 +149,7 @@ object QuickBuildArtifactStager {
 	 * expects them.
 	 *
 	 * @param gradleDists exists so tests can point at a fake distribution.
+	 * @param createLink exists so tests can force the copy fallback.
 	 * @throws FileNotFoundException if a jar or the list is missing, which fails loudly here
 	 *   rather than as a NoClassDefFoundError during the user's first compile.
 	 */
@@ -155,6 +157,7 @@ object QuickBuildArtifactStager {
 	internal fun linkDistJars(
 		daemonDir: File,
 		gradleDists: File = Environment.GRADLE_DISTS,
+		createLink: (Path, Path) -> Unit = { link, existing -> Files.createSymbolicLink(link, existing) },
 	) {
 		val distLib = File(File(gradleDists, GRADLE_DISTRIBUTION_NAME), "lib")
 		for (jarName in readLinkedJarNames(daemonDir)) {
@@ -167,30 +170,49 @@ object QuickBuildArtifactStager {
 			}
 
 			val target = File(daemonDir, jarName)
+			// Clear the path first: a link an earlier staging left would make the copy fallback
+			// follow it and truncate the distribution's own jar.
+			Files.deleteIfExists(target.toPath())
 			try {
-				Files.createSymbolicLink(target.toPath(), source.toPath())
-			} catch (e: Exception) {
-				// A filesystem without symlinks still needs these bytes, so copy instead.
-				log.warn("Symlink {} -> {} failed ({}), copying", target, source, e.toString())
-				source.inputStream().use { input -> target.outputStream().use { input.copyTo(it) } }
+				createLink(target.toPath(), source.toPath())
+			} catch (e: IOException) {
+				copyInstead(source, target, e)
+			} catch (e: UnsupportedOperationException) {
+				copyInstead(source, target, e)
 			}
 		}
+	}
+
+	/** Copies [source] to [target] when the filesystem refused a link, so the bytes still arrive. */
+	private fun copyInstead(
+		source: File,
+		target: File,
+		cause: Exception,
+	) {
+		log.warn("Symlink {} -> {} failed ({}), copying", target, source, cause.toString())
+		source.inputStream().use { input -> target.outputStream().use { input.copyTo(it) } }
 	}
 
 	/** The jar names the build left out of the zip for the distribution to supply. */
 	private fun readLinkedJarNames(daemonDir: File): List<String> {
 		val list = File(daemonDir, LINKED_JARS_LIST)
-		val names =
-			if (list.isFile) {
-				list.readLines().map(String::trim).filter(String::isNotEmpty)
-			} else {
-				emptyList()
-			}
+		if (!list.isFile) {
+			throw FileNotFoundException(
+				"$LINKED_JARS_LIST is missing from $daemonDir, so the build never wrote it. It " +
+					"lists the jars Quick Build links from the Gradle distribution.",
+			)
+		}
+		val names = list.readLines().map(String::trim).filter(String::isNotEmpty)
 		if (names.isEmpty()) {
 			throw FileNotFoundException(
 				"$LINKED_JARS_LIST at $list names no jars. It lists the jars Quick Build links " +
 					"from the Gradle distribution rather than shipping in the APK.",
 			)
+		}
+		// Each name is used as a path on both sides of the link, so the same boundary
+		// extractDaemonZip guards applies here: anything but a bare file name escapes.
+		names.firstOrNull { File(it).name != it }?.let { name ->
+			throw IOException("Refusing linked jar name that is not a bare file name: $name")
 		}
 		return names
 	}

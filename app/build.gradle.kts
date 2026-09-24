@@ -8,7 +8,6 @@ import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
-import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 import org.adfa.constants.KOTLIN_VERSION
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.json.JSONObject
@@ -626,11 +625,10 @@ val quickBuildDaemonZip =
 		from(daemonProject.tasks.named("daemonJar"))
 		// The daemon jar's manifest Class-Path names these by file name; they must sit
 		// next to the jar after extraction.
-		from(daemonProject.configurations.named("runtimeClasspath"))
 		// ADFA-4931: except the ones the distribution already carries; the stager links those
-		// in at provision time.
+		// in at provision time. Scoped to this spec so it cannot filter the other from()s.
 		val linked = quickBuildDistLinkedJars.toSet()
-		exclude { it.name in linked }
+		from(daemonProject.configurations.named("runtimeClasspath")) { exclude { it.name in linked } }
 		from(quickBuildDistLinkedJarList)
 		// Compose compiler plugin, version-matched to the daemon's compiler; the stable
 		// name is the contract EnvironmentQuickBuildPaths.composeCompilerPlugin reads.

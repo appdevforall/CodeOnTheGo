@@ -8,6 +8,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.IOException
 import java.nio.file.Files
 
 /**
@@ -84,16 +85,71 @@ class QuickBuildArtifactStagerDistLinkTest {
 	@Test
 	fun `a jar that cannot be linked is copied instead, so the daemon still has the bytes`() {
 		val daemonDir = daemonDirListing()
-		// However a link is refused, the current bytes still have to end up at this path.
-		val occupied = File(daemonDir, jarNames.first()).apply { writeText("stale-bytes") }
+		val refused = jarNames.first()
 
-		QuickBuildArtifactStager.linkDistJars(daemonDir, gradleDistsWith())
+		// Stands in for a filesystem that has no symlinks, which throws rather than returning.
+		QuickBuildArtifactStager.linkDistJars(daemonDir, gradleDistsWith()) { link, existing ->
+			if (link.fileName.toString() == refused) throw UnsupportedOperationException("no symlinks here")
+			Files.createSymbolicLink(link, existing)
+		}
 
-		assertThat(Files.isSymbolicLink(occupied.toPath())).isFalse()
-		assertThat(occupied.readText()).isEqualTo("${jarNames.first()}-bytes")
+		assertThat(Files.isSymbolicLink(File(daemonDir, refused).toPath())).isFalse()
+		assertThat(File(daemonDir, refused).readText()).isEqualTo("$refused-bytes")
 		// The fallback is per jar, so one refused link must not cost the rest theirs.
 		assertThat(Files.isSymbolicLink(File(daemonDir, jarNames.last()).toPath())).isTrue()
 		assertThat(File(daemonDir, jarNames.last()).readText()).isEqualTo("${jarNames.last()}-bytes")
+	}
+
+	@Test
+	fun `a link refused with an IO error is copied too, not just an unsupported one`() {
+		val daemonDir = daemonDirListing()
+		val refused = jarNames.first()
+
+		// Stands in for a filesystem that supports links but refuses this one, such as a
+		// read-only mount or a denied permission.
+		QuickBuildArtifactStager.linkDistJars(daemonDir, gradleDistsWith()) { link, existing ->
+			if (link.fileName.toString() == refused) throw IOException("permission denied")
+			Files.createSymbolicLink(link, existing)
+		}
+
+		assertThat(Files.isSymbolicLink(File(daemonDir, refused).toPath())).isFalse()
+		assertThat(File(daemonDir, refused).readText()).isEqualTo("$refused-bytes")
+	}
+
+	@Test
+	fun `a listed name that is a path rather than a file name is refused`() {
+		// Resolves to a jar that is really there, so only the guard stops the link being made
+		// one directory above the daemon dir.
+		val escaping = "../lib/${jarNames.first()}"
+		val daemonDir = daemonDirListing(names = listOf(escaping))
+
+		// The list is extracted from the daemon zip, which extractDaemonZip already refuses to
+		// let escape; a name used as a path deserves the same guard.
+		val thrown =
+			runCatching { QuickBuildArtifactStager.linkDistJars(daemonDir, gradleDistsWith()) }
+				.exceptionOrNull()
+
+		assertThat(thrown).isInstanceOf(IOException::class.java)
+		assertThat(thrown!!).hasMessageThat().contains("bare file name")
+		assertThat(thrown).hasMessageThat().contains(escaping)
+		assertThat(stagedNames(daemonDir)).isEmpty()
+	}
+
+	@Test
+	fun `staging twice leaves the distribution's own jars intact`() {
+		val daemonDir = daemonDirListing()
+		val dists = gradleDistsWith()
+		QuickBuildArtifactStager.linkDistJars(daemonDir, dists)
+
+		// Linking onto the previous run's links: the copy fallback would otherwise open them for
+		// write, truncating the distribution itself and breaking every Gradle build on the device.
+		QuickBuildArtifactStager.linkDistJars(daemonDir, dists)
+
+		jarNames.forEach { name ->
+			val inDistribution = File(dists, "$GRADLE_DISTRIBUTION_NAME/lib/$name")
+			assertThat(inDistribution.readText()).isEqualTo("$name-bytes")
+			assertThat(File(daemonDir, name).readText()).isEqualTo("$name-bytes")
+		}
 	}
 
 	@Test
@@ -116,7 +172,8 @@ class QuickBuildArtifactStagerDistLinkTest {
 	fun `one listed jar missing from the distribution fails the whole staging`() {
 		val daemonDir = daemonDirListing()
 
-		// A partial link is worse than none: the daemon starts and dies on the missing class.
+		// The throw is what protects the caller here: the stamp is left unwritten, so the next
+		// staging wipes the jars this one already linked.
 		val thrown =
 			runCatching {
 				QuickBuildArtifactStager.linkDistJars(daemonDir, gradleDistsWith(jarNames.take(1)))
