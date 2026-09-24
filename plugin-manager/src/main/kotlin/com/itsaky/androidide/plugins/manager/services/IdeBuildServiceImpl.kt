@@ -1,10 +1,14 @@
 
 package com.itsaky.androidide.plugins.manager.services
 
+import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.plugins.services.BuildAndLaunchCallback
 import com.itsaky.androidide.plugins.services.BuildStatusListener
 import com.itsaky.androidide.plugins.services.GradleSyncCallback
 import com.itsaky.androidide.plugins.services.IdeBuildService
+import com.itsaky.androidide.projects.builder.BuildService
+import org.slf4j.LoggerFactory
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
@@ -25,6 +29,8 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 	private var buildOutputProvider: (() -> String?)? = null
 
 	companion object {
+		private val log = LoggerFactory.getLogger(IdeBuildServiceImpl::class.java)
+
 		@Volatile
 		private var instance: IdeBuildServiceImpl? = null
 
@@ -101,6 +107,29 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 				// Ignore listener exceptions to prevent one bad listener from affecting others
 			}
 		}
+	}
+
+	override fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> {
+		val buildService =
+			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+				?: return refuse(tasks, "build service is not registered")
+		if (!buildService.isToolingServerStarted()) return refuse(tasks, "tooling server is not started")
+		if (buildService.isBuildInProgress) return refuse(tasks, "another build is in progress")
+
+		return buildService.executeTasks(*tasks).handle { result, error ->
+			if (error != null) {
+				log.error("Tasks {} failed", tasks.toList(), error)
+			}
+			error == null && result?.isSuccessful == true
+		}
+	}
+
+	private fun refuse(
+		tasks: Array<out String>,
+		reason: String,
+	): CompletableFuture<Boolean> {
+		log.warn("Not executing tasks {}: {}", tasks.toList(), reason)
+		return CompletableFuture.completedFuture(false)
 	}
 
 	override fun runApp(callback: BuildAndLaunchCallback) {
