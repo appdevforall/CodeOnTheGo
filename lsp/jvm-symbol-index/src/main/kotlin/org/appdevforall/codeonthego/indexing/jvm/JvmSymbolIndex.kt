@@ -53,8 +53,10 @@ open class JvmSymbolIndex(
 		 *
 		 * Version 3 added the package table: a version 2 file holds symbols with no packages, and an
 		 * unchanged source is never re-indexed, so it would answer every package lookup with nothing.
+		 *
+		 * Version 4 added the `_gen` column that lets a source be re-indexed in place.
 		 */
-		const val FORMAT_VERSION = 3
+		const val FORMAT_VERSION = 4
 
 		/**
 		 * Create (or get) a JVM symbol index backed by SQLite.
