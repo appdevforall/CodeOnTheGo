@@ -69,6 +69,25 @@ internal class IndexWorker(
 
 			var scanPhase: MemprofSpan? = null
 			var indexPhase: MemprofSpan? = null
+
+			/*
+			 * The counters run for as long as start() does, which spans every scan a build or sync
+			 * restarts, so each phase reports what happened since it began.
+			 */
+			var scannedAtScanBegin = 0
+			var scannedAtIndexBegin = 0
+			var indexedAtIndexBegin = 0
+
+			fun beginScan(): MemprofSpan {
+				scannedAtScanBegin = scanCount
+				return beginScanPhase()
+			}
+
+			fun beginIndex(): MemprofSpan {
+				scannedAtIndexBegin = scannedAtScanBegin
+				indexedAtIndexBegin = sourceIndexCount
+				return beginIndexPhase()
+			}
 			try {
 				while (isActive) {
 					// Defensive guard: if the project was disposed out from under us (e.g. a disposal
@@ -152,8 +171,8 @@ internal class IndexWorker(
 							 * rather than begin-and-immediately-end a zero-length one.
 							 */
 							indexPhase?.apply {
-								put("scanned", scanCount.toLong())
-								put("indexed", sourceIndexCount.toLong())
+								put("scanned", (scanCount - scannedAtIndexBegin).toLong())
+								put("indexed", (sourceIndexCount - indexedAtIndexBegin).toLong())
 								end()
 							}
 							indexPhase = null
@@ -166,13 +185,13 @@ internal class IndexWorker(
 							 * and open; a fresh scan starting must not fold into it.
 							 */
 							scanPhase?.abandon()
-							scanPhase = beginScanPhase()
+							scanPhase = beginScan()
 						}
 
 						is IndexCommand.ScanSourceFile -> {
 							if (project.isDisposed) break
 							if (scanPhase == null) {
-								scanPhase = beginScanPhase()
+								scanPhase = beginScan()
 							}
 
 							val ktFile =
@@ -199,10 +218,10 @@ internal class IndexWorker(
 							 * printed the logcat report 3-4 times per open).
 							 */
 							if (indexPhase == null) {
-								indexPhase = beginIndexPhase()
+								indexPhase = beginIndex()
 							}
-							(scanPhase ?: beginScanPhase()).apply {
-								put("files", scanCount.toLong())
+							(scanPhase ?: beginScan()).apply {
+								put("files", (scanCount - scannedAtScanBegin).toLong())
 								end()
 							}
 							scanPhase = null
