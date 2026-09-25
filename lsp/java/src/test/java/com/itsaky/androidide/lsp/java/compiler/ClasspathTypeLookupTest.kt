@@ -113,12 +113,11 @@ class ClasspathTypeLookupTest {
 
 		val names = types.findTypeNamesMatching("View", 3)
 
-		assertThat(names).hasSize(3)
 		assertThat(names.first()).isEqualTo("android.view.View")
 	}
 
 	@Test
-	fun `type names never exceed the limit`() {
+	fun `each source contributes at most the limit of prefix matches`() {
 		val types =
 			lookup(
 				sources = (1..5).map { "com.app.Foo$it" },
@@ -126,7 +125,18 @@ class ClasspathTypeLookupTest {
 				boot = (1..5).map { "java.foo.Foo$it" },
 			)
 
-		assertThat(types.findTypeNamesMatching("Foo", 7)).hasSize(7)
+		assertThat(types.findTypeNamesMatching("Foo", 3)).hasSize(9)
+	}
+
+	@Test
+	fun `boot prefix matches are offered when the classpath has more prefix matches than the limit`() {
+		val types =
+			lookup(
+				classpath = FakeClasspath((1..60).map { "com.lib.ViewThing$it" }),
+				boot = listOf("android.view.View"),
+			)
+
+		assertThat(types.findTypeNamesMatching("Vie", 50)).contains("android.view.View")
 	}
 
 	@Test

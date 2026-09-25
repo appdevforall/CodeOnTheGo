@@ -78,11 +78,12 @@ class ModuleClasspathLookup internal constructor(
 			.toList()
 
 	/**
-	 * Returns up to [limit] qualified names of top-level classes whose simple name starts with
-	 * [prefix], ignoring case, exact simple-name matches first.
+	 * Returns the qualified names of top-level classes whose simple name starts with [prefix],
+	 * ignoring case: the exact simple-name matches first, then up to [limit] more from each index.
 	 *
 	 * Exact matches come first so that a short prefix, which matches far more classes than [limit],
-	 * cannot crowd out the class named exactly [prefix].
+	 * cannot crowd out the class named exactly [prefix]. Each index has its own limit so that the
+	 * library index, which holds far more classes, cannot crowd out the module's own output.
 	 */
 	fun qualifiedNamesByPrefix(
 		prefix: String,
@@ -93,13 +94,14 @@ class ModuleClasspathLookup internal constructor(
 		val names = LinkedHashSet<String>()
 		qualifiedNamesOf(prefix).take(limit).forEach(names::add)
 		for (scoped in scopedIndexes) {
-			addPrefixMatches(scoped, prefix, names, limit)
+			val target = (names.size.toLong() + limit).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+			addPrefixMatches(scoped, prefix, names, target)
 		}
 		return names.toList()
 	}
 
 	/**
-	 * Adds [scoped]'s prefix matches to [names] until it holds [limit] names or the index has no more.
+	 * Adds [scoped]'s prefix matches to [names] until it holds [target] names or the index has no more.
 	 *
 	 * One fetch of the missing count is not enough: a fetched row can repeat a name already taken, and
 	 * one index can hold the same class from several JARs in scope (the Kotlin stdlib split into
@@ -110,16 +112,16 @@ class ModuleClasspathLookup internal constructor(
 		scoped: ScopedIndex,
 		prefix: String,
 		names: MutableSet<String>,
-		limit: Int,
+		target: Int,
 	) {
-		var fetch = limit
-		while (names.size < limit) {
+		var fetch = target - names.size
+		while (names.size < target) {
 			val rows = scoped.index.findTopLevelClassesByPrefix(prefix, scoped.sourceIds, fetch).toList()
 			rows
 				.asSequence()
 				.map { it.fqName }
 				.filterNot { it in names }
-				.take(limit - names.size)
+				.take(target - names.size)
 				.forEach(names::add)
 			if (rows.size < fetch || fetch == Int.MAX_VALUE) return
 			fetch = (fetch.toLong() * 2).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()

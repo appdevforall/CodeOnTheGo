@@ -136,12 +136,11 @@ class ModuleClasspathLookupTest {
 
 			val found = lookup().qualifiedNamesByPrefix("Widget", limit = 2)
 
-			assertThat(found).hasSize(2)
 			assertThat(found.first()).isEqualTo("com.example.Widget")
 		}
 
 	@Test
-	fun `a prefix lookup fills its limit with case-insensitive prefix matches`() =
+	fun `a prefix lookup matches prefixes ignoring case`() =
 		runTest {
 			library.insert(topLevelClass("com.example.WidgetA"))
 			generated.insert(topLevelClass("com.example.widgetB", sourceId = R_JAR))
@@ -149,7 +148,18 @@ class ModuleClasspathLookupTest {
 
 			val found = lookup().qualifiedNamesByPrefix("widget", limit = 2)
 
-			assertThat(found).hasSize(2)
+			assertThat(found).containsExactly("com.example.WidgetA", "com.example.widgetB", "com.example.WIDGETC")
+		}
+
+	@Test
+	fun `a prefix lookup gives each index its own limit`() =
+		runTest {
+			repeat(5) { library.insert(topLevelClass("com.example.Widget$it")) }
+			moduleOutput.insert(topLevelClass("com.example.WidgetOwn", sourceId = OWN_JAR))
+
+			val found = lookup().qualifiedNamesByPrefix("Wid", limit = 3)
+
+			assertThat(found).contains("com.example.WidgetOwn")
 		}
 
 	@Test

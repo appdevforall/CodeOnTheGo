@@ -72,7 +72,8 @@ class ClassNamesCompletionProvider(
 
 		abortCompletionIfCancelled()
 
-		for (className in compiler.findTypeNamesMatching(partial, CompletionProvider.MAX_COMPLETION_ITEMS)) {
+		// One more than can be shown, so a source with too many matches marks the result incomplete.
+		for (className in compiler.findTypeNamesMatching(partial, CompletionProvider.MAX_COMPLETION_ITEMS + 1)) {
 			if (!uniques.add(className)) {
 				continue
 			}
