@@ -396,6 +396,7 @@ private fun DrawScope.drawRestore(color: Color) {
 	drawRect(color, Offset(size.width - pad - square, pad), Size(square, square), style = Stroke(strokePx()))
 	drawRect(color, Offset(pad, size.height - pad - square), Size(square, square), style = Stroke(strokePx()))
 }
+
 private fun DrawScope.drawDock(color: Color) {
 	val pad = size.minDimension * 0.24f
 	val barHeight = size.minDimension * 0.22f
@@ -413,7 +414,6 @@ private fun DrawScope.drawDock(color: Color) {
 		size = Size(size.width - 2 * pad, barHeight),
 	)
 }
-
 
 private fun DrawScope.drawClose(color: Color) {
 	val pad = size.minDimension * 0.28f
