@@ -29,7 +29,12 @@ data class HeapCounters(
 	val blockingGcCount: Long,
 	val usedBytes: Long,
 ) {
-	/** Bytes allocated and not yet freed, by the cumulative counters. */
+	/**
+	 * Bytes allocated minus bytes freed, by the cumulative counters.
+	 *
+	 * Freed bytes only advance when a GC runs, so over a stretch with no GC this equals the bytes
+	 * allocated, garbage included. It is not what the stretch retained.
+	 */
 	val netRetainedBytes: Long
 		get() = allocatedBytes - freedBytes
 }
