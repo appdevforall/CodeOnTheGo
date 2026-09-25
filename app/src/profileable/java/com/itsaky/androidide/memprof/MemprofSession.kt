@@ -52,6 +52,14 @@ internal object MemprofSession {
 		Memprof.sink = ProfileableMemprofSink(report, reportWriter)
 		AllocationSampler.onTick = { usedBytes ->
 			report.sampled(usedBytes)
+			/*
+			 * An open phase's time, allocation and peak change with every tick, so the file must be
+			 * rewritten while it runs: a phase that ends no sections would otherwise leave the file as
+			 * it was when the phase began, which is all an OOM during that phase leaves behind.
+			 */
+			if (report.hasOpenPhases) {
+				reportWriter.markDirty()
+			}
 			reportWriter.writeIfDirty(REPORT_INTERVAL_MS)
 		}
 		AllocationSampler.start()
