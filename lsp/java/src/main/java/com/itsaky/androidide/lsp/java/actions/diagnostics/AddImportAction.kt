@@ -91,8 +91,10 @@ class AddImportAction : BaseJavaCodeAction() {
 			return
 		}
 
-		visible = true
-		enabled = true
+		// BaseJavaCodeAction disables it outside any module, where execAction has nothing to offer.
+		if (!enabled) {
+			markInvisible()
+		}
 	}
 
 	override suspend fun execAction(data: ActionData): Any {
