@@ -103,16 +103,13 @@ class AddImportAction : BaseKotlinCodeAction() {
 		 * scan. The kind restriction also keeps Kotlin from being offered a file facade, which is not
 		 * a classifier.
 		 *
-		 * Deduplicated by qualified name, keeping the first occurrence in query order (source before
-		 * library): the same class indexed from two JARs on the active source set is two rows here.
-		 * The `associate` below already folds duplicate keys together for a classifier, so this list
-		 * is redundant with it today; it is kept so this result's own identity does not depend on
-		 * how it happens to get folded downstream.
+		 * The same class indexed from two JARs on the active source set is two rows here, possibly
+		 * with different visibility, so they are deduplicated below only after the visibility filter:
+		 * deduplicating first could keep a hidden copy and drop the importable one.
 		 */
 		val classifiers =
 			env.ktSymbolIndex
 				.findSymbolBySimpleName(referenceName, limit = 0, kinds = JvmSymbolKind.CLASSIFIER_KINDS)
-				.distinctBy { it.dedupeKey }
 				.toList()
 
 		if (classifiers.isEmpty()) {
@@ -132,6 +129,7 @@ class AddImportAction : BaseKotlinCodeAction() {
 					val currentPackage = ktFile.packageFqName.asString().ifEmpty { null }
 					classifiers
 						.filter { it.isImportableFrom(currentPackage) }
+						.distinctBy { it.dedupeKey }
 						.associate { it.fqName to insertImport(ktFile, it.fqName) }
 				}
 

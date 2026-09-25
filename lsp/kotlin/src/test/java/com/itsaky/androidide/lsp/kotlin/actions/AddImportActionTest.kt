@@ -101,6 +101,19 @@ class AddImportActionTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a class hidden in one jar is still offered from a jar that makes it public`() {
+		indexLibrary(
+			classSymbol("lib", "Foo").copy(sourceId = "jarA.jar", visibility = JvmVisibility.PACKAGE_PRIVATE),
+			classSymbol("lib", "Foo").copy(sourceId = "jarB.jar"),
+		)
+		createSourceFile("Main.kt", "package p\nfun f(x: Foo) {}")
+
+		val candidates = AddImportAction().computeImportCandidates(env, mainPath, "Foo").found()
+
+		assertEquals(setOf("lib.Foo"), candidates.keys)
+	}
+
+	@Test
 	fun `drops a package-private library classifier when a public one shares the simple name`() {
 		indexLibrary(
 			classSymbol("androidx.recyclerview.widget", "AdapterHelper").copy(visibility = JvmVisibility.PACKAGE_PRIVATE),
