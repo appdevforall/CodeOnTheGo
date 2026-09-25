@@ -85,6 +85,33 @@ class EditorViewModelIndexingStatusTest {
 	}
 
 	@Test
+	fun whenIndexingEndsWhileTheSlotShowsIndexingText_theMessageItReplacedReturns() {
+		val next =
+			resolveIndexingStatus(
+				isSlotOwnedElsewhere = false,
+				indexingStatus = null,
+				currentStatus = INDEXING,
+				shownIndexingStatus = INDEXING,
+				replacedStatus = BUILD_SUCCESSFUL,
+			)
+
+		assertThat(next.toString()).isEqualTo(BUILD_SUCCESSFUL)
+	}
+
+	@Test
+	fun whenAnIndexingPassAfterABuildEnds_theBuildResultReturns() {
+		viewModel.statusText = BUILD_SUCCESSFUL
+		viewModel.onIndexingStateChanged(IndexingState.Indexing(done = 0, total = 2))
+		update(isSlotOwnedElsewhere = false)
+		assertThat(viewModel.statusText.toString()).isEqualTo("Indexing classes (0/2)")
+
+		viewModel.onIndexingStateChanged(IndexingState.Idle)
+		update(isSlotOwnedElsewhere = false)
+
+		assertThat(viewModel.statusText.toString()).isEqualTo(BUILD_SUCCESSFUL)
+	}
+
+	@Test
 	fun whenIndexingEndsWhileTheSlotShowsAnotherMessage_theMessageStays() {
 		val next =
 			resolveIndexingStatus(
@@ -125,7 +152,7 @@ class EditorViewModelIndexingStatusTest {
 
 		update(isSlotOwnedElsewhere = false)
 
-		assertThat(viewModel.statusText.toString()).isEqualTo("Indexing libraries (123/538)")
+		assertThat(viewModel.statusText.toString()).isEqualTo("Indexing classes (123/538)")
 	}
 
 	@Test
@@ -205,10 +232,10 @@ class EditorViewModelIndexingStatusTest {
 	private fun format(
 		done: Int,
 		total: Int,
-	): CharSequence = "Indexing libraries ($done/$total)"
+	): CharSequence = "Indexing classes ($done/$total)"
 
 	private companion object {
-		const val INDEXING = "Indexing libraries (1/2)"
+		const val INDEXING = "Indexing classes (1/2)"
 		const val BUILDING = "Building..."
 		const val BUILD_SUCCESSFUL = "BUILD SUCCESSFUL in 3s"
 		const val BUILD_CANCELLED = "Build was cancelled by the user."
