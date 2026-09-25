@@ -24,8 +24,8 @@ internal interface ClasspathClassNames : ClasspathPackages {
 	fun qualifiedNamesOf(simpleName: String): List<String>
 
 	/**
-	 * Returns up to [limit] qualified names of top-level classes whose simple name starts with [prefix],
-	 * ignoring case, exact simple-name matches first.
+	 * Returns the qualified names of top-level classes whose simple name starts with [prefix], ignoring
+	 * case: the exact simple-name matches first, then up to [limit] more from each index.
 	 */
 	fun qualifiedNamesByPrefix(
 		prefix: String,
@@ -55,38 +55,39 @@ class ClasspathTypeLookup internal constructor(
 	private val bootClasses: () -> Collection<String>,
 ) {
 	/**
-	 * Returns up to [limit] qualified names of top-level classes whose simple name starts with
-	 * [partial], ignoring case.
+	 * Returns the qualified names of top-level classes whose simple name starts with [partial],
+	 * ignoring case: up to [limitPerSource] from each of the sources, the classpath and the boot
+	 * classpath, exact simple-name matches first.
 	 *
-	 * Exact simple-name matches come first, so a short [partial], which matches far more classes than
-	 * [limit], cannot crowd out the class named exactly [partial]. There is no fuzzy matching.
+	 * Each source has its own limit so that one with many matches cannot crowd out another's: a
+	 * library index holding dozens of `View*` classes must still leave room for `android.view.View`.
+	 * The caller ranks and trims the union. A caller that shows at most N names should pass N + 1, so
+	 * a source with more matches than fit yields more names than it can show and it can tell the
+	 * result is incomplete. There is no fuzzy matching.
 	 */
 	fun findTypeNamesMatching(
 		partial: String,
-		limit: Int,
+		limitPerSource: Int,
 	): List<String> {
-		require(limit > 0) { "limit must be positive, was $limit" }
+		require(limitPerSource > 0) { "limitPerSource must be positive, was $limitPerSource" }
 
 		val sources = sourceClasses()
 		val boot = bootClasses()
 		val classpath = classpath()
 		val names = LinkedHashSet<String>()
 
-		fun fill(candidates: () -> Iterable<String>) {
-			if (names.size >= limit) return
-			candidates()
-				.asSequence()
-				.filterNot(names::contains)
-				.take(limit - names.size)
-				.forEach(names::add)
-		}
+		fun add(candidates: Sequence<String>) = candidates.take(limitPerSource).forEach(names::add)
 
-		fill { sources.filter { simpleNameOf(it) == partial } }
-		fill { classpath?.qualifiedNamesOf(partial).orEmpty() }
-		fill { boot.filter { simpleNameOf(it) == partial } }
-		fill { sources.filter { simpleNameOf(it).startsWith(partial, ignoreCase = true) } }
-		fill { classpath?.qualifiedNamesByPrefix(partial, limit).orEmpty() }
-		fill { boot.filter { simpleNameOf(it).startsWith(partial, ignoreCase = true) } }
+		fun Collection<String>.named() = asSequence().filter { simpleNameOf(it) == partial }
+
+		fun Collection<String>.prefixed() = asSequence().filter { simpleNameOf(it).startsWith(partial, ignoreCase = true) }
+
+		add(sources.named())
+		add(classpath?.qualifiedNamesOf(partial).orEmpty().asSequence())
+		add(boot.named())
+		add(sources.prefixed())
+		add(classpath?.qualifiedNamesByPrefix(partial, limitPerSource).orEmpty().asSequence())
+		add(boot.prefixed())
 		return names.toList()
 	}
 

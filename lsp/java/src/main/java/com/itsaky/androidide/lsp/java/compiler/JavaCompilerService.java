@@ -218,13 +218,13 @@ public class JavaCompilerService implements CompilerProvider {
 	}
 
 	/**
-	 * Returns up to {@code limit} qualified names of top-level classes whose simple name starts with {@code partial}, ignoring case, exact simple-name matches first.
+	 * Returns the qualified names of top-level classes whose simple name starts with {@code partial}, ignoring case: up to {@code limitPerSource} from each of the sources, the classpath and the boot classpath, exact simple-name matches first.
 	 *
 	 * <p>
-	 * Blocks on the class index's disk I/O, so never call it on the main thread.
+	 * Blocks on the class index's disk I/O, so never call it on the main thread. See {@link ClasspathTypeLookup#findTypeNamesMatching} for why the limit is per source.
 	 */
-	public List<String> findTypeNamesMatching(String partial, int limit) {
-		return types.findTypeNamesMatching(partial, limit);
+	public List<String> findTypeNamesMatching(String partial, int limitPerSource) {
+		return types.findTypeNamesMatching(partial, limitPerSource);
 	}
 
 	@Override
