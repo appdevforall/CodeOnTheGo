@@ -3,6 +3,8 @@ package org.appdevforall.codeonthego.indexing
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
@@ -53,7 +55,7 @@ class SQLiteIndexFingerprintTest {
 	@Test
 	fun `insertSource records the fingerprint and it survives reopening`() =
 		runTest {
-			index.insertSource("jarA", "100:1", sequenceOf(Entry("k1", "jarA", "v")))
+			index.insertSource("jarA", "100:1", flowOf(Entry("k1", "jarA", "v")))
 			index.close()
 
 			open().use { assertThat(it.sourceFingerprint("jarA")).isEqualTo("100:1") }
@@ -62,7 +64,7 @@ class SQLiteIndexFingerprintTest {
 	@Test
 	fun `a source with no entries still records its fingerprint`() =
 		runTest {
-			index.insertSource("jarA", "100:1", emptySequence())
+			index.insertSource("jarA", "100:1", emptyFlow())
 
 			assertThat(index.sourceFingerprint("jarA")).isEqualTo("100:1")
 		}
@@ -70,9 +72,9 @@ class SQLiteIndexFingerprintTest {
 	@Test
 	fun `removing a source drops its fingerprint`() =
 		runTest {
-			index.insertSource("jarA", "100:1", sequenceOf(Entry("k1", "jarA", "v")))
-			index.insertSource("jarB", "200:2", sequenceOf(Entry("k1", "jarB", "v")))
-			index.insertSource("jarC", "300:3", sequenceOf(Entry("k1", "jarC", "v")))
+			index.insertSource("jarA", "100:1", flowOf(Entry("k1", "jarA", "v")))
+			index.insertSource("jarB", "200:2", flowOf(Entry("k1", "jarB", "v")))
+			index.insertSource("jarC", "300:3", flowOf(Entry("k1", "jarC", "v")))
 
 			index.removeBySource("jarA")
 			index.removeBySources(listOf("jarB"))
@@ -85,7 +87,7 @@ class SQLiteIndexFingerprintTest {
 	@Test
 	fun `clear drops every fingerprint`() =
 		runTest {
-			index.insertSource("jarA", "100:1", sequenceOf(Entry("k1", "jarA", "v")))
+			index.insertSource("jarA", "100:1", flowOf(Entry("k1", "jarA", "v")))
 
 			index.clear()
 
@@ -97,8 +99,8 @@ class SQLiteIndexFingerprintTest {
 		runTest {
 			// Past the first batch, so some rows are already committed when the source fails.
 			val failing =
-				sequence {
-					repeat(700) { yield(Entry("k$it", "jarA", "v")) }
+				flow {
+					repeat(700) { emit(Entry("k$it", "jarA", "v")) }
 					throw IllegalStateException("corrupt JAR")
 				}
 

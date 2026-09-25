@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.indexing.api
 
+import kotlinx.coroutines.flow.Flow
 import java.io.Closeable
 
 /**
@@ -119,17 +120,19 @@ interface Index<T : Indexable> :
 	val descriptor: IndexDescriptor<T>
 
 	/**
-	 * Inserts [entries], all from [sourceId], and records [fingerprint] as that source's.
+	 * Replaces [sourceId]'s entries with [entries], all from [sourceId], and records [fingerprint] as
+	 * that source's.
 	 *
-	 * The fingerprint is opaque to the index; it is what lets a caller tell whether the source has
-	 * changed since it was indexed. It is committed with the last batch of rows, so it is present
-	 * only once every entry is stored: an insert that fails or is cancelled part-way leaves none.
-	 * Removing the source's entries removes it too.
+	 * Readers never find the source missing while it is replaced: they see its old entries, its new
+	 * ones, or both. The fingerprint is opaque to the index; it is what lets a caller tell whether the
+	 * source has changed since it was indexed. It is committed with the last batch of rows, so it is
+	 * present only once every entry is stored: a replacement that fails or is cancelled part-way
+	 * leaves none. Removing the source's entries removes it too.
 	 */
 	suspend fun insertSource(
 		sourceId: String,
 		fingerprint: String,
-		entries: Sequence<T>,
+		entries: Flow<T>,
 	)
 
 	/** Returns the fingerprint recorded for [sourceId] by [insertSource], or `null` if there is none. */

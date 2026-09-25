@@ -6,6 +6,7 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
@@ -64,16 +65,16 @@ class SQLiteIndexCancellationTest {
 			val secondEntryReached = CountDownLatch(1)
 			val proceedWithSecondEntry = CountDownLatch(1)
 			val entries =
-				sequence {
-					yield(Entry("k1", "jarA", "v1"))
+				flow {
+					emit(Entry("k1", "jarA", "v1"))
 					secondEntryReached.countDown()
 					proceedWithSecondEntry.awaitOrFail()
-					yield(Entry("k2", "jarA", "v2"))
+					emit(Entry("k2", "jarA", "v2"))
 				}
 
 			val job = CoroutineScope(Dispatchers.IO).launch { index.insertSource("jarA", "1:1", entries) }
 
-			// The first batch (batchSize = 1) has already committed by the time the sequence
+			// The first batch (batchSize = 1) has already committed by the time the flow
 			// asks to produce its second entry.
 			secondEntryReached.awaitOrFail()
 

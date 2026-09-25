@@ -1,5 +1,7 @@
 package org.appdevforall.codeonthego.indexing
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
@@ -131,16 +133,24 @@ class InMemoryIndex<T : Indexable>(
 
 	override suspend fun insert(entry: T) = lock.write { insertSingleLocked(entry) }
 
-	/** Inserts under one write lock, so readers never see the fingerprint without every entry. */
+	/**
+	 * Replaces [sourceId]'s entries under one write lock, so readers see the old entries or the new
+	 * ones and never the fingerprint without every entry. [entries] is read before the lock is taken,
+	 * so one that fails part-way leaves the old entries untouched.
+	 */
 	override suspend fun insertSource(
 		sourceId: String,
 		fingerprint: String,
-		entries: Sequence<T>,
-	) = lock.write {
-		for (entry in entries) {
-			insertSingleLocked(entry)
+		entries: Flow<T>,
+	) {
+		val replacement = entries.toList()
+		lock.write {
+			removeBySourceLocked(sourceId)
+			for (entry in replacement) {
+				insertSingleLocked(entry)
+			}
+			fingerprints[sourceId] = fingerprint
 		}
-		fingerprints[sourceId] = fingerprint
 	}
 
 	override suspend fun sourceFingerprint(sourceId: String): String? = fingerprints[sourceId]

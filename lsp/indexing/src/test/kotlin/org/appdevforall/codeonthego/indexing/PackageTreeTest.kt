@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.indexing
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
@@ -139,7 +140,7 @@ class PackageTreeTest(
 			index.insertSource(
 				"jarA",
 				fingerprint = "f1",
-				entries = sequenceOf(PackagedEntry("k1", "jarA", "a.b"), PackagedEntry("k2", "jarA", "a.c")),
+				entries = flowOf(PackagedEntry("k1", "jarA", "a.b"), PackagedEntry("k2", "jarA", "a.c")),
 			)
 
 			assertThat(index.subpackages("a", sourceIds = listOf("jarA"))).containsExactly("a.b", "a.c")
