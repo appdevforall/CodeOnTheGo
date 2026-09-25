@@ -10,11 +10,11 @@ import java.io.File
 import java.nio.file.Paths
 
 /**
- * The index must offer exactly the classes the classpath trie held.
+ * The index must offer exactly the classes that filled the per-module classpath trie.
  *
- * The oracle is built from the **old** path: `JarFsClasspathReader` filtered to top-level classes is
- * literally what filled `ModuleProject.compileClasspathClasses`. Building it from the index instead
- * would let the new code agree with itself and pin nothing.
+ * The oracle is built independently: `JarFsClasspathReader` filtered to top-level classes is what
+ * `ModuleProject.indexClasspaths` used to fill. Building it from the index instead would let the new
+ * code agree with itself and pin nothing.
  *
  * It runs against real JARs because the cases that matter do not occur in a hand-built fixture:
  * Kotlin file facades, multi-file class parts and anonymous Kotlin classes in kotlin-stdlib, and
