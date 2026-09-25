@@ -64,7 +64,8 @@ internal class MemprofReportWriter(
 
 	/** Prints the report to logcat, one line per log entry, so a reader sees the table intact. */
 	fun log() {
-		render().lineSequence().forEach { line -> logger.info("MEMPROF|report| {}", line) }
+		// DEBUG, not INFO: an INFO line becomes a Sentry breadcrumb, and the report is dozens of lines.
+		render().lineSequence().forEach { line -> logger.debug("MEMPROF|report| {}", line) }
 	}
 
 	private fun render(): String = report.render(System.currentTimeMillis(), RuntimeHeapCounters.read())
