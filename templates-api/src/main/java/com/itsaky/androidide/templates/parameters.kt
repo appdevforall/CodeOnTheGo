@@ -510,3 +510,13 @@ inline fun useKtsParameter(
 		this.tooltipTag = "setup.kotlin.script.language"
 		configure()
 	}
+
+inline fun initGitParameter(
+	crossinline configure: BooleanParameterBuilder.() -> Unit = {}
+) =
+	booleanParameter {
+		name = string.initialize_git_repository
+		default = false
+		this.tooltipTag = ""
+		configure()
+	}
