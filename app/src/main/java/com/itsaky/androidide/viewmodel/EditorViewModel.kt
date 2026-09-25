@@ -251,16 +251,19 @@ class EditorViewModel : ViewModel() {
 			_statusText.value = (_statusText.value?.first ?: "") to value
 		}
 
-	/** The latest library indexing state the editor has observed. */
+	/** The latest class indexing state the editor has observed. */
 	var indexingState: IndexingState = IndexingState.Idle
 		private set
 
-	/** Whether library indexing is in flight, derived from [indexingState]. */
+	/** Whether class indexing is in flight, derived from [indexingState]. */
 	val isIndexing: Boolean
 		get() = indexingState is IndexingState.Indexing
 
 	/** The indexing text last written to the status slot, or null if none is shown. */
 	private var shownIndexingStatus: CharSequence? = null
+
+	/** The message the indexing text replaced in the status slot, restored when indexing ends. */
+	private var replacedStatus: CharSequence? = null
 
 	/** Records [state], as reported by the project's indexing service manager. */
 	internal fun onIndexingStateChanged(state: IndexingState) {
@@ -278,9 +281,16 @@ class EditorViewModel : ViewModel() {
 		formatProgress: (done: Int, total: Int) -> CharSequence,
 	) {
 		val indexingStatus = (indexingState as? IndexingState.Indexing)?.let { formatProgress(it.done, it.total) }
+		val current = statusText
 		val next =
-			resolveIndexingStatus(isSlotOwnedElsewhere, indexingStatus, statusText, shownIndexingStatus)
+			resolveIndexingStatus(isSlotOwnedElsewhere, indexingStatus, current, shownIndexingStatus, replacedStatus)
 				?: return
+		if (indexingStatus != null && shownIndexingStatus?.contentEquals(current) != true) {
+			replacedStatus = current
+		}
+		if (indexingStatus == null) {
+			replacedStatus = null
+		}
 		shownIndexingStatus = indexingStatus
 		_statusText.value = next to CENTER
 	}
@@ -526,22 +536,25 @@ class EditorViewModel : ViewModel() {
 }
 
 /**
- * Decides what the status slot shows next for library indexing, or returns null to leave it alone.
+ * Decides what the status slot shows next for class indexing, or returns null to leave it alone.
  *
  * While [isSlotOwnedElsewhere] (a build, project initialization or debugger start is running) the
  * slot is left to that operation. Otherwise [indexingStatus], the progress text or null when
- * indexing is idle, takes it. When indexing ends the slot is cleared only if it still shows
- * [shownIndexingStatus], the indexing text last written there, so a newer message survives.
+ * indexing is idle, takes it. When indexing ends the slot goes back to [replacedStatus], the message
+ * the indexing text replaced (a build result, say), or is cleared if there was none. It does so
+ * only if the slot still shows [shownIndexingStatus], the indexing text last written there, so a
+ * newer message survives.
  */
 internal fun resolveIndexingStatus(
 	isSlotOwnedElsewhere: Boolean,
 	indexingStatus: CharSequence?,
 	currentStatus: CharSequence,
 	shownIndexingStatus: CharSequence?,
+	replacedStatus: CharSequence? = null,
 ): CharSequence? =
 	when {
 		isSlotOwnedElsewhere -> null
 		indexingStatus != null -> indexingStatus.takeUnless { it.contentEquals(currentStatus) }
-		shownIndexingStatus?.contentEquals(currentStatus) == true -> ""
+		shownIndexingStatus?.contentEquals(currentStatus) == true -> replacedStatus ?: ""
 		else -> null
 	}

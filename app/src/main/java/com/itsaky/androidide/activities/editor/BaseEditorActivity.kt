@@ -1640,7 +1640,7 @@ abstract class BaseEditorActivity :
 
 	private fun onUpdateIndexingStatus() {
 		editorViewModel.updateIndexingStatus(isStatusOwnedElsewhere) { done, total ->
-			getString(string.status_indexing_libraries, done, total)
+			getString(string.status_indexing_classes, done, total)
 		}
 	}
 
