@@ -179,4 +179,22 @@ class IndexingProgressTrackerTest {
 	}
 
 	private fun completedJob(): CompletableJob = Job().apply { complete() }
+
+	@Test
+	fun `a pass counts as finished once the state returns to idle`() {
+		val tracker = IndexingProgressTracker()
+
+		tracker.openPass().use { pass -> pass.track("/libs/a.jar", Job().apply { complete() }) }
+
+		assertThat(tracker.finishedPasses.value).isEqualTo(1L)
+	}
+
+	@Test
+	fun `a pass that tracked nothing does not count as finished`() {
+		val tracker = IndexingProgressTracker()
+
+		tracker.openPass().close()
+
+		assertThat(tracker.finishedPasses.value).isEqualTo(0L)
+	}
 }
