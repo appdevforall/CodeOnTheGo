@@ -17,6 +17,7 @@ import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import org.appdevforall.codeonthego.indexing.service.IndexingService
+import org.appdevforall.codeonthego.indexing.util.CloseableSequence
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Paths
@@ -197,21 +198,25 @@ abstract class JarIndexingService(
 	/**
 	 * Scans [jarPath], adding it to [unreadableJars] and rethrowing if the scan throws
 	 * [UnreadableJarException]. The caller's consumption of the returned sequence, not this call
-	 * itself, is what actually runs the scan.
+	 * itself, is what actually runs the scan, and closing it closes the JAR.
 	 */
 	private fun scanTrackingUnreadable(
 		jarPath: String,
 		sourceId: String,
 		unreadableJars: MutableSet<String>,
-	): Sequence<JvmSymbol> =
-		sequence {
-			try {
-				yieldAll(CombinedJarScanner.scan(Paths.get(jarPath), sourceId))
-			} catch (e: UnreadableJarException) {
-				unreadableJars += jarPath
-				throw e
+	): CloseableSequence<JvmSymbol> {
+		val scan = CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
+		val tracked =
+			sequence {
+				try {
+					yieldAll(scan)
+				} catch (e: UnreadableJarException) {
+					unreadableJars += jarPath
+					throw e
+				}
 			}
-		}
+		return CloseableSequence(tracked, scan::close)
+	}
 }
 
 /**

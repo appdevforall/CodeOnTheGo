@@ -105,7 +105,9 @@ class BackgroundIndexer<T : Indexable>(
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
 	 * @param fingerprint  Identifies the source's current content, or `null` to not track it.
-	 * @param provider     Lambda returning a [Sequence] of entries.
+	 * @param provider     Lambda returning a [Sequence] of entries. One that is also [Closeable],
+	 *                     such as a [CloseableSequence], is closed once the pass ends, whether it
+	 *                     finished, failed or was cancelled.
 	 * @return The launched job, or the already-running one this call was folded into.
 	 */
 	fun indexSource(
@@ -151,19 +153,24 @@ class BackgroundIndexer<T : Indexable>(
 					progressListener?.onProgress(sourceId, IndexingEvent.Started)
 
 					var count = 0
-					val tracked =
-						provider(sourceId).map { entry ->
-							count++
-							if (count % 1000 == 0) {
-								progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
+					val entries = provider(sourceId)
+					try {
+						val tracked =
+							entries.map { entry ->
+								count++
+								if (count % 1000 == 0) {
+									progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
+								}
+								entry
 							}
-							entry
-						}
 
-					if (fingerprint != null) {
-						index.insertSource(sourceId, fingerprint, tracked)
-					} else {
-						index.insertAll(tracked)
+						if (fingerprint != null) {
+							index.insertSource(sourceId, fingerprint, tracked)
+						} else {
+							index.insertAll(tracked)
+						}
+					} finally {
+						(entries as? Closeable)?.close()
 					}
 
 					progressListener?.onProgress(sourceId, IndexingEvent.Completed(count))

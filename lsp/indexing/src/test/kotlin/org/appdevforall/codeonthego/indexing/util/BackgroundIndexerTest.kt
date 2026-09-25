@@ -58,6 +58,46 @@ class BackgroundIndexerTest {
 			assertThat(index.get("k2")).isNotNull()
 		}
 
+	/** A provider sequence holding a resource open, as a JAR scan does, recording whether it was closed. */
+	private class ClosingEntries(
+		private val entries: Sequence<Entry>,
+	) : Sequence<Entry> by entries,
+		java.io.Closeable {
+		var closed = false
+
+		override fun close() {
+			closed = true
+		}
+	}
+
+	@Test
+	fun `a provider's sequence is closed when the pass fails part-way`() =
+		runTest {
+			val (_, indexer) = makeIndexAndIndexer()
+			val entries =
+				ClosingEntries(
+					sequence {
+						yield(Entry("k1", "src1", "v1"))
+						error("jar unreadable")
+					},
+				)
+
+			indexer.indexSource("src1", skipIfExists = false, fingerprint = "f1") { entries }.join()
+
+			assertThat(entries.closed).isTrue()
+		}
+
+	@Test
+	fun `a provider's sequence is closed when the pass completes`() =
+		runTest {
+			val (_, indexer) = makeIndexAndIndexer()
+			val entries = ClosingEntries(sequenceOf(Entry("k1", "src1", "v1")))
+
+			indexer.indexSource("src1", skipIfExists = false) { entries }.join()
+
+			assertThat(entries.closed).isTrue()
+		}
+
 	@Test
 	fun `skipIfExists=true skips re-indexing of existing source`() =
 		runTest {
