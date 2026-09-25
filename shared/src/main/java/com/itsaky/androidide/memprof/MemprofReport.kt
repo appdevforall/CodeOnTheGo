@@ -131,7 +131,7 @@ class MemprofReport(
 		}
 
 		val header =
-			listOf("Phase", "Start", "Time", "Allocated", "Net retained", "Peak heap", "Blocking GCs", "")
+			listOf("Phase", "Start", "Time", "Allocated", "Alloc - freed", "Peak heap", "Blocking GCs", "")
 		appendTable(listOf(header) + phases.map { it.row(nowMs, counters) })
 	}
 
