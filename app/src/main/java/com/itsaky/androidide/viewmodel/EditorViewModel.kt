@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.service.IndexingState
 import java.io.File
 import java.io.IOException
 import java.util.Collections
@@ -195,6 +196,40 @@ class EditorViewModel : ViewModel() {
 		set(value) {
 			_statusText.value = (_statusText.value?.first ?: "") to value
 		}
+
+	/** The latest library indexing state the editor has observed. */
+	var indexingState: IndexingState = IndexingState.Idle
+		private set
+
+	/** Whether library indexing is in flight, derived from [indexingState]. */
+	val isIndexing: Boolean
+		get() = indexingState is IndexingState.Indexing
+
+	/** The indexing text last written to the status slot, or null if none is shown. */
+	private var shownIndexingStatus: CharSequence? = null
+
+	/** Records [state], as reported by the project's indexing service manager. */
+	internal fun onIndexingStateChanged(state: IndexingState) {
+		indexingState = state
+	}
+
+	/**
+	 * Updates the status slot for [indexingState], formatting its progress with [formatProgress].
+	 *
+	 * [isSlotOwnedElsewhere] is true while a build, project initialization or debugger start owns
+	 * the slot; see [resolveIndexingStatus].
+	 */
+	fun updateIndexingStatus(
+		isSlotOwnedElsewhere: Boolean,
+		formatProgress: (done: Int, total: Int) -> CharSequence,
+	) {
+		val indexingStatus = (indexingState as? IndexingState.Indexing)?.let { formatProgress(it.done, it.total) }
+		val next =
+			resolveIndexingStatus(isSlotOwnedElsewhere, indexingStatus, statusText, shownIndexingStatus)
+				?: return
+		shownIndexingStatus = indexingStatus
+		_statusText.value = next to CENTER
+	}
 
 	var displayedFileIndex: Int
 		get() = _displayedFile.value!!
@@ -435,3 +470,24 @@ class EditorViewModel : ViewModel() {
 		return manager.projectDir.name
 	}
 }
+
+/**
+ * Decides what the status slot shows next for library indexing, or returns null to leave it alone.
+ *
+ * While [isSlotOwnedElsewhere] (a build, project initialization or debugger start is running) the
+ * slot is left to that operation. Otherwise [indexingStatus], the progress text or null when
+ * indexing is idle, takes it. When indexing ends the slot is cleared only if it still shows
+ * [shownIndexingStatus], the indexing text last written there, so a newer message survives.
+ */
+internal fun resolveIndexingStatus(
+	isSlotOwnedElsewhere: Boolean,
+	indexingStatus: CharSequence?,
+	currentStatus: CharSequence,
+	shownIndexingStatus: CharSequence?,
+): CharSequence? =
+	when {
+		isSlotOwnedElsewhere -> null
+		indexingStatus != null -> indexingStatus.takeUnless { it.contentEquals(currentStatus) }
+		shownIndexingStatus?.contentEquals(currentStatus) == true -> ""
+		else -> null
+	}

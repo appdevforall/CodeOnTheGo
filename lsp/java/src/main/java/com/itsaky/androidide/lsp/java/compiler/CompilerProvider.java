@@ -23,44 +23,35 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import jdkx.tools.JavaFileObject;
 
 public interface CompilerProvider {
-  Path NOT_FOUND = Paths.get("");
+	Path NOT_FOUND = Paths.get("");
 
-  TreeSet<String> publicTopLevelTypes();
+	default SynchronizedTask compile(Collection<? extends JavaFileObject> sources) {
+		return compile(new CompilationRequest(sources));
+	}
 
-  TreeSet<String> packagePrivateTopLevelTypes(String packageName);
+	SynchronizedTask compile(CompilationRequest request);
 
-  Optional<JavaFileObject> findAnywhere(String className);
+	default SynchronizedTask compile(Path... files) {
+		return compile(Arrays.stream(files).map(SourceFileObject::new).collect(Collectors.toList()));
+	}
 
-  Path findTypeDeclaration(String className);
+	Optional<JavaFileObject> findAnywhere(String className);
 
-  Path[] findTypeReferences(String className);
+	Path[] findMemberReferences(String className, String memberName);
 
-  Path[] findMemberReferences(String className, String memberName);
+	Path findTypeDeclaration(String className);
 
-  default List<String> findQualifiedNames(String simpleName) {
-    return findQualifiedNames(simpleName, false);
-  }
+	Path[] findTypeReferences(String className);
 
-  List<String> findQualifiedNames(String simpleName, boolean onlyOne);
+	TreeSet<String> packagePrivateTopLevelTypes(String packageName);
 
-  ParseTask parse(Path file);
+	ParseTask parse(JavaFileObject file);
 
-  ParseTask parse(JavaFileObject file);
-
-  default SynchronizedTask compile(Path... files) {
-    return compile(Arrays.stream(files).map(SourceFileObject::new).collect(Collectors.toList()));
-  }
-
-  default SynchronizedTask compile(Collection<? extends JavaFileObject> sources) {
-    return compile(new CompilationRequest(sources));
-  }
-
-  SynchronizedTask compile(CompilationRequest request);
+	ParseTask parse(Path file);
 }

@@ -98,6 +98,10 @@
 	<string name="msg_no_references">No references found</string>
 	<string name="msg_no_imports_found">No imports found</string>
 	<string name="msg_import_file_changed">The file changed. Try importing again.</string>
+	<!-- Shown when the "Import class(es)" quick fix finds no class matching an unresolved symbol. %1$s is the unresolved simple name. -->
+	<string name="msg_no_importable_class">No importable class named \'%1$s\'.</string>
+	<!-- Same as msg_no_importable_class, shown instead of it while library indexing is still in progress, since a matching class may still turn up once indexing finishes. %1$s is the unresolved simple name. -->
+	<string name="msg_no_importable_class_indexing">No importable class named \'%1$s\'. Libraries are still being indexed.</string>
 	<string name="view_diags">Diagnostics</string>
 	<string name="title_installation_failed">Installation failed</string>
 	<string name="error_installation_failed">Failed to install assets</string>
@@ -1173,6 +1177,8 @@
 	<string name="error_quick_run_failed">Quick Run failed.</string>
 	<string name="status_building">Building…</string>
 	<string name="status_installing_plugin">Installing plugin…</string>
+	<!-- Editor status line while library JARs are indexed for code completion. %1$d is the number of JARs finished, %2$d the number queued so far. -->
+	<string name="status_indexing_libraries">Indexing libraries (%1$d/%2$d)</string>
 	<string name="title_install_plugin">Install Plugin</string>
 	<string name="title_plugin_already_installed">Plugin Already Installed</string>
 	<string name="msg_plugin_overwrite_confirm">\'%1$s\' v%2$s is already installed. Replace it with v%3$s?</string>

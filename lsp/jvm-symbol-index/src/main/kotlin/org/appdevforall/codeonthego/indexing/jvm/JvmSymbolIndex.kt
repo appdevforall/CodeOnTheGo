@@ -7,6 +7,7 @@ import kotlinx.coroutines.joinAll
 import org.appdevforall.codeonthego.indexing.FilteredIndex
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.api.Index
+import org.appdevforall.codeonthego.indexing.api.IndexQueryBuilder
 import org.appdevforall.codeonthego.indexing.api.WritableIndex
 import org.appdevforall.codeonthego.indexing.api.indexQuery
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_CONTAINING_CLASS
@@ -21,6 +22,10 @@ import java.io.Closeable
 
 /**
  * An index of symbols from JVM source and binary files.
+ *
+ * Its [package tree][subpackages] holds the packages of the active sources' top-level class files.
+ * Its queries and package lookups block on disk I/O over a persistent backing index, so never call
+ * them on the main thread.
  */
 open class JvmSymbolIndex(
 	private val backing: Index<JvmSymbol>,
@@ -32,6 +37,7 @@ open class JvmSymbolIndex(
 		/** Kind names as the descriptor stores them, for set-membership predicates. */
 		private val CLASSIFIER_KIND_NAMES = JvmSymbolKind.CLASSIFIER_KINDS.map { it.name }
 		private val CALLABLE_KIND_NAMES = JvmSymbolKind.CALLABLE_KINDS.map { it.name }
+		private val JVM_CLASS_KIND_NAMES = JvmSymbolKind.JVM_CLASS_KINDS.map { it.name }
 
 		const val DB_NAME_DEFAULT = "jvm_symbol_index.db"
 		const val INDEX_NAME_LIBRARY = "jvm-library-cache"
@@ -44,8 +50,11 @@ open class JvmSymbolIndex(
 		 * produced by an older scanner get replaced. [KtFileMetadataIndex] shares it because a
 		 * source file's symbols are re-indexed only when its metadata row says so; dropping the
 		 * symbols alone would leave files recorded as indexed with no symbols.
+		 *
+		 * Version 3 added the package table: a version 2 file holds symbols with no packages, and an
+		 * unchanged source is never re-indexed, so it would answer every package lookup with nothing.
 		 */
-		const val FORMAT_VERSION = 2
+		const val FORMAT_VERSION = 3
 
 		/**
 		 * Create (or get) a JVM symbol index backed by SQLite.
@@ -205,6 +214,77 @@ open class JvmSymbolIndex(
 			this.limit = limit
 		},
 	)
+
+	/**
+	 * Top-level classes named exactly [simpleName] in any of [sourceIds], up to [limit].
+	 *
+	 * A top-level class is one with a class file of its own (a [file facade][JvmSymbolKind.FILE_FACADE]
+	 * included, a type alias not) and no containing class, of any visibility. `sourceIds` follows
+	 * [IndexQuery.sourceIds][org.appdevforall.codeonthego.indexing.api.IndexQuery.sourceIds] and is
+	 * further narrowed to the active sources. The default [limit] of 0 is unbounded, which is safe
+	 * here because the result is at most the number of classes sharing one simple name.
+	 */
+	fun findTopLevelClassesNamed(
+		simpleName: String,
+		sourceIds: Collection<String>?,
+		limit: Int = 0,
+	): Sequence<JvmSymbol> = findTopLevelClasses(sourceIds, limit) { eq(KEY_NAME, simpleName) }
+
+	/**
+	 * Top-level classes whose simple name starts with [prefix], ignoring case, in any of [sourceIds].
+	 *
+	 * Top-level and [sourceIds] are as in [findTopLevelClassesNamed]. There is no default [limit]: a
+	 * short prefix matches a large share of the classpath, so the caller must choose one.
+	 */
+	fun findTopLevelClassesByPrefix(
+		prefix: String,
+		sourceIds: Collection<String>?,
+		limit: Int,
+	): Sequence<JvmSymbol> = findTopLevelClasses(sourceIds, limit) { prefix(KEY_NAME, prefix) }
+
+	/**
+	 * Top-level classes declared directly in [packageName] in any of [sourceIds], up to [limit].
+	 *
+	 * Top-level and [sourceIds] are as in [findTopLevelClassesNamed]. The default [limit] of 0 is
+	 * unbounded, which is safe here because the result is at most the number of classes in one
+	 * package.
+	 */
+	fun findTopLevelClassesInPackage(
+		packageName: String,
+		sourceIds: Collection<String>?,
+		limit: Int = 0,
+	): Sequence<JvmSymbol> = findTopLevelClasses(sourceIds, limit) { eq(KEY_PACKAGE, packageName) }
+
+	/**
+	 * Returns whether any of [sourceIds] has a top-level class named [simpleName] declared directly
+	 * in [packageName] (`""` for the default package).
+	 *
+	 * Top-level and [sourceIds] are as in [findTopLevelClassesNamed].
+	 */
+	fun containsTopLevelClass(
+		packageName: String,
+		simpleName: String,
+		sourceIds: Collection<String>?,
+	): Boolean =
+		findTopLevelClasses(sourceIds, limit = 1) {
+			eq(KEY_PACKAGE, packageName)
+			eq(KEY_NAME, simpleName)
+		}.any()
+
+	private inline fun findTopLevelClasses(
+		sourceIds: Collection<String>?,
+		limit: Int,
+		crossinline match: IndexQueryBuilder.() -> Unit,
+	): Sequence<JvmSymbol> =
+		query(
+			indexQuery {
+				match()
+				anyOf(KEY_KIND, JVM_CLASS_KIND_NAMES)
+				notExists(KEY_CONTAINING_CLASS)
+				this.sourceIds = sourceIds
+				this.limit = limit
+			},
+		)
 
 	suspend fun findByKey(key: String): JvmSymbol? = get(key)
 

@@ -31,6 +31,7 @@ It cannot. The index stores names, kinds, visibility, and containing-class metad
 **Negative / costs**
 
 - **Navigation requires a live analysis session.** Before one exists, go-to-definition returns nothing; it cannot degrade to an index-only answer. The user-facing gap - no way to say "still indexing" rather than "not found" - is cross-cutting across every LSP feature and remains unsolved.
+  - *Note, 2026-09-23:* indexing state is now exposed. `IndexingServiceManager.state` reports whether the JVM symbol indexes are being built and how far they got, and the editor shows it in its status text and progress bar, so a user can tell that an empty answer came while indexing was still running. A feature's own empty result still does not say why it is empty, and navigation still needs a live analysis session; this decision is unchanged.
 - Resolving a cross-module target means building PSI for the target file, which is more work than an index row lookup. Acceptable for a user-initiated, cancellable, one-at-a-time request; it would not be acceptable for a per-keystroke feature.
 - Symbols with no source PSI - stdlib, framework, any library jar - are simply unreachable. Library navigation would need decompilation or source-jar extraction, neither of which exists in the tree.
 

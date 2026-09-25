@@ -165,6 +165,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.service.IndexingState
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -399,6 +400,7 @@ abstract class BaseEditorActivity :
 		@UiThread set(value) {
 			field = value
 			onUpdateProgressBarVisibility()
+			postIndexingStatusUpdate()
 		}
 
 	private var debuggerService: DebuggerService? = null
@@ -1595,12 +1597,39 @@ abstract class BaseEditorActivity :
 
 	private fun onUpdateProgressBarVisibility() {
 		log.debug(
-			"onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}",
+			"onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}, isIndexing: ${editorViewModel.isIndexing}",
 		)
-		val visible =
-			editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
+		val visible = isStatusOwnedElsewhere || editorViewModel.isIndexing
 		content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
 		invalidateOptionsMenu()
+	}
+
+	/** Whether a build, project initialization or debugger start owns the progress bar and status slot. */
+	private val isStatusOwnedElsewhere: Boolean
+		get() = editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
+
+	private fun onIndexingStateChanged(state: IndexingState) {
+		val wasIndexing = editorViewModel.isIndexing
+		editorViewModel.onIndexingStateChanged(state)
+		if (editorViewModel.isIndexing != wasIndexing) {
+			onUpdateProgressBarVisibility()
+		}
+		onUpdateIndexingStatus()
+	}
+
+	private fun onUpdateIndexingStatus() {
+		editorViewModel.updateIndexingStatus(isStatusOwnedElsewhere) { done, total ->
+			getString(string.status_indexing_libraries, done, total)
+		}
+	}
+
+	/*
+	 * Deferred to the next main-loop message: the callbacks that clear a slot-owning flag often
+	 * write their final status (e.g. "Build was cancelled") after clearing it, and the indexing
+	 * text must replace that write rather than be overwritten by it.
+	 */
+	private fun postIndexingStatusUpdate() {
+		lifecycleScope.launch(Dispatchers.Main) { onUpdateIndexingStatus() }
 	}
 
 	private fun setupStateObservers() {
@@ -1638,11 +1667,24 @@ abstract class BaseEditorActivity :
 						}
 					}
 				}
+
+				launch {
+					ProjectManagerImpl
+						.getInstance()
+						.indexingServiceManager.state
+						.collect { state -> onIndexingStateChanged(state) }
+				}
 			}
 		}
 
-		editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
-		editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
+		editorViewModel._isBuildInProgress.observe(this) {
+			onUpdateProgressBarVisibility()
+			postIndexingStatusUpdate()
+		}
+		editorViewModel._isInitializing.observe(this) {
+			onUpdateProgressBarVisibility()
+			postIndexingStatusUpdate()
+		}
 		editorViewModel._statusText.observe(this) {
 			content.bottomSheet.setStatus(
 				it.first,

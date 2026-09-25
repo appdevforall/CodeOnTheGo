@@ -18,6 +18,9 @@ import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
+import org.appdevforall.codeonthego.indexing.api.PackageTree
+import org.appdevforall.codeonthego.indexing.api.packageWithAncestors
+import org.appdevforall.codeonthego.indexing.api.parentPackage
 import org.slf4j.LoggerFactory
 import kotlin.collections.iterator
 
@@ -46,6 +49,20 @@ import kotlin.collections.iterator
  * - `(_key, _source_id)` (for key lookups, already ordered by source)
  * - Each `f_{field}` (for equality filter)
  * - Each `f_{field}_lower` (for prefix search)
+ *
+ * The [PackageTree] lives in a second table, filled from [IndexDescriptor.packageOf]:
+ * ```
+ * CREATE TABLE IF NOT EXISTS {name}_packages (
+ *     _source_id TEXT NOT NULL,
+ *     name TEXT NOT NULL,     -- full dotted name
+ *     parent TEXT NOT NULL,   -- '' for a root package
+ *     PRIMARY KEY (_source_id, name)
+ * ) WITHOUT ROWID;
+ * ```
+ * with an index on `(parent, _source_id)`, which serves both lookups. A batch writes its entries'
+ * packages and their ancestors in the same transaction as the entries, and removing a source
+ * removes its packages in the same transaction as its entries. A package row is only removed with
+ * its source, so replacing an entry with one in another package leaves the old package in place.
  *
  * When a query has a selective predicate (a key, a prefix, or a match on a
  * [selective][org.appdevforall.codeonthego.indexing.api.IndexField.selective] field), its source
@@ -83,7 +100,8 @@ class SQLiteIndex<T : Indexable>(
 	override val name: String = "sqlite:${descriptor.name}",
 	private val batchSize: Int = 500,
 	@param:VisibleForTesting internal val sourceIdChunkSize: Int = SOURCE_ID_CHUNK_SIZE,
-) : Index<T> {
+) : Index<T>,
+	PackageTree {
 	companion object {
 		private val log = LoggerFactory.getLogger(SQLiteIndex::class.java)
 
@@ -138,6 +156,9 @@ class SQLiteIndex<T : Indexable>(
 
 	/** One row per source that was indexed with a fingerprint, see [insertSource]. */
 	private val sourcesTableName = "${tableName}_sources"
+
+	/** One row per package per source, see [PackageTree]. */
+	private val packagesTableName = "${tableName}_packages"
 
 	/** Field column names: `f_{fieldName}`. */
 	private val fieldColumns =
@@ -312,6 +333,38 @@ class SQLiteIndex<T : Indexable>(
 			}
 		}
 
+	override fun subpackages(
+		parent: String,
+		sourceIds: Collection<String>?,
+	): Set<String> =
+		runBlocking {
+			ifOpen(emptySet()) {
+				val names = HashSet<String>()
+				for (chunk in sourceIdChunks(sourceIds)) {
+					val (sql, args) = buildSubpackagesQuery(parent, chunk)
+					db.query(sql, args.toTypedArray()).use {
+						while (it.moveToNext()) {
+							names.add(it.getString(0))
+						}
+					}
+				}
+				names
+			}
+		}
+
+	override fun containsPackage(
+		name: String,
+		sourceIds: Collection<String>?,
+	): Boolean =
+		runBlocking {
+			ifOpen(false) {
+				sourceIdChunks(sourceIds).any { chunk ->
+					val (sql, args) = buildContainsPackageQuery(name, chunk)
+					db.query(sql, args.toTypedArray()).use { it.moveToFirst() }
+				}
+			}
+		}
+
 	/**
 	 * Inserts [entries] in transactions of [batchSize] rows, taking the lock per batch so reads can
 	 * interleave with a long insert. A [fingerprint] goes into the last transaction, which runs
@@ -373,6 +426,10 @@ class SQLiteIndex<T : Indexable>(
 							"DELETE FROM $sourcesTableName WHERE _source_id IN ($placeholders)",
 							chunk.toTypedArray(),
 						)
+						db.execSQL(
+							"DELETE FROM $packagesTableName WHERE _source_id IN ($placeholders)",
+							chunk.toTypedArray(),
+						)
 					}
 					db.setTransactionSuccessful()
 				} finally {
@@ -388,6 +445,7 @@ class SQLiteIndex<T : Indexable>(
 				try {
 					db.execSQL("DELETE FROM $tableName")
 					db.execSQL("DELETE FROM $sourcesTableName")
+					db.execSQL("DELETE FROM $packagesTableName")
 					db.setTransactionSuccessful()
 				} finally {
 					db.endTransaction()
@@ -501,6 +559,14 @@ class SQLiteIndex<T : Indexable>(
 		)
 
 		db.execSQL(
+			"CREATE TABLE IF NOT EXISTS $packagesTableName " +
+				"(_source_id TEXT NOT NULL, name TEXT NOT NULL, parent TEXT NOT NULL, PRIMARY KEY (_source_id, name)) WITHOUT ROWID",
+		)
+		db.execSQL(
+			"CREATE INDEX IF NOT EXISTS idx_${packagesTableName}_parent ON $packagesTableName(parent, _source_id)",
+		)
+
+		db.execSQL(
 			"CREATE INDEX IF NOT EXISTS idx_${tableName}_key ON $tableName(_key, _source_id)",
 		)
 
@@ -551,6 +617,7 @@ class SQLiteIndex<T : Indexable>(
 					cv,
 				)
 			}
+			insertPackagesLocked(entries)
 			if (fingerprint != null) {
 				val cv =
 					ContentValues().apply {
@@ -562,6 +629,29 @@ class SQLiteIndex<T : Indexable>(
 			db.setTransactionSuccessful()
 		} finally {
 			db.endTransaction()
+		}
+	}
+
+	/**
+	 * Records the packages of [entries] and their ancestors. Must run inside the entries'
+	 * transaction. A package already recorded for the source is left as is.
+	 */
+	private fun insertPackagesLocked(entries: List<T>) {
+		val seen = HashSet<Pair<String, String>>()
+		for (entry in entries) {
+			val name = descriptor.packageOf(entry) ?: continue
+			for (pkg in packageWithAncestors(name)) {
+				if (!seen.add(entry.sourceId to pkg)) {
+					break
+				}
+				val cv =
+					ContentValues().apply {
+						put("_source_id", entry.sourceId)
+						put("name", pkg)
+						put("parent", parentPackage(pkg))
+					}
+				db.insert(packagesTableName, SQLiteDatabase.CONFLICT_IGNORE, cv)
+			}
 		}
 	}
 
@@ -637,8 +727,13 @@ class SQLiteIndex<T : Indexable>(
 	 * queries, that is what makes a limited key lookup return the smallest source id overall rather
 	 * than the smallest within whichever chunk happened to run first.
 	 */
-	private fun sourceIdChunks(query: IndexQuery): List<List<String>?> {
-		val sourceIds = query.sourceIds ?: return listOf(null)
+	private fun sourceIdChunks(query: IndexQuery): List<List<String>?> = sourceIdChunks(query.sourceIds)
+
+	/** Splits a source scope into `IN (...)`-sized chunks, as [sourceIdChunks] does for a query's. */
+	private fun sourceIdChunks(sourceIds: Collection<String>?): List<List<String>?> {
+		if (sourceIds == null) {
+			return listOf(null)
+		}
 		if (sourceIds.isEmpty()) {
 			return emptyList()
 		}
@@ -691,6 +786,52 @@ class SQLiteIndex<T : Indexable>(
 		return SqlQuery(sql, args)
 	}
 
+	private fun buildSubpackagesQuery(
+		parent: String,
+		sourceIdChunk: List<String>?,
+	): SqlQuery {
+		val (scope, scopeArgs) = sourceScopeClause(sourceIdChunk)
+		return SqlQuery("SELECT DISTINCT name FROM $packagesTableName WHERE parent = ?$scope", listOf(parent) + scopeArgs)
+	}
+
+	/**
+	 * Matches the parent as well as the name: the name alone has no index, while the parent is
+	 * implied by the name and leads the `(parent, _source_id)` index.
+	 */
+	private fun buildContainsPackageQuery(
+		name: String,
+		sourceIdChunk: List<String>?,
+	): SqlQuery {
+		val (scope, scopeArgs) = sourceScopeClause(sourceIdChunk)
+		return SqlQuery(
+			"SELECT 1 FROM $packagesTableName WHERE parent = ? AND name = ?$scope LIMIT 1",
+			listOf(parentPackage(name), name) + scopeArgs,
+		)
+	}
+
+	/** An ` AND _source_id IN (...)` clause for [sourceIdChunk], or nothing when it is unscoped. */
+	private fun sourceScopeClause(sourceIdChunk: List<String>?): Pair<String, List<String>> {
+		if (sourceIdChunk == null) {
+			return "" to emptyList()
+		}
+		val placeholders = sourceIdChunk.joinToString(",") { "?" }
+		return " AND _source_id IN ($placeholders)" to sourceIdChunk
+	}
+
+	/** Returns the plan of the first statement [subpackages] runs for [parent] and [sourceIds]. */
+	@VisibleForTesting
+	internal fun explainSubpackages(
+		parent: String,
+		sourceIds: Collection<String>?,
+	): String = explain(buildSubpackagesQuery(parent, firstSourceIdChunk(sourceIds)))
+
+	/** Returns the plan of the first statement [containsPackage] runs for [name] and [sourceIds]. */
+	@VisibleForTesting
+	internal fun explainContainsPackage(
+		name: String,
+		sourceIds: Collection<String>?,
+	): String = explain(buildContainsPackageQuery(name, firstSourceIdChunk(sourceIds)))
+
 	/** Returns the plan of the first statement [query] runs, one plan row per line. */
 	@VisibleForTesting
 	internal fun explainQuery(query: IndexQuery): String {
@@ -708,8 +849,10 @@ class SQLiteIndex<T : Indexable>(
 		return explain(buildDistinctQuery(col, query, firstSourceIdChunk(query), effectiveLimit(query)))
 	}
 
-	private fun firstSourceIdChunk(query: IndexQuery): List<String>? {
-		val chunks = sourceIdChunks(query)
+	private fun firstSourceIdChunk(query: IndexQuery): List<String>? = firstSourceIdChunk(query.sourceIds)
+
+	private fun firstSourceIdChunk(sourceIds: Collection<String>?): List<String>? {
+		val chunks = sourceIdChunks(sourceIds)
 		require(chunks.isNotEmpty()) { "A query scoped to no sources runs no statement" }
 		return chunks.first()
 	}

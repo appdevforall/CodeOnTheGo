@@ -78,17 +78,22 @@ import kotlin.io.path.pathString
 class ProjectManagerImpl :
 	IProjectManager,
 	EventReceiver {
+	private val indexingServiceManagerLock = Any()
 	private var _indexingServiceManager: IndexingServiceManager? = null
 	lateinit var projectPath: String
 
+	/**
+	 * The indexing service manager of the current project session, created on first access after
+	 * construction or [destroy].
+	 *
+	 * Read from language-server worker threads as well as the main thread, so creation is guarded by
+	 * a lock: two racing first reads must not each create, and leak, a manager.
+	 */
 	val indexingServiceManager: IndexingServiceManager
-		get() {
-			if (_indexingServiceManager == null) {
-				_indexingServiceManager = IndexingServiceManager()
+		get() =
+			synchronized(indexingServiceManagerLock) {
+				_indexingServiceManager ?: IndexingServiceManager().also { _indexingServiceManager = it }
 			}
-
-			return _indexingServiceManager!!
-		}
 
 	@Volatile
 	internal var pluginProjectCached: Boolean? = null
@@ -188,37 +193,6 @@ class ProjectManagerImpl :
 				jobs.toList().awaitAll()
 			}
 		}
-
-		reportUnreadableClasspathJars(workspace)
-	}
-
-	/**
-	 * Surface any classpath JARs that were corrupt/unreadable during indexing (e.g. a truncated
-	 * download or incomplete offline provisioning) to the user — naming the offending dependency and
-	 * offering a recovery path (re-sync) — instead of silently dropping its code-completion symbols.
-	 */
-	private fun reportUnreadableClasspathJars(workspace: Workspace) {
-		val names =
-			workspace.subProjects
-				.filterIsInstance<ModuleProject>()
-				.flatMap { it.unreadableClasspathJars }
-				.map { it.name }
-				.distinct()
-		if (names.isEmpty()) {
-			return
-		}
-
-		log.warn("Skipped {} unreadable classpath JAR(s) during indexing: {}", names.size, names)
-
-		val context = BaseApplication.baseInstance
-		val shown = names.take(3).joinToString(", ")
-		val list =
-			if (names.size > 3) {
-				context.getString(R.string.msg_unreadable_classpath_jars_overflow, shown, names.size - 3)
-			} else {
-				shown
-			}
-		flashError(context.getString(R.string.msg_unreadable_classpath_jars, list))
 	}
 
 	override fun getAndroidModules(): List<AndroidModule> {
@@ -289,8 +263,13 @@ class ProjectManagerImpl :
 		this.workspace = null
 		pluginProjectCached = null
 
-		_indexingServiceManager?.close()
-		_indexingServiceManager = null
+		// Closed outside the lock: close() blocks until every service has shut down, and a worker
+		// thread reading the manager meanwhile must not wait on that.
+		val indexingServiceManager =
+			synchronized(indexingServiceManagerLock) {
+				_indexingServiceManager.also { _indexingServiceManager = null }
+			}
+		indexingServiceManager?.close()
 
 		(this.androidBuildVariants as? MutableMap?)?.clear()
 	}
@@ -497,4 +476,31 @@ class ProjectManagerImpl :
 			}
 		}
 	}
+}
+
+private val unreadableClasspathJarsLog = LoggerFactory.getLogger("UnreadableClasspathJars")
+
+/**
+ * Surfaces unreadable classpath JARs [names] to the user - naming the offending dependency and
+ * offering a recovery path (re-sync) - instead of silently dropping its code-completion symbols.
+ *
+ * Called once per indexing pass with the names of every JAR that pass could not open; a no-op for
+ * an empty list.
+ */
+fun reportUnreadableClasspathJars(names: List<String>) {
+	if (names.isEmpty()) {
+		return
+	}
+
+	unreadableClasspathJarsLog.warn("Skipped {} unreadable classpath JAR(s) during indexing: {}", names.size, names)
+
+	val context = BaseApplication.baseInstance
+	val shown = names.take(3).joinToString(", ")
+	val list =
+		if (names.size > 3) {
+			context.getString(R.string.msg_unreadable_classpath_jars_overflow, shown, names.size - 3)
+		} else {
+			shown
+		}
+	flashError(context.getString(R.string.msg_unreadable_classpath_jars, list))
 }

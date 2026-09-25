@@ -19,6 +19,7 @@ package com.itsaky.androidide.lsp.java.compiler;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.core.util.Pair;
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent;
 import com.itsaky.androidide.javac.services.compiler.ReusableCompiler;
@@ -76,13 +77,13 @@ public class JavaCompilerService implements CompilerProvider {
 	private static final Cache<String, Boolean> cacheContainsWord = new Cache<>();
 	private static final Cache<Void, List<String>> cacheContainsType = new Cache<>();
 	private static final Logger LOG = LoggerFactory.getLogger(JavaCompilerService.class);
-	protected final Set<String> classPathClasses;
 	protected final List<Diagnostic<? extends JavaFileObject>> diagnostics = new ArrayList<>();
 	protected final Map<JavaFileObject, Long> cachedModified = new HashMap<>();
 	protected final Cache<Void, List<String>> cacheFileImports = new Cache<>();
 	protected final SynchronizedTask synchronizedTask = new SynchronizedTask();
 	protected final SourceFileManager fileManager;
 	protected final ModuleProject module;
+	private final ClasspathTypeLookup types;
 	public ReusableCompiler compiler = new JCReusableCompiler();
 	protected Set<String> bootClasspathClasses = BootClasspathProvider.getTopLevelClasses(
 			Collections.singleton(Environment.ANDROID_JAR.getAbsolutePath()));
@@ -98,23 +99,34 @@ public class JavaCompilerService implements CompilerProvider {
 		this.module = module;
 		if (module == null) {
 			this.fileManager = SourceFileManager.NO_MODULE;
-			this.classPathClasses = Collections.emptySet();
 		} else {
 			this.fileManager = SourceFileManager.forModule(module);
-			this.classPathClasses = Collections.unmodifiableSet(module.compileClasspathClasses.allClassNames());
 			this.bootClasspathClasses = Collections.unmodifiableSet(getBootclasspathClasses());
 		}
+		this.types = ClasspathTypeLookup.forModule(module, () -> this.bootClasspathClasses);
 	}
 
-	private JavaCompilerService(
+	@VisibleForTesting
+	JavaCompilerService(
 			@Nullable ModuleProject module,
 			SourceFileManager fileManager,
 			Set<String> bootClasspathClasses,
-			Set<String> classPathClasses) {
+			ClasspathTypeLookup types) {
 		this.module = module;
 		this.fileManager = fileManager;
 		this.bootClasspathClasses = bootClasspathClasses;
-		this.classPathClasses = classPathClasses;
+		this.types = types;
+	}
+
+	/**
+	 * Returns the packages and top-level classes of the module's compile classpath, or {@code null} without a module.
+	 *
+	 * <p>
+	 * Use the result for one request only. Its lookups block on the class index's disk I/O, so never call them on the main thread.
+	 */
+	@Nullable
+	public ClasspathPackages classpathPackages() {
+		return types.classpathPackages();
 	}
 
 	public synchronized void close() {
@@ -131,7 +143,7 @@ public class JavaCompilerService implements CompilerProvider {
 
 	public JavaCompilerService copy() {
 		final JavaCompilerService compiler = new JavaCompilerService(
-				this.module, this.fileManager, this.bootClasspathClasses, this.classPathClasses);
+				this.module, this.fileManager, this.bootClasspathClasses, this.types);
 		compiler.cachedCompile = null;
 		compiler.newCursorPosition = Position.NONE;
 		compiler.lastReparsePosition = Position.NONE;
@@ -161,6 +173,16 @@ public class JavaCompilerService implements CompilerProvider {
 		return Optional.empty();
 	}
 
+	/**
+	 * Returns the qualified names of the top-level classes whose simple name is exactly {@code simpleName} that a file in {@code importingPackage} may import.
+	 *
+	 * <p>
+	 * Blocks on the class index's disk I/O, so never call it on the main thread.
+	 */
+	public List<String> findImportableQualifiedNames(String simpleName, String importingPackage) {
+		return types.findImportableQualifiedNames(simpleName, importingPackage);
+	}
+
 	@Override
 	public Path[] findMemberReferences(String className, String memberName) {
 		List<Path> candidates = new ArrayList<>();
@@ -172,25 +194,6 @@ public class JavaCompilerService implements CompilerProvider {
 			}
 		}
 		return candidates.toArray(new Path[0]);
-	}
-
-	@Override
-	public List<String> findQualifiedNames(String simpleName, boolean onlyOne) {
-		final var names = new ArrayList<String>();
-		for (var name : publicTopLevelTypes()) {
-			// This will be true in a test environment
-			if (name.contains("/")) {
-				name = name.replace('/', '.');
-			}
-
-			if (name.endsWith("." + simpleName)) {
-				names.add(name);
-				if (onlyOne) {
-					break;
-				}
-			}
-		}
-		return names;
 	}
 
 	@Override
@@ -212,6 +215,16 @@ public class JavaCompilerService implements CompilerProvider {
 			}
 		}
 		return NOT_FOUND;
+	}
+
+	/**
+	 * Returns up to {@code limit} qualified names of top-level classes whose simple name starts with {@code partial}, ignoring case, exact simple-name matches first.
+	 *
+	 * <p>
+	 * Blocks on the class index's disk I/O, so never call it on the main thread.
+	 */
+	public List<String> findTypeNamesMatching(String partial, int limit) {
+		return types.findTypeNamesMatching(partial, limit);
 	}
 
 	@Override
@@ -260,18 +273,6 @@ public class JavaCompilerService implements CompilerProvider {
 	public ParseTask parse(Path file) {
 		Parser parser = Parser.parseFile(file);
 		return new ParseTask(parser.task, parser.root);
-	}
-
-	@Override
-	public TreeSet<String> publicTopLevelTypes() {
-		TreeSet<String> all = new TreeSet<>();
-		List<SourceClassTrie.SourceNode> sourceClasses = module != null ? module.compileJavaSourceClasses.allSources() : Collections.emptyList();
-		for (SourceClassTrie.SourceNode node : sourceClasses) {
-			all.add(node.getQualifiedName());
-		}
-		all.addAll(classPathClasses);
-		all.addAll(bootClasspathClasses);
-		return all;
 	}
 
 	@Nullable
