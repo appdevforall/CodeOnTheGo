@@ -31,8 +31,10 @@ import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
+import org.appdevforall.codeonthego.indexing.jvm.dedupeKey
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession
@@ -77,8 +79,29 @@ private const val KT_COMPLETION_PLACEHOLDER = "KT_COMPLETION_PLACEHOLDER"
 
 private val logger = LoggerFactory.getLogger("KotlinCompletions")
 
-/** Max unimported symbols pulled from each index for scope completion (see [collectUnimportedSymbols]). */
-private const val UNIMPORTED_SYMBOL_LIMIT = 100
+/**
+ * Max unimported symbols [collectUnimportedSymbols] adds to one completion result, across every
+ * index rather than per index.
+ *
+ * This counts items the user is actually offered, not rows a query returned, so a prefix whose
+ * leading rows are all rejected by the package, visibility, or kind filters still yields whatever
+ * valid matches exist instead of coming up empty.
+ */
+private const val UNIMPORTED_SYMBOL_DISPLAY_LIMIT = 100
+
+/**
+ * Rows each index's prefix query may return before filtering, sized so ordinary filtering cannot
+ * starve the result.
+ *
+ * The query's `kinds` filter already excludes every kind unimported-symbol completion can never
+ * offer (a file facade, a companion object, anything neither classifier nor callable), but it
+ * cannot tell a top-level or extension callable from a member one -- that distinction is
+ * [isUnimportedSymbolCandidate]'s job, run after the fetch, and member callables dominate most
+ * packages. The budget covers that remaining rejection, plus the current-package and visibility
+ * filters, without being unbounded: an unrestricted prefix query over the symbol table runs on
+ * every keystroke.
+ */
+private const val UNIMPORTED_SYMBOL_FETCH_BUDGET = 3 * UNIMPORTED_SYMBOL_DISPLAY_LIMIT
 
 /**
  * The [ScheduledCancelChecker] for the completion running on this thread, set for the duration of
@@ -412,10 +435,10 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
 	val useSiteModule = this.useSiteModule
 	val visibilityChecker = env.symbolVisibilityChecker
 
-	fun addCompletionItem(symbol: JvmSymbol) {
+	fun addCompletionItem(symbol: JvmSymbol): Boolean {
 		abortIfCancelled()
 
-		if (symbol.packageName == currentPackage) return
+		if (symbol.packageName == currentPackage) return false
 
 		val isVisible =
 			visibilityChecker.isVisible(
@@ -424,31 +447,149 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
 				useSitePackage = currentPackage,
 			)
 
-		if (!isVisible) return
+		if (!isVisible) return false
 
-		buildUnimportedSymbolItem(symbol)?.let { to += it }
+		val item = buildUnimportedSymbolItem(symbol) ?: return false
+		to += item
+		return true
 	}
 
-	env.libraryIndex
-		?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
-		?.forEach(::addCompletionItem)
+	/*
+	 * Source first, library last. One shared cap across the indexes means whichever is queried last
+	 * loses when the cap binds, and a symbol from the user's own project is likelier to be the one
+	 * they are reaching for than one from a dependency.
+	 */
+	val indexes = listOfNotNull(env.sourceIndex, env.generatedIndex, env.libraryIndex)
 
-	env.sourceIndex
-		?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
-		?.forEach(::addCompletionItem)
+	collectUnimportedSymbolMatches(
+		indexes = indexes,
+		partial = ctx.partial,
+		kinds = UNIMPORTED_SYMBOL_KINDS,
+		limit = UNIMPORTED_SYMBOL_DISPLAY_LIMIT,
+		fetchBudget = UNIMPORTED_SYMBOL_FETCH_BUDGET,
+		accept = ::addCompletionItem,
+	)
+}
 
-	env.generatedIndex
-		?.findByPrefix(ctx.partial, limit = UNIMPORTED_SYMBOL_LIMIT)
-		?.forEach(::addCompletionItem)
+/**
+ * The unimported-symbol matches [collectUnimportedSymbols] considers for [partial] across [indexes],
+ * handed to [accept] in query order and capped at [limit] accepted symbols.
+ *
+ * An exact simple-name match from every index is collected before any index's prefix match. The
+ * exact stage is a small, indexed equality query, cheap enough to run unconditionally, and running
+ * it first keeps a cap the prefix stage fills on its own from crowding out an exact match sitting in
+ * a later index -- typically the library index, the last one queried, where the class the user is
+ * actually typing is likeliest to live. Within each stage, indexes are queried in [indexes] order.
+ *
+ * A match is deduplicated by [JvmSymbol] identity ([dedupeKey]), keeping the first *accepted*
+ * occurrence in that order and discarding the rest: since a row's key is unique only per source, the
+ * same class indexed from two JARs on the active source set otherwise yields two rows for what is
+ * one class. A key is recorded only once [accept] has taken it, not merely seen it, so a row rejected
+ * by [accept] (for instance, a module that cannot reach that row's source) does not block a later
+ * duplicate from a source [accept] does allow through. A rejected row's own source and key are
+ * remembered too, so the same physical row surfacing again from the prefix stage is skipped without
+ * a second call to [accept].
+ */
+internal fun collectUnimportedSymbolMatches(
+	indexes: List<JvmSymbolIndex>,
+	partial: String,
+	kinds: Set<JvmSymbolKind>,
+	limit: Int,
+	fetchBudget: Int,
+	accept: (JvmSymbol) -> Boolean,
+): Int {
+	val seen = mutableSetOf<String>()
+	val rejectedRows = mutableSetOf<Pair<String, String>>()
+
+	fun acceptFirstOccurrence(symbol: JvmSymbol): Boolean {
+		val key = symbol.dedupeKey
+		if (key in seen) return false
+
+		/*
+		 * Identifies this exact row (source and key), not the class it names: the exact and prefix
+		 * stages can both return the very same row for one index, and a row `accept` already turned
+		 * down is not worth asking about again. A different source sharing `key`'s dedup identity is
+		 * untouched by this and still gets its own `accept` call.
+		 */
+		val row = symbol.sourceId to symbol.key
+		if (row in rejectedRows) return false
+
+		if (!accept(symbol)) {
+			rejectedRows += row
+			return false
+		}
+
+		seen += key
+		return true
+	}
+
+	val exactSources = indexes.map { index -> { index.findBySimpleName(partial, limit = limit, kinds = kinds) } }
+	val prefixSources = indexes.map { index -> { index.findByPrefix(partial, limit = fetchBudget, kinds = kinds) } }
+
+	return collectUpToLimit(limit = limit, sources = exactSources + prefixSources, accept = ::acceptFirstOccurrence)
+}
+
+/**
+ * Offers items from [sources] in order to [accept], stopping once [limit] of them have been
+ * accepted, and returns how many were.
+ *
+ * The limit counts *accepted* items, which is the whole point: capping the fetch instead lets
+ * rejected entries consume the budget, so a query whose leading rows are all filtered out yields
+ * nothing while valid matches sit just beyond the cap.
+ *
+ * Sources are suppliers, not sequences, because `SQLiteIndex.query` runs its query and collects the
+ * rows before returning -- the sequence it hands back is already a list. Taking a supplier is what
+ * keeps a source that the limit makes unnecessary from being queried at all; how many rows a source
+ * fetches when it is reached remains the job of the limit passed to the query itself.
+ *
+ * A [limit] of zero or less accepts nothing and returns 0 without querying any source. This is the
+ * opposite of an index query's own convention, where a limit of zero means unbounded -- this helper
+ * has no unbounded case, since every caller caps how many items a user is offered.
+ */
+internal fun <T> collectUpToLimit(
+	limit: Int,
+	sources: List<() -> Sequence<T>>,
+	accept: (T) -> Boolean,
+): Int {
+	var accepted = 0
+	for (source in sources) {
+		if (accepted >= limit) {
+			break
+		}
+		for (item in source()) {
+			if (accepted >= limit) {
+				break
+			}
+			if (accept(item)) {
+				accepted++
+			}
+		}
+	}
+	return accepted
+}
+
+/**
+ * The kinds unimported-symbol completion can offer: classifiers and callables.
+ *
+ * A file facade is neither, and Kotlin cannot name one. A companion object is reached through its
+ * class, so offering every `Companion` in the index by that bare name only adds noise.
+ */
+internal val UNIMPORTED_SYMBOL_KINDS: Set<JvmSymbolKind> =
+	(JvmSymbolKind.CLASSIFIER_KINDS - JvmSymbolKind.COMPANION_OBJECT) + JvmSymbolKind.CALLABLE_KINDS
+
+/**
+ * Whether [symbol] can be offered as an unimported completion, whose bare name Kotlin resolves once
+ * the item's auto-import is applied.
+ */
+internal fun isUnimportedSymbolCandidate(symbol: JvmSymbol): Boolean {
+	if (symbol.kind !in UNIMPORTED_SYMBOL_KINDS) return false
+	// A member callable is reached through its receiver, never imported by name.
+	return !symbol.kind.isCallable || symbol.isTopLevel || symbol.isExtension
 }
 
 context(ctx: AnalysisContext)
 private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionItem? {
-	if (symbol.kind.isCallable && !symbol.isTopLevel && !symbol.isExtension) {
-		// member-level, non-extension callable symbols should not be
-		// completed in scope completions
-		return null
-	}
+	if (!isUnimportedSymbolCandidate(symbol)) return null
 
 	abortIfCancelled()
 
@@ -517,12 +658,14 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 			item.detail = symbol.fqName
 			item.setClassCompletionData(
 				className = symbol.fqName,
-				isNested = classInfo.isInner,
+				isNested = !symbol.isTopLevel,
 				topLevelClass = classInfo.containingClassFqName,
 			)
 		}
 
-		else -> {}
+		else -> {
+			return null
+		}
 	}
 
 	return item
@@ -861,23 +1004,44 @@ private fun KaSession.kindOf(symbol: KaSymbol): CompletionItemKind =
 private fun KaSession.kindOf(symbol: JvmSymbol): CompletionItemKind =
 	when (symbol.kind) {
 		JvmSymbolKind.CLASS -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.INTERFACE -> CompletionItemKind.INTERFACE
+
 		JvmSymbolKind.ENUM -> CompletionItemKind.ENUM
+
 		JvmSymbolKind.ENUM_ENTRY -> CompletionItemKind.ENUM_MEMBER
+
 		JvmSymbolKind.ANNOTATION_CLASS -> CompletionItemKind.ANNOTATION_TYPE
+
 		JvmSymbolKind.OBJECT -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.COMPANION_OBJECT -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.DATA_CLASS -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.VALUE_CLASS -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.SEALED_CLASS -> CompletionItemKind.CLASS
+
 		JvmSymbolKind.SEALED_INTERFACE -> CompletionItemKind.INTERFACE
+
 		JvmSymbolKind.FUNCTION -> CompletionItemKind.FUNCTION
+
 		JvmSymbolKind.EXTENSION_FUNCTION -> CompletionItemKind.FUNCTION
+
 		JvmSymbolKind.CONSTRUCTOR -> CompletionItemKind.CONSTRUCTOR
+
 		JvmSymbolKind.PROPERTY -> CompletionItemKind.PROPERTY
+
 		JvmSymbolKind.EXTENSION_PROPERTY -> CompletionItemKind.PROPERTY
+
 		JvmSymbolKind.FIELD -> CompletionItemKind.FIELD
+
 		JvmSymbolKind.TYPE_ALIAS -> CompletionItemKind.CLASS
+
+		// Unimported-symbol completion rejects facades before building an item, since Kotlin
+		// cannot name one; this branch only keeps the mapping total.
+		JvmSymbolKind.FILE_FACADE -> CompletionItemKind.CLASS
 	}
 
 private fun partialIdentifier(prefix: String): String = prefix.takeLastWhile { char -> Character.isJavaIdentifierPart(char) }
