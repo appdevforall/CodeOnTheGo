@@ -128,7 +128,9 @@ class BuildOutputFragment :
 				editorContentGeneration
 			}
 		val window =
-			snapshotEditorWindow()
+			withContext(Dispatchers.Default) {
+				snapshotEditorWindow()
+			}
 		val filtered =
 			withContext(Dispatchers.Default) {
 				BuildOutputViewModel.filterLines(window, query, showTimestamps, showDeltas)
