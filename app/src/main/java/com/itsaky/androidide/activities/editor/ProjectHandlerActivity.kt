@@ -1636,6 +1636,10 @@ abstract class ProjectHandlerActivity :
 							span.put("failed", 1)
 						}
 					}
+					// readGradleBuild returns its failure rather than throwing, so the phase would end as finished.
+					if (parsed.isFailure) {
+						span.abandon()
+					}
 					parsed
 				}
 			if (gradleBuildResult.isFailure) {
