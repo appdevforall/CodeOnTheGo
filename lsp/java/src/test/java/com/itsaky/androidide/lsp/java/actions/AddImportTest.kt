@@ -83,6 +83,22 @@ class AddImportTest {
 	}
 
 	@Test
+	fun `prepare hides the action for a Java file in no module`() {
+		JavaLSPTest.apply {
+			openFile("actions/AddImportAction")
+			val diagnostic = unresolvedLocationDiagnostic()
+
+			val outside = java.io.File("/outside-any-project/Outside.java")
+			val data = createActionData(diagnostic, outside, outside.toPath(), this.server)
+
+			val action = AddImportAction()
+			action.prepare(data)
+
+			assertThat(action.visible).isFalse()
+		}
+	}
+
+	@Test
 	fun `prepare does not touch the compiler provider`() {
 		JavaLSPTest.apply {
 			openFile("actions/AddImportAction")
