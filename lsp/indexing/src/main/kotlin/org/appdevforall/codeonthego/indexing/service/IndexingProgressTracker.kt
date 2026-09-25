@@ -31,6 +31,17 @@ class IndexingProgressTracker {
 	/** The current indexing state; see [IndexingProgressTracker]. */
 	val state: StateFlow<IndexingState> = mutableState.asStateFlow()
 
+	private val mutableFinishedPasses = MutableStateFlow(0L)
+
+	/**
+	 * How many times the state has returned to [IndexingState.Idle] from [IndexingState.Indexing].
+	 *
+	 * [state] is conflated, so a collector can miss a pass that starts and finishes between two of
+	 * its collections. This count only grows, so a collector that sees it change knows at least one
+	 * pass finished, however short.
+	 */
+	val finishedPasses: StateFlow<Long> = mutableFinishedPasses.asStateFlow()
+
 	/** Opens a pass; the caller must close it in a `finally`. */
 	fun openPass(): Pass = Pass().also { pass -> synchronized(lock) { openPasses += pass } }
 
@@ -99,6 +110,9 @@ class IndexingProgressTracker {
 		} else {
 			done = 0
 			total = 0
+			if (mutableState.value is IndexingState.Indexing) {
+				mutableFinishedPasses.value++
+			}
 			mutableState.value = IndexingState.Idle
 		}
 	}

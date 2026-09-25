@@ -83,7 +83,6 @@ import org.appdevforall.codeonthego.indexing.jvm.JarIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmGeneratedIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmModuleOutputIndexingService
-import org.appdevforall.codeonthego.indexing.service.IndexingState
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -212,7 +211,7 @@ class JavaLanguageServer : ILanguageServer {
 		indexingStateCollectorJob?.cancel()
 		indexingStateCollectorJob =
 			serverScope.launch {
-				collectIndexingStateResets(indexingServiceManager.state) {
+				collectIndexingPassResets(indexingServiceManager.finishedPasses) {
 					completionCache.reset()
 				}
 			}
@@ -409,23 +408,25 @@ class JavaLanguageServer : ILanguageServer {
 }
 
 /**
- * Collects [state], invoking [onIndexingFinished] every time it transitions from
- * [IndexingState.Indexing] to [IndexingState.Idle].
+ * Collects [finishedPasses], invoking [onIndexingFinished] every time it changes, which is every
+ * time at least one indexing pass has finished.
  *
- * A cached completion computed while indexing was in flight can be missing symbols the index
- * has since gained, so the cache must be dropped exactly when indexing finishes, not on every
- * intermediate progress update.
+ * A cached completion computed before or while a pass ran can be missing symbols the index has
+ * since gained, so the cache must be dropped when a pass finishes, not on every intermediate
+ * progress update. The count is collected rather than the indexing state because the state is
+ * conflated: a short pass, such as the one after a build, can start and finish between two
+ * collections and leave no trace in it.
  */
-internal suspend fun collectIndexingStateResets(
-	state: StateFlow<IndexingState>,
+internal suspend fun collectIndexingPassResets(
+	finishedPasses: StateFlow<Long>,
 	onIndexingFinished: () -> Unit,
 ) {
-	var previous = state.value
-	state.collect { current ->
-		if (previous is IndexingState.Indexing && current is IndexingState.Idle) {
+	var seen = finishedPasses.value
+	finishedPasses.collect { current ->
+		if (current != seen) {
+			seen = current
 			onIndexingFinished()
 		}
-		previous = current
 	}
 }
 

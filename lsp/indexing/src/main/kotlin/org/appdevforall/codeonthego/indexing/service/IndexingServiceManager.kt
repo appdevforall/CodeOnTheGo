@@ -44,6 +44,9 @@ class IndexingServiceManager(
 	/** Whether indexing is in flight and how far it got, across every service reporting to [progressTracker]. */
 	val state: StateFlow<IndexingState> get() = progressTracker.state
 
+	/** How many indexing passes have finished; see [IndexingProgressTracker.finishedPasses]. */
+	val finishedPasses: StateFlow<Long> get() = progressTracker.finishedPasses
+
 	private val services = ConcurrentHashMap<String, IndexingService>()
 	private var initialized = false
 
