@@ -7,7 +7,6 @@ import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.appdevforall.codeonthego.indexing.api.PackageTree
 import org.appdevforall.codeonthego.indexing.api.ReadableIndex
 import java.io.Closeable
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A read-only view over an index that only exposes entries
@@ -30,15 +29,21 @@ open class FilteredIndex<T : Indexable>(
 	Closeable {
 	/**
 	 * The set of source IDs whose entries are visible.
-	 * Uses a concurrent set for thread-safe reads during queries.
+	 *
+	 * An immutable set replaced in one assignment, so a query running during [setActiveSources] sees
+	 * either the old set or the new one, never an emptied or half-filled one. Writers take [writeLock]
+	 * so that concurrent single-source changes do not lose each other's update.
 	 */
-	private val activeSources = ConcurrentHashMap.newKeySet<String>()
+	@Volatile
+	private var activeSources: Set<String> = emptySet()
+
+	private val writeLock = Any()
 
 	/**
 	 * Make a source's entries visible in query results.
 	 */
 	open fun activateSource(sourceId: String) {
-		activeSources.add(sourceId)
+		synchronized(writeLock) { activeSources = activeSources + sourceId }
 	}
 
 	/**
@@ -46,7 +51,7 @@ open class FilteredIndex<T : Indexable>(
 	 * The data remains in the backing index.
 	 */
 	open fun deactivateSource(sourceId: String) {
-		activeSources.remove(sourceId)
+		synchronized(writeLock) { activeSources = activeSources - sourceId }
 	}
 
 	/**
@@ -57,14 +62,14 @@ open class FilteredIndex<T : Indexable>(
 	 * current classpath JAR paths.
 	 */
 	open fun setActiveSources(sourceIds: Set<String>) {
-		activeSources.clear()
-		activeSources.addAll(sourceIds)
+		val snapshot = sourceIds.toSet()
+		synchronized(writeLock) { activeSources = snapshot }
 	}
 
 	/**
 	 * Returns the current set of active source IDs.
 	 */
-	fun activeSources(): Set<String> = activeSources.toSet()
+	fun activeSources(): Set<String> = activeSources
 
 	/**
 	 * The source IDs whose entries are visible, or `null` if every source is.
@@ -150,7 +155,7 @@ open class FilteredIndex<T : Indexable>(
 	): Sequence<String> = backing.distinctValues(fieldName, scopedToActive(query))
 
 	override fun close() {
-		activeSources.clear()
+		synchronized(writeLock) { activeSources = emptySet() }
 		if (backing is Closeable) backing.close()
 	}
 }
