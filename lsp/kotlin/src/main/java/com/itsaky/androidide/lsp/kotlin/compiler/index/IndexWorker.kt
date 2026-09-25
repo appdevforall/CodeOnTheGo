@@ -214,8 +214,8 @@ internal class IndexWorker(
 							logger.info("Scanning complete. Found {} files to index.", scanCount)
 							/*
 							 * The index phase must begin before the scan phase ends, so the report's
-							 * open-phase count never touches zero at this handoff (which is what
-							 * printed the logcat report 3-4 times per open).
+							 * open-phase count never touches zero at this handoff, which would print
+							 * the logcat report mid-open.
 							 */
 							if (indexPhase == null) {
 								indexPhase = beginIndex()
