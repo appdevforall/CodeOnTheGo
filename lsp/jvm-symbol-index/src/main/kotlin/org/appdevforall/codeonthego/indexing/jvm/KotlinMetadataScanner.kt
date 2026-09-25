@@ -55,13 +55,7 @@ object KotlinMetadataScanner {
 
 		val header = collector.metadataHeader ?: return null
 
-		val metadata =
-			try {
-				KotlinClassMetadata.readStrict(header)
-			} catch (e: Exception) {
-				log.debug("Failed to read Kotlin metadata: {}", e.message)
-				return null
-			}
+		val metadata = readMetadata(header) ?: return null
 
 		return when (metadata) {
 			is KotlinClassMetadata.Class -> {
@@ -94,6 +88,27 @@ object KotlinMetadataScanner {
 			else -> {
 				null
 			}
+		}
+	}
+
+	/**
+	 * Reads [header] strictly, falling back to a lenient read.
+	 *
+	 * A strict read rejects metadata written by a newer Kotlin than the bundled reader supports, which
+	 * a dependency or the project's own output can carry. Dropping those classes would hide them from
+	 * every lookup, while a lenient read still yields their declarations.
+	 */
+	private fun readMetadata(header: Metadata): KotlinClassMetadata? {
+		try {
+			return KotlinClassMetadata.readStrict(header)
+		} catch (e: Exception) {
+			log.debug("Reading Kotlin metadata leniently after a strict read failed: {}", e.message)
+		}
+		return try {
+			KotlinClassMetadata.readLenient(header)
+		} catch (e: Exception) {
+			log.debug("Failed to read Kotlin metadata: {}", e.message)
+			null
 		}
 	}
 
