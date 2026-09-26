@@ -72,11 +72,15 @@ sealed interface BuildOutcome {
 	 *   total beside the timing line; falls back to the build's own start with no trigger stamp.
 	 * @property restarted true when the deploy took the process-restart path (a service,
 	 *   provider or Application class changed) instead of a hot swap.
+	 * @property diagnostics the warnings the compile still produced, in the compiler's order;
+	 *   empty when it reported none or the route compiled nothing. Never an ERROR - that is a
+	 *   [CompileError].
 	 */
 	data class Success(
 		val generation: Long,
 		val durationMillis: Long,
 		val restarted: Boolean = false,
+		val diagnostics: List<BuildDiagnostic> = emptyList(),
 	) : BuildOutcome
 
 	/**
@@ -147,6 +151,15 @@ sealed interface BuildOutcome {
 		val message: String,
 		val daemonDied: Boolean = false,
 	) : BuildOutcome
+
+	companion object {
+		/**
+		 * Fallback copy for a messageless throwable escaping the pipeline. The class name is
+		 * in the ERROR log line the catch already writes, where it helps; on the status
+		 * surface it reads as gibberish.
+		 */
+		const val UNEXPECTED_FAILURE = "Quick Build stopped unexpectedly"
+	}
 }
 
 /**
