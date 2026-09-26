@@ -17,7 +17,9 @@
 
 package com.itsaky.androidide.services.builder
 
+import android.content.Context
 import com.itsaky.androidide.logging.provider.IdeLogRouter
+import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.tasks.cancelIfActive
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
 import com.itsaky.androidide.tooling.api.IToolingApiClient
@@ -47,6 +49,10 @@ import kotlin.time.Duration.Companion.seconds
 internal class ToolingServerRunner(
 	private var listener: OnServerStartListener?,
 	private var observer: Observer?,
+	private val context: Context,
+	/** Starts the server JVM; a seam so a test can hand the runner a process it controls. */
+	private val startProcess: (command: List<String>, environment: Map<String, String>) -> Process =
+		::launchToolingProcess,
 ) {
 	/**
 	 * The server process's pid, or `null` before it has started.
@@ -111,8 +117,18 @@ internal class ToolingServerRunner(
 		runnerScope
 			.launch {
 				var process: Process?
+				var exitCode: Int? = null
 				try {
 					log.info("Starting tooling API server...")
+					// The bundled jar is extracted asynchronously at app init, and nothing else
+					// orders that against this launch. On an APK update the PREVIOUS install's jar
+					// still sits at the final path until that extraction renames over it, so
+					// launching first would run the prior APK's tooling server for the whole
+					// session. This is stamp-guarded and idempotent - a no-op once init has done
+					// it, the extraction itself when it has not - and we are on Dispatchers.IO.
+					if (!ToolsManager.ensureToolingJar(context)) {
+						log.error("Could not confirm the tooling API jar is from this install; starting it anyway")
+					}
 					val command =
 						listOf(
 							Environment.JAVA.absolutePath, // The 'java' binary executable
@@ -145,20 +161,7 @@ internal class ToolingServerRunner(
 
 					val sanitizedEnv = envs.filterKeys { it !in ANDROID_RUNTIME_ENV_KEYS }
 
-					process =
-						ProcessBuilder(command).run {
-							// input and output is used for communication to the tooling server
-							// error stream is used to read the server logs
-							redirectErrorStream(false)
-							directory(Environment.HOME)
-
-							// Do not inherit the app process environment. Inheriting Android runtime
-							// classpath variables can crash the standalone OpenJDK process on some
-							// OEM images before our tooling server is initialized.
-							environment().clear()
-							environment().putAll(sanitizedEnv)
-							start()
-						}
+					process = startProcess(command, sanitizedEnv)
 
 					pid =
 						ReflectionUtils
@@ -175,11 +178,8 @@ internal class ToolingServerRunner(
 					val processJob =
 						launch(Dispatchers.IO) {
 							try {
-								process?.waitFor()
-								log.info(
-									"Tooling API process exited with code : {}",
-									process?.exitValue() ?: "<unknown>",
-								)
+								exitCode = process?.waitFor()
+								log.info("Tooling API process exited with code : {}", exitCode ?: "<unknown>")
 								process = null
 							} finally {
 								log.info("Destroying Tooling API process...")
@@ -229,6 +229,13 @@ internal class ToolingServerRunner(
 					if (e !is CancellationException) {
 						log.error("Unable to start tooling API server", e)
 					}
+				} finally {
+					// Here rather than in processJob: a JVM that dies at once (java -jar on a
+					// missing jar) would otherwise reset before isStarted is set above, and the
+					// dead process would read as started for the rest of the session.
+					isStarted = false
+					pid = null
+					exitCode?.let { observer?.onServerExited(it) }
 				}
 			}.also {
 				job = it
@@ -247,6 +254,10 @@ internal class ToolingServerRunner(
 			errorStream: InputStream,
 		)
 
+		/**
+		 * Called once the server process is gone and the runner has cleared [isStarted] and [pid].
+		 * Not called when [release] ends the runner, since the observer is dropped first.
+		 */
 		fun onServerExited(exitCode: Int)
 
 		fun getClient(): IToolingApiClient
@@ -258,3 +269,21 @@ internal class ToolingServerRunner(
 		fun onServerStarted(pid: Int)
 	}
 }
+
+private fun launchToolingProcess(
+	command: List<String>,
+	environment: Map<String, String>,
+): Process =
+	ProcessBuilder(command).run {
+		// input and output is used for communication to the tooling server
+		// error stream is used to read the server logs
+		redirectErrorStream(false)
+		directory(Environment.HOME)
+
+		// Do not inherit the app process environment. Inheriting Android runtime
+		// classpath variables can crash the standalone OpenJDK process on some
+		// OEM images before our tooling server is initialized.
+		environment().clear()
+		environment().putAll(environment)
+		start()
+	}

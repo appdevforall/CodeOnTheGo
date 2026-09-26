@@ -19,14 +19,11 @@ import org.robolectric.android.controller.ServiceController;
  * {@code TermuxApplication.onCreate()} does NOT run, so the static
  * {@link TermuxShellManager} singleton is still {@code null}.
  *
- * <p>On the pre-fix baseline, {@code TermuxService.onCreate()} assigned
- * {@code mShellManager = TermuxShellManager.getShellManager()} (which returns the null
- * singleton), then immediately called {@code runStartForeground() -> buildNotification() ->
- * getTermuxSessionsSize()}, dereferencing the null {@code mShellManager} and throwing a
- * {@link NullPointerException}.
- *
- * <p>The fix changes that assignment to {@code TermuxShellManager.init(applicationContext)},
- * which lazily creates the singleton, so the service starts cleanly.
+ * <p>{@code TermuxService.onCreate()} must therefore obtain the manager via
+ * {@code TermuxShellManager.init(applicationContext)}, which lazily creates the singleton.
+ * Reading it with {@code TermuxShellManager.getShellManager()} instead hands back the null
+ * singleton, and the immediately-following {@code runStartForeground() -> buildNotification()
+ * -> getTermuxSessionsSize()} dereferences it and throws a {@link NullPointerException}.
  *
  * <p>This test simulates the auto-restart by forcing the static singleton back to {@code null}
  * before creating the service, then asserts the service comes up and
