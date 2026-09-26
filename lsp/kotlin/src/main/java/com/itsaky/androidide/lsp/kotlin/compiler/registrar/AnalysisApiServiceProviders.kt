@@ -33,30 +33,32 @@ import org.jetbrains.kotlin.com.intellij.psi.impl.smartPointers.SmartTypePointer
 @Suppress("UnstableApiUsage")
 @OptIn(KaImplementationDetail::class)
 internal object AnalysisApiServiceProviders {
+	val BaseProvider =
+		AnalysisApiServiceProvider
+			.Builder()
+			.apply {
+				pluginRelativePath = "/META-INF/kt-lsp/kt-lsp.xml"
 
-	val BaseProvider = AnalysisApiServiceProvider.Builder().apply {
-		pluginRelativePath = "/META-INF/kt-lsp/kt-lsp.xml"
+				appService(KotlinAnalysisPermissionOptions::class, AnalysisPermissionOptions::class)
+				appService(AsyncExecutionService::class, NoOpAsyncExecutionService::class)
 
-		appService(KotlinAnalysisPermissionOptions::class, AnalysisPermissionOptions::class)
-		appService(AsyncExecutionService::class, NoOpAsyncExecutionService::class)
+				projectService(
+					KotlinLifetimeTokenFactory::class,
+					KotlinReadActionConfinementLifetimeTokenFactory::class,
+				)
 
-		projectService(
-			KotlinLifetimeTokenFactory::class,
-			KotlinReadActionConfinementLifetimeTokenFactory::class
-		)
-
-		projectService(KotlinPlatformSettings::class, PlatformSettings::class)
-		projectService(SmartTypePointerManager::class, SmartTypePointerManagerImpl::class)
-		projectService(KotlinProjectStructureProvider::class, ProjectStructureProvider::class)
-		projectService(KotlinModuleDependentsProvider::class, ModuleDependentsProvider::class)
-		projectService(KotlinModificationTrackerFactory::class, ModificationTrackerFactory::class)
-		projectService(KotlinAnnotationsResolverFactory::class, AnnotationsResolverFactory::class)
-		projectService(KotlinDeclarationProviderMerger::class, DeclarationProviderMerger::class)
-		projectService(KotlinPackageProviderMerger::class, PackageProviderMerger::class)
-		projectService(KotlinPackagePartProviderFactory::class, PackagePartProviderFactory::class)
-		projectService(KotlinPackageProviderFactory::class, PackageProviderFactory::class)
-		projectService(KotlinDeclarationProviderFactory::class, DeclarationProviderFactory::class)
-	}.build()
+				projectService(KotlinPlatformSettings::class, PlatformSettings::class)
+				projectService(SmartTypePointerManager::class, SmartTypePointerManagerImpl::class)
+				projectService(KotlinProjectStructureProvider::class, ProjectStructureProvider::class)
+				projectService(KotlinModuleDependentsProvider::class, ModuleDependentsProvider::class)
+				projectService(KotlinModificationTrackerFactory::class, ModificationTrackerFactory::class)
+				projectService(KotlinAnnotationsResolverFactory::class, AnnotationsResolverFactory::class)
+				projectService(KotlinDeclarationProviderMerger::class, DeclarationProviderMerger::class)
+				projectService(KotlinPackageProviderMerger::class, PackageProviderMerger::class)
+				projectService(KotlinPackagePartProviderFactory::class, PackagePartProviderFactory::class)
+				projectService(KotlinPackageProviderFactory::class, PackageProviderFactory::class)
+				projectService(KotlinDeclarationProviderFactory::class, DeclarationProviderFactory::class)
+			}.build()
 
 	val Production = BaseProvider
 }
