@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<!-- LeakCanary registers leakcanary.internal.activity.LeakLauncherActivity as a second MAIN/LAUNCHER activity-alias,
+		so a debug build advertises two launcher entries. Any generic launch (monkey -c LAUNCHER, cmd package resolve-activity, tapping
+		the icon) then resolves to the system ResolverActivity instead of the IDE, which breaks tooling that drives the app. Debug
+		builds are the norm for on-device automation, so drop the extra icon. Leak reports are unaffected: this only disables the
+		launcher alias. LeakActivity itself stays registered and is still reachable from LeakCanary's notification. -->
+	<bool name="leak_canary_add_launcher_icon">false</bool>
+</resources>
