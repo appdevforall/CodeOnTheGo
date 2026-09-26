@@ -31,42 +31,40 @@ import org.robolectric.RobolectricTestRunner
  * [IllegalStateException] ("not attached to an activity"). The run-tasks dialog / config-change
  * path can invoke these methods on a detached fragment, crashing the app (Sentry ADFA-3472).
  *
- * The fix guards both methods with `if (!isAdded || activity == null) return`. These tests
- * assert that a detached fragment does NOT crash and returns the safe no-op values.
- *
- * Mutation-mindset: on the pre-fix code (no guard), both calls force the activityViewModels
- * delegate -> requireActivity() -> IllegalStateException, so each test goes RED.
+ * Both methods therefore guard with `if (!isAdded || activity == null) return`. These tests
+ * assert that a detached fragment does NOT crash and returns the safe no-op values; drop the
+ * guard and each call forces the activityViewModels delegate -> requireActivity() ->
+ * IllegalStateException, taking the test RED.
  */
 @RunWith(RobolectricTestRunner::class)
 class BuildOutputFragmentDetachedTest {
+	/** Verifies clearOutput() is a safe no-op on a detached fragment instead of crashing. */
+	@Test
+	fun `clearOutput on a detached fragment does not crash`() {
+		// A freshly-constructed fragment that was never added to an activity is "detached":
+		// isAdded == false and activity == null, exactly the run-tasks / config-change state
+		// in which the Sentry crash was observed.
+		val fragment = BuildOutputFragment()
 
-  /** Verifies clearOutput() is a safe no-op on a detached fragment instead of crashing. */
-  @Test
-  fun `clearOutput on a detached fragment does not crash`() {
-    // A freshly-constructed fragment that was never added to an activity is "detached":
-    // isAdded == false and activity == null, exactly the run-tasks / config-change state
-    // in which the Sentry crash was observed.
-    val fragment = BuildOutputFragment()
+		assertThat(fragment.isAdded).isFalse()
 
-    assertThat(fragment.isAdded).isFalse()
+		// Pre-fix: this forces the `by activityViewModels()` delegate, which calls
+		// requireActivity() on a detached fragment and throws IllegalStateException.
+		// Post-fix: the guard returns early, no exception.
+		fragment.clearOutput()
+	}
 
-    // Pre-fix: this forces the `by activityViewModels()` delegate, which calls
-    // requireActivity() on a detached fragment and throws IllegalStateException.
-    // Post-fix: the guard returns early, no exception.
-    fragment.clearOutput()
-  }
+	/** Verifies getShareableContent() returns an empty string on a detached fragment instead of crashing. */
+	@Test
+	fun `getShareableContent on a detached fragment returns empty without crashing`() {
+		val fragment = BuildOutputFragment()
 
-  /** Verifies getShareableContent() returns an empty string on a detached fragment instead of crashing. */
-  @Test
-  fun `getShareableContent on a detached fragment returns empty without crashing`() {
-    val fragment = BuildOutputFragment()
+		assertThat(fragment.isAdded).isFalse()
 
-    assertThat(fragment.isAdded).isFalse()
+		// Pre-fix: forces the activityViewModels delegate -> requireActivity() -> ISE.
+		// Post-fix: guard returns "" without touching the view model.
+		val content = fragment.getShareableContent()
 
-    // Pre-fix: forces the activityViewModels delegate -> requireActivity() -> ISE.
-    // Post-fix: guard returns "" without touching the view model.
-    val content = fragment.getShareableContent()
-
-    assertThat(content).isEmpty()
-  }
+		assertThat(content).isEmpty()
+	}
 }

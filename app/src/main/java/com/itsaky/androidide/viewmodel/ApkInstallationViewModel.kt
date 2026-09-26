@@ -16,7 +16,6 @@ import java.io.File
  * @author Akash Yadav
  */
 class ApkInstallationViewModel : ViewModel() {
-
 	companion object {
 		private val logger = LoggerFactory.getLogger(ApkInstallationViewModel::class.java)
 	}
@@ -25,7 +24,6 @@ class ApkInstallationViewModel : ViewModel() {
 	 * The current state of the APK installation.
 	 */
 	sealed class SessionState {
-
 		/**
 		 * The APK installation is idle.
 		 */
@@ -36,39 +34,49 @@ class ApkInstallationViewModel : ViewModel() {
 		 */
 		data class InProgress(
 			val sessionId: Int,
-			val progress: Int
+			val progress: Int,
 		) : SessionState()
 
 		/**
 		 * The APK installation session is complete.
 		 */
-		data class Finished(val sessionId: Int, val isSuccess: Boolean) : SessionState()
+		data class Finished(
+			val sessionId: Int,
+			val isSuccess: Boolean,
+		) : SessionState()
 	}
 
-	private val callback = object : SingleSessionCallback() {
-		override fun onCreated(sessionId: Int) {
-			logger.debug("onCreated: sessionId={}", sessionId)
+	private val callback =
+		object : SingleSessionCallback() {
+			override fun onCreated(sessionId: Int) {
+				logger.debug("onCreated: sessionId={}", sessionId)
 
-			setSessionState(SessionState.InProgress(sessionId = sessionId, progress = 0))
-		}
+				setSessionState(SessionState.InProgress(sessionId = sessionId, progress = 0))
+			}
 
-		override fun onProgressChanged(sessionId: Int, progress: Float) {
-			logger.debug("onProgressChanged: sessionId={}, progress={}", sessionId, progress)
+			override fun onProgressChanged(
+				sessionId: Int,
+				progress: Float,
+			) {
+				logger.debug("onProgressChanged: sessionId={}, progress={}", sessionId, progress)
 
-			setSessionState(
-				SessionState.InProgress(
-					sessionId = sessionId,
-					progress = (progress * 100).toInt()
+				setSessionState(
+					SessionState.InProgress(
+						sessionId = sessionId,
+						progress = (progress * 100).toInt(),
+					),
 				)
-			)
-		}
+			}
 
-		override fun onFinished(sessionId: Int, success: Boolean) {
-			logger.debug("onFinished: sessionId={}, success={}", sessionId, success)
+			override fun onFinished(
+				sessionId: Int,
+				success: Boolean,
+			) {
+				logger.debug("onFinished: sessionId={}, success={}", sessionId, success)
 
-			setSessionState(SessionState.Finished(sessionId = sessionId, isSuccess = success))
+				setSessionState(SessionState.Finished(sessionId = sessionId, isSuccess = success))
+			}
 		}
-	}
 
 	private val _sessionState = MutableStateFlow<SessionState>(SessionState.Idle)
 
@@ -109,7 +117,11 @@ class ApkInstallationViewModel : ViewModel() {
 		packageInstaller.registerSessionCallback(callback)
 
 		viewModelScope.launch {
-			ApkInstaller.installApk(context, apk, launchInDebugMode)
+			ApkInstaller.installApk(
+				context,
+				apk,
+				launchInDebugMode,
+			)
 		}
 	}
 
@@ -120,17 +132,18 @@ class ApkInstallationViewModel : ViewModel() {
 	 */
 	fun reloadStatus(context: Context): Int {
 		val state = sessionState.value
-		val sessionId = when (state) {
-			SessionState.Idle -> return -1
-			is SessionState.InProgress -> state.sessionId
-			is SessionState.Finished -> state.sessionId
-		}
+		val sessionId =
+			when (state) {
+				SessionState.Idle -> return -1
+				is SessionState.InProgress -> state.sessionId
+				is SessionState.Finished -> state.sessionId
+			}
 
 		if (sessionId == -1) {
 			// we're in an invalid state here, fall back to idle state
 			logger.debug(
 				"Invalid package installer session ID: {}. Falling back to IDLE state.",
-				sessionId
+				sessionId,
 			)
 			setSessionState(SessionState.Idle)
 			return -1
@@ -142,7 +155,7 @@ class ApkInstallationViewModel : ViewModel() {
 			// our current session state refers to a non-existing session
 			logger.debug(
 				"PackageInstaller Session with ID {} not found. Falling back to IDLE state.",
-				sessionId
+				sessionId,
 			)
 			setSessionState(SessionState.Idle)
 			return -1
@@ -153,7 +166,7 @@ class ApkInstallationViewModel : ViewModel() {
 			setSessionState(SessionState.Idle)
 			logger.debug(
 				"PackageInstaller Session with ID {} is not active. Falling back to IDLE state.",
-				sessionId
+				sessionId,
 			)
 			return -1
 		}
@@ -162,17 +175,25 @@ class ApkInstallationViewModel : ViewModel() {
 	}
 
 	/**
-	 * Destroys the APK installation session.
+	 * Destroys the APK installation session and drops the installer callback [installApk] registered.
 	 */
 	fun destroy(context: Context) {
+		val packageInstaller = context.packageManager.packageInstaller
+		// Before the session lookup: a finished or abandoned session leaves nothing to abandon,
+		// but the callback is still registered with the installer, which outlives this view
+		// model - it would keep firing into a dead one.
+		try {
+			packageInstaller.unregisterSessionCallback(callback)
+		} catch (e: Exception) {
+			logger.error("Failed to unregister the install session callback", e)
+		}
+
 		val sessionId = reloadStatus(context)
 		if (sessionId == -1) {
 			return
 		}
 
 		try {
-			val packageInstaller = context.packageManager.packageInstaller
-			packageInstaller.unregisterSessionCallback(callback)
 			packageInstaller.abandonSession(sessionId)
 		} catch (e: Exception) {
 			logger.error("Failed to abandon session with ID: {}", sessionId, e)
