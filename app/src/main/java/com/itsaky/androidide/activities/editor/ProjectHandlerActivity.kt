@@ -556,7 +556,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 
 	private suspend fun handleMissingProjectDirectory(projectDir: File) =
 		withContext(Dispatchers.Main) {
-			recentProjectsViewModel.deleteProjectByLocation(projectDir.path)
+			recentProjectsViewModel.removeProjectFromRecents(projectDir.path)
 			showToast(getString(string.msg_project_dir_doesnt_exist))
 
 			val intent =

@@ -204,6 +204,11 @@ class RecentProjectsViewModel(
 
 	fun deleteProject(project: ProjectFile) = deleteProjectByLocation(project.path)
 
+	suspend fun removeProjectFromRecents(location: String) =
+		withContext(Dispatchers.IO) {
+			recentProjectDao.deleteByLocation(File(location).canonicalProjectLocation())
+		}
+
 	fun deleteProjectByLocation(location: String) =
 		viewModelScope.launch {
 			try {
