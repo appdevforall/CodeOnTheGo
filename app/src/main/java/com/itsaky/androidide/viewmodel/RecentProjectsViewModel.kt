@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.models.ProjectFile
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
@@ -28,6 +29,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -52,6 +55,7 @@ class RecentProjectsViewModel(
 ) : AndroidViewModel(application) {
 	companion object {
 		private val logger = LoggerFactory.getLogger(RecentProjectsViewModel::class.java)
+		private val projectLocationReconciliationMutex = Mutex()
 	}
 
 	private val _projects = MutableLiveData<List<ProjectFile>>()
@@ -85,14 +89,31 @@ class RecentProjectsViewModel(
 
 	fun loadProjects(): Job =
 		viewModelScope.launch(Dispatchers.IO) {
-			val projectsFromDb =
+			val projectsFromDb = loadProjectsFromDatabase()
+			allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified) }
+			applyFilters()
+		}
+
+	private suspend fun loadProjectsFromDatabase(): List<RecentProject> {
+		if (GeneralPreferences.recentProjectLocationsReconciled) {
+			return recentProjectDao.dumpAll() ?: emptyList()
+		}
+
+		// SQLite cannot resolve filesystem aliases; reconcile legacy rows once before reading Recents.
+		return projectLocationReconciliationMutex.withLock {
+			if (GeneralPreferences.recentProjectLocationsReconciled) {
+				return@withLock recentProjectDao.dumpAll() ?: emptyList()
+			}
+
+			val projects =
 				recentProjectDatabase.withTransaction {
 					reconcileCanonicalProjectLocations()
 					recentProjectDao.dumpAll() ?: emptyList()
 				}
-			allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified) }
-			applyFilters()
+			GeneralPreferences.recentProjectLocationsReconciled = true
+			projects
 		}
+	}
 
 	private suspend fun reconcileCanonicalProjectLocations() {
 		val projects = recentProjectDao.dumpAll() ?: emptyList()
