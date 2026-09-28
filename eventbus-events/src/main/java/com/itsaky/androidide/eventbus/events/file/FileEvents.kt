@@ -52,3 +52,7 @@ class FileRenameEvent(
 	override val file: File,
 	val newFile: File,
 ) : FileEvent()
+
+data class FileContentChangedEvent(
+	override val file: File,
+) : FileEvent()
