@@ -32,7 +32,6 @@ object GeneralPreferences {
 	const val OPEN_PROJECTS = "idepref_general_autoOpenProjects"
 	const val CONFIRM_PROJECT_OPEN = "idepref_general_confirmProjectOpen"
 	const val LAST_OPENED_PROJECT = "ide_last_project"
-	const val RECENT_PROJECT_LOCATIONS_RECONCILED = "recent_project_locations_reconciled"
 	const val LOGCAT_CAPTURE_ALL = "idepref_general_logcatCaptureAll"
 
 	const val NO_OPENED_PROJECT = "<NO_OPENED_PROJECT>"
@@ -87,12 +86,6 @@ object GeneralPreferences {
 		get() = prefManager.getString(LAST_OPENED_PROJECT, NO_OPENED_PROJECT)!!
 		set(value) {
 			prefManager.putString(LAST_OPENED_PROJECT, value)
-		}
-
-	var recentProjectLocationsReconciled: Boolean
-		get() = prefManager.getBoolean(RECENT_PROJECT_LOCATIONS_RECONCILED, false)
-		set(value) {
-			prefManager.putBoolean(RECENT_PROJECT_LOCATIONS_RECONCILED, value)
 		}
 
 	var logcatCaptureAll: Boolean

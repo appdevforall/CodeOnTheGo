@@ -10,10 +10,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.models.ProjectFile
-import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
+import com.itsaky.androidide.roomData.recentproject.RecentProjectMaintenance
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.utils.canonicalProjectLocation
@@ -21,6 +21,7 @@ import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
 import com.itsaky.androidide.utils.readProjectLanguage
 import com.itsaky.androidide.utils.reconcileRecentProjectLocations
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -56,6 +57,9 @@ class RecentProjectsViewModel(
 	companion object {
 		private val logger = LoggerFactory.getLogger(RecentProjectsViewModel::class.java)
 		private val projectLocationReconciliationMutex = Mutex()
+
+		@Volatile private var projectLocationsReconciled = false
+		private const val LOCATION_RECONCILIATION_KEY = "recent_project_locations_reconciled"
 	}
 
 	private val _projects = MutableLiveData<List<ProjectFile>>()
@@ -89,28 +93,50 @@ class RecentProjectsViewModel(
 
 	fun loadProjects(): Job =
 		viewModelScope.launch(Dispatchers.IO) {
-			val projectsFromDb = loadProjectsFromDatabase()
+			val projectsFromDb =
+				try {
+					loadProjectsFromDatabase()
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					logger.error("Failed to load recent projects", e)
+					try {
+						recentProjectDao.dumpAll() ?: emptyList()
+					} catch (fallbackError: CancellationException) {
+						throw fallbackError
+					} catch (fallbackError: Exception) {
+						logger.error("Failed to load recent projects after reconciliation error", fallbackError)
+						emptyList()
+					}
+				}
 			allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified) }
 			applyFilters()
 		}
 
 	private suspend fun loadProjectsFromDatabase(): List<RecentProject> {
-		if (GeneralPreferences.recentProjectLocationsReconciled) {
+		if (projectLocationsReconciled) {
 			return recentProjectDao.dumpAll() ?: emptyList()
 		}
 
 		// SQLite cannot resolve filesystem aliases; reconcile legacy rows once before reading Recents.
 		return projectLocationReconciliationMutex.withLock {
-			if (GeneralPreferences.recentProjectLocationsReconciled) {
+			if (projectLocationsReconciled) {
 				return@withLock recentProjectDao.dumpAll() ?: emptyList()
 			}
 
 			val projects =
 				recentProjectDatabase.withTransaction {
-					reconcileCanonicalProjectLocations()
+					val maintenanceDao = recentProjectDatabase.maintenanceDao()
+					val complete = maintenanceDao.isCompleted(LOCATION_RECONCILIATION_KEY) == true
+					if (!complete) {
+						reconcileCanonicalProjectLocations()
+						maintenanceDao.setCompleted(
+							RecentProjectMaintenance(LOCATION_RECONCILIATION_KEY, completed = true),
+						)
+					}
 					recentProjectDao.dumpAll() ?: emptyList()
 				}
-			GeneralPreferences.recentProjectLocationsReconciled = true
+			projectLocationsReconciled = true
 			projects
 		}
 	}
@@ -199,10 +225,10 @@ class RecentProjectsViewModel(
 		project: ProjectFile,
 		newName: String,
 	): Boolean {
+		if (newName.equals(project.name, ignoreCase = true)) return false
 		val projectDirectory = File(project.path).parentFile ?: return false
-		val target = File(projectDirectory, newName)
-		val targetLocation = target.canonicalProjectLocation()
-		return target.exists() || allProjects.any { it.path == targetLocation }
+		val targetPath = File(projectDirectory, newName).absolutePath
+		return allProjects.any { it.path == targetPath }
 	}
 
 	fun insertProjectFromFolder(
@@ -235,7 +261,13 @@ class RecentProjectsViewModel(
 
 	suspend fun removeProjectFromRecents(location: String) =
 		withContext(Dispatchers.IO) {
-			recentProjectDao.deleteByLocation(File(location).canonicalProjectLocation())
+			try {
+				recentProjectDao.deleteByLocation(File(location).canonicalProjectLocation())
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				logger.error("Failed to remove missing project from Recents", e)
+			}
 		}
 
 	fun deleteProjectByLocation(location: String) =

@@ -33,6 +33,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.IOException
 
 class RecentProjectsAdapter(
 	private var projects: List<ProjectFile>,
@@ -251,7 +252,19 @@ class RecentProjectsAdapter(
 					.trim()
 			val oldPath = project.path
 			val newPath = oldPath.substringBeforeLast("/") + "/" + newName
-			executeAsyncProvideError({ project.rename(newPath) }) { _, error ->
+			executeAsyncProvideError({
+				val source = File(oldPath)
+				val target = File(newPath)
+				val sameLocation =
+					runCatching { source.canonicalPath == target.canonicalPath }
+						.getOrElse { source.absolutePath == target.absolutePath }
+				if (target.exists() && !sameLocation) {
+					throw IOException("A project already exists at $newPath")
+				}
+				if (!project.rename(newPath)) {
+					throw IOException("Could not rename project to $newPath")
+				}
+			}) { _, error ->
 				if (error != null) {
 					logger.error("Failed to rename project", error)
 					flashError(R.string.rename_failed)
