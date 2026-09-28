@@ -13,7 +13,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.activityViewModels
-import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -29,33 +28,34 @@ import com.itsaky.androidide.idetooltips.TooltipTag.EXIT_TO_MAIN
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_NEW
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_OPEN_FOLDER
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
+import com.itsaky.androidide.models.ProjectFile
 import com.itsaky.androidide.ui.CustomDividerItemDecoration
+import com.itsaky.androidide.ui.ProjectInfoBottomSheet
 import com.itsaky.androidide.utils.Environment.PROJECTS_DIR
+import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.isProjectCandidateDir
+import com.itsaky.androidide.utils.isValidProjectDirectory
+import com.itsaky.androidide.utils.isValidProjectOrContainerDirectory
 import com.itsaky.androidide.utils.viewLifecycleScope
-import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.FilterState
+import com.itsaky.androidide.viewmodel.MainViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.SortCriteria
-import com.itsaky.androidide.ui.ProjectInfoBottomSheet
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import com.itsaky.androidide.models.ProjectFile
-import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.utils.findValidProjects
-import com.itsaky.androidide.utils.isProjectCandidateDir
-import com.itsaky.androidide.utils.isValidProjectDirectory
-import com.itsaky.androidide.utils.isValidProjectOrContainerDirectory
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import java.io.File
 
 class RecentProjectsFragment : BaseFragment() {
 	@Suppress("ktlint:standard:backing-property-naming")
-    private var _binding: FragmentSavedProjectsBinding? = null
-    private val binding get() = _binding!!
+	private var _binding: FragmentSavedProjectsBinding? = null
+	private val binding get() = _binding!!
 
 	private val viewModel: RecentProjectsViewModel by activityViewModels()
 	private val mainViewModel: MainViewModel by activityViewModel()
@@ -67,7 +67,7 @@ class RecentProjectsFragment : BaseFragment() {
 
 	data class SortToggleStyle(
 		val iconRes: Int,
-		val colorRes: Int
+		val colorRes: Int,
 	)
 
 	override fun onCreateView(
@@ -89,9 +89,9 @@ class RecentProjectsFragment : BaseFragment() {
 		setupObservers()
 		setupClickListeners()
 		setupFilterChips()
-        bootstrapFromFixedFolderIfNeeded()
-        observeDeletionStatus()
-        observeRenameStatus()
+		bootstrapFromFixedFolderIfNeeded()
+		observeDeletionStatus()
+		observeRenameStatus()
 	}
 
 	private fun setupRecyclerView() {
@@ -139,12 +139,13 @@ class RecentProjectsFragment : BaseFragment() {
 		clearBtn.isVisible = viewModel.hasActiveFilters
 
 		sortDropdown.setOnItemClickListener { _, _, position, _ ->
-			selectedCriteria = when (position) {
-				0 -> SortCriteria.NAME
-				1 -> SortCriteria.DATE_CREATED
-				2 -> SortCriteria.DATE_MODIFIED
-				else -> SortCriteria.NAME
-			}
+			selectedCriteria =
+				when (position) {
+					0 -> SortCriteria.NAME
+					1 -> SortCriteria.DATE_CREATED
+					2 -> SortCriteria.DATE_MODIFIED
+					else -> SortCriteria.NAME
+				}
 
 			clearBtn.isVisible = true
 		}
@@ -168,7 +169,8 @@ class RecentProjectsFragment : BaseFragment() {
 
 			sortDropdown.text = null
 			setupSortToggle(sortToggleBtn, true)
-			binding.layoutFilters.searchProjectEditText.text?.clear()
+			binding.layoutFilters.searchProjectEditText.text
+				?.clear()
 
 			clearBtn.isVisible = false
 			viewLifecycleScope.launch {
@@ -184,7 +186,7 @@ class RecentProjectsFragment : BaseFragment() {
 	 */
 	private fun setupSortUI(
 		sortDropdown: MaterialAutoCompleteTextView,
-		sortToggleBtn: MaterialButton
+		sortToggleBtn: MaterialButton,
 	) {
 		val labelRes = selectedCriteria?.labelRes()
 
@@ -200,16 +202,22 @@ class RecentProjectsFragment : BaseFragment() {
 	/**
 	 * Updates the arrow icon, the background color and the text based on ascending state.
 	 */
-	private fun setupSortToggle(button: MaterialButton, asc: Boolean) {
-		val style = if (asc) {
-			SortToggleStyle(
-				R.drawable.ic_arrow_up, R.color._blue_wave_light_colorPrimaryDark
-			)
-		} else {
-			SortToggleStyle(
-				R.drawable.ic_arrow_down, R.color._blue_wave_dark_colorOnSecondary
-			)
-		}
+	private fun setupSortToggle(
+		button: MaterialButton,
+		asc: Boolean,
+	) {
+		val style =
+			if (asc) {
+				SortToggleStyle(
+					R.drawable.ic_arrow_up,
+					R.color._blue_wave_light_colorPrimaryDark,
+				)
+			} else {
+				SortToggleStyle(
+					R.drawable.ic_arrow_down,
+					R.color._blue_wave_dark_colorOnSecondary,
+				)
+			}
 		button.apply {
 			setIconResource(style.iconRes)
 			backgroundTintList = ContextCompat.getColorStateList(context, style.colorRes)
@@ -273,17 +281,19 @@ class RecentProjectsFragment : BaseFragment() {
 
 		filters.activeFiltersScroll.isVisible = group.childCount > 0
 		filters.filtersActiveDot.isVisible = state.hasAny
-		filters.openFiltersBtn.contentDescription = if (state.hasAny) {
-			"${getString(R.string.sort_projects_label)}, ${getString(R.string.filters_active)}"
-		} else {
-			getString(R.string.sort_projects_label)
-		}
+		filters.openFiltersBtn.contentDescription =
+			if (state.hasAny) {
+				"${getString(R.string.sort_projects_label)}, ${getString(R.string.filters_active)}"
+			} else {
+				getString(R.string.sort_projects_label)
+			}
 	}
 
 	private fun focusSearchField() {
 		val editText = binding.layoutFilters.searchProjectEditText
 		editText.requestFocus()
-		ContextCompat.getSystemService(requireContext(), InputMethodManager::class.java)
+		ContextCompat
+			.getSystemService(requireContext(), InputMethodManager::class.java)
 			?.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
 	}
 
@@ -293,11 +303,12 @@ class RecentProjectsFragment : BaseFragment() {
 		onClick: () -> Unit,
 		onRemove: () -> Unit,
 	): Chip {
-		val chip = layoutInflater.inflate(
-			R.layout.chip_active_filter,
-			binding.layoutFilters.activeFiltersGroup,
-			false,
-		) as Chip
+		val chip =
+			layoutInflater.inflate(
+				R.layout.chip_active_filter,
+				binding.layoutFilters.activeFiltersGroup,
+				false,
+			) as Chip
 		chip.text = text
 		chip.closeIconContentDescription = getString(removeDescRes)
 		chip.setOnCloseIconClickListener { onRemove() }
@@ -311,38 +322,34 @@ class RecentProjectsFragment : BaseFragment() {
 		}
 	}
 
+	private fun bootstrapFromFixedFolderIfNeeded() {
+		if (viewModel.didBootstrap) return
+		viewModel.didBootstrap = true
 
+		viewLifecycleScope.launch(Dispatchers.IO) {
+			try {
+				val validProjects = findValidProjects(PROJECTS_DIR)
+				if (validProjects.isEmpty()) return@launch
 
+				loadProjectsIntoViewModel(validProjects)
+			} catch (e: Throwable) {
+				Sentry.captureException(e)
+			}
+		}
+	}
 
-    private fun bootstrapFromFixedFolderIfNeeded() {
-        if (viewModel.didBootstrap) return
-        viewModel.didBootstrap = true
+	private suspend fun loadProjectsIntoViewModel(projects: List<File>) {
+		val jobs =
+			projects.map { dir ->
+				viewModel.insertProjectFromFolder(dir.name, dir.absolutePath)
+			}
+		jobs.joinAll()
 
-        viewLifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val validProjects = findValidProjects(PROJECTS_DIR)
-                if (validProjects.isEmpty()) return@launch
+		val loadJob = viewModel.loadProjects()
+		loadJob.join()
+	}
 
-                loadProjectsIntoViewModel(validProjects)
-            } catch (e: Throwable) {
-                Sentry.captureException(e)
-            }
-        }
-    }
-
-    private suspend fun loadProjectsIntoViewModel(projects: List<File>) {
-        val jobs = projects.map { dir ->
-            viewModel.insertProjectFromFolder(dir.name, dir.absolutePath)
-        }
-        jobs.joinAll()
-
-        val loadJob = viewModel.loadProjects()
-        loadJob.join()
-    }
-
-	private fun pickProjectDirectory(
-		isLongClick: Boolean,
-	) {
+	private fun pickProjectDirectory(isLongClick: Boolean) {
 		if (isLongClick) {
 			showToolTip(PROJECT_OPEN_FOLDER)
 			return
@@ -364,177 +371,179 @@ class RecentProjectsFragment : BaseFragment() {
 		}
 	}
 
-    private fun onProjectDirectoryPicked(directory: File) {
-			if (!directory.isProjectCandidateDir()) {
-				flashError(getString(R.string.msg_cannot_access_folder, directory.name))
+	private fun onProjectDirectoryPicked(directory: File) {
+		if (!directory.isProjectCandidateDir()) {
+			flashError(getString(R.string.msg_cannot_access_folder, directory.name))
+			return
+		}
+
+		// Is the current folder a valid android project?
+		// Yes: Then open it.
+		if (isValidProjectDirectory(directory)) {
+			openProject(root = directory)
+			return
+		}
+
+		// No, the current folder is a container of Android Projects: Then open the first valid one.
+		val subFolders = directory.listFiles()
+
+		if (subFolders == null) {
+			flashError(getString(R.string.msg_cannot_access_folder, directory.name))
+			return
+		}
+		if (subFolders.isEmpty()) {
+			flashError(getString(R.string.msg_no_subfolders, directory.name))
+			return
+		}
+
+		val validSubDirs = subFolders.filter { it.isProjectCandidateDir() }
+
+		val validProjects = validSubDirs.filter { isValidProjectDirectory(it) }
+		val invalidProjects = validSubDirs - validProjects.toSet()
+
+		when {
+			validProjects.isEmpty() -> {
+				flashError(getString(R.string.msg_no_valid_projects, directory.name))
 				return
 			}
 
-			// Is the current folder a valid android project?
-			// Yes: Then open it.
-			if (isValidProjectDirectory(directory)) {
-				openProject(root = directory)
-				return
+			invalidProjects.isNotEmpty() -> {
+				flashError(getString(R.string.msg_skipped_invalid_projects))
 			}
+		}
 
-			// No, the current folder is a container of Android Projects: Then open the first valid one.
-			val subFolders = directory.listFiles()
-
-			if (subFolders == null) {
-				flashError(getString(R.string.msg_cannot_access_folder, directory.name))
-				return
-			}
-			if (subFolders.isEmpty()) {
-					flashError(getString(R.string.msg_no_subfolders, directory.name))
-					return
-			}
-
-			val validSubDirs = subFolders.filter { it.isProjectCandidateDir() }
-
-			val validProjects = validSubDirs.filter { isValidProjectDirectory(it) }
-			val invalidProjects = validSubDirs - validProjects.toSet()
-
-			when {
-				validProjects.isEmpty() -> {
-					flashError(getString(R.string.msg_no_valid_projects, directory.name))
-					return
-				}
-				invalidProjects.isNotEmpty() -> {
-					flashError(getString(R.string.msg_skipped_invalid_projects))
-				}
-			}
-
-
-			val jobs = validProjects.map { sub ->
+		val jobs =
+			validProjects.map { sub ->
 				viewModel.insertProjectFromFolder(sub.name, sub.absolutePath)
 			}
 
-			viewLifecycleScope.launch {
-				jobs.joinAll()
-				openProject(root = validProjects.first())
-			}
-    }
+		viewLifecycleScope.launch {
+			jobs.joinAll()
+			openProject(root = validProjects.first())
+		}
+	}
 
-    private fun setupObservers() {
-        viewModel.projects.observe(viewLifecycleOwner) { projects ->
-            if (!::adapter.isInitialized) {
-				adapter = RecentProjectsAdapter(
-					projects,
-					onProjectClick = ::openProject,
-          onRemoveProjectClick = viewModel::deleteProject,
-					onFileRenamed = viewModel::updateProject,
-					onInfoClick = { project -> openProjectInfo(project) },
-					nameExists = viewModel::projectNameExists
-				)
+	private fun setupObservers() {
+		viewModel.projects.observe(viewLifecycleOwner) { projects ->
+			if (!::adapter.isInitialized) {
+				adapter =
+					RecentProjectsAdapter(
+						projects,
+						onProjectClick = ::openProject,
+						onRemoveProjectClick = viewModel::deleteProject,
+						onFileRenamed = viewModel::updateProject,
+						onInfoClick = { project -> openProjectInfo(project) },
+						nameExists = viewModel::projectNameExists,
+					)
 				binding.listProjects.adapter = adapter
 			} else {
 				adapter.updateProjects(projects)
 			}
 
-            val isEmpty = projects.isEmpty()
-            binding.recentProjectsTxt.visibility = if (isEmpty) View.GONE else View.VISIBLE
-            binding.noProjectsView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+			val isEmpty = projects.isEmpty()
+			binding.recentProjectsTxt.visibility = if (isEmpty) View.GONE else View.VISIBLE
+			binding.noProjectsView.visibility = if (isEmpty) View.VISIBLE else View.GONE
 
-            binding.tvCreateNewProject.setText(R.string.msg_create_new_from_recent)
-            binding.btnOpenFromFolder.setOnClickListener {
-                pickProjectDirectory(isLongClick = false)
-            }
+			binding.tvCreateNewProject.setText(R.string.msg_create_new_from_recent)
+			binding.btnOpenFromFolder.setOnClickListener {
+				pickProjectDirectory(isLongClick = false)
+			}
 
-            binding.openFromFolderBtn.apply {
-                isVisible = !isEmpty
-                setOnClickListener { pickProjectDirectory(isLongClick = false) }
-                setOnLongClickListener {
-                    TooltipManager.showIdeCategoryTooltip(
-                        context = context,
-                        anchorView = this,
-                        tag = PROJECT_OPEN_FOLDER
-                    )
-                    true
-                }
-            }
-        }
-    }
+			binding.openFromFolderBtn.apply {
+				isVisible = !isEmpty
+				setOnClickListener { pickProjectDirectory(isLongClick = false) }
+				setOnLongClickListener {
+					TooltipManager.showIdeCategoryTooltip(
+						context = context,
+						anchorView = this,
+						tag = PROJECT_OPEN_FOLDER,
+					)
+					true
+				}
+			}
+		}
+	}
 
-		private fun openProjectInfo(project: ProjectFile) {
-		    viewLifecycleScope.launch {
-		        val recentProject = viewModel.getProjectByName(project.name)
+	private fun openProjectInfo(project: ProjectFile) {
+		viewLifecycleScope.launch {
+			val recentProject = viewModel.getProjectByLocation(project.path)
 
-		        val sheet = ProjectInfoBottomSheet.newInstance(project, recentProject)
-		        sheet.show(parentFragmentManager, "project_info_sheet")
-		    }
+			val sheet = ProjectInfoBottomSheet.newInstance(project, recentProject)
+			sheet.show(parentFragmentManager, "project_info_sheet")
+		}
+	}
+
+	private fun setupClickListeners() {
+		binding.newProjectButton.setOnClickListener {
+			mainViewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
+		}
+		binding.exitButton.setOnClickListener {
+			mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
+		}
+		binding.exitButton.setOnLongClickListener {
+			showToolTip(EXIT_TO_MAIN)
+			true
+		}
+		binding.newProjectButton.setOnLongClickListener {
+			showToolTip(PROJECT_NEW)
+			true
 		}
 
-    private fun setupClickListeners() {
-        binding.newProjectButton.setOnClickListener {
-            mainViewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
-        }
-        binding.exitButton.setOnClickListener {
-            mainViewModel.setScreen(MainViewModel.SCREEN_MAIN)
-        }
-        binding.exitButton.setOnLongClickListener {
-            showToolTip(EXIT_TO_MAIN)
-            true
-        }
-        binding.newProjectButton.setOnLongClickListener {
-            showToolTip(PROJECT_NEW)
-            true
-        }
+		binding.recentProjectsTxt.setOnLongClickListener {
+			showToolTip(PROJECT_RECENT_TOP)
+			true
+		}
+		binding.layoutFilters.openFiltersBtn.setOnClickListener {
+			openFiltersSheet()
+		}
+	}
 
-        binding.recentProjectsTxt.setOnLongClickListener {
-            showToolTip(PROJECT_RECENT_TOP)
-            true
-        }
-        binding.layoutFilters.openFiltersBtn.setOnClickListener {
-            openFiltersSheet()
-        }
-    }
-
-    private fun openProject(root: File) {
-        (requireActivity() as MainActivity).openProject(root)
-    }
+	private fun openProject(root: File) {
+		(requireActivity() as MainActivity).openProject(root)
+	}
 
 	override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
+		super.onDestroyView()
+		_binding = null
+	}
 
 	private fun showToolTip(tag: String) {
 		TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, tag)
 	}
 
-    override fun onResume() {
-        super.onResume()
-        viewModel.loadProjects()
-    }
+	override fun onResume() {
+		super.onResume()
+		viewModel.loadProjects()
+	}
 
-    private fun observeDeletionStatus() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.deletionStatus.collect { status ->
-                if (status) {
-                    flashSuccess(R.string.deleted)
-                } else {
-                    flashError(R.string.delete_failed)
-                }
-            }
-        }
-    }
+	private fun observeDeletionStatus() {
+		viewLifecycleOwner.lifecycleScope.launch {
+			viewModel.deletionStatus.collect { status ->
+				if (status) {
+					flashSuccess(R.string.deleted)
+				} else {
+					flashError(R.string.delete_failed)
+				}
+			}
+		}
+	}
 
-    private fun observeRenameStatus() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.renameStatus.collect { status ->
-                if (!status) {
-                    flashError(R.string.rename_failed)
-                    viewModel.loadProjects()
-                }
-            }
-        }
-    }
-
+	private fun observeRenameStatus() {
+		viewLifecycleOwner.lifecycleScope.launch {
+			viewModel.renameStatus.collect { status ->
+				if (!status) {
+					flashError(R.string.rename_failed)
+					viewModel.loadProjects()
+				}
+			}
+		}
+	}
 }
 
 @StringRes
-private fun SortCriteria.labelRes(): Int = when (this) {
-    SortCriteria.NAME -> R.string.sort_by_name
-    SortCriteria.DATE_CREATED -> R.string.sort_by_created
-    SortCriteria.DATE_MODIFIED -> R.string.sort_by_modified
-}
+private fun SortCriteria.labelRes(): Int =
+	when (this) {
+		SortCriteria.NAME -> R.string.sort_by_name
+		SortCriteria.DATE_CREATED -> R.string.sort_by_created
+		SortCriteria.DATE_MODIFIED -> R.string.sort_by_modified
+	}

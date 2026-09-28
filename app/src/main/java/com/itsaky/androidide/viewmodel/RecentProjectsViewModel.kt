@@ -169,9 +169,9 @@ class RecentProjectsViewModel(
 		applyFilters()
 	}
 
-	suspend fun getProjectByName(name: String): RecentProject? =
+	suspend fun getProjectByLocation(location: String): RecentProject? =
 		withContext(Dispatchers.IO) {
-			recentProjectDao.getProjectByName(name)
+			recentProjectDao.getProjectByLocation(File(location).canonicalProjectLocation())
 		}
 
 	fun projectNameExists(name: String): Boolean = allProjects.any { it.name == name }
@@ -202,31 +202,30 @@ class RecentProjectsViewModel(
 		}
 	}
 
-	fun deleteProject(project: ProjectFile) = deleteProject(project.name)
+	fun deleteProject(project: ProjectFile) = deleteProjectByLocation(project.path)
 
-	fun deleteProject(name: String) =
+	fun deleteProjectByLocation(location: String) =
 		viewModelScope.launch {
 			try {
 				val success =
 					withContext(Dispatchers.IO) {
-						// Delete files from storage first
+						val projectLocation = File(location).canonicalProjectLocation()
 						val projectToDelete =
-							recentProjectDao.getProjectByName(name)
-								?: return@withContext false
+							recentProjectDao.getProjectByLocation(projectLocation)
+								?: return@withContext null
 						val isDeleted = File(projectToDelete.location).deleteRecursively()
 
-						// Delete from DB if storage deletion was successful
 						if (isDeleted) {
-							recentProjectDao.deleteByName(name)
+							recentProjectDao.deleteByLocation(projectToDelete.location)
 						}
-						isDeleted
+						projectToDelete.takeIf { isDeleted }
 					}
 
-				if (success) {
+				if (success != null) {
 					// Update LiveData
 					val currentList = _projects.value ?: emptyList()
-					allProjects = allProjects.filter { it.name != name }
-					_projects.value = currentList.filter { it.name != name }
+					allProjects = allProjects.filter { it.path != success.location }
+					_projects.value = currentList.filter { it.path != success.location }
 					_deletionStatus.emit(true)
 				} else {
 					// Emit failure if files couldn't be deleted
@@ -261,13 +260,15 @@ class RecentProjectsViewModel(
 	) = viewModelScope.launch(Dispatchers.IO) {
 		try {
 			val modifiedAt = System.currentTimeMillis().toString()
+			val oldProjectLocation = File(oldLocation).canonicalProjectLocation()
+			val newProjectLocation = File(newLocation).canonicalProjectLocation()
 			recentProjectDao.updateNameAndLocation(
-				oldName = oldName,
+				oldLocation = oldProjectLocation,
 				newName = newName,
-				newLocation = newLocation,
+				newLocation = newProjectLocation,
 			)
 			recentProjectDao.updateLastModified(
-				projectName = newName,
+				location = newProjectLocation,
 				lastModified = modifiedAt,
 			)
 			loadProjects()
@@ -284,19 +285,19 @@ class RecentProjectsViewModel(
 		}
 	}
 
-	fun updateProjectModifiedDate(name: String) =
+	fun updateProjectModifiedDate(location: String) =
 		viewModelScope.launch(Dispatchers.IO) {
 			val modifiedAt = System.currentTimeMillis()
 			recentProjectDao.updateLastModified(
-				projectName = name,
+				location = File(location).canonicalProjectLocation(),
 				lastModified = modifiedAt.toString(),
 			)
 			loadProjects()
 		}
 
-	fun deleteSelectedProjects(selectedNames: List<String>) =
+	fun deleteSelectedProjects(selectedLocations: List<String>) =
 		viewModelScope.launch {
-			if (selectedNames.isEmpty()) {
+			if (selectedLocations.isEmpty()) {
 				return@launch
 			}
 
@@ -304,25 +305,25 @@ class RecentProjectsViewModel(
 
 			try {
 				withContext(Dispatchers.IO) {
-					// Find the full project details for the selected project names
-					val projectsToDelete = recentProjectDao.getProjectsByNames(selectedNames)
-					val successfullyDeletedNames = mutableListOf<String>()
+					val canonicalLocations = selectedLocations.map { File(it).canonicalProjectLocation() }
+					val projectsToDelete = recentProjectDao.getProjectsByLocations(canonicalLocations)
+					val successfullyDeletedLocations = mutableListOf<String>()
 
 					for (project in projectsToDelete) {
 						// Delete from storage
 						val isDeletedFromStorage = File(project.location).deleteRecursively()
 
 						if (isDeletedFromStorage) {
-							successfullyDeletedNames.add(project.name)
+							successfullyDeletedLocations.add(project.location)
 						} else {
 							logger.warn("Failed to delete project files from storage: ${project.location}")
 							allDeletionsSucceeded = false
 						}
 					}
 
-					if (successfullyDeletedNames.isNotEmpty()) {
+					if (successfullyDeletedLocations.isNotEmpty()) {
 						// Delete from database
-						recentProjectDao.deleteByNames(successfullyDeletedNames)
+						recentProjectDao.deleteByLocations(successfullyDeletedLocations)
 					}
 				}
 

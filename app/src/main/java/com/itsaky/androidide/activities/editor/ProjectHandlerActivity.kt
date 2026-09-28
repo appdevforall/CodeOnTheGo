@@ -554,9 +554,9 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		Toast.makeText(this@ProjectHandlerActivity, message, Toast.LENGTH_LONG).show()
 	}
 
-	private suspend fun handleMissingProjectDirectory(projectName: String) =
+	private suspend fun handleMissingProjectDirectory(projectDir: File) =
 		withContext(Dispatchers.Main) {
-			recentProjectsViewModel.deleteProject(projectName)
+			recentProjectsViewModel.deleteProjectByLocation(projectDir.path)
 			showToast(getString(string.msg_project_dir_doesnt_exist))
 
 			val intent =
@@ -582,7 +582,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		val projectDir = File(manager.projectPath)
 		if (!projectDir.exists()) {
 			log.error("GradleProject directory does not exist. Cannot initialize project")
-			handleMissingProjectDirectory(projectDir.name)
+			handleMissingProjectDirectory(projectDir)
 			return@launch
 		}
 
@@ -592,7 +592,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			} catch (e: Exception) {
 				when (e) {
 					is FileNotFoundException -> {
-						handleMissingProjectDirectory(projectDir.name)
+						handleMissingProjectDirectory(projectDir)
 						return@launch
 					}
 

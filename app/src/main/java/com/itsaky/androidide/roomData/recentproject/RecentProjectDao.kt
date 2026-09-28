@@ -17,37 +17,34 @@ interface RecentProjectDao {
 	@Query("DELETE FROM recent_project_table WHERE id IN (:ids)")
 	suspend fun deleteByIds(ids: List<Int>)
 
-	@Query("DELETE FROM recent_project_table WHERE name = :name")
-	suspend fun deleteByName(name: String)
+	@Query("DELETE FROM recent_project_table WHERE location = :location")
+	suspend fun deleteByLocation(location: String)
 
 	@Query("SELECT * FROM recent_project_table order by last_modified DESC, create_at DESC")
 	suspend fun dumpAll(): List<RecentProject>?
 
-	@Query("SELECT * FROM recent_project_table WHERE name = :name LIMIT 1")
-	suspend fun getProjectByName(name: String): RecentProject?
-
 	@Query("SELECT * FROM recent_project_table WHERE location = :location LIMIT 1")
 	suspend fun getProjectByLocation(location: String): RecentProject?
 
-	@Query("SELECT * FROM recent_project_table WHERE name IN (:names)")
-	suspend fun getProjectsByNames(names: List<String>): List<RecentProject>
+	@Query("SELECT * FROM recent_project_table WHERE location IN (:locations)")
+	suspend fun getProjectsByLocations(locations: List<String>): List<RecentProject>
 
 	@Query("DELETE FROM recent_project_table")
 	suspend fun deleteAll()
 
-	@Query("DELETE FROM recent_project_table WHERE name IN (:names)")
-	suspend fun deleteByNames(names: List<String>)
+	@Query("DELETE FROM recent_project_table WHERE location IN (:locations)")
+	suspend fun deleteByLocations(locations: List<String>)
 
-	@Query("UPDATE recent_project_table SET name = :newName, location = :newLocation WHERE name = :oldName")
+	@Query("UPDATE recent_project_table SET name = :newName, location = :newLocation WHERE location = :oldLocation")
 	suspend fun updateNameAndLocation(
-		oldName: String,
+		oldLocation: String,
 		newName: String,
 		newLocation: String,
 	)
 
-	@Query("UPDATE recent_project_table SET last_modified = :lastModified WHERE name = :projectName")
+	@Query("UPDATE recent_project_table SET last_modified = :lastModified WHERE location = :location")
 	suspend fun updateLastModified(
-		projectName: String,
+		location: String,
 		lastModified: String,
 	)
 
