@@ -30,4 +30,16 @@
 		android:textSize="16sp"
 		app:drawableStartCompat="@drawable/ic_search_project"
 		app:drawableTint="?attr/colorOnSurface" />
+
+	<TextView
+		android:id="@+id/replace_in_project"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_marginTop="4dp"
+		android:drawablePadding="8dp"
+		android:padding="8dp"
+		android:text="@string/menu_replace_project"
+		android:textSize="16sp"
+		app:drawableStartCompat="@drawable/ic_search_project"
+		app:drawableTint="?attr/colorOnSurface" />
 </LinearLayout>

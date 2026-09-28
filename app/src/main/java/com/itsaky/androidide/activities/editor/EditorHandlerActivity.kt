@@ -872,6 +872,10 @@ open class EditorHandlerActivity :
 					string.cd_toolbar_find_in_project
 				}
 
+				"ide.editor.replace.inProject" -> {
+					string.cd_toolbar_replace_in_project
+				}
+
 				"ide.editor.launchInstalledApp" -> {
 					string.cd_toolbar_launch_app
 				}

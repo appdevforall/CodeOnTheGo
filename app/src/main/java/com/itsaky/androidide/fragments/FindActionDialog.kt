@@ -20,6 +20,7 @@ class FindActionDialog(
 	shouldShowFindInFileAction: Boolean,
 	private val onFindInFileClicked: ((ActionData) -> Unit),
 	private val onFindInProjectClicked: ((ActionData) -> Unit),
+	private val onReplaceInProjectClicked: ((ActionData) -> Unit),
 ) {
 	private val popupWindow: PopupWindow
 
@@ -27,6 +28,7 @@ class FindActionDialog(
 		val view = LayoutInflater.from(context).inflate(R.layout.dialog_find_action_menu, null)
 		val findInFileText = view.findViewById<TextView>(R.id.find_in_file)
 		val findInProjectText = view.findViewById<TextView>(R.id.find_in_project)
+		val replaceInProjectText = view.findViewById<TextView>(R.id.replace_in_project)
 
 		// Hide find in file if no files are open
 		findInFileText.visibility = if (shouldShowFindInFileAction) View.VISIBLE else View.GONE
@@ -51,6 +53,22 @@ class FindActionDialog(
 			setOnClickListener {
 				popupWindow.dismiss()
 				onFindInProjectClicked(actionData)
+			}
+			setOnLongClickListener {
+				popupWindow.dismiss()
+				TooltipManager.showIdeCategoryTooltip(
+					context = context,
+					anchorView = this,
+					tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_PROJECT,
+				)
+				true
+			}
+		}
+
+		replaceInProjectText.apply {
+			setOnClickListener {
+				popupWindow.dismiss()
+				onReplaceInProjectClicked(actionData)
 			}
 			setOnLongClickListener {
 				popupWindow.dismiss()

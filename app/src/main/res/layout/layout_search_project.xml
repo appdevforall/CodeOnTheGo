@@ -29,6 +29,14 @@
 			android:layout_marginEnd="24dp"
 			android:orientation="vertical" />
 
+		<CheckBox
+			android:id="@+id/project_files"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="24dp"
+			android:layout_marginEnd="24dp"
+			android:text="@string/label_project_files" />
+
 		<com.google.android.material.textfield.TextInputLayout
 			android:id="@+id/input"
 			style="@style/Widget.Material3.TextInputEditText.OutlinedBox.Dense"
@@ -38,6 +46,22 @@
 			android:layout_marginEnd="8dp"
 			android:hint="@string/text_to_search"
 			app:startIconDrawable="@drawable/ic_search">
+
+			<com.google.android.material.textfield.TextInputEditText
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content" />
+
+		</com.google.android.material.textfield.TextInputLayout>
+
+		<com.google.android.material.textfield.TextInputLayout
+			android:id="@+id/replacement"
+			style="@style/Widget.Material3.TextInputEditText.OutlinedBox.Dense"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="8dp"
+			android:layout_marginEnd="8dp"
+			android:hint="@string/hint_replace_with"
+			android:visibility="gone">
 
 			<com.google.android.material.textfield.TextInputEditText
 				android:layout_width="match_parent"
@@ -62,6 +86,22 @@
 				android:layout_height="wrap_content" />
 
 		</com.google.android.material.textfield.TextInputLayout>
+
+		<CheckBox
+			android:id="@+id/match_case"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="24dp"
+			android:layout_marginEnd="24dp"
+			android:text="@string/label_match_case" />
+
+		<CheckBox
+			android:id="@+id/whole_word"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="24dp"
+			android:layout_marginEnd="24dp"
+			android:text="@string/label_whole_word" />
 
 	</LinearLayout>
 

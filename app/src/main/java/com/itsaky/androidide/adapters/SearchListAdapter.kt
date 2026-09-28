@@ -1,17 +1,26 @@
 package com.itsaky.androidide.adapters
 
+import android.content.Context
 import android.graphics.PorterDuff.Mode.SRC_ATOP
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.StrikethroughSpan
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
+import com.google.android.material.checkbox.MaterialCheckBox
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutSearchResultGroupBinding
 import com.itsaky.androidide.databinding.LayoutSearchResultItemBinding
 import com.itsaky.androidide.databinding.LayoutSearchResultSectionBinding
 import com.itsaky.androidide.models.FileExtension
 import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.search.replace.FileCheckState
+import com.itsaky.androidide.search.replace.ReplaceSession
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.syntax.highlighters.JavaHighlighter
 import com.itsaky.androidide.tasks.runOnUiThread
@@ -20,6 +29,7 @@ import com.itsaky.androidide.viewmodel.EditorViewModel.SearchResultSection
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CompletableFuture
+import com.itsaky.androidide.resources.R as ResR
 
 // Sections, files and matches are flattened into a single row list so the hosting
 // RecyclerView can recycle match rows; a nested RecyclerView would inflate every
@@ -29,7 +39,11 @@ import java.util.concurrent.CompletableFuture
 class SearchListAdapter(
 	private val onFileClick: (File) -> Unit,
 	private val onMatchClick: (SearchResult) -> Unit,
+	private val onToggleMatch: (SearchResult) -> Unit = {},
+	private val onToggleFile: (File) -> Unit = {},
 ) : ListAdapter<SearchListAdapter.Row, ViewHolder>(DIFF) {
+	private var replacement: String? = null
+
 	/** Convenience for a flat map of matches with no section header. */
 	constructor(
 		results: Map<File, List<SearchResult>>,
@@ -44,7 +58,16 @@ class SearchListAdapter(
 		sections: List<SearchResultSection>,
 		onCommitted: (() -> Unit)? = null,
 	) {
-		submitList(buildRows(sections), onCommitted?.let { Runnable(it) })
+		submit(sections, null, onCommitted)
+	}
+
+	fun submit(
+		sections: List<SearchResultSection>,
+		session: ReplaceSession?,
+		onCommitted: (() -> Unit)? = null,
+	) {
+		replacement = session?.replacement
+		submitList(buildRows(sections, session), onCommitted?.let { Runnable(it) })
 	}
 
 	fun submit(results: Map<File, List<SearchResult>>) {
@@ -77,7 +100,7 @@ class SearchListAdapter(
 		when (val row = getItem(position)) {
 			is Row.Header -> (holder as HeaderVH).binding.title.text = row.title
 			is Row.Group -> bindGroup(holder as VH, row)
-			is Row.Match -> bindMatch(holder as ChildVH, row.match)
+			is Row.Match -> bindMatch(holder as ChildVH, row)
 		}
 	}
 
@@ -92,16 +115,35 @@ class SearchListAdapter(
 		binding.icon.setImageResource(FileExtension.Factory.forFile(file, false).icon)
 		binding.icon.setColorFilter(color, SRC_ATOP)
 		binding.root.setOnClickListener { onFileClick(file) }
+		binding.check.isVisible = row.check != null
+		binding.check.checkedState =
+			when (row.check) {
+				FileCheckState.ALL -> MaterialCheckBox.STATE_CHECKED
+				FileCheckState.SOME -> MaterialCheckBox.STATE_INDETERMINATE
+				else -> MaterialCheckBox.STATE_UNCHECKED
+			}
+		binding.check.contentDescription =
+			binding.root.context.getString(ResR.string.cd_replace_file_checkbox, file.name)
+		binding.check.setOnClickListener { onToggleFile(file) }
 	}
 
 	private fun bindMatch(
 		holder: ChildVH,
-		match: SearchResult,
+		row: Row.Match,
 	) {
+		val match = row.match
+		val replacement = replacement.takeIf { row.checked != null }
+		val check = holder.binding.check
+		check.isVisible = row.checked != null
+		check.isChecked = row.checked == true
+		check.contentDescription =
+			holder.binding.root.context
+				.getString(ResR.string.cd_replace_match_checkbox, match.file.name, match.start.line + 1)
+		check.setOnClickListener { onToggleMatch(match) }
 		val text = holder.binding.text
 		// Show the plain preview immediately; the tag guards the async highlight below
 		// against landing on a recycled row.
-		text.text = match.line
+		text.text = withReplacement(match.line, match, replacement, text.context)
 		text.tag = match
 		CompletableFuture.runAsync {
 			try {
@@ -109,7 +151,7 @@ class SearchListAdapter(
 				val sb = JavaHighlighter().highlight(scheme, match.line, match.match)
 				runOnUiThread {
 					if (text.tag === match) {
-						text.text = sb
+						text.text = withReplacement(sb, match, replacement, text.context)
 					}
 				}
 			} catch (e: Exception) {
@@ -118,6 +160,30 @@ class SearchListAdapter(
 			}
 		}
 		holder.binding.root.setOnClickListener { onMatchClick(match) }
+	}
+
+	private fun withReplacement(
+		preview: CharSequence,
+		match: SearchResult,
+		replacement: String?,
+		context: Context,
+	): CharSequence {
+		replacement ?: return preview
+		val out = SpannableStringBuilder(preview)
+		val matched = match.match.replace(Regex("\\s+"), " ")
+		val start = preview.indexOf(matched)
+		if (start >= 0) {
+			out.setSpan(StrikethroughSpan(), start, start + matched.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+		}
+		val replacementStart = out.length + ARROW.length
+		out.append(ARROW).append(replacement)
+		out.setSpan(
+			ForegroundColorSpan(context.resolveAttr(R.attr.colorPrimary)),
+			replacementStart,
+			out.length,
+			Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+		)
+		return out
 	}
 
 	class VH(
@@ -139,10 +205,12 @@ class SearchListAdapter(
 
 		data class Group(
 			val file: File,
+			val check: FileCheckState? = null,
 		) : Row()
 
 		data class Match(
 			val match: SearchResult,
+			val checked: Boolean? = null,
 		) : Row()
 	}
 
@@ -153,7 +221,12 @@ class SearchListAdapter(
 		const val VIEW_TYPE_GROUP = 1
 		const val VIEW_TYPE_MATCH = 2
 
-		fun buildRows(sections: List<SearchResultSection>): List<Row> =
+		const val ARROW = "  ->  "
+
+		fun buildRows(
+			sections: List<SearchResultSection>,
+			session: ReplaceSession?,
+		): List<Row> =
 			buildList {
 				sections.forEach { section ->
 					// Buffer the section's groups/matches so an empty section (no keys, or all
@@ -162,8 +235,8 @@ class SearchListAdapter(
 						buildList {
 							section.results.forEach { (file, matches) ->
 								if (matches.isNotEmpty()) {
-									add(Row.Group(file))
-									matches.forEach { match -> add(Row.Match(match)) }
+									add(Row.Group(file, session?.fileState(file)))
+									matches.forEach { match -> add(Row.Match(match, session?.isIncluded(match))) }
 								}
 							}
 						}

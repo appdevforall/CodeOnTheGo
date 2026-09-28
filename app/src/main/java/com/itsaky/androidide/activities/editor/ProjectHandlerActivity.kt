@@ -30,6 +30,7 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -40,6 +41,7 @@ import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
+import com.itsaky.androidide.actions.etc.ReplaceInProjectAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.app.IDEApplication
@@ -71,6 +73,10 @@ import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.projectDir
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.search.replace.ReplaceCoordinator
+import com.itsaky.androidide.search.replace.ReplaceHost
+import com.itsaky.androidide.search.replace.ReplaceSession
+import com.itsaky.androidide.search.replace.SkipReason
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
@@ -90,9 +96,12 @@ import com.itsaky.androidide.tooling.api.messages.result.isSuccessful
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import com.itsaky.androidide.tooling.api.models.mapToSelectedVariants
 import com.itsaky.androidide.tooling.api.sync.ProjectSyncHelper
+import com.itsaky.androidide.ui.CodeEditorView
 import com.itsaky.androidide.utils.DURATION_INDEFINITE
+import com.itsaky.androidide.utils.DURATION_LONG
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
+import com.itsaky.androidide.utils.ProjectSearchOptions
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
@@ -131,12 +140,16 @@ import java.util.stream.Collectors
 
 /** @author Akash Yadav */
 @Suppress("MemberVisibilityCanBePrivate")
-abstract class ProjectHandlerActivity : BaseEditorActivity() {
+abstract class ProjectHandlerActivity :
+	BaseEditorActivity(),
+	ReplaceHost {
 	protected val buildVariantsViewModel by viewModels<BuildVariantsViewModel>()
 	private val pluginRepository: PluginRepository by inject()
 
 	protected var mSearchingProgress: ProgressSheet? = null
 	protected var mFindInProjectDialog: AlertDialog? = null
+	protected var mReplaceInProjectDialog: AlertDialog? = null
+	private val replaceCoordinator by lazy { ReplaceCoordinator(editorFor = { file -> getEditorForFile(file)?.editor }) }
 	protected var syncNotificationFlashbar: Flashbar? = null
 
 	private val buildViewModel by viewModels<BuildViewModel>()
@@ -153,6 +166,14 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				createFindInProjectDialog()
 			}
 			return mFindInProjectDialog
+		}
+
+	val replaceInProjectDialog: AlertDialog?
+		get() {
+			if (mReplaceInProjectDialog == null) {
+				createFindInProjectDialog(SearchMode.REPLACE)
+			}
+			return mReplaceInProjectDialog
 		}
 
 	fun findActionDialog(actionData: ActionData): FindActionDialog {
@@ -182,6 +203,16 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 					)
 				if (findInProjectAction != null) {
 					registry.executeAction(findInProjectAction, data)
+				}
+			},
+			onReplaceInProjectClicked = { data ->
+				val replaceInProjectAction =
+					registry.findAction(
+						location = EDITOR_FIND_ACTION_MENU,
+						id = ReplaceInProjectAction().id,
+					)
+				if (replaceInProjectAction != null) {
+					registry.executeAction(replaceInProjectAction, data)
 				}
 			},
 		)
@@ -393,6 +424,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 	override fun preDestroy() {
 		syncNotificationFlashbar?.dismiss()
 		syncNotificationFlashbar = null
+		replaceCoordinator.discardUndo()
 
 		if (didCompleteLiveOnCreate && isDestroying) {
 			releaseServerListener()
@@ -871,8 +903,12 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		if (mFindInProjectDialog?.isShowing == true) {
 			mFindInProjectDialog!!.dismiss()
 		}
+		if (mReplaceInProjectDialog?.isShowing == true) {
+			mReplaceInProjectDialog!!.dismiss()
+		}
 
 		mFindInProjectDialog = null // Create the dialog again if needed
+		mReplaceInProjectDialog = null
 	}
 
 	private fun updateBuildVariants(buildVariants: Map<String, BuildVariantInfo>) {
@@ -883,7 +919,7 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 	}
 
-	protected open fun createFindInProjectDialog(): AlertDialog? {
+	protected open fun createFindInProjectDialog(mode: SearchMode = SearchMode.FIND): AlertDialog? {
 		val manager = ProjectManagerImpl.getInstance()
 		if (manager.workspace == null) {
 			log.warn("No root project model found. Is the project initialized?")
@@ -903,13 +939,22 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				emptyList()
 			}
 
-		return createFindInProjectDialog(moduleDirs)
+		return createFindInProjectDialog(moduleDirs, manager.projectDir, mode)
 	}
 
-	protected open fun createFindInProjectDialog(moduleDirs: List<File>): AlertDialog? {
+	protected open fun createFindInProjectDialog(
+		moduleDirs: List<File>,
+		projectRoot: File,
+		mode: SearchMode,
+	): AlertDialog? {
+		val isReplace = mode == SearchMode.REPLACE
 		val srcDirs = mutableListOf<File>()
 		val binding = LayoutSearchProjectBinding.inflate(layoutInflater)
 		binding.modulesContainer.removeAllViews()
+		binding.replacement.isVisible = isReplace
+		binding.matchCase.isChecked = isReplace
+		binding.wholeWord.isChecked = false
+		binding.projectFiles.isChecked = isReplace
 
 		for (i in moduleDirs.indices) {
 			val module = moduleDirs[i]
@@ -930,10 +975,10 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 		}
 
 		val builder = newMaterialDialogBuilder(this)
-		builder.setTitle(string.menu_find_project)
+		builder.setTitle(if (isReplace) string.menu_replace_project else string.menu_find_project)
 		builder.setView(binding.root)
 		builder.setCancelable(false)
-		builder.setPositiveButton(string.menu_find) { dialog, _ ->
+		builder.setPositiveButton(if (isReplace) string.btn_find_matches else string.menu_find) { dialog, _ ->
 			val text =
 				binding.input.editText!!
 					.text
@@ -980,27 +1025,51 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 				}
 			}
 
+			if (binding.projectFiles.isChecked) {
+				searchDirs.add(projectRoot)
+			}
+
 			if (searchDirs.isEmpty()) {
 				flashError(string.msg_select_search_modules)
-			} else {
-				dialog.dismiss()
+				return@setPositiveButton
+			}
 
-				getProgressSheet(string.msg_searching_project)?.apply {
-					show(supportFragmentManager, "search_in_project_progress")
+			val options =
+				ProjectSearchOptions(
+					matchCase = binding.matchCase.isChecked,
+					wholeWord = binding.wholeWord.isChecked,
+					bufferOverrides = openBufferSnapshots(),
+					excludedDirNames =
+						if (binding.projectFiles.isChecked) ProjectSearchOptions.PROJECT_ROOT_EXCLUDED_DIR_NAMES else emptySet(),
+					excludedDirs = if (binding.projectFiles.isChecked) moduleDirs.toSet() else emptySet(),
+				)
+			val replacement =
+				binding.replacement.editText!!
+					.text
+					.toString()
+			dialog.dismiss()
+			replaceCoordinator.discardUndo()
+
+			getProgressSheet(string.msg_searching_project)?.apply {
+				show(supportFragmentManager, "search_in_project_progress")
+			}
+
+			RecursiveFileSearcher.searchRecursiveAsync(
+				text,
+				extensionList,
+				searchDirs,
+				options,
+			) { results ->
+				if (isReplace) {
+					onReplaceSearchResults(text, replacement, options, results)
+					return@searchRecursiveAsync
 				}
-
-				RecursiveFileSearcher.searchRecursiveAsync(
-					text,
-					extensionList,
-					searchDirs,
-				) { results ->
-					val plugins = projectSearchPlugins()
-					// When the built-in search finds nothing but a plugin may still match, keep
-					// the progress indicator up until the plugin phase resolves.
-					handleSearchResults(results, dismissProgress = plugins.isEmpty() || results.isNotEmpty())
-					if (plugins.isNotEmpty()) {
-						requestPluginSearchSections(plugins, text, extensionList, searchDirs, results)
-					}
+				val plugins = projectSearchPlugins()
+				// When the built-in search finds nothing but a plugin may still match, keep
+				// the progress indicator up until the plugin phase resolves.
+				handleSearchResults(results, dismissProgress = plugins.isEmpty() || results.isNotEmpty())
+				if (plugins.isNotEmpty()) {
+					requestPluginSearchSections(plugins, text, extensionList, searchDirs, results)
 				}
 			}
 		}
@@ -1031,9 +1100,114 @@ abstract class ProjectHandlerActivity : BaseEditorActivity() {
 			}
 		}
 
-		mFindInProjectDialog = dialog
-		return mFindInProjectDialog
+		if (isReplace) {
+			mReplaceInProjectDialog = dialog
+		} else {
+			mFindInProjectDialog = dialog
+		}
+		return dialog
 	}
+
+	abstract fun getEditorForFile(file: File): CodeEditorView?
+
+	protected fun openBufferSnapshots(): Map<File, String> =
+		editorViewModel
+			.getOpenedFiles()
+			.mapNotNull { file ->
+				getEditorForFile(file)
+					?.editor
+					?.text
+					?.toString()
+					?.let { file.absoluteFile to it }
+			}.toMap()
+
+	private fun onReplaceSearchResults(
+		query: String,
+		replacement: String,
+		options: ProjectSearchOptions,
+		results: Map<File, List<SearchResult>>,
+	) {
+		handleSearchResults(results)
+		if (results.isNotEmpty()) {
+			editorViewModel.startReplaceSession(ReplaceSession(query, replacement, options, results))
+		}
+	}
+
+	override fun onReplaceRequested(session: ReplaceSession) {
+		lifecycleScope.launch {
+			val report = replaceCoordinator.replace(session)
+			editorViewModel.onSearchResultsReady(emptyMap())
+			showReplaceReport(report, undone = false)
+		}
+	}
+
+	private fun showReplaceReport(
+		report: ReplaceCoordinator.Report,
+		undone: Boolean,
+	) {
+		val issues = report.skipped.size + report.failed.size
+		val message =
+			when {
+				undone -> {
+					getString(string.msg_replace_undone, report.changedFiles.size)
+				}
+
+				issues == 0 -> {
+					getString(string.msg_replace_done, report.replacedMatches, report.changedFiles.size)
+				}
+
+				else -> {
+					getString(
+						string.msg_replace_done_with_issues,
+						report.replacedMatches,
+						report.changedFiles.size,
+						report.skipped.size,
+						report.failed.size,
+					)
+				}
+			}
+		val canUndo = !undone && replaceCoordinator.canUndo
+		val builder = flashbarBuilder(duration = if (canUndo) DURATION_INDEFINITE else DURATION_LONG).message(message)
+		if (canUndo) {
+			builder
+				.positiveActionText(string.undo)
+				.positiveActionTapListener { bar ->
+					bar.dismiss()
+					lifecycleScope.launch {
+						val undoReport = replaceCoordinator.undo()
+						showReplaceReport(undoReport, undone = true)
+					}
+				}.negativeActionText(android.R.string.ok)
+				.negativeActionTapListener { bar ->
+					bar.dismiss()
+					replaceCoordinator.discardUndo()
+				}
+		}
+		builder.build().showOnUiThread()
+		if (issues > 0) {
+			showReplaceIssues(report)
+		}
+	}
+
+	private fun showReplaceIssues(report: ReplaceCoordinator.Report) {
+		val lines =
+			report.skipped.map { (file, reason) ->
+				val reasonText =
+					when (reason) {
+						SkipReason.CHANGED_SINCE_SEARCH -> string.reason_changed_since_search
+						SkipReason.CHANGED_SINCE_REPLACE -> string.reason_changed_since_replace
+						SkipReason.TAB_CLOSED -> string.reason_tab_closed
+					}
+				"${file.name}: ${getString(reasonText)}"
+			} + report.failed.map { "${it.file.name}: ${it.message}" }
+		newMaterialDialogBuilder(this)
+			.setTitle(string.title_replace_report)
+			.setMessage(lines.joinToString("\n"))
+			.setPositiveButton(android.R.string.ok, null)
+			.show()
+	}
+
+	enum class SearchMode { FIND, REPLACE }
 
 	private fun projectSearchPlugins(): List<ProjectSearchExtension> =
 		IDEApplication

@@ -17,7 +17,12 @@
 package com.itsaky.androidide.fragments
 
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
+import android.view.ViewGroup.LayoutParams
+import android.widget.LinearLayout
+import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -25,12 +30,17 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.activities.editor.BaseEditorActivity
 import com.itsaky.androidide.adapters.SearchListAdapter
+import com.itsaky.androidide.databinding.FragmentSearchResultsReplaceBarBinding
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.models.SearchResult
+import com.itsaky.androidide.search.replace.ReplaceHost
+import com.itsaky.androidide.search.replace.ReplaceSession
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.io.File
+import com.itsaky.androidide.resources.R as ResR
 
 class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
 	override val fragmentTooltipTag: String? = TooltipTag.PROJECT_SEARCH_RESULTS
@@ -50,7 +60,37 @@ class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
 		editorActivity?.hideBottomSheet()
 	}
 
-	override fun onCreateAdapter(): RecyclerView.Adapter<*> = SearchListAdapter(onFileClick, onMatchClick)
+	private var replaceBar: FragmentSearchResultsReplaceBarBinding? = null
+
+	private fun newAdapter() =
+		SearchListAdapter(
+			onFileClick = onFileClick,
+			onMatchClick = onMatchClick,
+			onToggleMatch = editorViewModel::toggleReplaceMatch,
+			onToggleFile = editorViewModel::toggleReplaceFile,
+		)
+
+	override fun onCreateAdapter(): RecyclerView.Adapter<*> = newAdapter()
+
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		val content = super.onCreateView(inflater, container, savedInstanceState)
+		val bar = FragmentSearchResultsReplaceBarBinding.inflate(inflater, container, false)
+		replaceBar = bar
+		return LinearLayout(inflater.context).apply {
+			orientation = LinearLayout.VERTICAL
+			addView(bar.root, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+			addView(content, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+		}
+	}
+
+	override fun onDestroyView() {
+		replaceBar = null
+		super.onDestroyView()
+	}
 
 	override fun onViewCreated(
 		view: View,
@@ -60,17 +100,36 @@ class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
 
 		viewLifecycleOwner.lifecycleScope.launch {
 			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-				editorViewModel.searchResultSections.collectLatest { sections ->
+				combine(editorViewModel.searchResultSections, editorViewModel.replaceSession) { sections, session ->
+					sections to session
+				}.collectLatest { (sections, session) ->
 					if (isAdded && _binding != null) {
 						// Reuse the attached adapter so re-publishes diff instead of resetting
 						// scroll and re-running highlights; only create one if none is present.
 						val adapter =
 							binding.root.adapter as? SearchListAdapter
-								?: SearchListAdapter(onFileClick, onMatchClick).also { binding.root.adapter = it }
-						adapter.submit(sections) { isEmpty = adapter.itemCount == 0 }
+								?: newAdapter().also { binding.root.adapter = it }
+						adapter.submit(sections, session) { isEmpty = adapter.itemCount == 0 }
+						bindReplaceBar(session)
 					}
 				}
 			}
 		}
+	}
+
+	private fun bindReplaceBar(session: ReplaceSession?) {
+		val bar = replaceBar ?: return
+		bar.root.isVisible = session != null
+		session ?: return
+		bar.summary.text =
+			resources.getQuantityString(
+				ResR.plurals.msg_replace_n_matches,
+				session.includedCount,
+				session.includedCount,
+				session.includedFileCount,
+			)
+		bar.replace.isEnabled = session.includedCount > 0
+		bar.replace.setOnClickListener { (activity as? ReplaceHost)?.onReplaceRequested(session) }
+		bar.cancel.setOnClickListener { editorViewModel.clearReplaceSession() }
 	}
 }

@@ -41,6 +41,7 @@ import com.itsaky.androidide.actions.etc.FindAction
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
 import com.itsaky.androidide.actions.etc.LaunchAppAction
+import com.itsaky.androidide.actions.etc.ReplaceInProjectAction
 import com.itsaky.androidide.actions.file.CloseAllFilesAction
 import com.itsaky.androidide.actions.file.CloseFileAction
 import com.itsaky.androidide.actions.file.CloseOtherFilesAction
@@ -96,6 +97,7 @@ class EditorActivityActions {
 			registry.registerAction(FindAction(context, order++))
 			registry.registerAction(FindInFileAction(context, order++))
 			registry.registerAction(FindInProjectAction(context, order++))
+			registry.registerAction(ReplaceInProjectAction(context, order++))
 			registry.registerAction(LaunchAppAction(context, order++))
 			registry.registerAction(DisconnectLogSendersAction(context, order++))
 
