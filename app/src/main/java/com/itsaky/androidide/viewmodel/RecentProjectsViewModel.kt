@@ -174,7 +174,15 @@ class RecentProjectsViewModel(
 			recentProjectDao.getProjectByLocation(File(location).canonicalProjectLocation())
 		}
 
-	fun projectNameExists(name: String): Boolean = allProjects.any { it.name == name }
+	fun renameTargetExists(
+		project: ProjectFile,
+		newName: String,
+	): Boolean {
+		val projectDirectory = File(project.path).parentFile ?: return false
+		val target = File(projectDirectory, newName)
+		val targetLocation = target.canonicalProjectLocation()
+		return target.exists() || allProjects.any { it.path == targetLocation }
+	}
 
 	fun insertProjectFromFolder(
 		name: String,

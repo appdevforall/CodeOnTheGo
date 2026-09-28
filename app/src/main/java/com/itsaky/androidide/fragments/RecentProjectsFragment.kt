@@ -433,7 +433,7 @@ class RecentProjectsFragment : BaseFragment() {
 						onRemoveProjectClick = viewModel::deleteProject,
 						onFileRenamed = viewModel::updateProject,
 						onInfoClick = { project -> openProjectInfo(project) },
-						nameExists = viewModel::projectNameExists,
+						renameTargetExists = viewModel::renameTargetExists,
 					)
 				binding.listProjects.adapter = adapter
 			} else {

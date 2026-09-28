@@ -40,7 +40,7 @@ class RecentProjectsAdapter(
 	private val onRemoveProjectClick: (ProjectFile) -> Unit,
 	private val onFileRenamed: (RenamedFile) -> Unit,
 	private val onInfoClick: (ProjectFile) -> Unit,
-	private val nameExists: (String) -> Boolean,
+	private val renameTargetExists: (ProjectFile, String) -> Boolean,
 ) : RecyclerView.Adapter<RecentProjectsAdapter.ProjectViewHolder>() {
 	private var projectOptionsPopup: PopupWindow? = null
 
@@ -335,7 +335,7 @@ class RecentProjectsAdapter(
 				positiveButton.isEnabled = false
 			}
 
-			newName != oldName && nameExists(newName) -> {
+			newName != oldName && renameTargetExists(project, newName) -> {
 				inputLayout.error =
 					dialog.context.getString(R.string.msg_current_name_unavailable)
 				positiveButton.isEnabled = false
