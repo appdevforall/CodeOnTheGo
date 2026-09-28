@@ -14,85 +14,85 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 
 class FindActionDialog(
-    private val anchor: View,
-    private val context: Context,
-    private val actionData: ActionData,
-    shouldShowFindInFileAction: Boolean,
-    private val onFindInFileClicked: ((ActionData) -> Unit),
-    private val onFindInProjectClicked: ((ActionData) -> Unit)
+	private val anchor: View,
+	private val context: Context,
+	private val actionData: ActionData,
+	shouldShowFindInFileAction: Boolean,
+	private val onFindInFileClicked: ((ActionData) -> Unit),
+	private val onFindInProjectClicked: ((ActionData) -> Unit),
 ) {
-    private val popupWindow: PopupWindow
+	private val popupWindow: PopupWindow
 
-    init {
-        val view = LayoutInflater.from(context).inflate(R.layout.dialog_find_action_menu, null)
-        val findInFileText = view.findViewById<TextView>(R.id.find_in_file)
-        val findInProjectText = view.findViewById<TextView>(R.id.find_in_project)
+	init {
+		val view = LayoutInflater.from(context).inflate(R.layout.dialog_find_action_menu, null)
+		val findInFileText = view.findViewById<TextView>(R.id.find_in_file)
+		val findInProjectText = view.findViewById<TextView>(R.id.find_in_project)
 
-        // Hide find in file if no files are open
-        findInFileText.visibility = if (shouldShowFindInFileAction) View.VISIBLE else View.GONE
+		// Hide find in file if no files are open
+		findInFileText.visibility = if (shouldShowFindInFileAction) View.VISIBLE else View.GONE
 
-        findInFileText.apply {
-            setOnClickListener {
-                popupWindow.dismiss()
-                onFindInFileClicked(actionData)
-            }
-            setOnLongClickListener {
-                popupWindow.dismiss()
-                TooltipManager.showIdeCategoryTooltip(
-                    context = context,
-                    anchorView = this,
-                    tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE
-                )
-                true
-            }
-        }
+		findInFileText.apply {
+			setOnClickListener {
+				popupWindow.dismiss()
+				onFindInFileClicked(actionData)
+			}
+			setOnLongClickListener {
+				popupWindow.dismiss()
+				TooltipManager.showIdeCategoryTooltip(
+					context = context,
+					anchorView = this,
+					tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE,
+				)
+				true
+			}
+		}
 
-        findInProjectText.apply {
-            setOnClickListener {
-                popupWindow.dismiss()
-                onFindInProjectClicked(actionData)
-            }
-            setOnLongClickListener {
-                popupWindow.dismiss()
-                TooltipManager.showIdeCategoryTooltip(
-                    context = context,
-                    anchorView = this,
-                    tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_PROJECT
-                )
-                true
-            }
-        }
+		findInProjectText.apply {
+			setOnClickListener {
+				popupWindow.dismiss()
+				onFindInProjectClicked(actionData)
+			}
+			setOnLongClickListener {
+				popupWindow.dismiss()
+				TooltipManager.showIdeCategoryTooltip(
+					context = context,
+					anchorView = this,
+					tag = TooltipTag.EDITOR_TOOLBAR_FIND_IN_PROJECT,
+				)
+				true
+			}
+		}
 
-        popupWindow = PopupWindow(
-            view,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            true
-        ).apply {
-            isOutsideTouchable = true
-            elevation = 16f
-        }
-    }
+		popupWindow =
+			PopupWindow(
+				view,
+				ViewGroup.LayoutParams.WRAP_CONTENT,
+				ViewGroup.LayoutParams.WRAP_CONTENT,
+				true,
+			).apply {
+				isOutsideTouchable = true
+				elevation = 16f
+			}
+	}
 
-    fun show() {
-        anchor.post {
-            val screenWidth = Resources.getSystem().displayMetrics.widthPixels
-            val offsetX = 0 // no horizontal padding
-            val offsetY = 0 // top of the screen
+	fun show() {
+		anchor.post {
+			val screenWidth = Resources.getSystem().displayMetrics.widthPixels
+			val offsetX = 0 // no horizontal padding
+			val offsetY = 0 // top of the screen
 
-            // Measure the popup width
-            popupWindow.contentView.measure(
-                View.MeasureSpec.UNSPECIFIED,
-                View.MeasureSpec.UNSPECIFIED
-            )
-            val popupWidth = popupWindow.contentView.measuredWidth
+			// Measure the popup width
+			popupWindow.contentView.measure(
+				View.MeasureSpec.UNSPECIFIED,
+				View.MeasureSpec.UNSPECIFIED,
+			)
+			val popupWidth = popupWindow.contentView.measuredWidth
 
-            // Calculate final X position for right alignment
-            val x = screenWidth - popupWidth - offsetX
+			// Calculate final X position for right alignment
+			val x = screenWidth - popupWidth - offsetX
 
-            // Show at top-right
-            popupWindow.showAtLocation(anchor, Gravity.TOP or Gravity.START, x, offsetY)
-        }
-    }
-
+			// Show at top-right
+			popupWindow.showAtLocation(anchor, Gravity.TOP or Gravity.START, x, offsetY)
+		}
+	}
 }
