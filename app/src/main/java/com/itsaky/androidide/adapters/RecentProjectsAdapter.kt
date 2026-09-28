@@ -298,13 +298,14 @@ class RecentProjectsAdapter(
 				) {}
 
 				override fun afterTextChanged(s: Editable?) {
-					validateProjectName(binding.textinputLayout, s.toString().trim(), oldName, dialog)
+					validateProjectName(binding.textinputLayout, project, s.toString().trim(), oldName, dialog)
 				}
 			},
 		)
 
 		validateProjectName(
 			binding.textinputLayout,
+			project,
 			binding.textinputEdittext.text
 				.toString()
 				.trim(),
@@ -315,6 +316,7 @@ class RecentProjectsAdapter(
 
 	private fun validateProjectName(
 		inputLayout: TextInputLayout,
+		project: ProjectFile,
 		newName: String,
 		oldName: String,
 		dialog: AlertDialog,

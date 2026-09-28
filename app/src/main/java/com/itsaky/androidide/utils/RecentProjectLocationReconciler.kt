@@ -27,8 +27,22 @@ internal fun reconcileRecentProjectLocations(projects: List<RecentProject>): Lis
 		.groupBy { project -> File(project.location).canonicalProjectLocation() }
 		.map { (canonicalLocation, duplicates) ->
 			val latest = duplicates.maxBy { it.id }
+			val earliestCreatedAt =
+				duplicates
+					.mapNotNull { project ->
+						project.createdAt.toLongOrNull()?.let { it to project.createdAt }
+					}.minByOrNull { it.first }
+					?.second ?: latest.createdAt
+			val latestModifiedAt =
+				duplicates
+					.mapNotNull { project ->
+						project.lastModified.toLongOrNull()?.let { it to project.lastModified }
+					}.maxByOrNull { it.first }
+					?.second ?: latest.lastModified
 			latest.copy(
 				location = canonicalLocation,
+				createdAt = earliestCreatedAt,
+				lastModified = latestModifiedAt,
 				templateName = duplicates.firstUsefulValue { it.templateName },
 				language = duplicates.firstUsefulValue { it.language },
 			)

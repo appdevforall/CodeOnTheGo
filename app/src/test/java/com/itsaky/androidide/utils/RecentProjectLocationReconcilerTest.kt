@@ -37,16 +37,18 @@ class RecentProjectLocationReconcilerTest {
 				RecentProject(
 					id = 1,
 					name = "Project",
-					createdAt = "1",
+					createdAt = "100",
 					location = projectDir.absolutePath,
+					lastModified = "400",
 					templateName = "Basic App",
 					language = "Kotlin",
 				),
 				RecentProject(
 					id = 2,
 					name = "Project",
-					createdAt = "2",
+					createdAt = "200",
 					location = File(projectDir, "nested/..").path,
+					lastModified = "300",
 				),
 			)
 
@@ -55,6 +57,8 @@ class RecentProjectLocationReconcilerTest {
 		assertThat(result).hasSize(1)
 		assertThat(result.single().id).isEqualTo(2)
 		assertThat(result.single().location).isEqualTo(projectDir.canonicalPath)
+		assertThat(result.single().createdAt).isEqualTo("100")
+		assertThat(result.single().lastModified).isEqualTo("400")
 		assertThat(result.single().templateName).isEqualTo("Basic App")
 		assertThat(result.single().language).isEqualTo("Kotlin")
 	}
