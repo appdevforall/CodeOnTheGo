@@ -19,6 +19,9 @@ interface RecentProjectDao {
 	@Query("SELECT * FROM recent_project_table WHERE name = :name LIMIT 1")
 	suspend fun getProjectByName(name: String): RecentProject?
 
+	@Query("SELECT * FROM recent_project_table WHERE location = :location LIMIT 1")
+	suspend fun getProjectByLocation(location: String): RecentProject?
+
 	@Query("SELECT * FROM recent_project_table WHERE name IN (:names)")
 	suspend fun getProjectsByNames(names: List<String>): List<RecentProject>
 

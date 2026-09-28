@@ -14,6 +14,7 @@ import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.templates.Language
+import com.itsaky.androidide.utils.canonicalProjectLocation
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
 import com.itsaky.androidide.utils.readProjectLanguage
@@ -157,17 +158,18 @@ class RecentProjectsViewModel(
 		name: String,
 		location: String,
 	) = viewModelScope.launch(Dispatchers.IO) {
-		// Check if the project already exists
-		val existingProject = getProjectByName(name)
+		val projectLocation = File(location).canonicalProjectLocation()
+		// Check by location so different projects may share a name without blocking import.
+		val existingProject = recentProjectDao.getProjectByLocation(projectLocation)
 		if (existingProject == null) {
-			val createdAt = getCreatedTime(location)
-			val modifiedAt = getLastModifiedTime(location)
+			val createdAt = getCreatedTime(projectLocation)
+			val modifiedAt = getLastModifiedTime(projectLocation)
 			val unknown = Language.Unknown.lang
-			val detectedLanguage = readProjectLanguage(File(location))
+			val detectedLanguage = readProjectLanguage(File(projectLocation))
 			val languageToStore = if (detectedLanguage != unknown) detectedLanguage else unknown
 			recentProjectDao.insert(
 				RecentProject(
-					location = location,
+					location = projectLocation,
 					name = name,
 					createdAt = createdAt.toString(),
 					lastModified = modifiedAt.toString(),
