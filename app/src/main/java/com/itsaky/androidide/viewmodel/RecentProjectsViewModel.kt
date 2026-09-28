@@ -7,6 +7,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.models.ProjectFile
 import com.itsaky.androidide.resources.R
@@ -18,6 +19,7 @@ import com.itsaky.androidide.utils.canonicalProjectLocation
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
 import com.itsaky.androidide.utils.readProjectLanguage
+import com.itsaky.androidide.utils.reconcileRecentProjectLocations
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -83,10 +85,30 @@ class RecentProjectsViewModel(
 
 	fun loadProjects(): Job =
 		viewModelScope.launch(Dispatchers.IO) {
-			val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
+			val projectsFromDb =
+				recentProjectDatabase.withTransaction {
+					reconcileCanonicalProjectLocations()
+					recentProjectDao.dumpAll() ?: emptyList()
+				}
 			allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified) }
 			applyFilters()
 		}
+
+	private suspend fun reconcileCanonicalProjectLocations() {
+		val projects = recentProjectDao.dumpAll() ?: emptyList()
+		val reconciled = reconcileRecentProjectLocations(projects)
+		val retainedIds = reconciled.mapTo(mutableSetOf()) { it.id }
+		val duplicateIds = projects.filterNot { it.id in retainedIds }.map { it.id }
+		if (duplicateIds.isNotEmpty()) {
+			recentProjectDao.deleteByIds(duplicateIds)
+		}
+		val originalById = projects.associateBy { it.id }
+		reconciled.forEach { project ->
+			if (originalById[project.id] != project) {
+				recentProjectDao.update(project)
+			}
+		}
+	}
 
 	fun notifyFiltersSaved() {
 		viewModelScope.launch {
