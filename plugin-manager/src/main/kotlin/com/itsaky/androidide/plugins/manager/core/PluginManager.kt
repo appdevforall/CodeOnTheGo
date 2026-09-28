@@ -48,6 +48,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEnvironmentServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeFeatureFlagServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeFileServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeLogServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeProjectManipulationServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
@@ -66,6 +67,7 @@ import com.itsaky.androidide.plugins.services.IdeEditorTabService
 import com.itsaky.androidide.plugins.services.IdeEnvironmentService
 import com.itsaky.androidide.plugins.services.IdeFeatureFlagService
 import com.itsaky.androidide.plugins.services.IdeFileService
+import com.itsaky.androidide.plugins.services.IdeLogService
 import com.itsaky.androidide.plugins.services.IdeProjectManipulationService
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeSidebarService
@@ -1382,6 +1384,15 @@ class PluginManager private constructor(
 
 		registerServiceWithErrorHandling(
 			pluginServiceRegistry,
+			IdeLogService::class.java,
+			pluginId,
+			"log",
+		) {
+			IdeLogServiceImpl.getInstance()
+		}
+
+		registerServiceWithErrorHandling(
+			pluginServiceRegistry,
 			IdeProjectManipulationService::class.java,
 			pluginId,
 			"project_manipulation",
@@ -1628,6 +1639,15 @@ class PluginManager private constructor(
 			"build",
 		) {
 			IdeBuildServiceImpl.getInstance()
+		}
+
+		registerServiceWithErrorHandling(
+			pluginServiceRegistry,
+			IdeLogService::class.java,
+			pluginId,
+			"log",
+		) {
+			IdeLogServiceImpl.getInstance()
 		}
 
 		registerServiceWithErrorHandling(

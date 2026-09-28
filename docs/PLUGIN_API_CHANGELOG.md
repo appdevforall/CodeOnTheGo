@@ -36,6 +36,19 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.40 — unreleased
+- **added — Read-only App Logs and IDE Logs** _(ADFA-6267)_ **[verified]**
+  Plugins could read build output (`IdeBuildService.getBuildOutput()`) but not the App Logs
+  or IDE Logs tabs, so an agent diagnosing a runtime crash had to ask the user to paste them.
+  `IdeLogService.readLogs(LogSource, LogQuery): LogReadResult` returns the newest lines of
+  either tab (`LogSource.APP` / `LogSource.IDE`), oldest first, as `LogEntry(level, text)`.
+  `LogQuery` filters as the tab's filter bar does: `levels` (empty = all; a line with no
+  known level always passes), `text` (case-insensitive substring of the rendered line, tag
+  included), and `maxLines` (default 200, clamped to `1..1000`). A result is also capped at
+  `LogQuery.MAX_CHARS` (128 KiB), dropping the oldest lines first; `truncated` says whether
+  either bound left matching lines out. With no editor open or no log yet, the read returns
+  `LogReadResult.EMPTY`, never a throw. The service has no clear or write method, and needs
+  no permission. Purely additive (the ABI dump diff is additions only). Floor
+  `plugin.min_ide_version` at `26.40` to use it; an older IDE has no such service.
 - **added — An embedding capability a backend can declare** _(ADFA-6053)_ **[verified]**
   A backend that has an embedding model can now say so. The only embedding entry point
   before this was `LlmInferenceService.getEmbeddings(String, String)`, which addresses a
