@@ -28,10 +28,11 @@ import io.github.rosemoe.sora.text.Content;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,6 +42,34 @@ import java.util.regex.Pattern;
  * @author Akash Yadav
  */
 public class RecursiveFileSearcher {
+
+	public static Map<File, List<SearchResult>> search(
+			String query, List<String> exts, List<File> dirs, ProjectSearchOptions options) {
+		final Map<File, List<SearchResult>> result = new LinkedHashMap<>();
+		final MultiFileFilter filter = new MultiFileFilter(exts);
+		final Set<File> excludedDirs = new HashSet<>();
+		for (File dir : options.getExcludedDirs()) {
+			excludedDirs.add(dir.getAbsoluteFile());
+		}
+		final Set<File> seen = new HashSet<>();
+		final int flags = options.getMatchCase() ? 0 : Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
+		final Pattern pattern = Pattern.compile(Pattern.quote(query), flags);
+		for (File dir : dirs) {
+			final List<File> files = new ArrayList<>();
+			collectFiles(dir.getAbsoluteFile(), filter, options.getExcludedDirNames(), excludedDirs, seen, files);
+			for (File file : files) {
+				final String text = readText(file, options.getBufferOverrides());
+				if (text == null || text.trim().isEmpty()) {
+					continue;
+				}
+				final List<SearchResult> ranges = findMatches(file, text, pattern, options.getWholeWord());
+				if (!ranges.isEmpty()) {
+					result.put(file, ranges);
+				}
+			}
+		}
+		return result;
+	}
 
 	/**
 	 * Search the given text in files recursively in given search directories
@@ -56,6 +85,11 @@ public class RecursiveFileSearcher {
 	 */
 	public static void searchRecursiveAsync(
 			String text, List<String> exts, List<File> searchDirs, Callback callback) {
+		searchRecursiveAsync(text, exts, searchDirs, ProjectSearchOptions.DEFAULT, callback);
+	}
+
+	public static void searchRecursiveAsync(
+			String text, List<String> exts, List<File> searchDirs, ProjectSearchOptions options, Callback callback) {
 		// Cannot search empty or null text
 		if (text == null || text.isEmpty()) {
 			return;
@@ -71,7 +105,53 @@ public class RecursiveFileSearcher {
 			return;
 		}
 
-		TaskExecutor.executeAsync(new Searcher(text, exts, searchDirs), callback::onResult);
+		TaskExecutor.executeAsync(() -> search(text, exts, searchDirs, options), callback::onResult);
+	}
+
+	private static void collectFiles(
+			File dir, FileFilter filter, Set<String> excludedNames, Set<File> excludedDirs, Set<File> seen, List<File> out) {
+		final File[] children = dir.listFiles();
+		if (children == null) {
+			return;
+		}
+		for (File child : children) {
+			if (child.isDirectory()) {
+				if (excludedNames.contains(child.getName()) || excludedDirs.contains(child.getAbsoluteFile())) {
+					continue;
+				}
+				collectFiles(child, filter, excludedNames, excludedDirs, seen, out);
+			} else if (filter.accept(child) && seen.add(child.getAbsoluteFile())) {
+				out.add(child);
+			}
+		}
+	}
+
+	private static List<SearchResult> findMatches(File file, String text, Pattern pattern, boolean wholeWord) {
+		final Content content = new Content(text);
+		final List<SearchResult> ranges = new ArrayList<>();
+		final Matcher matcher = pattern.matcher(text);
+		while (matcher.find()) {
+			if (wholeWord && !WordBoundary.isWholeWord(text, matcher.start(), matcher.end())) {
+				continue;
+			}
+			final Range range = new Range();
+			final CharPosition start = content.getIndexer().getCharPosition(matcher.start());
+			final CharPosition end = content.getIndexer().getCharPosition(matcher.end());
+			range.setStart(new Position(start.line, start.column));
+			range.setEnd(new Position(end.line, end.column));
+			final String sub = "..."
+					.concat(text.substring(Math.max(0, matcher.start() - 30), Math.min(matcher.end() + 31, text.length())))
+					.trim()
+					.concat("...");
+			final String match = content.subContent(start.line, start.column, end.line, end.column).toString();
+			ranges.add(new SearchResult(range, file, sub.replaceAll("\\s+", " "), match));
+		}
+		return ranges;
+	}
+
+	private static String readText(File file, Map<File, String> overrides) {
+		final String override = overrides.get(file.getAbsoluteFile());
+		return override != null ? override : FileIOUtils.readFile2String(file);
 	}
 
 	public static interface Callback {
@@ -102,63 +182,6 @@ public class RecursiveFileSearcher {
 			}
 
 			return accept && FileUtils.isUtf8(file);
-		}
-	}
-
-	private static class Searcher implements Callable<Map<File, List<SearchResult>>> {
-
-		private final String query;
-		private final List<String> exts;
-		private final List<File> dirs;
-
-		public Searcher(String query, List<String> exts, List<File> dirs) {
-			this.query = query;
-			this.exts = exts;
-			this.dirs = dirs;
-		}
-
-		@Override
-		public Map<File, List<SearchResult>> call() throws Exception {
-			final Map<File, List<SearchResult>> result = new HashMap<>();
-			for (int i = 0; i < dirs.size(); i++) {
-				final File dir = dirs.get(i);
-				final List<File> files = FileUtils.listFilesInDirWithFilter(dir, new MultiFileFilter(exts), true);
-				for (int j = 0; files != null && j < files.size(); j++) {
-					final File file = files.get(j);
-					if (file.isDirectory()) {
-						continue;
-					}
-					final String text = FileIOUtils.readFile2String(file);
-					if (text == null || text.trim().isEmpty()) {
-						continue;
-					}
-					final Content content = new Content(text);
-					final List<SearchResult> ranges = new ArrayList<>();
-					Matcher matcher = Pattern
-							.compile(Pattern.quote(this.query), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE)
-							.matcher(text);
-					while (matcher.find()) {
-						final Range range = new Range();
-						final CharPosition start = content.getIndexer().getCharPosition(matcher.start());
-						final CharPosition end = content.getIndexer().getCharPosition(matcher.end());
-						range.setStart(new Position(start.line, start.column));
-						range.setEnd(new Position(end.line, end.column));
-						String sub = "..."
-								.concat(
-										text.substring(
-												Math.max(0, matcher.start() - 30),
-												Math.min(matcher.end() + 31, text.length())))
-								.trim()
-								.concat("...");
-						String match = content.subContent(start.line, start.column, end.line, end.column).toString();
-						ranges.add(new SearchResult(range, file, sub.replaceAll("\\s+", " "), match));
-					}
-					if (ranges.size() > 0) {
-						result.put(file, ranges);
-					}
-				}
-			}
-			return result;
 		}
 	}
 }
