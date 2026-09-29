@@ -73,7 +73,7 @@ abstract class RecentProjectRoomDatabase : RoomDatabase() {
 				}
 			}
 
-		private val migration4To5 =
+		internal val migration4To5 =
 			object : Migration(4, 5) {
 				override fun migrate(db: SupportSQLiteDatabase) {
 					db.execSQL(
