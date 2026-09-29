@@ -89,7 +89,25 @@ class ReplaceCoordinator(
 				}
 			}
 		}
-		val disk = replacer.undoOnDisk(pendingDisk)
+		val stillClosed = mutableListOf<DiskEntry>()
+		pendingDisk.forEach { entry ->
+			val editor = editorFor(entry.file)
+			when (OpenTabUndo.decide(editor?.text?.toString(), String(entry.written, Charsets.UTF_8))) {
+				OpenTabUndo.Decision.CLOSED -> {
+					stillClosed.add(entry)
+				}
+
+				OpenTabUndo.Decision.RESTORE -> {
+					replaceAll(editor!!.text, String(entry.original, Charsets.UTF_8))
+					restoredTabs.add(entry.file)
+				}
+
+				OpenTabUndo.Decision.CHANGED -> {
+					skipped[entry.file] = SkipReason.CHANGED_SINCE_REPLACE
+				}
+			}
+		}
+		val disk = replacer.undoOnDisk(stillClosed)
 		skipped.putAll(disk.skipped)
 		disk.restored.forEach { EventBus.getDefault().post(FileContentChangedEvent(it)) }
 		discardUndo()

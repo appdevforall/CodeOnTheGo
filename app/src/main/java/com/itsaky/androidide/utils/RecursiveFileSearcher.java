@@ -28,6 +28,7 @@ import io.github.rosemoe.sora.text.Content;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,9 +55,14 @@ public class RecursiveFileSearcher {
 		final Set<File> seen = new HashSet<>();
 		final int flags = options.getMatchCase() ? 0 : Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
 		final Pattern pattern = Pattern.compile(Pattern.quote(query), flags);
+		final File nameExclusionRoot = options.getNameExclusionRoot() == null ? null : options.getNameExclusionRoot().getAbsoluteFile();
 		for (File dir : dirs) {
+			final File walkRoot = dir.getAbsoluteFile();
+			final Set<String> excludedNames = walkRoot.equals(nameExclusionRoot)
+					? options.getExcludedDirNames()
+					: Collections.<String> emptySet();
 			final List<File> files = new ArrayList<>();
-			collectFiles(dir.getAbsoluteFile(), filter, options.getExcludedDirNames(), excludedDirs, seen, files);
+			collectFiles(walkRoot, filter, excludedNames, excludedDirs, seen, files);
 			for (File file : files) {
 				final String text = readText(file, options.getBufferOverrides());
 				if (text == null || text.trim().isEmpty()) {
@@ -108,6 +114,14 @@ public class RecursiveFileSearcher {
 		TaskExecutor.executeAsync(() -> search(text, exts, searchDirs, options), callback::onResult);
 	}
 
+	static int previewMatchOffset(String text, int previewStart, int matchStart) {
+		final String before = "...".concat(text.substring(previewStart, matchStart)).replaceAll("\\s+", " ");
+		final boolean mergesWithMatch = before.endsWith(" ")
+				&& matchStart < text.length()
+				&& Character.isWhitespace(text.charAt(matchStart));
+		return mergesWithMatch ? before.length() - 1 : before.length();
+	}
+
 	private static void collectFiles(
 			File dir, FileFilter filter, Set<String> excludedNames, Set<File> excludedDirs, Set<File> seen, List<File> out) {
 		final File[] children = dir.listFiles();
@@ -139,12 +153,14 @@ public class RecursiveFileSearcher {
 			final CharPosition end = content.getIndexer().getCharPosition(matcher.end());
 			range.setStart(new Position(start.line, start.column));
 			range.setEnd(new Position(end.line, end.column));
+			final int previewStart = Math.max(0, matcher.start() - 30);
 			final String sub = "..."
-					.concat(text.substring(Math.max(0, matcher.start() - 30), Math.min(matcher.end() + 31, text.length())))
+					.concat(text.substring(previewStart, Math.min(matcher.end() + 31, text.length())))
 					.trim()
 					.concat("...");
 			final String match = content.subContent(start.line, start.column, end.line, end.column).toString();
-			ranges.add(new SearchResult(range, file, sub.replaceAll("\\s+", " "), match));
+			final int matchOffset = previewMatchOffset(text, previewStart, matcher.start());
+			ranges.add(new SearchResult(range, file, sub.replaceAll("\\s+", " "), match, matchOffset));
 		}
 		return ranges;
 	}

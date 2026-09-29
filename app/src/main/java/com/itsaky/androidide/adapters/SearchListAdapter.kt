@@ -171,8 +171,8 @@ class SearchListAdapter(
 		replacement ?: return preview
 		val out = SpannableStringBuilder(preview)
 		val matched = match.match.replace(Regex("\\s+"), " ")
-		val start = preview.indexOf(matched)
-		if (start >= 0) {
+		val start = match.matchOffset
+		if (start >= 0 && start + matched.length <= preview.length) {
 			out.setSpan(StrikethroughSpan(), start, start + matched.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
 		}
 		val replacementStart = out.length + ARROW.length

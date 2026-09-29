@@ -7,6 +7,7 @@ data class ProjectSearchOptions(
 	val wholeWord: Boolean = false,
 	val bufferOverrides: Map<File, String> = emptyMap(),
 	val excludedDirNames: Set<String> = emptySet(),
+	val nameExclusionRoot: File? = null,
 	val excludedDirs: Set<File> = emptySet(),
 ) {
 	companion object {

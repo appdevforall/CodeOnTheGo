@@ -8,6 +8,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.PosixFileAttributeView
 
 data class FileEdit(
 	val file: File,
@@ -62,7 +63,10 @@ class ProjectReplacer(
 
 						is TextReplacement.Result.Applied -> {
 							val written = result.newText.toByteArray(Charsets.UTF_8)
-							writeAtomically(edit.file, written)
+							if (!writeAtomically(edit.file, written, expected = original)) {
+								skipped[edit.file] = SkipReason.CHANGED_SINCE_SEARCH
+								return@forEach
+							}
 							replaced.add(edit.file)
 							undo.add(DiskEntry(edit.file, original, written))
 						}
@@ -81,11 +85,10 @@ class ProjectReplacer(
 			val failed = mutableListOf<FileFailure>()
 			entries.forEach { entry ->
 				try {
-					if (!Files.readAllBytes(entry.file.toPath()).contentEquals(entry.written)) {
+					if (!writeAtomically(entry.file, entry.original, expected = entry.written)) {
 						skipped[entry.file] = SkipReason.CHANGED_SINCE_REPLACE
 						return@forEach
 					}
-					writeAtomically(entry.file, entry.original)
 					restored.add(entry.file)
 				} catch (e: IOException) {
 					failed.add(FileFailure(entry.file, e.message ?: e.javaClass.simpleName))
@@ -97,11 +100,20 @@ class ProjectReplacer(
 	private fun writeAtomically(
 		file: File,
 		bytes: ByteArray,
-	) {
+		expected: ByteArray,
+	): Boolean {
+		val target = file.toPath()
 		val temp = File.createTempFile(".${file.name}", ".replace", file.parentFile)
 		try {
 			Files.write(temp.toPath(), bytes)
-			Files.move(temp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+			if (Files.getFileAttributeView(target, PosixFileAttributeView::class.java) != null) {
+				Files.setPosixFilePermissions(temp.toPath(), Files.getPosixFilePermissions(target))
+			}
+			if (!Files.readAllBytes(target).contentEquals(expected)) {
+				return false
+			}
+			Files.move(temp.toPath(), target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+			return true
 		} finally {
 			temp.delete()
 		}

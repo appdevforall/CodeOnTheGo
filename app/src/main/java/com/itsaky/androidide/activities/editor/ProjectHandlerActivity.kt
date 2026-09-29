@@ -1041,6 +1041,7 @@ abstract class ProjectHandlerActivity :
 					bufferOverrides = openBufferSnapshots(),
 					excludedDirNames =
 						if (binding.projectFiles.isChecked) ProjectSearchOptions.PROJECT_ROOT_EXCLUDED_DIR_NAMES else emptySet(),
+					nameExclusionRoot = if (binding.projectFiles.isChecked) projectRoot else null,
 					excludedDirs = if (binding.projectFiles.isChecked) moduleDirs.toSet() else emptySet(),
 				)
 			val replacement =
@@ -1134,9 +1135,9 @@ abstract class ProjectHandlerActivity :
 	}
 
 	override fun onReplaceRequested(session: ReplaceSession) {
+		editorViewModel.onSearchResultsReady(emptyMap())
 		lifecycleScope.launch {
 			val report = replaceCoordinator.replace(session)
-			editorViewModel.onSearchResultsReady(emptyMap())
 			showReplaceReport(report, undone = false)
 		}
 	}

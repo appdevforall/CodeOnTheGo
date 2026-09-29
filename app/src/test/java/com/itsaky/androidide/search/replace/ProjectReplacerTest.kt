@@ -9,6 +9,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermissions
 
 class ProjectReplacerTest {
 	@get:Rule
@@ -91,5 +93,18 @@ class ProjectReplacerTest {
 			val undo = replacer.undoOnDisk(outcome.undo)
 			assertThat(undo.restored).containsExactly(a)
 			assertThat(a.readText()).isEqualTo("needle")
+		}
+
+	@Test
+	fun replaceAndUndoKeepPosixPermissions() =
+		runBlocking {
+			val script = write("gradlew", "needle")
+			val executable = PosixFilePermissions.fromString("rwxr-xr-x")
+			Files.setPosixFilePermissions(script.toPath(), executable)
+			val outcome = replacer.replaceOnDisk(edits("needle"), "x")
+			assertThat(Files.getPosixFilePermissions(script.toPath())).isEqualTo(executable)
+			replacer.undoOnDisk(outcome.undo)
+			assertThat(Files.getPosixFilePermissions(script.toPath())).isEqualTo(executable)
+			assertThat(script.readText()).isEqualTo("needle")
 		}
 }
