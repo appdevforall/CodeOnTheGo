@@ -138,7 +138,8 @@ private class LongPressAwareClick(
  * Extensions Manager, and "add an extension" means the same thing whichever tab you happen to be
  * looking at. The picked file is routed by extension and the matching tab is brought forward, so
  * the result is visible where it landed. The discover-plugins action stays Plugins-only: it opens
- * a plugin catalog, which has no meaning on the Templates tab.
+ * a plugin catalog, which has no meaning on the Templates tab. It's also hidden while offline
+ * (ADFA-5646), since it opens a URL with no offline fallback.
  *
  * The picker launcher lives here rather than in [PluginManagerContent] because `HorizontalPager`
  * disposes the off-screen page: a launcher owned by the Plugins page would not exist while the
@@ -222,7 +223,10 @@ fun ManagerScreen(
 					}
 				},
 				actions = {
-					if (pagerState.currentPage == TAB_PLUGINS) {
+					// Hidden rather than disabled when offline (ADFA-5646): the action opens a URL
+					// with no offline fallback, and a hidden control makes that absence self-evident
+					// instead of inviting a tap that can only fail.
+					if (pagerState.currentPage == TAB_PLUGINS && pluginUiState.isOnline) {
 						// Not an IconButton: it appends its own clickable() after this modifier, which
 						// would compete with combinedClickable's detector for the same pointer events -
 						// see rememberLongPressInteractionSource's doc. .size(48.dp) matches

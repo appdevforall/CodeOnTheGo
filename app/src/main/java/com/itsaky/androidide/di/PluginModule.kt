@@ -5,6 +5,8 @@ import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.repositories.PluginRepositoryImpl
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.repositories.TemplateCollectionRepositoryImpl
+import com.itsaky.androidide.utils.AndroidConnectivityObserver
+import com.itsaky.androidide.utils.ConnectivityObserver
 import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import org.koin.android.ext.koin.androidContext
@@ -30,12 +32,17 @@ val pluginModule =
 			TemplateCollectionRepositoryImpl()
 		}
 
+		single<ConnectivityObserver> {
+			AndroidConnectivityObserver(androidContext())
+		}
+
 		// ViewModel
 		viewModel {
 			PluginManagerViewModel(
 				pluginRepository = get(),
 				contentResolver = androidContext().contentResolver,
 				filesDir = IDEApplication.cachedFilesDir,
+				connectivityObserver = get(),
 			)
 		}
 
