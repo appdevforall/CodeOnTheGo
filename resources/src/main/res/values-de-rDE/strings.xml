@@ -26,9 +26,9 @@
   <string name="get_started">Loslegen</string>
   <string name="msg_cannot_perform_fix">Schnellkorrektur kann nicht durchgef&#xFC;hrt werden</string>
   <string name="msg_performing_actions">Korrekturen durchf&#xFC;hren&#x2026;</string>
-  <string name="msg_api_info_since">Seit API %d</string>
-  <string name="msg_api_info_removed">In API %d entfernt</string>
-  <string name="msg_api_info_deprecated">Veraltet in API %d</string>
+  <string name="msg_api_info_since">Seit API %s</string>
+  <string name="msg_api_info_removed">In API %s entfernt</string>
+  <string name="msg_api_info_deprecated">Veraltet in API %s</string>
   <string name="msg_finding_references">Referenzen finden&#x2026;</string>
   <string name="msg_finding_definition">Definition finden&#x2026;</string>
   <string name="msg_no_definition">Definition nicht gefunden</string>

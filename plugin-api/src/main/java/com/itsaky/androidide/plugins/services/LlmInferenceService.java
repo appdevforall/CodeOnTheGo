@@ -13,7 +13,7 @@ import java.util.concurrent.CompletableFuture;
  * Service for LLM inference operations. Provided by ai-core plugin.
  *
  * <p>
- * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
+ * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend}, {@link EmbeddingBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
  */
 public interface LlmInferenceService {
 
@@ -101,6 +101,9 @@ public interface LlmInferenceService {
 
 	/**
 	 * Generates embeddings for the given text.
+	 *
+	 * <p>
+	 * Addresses a backend by id and returns a bare vector, so the caller learns neither which model produced it nor how long it is, and pays one round trip per text. {@link EmbeddingBackend} carries both and takes a batch; prefer it for anything a caller stores or repeats. This method stays because plugins already built against it call it.
 	 *
 	 * @param text
 	 *            the input text to embed (must not be null)
@@ -249,6 +252,85 @@ public interface LlmInferenceService {
 		 */
 		@NonNull
 		String getSettingsFragmentClassName();
+	}
+
+	/**
+	 * An {@link LlmBackend} that turns text into vectors.
+	 *
+	 * <p>
+	 * Implementing this is the declaration, exactly as with {@link ToolCallingBackend}: a backend that has no embedding model does not implement it, and the consumer asks with {@code instanceof} before it calls. Nothing here is reachable through {@link LlmInferenceService#getEmbeddings}, which addresses a backend by id and cannot report what produced the vector it returns.
+	 *
+	 * <p>
+	 * The batch is the unit of work, not a convenience over a single-text call. Indexing a project is thousands of chunks, and one round trip per chunk against a remote provider is the difference between a feature that finishes on a phone and one that does not.
+	 *
+	 * <p>
+	 * <b>Failure contract.</b> A batch completes whole or fails whole. The returned future either yields a list the same size as {@code texts}, positionally aligned with it, or completes exceptionally; it never yields a short list, a list padded with nulls, or a list holding a placeholder vector. A caller storing the result would otherwise persist entries it cannot tell apart from real ones, and a vector that is merely plausible never reports itself as wrong -- it just stops matching.
+	 *
+	 * <p>
+	 * <b>Threading.</b> {@link #embed} may be called from any thread and must not block the calling one: start the work and return the future. Implementations must be safe for concurrent calls, because indexing and a user's query can be in flight at once. {@link #getEmbeddingModelId} and {@link #getEmbeddingDimensions} are consulted on the caller's thread, so they answer from state the backend already holds rather than performing I/O.
+	 *
+	 * <p>
+	 * <b>Errors.</b> Neither accessor throws. {@link #embed} reports every failure -- transport, authentication, rate limiting, a model that rejected an input -- by completing the future exceptionally, and throws synchronously only for a caller's own mistake, {@link NullPointerException} for a null argument or element and {@link IllegalArgumentException} for an empty list. A consumer that cannot tell a failure from a refusal to start has to guard both paths at every call site.
+	 */
+	interface EmbeddingBackend extends LlmBackend {
+
+		/**
+		 * Validates a batch against {@link #embed}'s synchronous contract and snapshots it, so every backend enforces the contract the same way. Call it first in {@code embed}, before starting any work.
+		 *
+		 * @param texts
+		 *            the batch as passed to {@link #embed}
+		 * @return a copy of {@code texts} that later caller mutations cannot reach
+		 * @throws IllegalArgumentException
+		 *             if {@code texts} is empty
+		 * @throws NullPointerException
+		 *             if {@code texts} or any element of it is null
+		 */
+		@NonNull
+		static List<String> requireValidBatch(List<String> texts) {
+			List<String> batch = new ArrayList<>(Objects.requireNonNull(texts, "texts"));
+			if (batch.isEmpty()) {
+				throw new IllegalArgumentException("texts must not be empty");
+			}
+			for (String text : batch) {
+				Objects.requireNonNull(text, "texts must not contain a null element");
+			}
+			return batch;
+		}
+
+		/**
+		 * Embeds a batch of texts in one call.
+		 *
+		 * @param texts
+		 *            the texts to embed; must not be null, must not be empty, and must contain no null element. The implementation snapshots the list before it returns, so a caller may reuse or clear its own list the moment the call comes back without disturbing the batch in flight.
+		 * @return a future yielding one vector per input, in input order, each of {@link #getEmbeddingDimensions} length -- or completed exceptionally, leaving the whole batch unproduced (never null). The caller owns the returned list and its arrays outright; the implementation must not retain or share them, for example from a cache.
+		 * @throws IllegalArgumentException
+		 *             if {@code texts} is empty
+		 * @throws NullPointerException
+		 *             if {@code texts} or any element of it is null
+		 */
+		@NonNull
+		CompletableFuture<List<float[]>> embed(@NonNull List<String> texts);
+
+		/**
+		 * Gets the number of components in every vector this backend produces.
+		 *
+		 * <p>
+		 * Constant for the lifetime of the backend instance, so a consumer may size its storage once. It is not on its own an identity: two unrelated models commonly share a width, and comparing their vectors yields a similarity that looks ordinary and means nothing. Pair it with {@link #getEmbeddingModelId} wherever provenance is recorded.
+		 *
+		 * @return the vector length, always positive
+		 */
+		int getEmbeddingDimensions();
+
+		/**
+		 * Gets the stable identifier of the model producing these vectors, for example {@code "text-embedding-3-small"}.
+		 *
+		 * <p>
+		 * This is the model's identity, not the backend's -- {@link LlmBackend#getId} names the backend, and one backend may be reconfigured onto a different model without changing it. Vectors from two different models are incomparable whether or not their widths agree, so a consumer that persists vectors records this alongside them and reindexes when it changes. Without it a model swap silently degrades every stored vector instead of invalidating it.
+		 *
+		 * @return the embedding model identifier, never empty
+		 */
+		@NonNull
+		String getEmbeddingModelId();
 	}
 
 	/**

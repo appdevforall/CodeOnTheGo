@@ -30,17 +30,17 @@ import com.itsaky.androidide.xml.registry.XmlRegistry
  * @author Akash Yadav
  */
 interface ApiVersionsRegistry : XmlRegistry<ApiVersions> {
+	companion object {
+		private var sInstance: ApiVersionsRegistry? = null
 
-  companion object {
-
-    private var sInstance: ApiVersionsRegistry? = null
-
-    /** Get the default instance of [ApiVersionsRegistry]. */
-    @JvmStatic
-    fun getInstance(): ApiVersionsRegistry {
-      val klass = ApiVersionsRegistry::class.java
-      return sInstance ?: ServiceLoader.load(klass, klass.classLoader).findFirstOrThrow()
-        .also { sInstance = it }
-    }
-  }
+		/** Get the default instance of [ApiVersionsRegistry]. */
+		@JvmStatic
+		fun getInstance(): ApiVersionsRegistry {
+			val klass = ApiVersionsRegistry::class.java
+			return sInstance ?: ServiceLoader
+				.load(klass, klass.classLoader)
+				.findFirstOrThrow()
+				.also { sInstance = it }
+		}
+	}
 }

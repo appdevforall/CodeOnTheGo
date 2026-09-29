@@ -23,9 +23,9 @@
   <string name="get_started">البدء</string>
   <string name="msg_cannot_perform_fix">غير قادر على إجراء إصلاح سريع</string>
   <string name="msg_performing_actions">تنفيذ إجراء الكود…</string>
-  <string name="msg_api_info_since">منذ API %d</string>
-  <string name="msg_api_info_removed">تمت إزالته في API %d</string>
-  <string name="msg_api_info_deprecated">تم إهماله في API %d</string>
+  <string name="msg_api_info_since">منذ API %s</string>
+  <string name="msg_api_info_removed">تمت إزالته في API %s</string>
+  <string name="msg_api_info_deprecated">تم إهماله في API %s</string>
   <string name="msg_finding_references">العثور على مراجع…</string>
   <string name="msg_finding_definition">العثور على تعريف…</string>
   <string name="msg_no_definition">التعريف غير موجود</string>

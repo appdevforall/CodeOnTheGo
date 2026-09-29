@@ -188,6 +188,41 @@
   *;
 }
 
+## Pebble templates (documentation pages, and project templates via ZipRecipeExecutor)
+# Pebble reaches a lot of itself reflectively, so R8's shrinker can gut classes a template
+# depends on. There are three mechanisms, and two of them bit us:
+#
+#  1. ExpressionParser instantiates unary operator nodes from a class literal:
+#     CoreExtension registers `new UnaryOperatorImpl("not", 500, UnaryNotExpression.class)`
+#     and the parser later calls Class.newInstance(). With no traceable `new`, R8 strips the
+#     constructor and both evaluate() overrides and marks the class abstract, so a template
+#     containing `{% if not x %}` fails to parse with "java.lang.Class<...UnaryNotExpression>
+#     cannot be instantiated" -- observed serving k/kotlin-stdlib/kotlin/apply.html.
+#  2. MemberCacheUtils resolves every template attribute by getField()/getMethods(). That is
+#     how `loop.last` reaches ForNode$LoopVariables, whose five getters nothing calls from
+#     bytecode. R8 removes them and `loop.last` evaluates to null with no error at all --
+#     wrong output rather than a crash, which is harder to notice. layout.pebble renders 3,241
+#     of the templated pages in documentation.db and uses `{%- if not loop.last %}`.
+#  3. BinaryOperatorImpl has the same Class-based constructor as (1). CoreExtension happens to
+#     register binary operators as `OrExpression::new` suppliers, which R8 traces, so nothing
+#     is broken today -- but it is public API a custom Extension can reach, and
+#     ZipRecipeExecutor loads template-supplied Extensions through ServiceLoader.
+#
+# Attribute resolution means anything a layout can name is reachable invisibly: both expression
+# hierarchies, LoopVariables and its LazyLength/LazyRevIndex values, the `template` and
+# `_context` globals (PebbleTemplateImpl and GlobalContext), and every filter, test, function
+# and node type a future template might use. Enumerating that list is how you get a fourth
+# instance of this bug, so keep the library whole instead. Measured cost against R8 8.8.34:
+# ~31 KB over keeping only the two classes we caught, ~39 KB over keeping nothing.
+-keep class io.pebbletemplates.pebble.** { *; }
+
+# The one thing the rule above cannot cover: objects *we* hand to PebbleEngine.evaluate() are
+# read by the same reflection, so a POJO or Kotlin data class in a template context needs its
+# own keep or its properties render empty. Both call sites today
+# (DocumentationContentSource.renderNamed and ZipRecipeExecutor.renderTemplateEntry) pass
+# Map<String, ...> of JDK types, which Pebble's MapResolver reads without reflection, so no
+# app class needs a rule yet. Add one here alongside any new context type.
+
 ## GlitchTip crash reporting (via the Sentry SDK; GlitchTip speaks the Sentry protocol)
 -keepattributes SourceFile,LineNumberTable
 -keep class io.sentry.** { *; }

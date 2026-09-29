@@ -26,9 +26,9 @@
   <string name="get_started">Commencer</string>
   <string name="msg_cannot_perform_fix">Impossible de lancer QuickFix</string>
   <string name="msg_performing_actions">Réglage de quelques bugs&#8230;</string>
-  <string name="msg_api_info_since">Depuis l\'API %d</string>
-  <string name="msg_api_info_removed">Supprimé depuis l\'API %d</string>
-  <string name="msg_api_info_deprecated">Obsolète depuis l\'API %d</string>
+  <string name="msg_api_info_since">Depuis l\'API %s</string>
+  <string name="msg_api_info_removed">Supprimé depuis l\'API %s</string>
+  <string name="msg_api_info_deprecated">Obsolète depuis l\'API %s</string>
   <string name="msg_finding_references">Trouve des références &#8230;</string>
   <string name="msg_finding_definition">Cherche des références &#8230;</string>
   <string name="msg_no_definition">Définition introuvable</string>
