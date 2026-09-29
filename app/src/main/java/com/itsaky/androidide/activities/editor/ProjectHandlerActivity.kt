@@ -161,20 +161,10 @@ abstract class ProjectHandlerActivity :
 				(this is ErrnoException && this.errno == OsConstants.ENOENT)
 
 	val findInProjectDialog: AlertDialog?
-		get() {
-			if (mFindInProjectDialog == null) {
-				createFindInProjectDialog()
-			}
-			return mFindInProjectDialog
-		}
+		get() = createFindInProjectDialog()
 
 	val replaceInProjectDialog: AlertDialog?
-		get() {
-			if (mReplaceInProjectDialog == null) {
-				createFindInProjectDialog(SearchMode.REPLACE)
-			}
-			return mReplaceInProjectDialog
-		}
+		get() = createFindInProjectDialog(SearchMode.REPLACE)
 
 	fun findActionDialog(actionData: ActionData): FindActionDialog {
 		val shouldHideFindInFileAction = editorViewModel.getOpenedFileCount() != 0
