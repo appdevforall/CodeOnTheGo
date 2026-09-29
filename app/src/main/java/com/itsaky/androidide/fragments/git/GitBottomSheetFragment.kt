@@ -374,7 +374,10 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 		setupPullUI()
 
-		binding.btnInitRepo.setOnClickListener { viewModel.initGitRepository() }
+		binding.btnInitRepo.apply {
+			setOnClickListener { viewModel.initGitRepository() }
+			setTooltipOnView(TooltipTag.INIT_GIT_REPO)
+		}
 	}
 
 	override fun onResume() {
