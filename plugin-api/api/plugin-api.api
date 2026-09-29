@@ -1481,6 +1481,10 @@ public final class com/itsaky/androidide/plugins/services/IdeFileService$Default
 	public static synthetic fun listFiles$default (Lcom/itsaky/androidide/plugins/services/IdeFileService;Ljava/io/File;ZILjava/lang/Object;)Ljava/util/List;
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/IdeLogService {
+	public abstract fun readLogs (Lcom/itsaky/androidide/plugins/services/LogSource;Lcom/itsaky/androidide/plugins/services/LogQuery;)Lcom/itsaky/androidide/plugins/services/LogReadResult;
+}
+
 public abstract interface class com/itsaky/androidide/plugins/services/IdeProjectManipulationService {
 	public abstract fun addDependency (Ljava/lang/String;Ljava/lang/String;)Z
 	public abstract fun addStringResource (Ljava/lang/String;Ljava/lang/String;)Z
@@ -1684,6 +1688,83 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun onError (Ljava/lang/String;)V
 	public abstract fun onToken (Ljava/lang/String;)V
 	public abstract fun onToolCall (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallRequest;)V
+}
+
+public final class com/itsaky/androidide/plugins/services/LogEntry {
+	public fun <init> (Lcom/itsaky/androidide/plugins/services/LogLevel;Ljava/lang/String;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/services/LogLevel;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Lcom/itsaky/androidide/plugins/services/LogLevel;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LogEntry;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/LogEntry;Lcom/itsaky/androidide/plugins/services/LogLevel;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/LogEntry;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLevel ()Lcom/itsaky/androidide/plugins/services/LogLevel;
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/LogLevel : java/lang/Enum {
+	public static final field DEBUG Lcom/itsaky/androidide/plugins/services/LogLevel;
+	public static final field ERROR Lcom/itsaky/androidide/plugins/services/LogLevel;
+	public static final field INFO Lcom/itsaky/androidide/plugins/services/LogLevel;
+	public static final field VERBOSE Lcom/itsaky/androidide/plugins/services/LogLevel;
+	public static final field WARNING Lcom/itsaky/androidide/plugins/services/LogLevel;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LogLevel;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/services/LogLevel;
+}
+
+public final class com/itsaky/androidide/plugins/services/LogQuery {
+	public static final field Companion Lcom/itsaky/androidide/plugins/services/LogQuery$Companion;
+	public static final field DEFAULT_MAX_LINES I
+	public static final field MAX_CHARS I
+	public static final field MAX_LINES I
+	public fun <init> ()V
+	public fun <init> (Ljava/util/Set;)V
+	public fun <init> (Ljava/util/Set;Ljava/lang/String;)V
+	public fun <init> (Ljava/util/Set;Ljava/lang/String;I)V
+	public synthetic fun <init> (Ljava/util/Set;Ljava/lang/String;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/Set;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun copy (Ljava/util/Set;Ljava/lang/String;I)Lcom/itsaky/androidide/plugins/services/LogQuery;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/LogQuery;Ljava/util/Set;Ljava/lang/String;IILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/LogQuery;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEffectiveMaxLines ()I
+	public final fun getLevels ()Ljava/util/Set;
+	public final fun getMaxLines ()I
+	public final fun getText ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/LogQuery$Companion {
+}
+
+public final class com/itsaky/androidide/plugins/services/LogReadResult {
+	public static final field Companion Lcom/itsaky/androidide/plugins/services/LogReadResult$Companion;
+	public static final field EMPTY Lcom/itsaky/androidide/plugins/services/LogReadResult;
+	public fun <init> (Ljava/util/List;Z)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()Z
+	public final fun copy (Ljava/util/List;Z)Lcom/itsaky/androidide/plugins/services/LogReadResult;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/LogReadResult;Ljava/util/List;ZILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/LogReadResult;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEntries ()Ljava/util/List;
+	public final fun getTruncated ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/LogReadResult$Companion {
+}
+
+public final class com/itsaky/androidide/plugins/services/LogSource : java/lang/Enum {
+	public static final field APP Lcom/itsaky/androidide/plugins/services/LogSource;
+	public static final field IDE Lcom/itsaky/androidide/plugins/services/LogSource;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LogSource;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/services/LogSource;
 }
 
 public final class com/itsaky/androidide/plugins/services/ModuleContext {
