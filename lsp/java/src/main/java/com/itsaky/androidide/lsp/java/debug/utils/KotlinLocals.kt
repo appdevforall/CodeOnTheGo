@@ -6,6 +6,8 @@ import org.jetbrains.kotlin.codegen.coroutines.CONTINUATION_VARIABLE_NAME
 import org.jetbrains.kotlin.codegen.coroutines.SUSPEND_CALL_RESULT_NAME
 import org.jetbrains.kotlin.codegen.coroutines.SUSPEND_FUNCTION_COMPLETION_PARAMETER_NAME
 import org.jetbrains.kotlin.codegen.inline.INLINE_FUN_VAR_SUFFIX
+import org.jetbrains.kotlin.codegen.inline.INLINE_SCOPE_NUMBER_SEPARATOR
+import org.jetbrains.kotlin.load.java.JvmAbi.LOCAL_VARIABLE_NAME_PREFIX_INLINE_ARGUMENT
 
 /**
  * The inline marker prefix. The compiler writes this literal itself and exports no constant for it,
@@ -60,3 +62,25 @@ fun isSyntheticKotlinLocal(name: String): Boolean =
 private fun isDeclarationSiteReceiver(name: String): Boolean =
 	name == INLINE_DECLARATION_SITE_THIS ||
 		name.startsWith(INLINE_DECLARATION_SITE_THIS + INLINE_FUN_VAR_SUFFIX)
+
+fun kotlinLambdaScopes(names: List<String>): Set<Int> =
+	names
+		.filter { it.startsWith(LOCAL_VARIABLE_NAME_PREFIX_INLINE_ARGUMENT) }
+		.mapNotNullTo(mutableSetOf()) { marker ->
+			marker
+				.split(INLINE_SCOPE_NUMBER_SEPARATOR)
+				.getOrNull(1)
+				?.toIntOrNull()
+		}
+
+fun kotlinDisplayName(
+	name: String,
+	lambdaScopes: Set<Int>,
+): String {
+	val parts = name.split(INLINE_SCOPE_NUMBER_SEPARATOR)
+	if (parts.size != 2 || parts[0].isEmpty()) {
+		return name
+	}
+	val scope = parts[1].toIntOrNull() ?: return name
+	return if (scope in lambdaScopes) parts[0] else name
+}

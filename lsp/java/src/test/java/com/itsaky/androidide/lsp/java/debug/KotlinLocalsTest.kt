@@ -18,9 +18,37 @@ package com.itsaky.androidide.lsp.java.debug
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.java.debug.utils.isSyntheticKotlinLocal
+import com.itsaky.androidide.lsp.java.debug.utils.kotlinDisplayName
+import com.itsaky.androidide.lsp.java.debug.utils.kotlinLambdaScopes
 import org.junit.Test
 
 class KotlinLocalsTest {
+	private val greetAllLocals =
+		listOf(
+			"\$i\$a\$-map-Greeter\$greetAll\$1\\3\\62\\0",
+			"greeting\\3",
+			"each\\3",
+			"item\\2",
+			"\$i\$f\$mapTo\\2\\60",
+			"\$this\$mapTo\\2",
+			"destination\\2",
+			"\$i\$f\$map\\1\\27",
+			"\$this\$map\\1",
+			"this",
+			"names",
+		)
+
+	private val timedLocals =
+		listOf(
+			"\$i\$a\$-measured-Greeter\$timed\$1\\2\\65\\0",
+			"doubled\\2",
+			"\$i\$f\$measured\\1\\33",
+			"started\\1",
+			"result\\1",
+			"label\\1",
+			"this",
+		)
+
 	@Test
 	fun `inline markers are synthetic`() {
 		assertThat(isSyntheticKotlinLocal("\$i\$f\$Column")).isTrue()
@@ -82,6 +110,46 @@ class KotlinLocalsTest {
 	fun `a user local that merely starts with this_ is kept`() {
 		assertThat(isSyntheticKotlinLocal("this_count")).isFalse()
 		assertThat(isSyntheticKotlinLocal("this_thing")).isFalse()
+	}
+
+	@Test
+	fun `scope-numbered inline markers are synthetic`() {
+		assertThat(isSyntheticKotlinLocal("\$i\$a\$-map-Greeter\$greetAll\$1\\3\\62\\0")).isTrue()
+		assertThat(isSyntheticKotlinLocal("\$i\$f\$mapTo\\2\\60")).isTrue()
+		assertThat(isSyntheticKotlinLocal("\$this\$mapTo\\2")).isTrue()
+	}
+
+	@Test
+	fun `lambda scopes come only from inline lambda markers`() {
+		assertThat(kotlinLambdaScopes(greetAllLocals)).containsExactly(3)
+		assertThat(kotlinLambdaScopes(timedLocals)).containsExactly(2)
+		assertThat(kotlinLambdaScopes(listOf("savedInstanceState", "this"))).isEmpty()
+	}
+
+	@Test
+	fun `a local in the user's inlined lambda shows its source name`() {
+		val scopes = kotlinLambdaScopes(greetAllLocals)
+		assertThat(kotlinDisplayName("each\\3", scopes)).isEqualTo("each")
+		assertThat(kotlinDisplayName("greeting\\3", scopes)).isEqualTo("greeting")
+		assertThat(kotlinDisplayName("doubled\\2", kotlinLambdaScopes(timedLocals))).isEqualTo("doubled")
+	}
+
+	@Test
+	fun `a local of an inlined function body keeps its scope number`() {
+		val scopes = kotlinLambdaScopes(greetAllLocals)
+		assertThat(kotlinDisplayName("item\\2", scopes)).isEqualTo("item\\2")
+		assertThat(kotlinDisplayName("destination\\2", scopes)).isEqualTo("destination\\2")
+		assertThat(kotlinDisplayName("started\\1", kotlinLambdaScopes(timedLocals))).isEqualTo("started\\1")
+	}
+
+	@Test
+	fun `names without a single scope number are unchanged`() {
+		val scopes = setOf(1, 2, 3)
+		assertThat(kotlinDisplayName("names", scopes)).isEqualTo("names")
+		assertThat(kotlinDisplayName("this", scopes)).isEqualTo("this")
+		assertThat(kotlinDisplayName("item\$iv\$iv", scopes)).isEqualTo("item\$iv\$iv")
+		assertThat(kotlinDisplayName("x\\3\\1", scopes)).isEqualTo("x\\3\\1")
+		assertThat(kotlinDisplayName("\\3", scopes)).isEqualTo("\\3")
 	}
 
 	@Test

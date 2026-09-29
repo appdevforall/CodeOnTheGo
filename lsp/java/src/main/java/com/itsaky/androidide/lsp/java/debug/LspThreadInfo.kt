@@ -10,6 +10,8 @@ import com.itsaky.androidide.lsp.debug.model.Variable
 import com.itsaky.androidide.lsp.debug.model.VariableKind
 import com.itsaky.androidide.lsp.java.debug.utils.isOpaque
 import com.itsaky.androidide.lsp.java.debug.utils.isSyntheticKotlinLocal
+import com.itsaky.androidide.lsp.java.debug.utils.kotlinDisplayName
+import com.itsaky.androidide.lsp.java.debug.utils.kotlinLambdaScopes
 import com.itsaky.androidide.lsp.java.debug.utils.lineNumberInKotlin
 import com.itsaky.androidide.lsp.java.debug.utils.sourceNameInKotlinOrNull
 import com.sun.jdi.Location
@@ -103,7 +105,9 @@ class JavaStackFrame(
 						}
 
 						try {
-							visibleVariables()
+							val locals = visibleVariables()
+							val lambdaScopes = kotlinLambdaScopes(locals?.map { it.name() }.orEmpty())
+							locals
 								?.mapNotNull { variable ->
 									if (variable.name().isBlank()) {
 										// some opaque frames in core Android classes have empty variable names (like in ZygoteInit)
@@ -120,6 +124,7 @@ class JavaStackFrame(
 											stackFrame = this@JavaStackFrame,
 											variable = variable,
 											value = getValue(variable),
+											name = kotlinDisplayName(variable.name(), lambdaScopes),
 										)
 									} catch (e: VMDisconnectedException) {
 										throw e
