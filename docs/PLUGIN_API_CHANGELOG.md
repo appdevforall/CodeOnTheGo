@@ -44,10 +44,12 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `LogQuery` filters as the tab's filter bar does: `levels` (empty = all; a line with no
   known level always passes), `text` (case-insensitive substring of the rendered line, tag
   included), and `maxLines` (default 200, clamped to `1..1000`). A result is also capped at
-  `LogQuery.MAX_CHARS` (128 KiB), dropping the oldest lines first; `truncated` says whether
-  either bound left matching lines out. With no editor open or no log yet, the read returns
+  `LogQuery.MAX_CHARS` (131072 UTF-16 chars of line content, terminators not counted),
+  dropping the oldest lines first; `truncated` says whether either bound left matching
+  lines out. With no editor open or no log yet, the read returns
   `LogReadResult.EMPTY`, never a throw. The service has no clear or write method, and needs
-  no permission. Purely additive (the ABI dump diff is additions only). Floor
+  no permission: plugins run in-process under the IDE's uid, so a gate would disclose log
+  access, not enforce it. Purely additive (the ABI dump diff is additions only). Floor
   `plugin.min_ide_version` at `26.40` to use it; an older IDE has no such service.
 - **added — An embedding capability a backend can declare** _(ADFA-6053)_ **[verified]**
   A backend that has an embedding model can now say so. The only embedding entry point

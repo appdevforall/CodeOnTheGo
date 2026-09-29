@@ -64,8 +64,9 @@ data class LogQuery
 			const val MAX_LINES = 1000
 
 			/**
-			 * Upper bound on the characters in one result, whatever [maxLines] allows: a
-			 * thousand stack-trace lines would otherwise be one very large string.
+			 * Upper bound on the UTF-16 chars of line content in one result (terminators not
+			 * counted), whatever [maxLines] allows: a thousand stack-trace lines would otherwise
+			 * be one very large string.
 			 */
 			const val MAX_CHARS = 128 * 1024
 		}

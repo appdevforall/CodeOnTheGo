@@ -75,9 +75,7 @@ object LogsProvider {
 		maxChars: Int,
 	): LogReadResult {
 		require(maxChars > 0) { "maxChars must be positive" }
-		if (entries.isEmpty()) {
-			return if (truncated) LogReadResult(emptyList(), truncated = true) else LogReadResult.EMPTY
-		}
+		if (entries.isEmpty()) return LogReadResult.EMPTY
 		var start = entries.size
 		var total = 0
 		while (start > 0) {
@@ -88,8 +86,11 @@ object LogsProvider {
 		}
 		if (start == entries.size) {
 			val newest = entries.last()
+			val text = newest.text.stripLineEnd()
+			// Back off one char rather than leave a lone high surrogate at the cut.
+			val end = if (Character.isHighSurrogate(text[maxChars - 1])) maxChars - 1 else maxChars
 			return LogReadResult(
-				listOf(LogEntry(newest.level?.toPluginLevel(), newest.text.stripLineEnd().take(maxChars))),
+				listOf(LogEntry(newest.level?.toPluginLevel(), text.substring(0, end))),
 				truncated = true,
 			)
 		}

@@ -129,6 +129,14 @@ class LogsProviderTest {
 	}
 
 	@Test
+	fun `char bound does not split a surrogate pair`() {
+		val result = LogsProvider.boundToChars(listOf(entry("ab\uD83D\uDE00c")), truncated = false, maxChars = 3)
+
+		assertThat(result.entries.single().text).isEqualTo("ab")
+		assertThat(result.truncated).isTrue()
+	}
+
+	@Test
 	fun `char bound strips CRLF as well as LF and counts neither`() {
 		val entries = listOf(LogBuffer.Entry(++seq, ILogger.Level.INFO, "aaaa\r\n"), entry("bbbb"))
 
