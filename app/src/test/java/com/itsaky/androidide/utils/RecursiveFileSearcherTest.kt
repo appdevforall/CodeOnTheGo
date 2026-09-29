@@ -5,6 +5,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
 
 class RecursiveFileSearcherTest {
 	@get:Rule
@@ -92,6 +93,38 @@ class RecursiveFileSearcherTest {
 			)
 		val result = search("needle", dirs = listOf(File(module, "src"), tmp.root), options = options)
 		assertThat(result.keys).containsExactly(inBuildPackage)
+	}
+
+	@Test
+	fun moduleBuildScriptsAreSearchedWhenOnlyModuleSourcesAreExcluded() {
+		val moduleSrc = File(tmp.root, "app/src")
+		val inSrc = write("app/src/main/A.java", "needle")
+		val moduleScript = write("app/build.gradle.kts", "needle")
+		write("app/build/gen/B.java", "needle")
+		val rootScript = write("build.gradle.kts", "needle")
+		val options =
+			ProjectSearchOptions(
+				excludedDirNames = ProjectSearchOptions.PROJECT_ROOT_EXCLUDED_DIR_NAMES,
+				nameExclusionRoot = tmp.root,
+				excludedDirs = setOf(moduleSrc),
+			)
+		val result = search("needle", dirs = listOf(moduleSrc, tmp.root), options = options)
+		assertThat(result.keys).containsExactly(inSrc, moduleScript, rootScript)
+	}
+
+	@Test
+	fun symlinksAreNotFollowed() {
+		val outside = TemporaryFolder().apply { create() }
+		try {
+			File(outside.root, "Outside.java").writeText("needle")
+			val kept = write("a/A.java", "needle")
+			Files.createSymbolicLink(File(tmp.root, "linked").toPath(), outside.root.toPath())
+			Files.createSymbolicLink(File(tmp.root, "a/loop").toPath(), tmp.root.toPath())
+			Files.createSymbolicLink(File(tmp.root, "a/Linked.java").toPath(), File(outside.root, "Outside.java").toPath())
+			assertThat(search("needle").keys).containsExactly(kept)
+		} finally {
+			outside.delete()
+		}
 	}
 
 	@Test

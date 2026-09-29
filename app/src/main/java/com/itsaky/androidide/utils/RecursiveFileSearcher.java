@@ -27,6 +27,7 @@ import io.github.rosemoe.sora.text.CharPosition;
 import io.github.rosemoe.sora.text.Content;
 import java.io.File;
 import java.io.FileFilter;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -129,6 +130,9 @@ public class RecursiveFileSearcher {
 			return;
 		}
 		for (File child : children) {
+			if (Files.isSymbolicLink(child.toPath())) {
+				continue;
+			}
 			if (child.isDirectory()) {
 				if (excludedNames.contains(child.getName()) || excludedDirs.contains(child.getAbsoluteFile())) {
 					continue;

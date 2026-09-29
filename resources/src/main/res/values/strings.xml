@@ -254,6 +254,7 @@
 	<string name="msg_replace_done">Replaced %1$d in %2$d file(s)</string>
 	<string name="msg_replace_done_with_issues">Replaced %1$d in %2$d file(s), %3$d skipped, %4$d failed</string>
 	<string name="msg_replace_undone">Restored %1$d file(s)</string>
+	<string name="msg_replace_busy">A replace is still running</string>
 	<string name="title_replace_report">Some files were not changed</string>
 	<string name="reason_changed_since_search">changed since search, search again</string>
 	<string name="reason_changed_since_replace">changed since replace</string>

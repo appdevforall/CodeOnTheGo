@@ -27,6 +27,9 @@ class ReplaceCoordinator(
 	private var pendingTabs: List<TabEntry> = emptyList()
 	private var pendingDisk: List<DiskEntry> = emptyList()
 
+	var isBusy: Boolean = false
+		private set
+
 	val canUndo: Boolean
 		get() = pendingTabs.isNotEmpty() || pendingDisk.isNotEmpty()
 
@@ -35,7 +38,21 @@ class ReplaceCoordinator(
 		pendingDisk = emptyList()
 	}
 
-	suspend fun replace(session: ReplaceSession): Report {
+	suspend fun replace(session: ReplaceSession): Report = exclusive { replaceExclusively(session) }
+
+	suspend fun undo(): Report = exclusive { undoExclusively() }
+
+	private suspend fun exclusive(block: suspend () -> Report): Report {
+		check(!isBusy) { "A replace or undo is already running" }
+		isBusy = true
+		try {
+			return block()
+		} finally {
+			isBusy = false
+		}
+	}
+
+	private suspend fun replaceExclusively(session: ReplaceSession): Report {
 		discardUndo()
 		val skipped = linkedMapOf<File, SkipReason>()
 		val tabs = mutableListOf<TabEntry>()
@@ -69,7 +86,7 @@ class ReplaceCoordinator(
 		return Report(replacedMatches, tabs.map { it.file } + disk.replaced, skipped, disk.failed)
 	}
 
-	suspend fun undo(): Report {
+	private suspend fun undoExclusively(): Report {
 		val skipped = linkedMapOf<File, SkipReason>()
 		val restoredTabs = mutableListOf<File>()
 		pendingTabs.forEach { entry ->
@@ -89,17 +106,18 @@ class ReplaceCoordinator(
 				}
 			}
 		}
-		val stillClosed = mutableListOf<DiskEntry>()
+		val toRestore = mutableListOf<DiskEntry>()
+		val reopened = mutableListOf<Pair<DiskEntry, IDEEditor>>()
 		pendingDisk.forEach { entry ->
 			val editor = editorFor(entry.file)
 			when (OpenTabUndo.decide(editor?.text?.toString(), String(entry.written, Charsets.UTF_8))) {
 				OpenTabUndo.Decision.CLOSED -> {
-					stillClosed.add(entry)
+					toRestore.add(entry)
 				}
 
 				OpenTabUndo.Decision.RESTORE -> {
-					replaceAll(editor!!.text, String(entry.original, Charsets.UTF_8))
-					restoredTabs.add(entry.file)
+					toRestore.add(entry)
+					reopened.add(entry to editor!!)
 				}
 
 				OpenTabUndo.Decision.CHANGED -> {
@@ -107,7 +125,13 @@ class ReplaceCoordinator(
 				}
 			}
 		}
-		val disk = replacer.undoOnDisk(stillClosed)
+		val disk = replacer.undoOnDisk(toRestore)
+		reopened
+			.filter { (entry, _) -> entry.file in disk.restored }
+			.forEach { (entry, editor) ->
+				replaceAll(editor.text, String(entry.original, Charsets.UTF_8))
+				editor.markUnmodified()
+			}
 		skipped.putAll(disk.skipped)
 		disk.restored.forEach { EventBus.getDefault().post(FileContentChangedEvent(it)) }
 		discardUndo()

@@ -103,7 +103,7 @@ class ProjectReplacer(
 		expected: ByteArray,
 	): Boolean {
 		val target = file.toPath()
-		val temp = File.createTempFile(".${file.name}", ".replace", file.parentFile)
+		val temp = File.createTempFile(".${file.name}.", ".replace", file.parentFile)
 		try {
 			Files.write(temp.toPath(), bytes)
 			if (Files.getFileAttributeView(target, PosixFileAttributeView::class.java) != null) {

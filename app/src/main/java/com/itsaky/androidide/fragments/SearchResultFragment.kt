@@ -130,8 +130,7 @@ class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
 			)
 		bar.replace.isEnabled = session.includedCount > 0
 		bar.replace.setOnClickListener { button ->
-			button.isEnabled = false
-			(activity as? ReplaceHost)?.onReplaceRequested(session)
+			button.isEnabled = (activity as? ReplaceHost)?.onReplaceRequested(session) != true
 		}
 		bar.cancel.setOnClickListener { editorViewModel.clearReplaceSession() }
 	}

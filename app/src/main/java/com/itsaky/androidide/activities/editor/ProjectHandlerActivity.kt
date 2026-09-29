@@ -151,6 +151,7 @@ abstract class ProjectHandlerActivity :
 	protected var mReplaceInProjectDialog: AlertDialog? = null
 	private val replaceCoordinator by lazy { ReplaceCoordinator(editorFor = { file -> getEditorForFile(file)?.editor }) }
 	protected var syncNotificationFlashbar: Flashbar? = null
+	private var replaceReportFlashbar: Flashbar? = null
 
 	private val buildViewModel by viewModels<BuildViewModel>()
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
@@ -414,7 +415,7 @@ abstract class ProjectHandlerActivity :
 	override fun preDestroy() {
 		syncNotificationFlashbar?.dismiss()
 		syncNotificationFlashbar = null
-		replaceCoordinator.discardUndo()
+		discardReplaceUndo()
 
 		if (didCompleteLiveOnCreate && isDestroying) {
 			releaseServerListener()
@@ -1032,14 +1033,14 @@ abstract class ProjectHandlerActivity :
 					excludedDirNames =
 						if (binding.projectFiles.isChecked) ProjectSearchOptions.PROJECT_ROOT_EXCLUDED_DIR_NAMES else emptySet(),
 					nameExclusionRoot = if (binding.projectFiles.isChecked) projectRoot else null,
-					excludedDirs = if (binding.projectFiles.isChecked) moduleDirs.toSet() else emptySet(),
+					excludedDirs = if (binding.projectFiles.isChecked) moduleDirs.map { File(it, "src") }.toSet() else emptySet(),
 				)
 			val replacement =
 				binding.replacement.editText!!
 					.text
 					.toString()
 			dialog.dismiss()
-			replaceCoordinator.discardUndo()
+			discardReplaceUndo()
 
 			getProgressSheet(string.msg_searching_project)?.apply {
 				show(supportFragmentManager, "search_in_project_progress")
@@ -1124,12 +1125,23 @@ abstract class ProjectHandlerActivity :
 		}
 	}
 
-	override fun onReplaceRequested(session: ReplaceSession) {
+	override fun onReplaceRequested(session: ReplaceSession): Boolean {
+		if (replaceCoordinator.isBusy) {
+			flashError(string.msg_replace_busy)
+			return false
+		}
 		editorViewModel.onSearchResultsReady(emptyMap())
 		lifecycleScope.launch {
 			val report = replaceCoordinator.replace(session)
 			showReplaceReport(report, undone = false)
 		}
+		return true
+	}
+
+	private fun discardReplaceUndo() {
+		replaceReportFlashbar?.dismiss()
+		replaceReportFlashbar = null
+		replaceCoordinator.discardUndo()
 	}
 
 	private fun showReplaceReport(
@@ -1163,18 +1175,23 @@ abstract class ProjectHandlerActivity :
 			builder
 				.positiveActionText(string.undo)
 				.positiveActionTapListener { bar ->
+					if (replaceCoordinator.isBusy) {
+						flashError(string.msg_replace_busy)
+						return@positiveActionTapListener
+					}
 					bar.dismiss()
+					replaceReportFlashbar = null
 					lifecycleScope.launch {
 						val undoReport = replaceCoordinator.undo()
 						showReplaceReport(undoReport, undone = true)
 					}
 				}.negativeActionText(android.R.string.ok)
-				.negativeActionTapListener { bar ->
-					bar.dismiss()
-					replaceCoordinator.discardUndo()
+				.negativeActionTapListener { _ ->
+					discardReplaceUndo()
 				}
 		}
-		builder.build().showOnUiThread()
+		replaceReportFlashbar?.dismiss()
+		replaceReportFlashbar = builder.build().also { it.showOnUiThread() }
 		if (issues > 0) {
 			showReplaceIssues(report)
 		}

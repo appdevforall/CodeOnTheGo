@@ -96,6 +96,18 @@ class ProjectReplacerTest {
 		}
 
 	@Test
+	fun oneCharacterFileNameCanBeReplacedAndUndone() =
+		runBlocking {
+			val x = write("x", "needle")
+			val outcome = replacer.replaceOnDisk(edits("needle"), "pin")
+			assertThat(outcome.replaced).containsExactly(x)
+			assertThat(x.readText()).isEqualTo("pin")
+			val undo = replacer.undoOnDisk(outcome.undo)
+			assertThat(undo.restored).containsExactly(x)
+			assertThat(x.readText()).isEqualTo("needle")
+		}
+
+	@Test
 	fun replaceAndUndoKeepPosixPermissions() =
 		runBlocking {
 			val script = write("gradlew", "needle")

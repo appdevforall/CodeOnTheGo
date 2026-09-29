@@ -15,7 +15,7 @@ fun SearchResult.key(): MatchKey = MatchKey(file, start.line, start.column)
 enum class FileCheckState { ALL, SOME, NONE }
 
 interface ReplaceHost {
-	fun onReplaceRequested(session: ReplaceSession)
+	fun onReplaceRequested(session: ReplaceSession): Boolean
 }
 
 data class ReplaceSession(
