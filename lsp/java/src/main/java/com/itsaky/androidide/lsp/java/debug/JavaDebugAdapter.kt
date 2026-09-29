@@ -28,10 +28,14 @@ import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
+import com.itsaky.androidide.lsp.java.debug.utils.inlineCallSiteLineOrNull
+import com.itsaky.androidide.lsp.java.debug.utils.isKotlinSource
+import com.itsaky.androidide.lsp.java.debug.utils.kotlinBinaryNamesOf
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.utils.withStopWatch
 import com.sun.jdi.Bootstrap
+import com.sun.jdi.Location
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VMDisconnectedException
 import com.sun.jdi.VirtualMachine
@@ -87,7 +91,19 @@ internal class JavaDebugAdapter :
 				"jdk.*",
 				"com.sun.*",
 				"sun.*",
+				"kotlin.*",
+				"kotlinx.*",
 			)
+
+		/**
+		 * The most silent steps taken to leave one inlined body, after which the thread stops where
+		 * it is. A bound is needed because an inlined body's length is the callee's, not the
+		 * caller's, and a pathological one would otherwise hold the UI.
+		 */
+		private const val MAX_INLINE_STEPS = 64
+
+		/** Key for the silent-step budget carried on a continuation [StepRequest]. */
+		private const val INLINE_STEP_BUDGET = "inlineStepBudget"
 
 		/**
 		 * Get the current instance of the [JavaDebugAdapter].
@@ -146,7 +162,7 @@ internal class JavaDebugAdapter :
 
 		_listenerState?.invalidate()
 		listenerThread?.interrupt()
-		
+
 		_listenerState =
 			ListenerState(
 				client = client,
@@ -154,19 +170,20 @@ internal class JavaDebugAdapter :
 				args = args,
 			)
 
-		val failure = withContext(Dispatchers.IO) {
-			try {
-				logger.debug("startListening")
-				listenerState.startListening()
-				null
-			} catch (e: Throwable) {
-				if (e is CancellationException) {
-					throw e
+		val failure =
+			withContext(Dispatchers.IO) {
+				try {
+					logger.debug("startListening")
+					listenerState.startListening()
+					null
+				} catch (e: Throwable) {
+					if (e is CancellationException) {
+						throw e
+					}
+					logger.error("Failed to listen for incoming JDWP connections", e)
+					return@withContext DebugClientConnectionResult.Failure(cause = e)
 				}
-				logger.error("Failed to listen for incoming JDWP connections", e)
-				return@withContext DebugClientConnectionResult.Failure(cause = e)
 			}
-		}
 
 		if (failure != null) {
 			return failure
@@ -328,7 +345,9 @@ internal class JavaDebugAdapter :
 
 			allSpecs.forEach { spec ->
 				try {
-					spec.remove(vm.vm)
+					// delete() removes the spec from the list as well as retiring its requests;
+					// remove() alone leaves it in requestSpecs, which only ever grew.
+					specList.delete(spec)
 				} catch (e: Throwable) {
 					logger.error("failed to remove breakpoint {}", spec)
 				}
@@ -338,42 +357,51 @@ internal class JavaDebugAdapter :
 				request.breakpoints.map { breakpoint ->
 					logger.debug("add breakpoint {}", breakpoint)
 
-					val qualifiedName =
-						ProjectManagerImpl
-							.getInstance()
-							.workspace
-							?.subProjects
-							?.filterIsInstance<ModuleProject>()
-							?.firstNotNullOfOrNull { module ->
-								module.compileJavaSourceClasses
-									.findSource(Paths.get(breakpoint.source.path))
-									?.qualifiedName
-							}
+					val sourcePath = Paths.get(breakpoint.source.path)
+					val qualifiedNames =
+						if (isKotlinSource(breakpoint.source.path)) {
+							kotlinBinaryNamesOf(sourcePath)
+						} else {
+							ProjectManagerImpl
+								.getInstance()
+								.workspace
+								?.subProjects
+								?.filterIsInstance<ModuleProject>()
+								?.firstNotNullOfOrNull { module ->
+									module.compileJavaSourceClasses
+										.findSource(sourcePath)
+										?.qualifiedName
+								}?.let(::listOf) ?: emptyList()
+						}
 
-					logger.debug("qualified name: {}", qualifiedName)
+					logger.debug("qualified names: {}", qualifiedNames)
 
 					val spec =
 						when (breakpoint) {
-							is PositionalBreakpoint ->
+							is PositionalBreakpoint -> {
 								specList.createBreakpoint(
 									source = breakpoint.source,
 									// +1 because we receive 0-indexed line numbers from the IDE
 									// while JDI expects 1-index line numbers
 									lineNumber = breakpoint.line + 1,
-									qualifiedName = qualifiedName,
+									qualifiedNames = qualifiedNames,
 									suspendPolicy = breakpoint.suspendPolicy.asJdiInt(),
 								)
+							}
 
-							is MethodBreakpoint ->
+							is MethodBreakpoint -> {
 								specList.createBreakpoint(
 									source = breakpoint.source,
 									methodId = breakpoint.methodId,
 									methodArgs = breakpoint.methodArgs,
-									qualifiedName = qualifiedName,
+									qualifiedNames = qualifiedNames,
 									suspendPolicy = breakpoint.suspendPolicy.asJdiInt(),
 								)
+							}
 
-							else -> throw IllegalArgumentException("Unsupported breakpoint type: $breakpoint")
+							else -> {
+								throw IllegalArgumentException("Unsupported breakpoint type: $breakpoint")
+							}
 						}
 
 					val result =
@@ -385,19 +413,23 @@ internal class JavaDebugAdapter :
 					val resolveSuccess = result.getOrDefault(false)
 
 					when {
-						resolveSuccess && spec.isResolved ->
+						resolveSuccess && spec.isResolved -> {
 							BreakpointResult.Success(
 								breakpoint,
 								false,
 							)
+						}
 
-						resolveSuccess && !spec.isResolved ->
+						resolveSuccess && !spec.isResolved -> {
 							BreakpointResult.Success(
 								breakpoint,
 								true,
 							)
+						}
 
-						else -> BreakpointResult.Failure(breakpoint, failure)
+						else -> {
+							BreakpointResult.Failure(breakpoint, failure)
+						}
 					}
 				},
 			)
@@ -432,22 +464,15 @@ internal class JavaDebugAdapter :
 
 			logger.debug("Step {} thread {}", request.type, suspendedThread.thread.name())
 
-			clearPreviousStep(vm.vm, suspendedThread.thread)
-
-			val reqMgr = vm.vm.eventRequestManager()
 			val req =
-				reqMgr.createStepRequest(
-					suspendedThread.thread,
-					StepRequest.STEP_LINE,
-					request.type.asDepthInt(),
+				createStepRequest(
+					vm = vm.vm,
+					thread = suspendedThread.thread,
+					depth = request.type.asDepthInt(),
+					suspendPolicy = EventRequest.SUSPEND_ALL,
+					countFilter = request.countFilter,
 				)
 
-			for (pattern in DEFAULT_CLASS_EXCLUSION_FILTERS) {
-				req.addClassExclusionFilter(pattern)
-			}
-
-			req.setSuspendPolicy(EventRequest.SUSPEND_ALL)
-			req.addCountFilter(request.countFilter)
 			req.enable()
 			suspendedThread.thread.resume()
 			vm.threadState.invalidateAll()
@@ -499,6 +524,31 @@ internal class JavaDebugAdapter :
 			}
 		}
 
+	private fun createStepRequest(
+		vm: VirtualMachine,
+		thread: ThreadReference,
+		depth: Int,
+		suspendPolicy: Int,
+		countFilter: Int,
+	): StepRequest {
+		clearPreviousStep(vm, thread)
+
+		val req =
+			vm.eventRequestManager().createStepRequest(
+				thread,
+				StepRequest.STEP_LINE,
+				depth,
+			)
+
+		for (pattern in DEFAULT_CLASS_EXCLUSION_FILTERS) {
+			req.addClassExclusionFilter(pattern)
+		}
+
+		req.setSuspendPolicy(suspendPolicy)
+		req.addCountFilter(countFilter)
+		return req
+	}
+
 	private fun clearPreviousStep(
 		vm: VirtualMachine,
 		thread: ThreadReference,
@@ -536,13 +586,17 @@ internal class JavaDebugAdapter :
 		)
 	}
 
-	override fun stepEvent(e: StepEvent) {
+	override fun stepEvent(e: StepEvent): Boolean {
 		logger.debug("stepEvent: {}", e)
 		e.virtualMachine().checkIsCurrentVm()
 
 		val vm = connVm()
 		val location = e.location()
 		val thread = e.thread()
+
+		if (stepOnThroughInlinedBody(vm.vm, e, location, thread)) {
+			return false
+		}
 
 		listenerState.client.onStep(
 			event =
@@ -552,6 +606,68 @@ internal class JavaDebugAdapter :
 					threadId = thread.uniqueID().toString(),
 				),
 		)
+
+		return true
+	}
+
+	/**
+	 * Step on without reporting when a step lands inside a body inlined from elsewhere.
+	 *
+	 * An inline function's body compiles into its caller, so line stepping walks it one line at a
+	 * time and every one of those lines is a position the user never wrote. Continuing until the
+	 * thread leaves the inlined region is what makes Step Over cost one press per call rather than
+	 * one per line of the callee.
+	 *
+	 * The continuation is always [StepRequest.STEP_OVER] whatever the user asked for, because an
+	 * inlined body has no frame of its own and [StepRequest.STEP_OUT] would pop the caller's real
+	 * frame on every iteration. Returning `false` leaves the resume to [EventHandler], so each silent
+	 * iteration's suspend is matched by the resume of the same event set rather than accumulating a
+	 * VM-wide count that only the user's Resume could pay off. The budget rides on the request rather
+	 * than on the adapter, so two threads stepping at once cannot spend each other's.
+	 *
+	 * The policy stays [EventRequest.SUSPEND_ALL]: [EventHandler] records the suspended thread only
+	 * for a set with that policy, so a continuation that suspended just the event thread would leave
+	 * `threadState.current` null and every later [step] would fail with "No thread is currently
+	 * suspended".
+	 *
+	 * A [StepRequest.STEP_INTO] is left alone: the user asked to enter the callee, and for an inline
+	 * function the body is the callee. Skipping it would make an `inline fun` undebuggable, since a
+	 * breakpoint on its body does not bind at the inlined call sites either.
+	 *
+	 * @return whether a continuation was issued, in which case nothing is reported to the client.
+	 */
+	private fun stepOnThroughInlinedBody(
+		vm: VirtualMachine,
+		e: StepEvent,
+		location: Location,
+		thread: ThreadReference,
+	): Boolean {
+		if ((e.request() as? StepRequest)?.depth() == StepRequest.STEP_INTO) {
+			return false
+		}
+
+		if (location.inlineCallSiteLineOrNull() == null) {
+			return false
+		}
+
+		val taken = (e.request().getProperty(INLINE_STEP_BUDGET) as? Int) ?: 0
+		if (taken >= MAX_INLINE_STEPS) {
+			logger.warn("Stopping in an inlined body after {} steps at {}", taken, location)
+			return false
+		}
+
+		val req =
+			createStepRequest(
+				vm = vm,
+				thread = thread,
+				depth = StepRequest.STEP_OVER,
+				suspendPolicy = EventRequest.SUSPEND_ALL,
+				countFilter = 1,
+			)
+
+		req.putProperty(INLINE_STEP_BUDGET, taken + 1)
+		req.enable()
+		return true
 	}
 
 	override fun vmDisconnectEvent(e: VMDisconnectEvent) {
@@ -631,8 +747,10 @@ internal class JDWPListenerThread(
 	override fun run() {
 		logger.debug("run::start")
 		if (!listenerState.isListening && !listenerState.isInvalidated) {
-			logger.warn("Listener should've been listening at this point, but it's not. " +
-					"Trying to start listening...")
+			logger.warn(
+				"Listener should've been listening at this point, but it's not. " +
+					"Trying to start listening...",
+			)
 			listenerState.startListening()
 		}
 

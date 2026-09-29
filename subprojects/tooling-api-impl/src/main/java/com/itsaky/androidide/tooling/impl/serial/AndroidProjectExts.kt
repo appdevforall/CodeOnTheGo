@@ -27,7 +27,8 @@ import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.project.AndroidProject
 import com.itsaky.androidide.project.AndroidVariant
 import com.itsaky.androidide.project.ArtifactDependencies
-import com.itsaky.androidide.project.GraphItem
+import com.itsaky.androidide.project.DependencyGraph
+import com.itsaky.androidide.project.GraphNode
 import com.itsaky.androidide.project.JavaCompilerSettings
 import com.itsaky.androidide.project.Library
 import com.itsaky.androidide.project.LibraryInfo
@@ -124,16 +125,80 @@ fun LibraryInfo.asProtoModel() =
 
 fun ArtifactDependencies.asProtoModel() =
 	ArtifactDependencies(
-		compileDependencyList = this.compileDependencies.map { it.asProtoModel() },
+		compileGraph = DependencyGraphBuilder().build(this.compileDependencies),
 		unresolvedDependencyList = this.unresolvedDependencies.map { it.asProtoModel() },
 	)
 
-fun GraphItem.asProtoModel(): AndroidModels.GraphItem =
-	GraphItem(
-		key = this.key,
-		requestedCoordinates = this.requestedCoordinates,
-		dependencyList = this.dependencies.map { it.asProtoModel() },
-	)
+/**
+ * Flattens AGP's nested [GraphItem] tree into a [AndroidModels.DependencyGraph].
+ *
+ * AGP hands the dependency graph back as a tree: a node shared by several dependents is repeated
+ * once per path, and each copy carries its own key string. On an 86-module project that expanded to
+ * 786,554 nodes and 1,011,910 key strings covering 57,517 distinct values. Deduplicating by key
+ * keeps the first occurrence of each key and the edges recorded on it. The compile-classpath
+ * consumer expands each key at most once over the same pre-order walk, so it sees the same graph;
+ * the module-dependency consumer reads only the roots, whose order and multiplicity are unchanged.
+ * What a later occurrence carried -- its requested coordinates -- is not represented; see
+ * [AndroidModels.GraphNode].
+ *
+ * Differing children per occurrence would matter, because the classpath consumer prunes a subtree
+ * whose key has no Library entry while this builder walks it regardless. AGP does not produce that:
+ * FullDependencyGraphBuilder.handleDependency memoises on a Map<ResolvedVariantResult, GraphItem>
+ * and hands back the same instance for every occurrence. The key is derived from that same variant,
+ * so one key resolves to one instance, and therefore to one child list.
+ */
+private class DependencyGraphBuilder {
+	/*
+	 * Node index per key, in insertion order. Nodes are deduplicated by key and each new node
+	 * contributes exactly one key, so a node's index into `nodes` is also its index into the
+	 * emitted key table -- these keys are the key table.
+	 *
+	 * [AndroidModels.GraphNode.getKeyId] is still written, rather than dropped in favour of that
+	 * identity, so the schema stays independent of this builder's ordering.
+	 */
+	private val nodeIds = LinkedHashMap<String, Int>()
+	private val requestedCoordinates = LinkedHashMap<String, Int>()
+	private val nodes = mutableListOf<AndroidModels.GraphNode>()
+
+	fun build(roots: Collection<GraphItem>): AndroidModels.DependencyGraph {
+		val rootIds = roots.map(::nodeIdOf)
+		return DependencyGraph(
+			keyList = nodeIds.keys.toList(),
+			requestedCoordinatesList = requestedCoordinates.keys.toList(),
+			nodeList = nodes.toList(),
+			rootList = rootIds,
+		)
+	}
+
+	/**
+	 * The index of [item]'s node, adding it and its dependencies if this key is new.
+	 *
+	 * The index is reserved before the children are walked, so a cyclic graph terminates.
+	 */
+	private fun nodeIdOf(item: GraphItem): Int {
+		/*
+		 * Empty requested coordinates are treated as absent: AGP's own default is an empty string,
+		 * and interning it would report the field as present against the proto's presence contract.
+		 */
+		nodeIds[item.key]?.let { return it }
+
+		val id = nodes.size
+		nodeIds[item.key] = id
+		nodes += AndroidModels.GraphNode.getDefaultInstance()
+
+		val node =
+			GraphNode(
+				keyId = id,
+				requestedCoordinatesId =
+					item.requestedCoordinates?.takeIf { it.isNotEmpty() }?.let { coordinates ->
+						requestedCoordinates.getOrPut(coordinates) { requestedCoordinates.size }
+					},
+				dependencyList = item.dependencies.map(::nodeIdOf),
+			)
+		nodes[id] = node
+		return id
+	}
+}
 
 fun UnresolvedDependency.asProtoModel() =
 	UnresolvedDependency(
