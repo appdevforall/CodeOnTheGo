@@ -93,6 +93,31 @@ class LogBuffer(
 		return text to lastSeq
 	}
 
+	/**
+	 * The newest [maxEntries] entries matching [filter], oldest first.
+	 *
+	 * @return The entries, and whether older matching entries were left out.
+	 */
+	@Synchronized
+	fun tailFiltered(
+		filter: LogFilter,
+		maxEntries: Int,
+	): Pair<List<Entry>, Boolean> {
+		require(maxEntries > 0) { "maxEntries must be positive" }
+		val tail = ArrayDeque<Entry>(minOf(maxEntries, entries.size))
+		var truncated = false
+		for (i in entries.indices.reversed()) {
+			val entry = entries[i]
+			if (!filter.matches(entry.level, entry.text)) continue
+			if (tail.size == maxEntries) {
+				truncated = true
+				break
+			}
+			tail.addFirst(entry)
+		}
+		return tail to truncated
+	}
+
 	@Synchronized
 	fun snapshotAll(): String =
 		buildString {

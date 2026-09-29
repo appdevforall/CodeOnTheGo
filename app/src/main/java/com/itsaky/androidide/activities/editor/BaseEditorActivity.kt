@@ -81,6 +81,7 @@ import com.itsaky.androidide.activities.projectsRoot
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.api.BuildOutputProvider
+import com.itsaky.androidide.api.LogsProvider
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
@@ -154,6 +155,7 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.IDELogsViewModel
 import com.itsaky.androidide.viewmodel.MetricsViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
@@ -292,15 +294,18 @@ abstract class BaseEditorActivity :
 	val wadbConnectionViewModel by viewModels<WADBConnectionViewModel>()
 
 	val appLogsViewModel by viewModels<AppLogsViewModel>()
+
+	// Same ViewModelStore key as IDELogFragment's activityViewModels(), so both see one instance.
+	private val ideLogsViewModel by viewModels<IDELogsViewModel>()
 	var appLogsCoordinator: AppLogsCoordinator? = null
 
 	// Mirrors EditorHandlerActivity's/ProjectHandlerActivity's own same-named, independently-tracked
 	// flags: set only once onCreate reaches its end without bailing out early (the "no matching
 	// project" doomed-duplicate-instance branch above returns before this runs). preDestroy() checks
 	// it before touching the process-wide singletons this onCreate registers this instance with
-	// (BuildOutputProvider, the plugin snippet-refresh listener) -- a doomed instance never actually
-	// registered as their owner, so clearing them on its teardown would wipe out whatever a
-	// genuinely live sibling instance set up instead.
+	// (BuildOutputProvider, LogsProvider, the plugin snippet-refresh listener) -- a doomed instance
+	// never actually registered as their owner, so clearing them on its teardown would wipe out
+	// whatever a genuinely live sibling instance set up instead.
 	private var didCompleteLiveOnCreate = false
 
 	// The editor-side counterpart of MainActivity.consumedDeepLinkRequests, for the two deep-link
@@ -578,6 +583,9 @@ abstract class BaseEditorActivity :
 	protected open fun preDestroy() {
 		if (didCompleteLiveOnCreate) {
 			BuildOutputProvider.clearBottomSheet()
+			// A rotation keeps both view models and re-attaches them in the new onCreate; detaching
+			// here would leave plugin reads empty in between.
+			if (!isChangingConfigurations) LogsProvider.detach(appLogsViewModel, ideLogsViewModel)
 
 			IDEApplication.getPluginManager()?.setSnippetRefreshListener(null)
 		}
@@ -917,6 +925,7 @@ abstract class BaseEditorActivity :
 		appLogsCoordinator =
 			AppLogsCoordinator(appLogsViewModel)
 				.also(lifecycle::addObserver)
+		LogsProvider.attach(appLogsViewModel, ideLogsViewModel)
 
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 

@@ -25,7 +25,6 @@ import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
-import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.checkerframework.checker.index.qual.NonNegative
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.platform.modification.KaElementModificationType
@@ -46,9 +45,6 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.pathString
-
-val KT_SOURCE_FILE_INDEX_KEY = IndexKey<JvmSymbolIndex>("kt-source-file-index")
-val KT_SOURCE_FILE_META_INDEX_KEY = IndexKey<KtFileMetadataIndex>("kt-source-file-meta-index")
 
 /**
  * An index of symbols from Kotlin source files and JARs.
