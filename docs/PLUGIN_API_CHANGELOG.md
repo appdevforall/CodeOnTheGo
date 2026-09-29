@@ -46,7 +46,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   included), and `maxLines` (default 200, clamped to `1..1000`). A result is also capped at
   `LogQuery.MAX_CHARS` (131072 UTF-16 chars of line content, terminators not counted),
   dropping the oldest lines first; `truncated` says whether either bound left matching
-  lines out. With no editor open or no log yet, the read returns
+  lines out, or cut the text of a single line longer than the cap. With no editor open or no log yet, the read returns
   `LogReadResult.EMPTY`, never a throw. The service has no clear or write method, and needs
   no permission: plugins run in-process under the IDE's uid, so a gate would disclose log
   access, not enforce it. Purely additive (the ABI dump diff is additions only). Floor

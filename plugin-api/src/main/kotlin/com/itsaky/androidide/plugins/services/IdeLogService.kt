@@ -88,7 +88,8 @@ data class LogEntry(
  *
  * @property entries Matching lines, oldest first.
  * @property truncated True when more matching lines are retained than [entries] holds, because
- *   of [LogQuery.maxLines] or [LogQuery.MAX_CHARS].
+ *   of [LogQuery.maxLines] or [LogQuery.MAX_CHARS], or when the one line returned was cut to
+ *   [LogQuery.MAX_CHARS].
  */
 data class LogReadResult(
 	val entries: List<LogEntry>,
