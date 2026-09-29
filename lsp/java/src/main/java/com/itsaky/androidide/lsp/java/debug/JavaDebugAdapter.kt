@@ -28,6 +28,8 @@ import com.itsaky.androidide.lsp.java.debug.spec.BreakpointSpec
 import com.itsaky.androidide.lsp.java.debug.utils.asDepthInt
 import com.itsaky.androidide.lsp.java.debug.utils.asJdiInt
 import com.itsaky.androidide.lsp.java.debug.utils.asLspLocation
+import com.itsaky.androidide.lsp.java.debug.utils.isKotlinSource
+import com.itsaky.androidide.lsp.java.debug.utils.kotlinBinaryNamesOf
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.utils.withStopWatch
@@ -146,7 +148,7 @@ internal class JavaDebugAdapter :
 
 		_listenerState?.invalidate()
 		listenerThread?.interrupt()
-		
+
 		_listenerState =
 			ListenerState(
 				client = client,
@@ -154,19 +156,20 @@ internal class JavaDebugAdapter :
 				args = args,
 			)
 
-		val failure = withContext(Dispatchers.IO) {
-			try {
-				logger.debug("startListening")
-				listenerState.startListening()
-				null
-			} catch (e: Throwable) {
-				if (e is CancellationException) {
-					throw e
+		val failure =
+			withContext(Dispatchers.IO) {
+				try {
+					logger.debug("startListening")
+					listenerState.startListening()
+					null
+				} catch (e: Throwable) {
+					if (e is CancellationException) {
+						throw e
+					}
+					logger.error("Failed to listen for incoming JDWP connections", e)
+					return@withContext DebugClientConnectionResult.Failure(cause = e)
 				}
-				logger.error("Failed to listen for incoming JDWP connections", e)
-				return@withContext DebugClientConnectionResult.Failure(cause = e)
 			}
-		}
 
 		if (failure != null) {
 			return failure
@@ -338,42 +341,51 @@ internal class JavaDebugAdapter :
 				request.breakpoints.map { breakpoint ->
 					logger.debug("add breakpoint {}", breakpoint)
 
-					val qualifiedName =
-						ProjectManagerImpl
-							.getInstance()
-							.workspace
-							?.subProjects
-							?.filterIsInstance<ModuleProject>()
-							?.firstNotNullOfOrNull { module ->
-								module.compileJavaSourceClasses
-									.findSource(Paths.get(breakpoint.source.path))
-									?.qualifiedName
-							}
+					val sourcePath = Paths.get(breakpoint.source.path)
+					val qualifiedNames =
+						if (isKotlinSource(breakpoint.source.path)) {
+							kotlinBinaryNamesOf(sourcePath)
+						} else {
+							ProjectManagerImpl
+								.getInstance()
+								.workspace
+								?.subProjects
+								?.filterIsInstance<ModuleProject>()
+								?.firstNotNullOfOrNull { module ->
+									module.compileJavaSourceClasses
+										.findSource(sourcePath)
+										?.qualifiedName
+								}?.let(::listOf) ?: emptyList()
+						}
 
-					logger.debug("qualified name: {}", qualifiedName)
+					logger.debug("qualified names: {}", qualifiedNames)
 
 					val spec =
 						when (breakpoint) {
-							is PositionalBreakpoint ->
+							is PositionalBreakpoint -> {
 								specList.createBreakpoint(
 									source = breakpoint.source,
 									// +1 because we receive 0-indexed line numbers from the IDE
 									// while JDI expects 1-index line numbers
 									lineNumber = breakpoint.line + 1,
-									qualifiedName = qualifiedName,
+									qualifiedNames = qualifiedNames,
 									suspendPolicy = breakpoint.suspendPolicy.asJdiInt(),
 								)
+							}
 
-							is MethodBreakpoint ->
+							is MethodBreakpoint -> {
 								specList.createBreakpoint(
 									source = breakpoint.source,
 									methodId = breakpoint.methodId,
 									methodArgs = breakpoint.methodArgs,
-									qualifiedName = qualifiedName,
+									qualifiedNames = qualifiedNames,
 									suspendPolicy = breakpoint.suspendPolicy.asJdiInt(),
 								)
+							}
 
-							else -> throw IllegalArgumentException("Unsupported breakpoint type: $breakpoint")
+							else -> {
+								throw IllegalArgumentException("Unsupported breakpoint type: $breakpoint")
+							}
 						}
 
 					val result =
@@ -385,19 +397,23 @@ internal class JavaDebugAdapter :
 					val resolveSuccess = result.getOrDefault(false)
 
 					when {
-						resolveSuccess && spec.isResolved ->
+						resolveSuccess && spec.isResolved -> {
 							BreakpointResult.Success(
 								breakpoint,
 								false,
 							)
+						}
 
-						resolveSuccess && !spec.isResolved ->
+						resolveSuccess && !spec.isResolved -> {
 							BreakpointResult.Success(
 								breakpoint,
 								true,
 							)
+						}
 
-						else -> BreakpointResult.Failure(breakpoint, failure)
+						else -> {
+							BreakpointResult.Failure(breakpoint, failure)
+						}
 					}
 				},
 			)
@@ -631,8 +647,10 @@ internal class JDWPListenerThread(
 	override fun run() {
 		logger.debug("run::start")
 		if (!listenerState.isListening && !listenerState.isInvalidated) {
-			logger.warn("Listener should've been listening at this point, but it's not. " +
-					"Trying to start listening...")
+			logger.warn(
+				"Listener should've been listening at this point, but it's not. " +
+					"Trying to start listening...",
+			)
 			listenerState.startListening()
 		}
 
