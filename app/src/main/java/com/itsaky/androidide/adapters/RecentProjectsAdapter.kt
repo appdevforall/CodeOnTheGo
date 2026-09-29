@@ -336,6 +336,10 @@ class RecentProjectsAdapter(
 	) {
 		val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
 		when {
+			newName == oldName -> {
+				positiveButton.isEnabled = false
+			}
+
 			newName.isEmpty() -> {
 				inputLayout.error = dialog.context.getString(R.string.msg_cannnot_empty)
 				positiveButton.isEnabled = false

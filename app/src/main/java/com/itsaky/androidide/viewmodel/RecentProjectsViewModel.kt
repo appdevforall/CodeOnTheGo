@@ -326,10 +326,9 @@ class RecentProjectsViewModel(
 	) = viewModelScope.launch(Dispatchers.IO) {
 		try {
 			val modifiedAt = System.currentTimeMillis().toString()
-			val oldProjectLocation = File(oldLocation).canonicalProjectLocation()
 			val newProjectLocation = File(newLocation).canonicalProjectLocation()
 			recentProjectDao.updateNameAndLocation(
-				oldLocation = oldProjectLocation,
+				oldLocation = oldLocation,
 				newName = newName,
 				newLocation = newProjectLocation,
 			)
