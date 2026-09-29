@@ -54,6 +54,7 @@ private val disableCoreLibDesugaringForModules =
  * The name of the build type used for automated testing.
  */
 private const val INSTRUMENTATION_BUILD_TYPE = "instrumentation"
+private const val PROFILEABLE_BUILD_TYPE = "profileable"
 
 /**
  * Whether the given variant has bundled assets or not.
@@ -61,7 +62,12 @@ private const val INSTRUMENTATION_BUILD_TYPE = "instrumentation"
  * This is `true` for non-debug builds and for [INSTRUMENTATION_BUILD_TYPE] builds. When updating this
  * value, please update the corresponding value in `AssetsInstaller.kt` in `:app` module.
  */
-internal fun hasBundledAssets(variant: Variant): Boolean = !variant.debuggable || variant.buildType == INSTRUMENTATION_BUILD_TYPE
+internal fun hasBundledAssets(variant: Variant): Boolean =
+	when (variant.buildType) {
+		INSTRUMENTATION_BUILD_TYPE -> true
+		PROFILEABLE_BUILD_TYPE -> false
+		else -> !variant.debuggable
+	}
 
 fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModuleDependency>) {
 	var isAppModule = plugins.hasPlugin("com.android.application")

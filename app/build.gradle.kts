@@ -89,6 +89,13 @@ android {
 		release {
 			manifestPlaceholders["sentryDsn"] = glitchtipDsn
 		}
+		create("profileable") {
+			initWith(getByName("release"))
+			isProfileable = true
+			matchingFallbacks += "release"
+			manifestPlaceholders["sentryDsn"] = glitchtipDsn
+			signingConfig = signingConfigs.getByName("debug")
+		}
 	}
 
 	testOptions {
@@ -117,6 +124,9 @@ android {
 	sourceSets {
 		getByName("androidTest") {
 			manifest.srcFile("src/androidTest/AndroidManifest.xml")
+		}
+		getByName("profileable") {
+			java.srcDir("src/release/java")
 		}
 	}
 

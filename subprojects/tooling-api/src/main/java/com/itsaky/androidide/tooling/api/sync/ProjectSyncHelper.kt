@@ -6,15 +6,20 @@ import com.itsaky.androidide.project.SyncMeta
 import com.itsaky.androidide.project.SyncMetaModels
 import com.itsaky.androidide.utils.SharedEnvironment
 import com.itsaky.androidide.utils.sha256
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.io.OutputStream
+import java.nio.channels.Channels
 import java.nio.channels.FileChannel
+import java.nio.channels.OverlappingFileLockException
 import java.nio.file.FileSystems
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
@@ -25,8 +30,12 @@ import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.Collections
+import java.util.WeakHashMap
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 import kotlin.collections.iterator
-import kotlin.io.path.outputStream
 import kotlin.io.path.pathString
 
 /**
@@ -35,9 +44,44 @@ import kotlin.io.path.pathString
  * @author Akash Yadav
  */
 object ProjectSyncHelper {
+	/**
+	 * Version of the on-disk project sync files.
+	 *
+	 * Bump this whenever a persisted proto schema changes incompatibly. A stored version that
+	 * differs from this one discards the sync files and forces a full sync. The models are
+	 * produced and consumed only by the IDE and hold no user data, so discarding them is safe.
+	 */
+	const val SYNC_META_VERSION = "2"
+
 	private val logger = LoggerFactory.getLogger(ProjectSyncHelper::class.java)
+
+	/**
+	 * Per-lock-file mutex, keyed by the lock file's absolute path.
+	 *
+	 * Closing any channel on a file releases every lock the JVM holds on that file, so two threads
+	 * must never hold overlapping channels on one sync lock file -- the second one's close would
+	 * silently drop the first one's lock. `FileChannel.tryLock` cannot express that (it throws on a
+	 * same-JVM overlap), so in-process contention is settled here, before a channel is opened.
+	 */
+	private val inProcessLocks = ConcurrentHashMap<String, Semaphore>()
+
+	/**
+	 * The in-process mutex held on behalf of each acquired channel, released when it is closed.
+	 *
+	 * Weakly keyed: a caller that drops a channel without releasing it can still have the channel
+	 * collected, which closes the descriptor and frees the file lock. A strong map would pin it for
+	 * the life of the process. The permit is not recovered that way, so callers still go through
+	 * [tryUseSyncLock], which releases in a `finally`.
+	 */
+	private val heldLocks: MutableMap<FileChannel, Semaphore> =
+		Collections.synchronizedMap(WeakHashMap())
 	private val hashDispatcher =
 		Dispatchers.Default.limitedParallelism(Runtime.getRuntime().availableProcessors())
+
+	/**
+	 * How long to wait for the sync lock before giving up on discarding the sync files.
+	 */
+	private const val DISCARD_LOCK_TIMEOUT_MS = 1_000L
 
 	/**
 	 * Path matchers for files that we need to watch.
@@ -110,26 +154,119 @@ object ProjectSyncHelper {
 		timeoutMs: Long,
 	): FileChannel? {
 		val lockFile = projectDir.resolve(SharedEnvironment.PROJECT_SYNC_CACHE_LOCK_FILE)
-		Files.createDirectories(lockFile.parent)
-		val channel =
-			FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
-		val start = System.currentTimeMillis()
-		while (System.currentTimeMillis() - start < timeoutMs) {
-			val lock = channel.tryLock()
-			if (lock != null) return channel
-			Thread.sleep(50)
+
+		try {
+			Files.createDirectories(lockFile.parent)
+		} catch (err: IOException) {
+			// Every other failure here answers null; a read-only volume should not be the exception.
+			logger.warn("Failed to create the sync lock directory", err)
+			return null
 		}
 
-		// Locking failed
-		channel.close()
-		return null
+		// One deadline for both waits, so a caller's budget is not spent twice over.
+		val deadline = System.currentTimeMillis() + timeoutMs
+		val inProcessLock = inProcessLocks.computeIfAbsent(lockKeyOf(lockFile)) { Semaphore(1) }
+
+		try {
+			if (!inProcessLock.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS)) {
+				return null
+			}
+		} catch (err: InterruptedException) {
+			Thread.currentThread().interrupt()
+			return null
+		}
+
+		/*
+		 * Held until the channel is handed to the caller, who gives it back through
+		 * releaseSyncLock. Every other exit -- including one thrown before the channel exists --
+		 * must return the permit, or the sync lock stays unavailable for the life of the process.
+		 */
+		var releasePermit = true
+
+		/*
+		 * Closing a channel drops every fcntl lock this process holds on the file, not just this
+		 * channel's. On the one path where another holder may exist -- an overlap the mutex failed
+		 * to prevent -- the descriptor is leaked instead, because taking their lock away is worse
+		 * than an fd.
+		 */
+		var closeChannel = true
+		var channel: FileChannel? = null
+		try {
+			channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)
+
+			/*
+			 * At least one attempt always runs. A semaphore wait that consumed the whole budget
+			 * means the previous holder just handed the lock over, so giving up without trying
+			 * would throw away a sync that was about to succeed.
+			 */
+			while (true) {
+				if (channel.tryLock() != null) {
+					heldLocks[channel] = inProcessLock
+					releasePermit = false
+					return channel
+				}
+
+				if (System.currentTimeMillis() >= deadline) {
+					return null
+				}
+
+				Thread.sleep(50)
+			}
+		} catch (err: InterruptedException) {
+			Thread.currentThread().interrupt()
+			return null
+		} catch (err: OverlappingFileLockException) {
+			// The semaphore above should have made this unreachable; report it rather than spin.
+			closeChannel = false
+			logger.warn("Sync lock is already held by this process", err)
+			return null
+		} catch (err: IOException) {
+			logger.warn("Failed to acquire the sync lock", err)
+			return null
+		} finally {
+			if (releasePermit) {
+				if (closeChannel) {
+					channel?.close()
+				}
+				inProcessLock.release()
+			}
+		}
+	}
+
+	/**
+	 * The key a lock file's in-process mutex is stored under.
+	 *
+	 * Resolved through the parent's real path, so two spellings of one directory -- a symlink, a
+	 * relative path, a `..` component -- cannot each get their own mutex and open a second channel
+	 * on the same file. The parent exists by the time this runs; the lock file may not.
+	 *
+	 * Exposed so a test can assert that two spellings agree, which is the whole point of resolving
+	 * the path and is not observable from [tryAcquireSyncLock]'s return value.
+	 */
+	@VisibleForTesting
+	fun lockKeyOf(lockFile: Path): String {
+		val parent = lockFile.parent ?: return lockFile.toAbsolutePath().normalize().pathString
+		val realParent =
+			try {
+				parent.toRealPath()
+			} catch (err: IOException) {
+				logger.debug("Falling back to the normalised sync lock path for {}", parent, err)
+				parent.toAbsolutePath().normalize()
+			}
+
+		return realParent.resolve(lockFile.fileName).pathString
 	}
 
 	/**
 	 * Release the sync lock.
 	 */
 	fun releaseSyncLock(channel: FileChannel?) {
-		channel?.close()
+		channel ?: return
+		try {
+			channel.close()
+		} finally {
+			heldLocks.remove(channel)?.release()
+		}
 	}
 
 	/**
@@ -191,28 +328,78 @@ object ProjectSyncHelper {
 	fun writeGradleBuildSync(
 		gradleBuild: GradleModels.GradleBuild,
 		targetFile: File,
+	) = writeAtomically(targetFile) { out -> gradleBuild.writeTo(out) }
+
+	/**
+	 * Write the sync metadata synchronously.
+	 *
+	 * Atomic like the cache beside it: a reader that catches a truncated metadata file sees an
+	 * empty [SyncMetaModels.SyncMeta], whose blank version reads as a schema mismatch.
+	 *
+	 * @param syncMeta The sync metadata model.
+	 * @param targetFile The target file.
+	 */
+	fun writeSyncMetaSync(
+		syncMeta: SyncMetaModels.SyncMeta,
+		targetFile: File,
+	) = writeAtomically(targetFile) { out -> syncMeta.writeTo(out) }
+
+	private fun writeAtomically(
+		targetFile: File,
+		write: (OutputStream) -> Unit,
 	) {
 		// use a temporary file on the same path to allow atomic moves
 		// /data/data and /sdcard are different devices (partitions)
 		// atomic moves are not possible for cross-device moves
-		val tempCacheFile = Paths.get(targetFile.path + ".tmp")
+		val tempFile = Paths.get(targetFile.path + ".tmp")
 		runCatching {
-			tempCacheFile
-				.outputStream(StandardOpenOption.CREATE, StandardOpenOption.WRITE)
-				.buffered()
-				.use { tempOut ->
-					gradleBuild.writeTo(tempOut)
+			FileChannel
+				.open(
+					tempFile,
+					StandardOpenOption.CREATE,
+					StandardOpenOption.WRITE,
+					/*
+					 * A temp file left behind by a killed sync is otherwise written in place, and
+					 * a shorter model publishes with the previous one's tail still attached.
+					 */
+					StandardOpenOption.TRUNCATE_EXISTING,
+				).use { channel ->
+					val tempOut = Channels.newOutputStream(channel).buffered()
+					write(tempOut)
 					tempOut.flush()
+					/*
+					 * flush() only drains the JVM buffer. Without forcing the data to disk, a
+					 * power loss after the rename can leave a truncated model that still parses.
+					 */
+					channel.force(true)
 				}
-		}.map {
+		}.mapCatching {
 			// update atomically
 			Files.move(
-				tempCacheFile,
+				tempFile,
 				targetFile.toPath(),
 				StandardCopyOption.REPLACE_EXISTING,
 				StandardCopyOption.ATOMIC_MOVE,
 			)
+			forceDirectory(targetFile.toPath().parent)
+		}.onFailure {
+			/*
+			 * A cross-device move fails outright, and the temp file it leaves is what the next
+			 * write would have to overwrite. Truncation covers that case; clearing it here keeps
+			 * a failed write from leaving a stale model on disk at all.
+			 */
+			runCatching { Files.deleteIfExists(tempFile) }
 		}.getOrThrow()
+	}
+
+	/*
+	 * Persists the rename itself. Best effort: the move has already succeeded, and failing the
+	 * write here would report a model as unpublished while it is in place.
+	 */
+	private fun forceDirectory(directory: Path) {
+		runCatching {
+			FileChannel.open(directory, StandardOpenOption.READ).use { it.force(true) }
+		}.onFailure { logger.warn("Unable to sync directory {}", directory, it) }
 	}
 
 	/**
@@ -246,7 +433,51 @@ object ProjectSyncHelper {
 			projectCacheFile.canRead()
 
 	/**
+	 * Check whether the sync metadata at [syncMetaFile] was written by the current
+	 * [SYNC_META_VERSION].
+	 *
+	 * Metadata written by an older schema still parses -- a removed field reads back as its default
+	 * rather than failing -- so the project cache beside it can only be trusted once the stored
+	 * version has been checked. Callers that reach the cache without going through
+	 * [checkSyncNeeded] must gate on this.
+	 *
+	 * Blocking: reads and parses the file on the calling thread. Never call it from the main
+	 * thread.
+	 *
+	 * @param syncMetaFile The sync metadata file.
+	 * @return `true` if the stored version is current, `false` if it differs or cannot be read.
+	 */
+	fun isSyncMetaVersionCurrent(syncMetaFile: File): Boolean =
+		try {
+			readSyncMeta(syncMetaFile).metaVersion == SYNC_META_VERSION
+		} catch (err: CancellationException) {
+			throw err
+		} catch (err: Throwable) {
+			/*
+			 * A corrupt file normally surfaces as an InvalidProtocolBufferException, but the catch
+			 * is deliberately total: this runs inside checkSyncNeeded's own failure handling, whose
+			 * callers rethrow anything but FileNotFoundException, so an escape here crashes the
+			 * project open instead of resyncing it. A parse that OOMs on a bogus length prefix is
+			 * exactly the case a resync recovers from.
+			 */
+			logger.warn("Failed to read sync metadata file: {}", syncMetaFile, err)
+			false
+		}
+
+	/**
 	 * Check if a sync is needed for the given project directory.
+	 *
+	 * Not a pure query: once the metadata has been read, files it shows to be unusable -- corrupt,
+	 * or written by a schema version other than [SYNC_META_VERSION] -- are deleted, because they
+	 * would otherwise parse into a silently empty model. The same discard runs when the metadata
+	 * turns out to be unparseable, which leaves a cache nothing can vouch for. It does not run on
+	 * the early return taken when either file is already missing or unreadable. Deletion failures
+	 * are logged, never thrown.
+	 *
+	 * Because it deletes, a re-initialisation that hits the discard can pull the cache out from
+	 * under a read another coroutine already started, which surfaces as a cache read error. That
+	 * needs a version mismatch or corrupt metadata concurrent with an in-flight read, so in
+	 * practice it is the one-time window after a schema bump.
 	 *
 	 * @param projectDir The project directory.
 	 * @return `true` if a sync is needed, `false` otherwise.
@@ -269,18 +500,40 @@ object ProjectSyncHelper {
 			return true
 		}
 
-		val draft = createSyncMeta(projectDir, includeChecksum = false)
 		val stored =
 			try {
 				loadSyncMetaFromFile(syncMetaFile)
 			} catch (_: FileNotFoundException) {
 				// sync meta is not available, require sync
 				logger.debug("NEED_SYNC: sync meta file not found")
+				discardSyncFiles(projectDir)
 				return true
+			} catch (err: CancellationException) {
+				throw err
 			} catch (err: Throwable) {
 				logger.warn("NEED_SYNC: failed to read sync metadata file", err)
+				discardSyncFiles(projectDir)
 				return true
 			}
+
+		if (stored.metaVersion != SYNC_META_VERSION) {
+			/*
+			 * The cache file is written before the metadata under the same lock, so a stored
+			 * version matching ours implies the cache beside it uses the current schema. On a
+			 * mismatch the cache is unusable but still parses -- a removed field reads back as
+			 * its default rather than failing -- so it has to be discarded, not just resynced.
+			 */
+			logger.debug(
+				"NEED_SYNC: sync meta version mismatch: expected={}, actual={}",
+				SYNC_META_VERSION,
+				stored.metaVersion,
+			)
+			discardSyncFiles(projectDir)
+			return true
+		}
+
+		// Built only once the cheap version gate has passed: it walks every watched file.
+		val draft = createSyncMeta(projectDir, includeChecksum = false)
 
 		val draftFilePaths = draft.watchedFilesList.map { it.relativePath }.toSet()
 		val storedFilePaths = stored.watchedFilesList.map { it.relativePath }.toSet()
@@ -322,7 +575,8 @@ object ProjectSyncHelper {
 		val hashResults = computeHashes(needsHash)
 		for ((draft, computedSha) in hashResults) {
 			val stored = storedMap[draft.relativePath] ?: continue
-			if (stored.sha256 == null) {
+			// sha256 is an optional string, so an absent one reads back as empty, never as null.
+			if (stored.sha256.isEmpty()) {
 				// stored metadata didn't have sha256, so we can't compare
 				// require sync
 				logger.debug(
@@ -346,6 +600,60 @@ object ProjectSyncHelper {
 		}
 
 		return false
+	}
+
+	/**
+	 * Delete the sync metadata and project model cache files for the given project directory.
+	 *
+	 * Taken under the same lock the sync writes them under. Failing to acquire it means a sync is
+	 * already in flight and about to replace both files, so the deletion is skipped. Acquiring it
+	 * does not mean the files are still stale, so staleness is rechecked under the lock.
+	 */
+	private suspend fun discardSyncFiles(projectDir: File) {
+		withContext(Dispatchers.IO) {
+			try {
+				val locked =
+					tryUseSyncLock(projectDir, DISCARD_LOCK_TIMEOUT_MS) {
+						val syncMetaFile = syncMetaFileForProject(projectDir)
+
+						/*
+						 * Staleness was decided outside the lock, and a sync can complete while we
+						 * wait here. Re-read before deleting, or a discard takes out the fresh
+						 * files that sync just wrote.
+						 */
+						if (isSyncMetaVersionCurrent(syncMetaFile)) {
+							logger.debug("Sync files were rewritten while waiting for the lock, keeping them")
+						} else {
+							deleteOrWarn(syncMetaFile)
+							deleteOrWarn(cacheFileForProject(projectDir))
+						}
+					}
+
+				if (!locked) {
+					logger.debug("Sync lock unavailable, leaving the stale sync files to the running sync")
+				}
+			} catch (err: CancellationException) {
+				throw err
+			} catch (err: Throwable) {
+				/*
+				 * Creating or opening the lock file fails on a read-only volume, and the re-read
+				 * under the lock can fail on a corrupt file. Callers treat checkSyncNeeded as a
+				 * boolean query and rethrow anything else, so letting either escape would crash
+				 * the project open instead of resyncing it.
+				 */
+				logger.warn("Failed to discard the stale sync files", err)
+			}
+		}
+	}
+
+	/**
+	 * Delete [file], warning if it survives. A stale file left behind is read back on the next
+	 * launch, so a silent failure here is worth a log line.
+	 */
+	private fun deleteOrWarn(file: File) {
+		if (!file.delete() && file.exists()) {
+			logger.warn("Failed to delete stale sync file: {}", file)
+		}
 	}
 
 	private suspend fun computeHashes(files: List<SyncMetaModels.FileInfoOrBuilder>): Map<SyncMetaModels.FileInfoOrBuilder, String> =
@@ -398,7 +706,7 @@ object ProjectSyncHelper {
 		}
 		val projectDir = projectDir.toRealPath()
 		return SyncMeta(
-			metaVersion = "1",
+			metaVersion = SYNC_META_VERSION,
 			rootProjectPath = projectDir.pathString,
 			syncTime = System.currentTimeMillis().toString(),
 			watchedFilesList = createWatchedFilesList(projectDir, includeChecksum),
@@ -488,8 +796,11 @@ object ProjectSyncHelper {
 	 */
 	suspend fun loadSyncMetaFromFile(file: File): SyncMetaModels.SyncMeta =
 		withContext(Dispatchers.IO) {
-			file.inputStream().buffered().use { fileIn ->
-				SyncMetaModels.SyncMeta.parseFrom(fileIn)
-			}
+			readSyncMeta(file)
+		}
+
+	private fun readSyncMeta(file: File): SyncMetaModels.SyncMeta =
+		file.inputStream().buffered().use { fileIn ->
+			SyncMetaModels.SyncMeta.parseFrom(fileIn)
 		}
 }

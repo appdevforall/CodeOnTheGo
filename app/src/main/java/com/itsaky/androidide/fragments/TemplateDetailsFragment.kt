@@ -17,10 +17,15 @@
 
 package com.itsaky.androidide.fragments
 
+import android.animation.ObjectAnimator
 import android.os.Bundle
 import android.view.View
+import android.view.animation.LinearInterpolator
+import androidx.core.view.ViewCompat
+import androidx.core.view.isVisible
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
-import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.transition.TransitionManager
 import com.itsaky.androidide.R
@@ -35,18 +40,15 @@ import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_PREVIOUS
 import com.itsaky.androidide.templates.ParameterWidget
 import com.itsaky.androidide.templates.Template
 import com.itsaky.androidide.utils.ProjectCreationManager
-import com.itsaky.androidide.utils.ui.TemplateScrollGateKeeper
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.utils.ui.TemplateScrollGateKeeper
 import com.itsaky.androidide.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.animation.ObjectAnimator
-import android.view.animation.LinearInterpolator
-import androidx.core.view.ViewCompat
-import androidx.core.view.isVisible
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 /**
  * A fragment which shows a wizard-like interface for creating templates.
@@ -54,160 +56,246 @@ import androidx.core.view.isVisible
  * @author Akash Yadav
  */
 class TemplateDetailsFragment :
-    FragmentWithBinding<FragmentTemplateDetailsBinding>(
-        R.layout.fragment_template_details, FragmentTemplateDetailsBinding::bind
-    ) {
+	FragmentWithBinding<FragmentTemplateDetailsBinding>(
+		R.layout.fragment_template_details,
+		FragmentTemplateDetailsBinding::bind,
+	) {
+	private val viewModel by activityViewModel<MainViewModel>()
+	private var widgetsBindJob: Job? = null
 
-    private val viewModel by activityViewModel<MainViewModel>()
-    private var widgetsBindJob: Job? = null
+	private var scrollGateKeeper: TemplateScrollGateKeeper? = null
+	private val projectCreationManager by lazy { ProjectCreationManager(requireContext()) }
+	private var blinkAnimator: ObjectAnimator? = null
 
-    private var scrollGateKeeper: TemplateScrollGateKeeper? = null
-    private val projectCreationManager by lazy { ProjectCreationManager(requireContext()) }
-    private var blinkAnimator: ObjectAnimator? = null
+	/** Whether this fragment's view is started, one of the three [shouldBlinkScrollIndicator] inputs. */
+	private var isViewStarted = false
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+	/** Keeps [isViewStarted] current and re-evaluates the blink whenever the view starts or stops. */
+	private val blinkWhileOnScreen =
+		object : DefaultLifecycleObserver {
+			override fun onStart(owner: LifecycleOwner) {
+				isViewStarted = true
+				updateBlinkState()
+			}
 
-        setupRecyclerView()
-        setupTooltips()
-        setupObservers()
-        setupClickListeners()
-        startBlinkingIndicator()
-    }
+			override fun onStop(owner: LifecycleOwner) {
+				isViewStarted = false
+				updateBlinkState()
+			}
+		}
 
-    override fun onDestroyView() {
-        super.onDestroyView()
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
-        blinkAnimator?.cancel()
-        blinkAnimator = null
+		setupRecyclerView()
+		setupTooltips()
+		setupObservers()
+		setupClickListeners()
+		viewLifecycleOwner.lifecycle.addObserver(blinkWhileOnScreen)
+	}
 
-        scrollGateKeeper?.detach()
-        scrollGateKeeper = null
-    }
+	override fun onDestroyView() {
+		/*
+		 * [blinkWhileOnScreen] is what guarantees the animator is gone: performDestroyView drives the
+		 * view lifecycle to DESTROYED before calling here, and that backward pass dispatches ON_STOP.
+		 * These two are a no-op belt-and-braces for a teardown that skipped the observer; the stop still
+		 * has to precede super, since FragmentWithBinding.onDestroyView nulls _binding before calling up.
+		 */
+		isViewStarted = false
+		stopBlinkingIndicator()
 
-    private fun setupRecyclerView() {
-        binding.widgets.layoutManager = LinearLayoutManager(requireContext())
+		scrollGateKeeper?.detach()
+		scrollGateKeeper = null
 
-        scrollGateKeeper = TemplateScrollGateKeeper(binding.widgets) {
-            updateFinishEnabledState()
-        }
-        scrollGateKeeper?.attach()
-    }
+		super.onDestroyView()
+	}
 
-    private fun setupObservers() {
-        viewModel.template.observe(viewLifecycleOwner) {
-            binding.widgets.adapter = null
-            scrollGateKeeper?.reset()
-            updateFinishEnabledState()
-            viewModel.postTransition(viewLifecycleOwner) { bindWithTemplate(it) }
-        }
+	private fun setupRecyclerView() {
+		binding.widgets.layoutManager = LinearLayoutManager(requireContext())
 
-        viewModel.creatingProject.observe(viewLifecycleOwner) { isCreating ->
-            TransitionManager.beginDelayedTransition(binding.root)
-            updateFinishEnabledState()
-            binding.previous.isEnabled = !isCreating
-        }
-    }
+		scrollGateKeeper =
+			TemplateScrollGateKeeper(binding.widgets) {
+				updateFinishEnabledState()
+			}
+		scrollGateKeeper?.attach()
+	}
 
-    private fun setupClickListeners() {
-        binding.previous.setOnClickListener {
-            viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
-        }
+	private fun setupObservers() {
+		viewModel.currentScreen.observe(viewLifecycleOwner) { updateBlinkState() }
 
-        binding.finish.setOnClickListener {
-            handleProjectCreation()
-        }
-    }
+		viewModel.template.observe(viewLifecycleOwner) {
+			binding.widgets.adapter = null
+			scrollGateKeeper?.reset()
+			updateFinishEnabledState()
+			viewModel.postTransition(viewLifecycleOwner) { bindWithTemplate(it) }
+		}
 
-    private fun setupTooltips() {
-        binding.previous.setOnLongClickListener {
-            TooltipManager.showIdeCategoryTooltip(requireContext(), it, SETUP_PREVIOUS)
-            true
-        }
+		viewModel.creatingProject.observe(viewLifecycleOwner) { isCreating ->
+			TransitionManager.beginDelayedTransition(binding.root)
+			updateFinishEnabledState()
+			binding.previous.isEnabled = !isCreating
+		}
+	}
 
-        binding.finish.setOnLongClickListener {
-            TooltipManager.showIdeCategoryTooltip(requireContext(), it, SETUP_CREATE_PROJECT)
-            true
-        }
+	private fun setupClickListeners() {
+		binding.previous.setOnClickListener {
+			viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
+		}
 
-        binding.title.setOnLongClickListener {
-            TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, SETUP_OVERVIEW)
-            true
-        }
-    }
+		binding.finish.setOnClickListener {
+			handleProjectCreation()
+		}
+	}
 
-    private fun handleProjectCreation() {
-        val template = viewModel.template.value ?: run {
-            viewModel.setScreen(MainViewModel.SCREEN_MAIN)
-            return
-        }
+	private fun setupTooltips() {
+		binding.previous.setOnLongClickListener {
+			TooltipManager.showIdeCategoryTooltip(requireContext(), it, SETUP_PREVIOUS)
+			true
+		}
 
-        projectCreationManager.execute(
-            template = template,
-            onStart = { viewModel.creatingProject.value = true },
-            onSuccess = { result, project ->
-                viewModel.creatingProject.value = false
-                viewModel.setScreen(MainViewModel.SCREEN_MAIN)
-                flashSuccess(string.project_created_successfully)
+		binding.finish.setOnLongClickListener {
+			TooltipManager.showIdeCategoryTooltip(requireContext(), it, SETUP_CREATE_PROJECT)
+			true
+		}
 
-                viewModel.postTransition(viewLifecycleOwner) {
-                    // open the project
-                    (requireActivity() as MainActivity).openProject(
-                        result.data.projectDir,
-                        project = project,
-                        hasTemplateIssues = result.hasErrorsWarnings
-                    )
-                }
-            },
-            onError = { errorMsg ->
-                viewModel.creatingProject.value = false
-                flashError(errorMsg)
-            }
-        )
-    }
+		binding.title.setOnLongClickListener {
+			TooltipManager.showIdeCategoryTooltip(requireContext(), binding.root, SETUP_OVERVIEW)
+			true
+		}
+	}
 
-    private fun bindWithTemplate(template: Template<*>?) {
-        template ?: return
+	private fun handleProjectCreation() {
+		val template =
+			viewModel.template.value ?: run {
+				viewModel.setScreen(MainViewModel.SCREEN_MAIN)
+				return
+			}
 
-        binding.title.text = template.templateNameStr
+		projectCreationManager.execute(
+			template = template,
+			onStart = { viewModel.creatingProject.value = true },
+			onSuccess = { result, project ->
+				viewModel.creatingProject.value = false
+				viewModel.setScreen(MainViewModel.SCREEN_MAIN)
+				flashSuccess(string.project_created_successfully)
 
-        // Some parameters do disk work in their beforeCreateView hook (e.g. computing a
-        // non-colliding default project name). Run those hooks on Dispatchers.IO before
-        // attaching the adapter so that onBindViewHolder skips them (they are one-shot).
-        widgetsBindJob?.cancel()
-        widgetsBindJob = viewLifecycleOwner.lifecycleScope.launch {
-            withContext(Dispatchers.IO) {
-                template.widgets.forEach { widget ->
-                    if (widget is ParameterWidget<*>) {
-                        widget.parameter.beforeCreateView()
-                    }
-                }
-            }
-            _binding ?: return@launch
-            binding.widgets.adapter = TemplateWidgetsListAdapter(template.widgets)
-            binding.widgets.post {
-                scrollGateKeeper?.checkIfReachedEnd()
-            }
-        }
-    }
+				viewModel.postTransition(viewLifecycleOwner) {
+					// open the project
+					(requireActivity() as MainActivity).openProject(
+						result.data.projectDir,
+						project = project,
+						hasTemplateIssues = result.hasErrorsWarnings,
+					)
+				}
+			},
+			onError = { errorMsg ->
+				viewModel.creatingProject.value = false
+				flashError(errorMsg)
+			},
+		)
+	}
 
-    private fun updateFinishEnabledState() {
-        val isCreating = viewModel.creatingProject.value ?: false
-        val hasScrolledToBottom = scrollGateKeeper?.hasReachedEnd ?: false
-        val canFinish = !isCreating && hasScrolledToBottom
-        val stateDesc = if (canFinish) null else getString(string.msg_scroll_to_create_project)
+	private fun bindWithTemplate(template: Template<*>?) {
+		template ?: return
 
-        binding.finish.isEnabled = !isCreating && hasScrolledToBottom
-        binding.scrollIndicator.isVisible = !hasScrolledToBottom
-        ViewCompat.setStateDescription(binding.finish, stateDesc)
-    }
+		binding.title.text = template.templateNameStr
 
-    private fun startBlinkingIndicator() {
-        blinkAnimator = ObjectAnimator.ofFloat(binding.scrollIndicator, View.ALPHA, 1f, 0.2f, 1f).apply {
-            duration = 1200
-            interpolator = LinearInterpolator()
-            repeatCount = ObjectAnimator.INFINITE
-            start()
-        }
-    }
+		// Some parameters do disk work in their beforeCreateView hook (e.g. computing a
+		// non-colliding default project name). Run those hooks on Dispatchers.IO before
+		// attaching the adapter so that onBindViewHolder skips them (they are one-shot).
+		widgetsBindJob?.cancel()
+		widgetsBindJob =
+			viewLifecycleOwner.lifecycleScope.launch {
+				withContext(Dispatchers.IO) {
+					template.widgets.forEach { widget ->
+						if (widget is ParameterWidget<*>) {
+							widget.parameter.beforeCreateView()
+						}
+					}
+				}
+				_binding ?: return@launch
+				binding.widgets.adapter = TemplateWidgetsListAdapter(template.widgets)
+				binding.widgets.post {
+					scrollGateKeeper?.checkIfReachedEnd()
+				}
+			}
+	}
+
+	private fun updateFinishEnabledState() {
+		val isCreating = viewModel.creatingProject.value ?: false
+		val hasScrolledToBottom = scrollGateKeeper?.hasReachedEnd ?: false
+		val canFinish = !isCreating && hasScrolledToBottom
+		val stateDesc = if (canFinish) null else getString(string.msg_scroll_to_create_project)
+
+		binding.finish.isEnabled = !isCreating && hasScrolledToBottom
+		binding.scrollIndicator.isVisible = !hasScrolledToBottom
+		ViewCompat.setStateDescription(binding.finish, stateDesc)
+
+		updateBlinkState()
+	}
+
+	/**
+	 * Starts or stops the blink to match [shouldBlinkScrollIndicator].
+	 */
+	private fun updateBlinkState() {
+		val shouldBlink =
+			shouldBlinkScrollIndicator(
+				isViewStarted = isViewStarted,
+				currentScreen = viewModel.currentScreen.value,
+				isIndicatorVisible = _binding?.scrollIndicator?.isVisible == true,
+			)
+
+		if (shouldBlink) {
+			startBlinkingIndicator()
+		} else {
+			stopBlinkingIndicator()
+		}
+	}
+
+	private fun startBlinkingIndicator() {
+		if (blinkAnimator?.isStarted == true) {
+			return
+		}
+
+		blinkAnimator =
+			ObjectAnimator.ofFloat(binding.scrollIndicator, View.ALPHA, 1f, 0.2f, 1f).apply {
+				duration = 1200
+				interpolator = LinearInterpolator()
+				repeatCount = ObjectAnimator.INFINITE
+				start()
+			}
+	}
+
+	private fun stopBlinkingIndicator() {
+		blinkAnimator?.cancel()
+		blinkAnimator = null
+
+		// cancelling mid-repeat leaves the indicator at whatever alpha it had reached
+		_binding?.scrollIndicator?.alpha = 1f
+	}
 }
+
+/**
+ * Whether the scroll indicator's blink should be running.
+ *
+ * The blink repeats forever, and an endlessly repeating animator keeps the main thread's
+ * Choreographer loop alive process-wide: it re-posts a vsync callback every frame whether or not
+ * anything is drawn, and it does not pause when its activity merely stops. So it may run only
+ * while the indicator can actually be seen, which takes all three inputs here.
+ *
+ * A started view lifecycle is not on its own a proxy for that. `activity_main.xml` declares every
+ * one of MainActivity's screens as a sibling container in one `FrameLayout`, and switching screens
+ * only flips their `View` visibility, so this fragment's view reaches `STARTED` at cold start and
+ * stays there for as long as MainActivity is started -- including the whole time the user sits on
+ * the project list having never opened the new-project flow. The indicator also hides itself once
+ * the form has been scrolled to the bottom, which is a third way for it to be off screen while
+ * this screen is the current one.
+ */
+internal fun shouldBlinkScrollIndicator(
+	isViewStarted: Boolean,
+	currentScreen: Int?,
+	isIndicatorVisible: Boolean,
+): Boolean = isViewStarted && currentScreen == MainViewModel.SCREEN_TEMPLATE_DETAILS && isIndicatorVisible

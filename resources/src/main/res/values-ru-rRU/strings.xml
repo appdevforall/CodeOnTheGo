@@ -23,9 +23,9 @@
   <string name="get_started">Давайте начнём!</string>
   <string name="msg_cannot_perform_fix">Невозможно применить быстрое решение</string>
   <string name="msg_performing_actions">Применение изменений&#8230;</string>
-  <string name="msg_api_info_since">Начиная с API %d</string>
-  <string name="msg_api_info_removed">Удалено в API %d</string>
-  <string name="msg_api_info_deprecated">Устаревшее с API %d</string>
+  <string name="msg_api_info_since">Начиная с API %s</string>
+  <string name="msg_api_info_removed">Удалено в API %s</string>
+  <string name="msg_api_info_deprecated">Устаревшее с API %s</string>
   <string name="msg_finding_references">Поиск ссылок&#8230;</string>
   <string name="msg_finding_definition">Поиск дефиниций&#8230;</string>
   <string name="msg_no_definition">Дефиниций не найдено</string>
