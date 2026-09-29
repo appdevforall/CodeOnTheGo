@@ -256,8 +256,9 @@ class RecentProjectsAdapter(
 				val source = File(oldPath)
 				val target = File(newPath)
 				val sameLocation =
-					runCatching { source.canonicalPath == target.canonicalPath }
-						.getOrElse { source.absolutePath == target.absolutePath }
+					project.isCaseOnlyRenameTo(newPath) ||
+						runCatching { source.canonicalPath == target.canonicalPath }
+							.getOrElse { source.absolutePath == target.absolutePath }
 				if (target.exists() && !sameLocation) {
 					throw IOException("A project already exists at $newPath")
 				}

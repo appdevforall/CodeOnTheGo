@@ -17,11 +17,22 @@ class ProjectFile(
 	var name: String = lastSegment(path)
 		private set
 
+	fun isCaseOnlyRenameTo(newPath: String): Boolean {
+		val source = File(path)
+		val target = File(newPath)
+		return source.parentFile?.absolutePath == target.parentFile?.absolutePath &&
+			source.name != target.name &&
+			source.name.equals(target.name, ignoreCase = true)
+	}
+
 	fun rename(newPath: String): Boolean {
 		val source = File(path)
 		val target = File(newPath)
-		if (source.absolutePath != target.absolutePath &&
-			runCatching { source.canonicalPath == target.canonicalPath }.getOrDefault(false)
+		if (isCaseOnlyRenameTo(newPath) ||
+			(
+				source.absolutePath != target.absolutePath &&
+					runCatching { source.canonicalPath == target.canonicalPath }.getOrDefault(false)
+			)
 		) {
 			val temporary = File(source.parentFile, ".rename-${UUID.randomUUID()}")
 			if (!source.renameTo(temporary)) return false
