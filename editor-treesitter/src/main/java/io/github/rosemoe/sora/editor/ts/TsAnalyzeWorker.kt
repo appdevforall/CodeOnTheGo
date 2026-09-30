@@ -51,340 +51,359 @@ import java.util.concurrent.LinkedBlockingQueue
  * @author Akash Yadav
  */
 class TsAnalyzeWorker(
-  private val analyzer: TsAnalyzeManager,
-  private val languageSpec: TsLanguageSpec,
-  private val theme: TsTheme,
-  private val styles: Styles,
-  private val reference: ContentReference,
-  private val spanFactory: TsSpanFactory
+	private val analyzer: TsAnalyzeManager,
+	private val languageSpec: TsLanguageSpec,
+	private val theme: TsTheme,
+	private val styles: Styles,
+	private val reference: ContentReference,
+	private val spanFactory: TsSpanFactory,
 ) {
+	companion object {
+		private val log = LoggerFactory.getLogger(TsAnalyzeWorker::class.java)
+	}
 
-  companion object {
+	var stylesReceiver: StyleReceiver? = null
 
-    private val log = LoggerFactory.getLogger(TsAnalyzeWorker::class.java)
-  }
+	@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
+	private val analyzerContext = newSingleThreadContext("TsAnalyzeWorkerContext")
 
-  var stylesReceiver: StyleReceiver? = null
+	private val analyzerScope = CoroutineScope(analyzerContext)
+	private val messageChannel = LinkedBlockingQueue<Message<*>>()
+	private var analyzerJob: Job? = null
 
-  @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
-  private val analyzerContext = newSingleThreadContext("TsAnalyzeWorkerContext")
+	private var isInitialized = false
+	private var isDestroyed = false
 
-  private val analyzerScope = CoroutineScope(analyzerContext)
-  private val messageChannel = LinkedBlockingQueue<Message<*>>()
-  private var analyzerJob: Job? = null
+	val document = TsTextDocument(languageSpec.language)
 
-  private var isInitialized = false
-  private var isDestroyed = false
+	internal val tree: TSTree?
+		get() = document.tree
 
-  val document = TsTextDocument(languageSpec.language)
+	internal val text: UTF16String
+		get() = document.text
 
-  internal val tree: TSTree?
-    get() = document.tree
+	internal fun init(init: Init) {
+		if (isDestroyed) {
+			log.warn("Received Init after TsAnalyzeWorker has been destroyed. Ignoring...")
+			return
+		}
 
-  internal val text: UTF16String
-    get() = document.text
+		messageChannel.offer(init)
+	}
 
-  internal fun init(init: Init) {
-    if (isDestroyed) {
-      log.warn("Received Init after TsAnalyzeWorker has been destroyed. Ignoring...")
-      return
-    }
+	internal fun onMod(mod: Mod) {
+		if (isDestroyed) {
+			log.warn("Received Mod after TsAnalyzeWorker has been destroyed. Ignoring...")
+			return
+		}
 
-    messageChannel.offer(init)
-  }
+		messageChannel.offer(mod)
+	}
 
-  internal fun onMod(mod: Mod) {
-    if (isDestroyed) {
-      log.warn("Received Mod after TsAnalyzeWorker has been destroyed. Ignoring...")
-      return
-    }
+	fun stop() {
+		log.debug("Stopping TsAnalyzeWorker...")
+		isDestroyed = true
 
-    messageChannel.offer(mod)
-  }
+		document.requestCancellationAndWaitIfParsing()
 
-  fun stop() {
-    log.debug("Stopping TsAnalyzeWorker...")
-    isDestroyed = true
+		analyzerContext.close()
+		messageChannel.clear()
+		analyzerJob?.cancel(CancellationException("Requested to be stopped"))
+		analyzerScope.cancel(CancellationException("Requested to be stopped"))
+		document.close()
+	}
 
-    document.requestCancellationAndWaitIfParsing()
+	fun start() {
+		check(!isDestroyed) { "TsAnalyeWorker has already been destroyed" }
 
-    analyzerContext.close()
-    messageChannel.clear()
-    analyzerJob?.cancel(CancellationException("Requested to be stopped"))
-    analyzerScope.cancel(CancellationException("Requested to be stopped"))
-    document.close()
-  }
+		analyzerJob =
+			analyzerScope
+				.launch {
+					while (!isDestroyed && isActive) {
+						processNextMessage()
+					}
+				}.also { job ->
+					job.invokeOnCompletion { error ->
+						if (error != null && error !is CancellationException) {
+							log.error("Analyzer job failed", error)
+						} else {
+							log.info("Analyzer job completed")
+						}
+					}
+				}
+	}
 
-  fun start() {
-    check(!isDestroyed) { "TsAnalyeWorker has already been destroyed" }
+	fun addBreakpoint(line: Int) = toggleBreakpoint(line = line, addOnly = true)
 
-    analyzerJob = analyzerScope.launch {
-      while (!isDestroyed && isActive) {
-        processNextMessage()
-      }
-    }.also { job ->
-      job.invokeOnCompletion { error ->
-        if (error != null && error !is CancellationException) {
-          log.error("Analyzer job failed", error)
-        } else {
-          log.info("Analyzer job completed")
-        }
-      }
-    }
-  }
+	fun removeBreakpoint(line: Int) = toggleBreakpoint(line = line, removeOnly = true)
 
-  fun addBreakpoint(line: Int) = toggleBreakpoint(line = line, addOnly = true)
-  fun removeBreakpoint(line: Int) = toggleBreakpoint(line = line, removeOnly = true)
-  fun removeAllBreakpoints() {
-      styles.lineStyles?.forEach { style ->
-          style.eraseStyle(LineGutterBackground::class.java)
-      }
-      refreshLineStyles()
-  }
+	fun removeAllBreakpoints() {
+		styles.lineStyles?.forEach { style ->
+			style.eraseStyle(LineGutterBackground::class.java)
+		}
+		refreshLineStyles()
+	}
 
-  fun toggleBreakpoint(line: Int, addOnly: Boolean = false, removeOnly: Boolean = false) {
-    require(!(addOnly && removeOnly)) {
-        "set either addOnly or removeOnly, not both"
-    }
+	fun toggleBreakpoint(
+		line: Int,
+		addOnly: Boolean = false,
+		removeOnly: Boolean = false,
+	) {
+		require(!(addOnly && removeOnly)) {
+			"set either addOnly or removeOnly, not both"
+		}
 
-    val lineStyle = styles.lineStyles?.firstOrNull { it.line == line }
-    val gutterBg = lineStyle?.findOne(LineGutterBackground::class.java)
-    var notify = true
+		val lineStyle = styles.lineStyles?.firstOrNull { it.line == line }
+		val gutterBg = lineStyle?.findOne(LineGutterBackground::class.java)
+		var notify = true
 
-    if (gutterBg == null && !removeOnly) {
-      styles.addLineStyle(LineGutterBackground(line) { scheme ->
-        scheme.getColor(SchemeAndroidIDE.BREAKPOINT_LINE_INDICATOR)
-      })
-    } else if (!addOnly) {
-      styles.eraseLineStyle(line, LineGutterBackground::class.java)
-    } else {
-        notify = false
-    }
+		if (gutterBg == null && !removeOnly) {
+			styles.addLineStyle(
+				LineGutterBackground(line) { scheme ->
+					scheme.getColor(SchemeAndroidIDE.BREAKPOINT_LINE_INDICATOR)
+				},
+			)
+		} else if (!addOnly) {
+			styles.eraseLineStyle(line, LineGutterBackground::class.java)
+		} else {
+			notify = false
+		}
 
-    if (notify) {
-      refreshLineStyles()
-    }
-  }
+		if (notify) {
+			refreshLineStyles()
+		}
+	}
 
-  fun highlightLine(line: Int) {
-    val lineStyle = styles.lineStyles?.firstOrNull { it.line == line }
-    val lineBg = lineStyle?.findOne(LineBackground::class.java)
-    if (lineBg == null) {
-      styles.addLineStyle(LineBackground(line) { scheme ->
-        scheme.getColor(SchemeAndroidIDE.BREAKPOINT_LINE_BG)
-      })
-      refreshLineStyles()
-    }
-  }
+	fun highlightLine(line: Int) {
+		val lineStyle = styles.lineStyles?.firstOrNull { it.line == line }
+		val lineBg = lineStyle?.findOne(LineBackground::class.java)
+		if (lineBg == null) {
+			styles.addLineStyle(
+				LineBackground(line) { scheme ->
+					scheme.getColor(SchemeAndroidIDE.BREAKPOINT_LINE_BG)
+				},
+			)
+			refreshLineStyles()
+		}
+	}
 
-  fun unhighlightLines() {
-    styles.lineStyles?.forEach { style ->
-      style.eraseStyle(LineBackground::class.java)
-    }
-    refreshLineStyles()
-  }
+	fun unhighlightLines() {
+		styles.lineStyles?.forEach { style ->
+			style.eraseStyle(LineBackground::class.java)
+		}
+		refreshLineStyles()
+	}
 
-  private fun refreshLineStyles() {
-    // We can call styles.finishBuilding() instead of sorting lineStyles manually
-    // but finishBuilding() performs some unnecessary tasks like iterating over and sorting
-    // blockLines as well, which we don't need to do here
-    // As a result, we manually sort the line styles to avoid that unnecessary processing
-    styles.lineStyles?.sort()
-    stylesReceiver?.setStyles(analyzer, styles)
-  }
+	private fun refreshLineStyles() {
+		// We can call styles.finishBuilding() instead of sorting lineStyles manually
+		// but finishBuilding() performs some unnecessary tasks like iterating over and sorting
+		// blockLines as well, which we don't need to do here
+		// As a result, we manually sort the line styles to avoid that unnecessary processing
+		styles.lineStyles?.sort()
+		stylesReceiver?.setStyles(analyzer, styles)
+	}
 
-  private fun processNextMessage() {
-    val message = messageChannel.take()
-    if (isDestroyed) {
-      return
-    }
+	private fun processNextMessage() {
+		val message = messageChannel.take()
+		if (isDestroyed) {
+			return
+		}
 
-    try {
-      when (message) {
-        is Init -> doInit(message)
-        is Mod -> doMod(message)
-      }
-    } catch (err: Throwable) {
-      val langName = languageSpec.language.name
-      val msgType = message.javaClass.simpleName
-      val msgTypeSuffix = if (message is Mod) {
-        "[start=${message.data.start}, end=${message.data.end}, type=${if (message.data.changedText == null) "delete" else "insert"}]"
-      } else ""
-      val pendingMsgs = messageChannel.size
-      log.error(
-        "AnalyzeWorker[lang={}, message={}{}], pendingMsgs={}] crashed",
-        langName,
-        msgType,
-        msgTypeSuffix,
-        pendingMsgs,
-        err)
-    }
-  }
+		try {
+			when (message) {
+				is Init -> doInit(message)
+				is Mod -> doMod(message)
+			}
+		} catch (err: Throwable) {
+			val langName = languageSpec.language.name
+			val msgType = message.javaClass.simpleName
+			val msgTypeSuffix =
+				if (message is Mod) {
+					"[start=${message.data.start}, end=${message.data.end}, type=${if (message.data.changedText == null) "delete" else "insert"}]"
+				} else {
+					""
+				}
+			val pendingMsgs = messageChannel.size
+			log.error(
+				"AnalyzeWorker[lang={}, message={}{}], pendingMsgs={}] crashed",
+				langName,
+				msgType,
+				msgTypeSuffix,
+				pendingMsgs,
+				err,
+			)
+		}
+	}
 
-  private fun doInit(init: Init) {
-    document.requestCancellationAndWaitIfParsing()
+	private fun doInit(init: Init) {
+		document.requestCancellationAndWaitIfParsing()
 
-    check(!isInitialized) {
-      "'Init' must be the first message to TsAnalyzeWorker"
-    }
+		check(!isInitialized) {
+			"'Init' must be the first message to TsAnalyzeWorker"
+		}
 
-    document.doInit(init.data)
-    document.reparse()
-    updateStyles()
+		document.doInit(init.data)
+		document.reparse()
+		updateStyles()
 
-    isInitialized = true
-  }
+		isInitialized = true
+	}
 
-  private fun doMod(mod: Mod) {
+	private fun doMod(mod: Mod) {
+		check(isInitialized) {
+			"'Init' must be the first message to TsAnalyzeWorker"
+		}
 
-    check(isInitialized) {
-      "'Init' must be the first message to TsAnalyzeWorker"
-    }
+		val textMod = mod.data
+		val edit = textMod.edit
 
-    val textMod = mod.data
-    val edit = textMod.edit
+		val oldTree = tree!!
+		oldTree.edit(edit)
 
-    val oldTree = tree!!
-    oldTree.edit(edit)
+		document.doMod(textMod)
 
-    document.doMod(textMod)
+		(edit as? TreeSitterInputEdit?)?.recycle()
 
-    (edit as? TreeSitterInputEdit?)?.recycle()
+		document.requestCancellationAndWaitIfParsing()
 
-    document.requestCancellationAndWaitIfParsing()
+		if (isDestroyed) {
+			return
+		}
 
-    if (isDestroyed) {
-      return
-    }
+		document.reparse(oldTree)
 
-    document.reparse(oldTree)
+		oldTree.close()
+		updateStyles()
+	}
 
-    oldTree.close()
-    updateStyles()
-  }
+	private fun updateStyles() {
+		if (isDestroyed || messageChannel.isNotEmpty() || tree?.canAccess() != true) {
+			// analyzer stopped or
+			// more message need to be processed
+			return
+		}
 
-  private fun updateStyles() {
-    if (isDestroyed || messageChannel.isNotEmpty() || tree?.canAccess() != true) {
-      // analyzer stopped or
-      // more message need to be processed
-      return
-    }
+		val tree = tree!!
+		val scopedVariables = TsScopedVariables(tree, text, languageSpec)
+		val oldSpans = (styles.spans as? LineSpansGenerator?)
+		val oldBrackets = analyzer.currentBracketPairs
 
-    val tree = tree!!
-    val scopedVariables = TsScopedVariables(tree, text, languageSpec)
-    val oldSpans = (styles.spans as? LineSpansGenerator?)
-    val oldBrackets = analyzer.currentBracketPairs
+		oldSpans?.destroy()
 
-    oldSpans?.destroy()
+		// Use separate tree copies for the background worker and the UI thread
+		// to prevent concurrent access crashes.
+		styles.spans =
+			LineSpansGenerator(
+				tree.copy(),
+				reference.lineCount,
+				reference.reference,
+				theme,
+				languageSpec,
+				scopedVariables,
+				spanFactory,
+				requestRedraw = { stylesReceiver?.setStyles(analyzer, styles) },
+			)
 
-    // Use separate tree copies for the background worker and the UI thread
-    // to prevent concurrent access crashes.
-    styles.spans = LineSpansGenerator(
-      tree.copy(),
-      reference.lineCount,
-      reference.reference,
-      theme,
-      languageSpec,
-      scopedVariables,
-      spanFactory,
-      requestRedraw = { stylesReceiver?.setStyles(analyzer, styles) }
-    )
+		val newBrackets = TsBracketPairs(tree.copy(), languageSpec)
+		analyzer.currentBracketPairs = newBrackets
 
-    val newBrackets = TsBracketPairs(tree.copy(), languageSpec)
-    analyzer.currentBracketPairs = newBrackets
+		val oldBlocks = styles.blocks
+		updateCodeBlocks()
+		oldBlocks?.also { ObjectAllocator.recycleBlockLines(it) }
 
-    val oldBlocks = styles.blocks
-    updateCodeBlocks()
-    oldBlocks?.also { ObjectAllocator.recycleBlockLines(it) }
+		stylesReceiver?.setStyles(analyzer, styles)
+		stylesReceiver?.updateBracketProvider(analyzer, newBrackets)
 
-    stylesReceiver?.setStyles(analyzer, styles)
-    stylesReceiver?.updateBracketProvider(analyzer, newBrackets)
+		oldBrackets?.let { Handler(Looper.getMainLooper()).post { it.close() } }
+	}
 
-    oldBrackets?.let { Handler(Looper.getMainLooper()).post { it.close() } }
-  }
+	private fun updateCodeBlocks() {
+		if (languageSpec.blocksQuery.patternCount == 0 ||
+			!languageSpec.blocksQuery.canAccess() ||
+			tree?.canAccess() != true
+		) {
+			return
+		}
 
-  private fun updateCodeBlocks() {
-    if (languageSpec.blocksQuery.patternCount == 0
-      || !languageSpec.blocksQuery.canAccess()
-      || tree?.canAccess() != true
-    ) {
-      return
-    }
+		val blocks = mutableListOf<CodeBlock>()
+		TSQueryCursor.create().use { cursor ->
 
-    val blocks = mutableListOf<CodeBlock>()
-    TSQueryCursor.create().use { cursor ->
+			cursor.safeExecQueryCursor(
+				query = languageSpec.blocksQuery,
+				tree = tree,
+				recycleNodeAfterUse = true,
+				matchCondition = { !isDestroyed },
+				onClosedOrEdited = { blocks.clear() },
+				debugName = "TsAnalyzeManager.updateCodeBlocks()",
+			) { match ->
+				if (!languageSpec.blocksPredicator.doPredicate(
+						languageSpec.predicates,
+						text,
+						match,
+					)
+				) {
+					return@safeExecQueryCursor
+				}
 
-      cursor.safeExecQueryCursor(
-        query = languageSpec.blocksQuery,
-        tree = tree,
-        recycleNodeAfterUse = true,
-        matchCondition = { !isDestroyed },
-        onClosedOrEdited = { blocks.clear() },
-        debugName = "TsAnalyzeManager.updateCodeBlocks()"
-      ) { match ->
-        if (!languageSpec.blocksPredicator.doPredicate(
-            languageSpec.predicates,
-            text,
-            match
-          )
-        ) {
-          return@safeExecQueryCursor
-        }
+				match.captures.forEach { capture ->
+					val block = ObjectAllocator.obtainBlockLine()
+					var node = capture.node
+					val start = node.startPoint
 
-        match.captures.forEach { capture ->
-          val block = ObjectAllocator.obtainBlockLine()
-          var node = capture.node
-          val start = node.startPoint
+					block.startLine = start.row
+					block.startColumn = start.column / 2
 
-          block.startLine = start.row
-          block.startColumn = start.column / 2
+					val end =
+						if (languageSpec.blocksQuery
+								.getCaptureNameForId(capture.index)
+								.endsWith(".marked")
+						) {
+							// Goto last terminal element
+							while (node.childCount > 0) {
+								node = node.getChild(node.childCount - 1)
+							}
+							node.startPoint
+						} else {
+							node.endPoint
+						}
+					block.endLine = end.row
+					block.endColumn = end.column / 2
+					if (block.endLine - block.startLine > 1) {
+						blocks.add(block)
+					}
 
-          val end = if (languageSpec.blocksQuery.getCaptureNameForId(capture.index)
-              .endsWith(".marked")
-          ) {
-            // Goto last terminal element
-            while (node.childCount > 0) {
-              node = node.getChild(node.childCount - 1)
-            }
-            node.startPoint
-          } else {
-            node.endPoint
-          }
-          block.endLine = end.row
-          block.endColumn = end.column / 2
-          if (block.endLine - block.startLine > 1) {
-            blocks.add(block)
-          }
+					(capture as? TreeSitterQueryCapture?)?.recycle()
+				}
+			}
+		}
 
-          (capture as? TreeSitterQueryCapture?)?.recycle()
-        }
-      }
-    }
-
-    val distinct = blocks.asSequence().distinct().toMutableList()
-    styles.blocks = distinct
-    styles.finishBuilding()
-  }
+		val distinct = blocks.asSequence().distinct().toMutableList()
+		styles.blocks = distinct
+		styles.finishBuilding()
+	}
 }
 
 internal interface Message<T> {
-
-  val data: T
+	val data: T
 }
 
-internal data class Init(override val data: TextInit) : Message<TextInit>
+internal data class Init(
+	override val data: TextInit,
+) : Message<TextInit>
 
-internal data class Mod(override val data: TextMod) : Message<TextMod>
+internal data class Mod(
+	override val data: TextMod,
+) : Message<TextMod>
 
 internal data class TextInit(
-  val text: String,
-  val contentVersion: Long
+	val text: String,
+	val contentVersion: Long,
 )
 
 internal data class TextMod(
-  val start: Int,
-  val end: Int,
-  val edit: TSInputEdit,
-  val changedText: String?,
-  val contentVersion: Long
+	val start: Int,
+	val end: Int,
+	val edit: TSInputEdit,
+	val changedText: String?,
+	val contentVersion: Long,
 )
