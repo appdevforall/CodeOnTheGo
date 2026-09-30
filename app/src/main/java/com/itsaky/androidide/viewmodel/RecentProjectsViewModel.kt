@@ -7,16 +7,21 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.itsaky.androidide.adapters.RecentProjectsAdapter
 import com.itsaky.androidide.models.ProjectFile
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
+import com.itsaky.androidide.roomData.recentproject.RecentProjectMaintenance
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.templates.Language
+import com.itsaky.androidide.utils.canonicalProjectLocation
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
 import com.itsaky.androidide.utils.readProjectLanguage
+import com.itsaky.androidide.utils.reconcileRecentProjectLocations
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -25,6 +30,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -49,6 +56,10 @@ class RecentProjectsViewModel(
 ) : AndroidViewModel(application) {
 	companion object {
 		private val logger = LoggerFactory.getLogger(RecentProjectsViewModel::class.java)
+		private val projectLocationReconciliationMutex = Mutex()
+
+		@Volatile private var projectLocationsReconciled = false
+		private const val LOCATION_RECONCILIATION_KEY = "recent_project_locations_reconciled"
 	}
 
 	private val _projects = MutableLiveData<List<ProjectFile>>()
@@ -82,10 +93,69 @@ class RecentProjectsViewModel(
 
 	fun loadProjects(): Job =
 		viewModelScope.launch(Dispatchers.IO) {
-			val projectsFromDb = recentProjectDao.dumpAll() ?: emptyList()
+			val projectsFromDb =
+				try {
+					loadProjectsFromDatabase()
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					logger.error("Failed to load recent projects", e)
+					try {
+						recentProjectDao.dumpAll() ?: emptyList()
+					} catch (fallbackError: CancellationException) {
+						throw fallbackError
+					} catch (fallbackError: Exception) {
+						logger.error("Failed to load recent projects after reconciliation error", fallbackError)
+						emptyList()
+					}
+				}
 			allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified) }
 			applyFilters()
 		}
+
+	private suspend fun loadProjectsFromDatabase(): List<RecentProject> {
+		if (projectLocationsReconciled) {
+			return recentProjectDao.dumpAll() ?: emptyList()
+		}
+
+		// SQLite cannot resolve filesystem aliases; reconcile legacy rows once before reading Recents.
+		return projectLocationReconciliationMutex.withLock {
+			if (projectLocationsReconciled) {
+				return@withLock recentProjectDao.dumpAll() ?: emptyList()
+			}
+
+			val projects =
+				recentProjectDatabase.withTransaction {
+					val maintenanceDao = recentProjectDatabase.maintenanceDao()
+					val complete = maintenanceDao.isCompleted(LOCATION_RECONCILIATION_KEY) == true
+					if (!complete) {
+						reconcileCanonicalProjectLocations()
+						maintenanceDao.setCompleted(
+							RecentProjectMaintenance(LOCATION_RECONCILIATION_KEY, completed = true),
+						)
+					}
+					recentProjectDao.dumpAll() ?: emptyList()
+				}
+			projectLocationsReconciled = true
+			projects
+		}
+	}
+
+	private suspend fun reconcileCanonicalProjectLocations() {
+		val projects = recentProjectDao.dumpAll() ?: emptyList()
+		val reconciled = reconcileRecentProjectLocations(projects)
+		val retainedIds = reconciled.mapTo(mutableSetOf()) { it.id }
+		val duplicateIds = projects.filterNot { it.id in retainedIds }.map { it.id }
+		if (duplicateIds.isNotEmpty()) {
+			recentProjectDao.deleteByIds(duplicateIds)
+		}
+		val originalById = projects.associateBy { it.id }
+		reconciled.forEach { project ->
+			if (originalById[project.id] != project) {
+				recentProjectDao.update(project)
+			}
+		}
+	}
 
 	fun notifyFiltersSaved() {
 		viewModelScope.launch {
@@ -146,28 +216,37 @@ class RecentProjectsViewModel(
 		applyFilters()
 	}
 
-	suspend fun getProjectByName(name: String): RecentProject? =
+	suspend fun getProjectByLocation(location: String): RecentProject? =
 		withContext(Dispatchers.IO) {
-			recentProjectDao.getProjectByName(name)
+			recentProjectDao.getProjectByLocation(File(location).canonicalProjectLocation())
 		}
 
-	fun projectNameExists(name: String): Boolean = allProjects.any { it.name == name }
+	fun renameTargetExists(
+		project: ProjectFile,
+		newName: String,
+	): Boolean {
+		if (newName.equals(project.name, ignoreCase = true)) return false
+		val projectDirectory = File(project.path).parentFile ?: return false
+		val targetPath = File(projectDirectory, newName).absolutePath
+		return allProjects.any { it.path == targetPath }
+	}
 
 	fun insertProjectFromFolder(
 		name: String,
 		location: String,
 	) = viewModelScope.launch(Dispatchers.IO) {
-		// Check if the project already exists
-		val existingProject = getProjectByName(name)
+		val projectLocation = File(location).canonicalProjectLocation()
+		// Check by location so different projects may share a name without blocking import.
+		val existingProject = recentProjectDao.getProjectByLocation(projectLocation)
 		if (existingProject == null) {
-			val createdAt = getCreatedTime(location)
-			val modifiedAt = getLastModifiedTime(location)
+			val createdAt = getCreatedTime(projectLocation)
+			val modifiedAt = getLastModifiedTime(projectLocation)
 			val unknown = Language.Unknown.lang
-			val detectedLanguage = readProjectLanguage(File(location))
+			val detectedLanguage = readProjectLanguage(File(projectLocation))
 			val languageToStore = if (detectedLanguage != unknown) detectedLanguage else unknown
 			recentProjectDao.insert(
 				RecentProject(
-					location = location,
+					location = projectLocation,
 					name = name,
 					createdAt = createdAt.toString(),
 					lastModified = modifiedAt.toString(),
@@ -178,31 +257,41 @@ class RecentProjectsViewModel(
 		}
 	}
 
-	fun deleteProject(project: ProjectFile) = deleteProject(project.name)
+	fun deleteProject(project: ProjectFile) = deleteProjectByLocation(project.path)
 
-	fun deleteProject(name: String) =
+	suspend fun removeProjectFromRecents(location: String) =
+		withContext(Dispatchers.IO) {
+			try {
+				recentProjectDao.deleteByLocation(File(location).canonicalProjectLocation())
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				logger.error("Failed to remove missing project from Recents", e)
+			}
+		}
+
+	fun deleteProjectByLocation(location: String) =
 		viewModelScope.launch {
 			try {
 				val success =
 					withContext(Dispatchers.IO) {
-						// Delete files from storage first
+						val projectLocation = File(location).canonicalProjectLocation()
 						val projectToDelete =
-							recentProjectDao.getProjectByName(name)
-								?: return@withContext false
+							recentProjectDao.getProjectByLocation(projectLocation)
+								?: return@withContext null
 						val isDeleted = File(projectToDelete.location).deleteRecursively()
 
-						// Delete from DB if storage deletion was successful
 						if (isDeleted) {
-							recentProjectDao.deleteByName(name)
+							recentProjectDao.deleteByLocation(projectToDelete.location)
 						}
-						isDeleted
+						projectToDelete.takeIf { isDeleted }
 					}
 
-				if (success) {
+				if (success != null) {
 					// Update LiveData
 					val currentList = _projects.value ?: emptyList()
-					allProjects = allProjects.filter { it.name != name }
-					_projects.value = currentList.filter { it.name != name }
+					allProjects = allProjects.filter { it.path != success.location }
+					_projects.value = currentList.filter { it.path != success.location }
 					_deletionStatus.emit(true)
 				} else {
 					// Emit failure if files couldn't be deleted
@@ -237,13 +326,14 @@ class RecentProjectsViewModel(
 	) = viewModelScope.launch(Dispatchers.IO) {
 		try {
 			val modifiedAt = System.currentTimeMillis().toString()
+			val newProjectLocation = File(newLocation).canonicalProjectLocation()
 			recentProjectDao.updateNameAndLocation(
-				oldName = oldName,
+				oldLocation = oldLocation,
 				newName = newName,
-				newLocation = newLocation,
+				newLocation = newProjectLocation,
 			)
 			recentProjectDao.updateLastModified(
-				projectName = newName,
+				location = newProjectLocation,
 				lastModified = modifiedAt,
 			)
 			loadProjects()
@@ -260,19 +350,19 @@ class RecentProjectsViewModel(
 		}
 	}
 
-	fun updateProjectModifiedDate(name: String) =
+	fun updateProjectModifiedDate(location: String) =
 		viewModelScope.launch(Dispatchers.IO) {
 			val modifiedAt = System.currentTimeMillis()
 			recentProjectDao.updateLastModified(
-				projectName = name,
+				location = File(location).canonicalProjectLocation(),
 				lastModified = modifiedAt.toString(),
 			)
 			loadProjects()
 		}
 
-	fun deleteSelectedProjects(selectedNames: List<String>) =
+	fun deleteSelectedProjects(selectedLocations: List<String>) =
 		viewModelScope.launch {
-			if (selectedNames.isEmpty()) {
+			if (selectedLocations.isEmpty()) {
 				return@launch
 			}
 
@@ -280,25 +370,25 @@ class RecentProjectsViewModel(
 
 			try {
 				withContext(Dispatchers.IO) {
-					// Find the full project details for the selected project names
-					val projectsToDelete = recentProjectDao.getProjectsByNames(selectedNames)
-					val successfullyDeletedNames = mutableListOf<String>()
+					val canonicalLocations = selectedLocations.map { File(it).canonicalProjectLocation() }
+					val projectsToDelete = recentProjectDao.getProjectsByLocations(canonicalLocations)
+					val successfullyDeletedLocations = mutableListOf<String>()
 
 					for (project in projectsToDelete) {
 						// Delete from storage
 						val isDeletedFromStorage = File(project.location).deleteRecursively()
 
 						if (isDeletedFromStorage) {
-							successfullyDeletedNames.add(project.name)
+							successfullyDeletedLocations.add(project.location)
 						} else {
 							logger.warn("Failed to delete project files from storage: ${project.location}")
 							allDeletionsSucceeded = false
 						}
 					}
 
-					if (successfullyDeletedNames.isNotEmpty()) {
+					if (successfullyDeletedLocations.isNotEmpty()) {
 						// Delete from database
-						recentProjectDao.deleteByNames(successfullyDeletedNames)
+						recentProjectDao.deleteByLocations(successfullyDeletedLocations)
 					}
 				}
 
