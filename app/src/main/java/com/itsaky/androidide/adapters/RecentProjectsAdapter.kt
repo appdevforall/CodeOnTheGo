@@ -339,7 +339,7 @@ class RecentProjectsAdapter(
 		when {
 			newName == oldName -> {
 				positiveButton.isEnabled = false
-                inputLayout.error = null
+				inputLayout.error = null
 			}
 
 			newName.isEmpty() -> {
