@@ -13,6 +13,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -133,6 +134,37 @@ class PromptConfigStoreTest {
 
 		store.preload(scope, CountingSource(fail = true)).settle()
 		assertNull(store.configIfLoaded())
+	}
+
+	@Test
+	fun givenAReload_whenTheLoadSucceeds_thenOnLoadedGetsTheConfig() {
+		val reported = CompletableDeferred<String>()
+
+		store.reload(CountingSource(), { reported.complete(it.identity.label) }, { reported.completeExceptionally(it) })
+
+		assertEquals("agent.yml: identity", runBlocking { reported.await() })
+	}
+
+	@Test
+	fun givenAReload_whenTheLoadFails_thenOnFailedGetsTheError() {
+		val reported = CompletableDeferred<Throwable>()
+
+		store.reload(CountingSource(fail = true), { reported.cancel() }, { reported.complete(it) })
+
+		runBlocking { reported.await() }
+	}
+
+	@Test
+	fun givenAReload_whenClearedMidLoad_thenNeitherCallbackRuns() {
+		val gate = CompletableDeferred<Unit>()
+		var reported = false
+		val load = store.reload(gatedSource(gate), { reported = true }, { reported = true })
+
+		store.clear()
+		gate.complete(Unit)
+		runBlocking { load.join() }
+
+		assertFalse(reported)
 	}
 
 	private fun Deferred<*>.settle() = runBlocking { runCatching { await() } }

@@ -205,6 +205,7 @@ public final class com/itsaky/androidide/plugins/ai/prompt/PromptConfigStore : c
 	public fun config (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun configIfLoaded ()Ljava/lang/Object;
 	public final fun preload (Lkotlinx/coroutines/CoroutineScope;Lcom/itsaky/androidide/plugins/ai/prompt/PromptConfigSource;)Lkotlinx/coroutines/Deferred;
+	public final fun reload (Lcom/itsaky/androidide/plugins/ai/prompt/PromptConfigSource;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)Lkotlinx/coroutines/Deferred;
 }
 
 public final class com/itsaky/androidide/plugins/ai/prompt/PromptTemplateEngine {

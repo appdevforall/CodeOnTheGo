@@ -1,10 +1,14 @@
 package com.itsaky.androidide.plugins.ai.prompt
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import java.util.concurrent.atomic.AtomicReference
 
 /** Supplies the loaded prompt config, suspending until it is available. */
@@ -30,6 +34,36 @@ class PromptConfigStore<T>(
 	private val parser: PromptConfigParser<T>,
 ) : PromptConfigProvider<T> {
 	private val load = AtomicReference<Deferred<T>?>(null)
+	private val ownScope = AtomicReference<CoroutineScope?>(null)
+
+	/**
+	 * Drops any cached config and loads from [source] afresh, in a scope this store owns until [clear].
+	 * A plugin calls it from `activate()`; a load cancelled by [clear] reports to neither callback.
+	 *
+	 * @param source where the config file lives.
+	 * @param onLoaded given the config once it loads, e.g. to log checks against it.
+	 * @param onFailed given the error when the load fails.
+	 * @return the load now cached.
+	 */
+	@OptIn(ExperimentalCoroutinesApi::class)
+	fun reload(
+		source: PromptConfigSource,
+		onLoaded: (T) -> Unit,
+		onFailed: (Throwable) -> Unit,
+	): Deferred<T> {
+		clear()
+		val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+		ownScope.getAndSet(scope)?.cancel()
+		val next = preload(scope, source)
+		next.invokeOnCompletion { error ->
+			when (error) {
+				null -> onLoaded(next.getCompleted())
+				is CancellationException -> Unit
+				else -> onFailed(error)
+			}
+		}
+		return next
+	}
 
 	/**
 	 * Starts loading from [source] unless a load is already cached; a failed load is retried.
@@ -81,9 +115,10 @@ class PromptConfigStore<T>(
 		return if (current.isCompleted && !current.hasFailed()) current.getCompleted() else null
 	}
 
-	/** Drops the cache, cancelling a load still in flight; the next [preload] reads afresh. */
+	/** Drops the cache, cancelling a load still in flight and [reload]'s scope; idempotent. */
 	fun clear() {
 		load.getAndSet(null)?.cancel()
+		ownScope.getAndSet(null)?.cancel()
 	}
 
 	/**

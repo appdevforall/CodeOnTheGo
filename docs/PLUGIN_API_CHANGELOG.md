@@ -51,7 +51,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `PromptConfigException`; and `PromptConfigStore<T>`, the per-activation cache, behind
   `PromptConfigProvider<T>`. Loader and store are generic over the plugin's config type:
   a plugin supplies only a `PromptConfigParser<T>` and keeps one store, e.g.
-  `val shared = PromptConfigStore(MyParser)`. The YAML library (snakeyaml-engine 2.10)
+  `val shared = PromptConfigStore(MyParser)`, and calls `shared.reload(source, onLoaded, onFailed)`
+  from `activate()` and `shared.clear()` from `deactivate()`. The YAML library (snakeyaml-engine 2.10)
   is on the host side, so a plugin using the loader no longer bundles it.
   `com.itsaky.androidide.plugins.ai.ui`: `SecretRevealController`, whose two states are
   each a `RevealToggle` (icon and content description), and
@@ -59,7 +60,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `ButtonColors` per emphasis and a `FieldColors`. Both take the plugin's own resource ids
   rather than shipping any: they resolve against the view's context, which carries the
   plugin's resources, not the host's.
-  Additive to the ABI (182 added lines in the dump, none removed), but no longer unused:
+  Additive to the ABI (183 added lines in the dump, none removed), but no longer unused:
   AI-Core and the Gemini, Local and OpenAI agents now load and render their prompt config
   through `ai.prompt` and drop their private copies, and the Gemini, OpenAI and MCP
   settings screens use `ai.ui`. `LlmInferenceService.WebSearchBackend` (`canSearchWeb()`)
