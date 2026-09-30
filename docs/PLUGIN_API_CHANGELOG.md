@@ -35,7 +35,7 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
-### 26.40 — unreleased
+### 26.41 — unreleased
 - **added — The AI prompt config engine and settings-pane helpers** _(ADFA-6281)_ **[verified]**
   Every AI plugin carried its own copy of the code that reads and renders its prompt
   config, and the credential screens their own copy of the reveal toggle and pane
@@ -63,7 +63,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   AI-Core and the Gemini, Local and OpenAI agents now load and render their prompt config
   through `ai.prompt` and drop their private copies, and the Gemini, OpenAI and MCP
   settings screens use `ai.ui`. Floor
-  `plugin.min_ide_version` at `26.40` to use any of it; an older IDE has none of these
+  `plugin.min_ide_version` at `26.41` to use any of it; an older IDE has none of these
   classes, and the plugin fails with `NoClassDefFoundError` on first use.
 - **added — Read-only App Logs and IDE Logs** _(ADFA-6267)_ **[verified]**
   Plugins could read build output (`IdeBuildService.getBuildOutput()`) but not the App Logs
@@ -79,7 +79,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `LogReadResult.EMPTY`, never a throw. The service has no clear or write method, and needs
   no permission: plugins run in-process under the IDE's uid, so a gate would disclose log
   access, not enforce it. Purely additive (the ABI dump diff is additions only). Floor
-  `plugin.min_ide_version` at `26.40` to use it; an older IDE has no such service.
+  `plugin.min_ide_version` at `26.41` to use it; an older IDE has no such service.
+### 26.40 — 2026-09-29
 - **added — An embedding capability a backend can declare** _(ADFA-6053)_ **[verified]**
   A backend that has an embedding model can now say so. The only embedding entry point
   before this was `LlmInferenceService.getEmbeddings(String, String)`, which addresses a

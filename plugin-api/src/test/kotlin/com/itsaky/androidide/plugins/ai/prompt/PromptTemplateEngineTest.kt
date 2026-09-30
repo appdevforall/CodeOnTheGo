@@ -108,6 +108,23 @@ class PromptTemplateEngineTest {
 	}
 
 	@Test
+	fun givenPaddedTags_whenRendering_thenTheyAreTags() {
+		val out = PromptTemplateEngine.render("{{ A }}{{# B }}!{{/B }}", mapOf("A" to "x", "B" to true))
+
+		assertEquals("x!", out)
+	}
+
+	@Test
+	fun givenAMalformedTag_whenRendering_thenItFails() {
+		// Emitted verbatim, it would reach the model as a literal tag with nothing reporting it.
+		for (template in listOf("{{file-name}}", "{{ A }", "{{# file-list}}")) {
+			assertThrows(template, IllegalArgumentException::class.java) {
+				PromptTemplateEngine.render(template, emptyMap())
+			}
+		}
+	}
+
+	@Test
 	fun givenANullValue_whenRenderedAsText_thenItFails() {
 		// Null opens no section; printed as text it would be a hole in the prompt.
 		assertThrows(IllegalArgumentException::class.java) {

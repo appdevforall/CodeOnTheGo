@@ -31,7 +31,8 @@ data class ButtonColors(
 /**
  * An outlined-box text field, from the plugin's own colour resources.
  *
- * @property stroke the outline
+ * @property stroke the outline; a selector with a colour per state, since a plain colour recolours
+ *   only the focused outline
  * @property error the outline while the field shows an error
  * @property hint the hint
  * @property endIcon the end icon's tint

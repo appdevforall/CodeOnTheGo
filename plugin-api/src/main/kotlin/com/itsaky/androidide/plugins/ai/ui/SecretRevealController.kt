@@ -67,7 +67,7 @@ class SecretRevealController(
 		// description carries the state instead.
 		box.isEndIconCheckable = false
 		box.setEndIconOnClickListener { isRevealed = !isRevealed }
-		render()
+		if (isRevealed) mask() else render()
 	}
 
 	/**

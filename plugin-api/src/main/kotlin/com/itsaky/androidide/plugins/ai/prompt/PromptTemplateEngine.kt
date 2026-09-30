@@ -3,7 +3,8 @@ package com.itsaky.androidide.plugins.ai.prompt
 /**
  * Renders a prompt template: `{{NAME}}` values, `{{#NAME}}...{{/NAME}}` and `{{^NAME}}...{{/NAME}}`
  * sections; a name is a letter then letters, digits, `_` or `.`, in any case, e.g. `{{FILE_NAME}}`,
- * `{{fileName}}` or `{{item.name}}`, looked up as the whole key. Strict, so a typo throws; a String value is never rescanned, a [PromptText] always is.
+ * `{{fileName}}` or `{{item.name}}`, looked up as the whole key; padding such as `{{ NAME }}` is allowed.
+ * Strict, so a typo or a malformed tag throws; a String value is never rescanned, a [PromptText] always is.
  * Stateless and free of reflection, so it is safe to call from any thread.
  */
 object PromptTemplateEngine {
@@ -13,7 +14,10 @@ object PromptTemplateEngine {
 	/** Set in each list item's scope: whether it is the list's last item. */
 	const val LAST = "LAST"
 
-	private val TAG = Regex("""\{\{(?:([#^/])([a-zA-Z][a-zA-Z0-9_.]*)|([a-zA-Z][a-zA-Z0-9_.]*))\}\}""")
+	private val TAG = Regex("""\{\{\s*(?:([#^/])\s*([a-zA-Z][a-zA-Z0-9_.]*)|([a-zA-Z][a-zA-Z0-9_.]*))\s*\}\}""")
+
+	/** The start of a tag [TAG] did not match, e.g. `{{file-name}}`. */
+	private val MALFORMED = Regex("""\{\{\s*(?:[#^/]\s*)?[a-zA-Z]""")
 
 	/** Deep enough for any sane nesting of [PromptText]; stops one that names itself. */
 	private const val MAX_DEPTH = 8
@@ -169,11 +173,17 @@ object PromptTemplateEngine {
 		// Each open section: its opening tag and the nodes collected for it so far.
 		val open = ArrayDeque<Pair<Node.Section, MutableList<Node>>>()
 
+		var position = 0
+
 		fun current() = open.lastOrNull()?.second ?: root
 
-		var position = 0
+		fun addText(end: Int) {
+			val text = template.substring(position, end)
+			MALFORMED.find(text)?.let { throw IllegalArgumentException("malformed tag at '${it.value}'") }
+			current().add(Node.Text(text))
+		}
+
 		for (match in TAG.findAll(template)) {
-			if (match.range.first < position) continue
 			val (marker, sectionName, valueName) = match.destructured
 			var textEnd = match.range.first
 			var next = match.range.last + 1
@@ -183,7 +193,7 @@ object PromptTemplateEngine {
 					next = end
 				}
 			}
-			if (textEnd > position) current().add(Node.Text(template.substring(position, textEnd)))
+			if (textEnd > position) addText(textEnd)
 			position = next
 
 			when (marker) {
@@ -206,7 +216,7 @@ object PromptTemplateEngine {
 			}
 		}
 		require(open.isEmpty()) { "{{#${open.last().first.name}}} is never closed" }
-		if (position < template.length) root.add(Node.Text(template.substring(position)))
+		if (position < template.length) addText(template.length)
 		return root
 	}
 
