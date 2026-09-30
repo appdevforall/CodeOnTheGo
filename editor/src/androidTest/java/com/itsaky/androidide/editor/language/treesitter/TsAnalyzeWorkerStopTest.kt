@@ -77,24 +77,24 @@ class TsAnalyzeWorkerStopTest {
 		val recordStale: (Styles?) -> Unit = { styles ->
 			if (styles != null && styles in stoppedStyles) stalePublishes.incrementAndGet()
 		}
-        languageSpec.use { languageSpec ->
-            repeat(PUBLISH_ITERATIONS) { iteration ->
-                val content = Content(javaText())
-                startAndAwaitStyles(manager, content, recordStale)
+		languageSpec.use { languageSpec ->
+			repeat(PUBLISH_ITERATIONS) { iteration ->
+				val content = Content(javaText())
+				startAndAwaitStyles(manager, content, recordStale)
 
-                val start = content.indexer.getCharPosition(FIRST_METHOD_LINE, 0)
-                val end = content.indexer.getCharPosition(FIRST_METHOD_LINE + METHOD_LINES, 0)
-                val deleted = content.subContent(start.line, 0, end.line, 0)
-                content.delete(start.line, 0, end.line, 0)
-                manager.delete(start, end, deleted)
-                Thread.sleep((iteration % PUBLISH_SWEEP_MS).toLong())
-                val stopping = manager.styles
-                manager.reset(ContentReference(content), Bundle())
-                stoppedStyles.add(stopping)
-            }
-            manager.destroy()
-            Thread.sleep(500)
-        }
+				val start = content.indexer.getCharPosition(FIRST_METHOD_LINE, 0)
+				val end = content.indexer.getCharPosition(FIRST_METHOD_LINE + METHOD_LINES, 0)
+				val deleted = content.subContent(start.line, 0, end.line, 0)
+				content.delete(start.line, 0, end.line, 0)
+				manager.delete(start, end, deleted)
+				Thread.sleep((iteration % PUBLISH_SWEEP_MS).toLong())
+				val stopping = manager.styles
+				manager.reset(ContentReference(content), Bundle())
+				stoppedStyles.add(stopping)
+			}
+			manager.destroy()
+			Thread.sleep(500)
+		}
 
 		assertThat(stalePublishes.get()).isEqualTo(0)
 	}
