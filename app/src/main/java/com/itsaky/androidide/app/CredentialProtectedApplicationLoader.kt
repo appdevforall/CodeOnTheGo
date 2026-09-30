@@ -11,6 +11,7 @@ import com.google.android.material.color.DynamicColors
 import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.api.BuildOutputProvider
+import com.itsaky.androidide.api.LogsProvider
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
@@ -19,6 +20,7 @@ import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.services.IdeLogServiceImpl
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
@@ -383,6 +385,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			manager.setActivityProvider { application.foregroundActivity }
 			setupBuildServiceProviders()
 			setupProjectManipulationProviders()
+			IdeLogServiceImpl.getInstance().setLogReader(LogsProvider::read)
 			logger.info("Plugin services configured successfully")
 		}
 	}
