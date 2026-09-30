@@ -36,6 +36,35 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.40 — unreleased
+- **added — The AI prompt config engine and settings-pane helpers** _(ADFA-6281)_ **[verified]**
+  Every AI plugin carried its own copy of the code that reads and renders its prompt
+  config, and the credential screens their own copy of the reveal toggle and pane
+  styling, so a fix had to be repeated per plugin and a missed copy made the plugins
+  drift. The host now ships one copy.
+  `com.itsaky.androidide.plugins.ai.prompt`: `PromptTemplateEngine` and `PromptText`
+  (the `{{NAME}}` / `{{#NAME}}` / `{{^NAME}}` renderer; names may be in any case and hold
+  dots, e.g. `{{fileName}}` or `{{item.name}}`, and config text keeps its whitespace as YAML
+  parsed it); `PromptConfigLoader.load(source,
+  parser)`, which reads `agent.yml` and its `include` list off the main thread;
+  `PromptConfigDocument` and `PromptConfigObject`, the strict key-by-key reader a parser
+  maps the merged YAML through; `PromptConfigSource` / `AssetPromptConfigSource`;
+  `PromptConfigException`; and `PromptConfigStore<T>`, the per-activation cache, behind
+  `PromptConfigProvider<T>`. Loader and store are generic over the plugin's config type:
+  a plugin supplies only a `PromptConfigParser<T>` and keeps one store, e.g.
+  `val shared = PromptConfigStore(MyParser)`. The YAML library (snakeyaml-engine 2.10)
+  is on the host side, so a plugin using the loader no longer bundles it.
+  `com.itsaky.androidide.plugins.ai.ui`: `SecretRevealController`, whose two states are
+  each a `RevealToggle` (icon and content description), and
+  `View.applyPaneStyling(PaneStyle, outlinedButtonIds)`, with `PaneStyle` grouping a
+  `ButtonColors` per emphasis and a `FieldColors`. Both take the plugin's own resource ids
+  rather than shipping any: they resolve against the view's context, which carries the
+  plugin's resources, not the host's.
+  Additive to the ABI (178 added lines in the dump, none removed), but no longer unused:
+  AI-Core and the Gemini, Local and OpenAI agents now load and render their prompt config
+  through `ai.prompt` and drop their private copies, and the Gemini, OpenAI and MCP
+  settings screens use `ai.ui`. Floor
+  `plugin.min_ide_version` at `26.40` to use any of it; an older IDE has none of these
+  classes, and the plugin fails with `NoClassDefFoundError` on first use.
 - **added — Read-only App Logs and IDE Logs** _(ADFA-6267)_ **[verified]**
   Plugins could read build output (`IdeBuildService.getBuildOutput()`) but not the App Logs
   or IDE Logs tabs, so an agent diagnosing a runtime crash had to ask the user to paste them.
