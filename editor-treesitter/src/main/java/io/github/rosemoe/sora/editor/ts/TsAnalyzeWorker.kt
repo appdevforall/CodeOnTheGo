@@ -104,9 +104,10 @@ class TsAnalyzeWorker(
 
 	fun stop() {
 		log.debug("Stopping TsAnalyzeWorker...")
-		isDestroyed = true
-
 		document.requestCancellation()
+		synchronized(this) {
+			isDestroyed = true
+		}
 		messageChannel.clear()
 
 		if (analyzerJob == null) {
@@ -297,14 +298,10 @@ class TsAnalyzeWorker(
 
 		val tree = tree!!
 		val scopedVariables = TsScopedVariables(tree, text, languageSpec)
-		val oldSpans = (styles.spans as? LineSpansGenerator?)
-		val oldBrackets = analyzer.currentBracketPairs
-
-		oldSpans?.destroy()
 
 		// Use separate tree copies for the background worker and the UI thread
 		// to prevent concurrent access crashes.
-		styles.spans =
+		val newSpans =
 			LineSpansGenerator(
 				tree.copy(),
 				reference.lineCount,
@@ -315,26 +312,42 @@ class TsAnalyzeWorker(
 				spanFactory,
 				requestRedraw = { stylesReceiver?.setStyles(analyzer, styles) },
 			)
-
 		val newBrackets = TsBracketPairs(tree.copy(), languageSpec)
-		analyzer.currentBracketPairs = newBrackets
+		val newBlocks = collectCodeBlocks()
 
-		val oldBlocks = styles.blocks
-		updateCodeBlocks()
-		oldBlocks?.also { ObjectAllocator.recycleBlockLines(it) }
+		synchronized(this) {
+			if (isDestroyed) {
+				newSpans.destroy()
+				newBrackets.close()
+				newBlocks?.also { ObjectAllocator.recycleBlockLines(it) }
+				return
+			}
 
-		stylesReceiver?.setStyles(analyzer, styles)
-		stylesReceiver?.updateBracketProvider(analyzer, newBrackets)
+			val oldBrackets = analyzer.currentBracketPairs
+			(styles.spans as? LineSpansGenerator?)?.destroy()
+			styles.spans = newSpans
+			analyzer.currentBracketPairs = newBrackets
 
-		oldBrackets?.let { Handler(Looper.getMainLooper()).post { it.close() } }
+			val oldBlocks = styles.blocks
+			if (newBlocks != null) {
+				styles.blocks = newBlocks
+				styles.finishBuilding()
+			}
+			oldBlocks?.also { ObjectAllocator.recycleBlockLines(it) }
+
+			stylesReceiver?.setStyles(analyzer, styles)
+			stylesReceiver?.updateBracketProvider(analyzer, newBrackets)
+
+			oldBrackets?.let { Handler(Looper.getMainLooper()).post { it.close() } }
+		}
 	}
 
-	private fun updateCodeBlocks() {
+	private fun collectCodeBlocks(): MutableList<CodeBlock>? {
 		if (languageSpec.blocksQuery.patternCount == 0 ||
 			!languageSpec.blocksQuery.canAccess() ||
 			tree?.canAccess() != true
 		) {
-			return
+			return null
 		}
 
 		val blocks = mutableListOf<CodeBlock>()
@@ -389,9 +402,7 @@ class TsAnalyzeWorker(
 			}
 		}
 
-		val distinct = blocks.asSequence().distinct().toMutableList()
-		styles.blocks = distinct
-		styles.finishBuilding()
+		return blocks.asSequence().distinct().toMutableList()
 	}
 }
 
