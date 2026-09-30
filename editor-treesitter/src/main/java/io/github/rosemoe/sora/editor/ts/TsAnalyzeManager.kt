@@ -105,7 +105,7 @@ open class TsAnalyzeManager(
 			)!!
 		(styles.spans as LineSpansGenerator?)?.apply {
 			lineCount = reference!!.lineCount
-			edit(edit)
+			markStale()
 		}
 		_analyzeWorker?.onMod(
 			Mod(
@@ -136,7 +136,7 @@ open class TsAnalyzeManager(
 			)!!
 		(styles.spans as LineSpansGenerator?)?.apply {
 			lineCount = reference!!.lineCount
-			edit(edit)
+			markStale()
 		}
 		_analyzeWorker?.onMod(
 			Mod(

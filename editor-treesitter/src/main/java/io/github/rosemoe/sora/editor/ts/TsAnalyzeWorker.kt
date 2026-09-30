@@ -34,6 +34,7 @@ import io.github.rosemoe.sora.lang.styling.CodeBlock
 import io.github.rosemoe.sora.lang.styling.Styles
 import io.github.rosemoe.sora.lang.styling.line.LineBackground
 import io.github.rosemoe.sora.lang.styling.line.LineGutterBackground
+import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.ContentReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -296,7 +297,7 @@ class TsAnalyzeWorker(
 			LineSpansGenerator(
 				tree.copy(),
 				reference.lineCount,
-				reference.reference,
+				Content(text.toString(), false),
 				theme,
 				languageSpec,
 				scopedVariables,

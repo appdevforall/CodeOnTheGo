@@ -46,7 +46,6 @@ import android.util.Log
 import android.util.LruCache
 import com.itsaky.androidide.plugins.extensions.DecorationSpan
 import com.itsaky.androidide.syntax.decoration.EditorDecorationRegistry
-import com.itsaky.androidide.treesitter.TSInputEdit
 import com.itsaky.androidide.treesitter.TSQueryCapture
 import com.itsaky.androidide.treesitter.TSQueryCursor
 import com.itsaky.androidide.treesitter.TSTree
@@ -83,7 +82,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class LineSpansGenerator(
 	internal var tree: TSTree,
 	internal var lineCount: Int,
-	private val content: Content,
+	private val text: Content,
 	internal var theme: TsTheme,
 	private val languageSpec: TsLanguageSpec,
 	var scopedVariables: TsScopedVariables,
@@ -123,10 +122,12 @@ class LineSpansGenerator(
 	private val mainHandler = Handler(Looper.getMainLooper())
 	private var isRefreshScheduled = AtomicBoolean(false)
 
-	fun edit(edit: TSInputEdit) {
+	private val isStale: Boolean
+		get() = contentVersion.get() > 0
+
+	fun markStale() {
 		contentVersion.incrementAndGet()
 		scope.launch {
-			tree.edit(edit)
 			calculatingLines.clear()
 		}
 	}
@@ -152,7 +153,7 @@ class LineSpansGenerator(
 	): MutableList<Span> {
 		val list = mutableListOf<Span>()
 
-		if (!tree.canAccess() || tree.rootNode.hasChanges()) {
+		if (!tree.canAccess() || isStale) {
 			list.add(emptySpan(0))
 			return list
 		}
@@ -169,7 +170,7 @@ class LineSpansGenerator(
 				debugLogging = false,
 				debugName = "LineSpansGenerator.captureRegion()",
 			) { match ->
-				if (languageSpec.queryPredicator.doPredicate(languageSpec.predicates, content, match)) {
+				if (languageSpec.queryPredicator.doPredicate(languageSpec.predicates, text, match)) {
 					captures.addAll(match.captures)
 				}
 			}
@@ -199,7 +200,7 @@ class LineSpansGenerator(
 							scopedVariables.findDefinition(
 								startByte / 2,
 								endByte / 2,
-								content.substring(startByte / 2, endByte / 2),
+								text.substring(startByte / 2, endByte / 2),
 							)
 						if (def != null && def.matchedHighlightPattern != -1) {
 							style = theme.resolveStyleForPattern(def.matchedHighlightPattern)
@@ -258,7 +259,7 @@ class LineSpansGenerator(
 		for (provider in providers) {
 			val spans =
 				try {
-					provider.decorate(content, startIndex, endIndex, isDark)
+					provider.decorate(text, startIndex, endIndex, isDark)
 				} catch (t: Throwable) {
 					Log.e(TAG, "Editor decoration provider failed", t)
 					continue
@@ -466,10 +467,10 @@ class LineSpansGenerator(
 
 				scope.launch {
 					try {
-						if (requestedVersion != contentVersion.get()) return@launch
+						if (requestedVersion != contentVersion.get() || line >= text.lineCount) return@launch
 
-						val start = content.indexer.getCharPosition(line, 0).index
-						val end = start + content.getColumnCount(line)
+						val start = text.indexer.getCharPosition(line, 0).index
+						val end = start + text.getColumnCount(line)
 
 						val resultSpans = captureRegion(start, end)
 
