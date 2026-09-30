@@ -68,6 +68,12 @@ class TsTextDocument(
 		}
 	}
 
+	fun requestCancellation() {
+		if (parser.isParsing) {
+			parser.requestCancellationAsync()
+		}
+	}
+
 	/**
 	 * Initialize the source text with the given initialization message. The caller is responsible
 	 * for handling the source text state i.e. this method does not check whether the text is already

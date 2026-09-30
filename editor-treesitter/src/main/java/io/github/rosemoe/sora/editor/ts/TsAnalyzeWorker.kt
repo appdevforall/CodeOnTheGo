@@ -40,7 +40,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
@@ -73,6 +72,8 @@ class TsAnalyzeWorker(
 	private var analyzerJob: Job? = null
 
 	private var isInitialized = false
+
+	@Volatile
 	private var isDestroyed = false
 
 	val document = TsTextDocument(languageSpec.language)
@@ -105,13 +106,14 @@ class TsAnalyzeWorker(
 		log.debug("Stopping TsAnalyzeWorker...")
 		isDestroyed = true
 
-		document.requestCancellationAndWaitIfParsing()
-
-		analyzerContext.close()
+		document.requestCancellation()
 		messageChannel.clear()
-		analyzerJob?.cancel(CancellationException("Requested to be stopped"))
-		analyzerScope.cancel(CancellationException("Requested to be stopped"))
-		document.close()
+
+		if (analyzerJob == null) {
+			releaseResources()
+		} else {
+			messageChannel.offer(Stop)
+		}
 	}
 
 	fun start() {
@@ -120,8 +122,12 @@ class TsAnalyzeWorker(
 		analyzerJob =
 			analyzerScope
 				.launch {
-					while (!isDestroyed && isActive) {
-						processNextMessage()
+					try {
+						while (!isDestroyed && isActive) {
+							processNextMessage()
+						}
+					} finally {
+						releaseResources()
 					}
 				}.also { job ->
 					job.invokeOnCompletion { error ->
@@ -132,6 +138,11 @@ class TsAnalyzeWorker(
 						}
 					}
 				}
+	}
+
+	private fun releaseResources() {
+		document.close()
+		analyzerContext.close()
 	}
 
 	fun addBreakpoint(line: Int) = toggleBreakpoint(line = line, addOnly = true)
@@ -395,6 +406,10 @@ internal data class Init(
 internal data class Mod(
 	override val data: TextMod,
 ) : Message<TextMod>
+
+internal object Stop : Message<Unit> {
+	override val data = Unit
+}
 
 internal data class TextInit(
 	val text: String,
