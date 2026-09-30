@@ -772,4 +772,19 @@ public interface LlmInferenceService {
 		 */
 		void onToolCall(ToolCallRequest request);
 	}
+
+	/**
+	 * An {@link LlmBackend} that can answer a request from a live web search, sent with {@code "web_search" = true} in {@link LlmConfig#extraParams}.
+	 *
+	 * <p>
+	 * The answer can change with the backend's settings (an OpenAI-compatible server may not search), so the consumer asks before each run rather than once.
+	 */
+	interface WebSearchBackend extends LlmBackend {
+		/**
+		 * Whether a web search request sent now would be searched rather than refused.
+		 *
+		 * @return true when the backend's current configuration can search the web
+		 */
+		boolean canSearchWeb();
+	}
 }

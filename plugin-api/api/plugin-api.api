@@ -1868,6 +1868,10 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun onToolCall (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallRequest;)V
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$WebSearchBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun canSearchWeb ()Z
+}
+
 public final class com/itsaky/androidide/plugins/services/LogEntry {
 	public fun <init> (Lcom/itsaky/androidide/plugins/services/LogLevel;Ljava/lang/String;)V
 	public final fun component1 ()Lcom/itsaky/androidide/plugins/services/LogLevel;
