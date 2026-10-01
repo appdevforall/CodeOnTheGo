@@ -44,7 +44,6 @@ class FloatingWindow(
 	private val windowContext: Context,
 	private val tab: FloatingTab,
 ) {
-
 	private val windowManager: WindowManager =
 		windowContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 	private val host = FloatingWindowHost()
@@ -114,10 +113,14 @@ class FloatingWindow(
 		tab.content.onDestroyView()
 	}
 
-	private fun moveBy(dx: Float, dy: Float) {
+	private fun moveBy(
+		dx: Float,
+		dy: Float,
+	) {
 		if (modeState.value == WindowMode.MAXIMIZED) return
 		val topInset =
-			ViewCompat.getRootWindowInsets(rootView)
+			ViewCompat
+				.getRootWindowInsets(rootView)
 				?.getInsets(WindowInsetsCompat.Type.statusBars())
 				?.top ?: 0
 		val maxX = (screenWidth - params.width).coerceAtLeast(0)
@@ -131,7 +134,10 @@ class FloatingWindow(
 		safeUpdate()
 	}
 
-	private fun resizeBy(dw: Float, dh: Float) {
+	private fun resizeBy(
+		dw: Float,
+		dh: Float,
+	) {
 		if (modeState.value != WindowMode.NORMAL) return
 		params.width = (params.width + dw.roundToInt()).coerceAtLeast(minWidthPx)
 		params.height = (params.height + dh.roundToInt()).coerceAtLeast(minHeightPx)
@@ -189,7 +195,10 @@ class FloatingWindow(
 		return WindowBounds(params.x, params.y, w, h)
 	}
 
-	private fun animateBoundsTo(target: WindowBounds, onEnd: () -> Unit = {}) {
+	private fun animateBoundsTo(
+		target: WindowBounds,
+		onEnd: () -> Unit = {},
+	) {
 		if (!added) {
 			applyBounds(target)
 			onEnd()
@@ -232,8 +241,11 @@ class FloatingWindow(
 			}
 	}
 
-	private fun lerp(from: Int, to: Int, fraction: Float): Int =
-		(from + (to - from) * fraction).roundToInt()
+	private fun lerp(
+		from: Int,
+		to: Int,
+		fraction: Float,
+	): Int = (from + (to - from) * fraction).roundToInt()
 
 	private fun endListener(onEnd: () -> Unit): AnimatorListenerAdapter =
 		object : AnimatorListenerAdapter() {
@@ -265,11 +277,15 @@ class FloatingWindow(
 		imm?.hideSoftInputFromWindow(rootView.windowToken, 0)
 	}
 
-	private fun isWithinContent(rawX: Float, rawY: Float): Boolean {
+	private fun isWithinContent(
+		rawX: Float,
+		rawY: Float,
+	): Boolean {
 		val location = IntArray(2)
 		contentView.getLocationOnScreen(location)
-		val inEditor = rawX >= location[0] && rawX <= location[0] + contentView.width &&
-			rawY >= location[1] && rawY <= location[1] + contentView.height
+		val inEditor =
+			rawX >= location[0] && rawX <= location[0] + contentView.width &&
+				rawY >= location[1] && rawY <= location[1] + contentView.height
 		if (!inEditor) return false
 		if (modeState.value == WindowMode.MAXIMIZED) return true
 
@@ -346,7 +362,6 @@ class FloatingWindow(
 	}
 
 	companion object {
-
 		private val log = LoggerFactory.getLogger(FloatingWindow::class.java)
 		private const val MIN_WIDTH_DP = 200f
 		private const val MIN_HEIGHT_DP = 140f
@@ -363,8 +378,9 @@ class FloatingWindow(
  * focus, and whether a touch landed within the content (vs the chrome).
  */
 @SuppressLint("ViewConstructor")
-internal class OverlayRootView(context: Context) : FrameLayout(context) {
-
+internal class OverlayRootView(
+	context: Context,
+) : FrameLayout(context) {
 	var onInsideTouch: (() -> Unit)? = null
 	var isContentTouch: ((Float, Float) -> Boolean)? = null
 	var onContentTap: (() -> Unit)? = null
