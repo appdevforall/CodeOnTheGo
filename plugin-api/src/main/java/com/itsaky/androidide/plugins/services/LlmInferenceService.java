@@ -13,7 +13,7 @@ import java.util.concurrent.CompletableFuture;
  * Service for LLM inference operations. Provided by ai-core plugin.
  *
  * <p>
- * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend}, {@link EmbeddingBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
+ * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend}, {@link EmbeddingBackend}, {@link WebSearchBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
  */
 public interface LlmInferenceService {
 
@@ -642,6 +642,11 @@ public interface LlmInferenceService {
 	 */
 	interface ToolCallingBackend extends LlmBackend {
 		/**
+		 * {@link LlmConfig#extraParams} key naming the one declared tool the model must call this turn. A backend that cannot force a call ignores it.
+		 */
+		String EXTRA_PARAM_REQUIRED_TOOL = "required_tool";
+
+		/**
 		 * Generates a completion with streaming output and tool calling support.
 		 *
 		 * @param prompt
@@ -771,5 +776,25 @@ public interface LlmInferenceService {
 		 *            the tool the model wants called, and the arguments it supplied
 		 */
 		void onToolCall(ToolCallRequest request);
+	}
+
+	/**
+	 * An {@link LlmBackend} that can answer a request from a live web search, sent with {@link #EXTRA_PARAM_WEB_SEARCH} {@code = true} in {@link LlmConfig#extraParams}.
+	 *
+	 * <p>
+	 * The answer can change with the backend's settings (an OpenAI-compatible server may not search), so the consumer asks before each run rather than once.
+	 */
+	interface WebSearchBackend extends LlmBackend {
+		/**
+		 * {@link LlmConfig#extraParams} key asking a backend to answer from a web search.
+		 */
+		String EXTRA_PARAM_WEB_SEARCH = "web_search";
+
+		/**
+		 * Whether a web search request sent now would be searched rather than refused.
+		 *
+		 * @return true when the backend's current configuration can search the web
+		 */
+		boolean canSearchWeb();
 	}
 }
