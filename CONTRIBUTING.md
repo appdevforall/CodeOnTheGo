@@ -35,10 +35,8 @@ scripts\install-git-hooks.bat
 ```
 ## Source code format
 
-Formatting is enforced by **Spotless** (`ratchetFrom = origin/stage`, so only files changed from
-`stage` are checked, each one in full). Run `./gradlew spotlessApply` before pushing; CI fails on
-unformatted changed files. No shell (e.g. you edit in the GitHub web UI)? Run the **Spotless apply**
-workflow from the Actions tab with your branch name; it appends the formatting commit to your branch.
+Formatting is enforced by **Spotless** (`ratchetFrom = origin/stage`, so only changed lines are
+checked). Run `./gradlew spotlessApply` before pushing; CI fails on unformatted changed lines.
 
 - **Indentation:** tabs. **Line endings:** LF.
 - **Java:** the Eclipse formatter (config `spotless.eclipse-java.xml`), with member sorting and import ordering.
