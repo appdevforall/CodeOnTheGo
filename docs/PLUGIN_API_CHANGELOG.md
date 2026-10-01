@@ -43,7 +43,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   drift. The host now ships one copy.
   `com.itsaky.androidide.plugins.ai.prompt`: `PromptTemplateEngine` and `PromptText`
   (the `{{NAME}}` / `{{#NAME}}` / `{{^NAME}}` renderer; names may be in any case and hold
-  dots, e.g. `{{fileName}}` or `{{item.name}}`, and config text keeps its whitespace as YAML
+  dots, e.g. `{{fileName}}` or `{{item.name}}`, `{{{{` writes a literal `{{`, and config text keeps its whitespace as YAML
   parsed it); `PromptConfigLoader.load(source,
   parser)`, which reads `agent.yml` and its `include` list off the main thread;
   `PromptConfigDocument` and `PromptConfigObject`, the strict key-by-key reader a parser

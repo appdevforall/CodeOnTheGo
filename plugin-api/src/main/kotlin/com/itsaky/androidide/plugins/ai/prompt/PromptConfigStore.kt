@@ -9,6 +9,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicReference
 
 /** Supplies the loaded prompt config, suspending until it is available. */
@@ -39,6 +40,8 @@ class PromptConfigStore<T>(
 	/**
 	 * Drops any cached config and loads from [source] afresh, in a scope this store owns until [clear].
 	 * A plugin calls it from `activate()`; a load cancelled by [clear] reports to neither callback.
+	 * The callbacks run on the thread that completes the load, or on the caller's if it already has,
+	 * never the main thread by guarantee; a callback that throws is logged, not rethrown.
 	 *
 	 * @param source where the config file lives.
 	 * @param onLoaded given the config once it loads, e.g. to log checks against it.
@@ -46,6 +49,7 @@ class PromptConfigStore<T>(
 	 * @return the load now cached.
 	 */
 	@OptIn(ExperimentalCoroutinesApi::class)
+	@Synchronized
 	fun reload(
 		source: PromptConfigSource,
 		onLoaded: (T) -> Unit,
@@ -56,10 +60,15 @@ class PromptConfigStore<T>(
 		ownScope.getAndSet(scope)?.cancel()
 		val next = preload(scope, source)
 		next.invokeOnCompletion { error ->
-			when (error) {
-				null -> onLoaded(next.getCompleted())
-				is CancellationException -> Unit
-				else -> onFailed(error)
+			// Thrown out of a completion handler, it would reach the uncaught handler and end the IDE.
+			try {
+				when (error) {
+					null -> onLoaded(next.getCompleted())
+					is CancellationException -> Unit
+					else -> onFailed(error)
+				}
+			} catch (e: Exception) {
+				log.error("prompt config reload callback failed", e)
 			}
 		}
 		return next
@@ -116,6 +125,7 @@ class PromptConfigStore<T>(
 	}
 
 	/** Drops the cache, cancelling a load still in flight and [reload]'s scope; idempotent. */
+	@Synchronized
 	fun clear() {
 		load.getAndSet(null)?.cancel()
 		ownScope.getAndSet(null)?.cancel()
@@ -127,4 +137,8 @@ class PromptConfigStore<T>(
 	 */
 	@OptIn(ExperimentalCoroutinesApi::class)
 	private fun Deferred<*>.hasFailed(): Boolean = isCancelled || (isCompleted && getCompletionExceptionOrNull() != null)
+
+	private companion object {
+		private val log = LoggerFactory.getLogger(PromptConfigStore::class.java)
+	}
 }

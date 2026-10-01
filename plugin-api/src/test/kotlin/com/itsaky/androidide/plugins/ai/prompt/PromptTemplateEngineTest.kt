@@ -125,6 +125,13 @@ class PromptTemplateEngineTest {
 	}
 
 	@Test
+	fun givenAnEscapedBrace_whenRendering_thenItIsALiteralBrace() {
+		val out = PromptTemplateEngine.render("Row {{{{it}} {{A}}", mapOf("A" to "x"))
+
+		assertEquals("Row {{it}} x", out)
+	}
+
+	@Test
 	fun givenANullValue_whenRenderedAsText_thenItFails() {
 		// Null opens no section; printed as text it would be a hole in the prompt.
 		assertThrows(IllegalArgumentException::class.java) {

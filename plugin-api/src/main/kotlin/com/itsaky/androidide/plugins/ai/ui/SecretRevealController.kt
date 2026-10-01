@@ -36,7 +36,8 @@ data class RevealToggle(
  * @param hide what the control shows while the secret stands in clear text
  * @param onLegibleChanged called with true when the secret comes to stand in clear text and false once
  *   it is masked again, so the caller can flag its window secure - which window that is depends on
- *   the screen, not on this control. Not called by [attach], which leaves the secret masked.
+ *   the screen, not on this control. Not called by a first [attach]; re-attaching while revealed
+ *   masks the secret and reports false.
  */
 @MainThread
 class SecretRevealController(

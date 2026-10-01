@@ -11,6 +11,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -165,6 +166,20 @@ class PromptConfigStoreTest {
 		runBlocking { load.join() }
 
 		assertFalse(reported)
+	}
+
+	@Test
+	fun givenACallbackThatThrows_whenTheLoadCompletes_thenNothingReachesTheUncaughtHandler() {
+		val uncaught = CompletableDeferred<Throwable>()
+		val previous = Thread.getDefaultUncaughtExceptionHandler()
+		Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught.complete(e) }
+		try {
+			store.reload(CountingSource(), { error("from onLoaded") }, {}).settle()
+
+			assertNull(runBlocking { withTimeoutOrNull(1_000) { uncaught.await() } })
+		} finally {
+			Thread.setDefaultUncaughtExceptionHandler(previous)
+		}
 	}
 
 	private fun Deferred<*>.settle() = runBlocking { runCatching { await() } }

@@ -13,7 +13,7 @@ import java.util.concurrent.CompletableFuture;
  * Service for LLM inference operations. Provided by ai-core plugin.
  *
  * <p>
- * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend}, {@link EmbeddingBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
+ * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend}, {@link EmbeddingBackend}, {@link WebSearchBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
  */
 public interface LlmInferenceService {
 

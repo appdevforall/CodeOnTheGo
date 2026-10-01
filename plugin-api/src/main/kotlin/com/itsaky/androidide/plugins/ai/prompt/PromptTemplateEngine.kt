@@ -4,6 +4,7 @@ package com.itsaky.androidide.plugins.ai.prompt
  * Renders a prompt template: `{{NAME}}` values, `{{#NAME}}...{{/NAME}}` and `{{^NAME}}...{{/NAME}}`
  * sections; a name is a letter then letters, digits, `_` or `.`, in any case, e.g. `{{FILE_NAME}}`,
  * `{{fileName}}` or `{{item.name}}`, looked up as the whole key; padding such as `{{ NAME }}` is allowed.
+ * `{{{{` renders a literal `{{`, e.g. `{{{{it}}` renders `{{it}}`.
  * Strict, so a typo or a malformed tag throws; a String value is never rescanned, a [PromptText] always is.
  * Stateless and free of reflection, so it is safe to call from any thread.
  */
@@ -14,7 +15,9 @@ object PromptTemplateEngine {
 	/** Set in each list item's scope: whether it is the list's last item. */
 	const val LAST = "LAST"
 
-	private val TAG = Regex("""\{\{\s*(?:([#^/])\s*([a-zA-Z][a-zA-Z0-9_.]*)|([a-zA-Z][a-zA-Z0-9_.]*))\s*\}\}""")
+	private const val ESCAPE = "{{{{"
+
+	private val TAG = Regex("""\{\{\{\{|\{\{\s*(?:([#^/])\s*([a-zA-Z][a-zA-Z0-9_.]*)|([a-zA-Z][a-zA-Z0-9_.]*))\s*\}\}""")
 
 	/** The start of a tag [TAG] did not match, e.g. `{{file-name}}`. */
 	private val MALFORMED = Regex("""\{\{\s*(?:[#^/]\s*)?[a-zA-Z]""")
@@ -184,6 +187,12 @@ object PromptTemplateEngine {
 		}
 
 		for (match in TAG.findAll(template)) {
+			if (match.value == ESCAPE) {
+				if (match.range.first > position) addText(match.range.first)
+				current().add(Node.Text("{{"))
+				position = match.range.last + 1
+				continue
+			}
 			val (marker, sectionName, valueName) = match.destructured
 			var textEnd = match.range.first
 			var next = match.range.last + 1
