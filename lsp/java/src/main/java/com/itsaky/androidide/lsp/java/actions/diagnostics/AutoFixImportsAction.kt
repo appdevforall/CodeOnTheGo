@@ -35,6 +35,7 @@ import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.projects.util.StringSearch
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashInfo
@@ -59,6 +60,7 @@ class AutoFixImportsAction : BaseJavaCodeAction() {
 	override suspend fun execAction(data: ActionData): Result {
 		val path = data.requirePath()
 		val compiler = data.requireCompiler()
+		val importingPackage = StringSearch.packageName(path)
 		return compiler.compile(path).get { task ->
 			val classes = mutableMapOf<String, List<String>>()
 
@@ -69,8 +71,9 @@ class AutoFixImportsAction : BaseJavaCodeAction() {
 				// we do not need to look it up again
 				if (classes[simpleName] != null) return@forEach
 
-				// find classes with those names
-				compiler.findQualifiedNames(simpleName).let { names ->
+				// find importable classes with those names, excluding those outside the file's
+				// package that aren't visible to it
+				compiler.findImportableQualifiedNames(simpleName, importingPackage).let { names ->
 
 					// if we find classes with that specific simple name, map them to the simple name
 					if (names.isNotEmpty()) {

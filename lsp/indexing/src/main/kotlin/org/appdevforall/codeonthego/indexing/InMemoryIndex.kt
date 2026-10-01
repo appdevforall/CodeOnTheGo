@@ -4,6 +4,9 @@ import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
+import org.appdevforall.codeonthego.indexing.api.PackageTree
+import org.appdevforall.codeonthego.indexing.api.packageWithAncestors
+import org.appdevforall.codeonthego.indexing.api.parentPackage
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.collections.iterator
@@ -27,6 +30,8 @@ import kotlin.concurrent.write
  * - [prefixBuckets]: fieldName -> (lowercased first char -> list of (value, row))
  *                    Provides a ~36-way partition for prefix search.
  * - [fingerprints]: sourceId -> fingerprint recorded by [insertSource]
+ * - [packages]: sourceId -> (parent package -> full names of its subpackages), the [PackageTree].
+ *               Like [SQLiteIndex], a source's packages are only removed with the source.
  *
  * All mutations go through [lock] in write mode for consistency
  * across the multiple maps. Reads use read mode.
@@ -37,13 +42,15 @@ import kotlin.concurrent.write
 class InMemoryIndex<T : Indexable>(
 	override val descriptor: IndexDescriptor<T>,
 	override val name: String = "memory:${descriptor.name}",
-) : Index<T> {
+) : Index<T>,
+	PackageTree {
 	private val rows = ConcurrentHashMap<RowId, T>(256)
 	private val sourceMap = ConcurrentHashMap<String, MutableSet<RowId>>(32)
 	private val keyMap = ConcurrentHashMap<String, MutableSet<RowId>>(256)
 	private val fieldMaps = ConcurrentHashMap<String, ConcurrentHashMap<String, MutableSet<RowId>>>()
 	private val prefixBuckets = ConcurrentHashMap<String, ConcurrentHashMap<Char, MutableList<PrefixEntry>>>()
 	private val fingerprints = ConcurrentHashMap<String, String>()
+	private val packages = HashMap<String, HashMap<String, MutableSet<String>>>()
 
 	private val lock = ReentrantReadWriteLock()
 
@@ -137,6 +144,31 @@ class InMemoryIndex<T : Indexable>(
 
 	override suspend fun sourceFingerprint(sourceId: String): String? = fingerprints[sourceId]
 
+	override fun subpackages(
+		parent: String,
+		sourceIds: Collection<String>?,
+	): Set<String> =
+		lock.read {
+			packagesIn(sourceIds).flatMapTo(HashSet()) { it[parent].orEmpty() }
+		}
+
+	override fun containsPackage(
+		name: String,
+		sourceIds: Collection<String>?,
+	): Boolean =
+		lock.read {
+			val parent = parentPackage(name)
+			packagesIn(sourceIds).any { it[parent]?.contains(name) == true }
+		}
+
+	/** The package trees of [sourceIds], or of every source when it is `null`. Caller holds the lock. */
+	private fun packagesIn(sourceIds: Collection<String>?): List<Map<String, Set<String>>> =
+		if (sourceIds == null) {
+			packages.values.toList()
+		} else {
+			sourceIds.mapNotNull { packages[it] }
+		}
+
 	override suspend fun removeBySource(sourceId: String) =
 		lock.write {
 			removeBySourceLocked(sourceId)
@@ -162,6 +194,7 @@ class InMemoryIndex<T : Indexable>(
 	 */
 	private fun removeBySourceLocked(sourceId: String) {
 		fingerprints.remove(sourceId)
+		packages.remove(sourceId)
 		val sourceRows = sourceMap.remove(sourceId) ?: return
 		for (row in sourceRows) {
 			val entry = rows.remove(row) ?: continue
@@ -179,6 +212,7 @@ class InMemoryIndex<T : Indexable>(
 			sourceMap.clear()
 			keyMap.clear()
 			fingerprints.clear()
+			packages.clear()
 			fieldMaps.values.forEach { it.clear() }
 			prefixBuckets.values.forEach { it.clear() }
 		}
@@ -294,6 +328,7 @@ class InMemoryIndex<T : Indexable>(
 		rows[row] = entry
 		sourceMap.getOrPut(entry.sourceId) { mutableSetOf() }.add(row)
 		keyMap.getOrPut(entry.key) { mutableSetOf() }.add(row)
+		insertPackagesLocked(entry)
 
 		val fields = descriptor.fieldValues(entry)
 		for ((fieldName, value) in fields) {
@@ -310,6 +345,16 @@ class InMemoryIndex<T : Indexable>(
 				buckets
 					.getOrPut(firstChar) { mutableListOf() }
 					.add(PrefixEntry(lower, row))
+			}
+		}
+	}
+
+	private fun insertPackagesLocked(entry: T) {
+		val name = descriptor.packageOf(entry) ?: return
+		val sourcePackages = packages.getOrPut(entry.sourceId) { HashMap() }
+		for (pkg in packageWithAncestors(name)) {
+			if (!sourcePackages.getOrPut(parentPackage(pkg)) { HashSet() }.add(pkg)) {
+				break
 			}
 		}
 	}

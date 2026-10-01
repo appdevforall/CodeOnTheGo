@@ -1,21 +1,11 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
-import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.ModuleProject
-import com.itsaky.androidide.tasks.cancelIfActive
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import com.itsaky.androidide.projects.api.Workspace
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
-import org.appdevforall.codeonthego.indexing.service.IndexingService
-import org.slf4j.LoggerFactory
-import java.io.File
-import java.nio.file.Paths
+import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import kotlin.io.path.extension
 
 /**
@@ -28,7 +18,7 @@ import kotlin.io.path.extension
 val JVM_GENERATED_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-generated-symbols")
 
 /**
- * [IndexingService] that scans build-generated JARs (R.jar, etc.) and
+ * [JarIndexingService] that scans build-generated JARs (R.jar, etc.) and
  * maintains a dedicated [JvmSymbolIndex] for them.
  *
  * A build completion re-scans every generated JAR's size and modification time (see
@@ -38,100 +28,38 @@ val JVM_GENERATED_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-generated-symbols
  * would otherwise miss until some later build happened to touch it again.
  */
 class JvmGeneratedIndexingService(
-	private val context: Context,
-) : IndexingService {
+	context: Context,
+	progressTracker: IndexingProgressTracker,
+	unreadableJarFilter: (Collection<String>) -> List<String> = { it.toList() },
+) : JarIndexingService(context, progressTracker, unreadableJarFilter = unreadableJarFilter) {
 	companion object {
 		const val ID = "jvm-generated-indexing-service"
 		private const val DB_NAME = "jvm_generated_symbol_index.db"
 		private const val INDEX_NAME = "jvm-generated-cache"
-		private val log = LoggerFactory.getLogger(JvmGeneratedIndexingService::class.java)
 	}
 
 	override val id = ID
-
-	override val providedKeys = listOf(JVM_GENERATED_SYMBOL_INDEX)
-
-	private var generatedIndex: JvmSymbolIndex? = null
-	private val indexingMutex = Mutex()
-	private val coroutineScope = CoroutineScope(Dispatchers.Default)
+	override val indexKey = JVM_GENERATED_SYMBOL_INDEX
+	override val dbName = DB_NAME
+	override val indexName = INDEX_NAME
 
 	override suspend fun initialize(registry: IndexRegistry) {
-		val index =
-			JvmSymbolIndex.createSqliteIndex(
-				context = context,
-				dbName = DB_NAME,
-				indexName = INDEX_NAME,
-			)
-
-		this.generatedIndex = index
-		registry.register(JVM_GENERATED_SYMBOL_INDEX, index)
-		log.info("JVM generated symbol index initialized")
-
+		super.initialize(registry)
 		// Kick off an initial index pass for any already-built JARs.
-		coroutineScope.launch {
-			val jobs = indexingMutex.withLock { reindexGeneratedJars() }
-			generatedIndex?.optimizeAfter(jobs)
-		}
+		refresh()
 	}
 
 	override suspend fun onBuildCompleted() {
-		coroutineScope.launch {
-			val jobs = indexingMutex.withLock { reindexGeneratedJars() }
-			generatedIndex?.optimizeAfter(jobs)
-		}
+		refresh()
 	}
 
-	/** Submits every generated JAR whose fingerprint changed and returns the submitted jobs. */
-	private suspend fun reindexGeneratedJars(): List<Job> {
-		val index =
-			this.generatedIndex ?: run {
-				log.warn("Not indexing generated JARs - index not initialized.")
-				return emptyList()
-			}
-
-		val workspace =
-			ProjectManagerImpl.getInstance().workspace ?: run {
-				log.warn("Not indexing generated JARs - workspace model not available.")
-				return emptyList()
-			}
-
-		val generatedJars =
-			workspace.subProjects
-				.asSequence()
-				.filterIsInstance<ModuleProject>()
-				.filter { it.path != workspace.rootProject.path }
-				.flatMap { project -> project.getIntermediateClasspaths() }
-				.filter { jar -> jar.exists() && jar.toPath().extension.lowercase() == "jar" }
-				.map { jar -> jar.absolutePath }
-				.toSet()
-
-		log.info("{} generated JARs found", generatedJars.size)
-
-		// Make exactly these JARs visible; remove stale ones from scope.
-		index.setActiveSources(generatedJars)
-
-		val jobs = mutableListOf<Job>()
-		for (jarPath in generatedJars) {
-			val fingerprint = jarFingerprint(File(jarPath))
-			if (index.sourceFingerprint(jarPath) != fingerprint) {
-				jobs +=
-					index.indexSource(jarPath, skipIfExists = true, fingerprint = fingerprint) { sourceId ->
-						CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
-					}
-			}
-		}
-
-		if (jobs.isNotEmpty()) {
-			log.info("{} generated JARs submitted for background indexing", jobs.size)
-		} else {
-			log.info("All generated JARs already cached, nothing to index")
-		}
-		return jobs
-	}
-
-	override fun close() {
-		coroutineScope.cancelIfActive("generated indexing service closed")
-		generatedIndex?.close()
-		generatedIndex = null
-	}
+	override fun jarsToIndex(workspace: Workspace): Set<String> =
+		workspace.subProjects
+			.asSequence()
+			.filterIsInstance<ModuleProject>()
+			.filter { it.path != workspace.rootProject.path }
+			.flatMap { project -> project.getIntermediateClasspaths() }
+			.filter { jar -> jar.exists() && jar.toPath().extension.lowercase() == "jar" }
+			.map { jar -> jar.absolutePath }
+			.toSet()
 }

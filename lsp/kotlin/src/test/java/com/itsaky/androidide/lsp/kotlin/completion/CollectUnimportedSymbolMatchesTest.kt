@@ -195,9 +195,11 @@ class CollectUnimportedSymbolMatchesTest {
 			},
 		)
 
-		// The same row (same source and key) is a match in both the exact and prefix stages; once
-		// `accept` has turned it down, asking again wastes the visibility check and item-building
-		// work it would otherwise repeat.
+		/*
+		 * The same row (same source and key) is a match in both the exact and prefix stages; once
+		 * `accept` has turned it down, asking again wastes the visibility check and item-building
+		 * work it would otherwise repeat.
+		 */
 		assertThat(acceptCalls).isEqualTo(1)
 	}
 
