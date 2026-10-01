@@ -251,6 +251,7 @@ google-protobuf-java = { module = "com.google.protobuf:protobuf-javalite", versi
 google-protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin-lite", version.ref = "protobuf" }
 google-protobuf-gradle = { module = "com.google.protobuf:protobuf-gradle-plugin", version.ref = "protobuf-plugin" }
 google-java-format = { module = "com.google.googlejavaformat:google-java-format", version = "1.20.0" }
+ktfmt = { module = "com.facebook:ktfmt", version = "0.64" }
 google-flexbox = { module = "com.google.android.flexbox:flexbox", version = "3.0.0" }
 
 # AAPT2
