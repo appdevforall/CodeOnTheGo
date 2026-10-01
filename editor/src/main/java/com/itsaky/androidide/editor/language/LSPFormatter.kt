@@ -17,15 +17,20 @@
 
 package com.itsaky.androidide.editor.language
 
+import com.itsaky.androidide.app.BaseApplication
+import com.itsaky.androidide.editor.R
 import com.itsaky.androidide.lsp.api.ILanguageServer
+import com.itsaky.androidide.lsp.models.CodeFormatException
 import com.itsaky.androidide.lsp.models.CodeFormatResult
 import com.itsaky.androidide.lsp.models.FormatCodeParams
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.lang.format.AsyncFormatter
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.TextRange
+import org.slf4j.LoggerFactory
 
 /**
  * An [AsyncFormatter] implementation which uses the LSP implementation to format code.
@@ -34,6 +39,7 @@ import io.github.rosemoe.sora.text.TextRange
  */
 class LSPFormatter(
 	val server: ILanguageServer? = null,
+	private val reportFailure: (Throwable) -> Unit = ::flashFormatFailure,
 ) : AsyncFormatter() {
 	override fun formatAsync(
 		text: Content,
@@ -62,7 +68,13 @@ class LSPFormatter(
 				}
 				end.apply { index = (if (line == 0 && column == 0) 0 else text.getCharIndex(line, column)) }
 			}
-		val result = server.formatCode(FormatCodeParams(text, range))
+		val result =
+			try {
+				server.formatCode(FormatCodeParams(text, range))
+			} catch (e: Throwable) {
+				reportFailure(e)
+				return TextRange(cursorRange.start, cursorRange.start)
+			}
 
 		if (!result.hasEdits()) {
 			// Deselect the selected content
@@ -85,6 +97,17 @@ class LSPFormatter(
 		// Deselect the selected content
 		return TextRange(cursorRange.start, cursorRange.start)
 	}
+}
+
+private val log = LoggerFactory.getLogger(LSPFormatter::class.java)
+
+private fun flashFormatFailure(error: Throwable) {
+	if (error is CodeFormatException) {
+		flashError(BaseApplication.baseInstance.getString(R.string.msg_format_failed, error.message))
+		return
+	}
+	log.error("Failed to format code", error)
+	flashError(R.string.msg_format_failed_unexpected)
 }
 
 private fun CodeFormatResult.hasEdits() = this.indexedTextEdits.isNotEmpty() || this.edits.isNotEmpty()
