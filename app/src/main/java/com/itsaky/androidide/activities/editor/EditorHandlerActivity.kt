@@ -2687,7 +2687,7 @@ open class EditorHandlerActivity :
 						return@runOnUiThread
 					}
 					recentProjectsViewModel.updateProjectModifiedDate(
-						editorViewModel.getProjectName(),
+						ProjectManagerImpl.getInstance().projectDirPath,
 					)
 					// Captured then nulled before use, mirroring the neutral-button handler above --
 					// otherwise onDestroy()'s own unconditional pendingCloseCallback?.invoke() would fire
