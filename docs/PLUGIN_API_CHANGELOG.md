@@ -60,12 +60,14 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `ButtonColors` per emphasis and a `FieldColors`. Both take the plugin's own resource ids
   rather than shipping any: they resolve against the view's context, which carries the
   plugin's resources, not the host's.
-  Additive to the ABI (183 added lines in the dump, none removed), but no longer unused:
+  Additive to the ABI (185 added lines in the dump, none removed), but no longer unused:
   AI-Core and the Gemini, Local and OpenAI agents now load and render their prompt config
   through `ai.prompt` and drop their private copies, and the Gemini, OpenAI and MCP
   settings screens use `ai.ui`. `LlmInferenceService.WebSearchBackend` (`canSearchWeb()`)
   lets a backend say whether a `web_search` request would be searched now; ai-core forces
-  and offers its `web_search` tool only when it does. Floor
+  and offers its `web_search` tool only when it does. The `extraParams` keys both sides
+  read are defined once, as `WebSearchBackend.EXTRA_PARAM_WEB_SEARCH` and
+  `ToolCallingBackend.EXTRA_PARAM_REQUIRED_TOOL`. Floor
   `plugin.min_ide_version` at `26.41` to use any of it; an older IDE has none of these
   classes, and the plugin fails with `NoClassDefFoundError` on first use.
 - **added — Read-only App Logs and IDE Logs** _(ADFA-6267)_ **[verified]**

@@ -1852,6 +1852,7 @@ public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolCall
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallingBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public static final field EXTRA_PARAM_REQUIRED_TOOL Ljava/lang/String;
 	public abstract fun generateStreamingWithTools (Ljava/lang/String;Ljava/util/List;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Ljava/util/List;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ToolStreamCallback;)V
 }
 
@@ -1870,6 +1871,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$WebSearchBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public static final field EXTRA_PARAM_WEB_SEARCH Ljava/lang/String;
 	public abstract fun canSearchWeb ()Z
 }
 

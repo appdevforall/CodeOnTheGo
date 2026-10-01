@@ -642,6 +642,11 @@ public interface LlmInferenceService {
 	 */
 	interface ToolCallingBackend extends LlmBackend {
 		/**
+		 * {@link LlmConfig#extraParams} key naming the one declared tool the model must call this turn. A backend that cannot force a call ignores it.
+		 */
+		String EXTRA_PARAM_REQUIRED_TOOL = "required_tool";
+
+		/**
 		 * Generates a completion with streaming output and tool calling support.
 		 *
 		 * @param prompt
@@ -774,12 +779,17 @@ public interface LlmInferenceService {
 	}
 
 	/**
-	 * An {@link LlmBackend} that can answer a request from a live web search, sent with {@code "web_search" = true} in {@link LlmConfig#extraParams}.
+	 * An {@link LlmBackend} that can answer a request from a live web search, sent with {@link #EXTRA_PARAM_WEB_SEARCH} {@code = true} in {@link LlmConfig#extraParams}.
 	 *
 	 * <p>
 	 * The answer can change with the backend's settings (an OpenAI-compatible server may not search), so the consumer asks before each run rather than once.
 	 */
 	interface WebSearchBackend extends LlmBackend {
+		/**
+		 * {@link LlmConfig#extraParams} key asking a backend to answer from a web search.
+		 */
+		String EXTRA_PARAM_WEB_SEARCH = "web_search";
+
 		/**
 		 * Whether a web search request sent now would be searched rather than refused.
 		 *
