@@ -75,9 +75,9 @@ fun FloatingWindowChrome(
 	focused: Boolean,
 	maximized: Boolean,
 	onDrag: (Float, Float) -> Unit,
-	onDragStopped: () -> Unit,
+	onDragStop: () -> Unit,
 	onResize: (Float, Float) -> Unit,
-	onResizeStopped: () -> Unit,
+	onResizeStop: () -> Unit,
 	onMinimize: () -> Unit,
 	onToggleMaximize: () -> Unit,
 	onDock: () -> Unit,
@@ -106,7 +106,7 @@ fun FloatingWindowChrome(
 					maximized = maximized,
 					actions = actions,
 					onDrag = onDrag,
-					onDragStopped = onDragStopped,
+					onDragStop = onDragStop,
 					onMinimize = onMinimize,
 					onToggleMaximize = onToggleMaximize,
 					onDock = onDock,
@@ -129,7 +129,7 @@ fun FloatingWindowChrome(
 			if (!maximized) {
 				ResizeHandle(
 					onResize = onResize,
-					onResizeStopped = onResizeStopped,
+					onResizeStop = onResizeStop,
 					modifier = Modifier.align(Alignment.BottomEnd),
 				)
 			}
@@ -143,7 +143,7 @@ fun MinimizedBubble(
 	title: String,
 	onRestore: () -> Unit,
 	onDrag: (Float, Float) -> Unit,
-	onDragStopped: () -> Unit,
+	onDragStop: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val scheme = MaterialTheme.colorScheme
@@ -151,8 +151,8 @@ fun MinimizedBubble(
 	Surface(
 		modifier = modifier.pointerInput(Unit) {
 			detectDragGestures(
-				onDragEnd = onDragStopped,
-				onDragCancel = onDragStopped,
+				onDragEnd = onDragStop,
+				onDragCancel = onDragStop,
 			) { change, dragAmount ->
 				change.consume()
 				onDrag(dragAmount.x, dragAmount.y)
@@ -189,7 +189,7 @@ private fun TitleBar(
 	maximized: Boolean,
 	actions: List<DockAction>,
 	onDrag: (Float, Float) -> Unit,
-	onDragStopped: () -> Unit,
+	onDragStop: () -> Unit,
 	onMinimize: () -> Unit,
 	onToggleMaximize: () -> Unit,
 	onDock: () -> Unit,
@@ -204,8 +204,8 @@ private fun TitleBar(
 			.background(scheme.surfaceVariant)
 			.pointerInput(Unit) {
 				detectDragGestures(
-					onDragEnd = onDragStopped,
-					onDragCancel = onDragStopped,
+					onDragEnd = onDragStop,
+					onDragCancel = onDragStop,
 				) { change, dragAmount ->
 					change.consume()
 					onDrag(dragAmount.x, dragAmount.y)
@@ -340,7 +340,7 @@ private const val ACTION_CONFIRM_MS = 1100L
 @Composable
 private fun ResizeHandle(
 	onResize: (Float, Float) -> Unit,
-	onResizeStopped: () -> Unit,
+	onResizeStop: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -349,8 +349,8 @@ private fun ResizeHandle(
 			.size(28.dp)
 			.pointerInput(Unit) {
 				detectDragGestures(
-					onDragEnd = onResizeStopped,
-					onDragCancel = onResizeStopped,
+					onDragEnd = onResizeStop,
+					onDragCancel = onResizeStop,
 				) { change, dragAmount ->
 					change.consume()
 					onResize(dragAmount.x, dragAmount.y)

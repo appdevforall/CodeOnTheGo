@@ -309,7 +309,7 @@ class FloatingWindow(
 						title = tab.content.title,
 						onRestore = ::restore,
 						onDrag = ::moveBy,
-						onDragStopped = ::commitBounds,
+						onDragStop = ::commitBounds,
 					)
 				} else {
 					FloatingWindowChrome(
@@ -317,9 +317,9 @@ class FloatingWindow(
 						focused = focusedState.value,
 						maximized = modeState.value == WindowMode.MAXIMIZED,
 						onDrag = ::moveBy,
-						onDragStopped = ::commitBounds,
+						onDragStop = ::commitBounds,
 						onResize = ::resizeBy,
-						onResizeStopped = ::commitBounds,
+						onResizeStop = ::commitBounds,
 						onMinimize = ::minimize,
 						onToggleMaximize = ::toggleMaximize,
 						onDock = { animateExit { DockingManager.dock(id) } },
