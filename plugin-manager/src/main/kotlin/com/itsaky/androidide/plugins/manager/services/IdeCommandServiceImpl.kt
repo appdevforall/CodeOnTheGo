@@ -13,12 +13,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.io.BufferedReader
 import java.io.File
+import java.io.IOException
 import java.io.InputStreamReader
+import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.UUID
@@ -46,15 +49,20 @@ class IdeCommandServiceImpl(
 			when (spec) {
 				is CommandSpec.ShellCommand -> {
 					val workDir =
-						when {
-							spec.workingDirectory == null -> projectRoot
-							Paths.get(spec.workingDirectory).isAbsolute -> File(spec.workingDirectory)
-							else -> projectRoot?.let { File(it, spec.workingDirectory).canonicalFile }
+						try {
+							resolveWorkingDirectory(spec.workingDirectory, projectRoot).also(::validateWorkingDirectory)
+						} catch (e: InvalidPathException) {
+							return RejectedCommandExecution(executionId, "Invalid working directory: ${e.message}")
+						} catch (e: IOException) {
+							return RejectedCommandExecution(executionId, "Invalid working directory: ${e.message}")
 						}
-					validateWorkingDirectory(workDir)
 					ProcessBuilder(listOf(spec.executable) + spec.arguments).apply {
 						workDir?.let { directory(it) }
-						environment().putAll(spec.environment)
+						try {
+							environment().putAll(spec.environment)
+						} catch (e: IllegalArgumentException) {
+							return RejectedCommandExecution(executionId, "Invalid environment: ${e.message}")
+						}
 					}
 				}
 
@@ -120,6 +128,16 @@ class IdeCommandServiceImpl(
 			)
 		}
 	}
+
+	private fun resolveWorkingDirectory(
+		workingDirectory: String?,
+		projectRoot: File?,
+	): File? =
+		when {
+			workingDirectory == null -> projectRoot
+			Paths.get(workingDirectory).isAbsolute -> File(workingDirectory)
+			else -> projectRoot?.let { File(it, workingDirectory).canonicalFile }
+		}
 
 	private fun validateWorkingDirectory(dir: File?) {
 		if (dir == null) return
@@ -268,4 +286,17 @@ private class CommandExecutionImpl(
 	companion object {
 		private const val MAX_OUTPUT_BYTES = 10 * 1024 * 1024
 	}
+}
+
+private class RejectedCommandExecution(
+	override val executionId: String,
+	error: String,
+) : CommandExecution {
+	private val result = CommandResult.Failure(-1, "", "", error, 0)
+
+	override val output: Flow<CommandOutput> = emptyFlow()
+
+	override suspend fun await(): CommandResult = result
+
+	override fun cancel() = Unit
 }
