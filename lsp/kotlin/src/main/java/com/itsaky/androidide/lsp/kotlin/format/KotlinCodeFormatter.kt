@@ -11,7 +11,9 @@ internal object KotlinCodeFormatter {
 			try {
 				Formatter.format(Formatter.KOTLINLANG_FORMAT, content.toString())
 			} catch (e: ParseError) {
-				throw CodeFormatException("${e.lineColumn.line + 1}:${e.lineColumn.column + 1}: ${e.errorDescription}", e)
+				val strippedShebangLines = if (content.startsWith("#!")) 1 else 0
+				val line = e.lineColumn.line + 1 + strippedShebangLines
+				throw CodeFormatException("$line:${e.lineColumn.column + 1}: ${e.errorDescription}", e)
 			}
 		return CodeFormatResult.forWholeContent(content, formatted)
 	}
