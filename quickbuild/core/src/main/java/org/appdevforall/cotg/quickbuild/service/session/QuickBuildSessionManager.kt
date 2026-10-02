@@ -598,6 +598,24 @@ class QuickBuildSessionManager(
 	}
 
 	/**
+	 * Suspends until the teardown in flight when this runs has finished - the proxy app build's
+	 * cancel, the daemon shutdown and the scratch-tree removal - and returns at once when there
+	 * is none.
+	 *
+	 * For a caller that has to tell one session's asynchronous tail from the next session's work:
+	 * the Build Output narrator drops lines until this returns, so a closing project's late
+	 * narration cannot land in the pane the next project just opened.
+	 *
+	 * Call it after the [restartSession] whose teardown is being awaited. [dispatcher] is
+	 * single-threaded and [SessionEffect.TeardownSession] runs inline in the dispatch, so the read
+	 * below lands behind that teardown; called first, it would find the previous one or none.
+	 */
+	suspend fun awaitTeardown() {
+		// [teardownWork] is only touched on [dispatcher], hence the hop rather than a bare read.
+		scope.launch { teardownWork?.join() }.join()
+	}
+
+	/**
 	 * Tears the session and daemon down from any state and immediately provisions a fresh one.
 	 *
 	 * The escape hatch as the user meets it - the long-press menu's "Restart session" and the

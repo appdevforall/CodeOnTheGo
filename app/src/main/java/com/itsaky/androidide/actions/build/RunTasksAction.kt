@@ -26,44 +26,53 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
-class RunTasksAction(context: Context, override val order: Int) : BaseBuildAction() {
-  override val id: String = ID
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.PROJECT_GRADLE_TASKS
-  private var dialog: RunTasksDialogFragment? = null
+class RunTasksAction(
+	context: Context,
+	override val order: Int,
+) : BaseBuildAction() {
+	override val id: String = ID
 
-  companion object {
-    const val ID = "ide.editor.build.runTasks"
-  }
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.PROJECT_GRADLE_TASKS
 
-  init {
-    label = context.getString(R.string.title_run_tasks)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_run_tasks)
-  }
+	private var dialog: RunTasksDialogFragment? = null
 
-  override suspend fun execAction(data: ActionData): Any {
-    data.requireActivity().saveAll(requestSync = false)
-    dialog?.dismiss()
-    dialog = null
-    dialog = RunTasksDialogFragment()
-    return dialog!!
-  }
+	companion object {
+		const val ID = "ide.editor.build.runTasks"
+	}
 
-  override fun postExec(data: ActionData, result: Any) {
-    if (result !is RunTasksDialogFragment) {
-      return
-    }
+	init {
+		label = context.getString(R.string.title_run_tasks)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_run_tasks)
+	}
 
-    val activity = data.getActivity()!!
-    result.show(activity.supportFragmentManager, this.id)
-  }
-  
-  override fun destroy() {
-    super.destroy()
-    try {
-      dialog?.dismiss()
-    } catch (e: Exception) {
-      // ignored
-    }
-    dialog = null
-  }
+	override suspend fun execAction(data: ActionData): Any {
+		if (refuseWhileSlotBusy(data)) return false
+		data.requireActivity().saveAll(requestSync = false)
+		dialog?.dismiss()
+		dialog = null
+		dialog = RunTasksDialogFragment()
+		return dialog!!
+	}
+
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is RunTasksDialogFragment) {
+			return
+		}
+
+		val activity = data.getActivity()!!
+		result.show(activity.supportFragmentManager, this.id)
+	}
+
+	override fun destroy() {
+		super.destroy()
+		try {
+			dialog?.dismiss()
+		} catch (e: Exception) {
+			// ignored
+		}
+		dialog = null
+	}
 }

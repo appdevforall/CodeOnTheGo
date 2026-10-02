@@ -1,54 +1,54 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-  ~  This file is part of AndroidIDE.
-  ~
-  ~  AndroidIDE is free software: you can redistribute it and/or modify
-  ~  it under the terms of the GNU General Public License as published by
-  ~  the Free Software Foundation, either version 3 of the License, or
-  ~  (at your option) any later version.
-  ~
-  ~  AndroidIDE is distributed in the hope that it will be useful,
-  ~  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~  GNU General Public License for more details.
-  ~
-  ~  You should have received a copy of the GNU General Public License
-  ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+<?xml version="1.0" encoding="utf-8"?><!-- ~ This file is part of AndroidIDE. ~ ~ AndroidIDE is free software: you can redistribute
+	it and/or modify ~ it under the terms of the GNU General Public License as published by ~ the Free Software Foundation, either
+	version 3 of the License, or ~ (at your option) any later version. ~ ~ AndroidIDE is distributed in the hope that it will
+	be useful, ~ but WITHOUT ANY WARRANTY; without even the implied warranty of ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR
+	PURPOSE. See the ~ GNU General Public License for more details. ~ ~ You should have received a copy of the GNU General Public
+	License ~ along with AndroidIDE. If not, see <https://www.gnu.org/licenses/>. -->
 
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/build_status_layout"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+<androidx.constraintlayout.widget.ConstraintLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:id="@+id/build_status_layout"
+	android:layout_width="match_parent"
+	android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/statusText"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:maxLines="1"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-        app:layout_constraintBottom_toTopOf="@id/swipe_hint"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:text="Configure project :app" />
+	<!-- Three lines, not one: the Quick Build status strings name a remedy, and a remedy the user cannot read is not one.
+		There is no second surface - expanding the sheet scales this container's height by 1 - sheetOffset (EditorBottomSheet.onSlide),
+		so swiping up hides the line rather than revealing more of it. The collapsed header takes its height from what this block
+		measures, with editor_sheet_collapsed_height as a floor, so three lines at a 2x font scale get the room they need instead
+		of being clipped against a fixed 100dp. No minHeight here: the floor lives in EditorBottomSheet, and the block is included
+		with match_parent so it fills the header's on-screen content box rather than the part that hangs below the window. -->
+	<TextView
+		android:id="@+id/statusText"
+		android:layout_width="0dp"
+		android:layout_height="wrap_content"
+		android:ellipsize="end"
+		android:gravity="center"
+		android:maxLines="3"
+		android:paddingStart="16dp"
+		android:paddingEnd="16dp"
+		android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+		app:layout_constraintBottom_toTopOf="@id/swipe_hint"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toTopOf="parent"
+		tools:text="Configure project :app" />
 
-    <TextView
-        android:id="@+id/swipe_hint"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:text="@string/msg_swipe_up"
-        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-        android:textColor="?attr/colorOnBackground"
-        android:textSize="11sp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/statusText" />
+	<TextView
+		android:id="@+id/swipe_hint"
+		android:layout_width="0dp"
+		android:layout_height="wrap_content"
+		android:ellipsize="end"
+		android:gravity="center"
+		android:maxLines="1"
+		android:text="@string/msg_swipe_up"
+		android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+		android:textColor="?attr/colorOnBackground"
+		android:textSize="11sp"
+		app:layout_constraintBottom_toBottomOf="parent"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toBottomOf="@id/statusText" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

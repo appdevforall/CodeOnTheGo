@@ -59,11 +59,18 @@ Primary evidence, with the full runbook and cost tables, lives in the
   50 MB of each other, so they do not narrow the gap: "~3.6 GB works, 1.9 GB does not" remains the
   whole of what we know `[measured on a06, c107, itel]`.
 
-## Why the 1.9 GB device fails
+## Why the 1.9 GB device is unusable within the timeouts we selected
 
-Not a hard RAM wall, and not a direct lmkd kill of the daemon - it is CoGo's own heap sizing
-colliding with the device. CoGo scales the Gradle daemon JVM to device RAM; at 1.9 GB the resulting
-heap is small enough that SerialGC thrashes.
+What is **measured** is the outcome: at 1.9 GB a trivial project takes ~8.8 min to configure and
+`hello-java` had not finished when we stopped it at 15 min. What we did *not* observe is a hard RAM
+wall or a direct lmkd kill of the daemon.
+
+The mechanism below is **`[inferred]`** from the heap and CPU figures, not confirmed by a controlled
+test: CoGo scales the Gradle daemon JVM to device RAM, and at 1.9 GB the resulting heap looks small
+enough that SerialGC thrashes. Consistent with every number in the table, but an uncapped run - the
+experiment that would confirm it - remains unmeasured (see below). Per our provenance rule the
+conclusion inherits that weakest input, so read this section as the leading hypothesis rather than
+the established cause.
 
 | Gradle daemon on the itel (1.9 GB) | itel | C107 (3.6 GB) |
 | --- | --- | --- |

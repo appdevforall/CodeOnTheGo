@@ -3024,6 +3024,35 @@ class QuickBuildSessionManagerTest {
 		}
 
 	@Test
+	fun `awaitTeardown returns only once the restarted session's teardown has finished`() =
+		runTest {
+			// The Build Output narrator mutes the closing project's status lines until this
+			// returns; a return while the daemon is still going down would let that project's
+			// stop narrate into the pane the next project just opened.
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+			val shutdownGate = CompletableDeferred<Unit>()
+			daemon.shutdownGate = shutdownGate
+			manager.restartSession()
+
+			var quiet = false
+			val awaiting =
+				launch {
+					manager.awaitTeardown()
+					quiet = true
+				}
+			advanceUntilIdle()
+			assertThat(quiet).isFalse()
+
+			shutdownGate.complete(Unit)
+			advanceUntilIdle()
+			assertThat(quiet).isTrue()
+			assertThat(daemon.shutdownCount).isEqualTo(1)
+			awaiting.join()
+		}
+
+	@Test
 	fun `restartSessionAndReprovision from idle provisions a session`() =
 		runTest {
 			val manager = createManager()
