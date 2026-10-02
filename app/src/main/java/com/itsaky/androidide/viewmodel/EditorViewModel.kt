@@ -29,6 +29,7 @@ import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.quickbuild.QuickBuildFlashes
+import com.itsaky.androidide.search.replace.ReplaceSession
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.ILogger
@@ -86,6 +87,9 @@ class EditorViewModel : ViewModel() {
 
 	private val _searchResultSections = MutableStateFlow<List<SearchResultSection>>(emptyList())
 	val searchResultSections: StateFlow<List<SearchResultSection>> = _searchResultSections.asStateFlow()
+
+	private val _replaceSession = MutableStateFlow<ReplaceSession?>(null)
+	val replaceSession: StateFlow<ReplaceSession?> = _replaceSession.asStateFlow()
 	val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
 	private val searchGeneration = AtomicInteger()
@@ -100,10 +104,27 @@ class EditorViewModel : ViewModel() {
 
 	fun onSearchResultsReady(results: Map<File, List<SearchResult>>) {
 		searchGeneration.incrementAndGet()
+		_replaceSession.value = null
 		_searchResultSections.value =
 			listOfNotNull(
 				results.takeIf { it.isNotEmpty() }?.let { SearchResultSection(title = null, results = it) },
 			)
+	}
+
+	fun startReplaceSession(session: ReplaceSession) {
+		_replaceSession.value = session
+	}
+
+	fun toggleReplaceMatch(match: SearchResult) {
+		_replaceSession.update { it?.toggleMatch(match) }
+	}
+
+	fun toggleReplaceFile(file: File) {
+		_replaceSession.update { it?.toggleFile(file) }
+	}
+
+	fun clearReplaceSession() {
+		_replaceSession.value = null
 	}
 
 	/** Publishes [sections] unless [generation] no longer matches [currentSearchGeneration]. */

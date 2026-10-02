@@ -238,6 +238,27 @@
 	<string name="menu_find">Find</string>
 	<string name="menu_find_file">Find in file</string>
 	<string name="menu_find_project">Find in project</string>
+	<string name="menu_replace_project">Replace in project</string>
+	<string name="hint_replace_with">Replace with</string>
+	<string name="label_match_case">Match case</string>
+	<string name="label_whole_word">Whole word</string>
+	<string name="label_project_files">Project files outside modules</string>
+	<string name="btn_find_matches">Find matches</string>
+	<string name="cd_toolbar_replace_in_project">Replace in project</string>
+	<plurals name="msg_replace_n_matches">
+		<item quantity="one">Replace %1$d match in %2$d file(s)</item>
+		<item quantity="other">Replace %1$d matches in %2$d file(s)</item>
+	</plurals>
+	<string name="cd_replace_match_checkbox">Include match in %1$s, line %2$d</string>
+	<string name="cd_replace_file_checkbox">Include all matches in %1$s</string>
+	<string name="msg_replace_done">Replaced %1$d in %2$d file(s)</string>
+	<string name="msg_replace_done_with_issues">Replaced %1$d in %2$d file(s), %3$d skipped, %4$d failed</string>
+	<string name="msg_replace_undone">Restored %1$d file(s)</string>
+	<string name="msg_replace_busy">A replace is still running</string>
+	<string name="title_replace_report">Some files were not changed</string>
+	<string name="reason_changed_since_search">changed since search, search again</string>
+	<string name="reason_changed_since_replace">changed since replace</string>
+	<string name="reason_tab_closed">tab was closed</string>
 	<string name="msg_search_modules">Search in modules</string>
 	<string name="msg_no_modules">No modules found in project</string>
 	<string name="hint_find_project_filter">Filter file extensions (optional)</string>
