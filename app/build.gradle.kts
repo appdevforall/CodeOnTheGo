@@ -521,9 +521,9 @@ val quickBuildDistLinkedJars =
 		"kotlin-script-runtime-$KOTLIN_VERSION.jar",
 		// These three carry their own version rather than KOTLIN_VERSION, pinned in
 		// libs.versions.toml to what the distribution ships so they can be linked from there.
-		"kotlinx-coroutines-core-jvm-1.10.2.jar",
-		"gson-2.13.1.jar",
-		"asm-9.9.jar",
+		"kotlinx-coroutines-core-jvm-${libs.kotlinx.coroutines.core.jvm.quickBuildDaemon.get().version}.jar",
+		"gson-${libs.gson.quickBuildDaemon.get().version}.jar",
+		"asm-${libs.ow2.asm.get().version}.jar",
 	)
 
 // A broken link surfaces on device as a NoClassDefFoundError partway into the user's first
