@@ -3,9 +3,10 @@ package org.appdevforall.codeonthego.indexing.api
 /**
  * Any object that can be stored in an index.
  *
- * The only requirements are a unique key (for deduplication and
- * point lookups) and a source identifier (for bulk operations
- * when the source changes).
+ * The only requirements are a key (for deduplication and point
+ * lookups) and a source identifier (for bulk operations when the
+ * source changes). An entry is identified by the two together: the
+ * same key may appear once in each of several sources.
  *
  * What constitutes a "key" and "source" depends entirely on
  * the consumer:
@@ -14,16 +15,15 @@ package org.appdevforall.codeonthego.indexing.api
  * - For Python symbols: key = qualified name, source = .py file path
  */
 interface Indexable {
+	/** Identifies the entry within its source. */
+	val key: String
 
-    /** Unique identifier within the index. */
-    val key: String
-
-    /**
-     * Identifies the origin of this entry.
-     * All entries sharing a [sourceId] can be removed atomically
-     * via [WritableIndex.removeBySource].
-     */
-    val sourceId: String
+	/**
+	 * Identifies the origin of this entry.
+	 * All entries sharing a [sourceId] can be removed atomically
+	 * via [WritableIndex.removeBySource].
+	 */
+	val sourceId: String
 }
 
 /**
@@ -36,45 +36,44 @@ interface Indexable {
  * @param T The domain type being indexed.
  */
 interface IndexDescriptor<T : Indexable> {
+	/**
+	 * A unique name for this index type. Used as the table name
+	 * in persistent storage and the namespace in composite indexes.
+	 */
+	val name: String
 
-    /**
-     * A unique name for this index type. Used as the table name
-     * in persistent storage and the namespace in composite indexes.
-     */
-    val name: String
+	/**
+	 * The fields that should be queryable.
+	 * Defines the "schema" for this index type.
+	 *
+	 * The persistent layer will create SQL columns and indexes
+	 * for each declared field.
+	 */
+	val fields: List<IndexField>
 
-    /**
-     * The fields that should be queryable.
-     * Defines the "schema" for this index type.
-     *
-     * The persistent layer will create SQL columns and indexes
-     * for each declared field.
-     */
-    val fields: List<IndexField>
+	/**
+	 * Extract the queryable field values from an entry.
+	 *
+	 * The returned map's keys must be a subset of [fields]'s names.
+	 * Null values mean the field is not applicable for this entry
+	 * (e.g. receiverType is null for a non-extension function).
+	 */
+	fun fieldValues(entry: T): Map<String, String?>
 
-    /**
-     * Extract the queryable field values from an entry.
-     *
-     * The returned map's keys must be a subset of [fields]'s names.
-     * Null values mean the field is not applicable for this entry
-     * (e.g. receiverType is null for a non-extension function).
-     */
-    fun fieldValues(entry: T): Map<String, String?>
+	/**
+	 * Serialize an entry to bytes for persistent storage.
+	 *
+	 * Use whatever format is appropriate - protobuf, JSON,
+	 * custom binary. Called once on insert; the bytes are
+	 * stored opaquely.
+	 */
+	fun serialize(entry: T): ByteArray
 
-    /**
-     * Serialize an entry to bytes for persistent storage.
-     *
-     * Use whatever format is appropriate - protobuf, JSON,
-     * custom binary. Called once on insert; the bytes are
-     * stored opaquely.
-     */
-    fun serialize(entry: T): ByteArray
-
-    /**
-     * Deserialize bytes back into an entry.
-     * Must be the inverse of [serialize].
-     */
-    fun deserialize(bytes: ByteArray): T
+	/**
+	 * Deserialize bytes back into an entry.
+	 * Must be the inverse of [serialize].
+	 */
+	fun deserialize(bytes: ByteArray): T
 }
 
 /**
@@ -84,8 +83,13 @@ interface IndexDescriptor<T : Indexable> {
  * @param prefixSearchable  Whether this field supports prefix queries
  *                          (e.g. name prefix for completions). Affects how
  *                          the persistent layer creates SQL indexes.
+ * @param selective         Whether matching this field to a value narrows a query to few entries.
+ *                          Pass `false` for a field with few distinct values, such as a kind or a
+ *                          flag: a match on it then only filters a query that has a selective
+ *                          predicate, instead of choosing the SQL index the query is served by.
  */
 data class IndexField(
-    val name: String,
-    val prefixSearchable: Boolean = false,
+	val name: String,
+	val prefixSearchable: Boolean = false,
+	val selective: Boolean = true,
 )

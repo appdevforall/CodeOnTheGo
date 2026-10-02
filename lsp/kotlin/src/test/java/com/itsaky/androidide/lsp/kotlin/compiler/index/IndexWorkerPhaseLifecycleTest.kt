@@ -45,7 +45,7 @@ class IndexWorkerPhaseLifecycleTest {
 		val symbolBacking = InMemoryIndex(JvmSymbolDescriptor)
 		val sourceIndex =
 			object : JvmSymbolIndex(symbolBacking, BackgroundIndexer(symbolBacking)) {
-				override fun isActive(sourceId: String) = true
+				override fun visibleSourceIds(): Collection<String>? = null
 			}
 
 		return IndexWorker(
@@ -101,9 +101,11 @@ class IndexWorkerPhaseLifecycleTest {
 			Memprof.sink = sink
 			val worker = worker()
 
-			// The second SourceScanningStarted simulates KtSymbolIndex.refreshSources() restarting
-			// a scan whose first attempt was cancelled before it ever reached SourceScanningComplete,
-			// leaving the first scanPhase stale and open.
+			/*
+			 * The second SourceScanningStarted simulates KtSymbolIndex.refreshSources() restarting
+			 * a scan whose first attempt was cancelled before it ever reached SourceScanningComplete,
+			 * leaving the first scanPhase stale and open.
+			 */
 			worker.submitCommand(IndexCommand.SourceScanningStarted)
 			worker.submitCommand(IndexCommand.SourceScanningStarted)
 			worker.submitCommand(IndexCommand.Stop)
