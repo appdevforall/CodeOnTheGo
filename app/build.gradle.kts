@@ -535,9 +535,6 @@ val quickBuildDistJarCheck =
 	tasks.register("quickBuildDistJarCheck") {
 		// Without the ordering, a build that downloads a new distribution can check the old one.
 		mustRunAfter("assetsDownloadDebug", "assetsDownloadRelease")
-		val pinned =
-			libs.versions.kotlin.daemon.compiler
-				.get()
 		val expected = quickBuildDistLinkedJars
 		val distName = GRADLE_DISTRIBUTION_NAME
 		val archiveName = GRADLE_DISTRIBUTION_ARCHIVE_NAME
@@ -557,14 +554,6 @@ val quickBuildDistJarCheck =
 			.withPropertyName("gradleDistributionArchive")
 			.optional(true)
 		doLast {
-			if (pinned != KOTLIN_VERSION) {
-				throw GradleException(
-					"Quick Build's compiler pin (libs.versions.kotlin-daemon-compiler = $pinned) must equal " +
-						"the Kotlin the on-device Gradle distribution embeds " +
-						"(org.adfa.constants.KOTLIN_VERSION = $KOTLIN_VERSION). The daemon loads " +
-						"$distName/lib/kotlin-compiler-embeddable-$KOTLIN_VERSION.jar at runtime.",
-				)
-			}
 			val resolved = classpath.files.associateBy { it.name }
 			expected.sorted().forEach { name ->
 				if (name !in resolved) {

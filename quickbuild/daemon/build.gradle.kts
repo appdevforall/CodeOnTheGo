@@ -104,7 +104,9 @@ dependencies {
 	// against one protocol definition. api: the router/handler signatures expose them.
 	api(projects.quickbuild.protocol)
 
-	implementation(libs.kotlin.buildToolsApi)
+	// The Kotlin artifacts below take KOTLIN_VERSION, not a catalog version: ADFA-4931 links the
+	// on-device Gradle distribution's compiler, so the two must match by construction.
+	implementation("${libs.kotlin.buildToolsApi.get().module}:$KOTLIN_VERSION")
 	// Pinned to the on-device Gradle distribution's version, not the app's, because ADFA-4931
 	// links gson from the distribution instead of shipping it in the APK.
 	implementation(libs.gson.quickBuildDaemon)
@@ -123,17 +125,16 @@ dependencies {
 			because("the on-device Gradle distribution ships this version, which ADFA-4931 links")
 		}
 	}
-	// Pinned to the on-device Gradle distribution's Kotlin, whose compiler ADFA-4931 links
-	// instead of shipping one. kotlin-compiler-runner only drives a separate compile-daemon
-	// JVM over RMI, which this daemon never does; do not also exclude kotlin-daemon-embeddable
-	// or kotlin-reflect, which look just as unused but break every real compile.
-	runtimeOnly(libs.kotlin.buildToolsImpl) {
+	// kotlin-compiler-runner only drives a separate compile-daemon JVM over RMI, which this
+	// daemon never does; do not also exclude kotlin-daemon-embeddable or kotlin-reflect, which
+	// look just as unused but break every real compile.
+	runtimeOnly("${libs.kotlin.buildToolsImpl.get().module}:$KOTLIN_VERSION") {
 		exclude(group = "org.jetbrains.kotlin", module = "kotlin-compiler-runner")
 	}
 
 	// Staged next to the daemon jar on device and passed as -Xplugin when the user
 	// project uses Compose.
-	composeCompilerPlugin(libs.kotlin.composeCompilerPluginEmbeddable)
+	composeCompilerPlugin("${libs.kotlin.composeCompilerPluginEmbeddable.get().module}:$KOTLIN_VERSION")
 	// The compose compile tests resolve a classpath from this; classes.jar is extracted
 	// from the AAR at build time and never shipped. Names the -android artifact rather
 	// than the KMP umbrella, which redirects via available-at - a redirect a
