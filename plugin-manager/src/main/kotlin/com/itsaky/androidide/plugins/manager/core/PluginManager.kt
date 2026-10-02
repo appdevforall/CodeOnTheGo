@@ -4,7 +4,6 @@ package com.itsaky.androidide.plugins.manager.core
 
 import android.app.Activity
 import android.content.Context
-import com.itsaky.androidide.actions.SidebarSlotExceededException
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
@@ -552,14 +551,7 @@ class PluginManager private constructor(
 				return Result.failure(SecurityException("plugin failed security validation: ${manifest.id}"))
 			}
 
-			// Validate sidebar slots BEFORE loading plugin code
 			if (manifest.sidebarItems > 0) {
-				val available = SidebarSlotManager.getAvailableSlotsForPlugins()
-				if (manifest.sidebarItems > available) {
-					return Result.failure(
-						SidebarSlotExceededException(manifest.sidebarItems, available, manifest.id),
-					)
-				}
 				SidebarSlotManager.reservePluginSlots(manifest.id, manifest.sidebarItems)
 				reservedSlotsPluginId = manifest.id
 			}

@@ -13,11 +13,7 @@ class IdeNavigationRailView
 		attrs: AttributeSet? = null,
 		defStyleAttr: Int = com.google.android.material.R.attr.navigationRailStyle,
 	) : NavigationRailView(context, attrs, defStyleAttr) {
-		companion object {
-			const val MAX_ITEM_COUNT = 12
-		}
-
-		override fun getMaxItemCount(): Int = MAX_ITEM_COUNT
+		override fun getMaxItemCount(): Int = Int.MAX_VALUE
 
 		override fun onAttachedToWindow() {
 			super.onAttachedToWindow()
