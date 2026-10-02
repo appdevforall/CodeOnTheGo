@@ -1,5 +1,7 @@
 @file:Suppress("UnstableApiUsage")
 
+import com.aayushatharva.brotli4j.Brotli4jLoader
+import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
@@ -29,6 +31,7 @@ import java.util.zip.CRC32
 import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 plugins {
@@ -528,8 +531,8 @@ val quickBuildDistLinkedJars =
 	)
 
 // A broken link surfaces on device as a NoClassDefFoundError partway into the user's first
-// compile, far from the version bump that caused it, so check both ends at build time: the
-// distribution must carry each name, and the daemon must resolve each name too.
+// compile, far from the change that caused it, so check both ends at build time: the daemon must
+// resolve each name, and the distribution this build packages must carry each one.
 val quickBuildDistJarCheck =
 	tasks.register("quickBuildDistJarCheck") {
 		// Without the ordering, a build that downloads a new distribution can check the old one.
@@ -537,7 +540,12 @@ val quickBuildDistJarCheck =
 		val expected = quickBuildDistLinkedJars
 		val distName = GRADLE_DISTRIBUTION_NAME
 		val archiveName = GRADLE_DISTRIBUTION_ARCHIVE_NAME
-		val distArchive = rootProject.file("assets/$archiveName")
+		val debugArchive = rootProject.file("assets/$archiveName")
+		val releaseArchive = rootProject.file("assets/release/common/data/common/$archiveName.br")
+		// Only a release APK bundles the distribution. A debug APK gets it from the separate assets
+		// zip, so a debug build with neither archive on disk has nothing of its own to check.
+		val releaseTask = Regex("""(assemble|bundle|package|install)\w*Release""")
+		val releaseBuild = gradle.startParameter.taskNames.any { releaseTask.containsMatchIn(it) }
 		val classpath =
 			files(
 				rootProject
@@ -546,11 +554,14 @@ val quickBuildDistJarCheck =
 					.named("runtimeClasspath"),
 			)
 		inputs.files(classpath)
-		// Optional because release builds fetch the brotli-encoded distribution and never
-		// materialise this one. doLast reports that as unchecked rather than as a pass.
+		inputs.property("releaseBuild", releaseBuild)
 		inputs
-			.files(distArchive)
-			.withPropertyName("gradleDistributionArchive")
+			.files(debugArchive)
+			.withPropertyName("debugDistribution")
+			.optional(true)
+		inputs
+			.files(releaseArchive)
+			.withPropertyName("releaseDistribution")
 			.optional(true)
 		doLast {
 			val resolved = classpath.files.associateBy { it.name }
@@ -566,31 +577,59 @@ val quickBuildDistJarCheck =
 				}
 			}
 
-			if (!distArchive.isFile) {
-				logger.lifecycle(
-					"quickBuildDistJarCheck: UNCHECKED - 0 of ${expected.size} linked jars looked up. " +
-						"${distArchive.absolutePath} is absent, so the distribution could not be " +
-						"read. Release builds fetch $archiveName.br instead and take this path; run " +
-						"./gradlew :app:assetsDownloadDebug to check them here.",
-				)
-				return@doLast
-			}
-
-			ZipFile(distArchive).use { zip ->
+			fun requireLinkedJars(
+				entries: Set<String>,
+				archive: File,
+			) {
 				expected.forEach { name ->
 					val entryName = "$distName/lib/$name"
-					zip.getEntry(entryName) ?: throw GradleException(
-						"$entryName is missing from ${distArchive.name}. quickBuildDaemonZip " +
-							"excludes $name on the promise that the distribution supplies it, so " +
-							"the daemon would start with no copy at all. Either drop it from " +
-							"quickBuildDistLinkedJars and let the zip carry it, or correct the name.",
-					)
+					if (entryName !in entries) {
+						throw GradleException(
+							"$entryName is missing from ${archive.name}. quickBuildDaemonZip " +
+								"excludes $name on the promise that the distribution supplies it, so " +
+								"the daemon would start with no copy at all. Either drop it from " +
+								"quickBuildDistLinkedJars and let the zip carry it, or correct the name.",
+						)
+					}
 				}
+				logger.lifecycle(
+					"quickBuildDistJarCheck: found ${expected.size} of ${expected.size} linked jars " +
+						"in $distName/lib of ${archive.name}",
+				)
 			}
-			logger.lifecycle(
-				"quickBuildDistJarCheck: found ${expected.size} of ${expected.size} linked jars " +
-					"in $distName/lib of ${distArchive.name}",
-			)
+
+			if (debugArchive.isFile) {
+				val entries =
+					ZipFile(debugArchive).use { zip ->
+						zip
+							.entries()
+							.asSequence()
+							.map { it.name }
+							.toSet()
+					}
+				requireLinkedJars(entries, debugArchive)
+			}
+			if (releaseArchive.isFile) {
+				Brotli4jLoader.ensureAvailability()
+				val entries = mutableSetOf<String>()
+				ZipInputStream(BrotliInputStream(releaseArchive.inputStream().buffered())).use { zip ->
+					generateSequence { zip.nextEntry }.forEach { entries += it.name }
+				}
+				requireLinkedJars(entries, releaseArchive)
+			} else if (releaseBuild) {
+				throw GradleException(
+					"${releaseArchive.absolutePath} is absent, so quickBuildDistJarCheck cannot read " +
+						"the Gradle distribution this release build packages. Run " +
+						":app:assetsDownloadRelease first.",
+				)
+			}
+			if (!debugArchive.isFile && !releaseArchive.isFile) {
+				logger.lifecycle(
+					"quickBuildDistJarCheck: NOT PACKAGED - 0 of ${expected.size} linked jars looked " +
+						"up. This debug build bundles no Gradle distribution; the device gets it " +
+						"from the assets zip, which ./gradlew :app:assetsDownloadDebug fetches to check.",
+				)
+			}
 		}
 	}
 
