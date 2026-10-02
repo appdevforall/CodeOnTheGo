@@ -14,19 +14,11 @@ import java.nio.file.Path
 import java.util.zip.ZipInputStream
 
 /**
- * Extracts the quick-build artifacts from APK assets to `<ANDROIDIDE_HOME>/quickbuild/` - the
- * runtime AAR, and the daemon zip unpacked into `daemon/` (the daemon jar plus the runtime
- * classpath its manifest Class-Path names).
+ * Stages the quick-build runtime AAR and daemon under `<ANDROIDIDE_HOME>/quickbuild/`, linking
+ * the jars [LINKED_JARS_LIST] names in from the on-device Gradle distribution.
  *
- * The AAR is copied on every call. The daemon directory is wiped and re-extracted only when
- * the installed APK changed: a stamp file, written last so a crash mid-extract leaves none,
- * records the package's versionCode and lastUpdateTime - not a version constant, which would
- * serve a stale bundle when content changes without a bump; any install, an unchanged-version
- * reinstall included, moves lastUpdateTime. That saves a 62 MB extraction per provision and
- * rebaseline. It also keeps the one wipe path away from a live compile daemon, which loads
- * the jars under `daemon/` lazily: the wipe runs only after an APK update, which force-stops
- * the app and its child processes. No known path stages while a daemon is alive anyway - a
- * rebaseline shuts it down before the Gradle build runs - so this is a guard, not a fix.
+ * The daemon is re-staged only when the APK was reinstalled or a linked jar stopped resolving,
+ * which skips a 1.9 MB extraction per provision and keeps the wipe away from a live daemon.
  */
 object QuickBuildArtifactStager {
 	private val log = LoggerFactory.getLogger("QB-ArtifactStager")
@@ -52,7 +44,9 @@ object QuickBuildArtifactStager {
 		}
 	}
 
-	/** Identity of the installed APK; see the class doc for why lastUpdateTime and not a constant. */
+	/**
+	 * Identity of the installed APK. lastUpdateTime, unlike a version constant, moves on every reinstall.
+	 */
 	private fun installStamp(context: Context): String {
 		val info = context.packageManager.getPackageInfo(context.packageName, 0)
 		return "${PackageInfoCompat.getLongVersionCode(info)}:${info.lastUpdateTime}"
