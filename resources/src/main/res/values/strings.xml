@@ -412,6 +412,8 @@
 	<string name="msg_file_tree">File tree</string>
 	<string name="hint_attr_value">Attribute value</string>
 	<string name="title_format_code">Format code</string>
+	<string name="msg_format_failed">Could not format the file: %1$s</string>
+	<string name="msg_format_failed_unexpected">Could not format the file. See IDE logs for details.</string>
 	<string name="title_show_tooltip">Help</string>
 	<string name="show_tooltip_show_more">Show more</string>
 	<string name="faq_activity_title">More information</string>
