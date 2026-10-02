@@ -41,7 +41,7 @@ The button is a split button and the session's status display. Every tone has it
 | Icon                               | Tone         | Session is                                                   |
 | ---------------------------------- | ------------ | ------------------------------------------------------------ |
 | Solid bolt                         | READY        | No session, or sitting on a successful build                 |
-| Stop square spinning inside a ring | BUILDING     | Provisioning, or a build running now. Tapping stops it       |
+| Stop square inside a ring (the Run button's stop icon) | BUILDING     | Provisioning, or a build running now. Tapping stops it       |
 | Hollow bolt                        | SLOW         | The next build cannot take the fast path and will be a full one. Not a failure |
 | Sync arrows                        | RECONNECTING | The compile daemon is being respawned. Transient, resolves itself |
 | Bolt with an exclamation mark      | ERROR        | A failure to act on - a failed build, or a daemon respawn that did not come back |

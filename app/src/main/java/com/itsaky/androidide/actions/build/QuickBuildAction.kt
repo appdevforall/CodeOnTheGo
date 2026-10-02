@@ -227,11 +227,8 @@ class QuickBuildAction(
 			when (tone) {
 				QuickBuildTone.READY -> R.drawable.ic_quick_build
 
-				// Behaviour 1: a running build shows the STANDARD build's stop button, not a
-				// variant of the bolt, which reads as "a build is running" to someone who does
-				// not already know the feature. The stop square spins inside a ring rather than
-				// sitting still, so the ~90 s a proxy app build takes does not read as a hang.
-				QuickBuildTone.BUILDING -> R.drawable.ic_quick_build_building
+				// Behaviour 1: the Run button's own stop icon, so both buttons say "a build is running" the same way.
+				QuickBuildTone.BUILDING -> R.drawable.ic_stop_daemons
 
 				// The hollow bolt: still plainly the Quick Build button, but not the filled
 				// "ready and fast" one. A full build during ordinary editing is normal work,
