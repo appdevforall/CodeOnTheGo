@@ -216,6 +216,19 @@ class QuickBuildArtifactStagerTest {
 	}
 
 	@Test
+	fun `a matching stamp whose linked-jar list is gone re-stages`() {
+		val daemonDir = File(tmp.newFolder("home"), "daemon")
+		val jar = File(daemonDir, "quickbuild-daemon.jar")
+		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
+		assertThat(File(daemonDir, QuickBuildArtifactStager.LINKED_JARS_LIST).delete()).isTrue()
+
+		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
+
+		assertThat(ran).isTrue()
+		assertThat(File(daemonDir, QuickBuildArtifactStager.LINKED_JARS_LIST).isFile).isTrue()
+	}
+
+	@Test
 	fun `a matching stamp over a vanished distribution fails at staging, not mid-compile`() {
 		val daemonDir = File(tmp.newFolder("home"), "daemon")
 		val jar = File(daemonDir, "quickbuild-daemon.jar")
