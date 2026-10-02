@@ -531,6 +531,8 @@ val quickBuildDistLinkedJars =
 // distribution must carry each name, and the daemon must resolve each name too.
 val quickBuildDistJarCheck =
 	tasks.register("quickBuildDistJarCheck") {
+		// Without the ordering, a build that downloads a new distribution can check the old one.
+		mustRunAfter("assetsDownloadDebug", "assetsDownloadRelease")
 		val pinned =
 			libs.versions.kotlin.daemon.compiler
 				.get()
