@@ -5,6 +5,7 @@ import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import com.itsaky.androidide.plugins.conf.hasBundledAssets
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
@@ -626,17 +627,17 @@ val quickBuildDistJarCheck =
 		}
 	}
 
-// Release variants bundle the distribution, so they must not package the daemon zip until the
-// check above has read it. Wired per variant below rather than inferred from task names.
-val quickBuildReleaseDistGate =
-	tasks.register("quickBuildReleaseDistGate") {
+// A variant that bundles the distribution must not package the daemon zip until the check
+// above has read it. Wired per variant below rather than inferred from task names.
+val quickBuildBundledDistGate =
+	tasks.register("quickBuildBundledDistGate") {
 		dependsOn(quickBuildDistJarCheck)
 		val releaseArchive = quickBuildReleaseDistribution
 		doLast {
 			if (!releaseArchive.isFile) {
 				throw GradleException(
 					"${releaseArchive.absolutePath} is absent, so quickBuildDistJarCheck cannot read " +
-						"the Gradle distribution this release build packages. Run " +
+						"the Gradle distribution this variant packages. Run " +
 						":app:assetsDownloadRelease first.",
 				)
 			}
@@ -705,13 +706,13 @@ androidComponents.onVariants { variant ->
 		AddFileToAssetsTask::outputDirectory,
 	)
 
-	// The build type AndroidModuleConf.hasBundledAssets packages assets/release into.
-	val bundlesDistribution = variant.buildType == "release"
+	// The same test that adds assets/release, and the distribution in it, to this variant.
+	val bundlesDistribution = hasBundledAssets(variant)
 	val copyDaemonZip =
 		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildDaemonZip") {
 			dependsOn(quickBuildDaemonZip)
 			if (bundlesDistribution) {
-				dependsOn(quickBuildReleaseDistGate)
+				dependsOn(quickBuildBundledDistGate)
 			}
 			inputFile.set(quickBuildDaemonZip.flatMap { it.archiveFile })
 			baseAssetsPath.set("data/common")
