@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
  * Values crossing this boundary must be JDK types ({@code String}, {@code Boolean}, {@code Integer}, {@code Double}, {@code List}, {@code Map}). Each plugin is loaded by its own class loader with the host as parent, so a class packaged in one {@code .cgp} is not resolvable from another; only types loaded by the host -- this interface and the JDK -- are common ground. A type duplicated into each plugin instead compiles cleanly and then fails on device with {@code ClassCastException}, because each loader defines its own copy.
  *
  * <p>
- * Every member here is an interface rather than a value class on purpose: {@code plugin-api} is additive-only, and adding a property to a class removes the constructor signature already-published plugins were built against. Java {@code default} methods let this contract grow without touching an implementor. The cost is a small concrete class on each side.
+ * Every member here is an interface rather than a value class on purpose: {@code plugin-api} is additive-only, and adding a property to a class removes the constructor signature already-published plugins were built against. Java {@code default} methods let this contract grow without touching an implementor. The cost is a small concrete class on each side. New optional behaviour for a {@link ToolSource} comes instead as an interface extending it -- {@link StatusReportingToolSource}, {@link GroupedToolSource} -- because a provider built earlier may already declare an unrelated method a default of that name would be taken for.
  */
 public interface ToolSourceRegistry {
 
@@ -27,7 +27,18 @@ public interface ToolSourceRegistry {
 	 * <p>
 	 * It marks the revision, it does not negotiate one: javac inlines a constant into every class that reads it, so a plugin carries the value it compiled against and the host its own, and neither can read the other's. Version compatibility is enforced where the loader already enforces it, by {@code plugin.min_ide_version} in the plugin manifest.
 	 */
-	int CONTRACT_VERSION = 1;
+	int CONTRACT_VERSION = 2;
+
+	/**
+	 * Adds a listener told whenever what {@link #getToolSources} describes changes: a source registers or unregisters, or a provider calls {@link #notifyToolsChanged} or {@link #notifyToolSourceStatusChanged}. Adding a listener already added has no effect.
+	 *
+	 * <p>
+	 * Defaults to doing nothing, which is what an agent plugin built before contract 2 provides: its consumers are never notified, and must read {@link #getToolSources} when they need it.
+	 *
+	 * @param listener
+	 *            the listener to add (must not be null)
+	 */
+	default void addToolSourceListener(@NonNull ToolSourceListener listener) {}
 
 	/**
 	 * Gets every registered source, in registration order.
@@ -38,12 +49,23 @@ public interface ToolSourceRegistry {
 	List<ToolSource> getToolSources();
 
 	/**
-	 * Signals that a provider's tool list has changed and must be read again -- an MCP server connected, a user toggled a tool off. The agent re-reads {@link ToolSource#listTools} and rebuilds whatever it derives from it.
+	 * Signals that a provider's tool list has changed and must be read again -- an MCP server connected, a user toggled a tool off. The agent re-reads {@link ToolSource#listTools} and {@link GroupedToolSource#getToolGroups} and rebuilds whatever it derives from them.
 	 *
 	 * @param providerId
 	 *            the {@link ToolSource#getProviderId} whose tools changed; unknown ids are ignored
 	 */
 	void notifyToolsChanged(@NonNull String providerId);
+
+	/**
+	 * Signals that a provider's health has changed and must be read again -- an MCP server went unreachable, or came back. Consumers re-read {@link StatusReportingToolSource#getStatus} and the status of each {@link GroupedToolSource#getToolGroups}; the tool list is not re-read, and listeners hear {@link ToolSourceListener#onToolSourceStatusChanged}.
+	 *
+	 * <p>
+	 * Defaults to doing nothing, which is what an agent plugin built before contract 2 provides.
+	 *
+	 * @param providerId
+	 *            the {@link ToolSource#getProviderId} whose status changed; unknown ids are ignored
+	 */
+	default void notifyToolSourceStatusChanged(@NonNull String providerId) {}
 
 	/**
 	 * Adds a source's tools to the agent, replacing any source already registered under the same {@link ToolSource#getProviderId}. Re-registration is how a provider recovers after the agent plugin restarts.
@@ -52,6 +74,17 @@ public interface ToolSourceRegistry {
 	 *            the source to register (must not be null)
 	 */
 	void registerToolSource(@NonNull ToolSource source);
+
+	/**
+	 * Removes a listener previously passed to {@link #addToolSourceListener}; it is not called again once this returns. A listener that is not added is ignored.
+	 *
+	 * <p>
+	 * Defaults to doing nothing, matching {@link #addToolSourceListener}.
+	 *
+	 * @param listener
+	 *            the listener to remove (must not be null)
+	 */
+	default void removeToolSourceListener(@NonNull ToolSourceListener listener) {}
 
 	/**
 	 * Removes a source previously passed to {@link #registerToolSource}, matched by instance identity rather than by id, so a provider id a second plugin happens to reuse does not remove the first plugin's source.
@@ -63,6 +96,104 @@ public interface ToolSourceRegistry {
 	 *            the source to remove; a source that is not registered is ignored
 	 */
 	void unregisterToolSource(@NonNull ToolSource source);
+
+	/**
+	 * A {@link ToolSource} that divides its tools into groups -- one per MCP server, say -- so a consumer can present each separately. A source that does not implement this is one unit, presented by {@link ToolSource#getDisplayName}.
+	 */
+	interface GroupedToolSource extends ToolSource {
+
+		/**
+		 * Gets the groups this source divides its tools into. Read with {@link #listTools}, on registration and after {@link ToolSourceRegistry#notifyToolsChanged}; must be cheap and must not block on the network.
+		 *
+		 * @return the groups, in presentation order (never null)
+		 */
+		@NonNull
+		List<ToolGroup> getToolGroups();
+	}
+
+	/**
+	 * A {@link ToolSource} that reports its health. A source that does not implement this is read as {@link CapabilityStatus#AVAILABLE}.
+	 */
+	interface StatusReportingToolSource extends ToolSource {
+
+		/**
+		 * Gets this source's health as a whole. For a {@link GroupedToolSource}, each {@link ToolGroup#getStatus} is the finer answer; this one summarises them.
+		 *
+		 * <p>
+		 * Must be cheap and non-blocking: answer from state the source already holds, never by probing a server or waiting on I/O. Consumers call it on the UI thread every time they redraw; learning the state is the source's own background work, and {@link ToolSourceRegistry#notifyToolSourceStatusChanged} is how it reports a change.
+		 *
+		 * @return the status (never null)
+		 */
+		@NonNull
+		CapabilityStatus getStatus();
+
+		/**
+		 * Gets one user-facing sentence explaining a {@link #getStatus} other than {@link CapabilityStatus#AVAILABLE}. Same cheap, non-blocking rule as {@link #getStatus}.
+		 *
+		 * @return the reason, or null when the status is {@link CapabilityStatus#AVAILABLE} or there is nothing to add
+		 */
+		@Nullable
+		String getStatusMessage();
+	}
+
+	/**
+	 * A named subset of one {@link GroupedToolSource}'s tools, presented on its own -- for example the tools of one MCP server.
+	 *
+	 * <p>
+	 * A group may name no tools: a server that is configured but unreachable offers none, and keeping its group with a {@link CapabilityStatus#DEGRADED} status is how it stays visible instead of disappearing.
+	 */
+	interface ToolGroup {
+
+		/**
+		 * Gets the human-readable group name, for example the server's name.
+		 *
+		 * @return the display name (never null)
+		 */
+		@NonNull
+		String getDisplayName();
+
+		/**
+		 * Gets this group's stable identity, unique within its source.
+		 *
+		 * @return the group identifier (never null)
+		 */
+		@NonNull
+		String getId();
+
+		/**
+		 * Gets this group's health. Same cheap, non-blocking rule as {@link StatusReportingToolSource#getStatus}.
+		 *
+		 * <p>
+		 * Defaults to {@link CapabilityStatus#AVAILABLE}.
+		 *
+		 * @return the status (never null)
+		 */
+		@NonNull
+		default CapabilityStatus getStatus() {
+			return CapabilityStatus.AVAILABLE;
+		}
+
+		/**
+		 * Gets one user-facing sentence explaining a {@link #getStatus} other than {@link CapabilityStatus#AVAILABLE}. Same cheap, non-blocking rule as {@link StatusReportingToolSource#getStatus}.
+		 *
+		 * <p>
+		 * Defaults to null.
+		 *
+		 * @return the reason, or null when the status is {@link CapabilityStatus#AVAILABLE} or there is nothing to add
+		 */
+		@Nullable
+		default String getStatusMessage() {
+			return null;
+		}
+
+		/**
+		 * Gets the {@link ToolSpec#getName} of each tool in this group. Every name is one {@link ToolSource#listTools} also returns.
+		 *
+		 * @return the tool names (never null; empty when the group currently offers none)
+		 */
+		@NonNull
+		List<String> getToolNames();
+	}
 
 	/**
 	 * One call to a tool, constructed by the agent.
@@ -193,6 +324,36 @@ public interface ToolSourceRegistry {
 		 */
 		@NonNull
 		List<ToolSpec> listTools();
+	}
+
+	/**
+	 * Told when the registered sources, their tools, or their status change; a status change has its own callback, so a listener need not re-read the tool list for it. Implemented by a consumer -- the agent's own UI, say -- not by a tool provider.
+	 *
+	 * <p>
+	 * The registry calls it synchronously on whichever thread made the change, never while holding its own lock, so the listener may call back into the registry. It must return promptly and hop to its own thread for anything slow, including UI work. An exception it throws is caught and does not reach the provider or the other listeners.
+	 */
+	interface ToolSourceListener {
+
+		/**
+		 * Called after a source registered, unregistered, or called {@link ToolSourceRegistry#notifyToolsChanged}. Re-read {@link ToolSourceRegistry#getToolSources}; when the provider has unregistered, its id is no longer among them.
+		 *
+		 * @param providerId
+		 *            the {@link ToolSource#getProviderId} that changed (never null)
+		 */
+		void onToolSourcesChanged(@NonNull String providerId);
+
+		/**
+		 * Called after a provider reported a health change through {@link ToolSourceRegistry#notifyToolSourceStatusChanged}. Its tools are unchanged: re-read only {@link StatusReportingToolSource#getStatus} and each {@link ToolGroup#getStatus}.
+		 *
+		 * <p>
+		 * Defaults to {@link #onToolSourcesChanged}, for a listener that re-reads everything either way.
+		 *
+		 * @param providerId
+		 *            the {@link ToolSource#getProviderId} whose status changed (never null)
+		 */
+		default void onToolSourceStatusChanged(@NonNull String providerId) {
+			onToolSourcesChanged(providerId);
+		}
 	}
 
 	/**

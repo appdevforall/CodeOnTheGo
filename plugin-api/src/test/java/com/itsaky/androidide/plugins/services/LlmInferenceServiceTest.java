@@ -38,6 +38,20 @@ public class LlmInferenceServiceTest {
 	}
 
 	@Test
+	public void backendBuiltBeforeModelReportingDoesNotClaimIt() {
+		LlmInferenceService.LlmBackend backend = new PlainBackend();
+
+		assertFalse(backend instanceof LlmInferenceService.ActiveModelReportingBackend);
+	}
+
+	@Test
+	public void backendBuiltBeforeStatusReportingDoesNotClaimIt() {
+		LlmInferenceService.LlmBackend backend = new PlainBackend();
+
+		assertFalse(backend instanceof LlmInferenceService.StatusReportingBackend);
+	}
+
+	@Test
 	public void chatMessageCarriesNoCorrelatorsForAConversationTurn() {
 		LlmInferenceService.ChatMessage message = new LlmInferenceService.ChatMessage(LlmInferenceService.ChatMessage.Role.USER, "hello");
 
@@ -184,6 +198,20 @@ public class LlmInferenceServiceTest {
 	}
 
 	@Test
+	public void serviceBuiltBeforeListenersAcceptsThemAndNeverCalls() {
+		LlmInferenceService service = new ListenerlessService();
+		LlmInferenceService.BackendChangeListener listener = backendId -> {
+			throw new AssertionError("a service without listener support must not call one");
+		};
+
+		service.addBackendChangeListener(listener);
+		service.registerBackend(new PlainBackend());
+		service.notifyBackendChanged("plain");
+		service.unregisterBackend("plain");
+		service.removeBackendChangeListener(listener);
+	}
+
+	@Test
 	public void systemPromptRequestAcceptsNoCallSyntax() {
 		LlmInferenceService.SystemPromptRequest request = new LlmInferenceService.SystemPromptRequest(Collections.emptyList(), null, null);
 
@@ -284,6 +312,57 @@ public class LlmInferenceServiceTest {
 				return Collections.unmodifiableList(vectors);
 			});
 		}
+	}
+
+	/**
+	 * A service as ai-core built it before backend-change listeners existed: it implements only what was abstract then.
+	 */
+	private static final class ListenerlessService implements LlmInferenceService {
+
+		@Override
+		public void cancelGeneration() {}
+
+		@Override
+		public CompletableFuture<LlmInferenceService.LlmResponse> generateCompletion(String prompt, LlmInferenceService.LlmConfig config) {
+			return CompletableFuture.completedFuture(LlmInferenceService.LlmResponse.failure("unused"));
+		}
+
+		@Override
+		public void generateStreaming(String prompt, LlmInferenceService.LlmConfig config, LlmInferenceService.StreamCallback callback) {}
+
+		@Override
+		public void generateStreamingWithTools(String prompt, List<LlmInferenceService.ChatMessage> history, LlmInferenceService.LlmConfig config, List<LlmInferenceService.ToolDefinition> tools, LlmInferenceService.ToolStreamCallback callback) {}
+
+		@Override
+		public CompletableFuture<LlmInferenceService.LlmResponse> generateWithHistory(List<LlmInferenceService.ChatMessage> history, String prompt, LlmInferenceService.LlmConfig config) {
+			return generateCompletion(prompt, config);
+		}
+
+		@Override
+		public List<LlmInferenceService.LlmBackend> getAvailableBackends() {
+			return Collections.emptyList();
+		}
+
+		@Override
+		public LlmInferenceService.LlmBackend getBackend(String backendId) {
+			return null;
+		}
+
+		@Override
+		public CompletableFuture<float[]> getEmbeddings(String text, String backendId) {
+			return CompletableFuture.completedFuture(new float[0]);
+		}
+
+		@Override
+		public boolean isBackendAvailable(String backendId) {
+			return false;
+		}
+
+		@Override
+		public void registerBackend(LlmInferenceService.LlmBackend backend) {}
+
+		@Override
+		public void unregisterBackend(String backendId) {}
 	}
 
 	/**
