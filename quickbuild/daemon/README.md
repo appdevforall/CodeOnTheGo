@@ -125,8 +125,8 @@ mid-construction cannot leave a fingerprint describing snapshots that were never
 ## Traps
 
 - **Never print to stdout.** Use the injected `log` / `warn` channels, which reach stderr.
-- **Eight of the jars beside the daemon jar on device are not in the APK.** `:app`'s
-  `quickBuildDaemonZip` leaves out `kotlin-compiler-embeddable` and seven others, and
+- **Nine of the jars beside the daemon jar on device are not in the APK.** `:app`'s
+  `quickBuildDaemonZip` leaves out `kotlin-compiler-embeddable` and eight others, and
   `QuickBuildArtifactStager` links the on-device Gradle distribution's copies in under the same
   names, which the manifest `Class-Path` matches by exact file name. So the daemon's Kotlin version
   must equal the distribution's; `:app:quickBuildDistJarCheck` fails the build when it does not.

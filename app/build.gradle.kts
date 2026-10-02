@@ -520,6 +520,7 @@ val quickBuildDistLinkedJars =
 		"kotlin-build-tools-impl-$KOTLIN_VERSION.jar",
 		"kotlin-daemon-embeddable-$KOTLIN_VERSION.jar",
 		"kotlin-script-runtime-$KOTLIN_VERSION.jar",
+		"kotlin-reflect-$KOTLIN_VERSION.jar",
 		// These three carry their own version rather than KOTLIN_VERSION, pinned in
 		// libs.versions.toml to what the distribution ships so they can be linked from there.
 		"kotlinx-coroutines-core-jvm-${libs.kotlinx.coroutines.core.jvm.quickBuildDaemon.get().version}.jar",
