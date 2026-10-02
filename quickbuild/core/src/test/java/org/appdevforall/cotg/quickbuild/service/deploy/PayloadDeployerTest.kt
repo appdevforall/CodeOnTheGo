@@ -25,7 +25,7 @@ class PayloadDeployerTest {
 		userInitiated: Boolean = true,
 	) = PayloadDeployer(
 		deploy = deploy,
-		generations = GenerationTracker(MemoryGenerationStore()),
+		generations = GenerationTracker(MemoryGenerationStore(), initial = 0L),
 		entryActivity = "com.example.app.MainActivity",
 		proxyAppPackage = proxyAppPackage,
 		launcherActivity = "com.example.app.Proxy0Activity",
