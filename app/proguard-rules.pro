@@ -256,6 +256,7 @@
 -keep class com.google.android.material.** { *; }
 -keep class io.noties.markwon.** { *; }
 -keep class com.google.gson.** { *; }
+-keep class org.snakeyaml.engine.** { *; }
 
 -keep class com.google.firebase.** { *; }
 -keep class com.google.android.gms.** { *; }

@@ -1742,7 +1742,7 @@
 	<string name="cd_outline_kind_field">Field</string>
 	<string name="cd_outline_kind_property">Property</string>
 	<string name="cd_outline_kind_element">Element</string>
-    <string name="initialize_repository">Initialize Repository</string>
+    <string name="initialize_git_repository">Initialize Git Repository</string>
     <string name="git_init_failed">Failed to initialize Git repository</string>
 </resources>
 

@@ -189,28 +189,27 @@ open class AndroidModule(
 			result.add(kotlinClasses)
 		}
 
-		val javaClassesDir = File(buildDirectory, "intermediates/javac/$variant")
-		if (javaClassesDir.exists()) {
-			javaClassesDir
-				.walkTopDown()
-				.filter { it.name == "classes" && it.isDirectory }
-				.forEach { result.add(it) }
+		listOf("intermediates/javac/$variant", "intermediates/built_in_kotlinc/$variant").forEach { dir ->
+			result += findUnder(File(buildDirectory, dir), maxDepth = 2) { it.name == "classes" && it.isDirectory }
 		}
 
-		val rClassDir =
-			File(
-				buildDirectory,
+		val rClassJarDirs =
+			listOf(
 				"intermediates/compile_and_runtime_not_namespaced_r_class_jar/$variant",
+				"intermediates/compile_and_runtime_r_class_jar/$variant",
 			)
-		if (rClassDir.exists()) {
-			rClassDir
-				.walkTopDown()
-				.filter { it.name == "R.jar" && it.isFile }
-				.forEach { result.add(it) }
+		rClassJarDirs.forEach { dir ->
+			result += findUnder(File(buildDirectory, dir)) { it.name == "R.jar" && it.isFile }
 		}
 
 		return result
 	}
+
+	private fun findUnder(
+		root: File,
+		maxDepth: Int = Int.MAX_VALUE,
+		predicate: (File) -> Boolean,
+	): Sequence<File> = if (root.exists()) root.walkTopDown().maxDepth(maxDepth).filter(predicate) else emptySequence()
 
 	override fun getRuntimeDexFiles(): Set<File> {
 		val result = mutableSetOf<File>()
