@@ -36,6 +36,15 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.41 — unreleased
+- **added — No cap on sidebar items** _(ADFA-4977)_
+  The sidebar held 12 items: the IDE's seven plus the slots plugins declared with
+  `plugin.sidebar_items`. A plugin declaring more than the free slots failed to load, and
+  plugins loaded before the editor counted its own items could overfill the sidebar and
+  crash the IDE at launch. The sidebar now scrolls, so every declared item is shown.
+  `IdeSidebarService.getMaxSidebarItems()` and `getAvailableSidebarSlots()` return
+  `Int.MAX_VALUE`, and `canAddSidebarItems()` returns `true`. A plugin still returns no
+  more items than it declares. Floor `plugin.min_ide_version` at `26.41` if the plugin
+  declares more than 5 items, the slots an older IDE leaves free.
 - **added — The AI prompt config engine and settings-pane helpers** _(ADFA-6281)_ **[verified]**
   Every AI plugin carried its own copy of the code that reads and renders its prompt
   config, and the credential screens their own copy of the reveal toggle and pane
