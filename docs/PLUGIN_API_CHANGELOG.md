@@ -35,7 +35,41 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
-### 26.40 — unreleased
+### 26.41 — unreleased
+- **added — The AI prompt config engine and settings-pane helpers** _(ADFA-6281)_ **[verified]**
+  Every AI plugin carried its own copy of the code that reads and renders its prompt
+  config, and the credential screens their own copy of the reveal toggle and pane
+  styling, so a fix had to be repeated per plugin and a missed copy made the plugins
+  drift. The host now ships one copy.
+  `com.itsaky.androidide.plugins.ai.prompt`: `PromptTemplateEngine` and `PromptText`
+  (the `{{NAME}}` / `{{#NAME}}` / `{{^NAME}}` renderer; names may be in any case and hold
+  dots, e.g. `{{fileName}}` or `{{item.name}}`, `{{{{` writes a literal `{{`, and config text keeps its whitespace as YAML
+  parsed it); `PromptConfigLoader.load(source,
+  parser)`, which reads `agent.yml` and its `include` list off the main thread;
+  `PromptConfigDocument` and `PromptConfigObject`, the strict key-by-key reader a parser
+  maps the merged YAML through; `PromptConfigSource` / `AssetPromptConfigSource`;
+  `PromptConfigException`; and `PromptConfigStore<T>`, the per-activation cache, behind
+  `PromptConfigProvider<T>`. Loader and store are generic over the plugin's config type:
+  a plugin supplies only a `PromptConfigParser<T>` and keeps one store, e.g.
+  `val shared = PromptConfigStore(MyParser)`, and calls `shared.reload(source, onLoaded, onFailed)`
+  from `activate()` and `shared.clear()` from `deactivate()`. The YAML library (snakeyaml-engine 2.10)
+  is on the host side, so a plugin using the loader no longer bundles it.
+  `com.itsaky.androidide.plugins.ai.ui`: `SecretRevealController`, whose two states are
+  each a `RevealToggle` (icon and content description), and
+  `View.applyPaneStyling(PaneStyle, outlinedButtonIds)`, with `PaneStyle` grouping a
+  `ButtonColors` per emphasis and a `FieldColors`. Both take the plugin's own resource ids
+  rather than shipping any: they resolve against the view's context, which carries the
+  plugin's resources, not the host's.
+  Additive to the ABI (185 added lines in the dump, none removed), but no longer unused:
+  AI-Core and the Gemini, Local and OpenAI agents now load and render their prompt config
+  through `ai.prompt` and drop their private copies, and the Gemini, OpenAI and MCP
+  settings screens use `ai.ui`. `LlmInferenceService.WebSearchBackend` (`canSearchWeb()`)
+  lets a backend say whether a `web_search` request would be searched now; ai-core forces
+  and offers its `web_search` tool only when it does. The `extraParams` keys both sides
+  read are defined once, as `WebSearchBackend.EXTRA_PARAM_WEB_SEARCH` and
+  `ToolCallingBackend.EXTRA_PARAM_REQUIRED_TOOL`. Floor
+  `plugin.min_ide_version` at `26.41` to use any of it; an older IDE has none of these
+  classes, and the plugin fails with `NoClassDefFoundError` on first use.
 - **added — Read-only App Logs and IDE Logs** _(ADFA-6267)_ **[verified]**
   Plugins could read build output (`IdeBuildService.getBuildOutput()`) but not the App Logs
   or IDE Logs tabs, so an agent diagnosing a runtime crash had to ask the user to paste them.
@@ -50,7 +84,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `LogReadResult.EMPTY`, never a throw. The service has no clear or write method, and needs
   no permission: plugins run in-process under the IDE's uid, so a gate would disclose log
   access, not enforce it. Purely additive (the ABI dump diff is additions only). Floor
-  `plugin.min_ide_version` at `26.40` to use it; an older IDE has no such service.
+  `plugin.min_ide_version` at `26.41` to use it; an older IDE has no such service.
+### 26.40 — 2026-09-29
 - **added — An embedding capability a backend can declare** _(ADFA-6053)_ **[verified]**
   A backend that has an embedding model can now say so. The only embedding entry point
   before this was `LlmInferenceService.getEmbeddings(String, String)`, which addresses a
