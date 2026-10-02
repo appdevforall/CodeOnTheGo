@@ -299,6 +299,8 @@ tooling-agp = { module = "com.android.tools.build:gradle", version.ref = "agp-to
 tooling-builderModel = { module = "com.android.tools.build:builder-model", version.ref = "agp-tooling" }
 tooling-gradleApi = { module = "com.itsaky.androidide.gradle:gradle-tooling-api", version.ref = "gradle-tooling" }
 tooling-slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.12" }
+# 2.x targets Java 8; 3.x needs 11. Match the AI plugins' copy, which the app shadows parent-first.
+snakeyaml-engine = { module = "org.snakeyaml:snakeyaml-engine", version = "2.10" }
 
 # Classpaths
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
