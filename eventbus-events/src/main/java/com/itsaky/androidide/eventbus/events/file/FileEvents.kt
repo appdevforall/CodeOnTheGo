@@ -22,7 +22,7 @@ import java.io.File
 
 /** Base class for file events. */
 abstract class FileEvent : Event() {
-  abstract val file: File
+	abstract val file: File
 }
 
 /**
@@ -30,18 +30,29 @@ abstract class FileEvent : Event() {
  *
  * @author Akash Yadav
  */
-data class FileCreationEvent(override val file: File) : FileEvent()
+data class FileCreationEvent(
+	override val file: File,
+) : FileEvent()
 
 /**
  * Event dispatched when a file is deleted in the file tree.
  *
  * @author Akash Yadav
  */
-data class FileDeletionEvent(override val file: File) : FileEvent()
+data class FileDeletionEvent(
+	override val file: File,
+) : FileEvent()
 
 /**
  * Event dispatched when a file is renamed in the file tree.
  *
  * @author Akash Yadav
  */
-class FileRenameEvent(override val file: File, val newFile: File) : FileEvent()
+class FileRenameEvent(
+	override val file: File,
+	val newFile: File,
+) : FileEvent()
+
+data class FileContentChangedEvent(
+	override val file: File,
+) : FileEvent()

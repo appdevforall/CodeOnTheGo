@@ -34,6 +34,8 @@ import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
+import org.jetbrains.kotlin.com.intellij.psi.impl.PsiManagerEx
+import org.jetbrains.kotlin.com.intellij.psi.impl.file.impl.FileManagerImpl
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
@@ -311,6 +313,16 @@ internal class KtSymbolIndex(
 			queueOnFileChangedAsync(newKtFile)
 		}
 		return VersionedKtFile(version, newKtFile)
+	}
+
+	fun evictDiskCopy(path: Path) {
+		ktFileCache.invalidate(path)
+		val vf = path.toVirtualFileOrNull() ?: return
+		project.write {
+			ApplicationManager.getApplication().runWriteAction {
+				(PsiManagerEx.getInstanceEx(project).fileManager as FileManagerImpl).setViewProvider(vf, null)
+			}
+		}
 	}
 
 	/** Drops the cached current file for [path] (e.g. on close). */
