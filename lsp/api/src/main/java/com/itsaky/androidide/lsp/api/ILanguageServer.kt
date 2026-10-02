@@ -42,7 +42,6 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 interface ILanguageServer {
-
 	val serverId: String
 
 	/**
@@ -58,6 +57,20 @@ interface ILanguageServer {
 	 */
 	val debugAdapter: IDebugAdapter?
 		get() = null
+
+	/**
+	 * Whether a breakpoint set in [file] can ever bind.
+	 *
+	 * Asked per file rather than per server because a server can own sources that are not all
+	 * debuggable: the Kotlin server also serves `.kts`, which compiles to no class the VM will load.
+	 * Answering `true` for one of those draws a breakpoint the debug adapter can never resolve, and
+	 * nothing downstream reports why.
+	 *
+	 * Defaults to owning a [debugAdapter]. A server may override this to `true` while leaving
+	 * [debugAdapter] null: a single JVM debug session serves every language in the project, so one
+	 * server hosts the adapter and the rest share it.
+	 */
+	fun supportsDebugging(file: Path): Boolean = debugAdapter != null
 
 	/**
 	 * Called by client to notify the server to shutdown. Language servers must release all the
