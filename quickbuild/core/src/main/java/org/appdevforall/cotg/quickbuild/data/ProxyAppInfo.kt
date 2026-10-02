@@ -98,6 +98,17 @@ data class ProxyAppInfo(
 	val supportsComponentInfo: Boolean
 		get() = schema >= COMPONENT_SCHEMA_VERSION
 
+	/**
+	 * Proxy class of the activity that carries MAIN/LAUNCHER, or null when none does; a null
+	 * makes the launcher fall back to the package's default launch intent, which also resolves
+	 * an `<activity-alias>` launcher.
+	 *
+	 * The restart deploy, the rebuild relaunch and the foreground switch all launch this, so
+	 * the three cannot drift apart.
+	 */
+	val launcherProxyClass: String?
+		get() = components.firstOrNull { it.kind == ComponentKind.ACTIVITY && it.launcher }?.proxyClass
+
 	companion object {
 		private val log = LoggerFactory.getLogger("QB-ProxyAppInfo")
 

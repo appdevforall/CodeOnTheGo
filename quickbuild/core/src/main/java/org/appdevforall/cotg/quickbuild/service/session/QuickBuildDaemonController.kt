@@ -40,8 +40,30 @@ internal class QuickBuildDaemonController(
 	 * once for its start - while a lone shutdown bumps once. Nothing here enforces it: the
 	 * session manager's transition paths carry the obligation, and a flow that bumps a
 	 * different number of times silently breaks the zombie-versus-successor distinction.
+	 *
+	 * Volatile because the daemon's death listener reads it from the process reaper thread
+	 * to tell a death this session caused from one it did not.
 	 */
+	@Volatile
 	private var daemonEpoch = 0L
+
+	/** Who told the session a daemon had died. See [noteDeath]. */
+	enum class DeathReporter {
+		/** The daemon's own process-exit watcher; fires exactly once per physical death. */
+		WATCHER,
+
+		/** The build in flight, which fails with `daemonDied`; at most one build runs at a time. */
+		BUILD,
+	}
+
+	/**
+	 * Who reported the current daemon's death, or null while no death is outstanding.
+	 *
+	 * Cleared once a start has returned, whatever it returned, and on a shutdown: after
+	 * either, whatever daemon is up next has no death reported yet. Only touched on the
+	 * session dispatcher.
+	 */
+	private var lastDeathReporter: DeathReporter? = null
 
 	/** Set only on the session dispatcher; a build in flight defers the teardown here. */
 	private var pendingLowMemoryTeardown = false
@@ -69,6 +91,9 @@ internal class QuickBuildDaemonController(
 	/**
 	 * The current epoch, captured at effect time and passed back into [respawn].
 	 *
+	 * Safe to call off the session dispatcher: the read is volatile, and the value is only
+	 * ever compared with a later read.
+	 *
 	 * @return an opaque counter, meaningful only when compared with a later read
 	 */
 	fun epochSnapshot(): Long = daemonEpoch
@@ -84,11 +109,42 @@ internal class QuickBuildDaemonController(
 	suspend fun start(
 		layout: QuickBuildProjectLayout,
 		proxyApp: ProxyAppInfo,
-	): DaemonReply<Unit> = daemon.start(configFor(layout, proxyApp))
+	): DaemonReply<Unit> {
+		val started = daemon.start(configFor(layout, proxyApp))
+		lastDeathReporter = null
+		return started
+	}
 
 	/** Stops the daemon. Never bumps the epoch - see [markIntentionalTransition]. */
 	suspend fun shutdown() {
+		// Forgotten before the stop, not after: nothing about a daemon being stopped on
+		// purpose is a death the next daemon's reporters could be re-reporting.
+		lastDeathReporter = null
 		daemon.shutdown()
+	}
+
+	/**
+	 * Records a death report and says whether it is news.
+	 *
+	 * One physical death has two reporters that cannot see each other - the exit watcher and
+	 * the build in flight, which fails with `daemonDied` - and each reports a given death at
+	 * most once. So a second report from the OTHER reporter is the same death seen twice,
+	 * while a second report from the SAME reporter is a new death: the respawned child dying
+	 * during its own start, which must go through. A report that lands while a respawn's
+	 * start is still in flight is judged against the death that respawn is for, which is
+	 * what makes the build's late report of it a duplicate rather than a new death.
+	 *
+	 * @param reporter which of the two saw it
+	 * @return false when the other reporter already reported this death
+	 */
+	fun noteDeath(reporter: DeathReporter): Boolean {
+		val previous = lastDeathReporter
+		if (previous != null && previous != reporter) {
+			log.debug("Quick Build: {} re-reported a death {} already reported; ignored", reporter, previous)
+			return false
+		}
+		lastDeathReporter = reporter
+		return true
 	}
 
 	/** What became of a [respawn]. The manager dispatches on it; this class does not. */
@@ -135,6 +191,10 @@ internal class QuickBuildDaemonController(
 			return RespawnOutcome.Superseded
 		}
 		val started = daemon.start(configFor(layout, proxyApp))
+		// Whatever came of it, the death this respawn was for is fully reported; the next
+		// report from either side is a new death. Not cleared before the start: a build's
+		// late report of the same death during the start has to be dropped.
+		lastDeathReporter = null
 		if (startEpoch != daemonEpoch) {
 			// An intentional shutdown landed while this respawn's start was in flight, so
 			// the superseding flow owns the daemon lifecycle now. See daemonEpoch for the
@@ -152,9 +212,15 @@ internal class QuickBuildDaemonController(
 				RespawnOutcome.Respawned
 			}
 
-			else -> {
+			is DaemonReply.Failed -> {
+				RespawnOutcome.Failed(started.message)
+			}
+
+			is DaemonReply.BuildFailed -> {
+				// The daemon refused the same config it ran on before its death; its first
+				// diagnostic is the only reason anyone has.
 				RespawnOutcome.Failed(
-					(started as? DaemonReply.Failed)?.message ?: "unknown failure",
+					started.diagnostics.firstOrNull()?.message ?: "Daemon rejected configuration",
 				)
 			}
 		}
@@ -219,7 +285,7 @@ internal class QuickBuildDaemonController(
 		pendingLowMemoryTeardown = false
 		log.info("Quick Build: tearing down the compile daemon for low memory; the next build re-warms it")
 		markIntentionalTransition()
-		daemon.shutdown()
+		shutdown()
 	}
 
 	/**
