@@ -71,8 +71,8 @@ object QuickBuildArtifactStager {
 
 	/**
 	 * Wipes and re-extracts [daemonDir] unless it already holds a complete extraction for
-	 * [installStamp] - the stamp file matches and [daemonJar] is present. Internal so the JVM
-	 * test can watch the skip, and the wipe, without an Android [Context].
+	 * [installStamp]: the stamp matches, [daemonJar] is present and every linked jar resolves.
+	 * Internal so the JVM test can watch the skip, and the wipe, without an Android [Context].
 	 *
 	 * @param gradleDists exists so tests can point at a fake distribution.
 	 * @return whether an extraction ran.
@@ -86,7 +86,7 @@ object QuickBuildArtifactStager {
 		openZip: () -> InputStream,
 	): Boolean {
 		val stamp = File(daemonDir, DAEMON_STAMP_FILE)
-		if (daemonJar.isFile && stamp.isFile && stamp.readText() == installStamp) {
+		if (daemonJar.isFile && stamp.isFile && stamp.readText() == installStamp && linkedJarsResolve(daemonDir)) {
 			log.info("Daemon already staged for this install at {}", daemonDir)
 			return false
 		}
@@ -191,6 +191,21 @@ object QuickBuildArtifactStager {
 	) {
 		log.warn("Symlink {} -> {} failed ({}), copying", target, source, cause.toString())
 		source.inputStream().use { input -> target.outputStream().use { input.copyTo(it) } }
+	}
+
+	/**
+	 * Whether every linked jar in [daemonDir] still reaches a file. The stamp alone cannot say,
+	 * since the assets installers delete and re-extract the distribution the links point into.
+	 */
+	private fun linkedJarsResolve(daemonDir: File): Boolean {
+		// An unreadable list re-stages too, and the re-stage's own read reports why.
+		val names =
+			try {
+				readLinkedJarNames(daemonDir)
+			} catch (e: IOException) {
+				return false
+			}
+		return names.all { File(daemonDir, it).isFile }
 	}
 
 	/** The jar names the build left out of the zip for the distribution to supply. */
