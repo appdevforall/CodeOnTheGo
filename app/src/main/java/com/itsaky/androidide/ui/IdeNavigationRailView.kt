@@ -6,52 +6,55 @@ import androidx.core.widget.NestedScrollView
 import com.google.android.material.navigation.NavigationBarMenuView
 import com.google.android.material.navigationrail.NavigationRailView
 
-class IdeNavigationRailView @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = com.google.android.material.R.attr.navigationRailStyle
-) : NavigationRailView(context, attrs, defStyleAttr) {
+class IdeNavigationRailView
+	@JvmOverloads
+	constructor(
+		context: Context,
+		attrs: AttributeSet? = null,
+		defStyleAttr: Int = com.google.android.material.R.attr.navigationRailStyle,
+	) : NavigationRailView(context, attrs, defStyleAttr) {
+		companion object {
+			const val MAX_ITEM_COUNT = 12
+		}
 
-    companion object {
-        const val MAX_ITEM_COUNT = 12
-    }
+		override fun getMaxItemCount(): Int = MAX_ITEM_COUNT
 
-    override fun getMaxItemCount(): Int = MAX_ITEM_COUNT
+		override fun onAttachedToWindow() {
+			super.onAttachedToWindow()
+			enableMenuScrolling()
+		}
 
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        enableMenuScrolling()
-    }
+		private fun enableMenuScrolling() {
+			post {
+				val menuView =
+					(0 until childCount)
+						.map { getChildAt(it) }
+						.firstOrNull { it is NavigationBarMenuView }
+						?: return@post
 
-    private fun enableMenuScrolling() {
-        post {
-            val menuView = (0 until childCount)
-                .map { getChildAt(it) }
-                .firstOrNull { it is NavigationBarMenuView }
-                ?: return@post
+				if (menuView.parent is NestedScrollView) return@post
 
-            if (menuView.parent is NestedScrollView) return@post
+				removeView(menuView)
 
-            removeView(menuView)
+				val scroll =
+					NestedScrollView(context).apply {
+						isVerticalScrollBarEnabled = false
+						addView(
+							menuView,
+							LayoutParams(
+								LayoutParams.WRAP_CONTENT,
+								LayoutParams.WRAP_CONTENT,
+							),
+						)
+					}
 
-            val scroll = NestedScrollView(context).apply {
-                isVerticalScrollBarEnabled = false
-                addView(
-                    menuView,
-                    LayoutParams(
-                        LayoutParams.WRAP_CONTENT,
-                        LayoutParams.WRAP_CONTENT
-                    )
-                )
-            }
-
-            addView(
-                scroll,
-                LayoutParams(
-                    LayoutParams.WRAP_CONTENT,
-                    LayoutParams.MATCH_PARENT
-                )
-            )
-        }
-    }
-}
+				addView(
+					scroll,
+					LayoutParams(
+						LayoutParams.WRAP_CONTENT,
+						LayoutParams.MATCH_PARENT,
+					),
+				)
+			}
+		}
+	}
