@@ -203,6 +203,36 @@ class QuickBuildArtifactStagerTest {
 	}
 
 	@Test
+	fun `a matching stamp whose linked jar is gone re-stages`() {
+		val daemonDir = File(tmp.newFolder("home"), "daemon")
+		val jar = File(daemonDir, "quickbuild-daemon.jar")
+		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
+		assertThat(File(daemonDir, linkedJar).delete()).isTrue()
+
+		val ran = QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
+
+		assertThat(ran).isTrue()
+		assertThat(File(daemonDir, linkedJar).readText()).isEqualTo("linked-jar-bytes")
+	}
+
+	@Test
+	fun `a matching stamp over a vanished distribution fails at staging, not mid-compile`() {
+		val daemonDir = File(tmp.newFolder("home"), "daemon")
+		val jar = File(daemonDir, "quickbuild-daemon.jar")
+		QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
+		// What an assets reinstall leaves for a moment: the link survives, its target does not.
+		assertThat(File(gradleDists, "$GRADLE_DISTRIBUTION_NAME/lib/$linkedJar").delete()).isTrue()
+
+		val thrown =
+			runCatching {
+				QuickBuildArtifactStager.stageDaemonIfNeeded("7:1000", daemonDir, jar, gradleDists) { daemonZip() }
+			}.exceptionOrNull()
+
+		assertThat(thrown).isInstanceOf(FileNotFoundException::class.java)
+		assertThat(thrown).hasMessageThat().contains(linkedJar)
+	}
+
+	@Test
 	fun `a failed link leaves no stamp so the next stage retries`() {
 		val daemonDir = File(tmp.newFolder("home-link-fail"), "daemon")
 		val jar = File(daemonDir, "quickbuild-daemon.jar")
