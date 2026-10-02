@@ -534,6 +534,9 @@ val quickBuildDistLinkedJars =
 // A broken link surfaces on device as a NoClassDefFoundError partway into the user's first
 // compile, far from the change that caused it, so check both ends at build time: the daemon must
 // resolve each name, and the distribution this build packages must carry each one.
+val quickBuildReleaseDistribution =
+	rootProject.file("assets/release/common/data/common/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br")
+
 val quickBuildDistJarCheck =
 	tasks.register("quickBuildDistJarCheck") {
 		// Without the ordering, a build that downloads a new distribution can check the old one.
@@ -542,11 +545,7 @@ val quickBuildDistJarCheck =
 		val distName = GRADLE_DISTRIBUTION_NAME
 		val archiveName = GRADLE_DISTRIBUTION_ARCHIVE_NAME
 		val debugArchive = rootProject.file("assets/$archiveName")
-		val releaseArchive = rootProject.file("assets/release/common/data/common/$archiveName.br")
-		// Only a release APK bundles the distribution. A debug APK gets it from the separate assets
-		// zip, so a debug build with neither archive on disk has nothing of its own to check.
-		val releaseTask = Regex("""(assemble|bundle|package|install)\w*Release""")
-		val releaseBuild = gradle.startParameter.taskNames.any { releaseTask.containsMatchIn(it) }
+		val releaseArchive = quickBuildReleaseDistribution
 		val classpath =
 			files(
 				rootProject
@@ -555,7 +554,6 @@ val quickBuildDistJarCheck =
 					.named("runtimeClasspath"),
 			)
 		inputs.files(classpath)
-		inputs.property("releaseBuild", releaseBuild)
 		inputs
 			.files(debugArchive)
 			.withPropertyName("debugDistribution")
@@ -578,6 +576,7 @@ val quickBuildDistJarCheck =
 				}
 			}
 
+			/** Fails unless every linked jar sits in the distribution's lib/ inside [archive]. */
 			fun requireLinkedJars(
 				entries: Set<String>,
 				archive: File,
@@ -617,18 +616,29 @@ val quickBuildDistJarCheck =
 					generateSequence { zip.nextEntry }.forEach { entries += it.name }
 				}
 				requireLinkedJars(entries, releaseArchive)
-			} else if (releaseBuild) {
-				throw GradleException(
-					"${releaseArchive.absolutePath} is absent, so quickBuildDistJarCheck cannot read " +
-						"the Gradle distribution this release build packages. Run " +
-						":app:assetsDownloadRelease first.",
-				)
 			}
 			if (!debugArchive.isFile && !releaseArchive.isFile) {
 				logger.lifecycle(
 					"quickBuildDistJarCheck: NOT PACKAGED - 0 of ${expected.size} linked jars looked " +
-						"up. This debug build bundles no Gradle distribution; the device gets it " +
-						"from the assets zip, which ./gradlew :app:assetsDownloadDebug fetches to check.",
+						"up. No Gradle distribution archive is on disk; a debug APK gets it from the " +
+						"assets zip, which ./gradlew :app:assetsDownloadDebug fetches to check.",
+				)
+			}
+		}
+	}
+
+// Release variants bundle the distribution, so they must not package the daemon zip until the
+// check above has read it. Wired per variant below rather than inferred from task names.
+val quickBuildReleaseDistGate =
+	tasks.register("quickBuildReleaseDistGate") {
+		dependsOn(quickBuildDistJarCheck)
+		val releaseArchive = quickBuildReleaseDistribution
+		doLast {
+			if (!releaseArchive.isFile) {
+				throw GradleException(
+					"${releaseArchive.absolutePath} is absent, so quickBuildDistJarCheck cannot read " +
+						"the Gradle distribution this release build packages. Run " +
+						":app:assetsDownloadRelease first.",
 				)
 			}
 		}
@@ -696,9 +706,14 @@ androidComponents.onVariants { variant ->
 		AddFileToAssetsTask::outputDirectory,
 	)
 
+	// The build type AndroidModuleConf.hasBundledAssets packages assets/release into.
+	val bundlesDistribution = variant.buildType == "release"
 	val copyDaemonZip =
 		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildDaemonZip") {
 			dependsOn(quickBuildDaemonZip)
+			if (bundlesDistribution) {
+				dependsOn(quickBuildReleaseDistGate)
+			}
 			inputFile.set(quickBuildDaemonZip.flatMap { it.archiveFile })
 			baseAssetsPath.set("data/common")
 		}
