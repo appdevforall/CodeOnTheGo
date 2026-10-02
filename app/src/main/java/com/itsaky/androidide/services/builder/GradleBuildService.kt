@@ -150,6 +150,15 @@ class GradleBuildService :
 	private var outputReaderJob: Job? = null
 	private var notificationManager: NotificationManager? = null
 	private var server: IToolingApiServer? = null
+
+	/**
+	 * The RPC future of the build holding the slot, failed by [onServerExited]: the RPC layer never
+	 * completes a request whose server process died, and only that completion clears
+	 * [isBuildInProgress]. Never nulled - completing a finished future is a no-op, and a clear in
+	 * [markBuildAsFinished] would also run for a request rejected while another build still ran.
+	 */
+	@Volatile
+	private var pendingBuild: CompletableFuture<*>? = null
 	private var eventListener: EventListener? = null
 	private val analyticsManager: IAnalyticsManager by inject()
 
@@ -394,6 +403,14 @@ class GradleBuildService :
 
 	override fun onServerExited(exitCode: Int) {
 		log.warn("Tooling API process terminated with exit code: {}", exitCode)
+		// The runner has cleared its own started flag; without clearing this one too,
+		// isToolingServerStarted() stays true and every build goes to a proxy whose process is
+		// gone. With both cleared, the next bind's startToolingServer starts a fresh runner.
+		isToolingServerStarted = false
+		server = null
+		// Without this the build that held the slot when the JVM died holds it for the rest of the
+		// session: its RPC future never completes, and Run is refused as "build in progress".
+		pendingBuild?.completeExceptionally(ToolingServerNotStartedException())
 		stopForeground(STOP_FOREGROUND_REMOVE)
 	}
 
@@ -736,7 +753,7 @@ class GradleBuildService :
 
 	private fun <T> performBuildTasks(future: CompletableFuture<T>): CompletableFuture<T> {
 		return CompletableFuture
-			.runAsync(this::onPrepareBuildRequest)
+			.runAsync { onPrepareBuildRequest(future) }
 			.handleAsync { _, _ ->
 				try {
 					return@handleAsync future.get()
@@ -789,7 +806,7 @@ class GradleBuildService :
 		return false
 	}
 
-	private fun onPrepareBuildRequest() {
+	private fun onPrepareBuildRequest(future: CompletableFuture<*>) {
 		checkServerStarted()
 		ensureTmpdir()
 		if (isBuildInProgress) {
@@ -797,6 +814,7 @@ class GradleBuildService :
 			throw BuildInProgressException()
 		}
 		isBuildInProgress = true
+		pendingBuild = future
 	}
 
 	@Throws(ToolingServerNotStartedException::class)
@@ -826,7 +844,7 @@ class GradleBuildService :
 	internal fun startToolingServer(listener: OnServerStartListener?) {
 		if (toolingServerRunner?.isStarted != true) {
 			val envs = TermuxShellEnvironment().getEnvironment(this, false)
-			toolingServerRunner = ToolingServerRunner(listener, this).also { it.startAsync(envs) }
+			toolingServerRunner = ToolingServerRunner(listener, this, this).also { it.startAsync(envs) }
 			return
 		}
 
