@@ -20,10 +20,6 @@ junit-jupiter = "5.10.2"
 anroidx-test-core = "2.2.0"
 koinAndroid = "4.1.1"
 kotlin = "2.3.0"
-# The Quick Build daemon's compiler, which it loads from the on-device Gradle distribution
-# rather than shipping its own. Must equal org.adfa.constants.KOTLIN_VERSION (the Kotlin that
-# distribution embeds); :app's quickBuildDistJarCheck fails the build if they differ.
-kotlin-daemon-compiler = "2.3.21"
 kotlin-coroutines = "1.9.0"
 kotlinxCoroutinesCore = "1.10.2"
 lifecycleViewmodelKtx = "2.7.0"
@@ -281,11 +277,12 @@ xml-jb-annotations = { module = "org.jetbrains:annotations", version = "24.1.0" 
 # GIT
 git-jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version = "6.8.0.202311291450-r" }
 
-# Quick Build daemon (ADFA-4128): Kotlin Build Tools API incremental engine
-kotlin-buildToolsApi = { module = "org.jetbrains.kotlin:kotlin-build-tools-api", version.ref = "kotlin-daemon-compiler" }
-kotlin-buildToolsImpl = { module = "org.jetbrains.kotlin:kotlin-build-tools-impl", version.ref = "kotlin-daemon-compiler" }
-# Compose compiler plugin, version-matched to the daemon's compiler
-kotlin-composeCompilerPluginEmbeddable = { module = "org.jetbrains.kotlin:kotlin-compose-compiler-plugin-embeddable", version.ref = "kotlin-daemon-compiler" }
+# Quick Build daemon (ADFA-4128): Kotlin Build Tools API incremental engine, and the Compose
+# compiler plugin matched to it. No version here: :quickbuild:daemon takes these at
+# org.adfa.constants.KOTLIN_VERSION, the Kotlin the on-device Gradle distribution embeds.
+kotlin-buildToolsApi = { module = "org.jetbrains.kotlin:kotlin-build-tools-api" }
+kotlin-buildToolsImpl = { module = "org.jetbrains.kotlin:kotlin-build-tools-impl" }
+kotlin-composeCompilerPluginEmbeddable = { module = "org.jetbrains.kotlin:kotlin-compose-compiler-plugin-embeddable" }
 # Compose runtime for the daemon's compose compile tests (see :quickbuild:daemon)
 composeRuntimeDaemonTests = { module = "androidx.compose.runtime:runtime-android", version = "1.7.3" }
 # Only :quickbuild:daemon uses this, and it takes the jar from the on-device Gradle
