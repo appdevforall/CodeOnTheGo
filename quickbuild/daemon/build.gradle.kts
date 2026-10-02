@@ -1,3 +1,5 @@
+import org.adfa.constants.KOTLIN_VERSION
+
 plugins {
 	id("java-library")
 	id("org.jetbrains.kotlin.jvm")
@@ -113,6 +115,11 @@ dependencies {
 		// kotlin-compiler-embeddable asks for 1.8.0, but the on-device distribution already runs
 		// that compiler against 1.10.2, so the upgrade is safe.
 		runtimeOnly(libs.kotlinx.coroutines.core.jvm.quickBuildDaemon) {
+			because("the on-device Gradle distribution ships this version, which ADFA-4931 links")
+		}
+		// kotlin-compiler-embeddable's POM asks for 1.6.10; the distribution's compiler runs on its
+		// own 2.3.21 copy, which ADFA-4931 links instead of shipping an older one.
+		runtimeOnly("org.jetbrains.kotlin:kotlin-reflect:$KOTLIN_VERSION") {
 			because("the on-device Gradle distribution ships this version, which ADFA-4931 links")
 		}
 	}
