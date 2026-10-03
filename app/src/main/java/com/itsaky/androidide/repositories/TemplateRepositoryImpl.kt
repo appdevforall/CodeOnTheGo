@@ -56,15 +56,24 @@ class TemplateRepositoryImpl(
 	 * Names are compared case-insensitively, matching the stricter of the two install paths
 	 * (`TemplateCollectionRepository.findExistingCollision`), so any row still listed as
 	 * "not installed" is one the user can actually install.
+	 *
+	 * The bundled `core.cgt` is excluded outright (ADFA-5645): it ships with the IDE, isn't
+	 * something the user installed or can uninstall, and has nothing to do with this screen's
+	 * install/uninstall/delete flows.
 	 */
 	private fun scanTemplates(): List<CgtFileItem> {
+		// installedNames is deliberately built before core.cgt is filtered out below: a same-named
+		// core.cgt sitting in Downloads must still be hidden as a dead-end twin (see the class doc),
+		// not shown as an installable card whose Install could only ever collide with the real one.
 		val installed = cgtFilesIn(templatesDir).mapNotNull { file -> parseCgtFile(file, installed = true) }
 		val installedNames = installed.mapTo(mutableSetOf()) { item -> item.name.lowercase() }
 		val downloaded =
 			cgtFilesIn(downloadDir)
 				.filterNot { file -> file.name.lowercase() in installedNames }
 				.mapNotNull { file -> parseCgtFile(file, installed = false) }
-		return installed + downloaded
+		// Filtered out of the combined list, not just `installed`: core.cgt must be excluded even
+		// if templatesDir doesn't have it yet (bootstrap incomplete) and only a Downloads copy exists.
+		return (installed + downloaded).filterNot { item -> item.name == TEMPLATE_CORE_ARCHIVE }
 	}
 
 	private fun cgtFilesIn(dir: File): List<File> =
@@ -107,11 +116,7 @@ class TemplateRepositoryImpl(
 	}
 
 	private fun provenanceOf(fileName: String): TemplateProvenance =
-		when {
-			fileName == TEMPLATE_CORE_ARCHIVE -> TemplateProvenance.BUNDLED
-			fileName.startsWith(PLUGIN_CGT_PREFIX) -> TemplateProvenance.PLUGIN
-			else -> TemplateProvenance.USER
-		}
+		if (fileName.startsWith(PLUGIN_CGT_PREFIX)) TemplateProvenance.PLUGIN else TemplateProvenance.USER
 
 	override suspend fun installTemplate(item: CgtFileItem): Result<Unit> =
 		withContext(Dispatchers.IO) {
@@ -141,7 +146,6 @@ class TemplateRepositoryImpl(
 		withContext(Dispatchers.IO) {
 			try {
 				check(item.installed) { "'${item.name}' is not installed" }
-				check(item.provenance != TemplateProvenance.BUNDLED) { "Cannot uninstall the bundled template" }
 
 				// Restore a copy to Downloads BEFORE removing it from the store: if the restore
 				// throws, the store copy below is never touched, so the user's only copy survives.
