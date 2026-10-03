@@ -1,12 +1,17 @@
 @file:Suppress("UnstableApiUsage")
 
+import com.aayushatharva.brotli4j.Brotli4jLoader
+import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import com.itsaky.androidide.plugins.conf.hasBundledAssets
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
+import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
+import org.adfa.constants.KOTLIN_VERSION
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.json.JSONObject
 import java.io.BufferedOutputStream
@@ -27,6 +32,7 @@ import java.util.zip.CRC32
 import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 plugins {
@@ -506,16 +512,166 @@ dependencies {
 evaluationDependsOn(":quickbuild:runtime")
 evaluationDependsOn(":quickbuild:daemon")
 
+// ADFA-4931: jars the daemon loads from the on-device Gradle distribution instead of shipping its
+// own copy, since `gradle-dists/` and `quickbuild/` both sit under <ANDROIDIDE_HOME>.
+// quickBuildDaemonZip leaves these out and QuickBuildArtifactStager links the distribution's copy
+// in under exactly these names, which is what the daemon jar's manifest Class-Path expects.
+val quickBuildDistLinkedJars =
+	listOf(
+		"kotlin-compiler-embeddable-$KOTLIN_VERSION.jar",
+		"kotlin-stdlib-$KOTLIN_VERSION.jar",
+		"kotlin-build-tools-impl-$KOTLIN_VERSION.jar",
+		"kotlin-daemon-embeddable-$KOTLIN_VERSION.jar",
+		"kotlin-script-runtime-$KOTLIN_VERSION.jar",
+		"kotlin-reflect-$KOTLIN_VERSION.jar",
+		// These three carry their own version rather than KOTLIN_VERSION, pinned in
+		// libs.versions.toml to what the distribution ships so they can be linked from there.
+		"kotlinx-coroutines-core-jvm-${libs.kotlinx.coroutines.core.jvm.quickBuildDaemon.get().version}.jar",
+		"gson-${libs.gson.quickBuildDaemon.get().version}.jar",
+		"asm-${libs.ow2.asm.get().version}.jar",
+	)
+
+// A broken link surfaces on device as a NoClassDefFoundError partway into the user's first
+// compile, far from the change that caused it, so check both ends at build time: the daemon must
+// resolve each name, and the distribution this build packages must carry each one.
+val quickBuildReleaseDistribution =
+	rootProject.file("assets/release/common/data/common/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br")
+
+val quickBuildDistJarCheck =
+	tasks.register("quickBuildDistJarCheck") {
+		// Without the ordering, a build that downloads a new distribution can check the old one.
+		mustRunAfter("assetsDownloadDebug", "assetsDownloadRelease")
+		val expected = quickBuildDistLinkedJars
+		val distName = GRADLE_DISTRIBUTION_NAME
+		val archiveName = GRADLE_DISTRIBUTION_ARCHIVE_NAME
+		val debugArchive = rootProject.file("assets/$archiveName")
+		val releaseArchive = quickBuildReleaseDistribution
+		val classpath =
+			files(
+				rootProject
+					.project(":quickbuild:daemon")
+					.configurations
+					.named("runtimeClasspath"),
+			)
+		inputs.files(classpath)
+		inputs
+			.files(debugArchive)
+			.withPropertyName("debugDistribution")
+			.optional(true)
+		inputs
+			.files(releaseArchive)
+			.withPropertyName("releaseDistribution")
+			.optional(true)
+		doLast {
+			val resolved = classpath.files.associateBy { it.name }
+			expected.sorted().forEach { name ->
+				if (name !in resolved) {
+					throw GradleException(
+						"$name is linked from the Gradle distribution but is not on the daemon's " +
+							"runtime classpath, so quickBuildDaemonZip's exclusion of that name " +
+							"matches nothing and the zip carries a copy the stager then links over. " +
+							"Point quickBuildDistLinkedJars at the name the daemon now resolves. " +
+							"Resolved: ${resolved.keys.sorted()}",
+					)
+				}
+			}
+
+			/** Fails unless every linked jar sits in the distribution's lib/ inside [archive]. */
+			fun requireLinkedJars(
+				entries: Set<String>,
+				archive: File,
+			) {
+				expected.forEach { name ->
+					val entryName = "$distName/lib/$name"
+					if (entryName !in entries) {
+						throw GradleException(
+							"$entryName is missing from ${archive.name}. quickBuildDaemonZip " +
+								"excludes $name on the promise that the distribution supplies it, so " +
+								"the daemon would start with no copy at all. Either drop it from " +
+								"quickBuildDistLinkedJars and let the zip carry it, or correct the name.",
+						)
+					}
+				}
+				logger.lifecycle(
+					"quickBuildDistJarCheck: found ${expected.size} of ${expected.size} linked jars " +
+						"in $distName/lib of ${archive.name}",
+				)
+			}
+
+			if (debugArchive.isFile) {
+				val entries =
+					ZipFile(debugArchive).use { zip ->
+						zip
+							.entries()
+							.asSequence()
+							.map { it.name }
+							.toSet()
+					}
+				requireLinkedJars(entries, debugArchive)
+			}
+			if (releaseArchive.isFile) {
+				Brotli4jLoader.ensureAvailability()
+				val entries = mutableSetOf<String>()
+				ZipInputStream(BrotliInputStream(releaseArchive.inputStream().buffered())).use { zip ->
+					generateSequence { zip.nextEntry }.forEach { entries += it.name }
+				}
+				requireLinkedJars(entries, releaseArchive)
+			}
+			if (!debugArchive.isFile && !releaseArchive.isFile) {
+				logger.lifecycle(
+					"quickBuildDistJarCheck: NOT PACKAGED - 0 of ${expected.size} linked jars looked " +
+						"up. No Gradle distribution archive is on disk; a debug APK gets it from the " +
+						"assets zip, which ./gradlew :app:assetsDownloadDebug fetches to check.",
+				)
+			}
+		}
+	}
+
+// A variant that bundles the distribution must not package the daemon zip until the check
+// above has read it. Wired per variant below rather than inferred from task names.
+val quickBuildBundledDistGate =
+	tasks.register("quickBuildBundledDistGate") {
+		dependsOn(quickBuildDistJarCheck)
+		val releaseArchive = quickBuildReleaseDistribution
+		doLast {
+			if (!releaseArchive.isFile) {
+				throw GradleException(
+					"${releaseArchive.absolutePath} is absent, so quickBuildDistJarCheck cannot read " +
+						"the Gradle distribution this variant packages. Run " +
+						":app:assetsDownloadRelease first.",
+				)
+			}
+		}
+	}
+
+// The names the stager links, travelling with the zip so the device side reads the build's
+// list rather than repeating it.
+val quickBuildDistLinkedJarList =
+	tasks.register("quickBuildDistLinkedJarList") {
+		val names = quickBuildDistLinkedJars.sorted()
+		val listFile = layout.buildDirectory.file("intermediates/quickbuild/dist-linked-jars.txt")
+		inputs.property("names", names)
+		outputs.file(listFile)
+		doLast {
+			listFile.get().asFile.writeText(names.joinToString("\n", postfix = "\n"))
+		}
+	}
+
 val quickBuildDaemonZip =
 	tasks.register<Zip>("quickBuildDaemonZip") {
 		archiveFileName.set("quickbuild-daemon.zip")
 		destinationDirectory.set(layout.buildDirectory.dir("intermediates/quickbuild"))
+		dependsOn(quickBuildDistJarCheck)
 		val daemonProject = rootProject.project(":quickbuild:daemon")
 		dependsOn(daemonProject.tasks.named("daemonJar"))
 		from(daemonProject.tasks.named("daemonJar"))
 		// The daemon jar's manifest Class-Path names these by file name; they must sit
 		// next to the jar after extraction.
-		from(daemonProject.configurations.named("runtimeClasspath"))
+		// ADFA-4931: except the ones the distribution already carries; the stager links those
+		// in at provision time. Scoped to this spec so it cannot filter the other from()s.
+		val linked = quickBuildDistLinkedJars.toSet()
+		from(daemonProject.configurations.named("runtimeClasspath")) { exclude { it.name in linked } }
+		from(quickBuildDistLinkedJarList)
 		// Compose compiler plugin, version-matched to the daemon's compiler; the stable
 		// name is the contract EnvironmentQuickBuildPaths.composeCompilerPlugin reads.
 		from(daemonProject.configurations.named("composeCompilerPlugin")) {
@@ -550,9 +706,14 @@ androidComponents.onVariants { variant ->
 		AddFileToAssetsTask::outputDirectory,
 	)
 
+	// The same test that adds assets/release, and the distribution in it, to this variant.
+	val bundlesDistribution = hasBundledAssets(variant)
 	val copyDaemonZip =
 		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildDaemonZip") {
 			dependsOn(quickBuildDaemonZip)
+			if (bundlesDistribution) {
+				dependsOn(quickBuildBundledDistGate)
+			}
 			inputFile.set(quickBuildDaemonZip.flatMap { it.archiveFile })
 			baseAssetsPath.set("data/common")
 		}
