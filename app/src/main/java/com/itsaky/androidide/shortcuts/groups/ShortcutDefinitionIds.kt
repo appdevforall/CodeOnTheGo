@@ -12,4 +12,5 @@ internal object ShortcutDefinitionIds {
 	const val CLOSE_CURRENT_FILE = "shortcut.closeCurrentFile"
 	const val FIND_IN_PROJECT = "shortcut.findInProject"
 	const val FIND_IN_FILE = "shortcut.findInFile"
+	const val REPLACE_IN_PROJECT = "shortcut.replaceInProject"
 }
