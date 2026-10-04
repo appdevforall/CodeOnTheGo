@@ -6,6 +6,7 @@ import com.itsaky.androidide.plugins.extensions.CommandResult
 import com.itsaky.androidide.plugins.extensions.CommandSpec
 import com.itsaky.androidide.plugins.services.CommandExecution
 import com.itsaky.androidide.plugins.services.IdeCommandService
+import com.itsaky.androidide.utils.TermuxProcessEnvironment
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -75,7 +76,7 @@ class IdeCommandServiceImpl(
 			}
 
 		processBuilder.redirectErrorStream(false)
-		injectTermuxEnvironment(processBuilder)
+		TermuxProcessEnvironment.applyTo(processBuilder.environment(), appFilesDir)
 
 		val execution =
 			CommandExecutionImpl(
@@ -131,28 +132,6 @@ class IdeCommandServiceImpl(
 				"Plugin $pluginId attempted to execute in directory outside project root: $normalizedDir",
 			)
 		}
-	}
-
-	private fun injectTermuxEnvironment(processBuilder: ProcessBuilder) {
-		val termuxBase = appFilesDir.absolutePath
-		val termuxBin = "$termuxBase/usr/bin"
-		val termuxLib = "$termuxBase/usr/lib"
-		val env = processBuilder.environment()
-
-		val existingPath = env["PATH"] ?: ""
-		if (!existingPath.contains(termuxBin)) {
-			env["PATH"] = "$termuxBin:$existingPath"
-		}
-
-		val existingLdPath = env["LD_LIBRARY_PATH"] ?: ""
-		if (!existingLdPath.contains(termuxLib)) {
-			env["LD_LIBRARY_PATH"] = "$termuxLib:$existingLdPath"
-		}
-
-		env.putIfAbsent("HOME", "$termuxBase/home")
-		env.putIfAbsent("TMPDIR", "$termuxBase/usr/tmp")
-		env.putIfAbsent("LANG", "en_US.UTF-8")
-		env.putIfAbsent("PREFIX", "$termuxBase/usr")
 	}
 
 	companion object {
