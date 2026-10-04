@@ -30,7 +30,6 @@ import com.itsaky.androidide.utils.FeatureFlags
  * @author Akash Yadav
  */
 object LspHandler {
-
 	fun registerLanguageServers() {
 		ILanguageServerRegistry.default.apply {
 			getServer(JavaLanguageServer.SERVER_ID) ?: register(JavaLanguageServer())
@@ -44,8 +43,7 @@ object LspHandler {
 	}
 
 	@Throws(Throwable::class)
-	suspend fun connectDebugClient(client: IDebugClient) =
-		ILanguageServerRegistry.default.connectDebugClient(client)
+	suspend fun connectDebugClient(client: IDebugClient) = ILanguageServerRegistry.default.connectDebugClient(client)
 
 	fun destroyLanguageServers(isConfigurationChange: Boolean) {
 		if (isConfigurationChange) {

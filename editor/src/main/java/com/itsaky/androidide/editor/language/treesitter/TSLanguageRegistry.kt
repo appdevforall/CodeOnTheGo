@@ -25,9 +25,7 @@ import com.itsaky.androidide.editor.language.treesitter.internal.TSLanguageRegis
  * @author Akash Yadav
  */
 interface TSLanguageRegistry {
-
 	companion object {
-
 		@JvmStatic
 		val instance by lazy { TSLanguageRegistryImpl() }
 	}
@@ -41,7 +39,7 @@ interface TSLanguageRegistry {
 	 */
 	fun <T : TreeSitterLanguage> registerIfNeeded(
 		fileType: String,
-		factory: TreeSitterLanguage.Factory<T>
+		factory: TreeSitterLanguage.Factory<T>,
 	): Boolean
 
 	/**
@@ -52,7 +50,10 @@ interface TSLanguageRegistry {
 	 * @throws AlreadyRegisteredException If an instance of [TreeSitterLanguage.Factory] is already
 	 *   registered for the given file type.
 	 */
-	fun <T : TreeSitterLanguage> register(fileType: String, factory: TreeSitterLanguage.Factory<T>)
+	fun <T : TreeSitterLanguage> register(
+		fileType: String,
+		factory: TreeSitterLanguage.Factory<T>,
+	)
 
 	/**
 	 * Checks whether a [TreeSitterLanguage] has been registered for the given [file type][fileType].
@@ -77,11 +78,13 @@ interface TSLanguageRegistry {
 	 */
 	fun destroy()
 
-	class AlreadyRegisteredException(type: String) :
-		IllegalStateException(
-			"An instance of TreeSitterLanguage.Factory is already registered for file type '$type'"
+	class AlreadyRegisteredException(
+		type: String,
+	) : IllegalStateException(
+			"An instance of TreeSitterLanguage.Factory is already registered for file type '$type'",
 		)
 
-	class NotRegisteredException(type: String) :
-		RuntimeException("No TreeSitterLanguage.Factory registered for file type '$type'")
+	class NotRegisteredException(
+		type: String,
+	) : RuntimeException("No TreeSitterLanguage.Factory registered for file type '$type'")
 }

@@ -33,7 +33,7 @@ import kotlin.concurrent.withLock
 
 /**
  * Thread-safe implementation of [ILanguageServerRegistry].
- * 
+ *
  * @author Akash Yadav
  */
 class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
@@ -55,9 +55,10 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 	@Throws(Throwable::class)
 	override suspend fun connectDebugClient(client: IDebugClient): Map<String, DebugClientConnectionResult> {
 		Objects.requireNonNull(client)
-		val servers = lock.readLock().withLock {
-			mRegister.values.toList()
-		}
+		val servers =
+			lock.readLock().withLock {
+				mRegister.values.toList()
+			}
 
 		return buildMap {
 			for (server in servers) {
@@ -71,7 +72,7 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 					sLogger.error(
 						"Unable to connect LSP server '{}' to debug client",
 						server.serverId,
-						e
+						e,
 					)
 
 					this[server.serverId] = DebugClientConnectionResult.Failure(cause = e)
@@ -136,9 +137,10 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 	}
 
 	override fun unregister(serverId: String) {
-		val registered = lock.writeLock().withLock {
-			mRegister.remove(serverId)
-		}
+		val registered =
+			lock.writeLock().withLock {
+				mRegister.remove(serverId)
+			}
 
 		checkNotNull(registered) { "No server found for the given server ID" }
 
