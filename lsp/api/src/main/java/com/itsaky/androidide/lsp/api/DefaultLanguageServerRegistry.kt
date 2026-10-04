@@ -40,8 +40,15 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 	private val mRegister = HashMap<String, ILanguageServer>()
 	private val lock: ReadWriteLock = ReentrantReadWriteLock()
 
+	@Volatile
+	private var connectedClient: ILanguageClient? = null
+
+	@Volatile
+	private var currentWorkspace: Workspace? = null
+
 	override fun connectClient(client: ILanguageClient) {
 		Objects.requireNonNull(client)
+		connectedClient = client
 		lock.readLock().lock()
 		try {
 			for (server in mRegister.values) {
@@ -97,6 +104,8 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 		lock.writeLock().withLock {
 			mRegister.clear()
 		}
+		connectedClient = null
+		currentWorkspace = null
 	}
 
 	override fun getServer(serverId: String): ILanguageServer? {
@@ -112,6 +121,7 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 	@Suppress("unused")
 	fun onProjectInitialized(event: ProjectInitializedEvent) {
 		val project = event.get(Workspace::class.java) ?: return
+		currentWorkspace = project
 
 		sLogger.debug("Dispatching ProjectInitializedEvent to language servers...")
 		val servers = lock.readLock().withLock { mRegister.values.toList() }
@@ -125,15 +135,14 @@ class DefaultLanguageServerRegistry : ILanguageServerRegistry() {
 			EventBus.getDefault().register(this)
 		}
 
-		lock.writeLock().lock()
-		try {
-			val old = mRegister.putIfAbsent(server.serverId, server)
-			if (old != null) {
-				sLogger.warn("Attempt to re-register LSP server with ID '{}'", server.serverId)
-			}
-		} finally {
-			lock.writeLock().unlock()
+		val old = lock.writeLock().withLock { mRegister.putIfAbsent(server.serverId, server) }
+		if (old != null) {
+			sLogger.warn("Attempt to re-register LSP server with ID '{}'", server.serverId)
+			return
 		}
+
+		connectedClient?.let(server::connectClient)
+		currentWorkspace?.let(server::setupWithProject)
 	}
 
 	override fun unregister(serverId: String) {
