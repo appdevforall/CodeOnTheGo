@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.handlers
 
+import com.itsaky.androidide.lsp.PluginLanguageSupport
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.debug.IDebugClient
@@ -36,6 +37,7 @@ object LspHandler {
 			getServer(KotlinLanguageServer.SERVER_ID) ?: register(KotlinLanguageServer())
 			getServer(XMLLanguageServer.SERVER_ID) ?: register(XMLLanguageServer())
 		}
+		PluginLanguageSupport.registerServers()
 	}
 
 	fun connectClient(client: ILanguageClient) {

@@ -57,6 +57,11 @@ class TSLanguageRegistryImpl : TSLanguageRegistry {
 		(registry[fileType] ?: throw TSLanguageRegistry.NotRegisteredException(fileType))
 			as TreeSitterLanguage.Factory<T>
 
+	override fun unregister(
+		fileType: String,
+		factory: TreeSitterLanguage.Factory<*>,
+	): Boolean = registry.remove(fileType, factory)
+
 	override fun destroy() {
 		registry.clear()
 	}

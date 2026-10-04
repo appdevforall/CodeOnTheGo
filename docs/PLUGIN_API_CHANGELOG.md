@@ -36,6 +36,19 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.41 — unreleased
+- **added — Plugin languages: tree-sitter highlighting and a language server** _(ADFA-4851)_ **[verified]**
+  A plugin implementing `LanguageExtension` returns `LanguageDefinition`s, each claiming file
+  extensions and optionally carrying a `TreeSitterGrammar` and a `LanguageServerDefinition`.
+  The grammar is `lib/<abi>/libtree-sitter-<name>.so` exporting `tree_sitter_<name>`, built
+  at tree-sitter language ABI 13 or 14, with `highlights.scm` (and optionally `locals`,
+  `blocks`, `brackets`, `indents`) under `queriesAssetPath` in the plugin's assets. Captures
+  use the standard names (`keyword`, `string`, `function`, `type`, ...); every colour scheme
+  maps them through its `generic.json`. The server is any stdio LSP process: a bare command
+  name resolves against the Termux `bin` directory, and it runs with the Termux environment
+  plus `environment`. A grammar needs `native.code`; a server needs `system.commands`.
+  Extensions the IDE already handles (`java`, `kt`, `kts`, `xml`, `json`, `log`, `gradle`,
+  C/C++) cannot be claimed. Purely additive. Floor `plugin.min_ide_version` at `26.41`: an
+  older IDE cannot load a plugin class that implements `LanguageExtension`.
 - **added — The AI prompt config engine and settings-pane helpers** _(ADFA-6281)_ **[verified]**
   Every AI plugin carried its own copy of the code that reads and renders its prompt
   config, and the credential screens their own copy of the reveal toggle and pane

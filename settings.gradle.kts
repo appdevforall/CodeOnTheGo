@@ -131,6 +131,7 @@ include(
 	":uidesigner",
 	":xml-inflater",
 	":lsp:api",
+	":lsp:external",
 	":lsp:models",
 	":lsp:indexing",
 	":lsp:java",

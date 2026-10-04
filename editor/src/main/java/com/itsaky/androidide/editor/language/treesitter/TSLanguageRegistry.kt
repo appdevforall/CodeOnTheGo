@@ -72,6 +72,11 @@ interface TSLanguageRegistry {
 	 */
 	fun <T : TreeSitterLanguage> getFactory(fileType: String): TreeSitterLanguage.Factory<T>
 
+	fun unregister(
+		fileType: String,
+		factory: TreeSitterLanguage.Factory<*>,
+	): Boolean
+
 	/**
 	 * Destroys the language registry, removing all the registered language factory. This must be
 	 * called only when the application is exiting.

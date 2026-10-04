@@ -54,9 +54,6 @@ class TreeSitterLanguageSpec
 
 		override fun close() {
 			indentsQuery?.close()
-			if (spec.language.isExternal) {
-				spec.language.close()
-			}
 			spec.close()
 		}
 	}

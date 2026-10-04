@@ -45,6 +45,7 @@ import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.lsp.BreakpointHandler
 import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
+import com.itsaky.androidide.lsp.PluginLanguageSupport
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
@@ -619,7 +620,7 @@ class CodeEditorView(
 				"java" -> JavaLanguageServer.SERVER_ID
 				"kt", "kts" -> KotlinLanguageServer.SERVER_ID
 				"xml" -> XMLLanguageServer.SERVER_ID
-				else -> return null
+				else -> PluginLanguageSupport.serverIdFor(file) ?: return null
 			}
 
 		return ILanguageServerRegistry.default.getServer(serverID)

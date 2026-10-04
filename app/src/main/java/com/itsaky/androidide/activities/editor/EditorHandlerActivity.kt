@@ -87,6 +87,7 @@ import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
+import com.itsaky.androidide.lsp.PluginLanguageSupport
 import com.itsaky.androidide.models.DeepLinkOpenRequest
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.models.EditorIntentExtras
@@ -381,6 +382,7 @@ open class EditorHandlerActivity :
 			TSLanguageRegistry.instance.registerIfNeeded(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
 			TSLanguageRegistry.instance.registerIfNeeded(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
 			TSLanguageRegistry.instance.registerIfNeeded(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
+			PluginLanguageSupport.registerGrammars()
 			IDEColorSchemeProvider.initIfNeeded()
 		}
 

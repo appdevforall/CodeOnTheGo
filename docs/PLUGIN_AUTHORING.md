@@ -344,6 +344,26 @@ Defined by `PluginPermission` in `plugin-api/src/main/kotlin/com/itsaky/androidi
 | `native.code`            | Execute native machine code                                                     |
 | `ide.environment.write`  | Write to IDE-managed directories (Android SDK, NDK, cache)                      |
 
+## Contributing a language
+
+Implement `LanguageExtension` to give a file type syntax highlighting, a language server, or both:
+
+```kotlin
+override fun getLanguages() = listOf(
+    LanguageDefinition(
+        languageId = "python",
+        fileExtensions = setOf("py"),
+        grammar = TreeSitterGrammar(name = "python", queriesAssetPath = "treesitter/python"),
+        server = LanguageServerDefinition(command = listOf("pylsp")),
+    ),
+)
+```
+
+- **Grammar.** Ship `lib/<abi>/libtree-sitter-<name>.so` for `arm64-v8a` and `armeabi-v7a`, exporting `tree_sitter_<name>`, generated at tree-sitter language ABI 13 or 14 (grammar releases up to 0.23.x). Build it from the grammar's `src/parser.c` and `src/scanner.c` with `externalNativeBuild`; `Python-Tools` and `Go-Tools` in `plugin-examples` do this. Needs `native.code`.
+- **Queries.** Put `highlights.scm` (optionally `locals.scm`, `blocks.scm`, `brackets.scm`, `indents.scm`) in `assets/<queriesAssetPath>/`. Use standard capture names so every colour scheme can style them. When two patterns capture the same node at the same position, the one listed **first** wins, so put catch-all patterns such as `(identifier) @variable` last.
+- **Server.** Any stdio language server. A bare command resolves against the Termux `bin` directory; an absolute path runs as is. It starts when the first matching file opens, with the Termux environment plus `environment`, and is restarted up to twice if it crashes. Needs `system.commands`. Install the server yourself, for example with `IdeCommandService`.
+- File extensions the IDE already handles cannot be claimed. Set `plugin.min_ide_version` to `26.41` or later.
+
 ## Troubleshooting
 
 **Install fails with "Missing icon_day and icon_night for debug plugin"**

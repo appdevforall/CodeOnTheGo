@@ -31,7 +31,7 @@ object LocalCaptureSpecProvider {
 	@JvmStatic
 	fun newLocalCaptureSpec(type: String): LocalsCaptureSpec {
 		val lang =
-			IDEColorSchemeProvider.getColorSchemeForType(type)?.languages?.get(type)
+			IDEColorSchemeProvider.getColorSchemeForType(type)?.getLanguageScheme(type)
 				?: run {
 					log.error(
 						"Cannot create LocalsCaptureSpec. Failed to load current color scheme. Falling back to default implementation",
