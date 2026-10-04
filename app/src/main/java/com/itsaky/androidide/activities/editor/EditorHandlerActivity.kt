@@ -81,6 +81,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.events.PluginLanguagesChangedEvent
 import com.itsaky.androidide.floating.model.DockingManager
 import com.itsaky.androidide.floating.window.OverlayDialogs
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
@@ -1961,6 +1962,14 @@ open class EditorHandlerActivity :
 
 		val baseName = tab.text?.removePrefix("*") ?: return
 		tab.text = if (isModified) "*$baseName" else baseName
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPluginLanguagesChanged(event: PluginLanguagesChangedEvent) {
+		editorViewModel
+			.getOpenedFiles()
+			.filter { it.extension.lowercase() in event.fileTypes }
+			.forEach { getEditorForFile(it)?.reloadLanguage() }
 	}
 
 	@Subscribe(threadMode = ThreadMode.MAIN)

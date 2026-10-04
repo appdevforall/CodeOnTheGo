@@ -331,6 +331,11 @@ class CodeEditorView(
 		postRead(file)
 	}
 
+	fun reloadLanguage() {
+		if (_binding == null) return
+		postRead(file ?: return)
+	}
+
 	/**
 	 * Called when the editor has been selected and is visible to the user.
 	 */

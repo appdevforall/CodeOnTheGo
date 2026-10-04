@@ -30,14 +30,15 @@ object LocalCaptureSpecProvider {
 
 	@JvmStatic
 	fun newLocalCaptureSpec(type: String): LocalsCaptureSpec {
-		val lang =
-			IDEColorSchemeProvider.getColorSchemeForType(type)?.getLanguageScheme(type)
+		val scheme =
+			IDEColorSchemeProvider.getColorSchemeForType(type)
 				?: run {
 					log.error(
 						"Cannot create LocalsCaptureSpec. Failed to load current color scheme. Falling back to default implementation",
 					)
 					return LocalsCaptureSpec.DEFAULT
 				}
+		val lang = scheme.languages[type] ?: return LocalsCaptureSpec.DEFAULT
 		return object : LocalsCaptureSpec() {
 			override fun isDefinitionCapture(captureName: String): Boolean = lang.isLocalDef(captureName)
 

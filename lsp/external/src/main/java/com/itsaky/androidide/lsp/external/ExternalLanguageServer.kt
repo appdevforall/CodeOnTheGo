@@ -246,7 +246,10 @@ class ExternalLanguageServer(
 			) { server ->
 				val file =
 					openDocuments.entries.firstOrNull { it.value.text == content }?.key
-						?: return@request CompletableFuture.completedFuture(null)
+						?: run {
+							log.warn("Language server {} cannot format: no open document matches the editor text", serverId)
+							return@request CompletableFuture.completedFuture(null)
+						}
 				val document = TextDocumentIdentifier(file.toLspUri())
 				val capabilities = session?.capabilities
 				if (!wholeDocument && capabilities?.documentRangeFormattingProvider.isEnabled()) {

@@ -18,6 +18,7 @@
 package com.itsaky.androidide.editor.language.treesitter
 
 import android.content.Context
+import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
@@ -26,6 +27,8 @@ import java.io.File
  * @author Akash Yadav
  */
 object TreeSitterLanguageProvider {
+	private val log = LoggerFactory.getLogger(TreeSitterLanguageProvider::class.java)
+
 	fun hasTsLanguage(file: File): Boolean = TSLanguageRegistry.instance.hasLanguage(file.extension)
 
 	fun forFile(
@@ -46,6 +49,9 @@ object TreeSitterLanguageProvider {
 		try {
 			TSLanguageRegistry.instance.getFactory<TreeSitterLanguage>(type).create(context)
 		} catch (e: TSLanguageRegistry.NotRegisteredException) {
+			null
+		} catch (e: PluginTreeSitterLanguage.GrammarLoadException) {
+			log.error("Plugin grammar for '.{}' failed to load; opening without tree-sitter", type, e)
 			null
 		}
 }

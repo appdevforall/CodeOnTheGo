@@ -3,9 +3,11 @@ package com.itsaky.androidide.lsp
 import android.os.Handler
 import android.os.Looper
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.editor.language.treesitter.PluginGrammars
 import com.itsaky.androidide.editor.language.treesitter.PluginTreeSitterLanguage
 import com.itsaky.androidide.editor.language.treesitter.TSLanguageRegistry
 import com.itsaky.androidide.editor.language.treesitter.TreeSitterLanguage
+import com.itsaky.androidide.events.PluginLanguagesChangedEvent
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.external.ExternalLanguageServer
 import com.itsaky.androidide.plugins.extensions.LanguageServerDefinition
@@ -13,6 +15,7 @@ import com.itsaky.androidide.plugins.manager.language.PluginLanguageContribution
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TermuxProcessEnvironment
+import org.greenrobot.eventbus.EventBus
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.Executor
@@ -49,18 +52,24 @@ object PluginLanguageSupport {
 
 	private fun reconcile() {
 		val contributions = IDEApplication.getPluginManager()?.getEnabledLanguageContributions() ?: emptyList()
-		synchronized(lock) {
-			val keep = installed.filter { it.contribution in contributions }
-			installed.filterNot { it in keep }.forEach(::uninstall)
+		val changedTypes =
+			synchronized(lock) {
+				val keep = installed.filter { it.contribution in contributions }
+				val removed = installed.filterNot { it in keep }
+				removed.forEach(::uninstall)
 
-			val claimed = keep.flatMapTo(mutableSetOf()) { it.fileTypes }
-			val added =
-				contributions
-					.filter { contribution -> keep.none { it.contribution == contribution } }
-					.mapNotNull { install(it, claimed) }
-			installed = keep + added
-			installed.forEach(::registerGrammar)
-			installed.forEach(::registerServer)
+				val claimed = keep.flatMapTo(mutableSetOf()) { it.fileTypes }
+				val added =
+					contributions
+						.filter { contribution -> keep.none { it.contribution == contribution } }
+						.mapNotNull { install(it, claimed) }
+				installed = keep + added
+				installed.forEach(::registerGrammar)
+				installed.forEach(::registerServer)
+				(removed + added).flatMapTo(mutableSetOf()) { it.fileTypes }
+			}
+		if (changedTypes.isNotEmpty()) {
+			EventBus.getDefault().post(PluginLanguagesChangedEvent(changedTypes))
 		}
 	}
 
@@ -82,7 +91,10 @@ object PluginLanguageSupport {
 		if (fileTypes.isEmpty()) return null
 		claimed += fileTypes
 
-		val serverId = definition.server?.let { "plugin.${contribution.pluginId}.${definition.languageId}" }
+		val serverId =
+			definition.server?.let {
+				"plugin.${contribution.pluginId}.${definition.languageId}.${fileTypes.sorted().joinToString("+")}"
+			}
 		val factories = grammarFactories(contribution, fileTypes, serverId)
 		log.info("Installed {} from plugin {} for {}", definition.languageId, contribution.pluginId, fileTypes)
 		return InstalledLanguage(contribution, fileTypes, serverId, factories)
@@ -107,6 +119,10 @@ object PluginLanguageSupport {
 
 	private fun uninstall(language: InstalledLanguage) {
 		language.grammarFactories.forEach { (type, factory) -> TSLanguageRegistry.instance.unregister(type, factory) }
+		if (language.grammarFactories.isNotEmpty()) {
+			language.contribution.definition.grammar
+				?.let { PluginGrammars.retire(it.name) }
+		}
 		val serverId = language.serverId ?: return
 		val registry = ILanguageServerRegistry.default
 		if (registry.getServer(serverId) != null) {
