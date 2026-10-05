@@ -1060,6 +1060,17 @@ class PluginManager private constructor(
 			)
 			return false
 		}
+		val invalidVariable =
+			definition.server?.environment?.entries?.firstOrNull { (name, value) ->
+				name.isEmpty() || '=' in name || '\u0000' in name || '\u0000' in value
+			}
+		if (invalidVariable != null) {
+			logger.error(
+				"Plugin $pluginId declares an invalid environment variable '${invalidVariable.key}' for the " +
+					"'${definition.languageId}' language server",
+			)
+			return false
+		}
 		if (definition.grammar != null && nativeLibraryDir == null) {
 			logger.error("Plugin $pluginId declares a grammar for '${definition.languageId}' but bundles no native libraries")
 			return false

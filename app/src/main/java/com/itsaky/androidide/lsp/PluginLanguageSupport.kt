@@ -28,6 +28,12 @@ object PluginLanguageSupport {
 	private val refreshExecutor = Executors.newSingleThreadExecutor { Thread(it, "plugin-languages") }
 	private val lock = Any()
 	private var installed: List<InstalledLanguage> = emptyList()
+	private val changedFileTypes = mutableSetOf<String>()
+
+	fun takeChangedFileTypes(): Set<String> =
+		synchronized(lock) {
+			changedFileTypes.toSet().also { changedFileTypes.clear() }
+		}
 
 	fun serverIdFor(file: File): String? {
 		val type = file.extension.lowercase()
@@ -52,7 +58,7 @@ object PluginLanguageSupport {
 
 	private fun reconcile() {
 		val contributions = IDEApplication.getPluginManager()?.getEnabledLanguageContributions() ?: emptyList()
-		val changedTypes =
+		val changed =
 			synchronized(lock) {
 				val keep = installed.filter { it.contribution in contributions }
 				val removed = installed.filterNot { it in keep }
@@ -66,10 +72,10 @@ object PluginLanguageSupport {
 				installed = keep + added
 				installed.forEach(::registerGrammar)
 				installed.forEach(::registerServer)
-				(removed + added).flatMapTo(mutableSetOf()) { it.fileTypes }
+				changedFileTypes.addAll((removed + added).flatMap { it.fileTypes })
 			}
-		if (changedTypes.isNotEmpty()) {
-			EventBus.getDefault().post(PluginLanguagesChangedEvent(changedTypes))
+		if (changed) {
+			EventBus.getDefault().post(PluginLanguagesChangedEvent())
 		}
 	}
 

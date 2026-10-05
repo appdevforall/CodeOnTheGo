@@ -139,9 +139,11 @@ class ExternalLanguageServer(
 		}
 		EventBus.getDefault().unregister(this)
 		messageExecutor.execute {
-			val ending = session ?: return@execute
-			session = null
-			stopProcess(ending)
+			runGuarded {
+				val ending = session ?: return@runGuarded
+				session = null
+				stopProcess(ending)
+			}
 		}
 		messageExecutor.shutdown()
 	}
@@ -333,9 +335,20 @@ class ExternalLanguageServer(
 	private fun submit(task: () -> Unit): Boolean =
 		synchronized(lifecycleLock) {
 			if (closed) return false
-			messageExecutor.execute(task)
+			messageExecutor.execute { runGuarded(task) }
 			true
 		}
+
+	private fun runGuarded(task: () -> Unit) {
+		try {
+			task()
+		} catch (e: RuntimeException) {
+			log.error("Language server {} failed and was stopped", serverId, e)
+			val failed = session ?: return
+			session = null
+			failed.process.destroy()
+		}
+	}
 
 	private fun <T> request(
 		cancelChecker: ICancelChecker,
@@ -388,9 +401,9 @@ class ExternalLanguageServer(
 		val launcher = LSPLauncher.createClientLauncher(ClientBridge(), process.inputStream, process.outputStream)
 		val listening = launcher.startListening()
 		val server = launcher.remoteProxy
-		val capabilities =
+		val initialized =
 			try {
-				server.initialize(initializeParams()).get(INITIALIZE_TIMEOUT_SECONDS, TimeUnit.SECONDS).capabilities
+				server.initialize(initializeParams()).get(INITIALIZE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 			} catch (e: ExecutionException) {
 				log.error("Language server {} failed to initialize", serverId, e.cause ?: e)
 				process.destroy()
@@ -401,6 +414,12 @@ class ExternalLanguageServer(
 				return null
 			} catch (e: InterruptedException) {
 				Thread.currentThread().interrupt()
+				process.destroy()
+				return null
+			}
+		val capabilities =
+			initialized?.capabilities ?: run {
+				log.error("Language server {} returned no capabilities from initialize", serverId)
 				process.destroy()
 				return null
 			}

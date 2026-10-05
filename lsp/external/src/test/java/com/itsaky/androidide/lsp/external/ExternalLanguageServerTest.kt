@@ -6,6 +6,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.models.CompletionParams
+import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DiagnosticItem
 import com.itsaky.androidide.lsp.models.DiagnosticResult
 import com.itsaky.androidide.lsp.models.FormatCodeParams
@@ -60,11 +61,13 @@ import org.eclipse.lsp4j.Range as LspRange
 class ExternalLanguageServerTest {
 	private val servers = mutableListOf<ExternalLanguageServer>()
 	private val file: Path = Files.createTempFile("sample", ".py")
+	private var restoreHandler: () -> Unit = {}
 
 	@After
 	fun tearDown() {
 		servers.forEach { it.shutdown() }
 		Files.deleteIfExists(file)
+		restoreHandler()
 	}
 
 	@Test
@@ -206,6 +209,40 @@ class ExternalLanguageServerTest {
 		assertThat(starts.get()).isEqualTo(3)
 	}
 
+	@Test
+	fun `a server that reports no capabilities is left stopped instead of crashing the IDE`() {
+		val uncaught = captureUncaught()
+		val fake = FakeServer(capabilities = null)
+		val server = newServer { fake.launch() }
+
+		server.onDocumentOpen(DocumentOpenEvent(file, "print(1)\n", 0))
+		Thread.sleep(1_000)
+
+		assertThat(uncaught).isEmpty()
+		assertThat(
+			server.complete(CompletionParams(Position(0, 1, 1), file, ICancelChecker.NOOP).apply { prefix = "p" }),
+		).isEqualTo(CompletionResult.EMPTY)
+	}
+
+	@Test
+	fun `a process that cannot be started is logged instead of crashing the IDE`() {
+		val uncaught = captureUncaught()
+		val server = newServer { throw IllegalArgumentException("Invalid environment variable name: \"A=B\"") }
+
+		server.onDocumentOpen(DocumentOpenEvent(file, "", 0))
+		Thread.sleep(1_000)
+
+		assertThat(uncaught).isEmpty()
+	}
+
+	private fun captureUncaught(): MutableList<Throwable> {
+		val uncaught = CopyOnWriteArrayList<Throwable>()
+		val previous = Thread.getDefaultUncaughtExceptionHandler()
+		Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught += e }
+		restoreHandler = { Thread.setDefaultUncaughtExceptionHandler(previous) }
+		return uncaught
+	}
+
 	private fun newServer(processFactory: () -> Process): ExternalLanguageServer =
 		ExternalLanguageServer(
 			serverId = "test.python",
@@ -227,6 +264,12 @@ class ExternalLanguageServerTest {
 	private class FakeServer(
 		private val exitAfterInitialized: Boolean = false,
 		private val onExit: () -> Unit = {},
+		private val capabilities: ServerCapabilities? =
+			ServerCapabilities().apply {
+				setTextDocumentSync(TextDocumentSyncKind.Full)
+				completionProvider = CompletionOptions()
+				setDocumentFormattingProvider(true)
+			},
 	) : LanguageServer,
 		LanguageClientAware,
 		TextDocumentService,
@@ -264,15 +307,7 @@ class ExternalLanguageServerTest {
 		}
 
 		override fun initialize(params: InitializeParams): CompletableFuture<InitializeResult> =
-			CompletableFuture.completedFuture(
-				InitializeResult(
-					ServerCapabilities().apply {
-						setTextDocumentSync(TextDocumentSyncKind.Full)
-						completionProvider = CompletionOptions()
-						setDocumentFormattingProvider(true)
-					},
-				),
-			)
+			CompletableFuture.completedFuture(capabilities?.let(::InitializeResult) ?: InitializeResult())
 
 		override fun initialized(params: org.eclipse.lsp4j.InitializedParams) {
 			if (exitAfterInitialized) {

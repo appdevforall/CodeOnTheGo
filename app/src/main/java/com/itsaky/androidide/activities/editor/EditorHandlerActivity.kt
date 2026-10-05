@@ -639,6 +639,7 @@ open class EditorHandlerActivity :
 
 	override fun onStart() {
 		super.onStart()
+		reloadChangedPluginLanguages()
 
 		lifecycleScope.launch {
 			try {
@@ -1965,11 +1966,22 @@ open class EditorHandlerActivity :
 	}
 
 	@Subscribe(threadMode = ThreadMode.MAIN)
-	fun onPluginLanguagesChanged(event: PluginLanguagesChangedEvent) {
-		editorViewModel
-			.getOpenedFiles()
-			.filter { it.extension.lowercase() in event.fileTypes }
-			.forEach { getEditorForFile(it)?.reloadLanguage() }
+	fun onPluginLanguagesChanged(
+		@Suppress("UNUSED_PARAMETER") event: PluginLanguagesChangedEvent,
+	) {
+		reloadChangedPluginLanguages()
+	}
+
+	private fun reloadChangedPluginLanguages() {
+		val fileTypes = PluginLanguageSupport.takeChangedFileTypes()
+		if (fileTypes.isEmpty()) return
+		val editors =
+			editorViewModel
+				.getOpenedFiles()
+				.filter { it.extension.lowercase() in fileTypes }
+				.mapNotNull { getEditorForFile(it) }
+		editors.forEach { it.releaseLanguage() }
+		editors.forEach { it.reloadLanguage() }
 	}
 
 	@Subscribe(threadMode = ThreadMode.MAIN)

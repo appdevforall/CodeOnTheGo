@@ -61,6 +61,7 @@ import com.itsaky.androidide.utils.dpToPx
 import io.github.rosemoe.sora.event.ClickEvent
 import io.github.rosemoe.sora.event.InterceptTarget
 import io.github.rosemoe.sora.event.TextSizeChangeEvent
+import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.LineSeparator
 import io.github.rosemoe.sora.util.IntPair
@@ -329,6 +330,10 @@ class CodeEditorView(
 		val editor = _binding?.editor ?: return
 		editor.file = file
 		postRead(file)
+	}
+
+	fun releaseLanguage() {
+		_binding?.editor?.setEditorLanguage(EmptyLanguage())
 	}
 
 	fun reloadLanguage() {

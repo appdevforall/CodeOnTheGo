@@ -70,6 +70,7 @@ class PluginTreeSitterLanguage(
 
 object PluginGrammars {
 	private val users = IdentityHashMap<TSLanguage, Int>()
+	private val libraries = IdentityHashMap<TSLanguage, String>()
 	private val retired = mutableSetOf<String>()
 
 	@Synchronized
@@ -77,16 +78,36 @@ object PluginGrammars {
 		library: File,
 		name: String,
 	): TSLanguage {
+		val path = library.absolutePath
+		TSLanguageCache.get(name)?.let { cached -> evictUnlessReusable(cached, name, path) }
 		val grammar =
 			try {
-				TSLanguage.loadLanguage(library.absolutePath, name)
+				TSLanguage.loadLanguage(path, name)
 			} catch (e: IllegalArgumentException) {
 				throw PluginTreeSitterLanguage.GrammarLoadException("Invalid tree-sitter grammar name '$name'", e)
-			} ?: throw PluginTreeSitterLanguage.GrammarLoadException(
-				"Unable to load tree_sitter_$name from ${library.absolutePath}",
-			)
+			} ?: throw PluginTreeSitterLanguage.GrammarLoadException("Unable to load tree_sitter_$name from $path")
+		libraries[grammar] = path
 		users[grammar] = (users[grammar] ?: 0) + 1
 		return grammar
+	}
+
+	private fun evictUnlessReusable(
+		cached: TSLanguage,
+		name: String,
+		path: String,
+	) {
+		val owner =
+			libraries[cached]
+				?: throw PluginTreeSitterLanguage.GrammarLoadException(
+					"tree_sitter_$name is already loaded by the IDE; a plugin grammar cannot reuse its name",
+				)
+		if (owner == path && name !in retired) return
+		if (users.containsKey(cached)) {
+			throw PluginTreeSitterLanguage.GrammarLoadException(
+				"tree_sitter_$name from $owner is still open in an editor; $path cannot be loaded until it is closed",
+			)
+		}
+		closeGrammar(cached)
 	}
 
 	@Synchronized
@@ -106,11 +127,12 @@ object PluginGrammars {
 			retired += name
 			return
 		}
-		TSLanguageCache.get(name)?.takeIf { it.isExternal }?.close()
+		TSLanguageCache.get(name)?.takeIf { it in libraries }?.let(::closeGrammar)
 	}
 
 	private fun closeGrammar(grammar: TSLanguage) {
 		retired.remove(grammar.name)
+		libraries.remove(grammar)
 		grammar.close()
 	}
 }
