@@ -45,6 +45,67 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `Int.MAX_VALUE`, and `canAddSidebarItems()` returns `true`. A plugin still returns no
   more items than it declares. Floor `plugin.min_ide_version` at `26.41` if the plugin
   declares more than 5 items, the slots an older IDE leaves free.
+- **added — Tool-source groups and health, backend model names, and change listeners** _(ADFA-6278)_ **[verified]**
+  A consumer such as the agent's chat screen could not tell which tools the agent has, whether
+  they work, or which model will answer, and was never told when any of that changed.
+  `ToolSourceRegistry.CONTRACT_VERSION` is now `2`.
+  - `ToolSourceRegistry.GroupedToolSource` (new interface, extends `ToolSource`):
+    `getToolGroups()` splits one source into `ToolSourceRegistry.ToolGroup`s (`getId`,
+    `getDisplayName`, `getToolNames`, `getStatus`, `getStatusMessage`) — one per MCP server,
+    say. A group may name no tools, which is how an unreachable server keeps its place.
+  - `ToolSourceRegistry.StatusReportingToolSource` (new interface, extends `ToolSource`):
+    `getStatus()` and `getStatusMessage()` report health as a `CapabilityStatus`:
+    `AVAILABLE`, `CONNECTING` or `DEGRADED`. Both must be cheap and non-blocking, because
+    consumers call them on the UI thread. A provider reports a change with
+    `ToolSourceRegistry.notifyToolSourceStatusChanged`. The enum may grow; handle an unknown
+    constant as `DEGRADED`. A source that does not implement it reads as `AVAILABLE`.
+  - `ToolSourceRegistry.addToolSourceListener` / `removeToolSourceListener` take a
+    `ToolSourceListener`. `onToolSourcesChanged` is told the provider id on register,
+    unregister and `notifyToolsChanged`; `onToolSourceStatusChanged` on
+    `notifyToolSourceStatusChanged`, so a status change need not re-read the tool list. It
+    defaults to `onToolSourcesChanged`.
+  - `LlmInferenceService.ActiveModelReportingBackend` (new interface, extends `LlmBackend`):
+    `getActiveModelName()` names the model a backend will answer with. It is not called
+    `getModelName` because the Gemini and OpenAI backends already declare a private
+    `getModelName()`. A backend that does not implement it names no model.
+  - `LlmInferenceService.StatusReportingBackend` (new interface, extends `LlmBackend`):
+    `getStatus()` and `getStatusMessage()` report whether the backend can answer right now as
+    the same `CapabilityStatus`. A backend
+    that does not implement it reads as `AVAILABLE`. `isAvailable()` still means only "set up"; a
+    configured OpenAI-compatible server that is not running is `DEGRADED`. Same cheap,
+    non-blocking rule and unknown-constant reading as for a tool source.
+  - `com.itsaky.androidide.plugins.services.CapabilityStatus` (new top-level enum) is the one
+    status both contracts return, so a consumer showing backends and tool sources side by side
+    maps one vocabulary, not two identical enums.
+  - `com.itsaky.androidide.plugins.ai.LlmBackendRegistration` keeps a backend plugin's
+    `LlmBackend` registered with the router: `start(backend)` from `activate`, `stop()` from
+    `deactivate` and `dispose`. It re-registers when AI Core restarts, and calls
+    `notifyBackendChanged` when one of the `watchedKeys` in the plugin's settings changes, so
+    backend plugins stop carrying their own copy of that wiring.
+  - `LlmInferenceService.addBackendChangeListener` / `removeBackendChangeListener` take a
+    `BackendChangeListener`, which is told the backend id on register, unregister, a change
+    in the user's selection, and `LlmInferenceService.notifyBackendChanged`. A backend calls
+    that when its availability or model changes.
+  - `LlmInferenceService.EmbeddingModelSelectable` (new interface, extends `EmbeddingBackend`)
+    lets a screen outside the backend's plugin list (`listEmbeddingModels()`) and change
+    (`setEmbeddingModelId`) the embedding model; the backend still stores the choice and calls
+    `notifyBackendChanged`. `EmbeddingBackend.getEmbeddingDimensions()` is now constant per
+    model rather than per backend instance.
+
+  Listeners are called synchronously on the changing thread, outside the implementation's
+  lock. An exception a listener throws is contained.
+
+  Status, model name and groups are new interfaces rather than defaults on `ToolSource` and
+  `LlmBackend`, per the "prefer a new interface" rule in [plugin-api.md](plugin-api.md): a
+  default named `getStatusMessage`, `getActiveModelName` or `getToolGroups` could be taken for
+  an unrelated method a plugin already declares. `LlmBackend` and `ToolSource` gain no
+  members, and the ABI dump diff is additions only, so a plugin built against 26.40 loads
+  unchanged.
+
+  The registry and service defaults do nothing, and ai-core supplies the real behaviour. On an
+  ai-core built before this change, listeners are accepted and never called. Floor
+  `plugin.min_ide_version` at `26.41` to rely on the new members.
+
 - **added — The AI prompt config engine and settings-pane helpers** _(ADFA-6281)_ **[verified]**
   Every AI plugin carried its own copy of the code that reads and renders its prompt
   config, and the credential screens their own copy of the reveal toggle and pane
