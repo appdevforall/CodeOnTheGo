@@ -24,6 +24,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.actions.observers.FileActionObserver
 import com.itsaky.androidide.actions.requireFile
+import com.itsaky.androidide.databinding.LayoutCreateFileCppBinding
 import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.idetooltips.TooltipTag
@@ -37,6 +38,7 @@ import com.itsaky.androidide.utils.ClassBuilder.SourceLanguage
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileIOUtils
+import com.itsaky.androidide.utils.NativeSourceBuilder
 import com.itsaky.androidide.utils.ProjectWriter
 import com.itsaky.androidide.utils.SingleTextWatcher
 import com.itsaky.androidide.utils.flashError
@@ -81,6 +83,8 @@ class NewFileAction(
 		const val MENU_RES_PATH_REGEX = "/.*/src/.*/res/menu"
 		const val DRAWABLE_RES_PATH_REGEX = "/.*/src/.*/res/drawable"
 		const val JAVA_PATH_REGEX = "/.*/src/.*/java"
+		const val CPP_PATH_REGEX = "/.*/src/[^/]+/cpp(/.*)?$"
+		private const val MAX_FILE_NAME_LENGTH = 40
 
 		private val log = LoggerFactory.getLogger(NewFileAction::class.java)
 	}
@@ -114,6 +118,8 @@ class NewFileAction(
 		Objects.requireNonNull(projectDir)
 		val isJava =
 			Pattern.compile(Pattern.quote(projectDir) + JAVA_PATH_REGEX).matcher(file.absolutePath).find()
+		val isCpp =
+			Pattern.compile(Pattern.quote(projectDir) + CPP_PATH_REGEX).matcher(file.absolutePath).find()
 		val isRes =
 			Pattern.compile(Pattern.quote(projectDir) + RES_PATH_REGEX).matcher(file.absolutePath).find()
 		val isLayoutRes =
@@ -134,6 +140,11 @@ class NewFileAction(
 
 		if (isJava) {
 			createJavaClass(context, node, file)
+			return
+		}
+
+		if (isCpp) {
+			createNativeSource(context, node, file)
 			return
 		}
 
@@ -312,6 +323,108 @@ class NewFileAction(
 
 	private fun isValidJavaName(s: CharSequence?) = s == null || !SourceVersion.isName(s) || SourceVersion.isKeyword(s)
 
+	private fun createNativeSource(
+		context: Context,
+		node: TreeNode?,
+		directory: File,
+	) {
+		val binding = LayoutCreateFileCppBinding.inflate(LayoutInflater.from(context))
+		binding.languageGroup.addOnButtonCheckedListener { _, _, _ -> refreshNativeDialog(context, binding) }
+		binding.typeGroup.addOnButtonCheckedListener { _, _, _ -> refreshNativeDialog(context, binding) }
+		binding.name.editText?.addTextChangedListener(
+			object : SingleTextWatcher() {
+				override fun onTextChanged(
+					s: CharSequence?,
+					start: Int,
+					before: Int,
+					count: Int,
+				) {
+					refreshNativeDialog(context, binding)
+				}
+			},
+		)
+		refreshNativeDialog(context, binding)
+
+		DialogUtils
+			.newMaterialDialogBuilder(context)
+			.setView(binding.root)
+			.setTitle(R.string.new_file)
+			.setPositiveButton(R.string.text_create) { dialogInterface, _ ->
+				dialogInterface.dismiss()
+				doCreateNativeSource(binding, directory, node)
+			}.setNegativeButton(android.R.string.cancel, null)
+			.setCancelable(false)
+			.create()
+			.attachTooltip(TooltipTag.PROJECT_FOLDER_NEWNATIVE)
+			.show()
+	}
+
+	private fun refreshNativeDialog(
+		context: Context,
+		binding: LayoutCreateFileCppBinding,
+	) {
+		val language = nativeLanguage(binding)
+		val isCpp = language == NativeSourceBuilder.Language.CPP
+		if (!isCpp && binding.typeGroup.checkedButtonId == binding.typeClass.id) {
+			binding.typeGroup.check(binding.typeSource.id)
+		}
+		binding.typeClass.isVisible = isCpp
+
+		val kind = nativeKind(binding)
+		binding.name.suffixText = NativeSourceBuilder.extensions(language, kind).joinToString(" + ") { ".$it" }
+
+		val name = nativeName(binding)
+		val isInvalid = name.isNotEmpty() && !NativeSourceBuilder.isValidName(name, kind)
+		binding.name.isErrorEnabled = isInvalid
+		binding.name.error = if (isInvalid) context.getString(R.string.msg_invalid_name) else null
+	}
+
+	private fun doCreateNativeSource(
+		binding: LayoutCreateFileCppBinding,
+		directory: File,
+		node: TreeNode?,
+	) {
+		val name = nativeName(binding)
+		val kind = nativeKind(binding)
+		if (!NativeSourceBuilder.isValidName(name, kind)) {
+			flashError(R.string.msg_invalid_name)
+			return
+		}
+
+		val files = NativeSourceBuilder.createFiles(name, nativeLanguage(binding), kind)
+		if (files.any { it.name.length > MAX_FILE_NAME_LENGTH }) {
+			flashError(R.string.msg_invalid_name)
+			return
+		}
+		if (files.any { File(directory, it.name).exists() }) {
+			flashError(R.string.msg_file_exists)
+			return
+		}
+
+		files.forEach { createFile(node, directory, it.name, it.content) }
+	}
+
+	private fun nativeName(binding: LayoutCreateFileCppBinding): String =
+		binding.name.editText!!
+			.text
+			.toString()
+			.trim()
+
+	private fun nativeLanguage(binding: LayoutCreateFileCppBinding): NativeSourceBuilder.Language =
+		when (val id = binding.languageGroup.checkedButtonId) {
+			binding.langC.id -> NativeSourceBuilder.Language.C
+			binding.langCpp.id -> NativeSourceBuilder.Language.CPP
+			else -> error("Unexpected language button: $id")
+		}
+
+	private fun nativeKind(binding: LayoutCreateFileCppBinding): NativeSourceBuilder.Kind =
+		when (val id = binding.typeGroup.checkedButtonId) {
+			binding.typeSource.id -> NativeSourceBuilder.Kind.SOURCE
+			binding.typeHeader.id -> NativeSourceBuilder.Kind.HEADER
+			binding.typeClass.id -> NativeSourceBuilder.Kind.CLASS
+			else -> error("Unexpected type button: $id")
+		}
+
 	private fun createLayoutRes(
 		context: Context,
 		node: TreeNode?,
@@ -478,7 +591,7 @@ class NewFileAction(
 		name: String,
 		content: String,
 	) {
-		if (name.length !in 1..40 || name.startsWith("/")) {
+		if (name.length !in 1..MAX_FILE_NAME_LENGTH || name.startsWith("/")) {
 			flashError(R.string.msg_invalid_name)
 			return
 		}
