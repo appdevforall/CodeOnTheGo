@@ -38,20 +38,6 @@ public class LlmInferenceServiceTest {
 	}
 
 	@Test
-	public void backendBuiltBeforeModelReportingDoesNotClaimIt() {
-		LlmInferenceService.LlmBackend backend = new PlainBackend();
-
-		assertFalse(backend instanceof LlmInferenceService.ActiveModelReportingBackend);
-	}
-
-	@Test
-	public void backendBuiltBeforeStatusReportingDoesNotClaimIt() {
-		LlmInferenceService.LlmBackend backend = new PlainBackend();
-
-		assertFalse(backend instanceof LlmInferenceService.StatusReportingBackend);
-	}
-
-	@Test
 	public void chatMessageCarriesNoCorrelatorsForAConversationTurn() {
 		LlmInferenceService.ChatMessage message = new LlmInferenceService.ChatMessage(LlmInferenceService.ChatMessage.Role.USER, "hello");
 

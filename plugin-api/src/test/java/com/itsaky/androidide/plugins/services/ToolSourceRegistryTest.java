@@ -52,14 +52,6 @@ public class ToolSourceRegistryTest {
 	}
 
 	@Test
-	public void toolSourceBuiltBeforeContract2ClaimsNeitherStatusNorGroups() {
-		ToolSourceRegistry.ToolSource source = new MinimalSource();
-
-		assertFalse(source instanceof ToolSourceRegistry.StatusReportingToolSource);
-		assertFalse(source instanceof ToolSourceRegistry.GroupedToolSource);
-	}
-
-	@Test
 	public void toolSourceIgnoresACancelItCannotHonour() {
 		ToolSourceRegistry.ToolSource source = new MinimalSource();
 

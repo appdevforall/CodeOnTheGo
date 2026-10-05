@@ -22,12 +22,12 @@ import com.itsaky.androidide.plugins.services.SharedServices
  * @param context the backend plugin's own context
  * @param preferences the backend's settings file, read when [start] runs
  * @param watchedKeys the settings that change what the backend's `isAvailable`, model name or status
- *   answers. A `clear()` of the file always counts.
+ *   answers. `clear()` sends no key to a host targeting SDK 28, so a backend that clears the file
+ *   calls [notifyBackendChanged] itself.
  * @param onSettingChanged called for every change to [preferences], after the router was told of a
  *   watched one, so a backend can react to a key of its own - re-checking a server, say
  * @param onRegistered called after each successful registration, the first and every one following
  *   a restart of the router's provider
- * @param providerPluginId the plugin that publishes the router
  */
 class LlmBackendRegistration(
 	private val context: PluginContext,
@@ -35,7 +35,6 @@ class LlmBackendRegistration(
 	private val watchedKeys: Set<String>,
 	private val onSettingChanged: (key: String?) -> Unit = {},
 	private val onRegistered: () -> Unit = {},
-	private val providerPluginId: String = AI_CORE_PLUGIN_ID,
 ) {
 	companion object {
 		/** The plugin that publishes [LlmInferenceService]. */
@@ -56,22 +55,22 @@ class LlmBackendRegistration(
 	private val providerLifecycle =
 		object : PluginLifecycleListener {
 			override fun onPluginActivated(pluginId: String) {
-				if (pluginId == providerPluginId) register()
+				if (pluginId == AI_CORE_PLUGIN_ID) register()
 			}
 
 			override fun onPluginDeactivated(pluginId: String) {
-				if (pluginId == providerPluginId) isRegistered = false
+				if (pluginId == AI_CORE_PLUGIN_ID) synchronized(lock) { isRegistered = false }
 			}
 
 			override fun onPluginUninstalled(pluginId: String) {
-				if (pluginId == providerPluginId) isRegistered = false
+				if (pluginId == AI_CORE_PLUGIN_ID) synchronized(lock) { isRegistered = false }
 			}
 		}
 
-	/** A field, not a lambda at the call: SharedPreferences holds its listeners weakly. A null key is `clear()`. */
+	/** A field, not a lambda at the call: SharedPreferences holds its listeners weakly. */
 	private val settingsWatch =
 		SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-			if (key == null || key in watchedKeys) notifyBackendChanged()
+			if (key in watchedKeys) notifyBackendChanged()
 			onSettingChanged(key)
 		}
 
@@ -117,16 +116,13 @@ class LlmBackendRegistration(
 		}
 	}
 
-	/**
-	 * Tells the router the backend's availability, model or status changed, if it is registered.
-	 * Guarded against [Throwable]: a router too old to have the method must not break a save.
-	 */
+	/** Tells the router the backend's availability, model or status changed, if it is registered. */
 	fun notifyBackendChanged() {
 		val current = backend ?: return
 		if (!isRegistered) return
 		try {
 			resolveService()?.notifyBackendChanged(current.id)
-		} catch (e: Throwable) {
+		} catch (e: Exception) {
 			context.logger.debug("LlmBackendRegistration: could not report a change to '${current.id}': ${e.message}")
 		}
 	}
@@ -158,7 +154,7 @@ class LlmBackendRegistration(
 	private fun resolveService(): LlmInferenceService? =
 		try {
 			SharedServices.get(LlmInferenceService::class.java)
-				?: context.getPluginService(providerPluginId, LlmInferenceService::class.java)
+				?: context.getPluginService(AI_CORE_PLUGIN_ID, LlmInferenceService::class.java)
 		} catch (e: Exception) {
 			context.logger.warn("LlmBackendRegistration: could not resolve LlmInferenceService: ${e.message}")
 			null

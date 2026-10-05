@@ -103,7 +103,7 @@ public interface ToolSourceRegistry {
 	interface GroupedToolSource extends ToolSource {
 
 		/**
-		 * Gets the groups this source divides its tools into. Read with {@link #listTools}, on registration and after {@link ToolSourceRegistry#notifyToolsChanged}; must be cheap and must not block on the network.
+		 * Gets the groups this source divides its tools into. Read with {@link #listTools}, on registration and after {@link ToolSourceRegistry#notifyToolsChanged}, and again after {@link ToolSourceRegistry#notifyToolSourceStatusChanged}, so a group's status may be a snapshot; must be cheap and must not block on the network.
 		 *
 		 * @return the groups, in presentation order (never null)
 		 */

@@ -140,8 +140,8 @@ public abstract interface class com/itsaky/androidide/plugins/ServiceRegistry {
 public final class com/itsaky/androidide/plugins/ai/LlmBackendRegistration {
 	public static final field AI_CORE_PLUGIN_ID Ljava/lang/String;
 	public static final field Companion Lcom/itsaky/androidide/plugins/ai/LlmBackendRegistration$Companion;
-	public fun <init> (Lcom/itsaky/androidide/plugins/PluginContext;Lkotlin/jvm/functions/Function0;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/lang/String;)V
-	public synthetic fun <init> (Lcom/itsaky/androidide/plugins/PluginContext;Lkotlin/jvm/functions/Function0;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lcom/itsaky/androidide/plugins/PluginContext;Lkotlin/jvm/functions/Function0;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lcom/itsaky/androidide/plugins/PluginContext;Lkotlin/jvm/functions/Function0;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun isRegistered ()Z
 	public final fun notifyBackendChanged ()V
 	public final fun start (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend;)Z
