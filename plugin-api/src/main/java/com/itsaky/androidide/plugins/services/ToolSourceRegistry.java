@@ -343,7 +343,7 @@ public interface ToolSourceRegistry {
 		void onToolSourcesChanged(@NonNull String providerId);
 
 		/**
-		 * Called after a provider reported a health change through {@link ToolSourceRegistry#notifyToolSourceStatusChanged}. Its tools are unchanged: re-read only {@link StatusReportingToolSource#getStatus} and each {@link ToolGroup#getStatus}.
+		 * Called after a provider reported a health change through {@link ToolSourceRegistry#notifyToolSourceStatusChanged}. Its tools are unchanged: re-read only {@link StatusReportingToolSource#getStatus} and {@link GroupedToolSource#getToolGroups}, whose groups may be snapshots.
 		 *
 		 * <p>
 		 * Defaults to {@link #onToolSourcesChanged}, for a listener that re-reads everything either way.
