@@ -22,7 +22,7 @@
 		app:layout_constraintBottom_toBottomOf="parent"
 		app:layout_constraintEnd_toEndOf="parent"
 		app:layout_constraintStart_toEndOf="@id/navigation"
-		app:layout_constraintTop_toBottomOf="@id/title" />
+		app:layout_constraintTop_toBottomOf="@id/header" />
 
 	<com.itsaky.androidide.ui.IdeNavigationRailView
 		android:id="@+id/navigation"
@@ -35,22 +35,40 @@
 		app:layout_constraintTop_toTopOf="parent"
 		app:menuGravity="top" />
 
-	<com.google.android.material.textview.MaterialTextView
-		android:id="@+id/title"
+	<LinearLayout
+		android:id="@+id/header"
 		android:layout_width="0dp"
 		android:layout_height="wrap_content"
 		android:layout_marginStart="16dp"
-		android:layout_marginTop="16dp"
-		android:layout_marginEnd="16dp"
-		android:layout_marginBottom="8dp"
-		android:ellipsize="end"
-		android:maxLines="1"
-		android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-		app:layout_constraintBottom_toTopOf="@id/editor_sidebar_fragment_container"
+		android:layout_marginTop="4dp"
+		android:layout_marginEnd="8dp"
+		android:gravity="center_vertical"
+		android:minHeight="48dp"
+		android:orientation="horizontal"
 		app:layout_constraintEnd_toEndOf="parent"
 		app:layout_constraintStart_toEndOf="@id/navigation"
-		app:layout_constraintTop_toTopOf="parent"
-		tools:text="File tree" />
+		app:layout_constraintTop_toTopOf="parent">
+
+		<com.google.android.material.textview.MaterialTextView
+			android:id="@+id/title"
+			android:layout_width="0dp"
+			android:layout_height="wrap_content"
+			android:layout_weight="1"
+			android:ellipsize="end"
+			android:maxLines="1"
+			android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+			tools:text="File tree" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/file_tree_search"
+			style="@style/Widget.Material3.Button.IconButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:contentDescription="@string/hint_file_search"
+			android:tooltipText="@string/hint_file_search"
+			app:icon="@drawable/ic_search" />
+
+	</LinearLayout>
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
