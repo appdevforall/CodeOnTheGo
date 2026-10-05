@@ -36,6 +36,15 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.41 — unreleased
+- **added — No cap on sidebar items** _(ADFA-4977)_
+  The sidebar held 12 items: the IDE's seven plus the slots plugins declared with
+  `plugin.sidebar_items`. A plugin declaring more than the free slots failed to load, and
+  plugins loaded before the editor counted its own items could overfill the sidebar and
+  crash the IDE at launch. The sidebar now scrolls, so every declared item is shown.
+  `IdeSidebarService.getMaxSidebarItems()` and `getAvailableSidebarSlots()` return
+  `Int.MAX_VALUE`, and `canAddSidebarItems()` returns `true`. A plugin still returns no
+  more items than it declares. Floor `plugin.min_ide_version` at `26.41` if the plugin
+  declares more than 5 items, the slots an older IDE leaves free.
 - **added — Tool-source groups and health, backend model names, and change listeners** _(ADFA-6278)_ **[verified]**
   A consumer such as the agent's chat screen could not tell which tools the agent has, whether
   they work, or which model will answer, and was never told when any of that changed.
