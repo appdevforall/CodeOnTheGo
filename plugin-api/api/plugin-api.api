@@ -137,6 +137,20 @@ public abstract interface class com/itsaky/androidide/plugins/ServiceRegistry {
 	public abstract fun unregister (Ljava/lang/Class;)V
 }
 
+public final class com/itsaky/androidide/plugins/ai/LlmBackendRegistration {
+	public static final field AI_CORE_PLUGIN_ID Ljava/lang/String;
+	public static final field Companion Lcom/itsaky/androidide/plugins/ai/LlmBackendRegistration$Companion;
+	public fun <init> (Lcom/itsaky/androidide/plugins/PluginContext;Lkotlin/jvm/functions/Function0;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lcom/itsaky/androidide/plugins/PluginContext;Lkotlin/jvm/functions/Function0;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun isRegistered ()Z
+	public final fun notifyBackendChanged ()V
+	public final fun start (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend;)Z
+	public final fun stop ()V
+}
+
+public final class com/itsaky/androidide/plugins/ai/LlmBackendRegistration$Companion {
+}
+
 public final class com/itsaky/androidide/plugins/ai/prompt/AssetPromptConfigSource : com/itsaky/androidide/plugins/ai/prompt/PromptConfigSource {
 	public static final field Companion Lcom/itsaky/androidide/plugins/ai/prompt/AssetPromptConfigSource$Companion;
 	public static final field DEFAULT_ROOT Ljava/lang/String;
@@ -922,6 +936,44 @@ public abstract interface class com/itsaky/androidide/plugins/extensions/IProjec
 	public abstract fun getType ()Lcom/itsaky/androidide/plugins/extensions/ProjectType;
 }
 
+public final class com/itsaky/androidide/plugins/extensions/LanguageDefinition {
+	public fun <init> (Ljava/lang/String;Ljava/util/Set;Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Set;Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/Set;
+	public final fun component3 ()Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;
+	public final fun component4 ()Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;
+	public final fun copy (Ljava/lang/String;Ljava/util/Set;Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;)Lcom/itsaky/androidide/plugins/extensions/LanguageDefinition;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/LanguageDefinition;Ljava/lang/String;Ljava/util/Set;Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/LanguageDefinition;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFileExtensions ()Ljava/util/Set;
+	public final fun getGrammar ()Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;
+	public final fun getLanguageId ()Ljava/lang/String;
+	public final fun getServer ()Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/LanguageExtension : com/itsaky/androidide/plugins/IPlugin {
+	public abstract fun getLanguages ()Ljava/util/List;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/LanguageServerDefinition {
+	public fun <init> (Ljava/util/List;Ljava/util/Map;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/Map;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()Ljava/util/Map;
+	public final fun component3 ()Ljava/util/Map;
+	public final fun copy (Ljava/util/List;Ljava/util/Map;Ljava/util/Map;)Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;Ljava/util/List;Ljava/util/Map;Ljava/util/Map;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCommand ()Ljava/util/List;
+	public final fun getEnvironment ()Ljava/util/Map;
+	public final fun getInitializationOptions ()Ljava/util/Map;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/itsaky/androidide/plugins/extensions/MenuItem {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function0;)V
@@ -1391,6 +1443,19 @@ public final class com/itsaky/androidide/plugins/extensions/ToolbarActionIds {
 	public final fun getBUILD_HIDEABLE ()Ljava/util/Set;
 }
 
+public final class com/itsaky/androidide/plugins/extensions/TreeSitterGrammar {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getQueriesAssetPath ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class com/itsaky/androidide/plugins/extensions/UIExtension : com/itsaky/androidide/plugins/IPlugin {
 	public abstract fun getContextMenuItems (Lcom/itsaky/androidide/plugins/extensions/ContextMenuContext;)Ljava/util/List;
 	public abstract fun getEditorTabs ()Ljava/util/List;
@@ -1474,6 +1539,14 @@ public abstract interface class com/itsaky/androidide/plugins/services/BuildStat
 	public abstract fun onBuildFailed (Ljava/lang/String;)V
 	public abstract fun onBuildFinished ()V
 	public abstract fun onBuildStarted ()V
+}
+
+public final class com/itsaky/androidide/plugins/services/CapabilityStatus : java/lang/Enum {
+	public static final field AVAILABLE Lcom/itsaky/androidide/plugins/services/CapabilityStatus;
+	public static final field CONNECTING Lcom/itsaky/androidide/plugins/services/CapabilityStatus;
+	public static final field DEGRADED Lcom/itsaky/androidide/plugins/services/CapabilityStatus;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/CapabilityStatus;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/services/CapabilityStatus;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/CommandExecution {
@@ -1747,6 +1820,7 @@ public final class com/itsaky/androidide/plugins/services/IdeUIService$DefaultIm
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService {
+	public fun addBackendChangeListener (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$BackendChangeListener;)V
 	public abstract fun cancelGeneration ()V
 	public abstract fun generateCompletion (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun generateStreaming (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfig;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback;)V
@@ -1757,8 +1831,18 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun getEmbeddings (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public fun getPreferredBackendId ()Ljava/lang/String;
 	public abstract fun isBackendAvailable (Ljava/lang/String;)Z
+	public fun notifyBackendChanged (Ljava/lang/String;)V
 	public abstract fun registerBackend (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend;)V
+	public fun removeBackendChangeListener (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$BackendChangeListener;)V
 	public abstract fun unregisterBackend (Ljava/lang/String;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ActiveModelReportingBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun getActiveModelName ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$BackendChangeListener {
+	public abstract fun onBackendChanged (Ljava/lang/String;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$CancellableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
@@ -1792,6 +1876,11 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun getEmbeddingDimensions ()I
 	public abstract fun getEmbeddingModelId ()Ljava/lang/String;
 	public static fun requireValidBatch (Ljava/util/List;)Ljava/util/List;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$EmbeddingModelSelectable : com/itsaky/androidide/plugins/services/LlmInferenceService$EmbeddingBackend {
+	public abstract fun listEmbeddingModels ()Ljava/util/concurrent/CompletableFuture;
+	public abstract fun setEmbeddingModelId (Ljava/lang/String;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$HistoryCapableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
@@ -1829,6 +1918,11 @@ public class com/itsaky/androidide/plugins/services/LlmInferenceService$LlmRespo
 	public fun <init> (ZLjava/lang/String;Ljava/lang/String;IJ)V
 	public static fun failure (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;
 	public static fun success (Ljava/lang/String;IJ)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$StatusReportingBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun getStatus ()Lcom/itsaky/androidide/plugins/services/CapabilityStatus;
+	public abstract fun getStatusMessage ()Ljava/lang/String;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback {
@@ -2006,10 +2100,30 @@ public abstract interface class com/itsaky/androidide/plugins/services/ThemeChan
 
 public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry {
 	public static final field CONTRACT_VERSION I
+	public fun addToolSourceListener (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSourceListener;)V
 	public abstract fun getToolSources ()Ljava/util/List;
+	public fun notifyToolSourceStatusChanged (Ljava/lang/String;)V
 	public abstract fun notifyToolsChanged (Ljava/lang/String;)V
 	public abstract fun registerToolSource (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSource;)V
+	public fun removeToolSourceListener (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSourceListener;)V
 	public abstract fun unregisterToolSource (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSource;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$GroupedToolSource : com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSource {
+	public abstract fun getToolGroups ()Ljava/util/List;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$StatusReportingToolSource : com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSource {
+	public abstract fun getStatus ()Lcom/itsaky/androidide/plugins/services/CapabilityStatus;
+	public abstract fun getStatusMessage ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolGroup {
+	public abstract fun getDisplayName ()Ljava/lang/String;
+	public abstract fun getId ()Ljava/lang/String;
+	public fun getStatus ()Lcom/itsaky/androidide/plugins/services/CapabilityStatus;
+	public fun getStatusMessage ()Ljava/lang/String;
+	public abstract fun getToolNames ()Ljava/util/List;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolInvocation {
@@ -2031,6 +2145,11 @@ public abstract interface class com/itsaky/androidide/plugins/services/ToolSourc
 	public abstract fun getProviderId ()Ljava/lang/String;
 	public abstract fun invoke (Lcom/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolInvocation;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun listTools ()Ljava/util/List;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSourceListener {
+	public fun onToolSourceStatusChanged (Ljava/lang/String;)V
+	public abstract fun onToolSourcesChanged (Ljava/lang/String;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/ToolSourceRegistry$ToolSpec {

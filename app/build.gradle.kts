@@ -426,6 +426,7 @@ dependencies {
 	implementation(projects.subprojects.toolingApi)
 	implementation(projects.logsender)
 	implementation(projects.lsp.api)
+	implementation(projects.lsp.external)
 	implementation(projects.lsp.java)
 	implementation(projects.lsp.kotlin)
 	implementation(projects.lsp.xml)

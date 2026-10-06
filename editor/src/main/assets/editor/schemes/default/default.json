@@ -72,6 +72,7 @@
     "@json.json",
     "@kotlin.json",
     "@xml.json",
-    "@log.json"
+    "@log.json",
+    "@generic.json"
   ]
 }
