@@ -9,8 +9,8 @@
 -keep class com.example.sampleplugin.fragments.** { *; }
 
 # Keep plugin interfaces
--keep interface com.itsaky.androidide.plugins.** { *; }
--keep class com.itsaky.androidide.plugins.** { *; }
+-keep interface org.appdevforall.codeonthego.plugins.** { *; }
+-keep class org.appdevforall.codeonthego.plugins.** { *; }
 
 # Keep Android components
 -keepclassmembers class * extends androidx.fragment.app.Fragment {

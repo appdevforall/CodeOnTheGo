@@ -15,7 +15,7 @@
   ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<com.itsaky.androidide.resources.TooltipMaterialCheckBox xmlns:android="http://schemas.android.com/apk/res/android"
+<org.appdevforall.codeonthego.resources.TooltipMaterialCheckBox xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"

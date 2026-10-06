@@ -1,0 +1,171 @@
+
+package org.appdevforall.codeonthego.viewmodel
+
+import android.content.Context
+import android.os.StatFs
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider
+import org.appdevforall.codeonthego.assets.AssetsInstallationHelper
+import org.appdevforall.codeonthego.events.InstallationEvent
+import org.appdevforall.codeonthego.models.StorageInfo
+import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.utils.Environment
+import org.appdevforall.codeonthego.utils.bytesToGigabytes
+import org.appdevforall.codeonthego.utils.getMinimumStorageNeeded
+import org.appdevforall.codeonthego.utils.gigabytesToBytes
+import org.appdevforall.codeonthego.utils.withStopWatch
+import org.appdevforall.codeonthego.viewmodel.InstallationState.InstallationComplete
+import org.appdevforall.codeonthego.viewmodel.InstallationState.InstallationError
+import org.appdevforall.codeonthego.viewmodel.InstallationState.InstallationGranted
+import org.appdevforall.codeonthego.viewmodel.InstallationState.InstallationPending
+import org.appdevforall.codeonthego.viewmodel.InstallationState.Installing
+import io.sentry.Sentry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
+import kotlin.coroutines.cancellation.CancellationException
+
+class InstallationViewModel : ViewModel() {
+	private val log = LoggerFactory.getLogger(InstallationViewModel::class.java)
+
+	private val _state = MutableStateFlow<InstallationState>(InstallationPending)
+	val state: StateFlow<InstallationState> = _state.asStateFlow()
+
+	private val _installationProgress = MutableStateFlow("")
+	val installationProgress: StateFlow<String> = _installationProgress.asStateFlow()
+
+	private val _events = MutableSharedFlow<InstallationEvent>()
+	val events = _events.asSharedFlow()
+
+	fun onPermissionsUpdated(allGranted: Boolean) {
+		if (allGranted && _state.value is InstallationPending) {
+			_state.update { InstallationGranted }
+		} else if (!allGranted && _state.value is InstallationGranted) {
+			_state.update { InstallationPending }
+		}
+	}
+
+	fun startIdeSetup(context: Context) {
+		if (_state.value is Installing) {
+			log.warn("IDE setup is already in progress. Ignoring new request.")
+			return
+		}
+
+		viewModelScope.launch {
+			if (!checkStorageAndNotify(context)) {
+				return@launch
+			}
+			if (withContext(Dispatchers.IO) { checkToolsIsInstalled() }) {
+				// Tools already installed
+				_state.update { InstallationComplete }
+				return@launch
+			}
+			try {
+				_state.update { Installing() }
+
+				withContext(Dispatchers.IO) {
+					val result =
+						withStopWatch("Assets installation") {
+							AssetsInstallationHelper.install(context) { progress ->
+								log.debug("Assets installation progress: {}", progress.message)
+								_installationProgress.value = progress.message
+							}
+						}
+
+					log.info("Assets installation result: {}", result)
+
+					when (result) {
+						is AssetsInstallationHelper.Result.Success -> {
+							val distributionProvider = IJdkDistributionProvider.getInstance()
+							distributionProvider.loadDistributions()
+
+							_state.update { InstallationComplete }
+						}
+
+						is AssetsInstallationHelper.Result.Failure -> {
+							if (result.shouldReportToGlitchTip) {
+								result.cause?.let { Sentry.captureException(it) }
+							}
+							val errorMsg =
+								result.errorMessage
+									?: context.getString(R.string.title_installation_failed)
+							_events.emit(InstallationEvent.ShowError(errorMsg))
+							_state.update {
+								InstallationError(errorMsg)
+							}
+						}
+					}
+				}
+			} catch (e: Exception) {
+				if (e is CancellationException) {
+					_state.update { InstallationPending }
+					throw e
+				}
+				Sentry.captureException(e)
+				log.error("IDE setup installation failed", e)
+				val errorMsg = e.message ?: context.getString(R.string.unknown_error)
+				_events.emit(InstallationEvent.ShowError(errorMsg))
+				_state.update {
+					InstallationError(errorMsg)
+				}
+			}
+		}
+	}
+
+	fun isSetupComplete(): Boolean = checkToolsIsInstalled()
+
+	suspend fun isSetupCompleteAsync(): Boolean = withContext(Dispatchers.IO) { checkToolsIsInstalled() }
+
+	private fun checkToolsIsInstalled(): Boolean =
+		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
+			Environment.ANDROID_HOME.exists()
+
+	/**
+	 * Checks the app's internal storage and returns detailed information.
+	 */
+	private fun getStorageInfo(context: Context): StorageInfo {
+		val internalStoragePath = context.filesDir.path
+		val stat = StatFs(internalStoragePath)
+
+		val availableStorageInBytes = stat.availableBlocksLong * stat.blockSizeLong
+		val requiredStorageInBytes = getMinimumStorageNeeded().gigabytesToBytes()
+
+		val isLowStorage = availableStorageInBytes < requiredStorageInBytes
+
+		val additionalBytesNeeded =
+			(requiredStorageInBytes - availableStorageInBytes)
+				.coerceAtLeast(0L)
+
+		return StorageInfo(isLowStorage, availableStorageInBytes, additionalBytesNeeded)
+	}
+
+	suspend fun checkStorageAndNotify(context: Context): Boolean =
+		withContext(Dispatchers.IO) {
+			val storageInfo = getStorageInfo(context)
+
+			if (storageInfo.isLowStorage) {
+				val additionalGBNeeded = storageInfo.additionalBytesNeeded.bytesToGigabytes()
+				val availableGB = storageInfo.availableBytes.bytesToGigabytes()
+
+				val errorMessage =
+					context.getString(
+						R.string.not_enough_storage,
+						additionalGBNeeded,
+						availableGB,
+					)
+
+				_events.emit(InstallationEvent.ShowError(errorMessage))
+				return@withContext false
+			}
+
+			return@withContext true
+		}
+}

@@ -1,0 +1,22 @@
+package org.appdevforall.codeonthego.roomData.recentproject
+
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
+
+@Entity(
+    tableName = "recent_project_table",
+    indices = [Index(value = ["location"], unique = true)]
+)
+data class RecentProject(
+    @PrimaryKey(autoGenerate = true)
+    @ColumnInfo(name = "id") val id: Int = 0,
+    @ColumnInfo(name = "name") val name: String,
+    @ColumnInfo(name = "create_at") val createdAt: String,
+    @ColumnInfo(name = "location") val location: String,
+    @ColumnInfo(name = "last_modified") val lastModified: String = "0",
+    @ColumnInfo(name = "template_name") val templateName: String = "unknown",
+    @ColumnInfo(name = "language") val language: String = "unknown"
+)
+

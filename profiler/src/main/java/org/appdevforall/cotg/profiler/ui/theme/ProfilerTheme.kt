@@ -1,7 +1,7 @@
 package org.appdevforall.cotg.profiler.ui.theme
 
 import androidx.compose.runtime.Composable
-import com.itsaky.androidide.common.compose.IdeTheme
+import org.appdevforall.codeonthego.common.compose.IdeTheme
 
 /**
  * Profiler content themed from the IDE's XML theme.

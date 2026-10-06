@@ -1,0 +1,791 @@
+/*
+ *  This file is part of Code on the Go.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package org.appdevforall.codeonthego.documentation
+
+import android.database.sqlite.SQLiteDatabase
+import androidx.annotation.VisibleForTesting
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.ToNumberPolicy
+import com.google.gson.reflect.TypeToken
+import org.appdevforall.codeonthego.utils.BrotliDictionaryCodec
+import org.appdevforall.codeonthego.utils.loadCompressionDictionary
+import io.pebbletemplates.pebble.PebbleEngine
+import io.pebbletemplates.pebble.error.PebbleException
+import org.slf4j.LoggerFactory
+import java.io.ByteArrayInputStream
+import java.io.Closeable
+import java.io.File
+import java.io.InputStream
+import java.io.SequenceInputStream
+import java.io.StringWriter
+import java.net.URLDecoder
+import java.text.SimpleDateFormat
+import java.util.Collections
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
+
+/**
+ * Reads [chunks] back to back as one stream, without concatenating them into a new array.
+ */
+fun chunksAsStream(chunks: List<ByteArray>): InputStream =
+	SequenceInputStream(Collections.enumeration(chunks.map { ByteArrayInputStream(it) }))
+
+/**
+ * Concatenates byte-array chunks into a single array.
+ *
+ * @param chunks The byte-array chunks to concatenate.
+ * @return The concatenated bytes, or the sole chunk unchanged when only one chunk is provided.
+ */
+fun joinChunks(chunks: List<ByteArray>): ByteArray {
+	if (chunks.size == 1) {
+		return chunks[0]
+	}
+	val joined = ByteArray(chunks.sumOf { it.size })
+	var offset = 0
+	for (chunk in chunks) {
+		chunk.copyInto(joined, offset)
+		offset += chunk.size
+	}
+	return joined
+}
+
+/**
+ * One row of documentation content, decoded and rendered, ready to send.
+ *
+ * Deliberately not a `data class`. Generated equality over a [ByteArray] compares identity, which is
+ * never what a caller means, and comparing multi-megabyte content is not what it wants either -- so
+ * this used to be a data class with `equals`/`hashCode` overridden back to identity. That left
+ * `copy()` behind, returning an object unequal to the one it was copied from. Nothing needs
+ * value semantics here, so the class simply does not offer them.
+ */
+class DocumentationContent(
+	val bytes: ByteArray,
+	val mimeType: String,
+)
+
+/** What a [DocumentationContentSource.lookup] found for a path. */
+sealed interface DocumentationLookup {
+	data class Found(
+		val content: DocumentationContent,
+	) : DocumentationLookup
+
+	object NotFound : DocumentationLookup
+
+	/** The path matched more than one row, which means the database is corrupt. */
+	data class Ambiguous(
+		val rowCount: Int,
+	) : DocumentationLookup
+
+	/** The read itself failed. */
+	data class Failed(
+		val cause: Exception,
+	) : DocumentationLookup
+}
+
+/**
+ * A template could not be loaded, parsed or rendered.
+ *
+ * Exists so a caller can tell a template diagnostic apart from every other failure on the serving
+ * path. That matters because one caller puts the message in an HTTP response body: a template
+ * failure names a template, which is the whole point of the ADFA-5405 diagnostic and safe to send,
+ * while the [IllegalStateException] a closed or unopenable database raises carries the database's
+ * filesystem path, and a `SQLiteException` carries SQL text. Both of those were reaching the
+ * response because they share [IllegalStateException] with the diagnostics.
+ *
+ * Extends [IllegalStateException] rather than replacing it, so callers that only care that the
+ * render failed are unaffected.
+ */
+class TemplateRenderException(
+	message: String?,
+	cause: Throwable? = null,
+) : IllegalStateException(message, cause)
+
+/**
+ * What [DocumentationContentSource.lookupRequestPath] found, plus the path form that produced it --
+ * so a transport reporting a miss or a corrupt row can quote the string that was actually queried.
+ */
+data class RequestLookup(
+	val queriedPath: String,
+	val lookup: DocumentationLookup,
+)
+
+/**
+ * Reads documentation content out of `documentation.db`: the row lookup, reassembly of chunked
+ * rows, the shared-dictionary Brotli decode (ADFA-5153) -- one pass through
+ * [BrotliDictionaryCodec], with no plain-decode retry, since every brotli row in a
+ * dictionary-declaring database is compressed against that dictionary, plugin-contributed rows
+ * included (ADFA-5240) -- and the swap to a newer database dropped on the sdcard.
+ *
+ * One pipeline with two callers (ADFA-5176): `WebServer`, which wraps it in HTTP, and
+ * [DocumentationRequestInterceptor], which answers a WebView in-process with no socket at all. A row
+ * that is a Pebble template context is rendered here too, so both transports serve a finished page
+ * and neither needs the template engine itself.
+ *
+ * Thread-safe: [lookup] and [withDatabase] hold a read lock for the whole read, and the swap takes
+ * the write lock, since swapping closes the handle a reader could be using. Readers never block
+ * each other.
+ */
+class DocumentationContentSource(
+	private val databaseFile: File,
+	private val debugDatabaseFile: File,
+	debugCheckIntervalMs: Long = 1_000,
+) : Closeable {
+	private val log = LoggerFactory.getLogger(DocumentationContentSource::class.java)
+
+	private val databaseLock = ReentrantReadWriteLock()
+
+	// Read without the lock in the open-on-demand check, hence volatile.
+	@Volatile
+	private var database: SQLiteDatabase? = null
+
+	// Terminal: openIfNeeded() refuses once this is set, so a straggler call after close() -- a
+	// shutdown-time log line, say -- cannot silently reopen a handle nothing will ever close.
+	@Volatile
+	private var closed = false
+
+	@Volatile
+	private var databaseTimestamp: Long = -1
+
+	// Which file the active handle was opened on, so the rewrite check below knows whether the
+	// installed file is the one being served.
+	@Volatile
+	private var activeDatabasePath: String? = null
+
+	/**
+	 * Bumped on every swap. Nothing outside caches per database now that templates resolve by name
+	 * and the caches for them live here, so this has no production reader: it stays as the
+	 * observable a test asserts a swap happened on.
+	 */
+	@VisibleForTesting
+	@Volatile
+	var generation: Long = 0
+		private set
+
+	// A debug database whose swap already failed, so a corrupt or unreadable one is not reopened
+	// on every check. A newer copy has a different timestamp and is retried, which is the case
+	// that matters: replacing the file is exactly how a developer fixes it.
+	// Volatile because the check that reads it happens outside the write lock: without it a second
+	// thread never sees the first's failure marker and re-attempts openDatabase on the broken file
+	// while holding the write lock, serialising every reader behind a failing open -- the exact
+	// behaviour this field exists to prevent. A 64-bit read is not atomic on armeabi-v7a either.
+	@Volatile
+	private var failedDebugSwapTimestamp: Long = -1
+
+	// Same idea for the installed file: a reopen that failed -- typically because an installer is
+	// still streaming into it -- is not retried until the file's timestamp moves again.
+	@Volatile
+	private var failedInstalledSwapTimestamp: Long = -1
+
+	// Decodes Content's brotli rows against the shared dictionary they were compressed with (see
+	// ADFA-5153). Built on the first read that needs it after a swap rather than eagerly, then
+	// cached for that database. Holds no dictionary -- and so decodes plain brotli -- when the
+	// active database declares a version below the dictionary migration. Access only through
+	// [codec], which rebuilds it when stale.
+	private var codec: BrotliDictionaryCodec? = null
+	private var codecStale = true
+
+	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
+	// makes the engine's own cache the compiled-template cache, keyed by name: a partial pulled in
+	// by several pages is compiled once, and dropping a database means invalidating that cache too.
+	private val pebbleEngine =
+		PebbleEngine
+			.Builder()
+			.loader(DatabaseTemplateLoader { database })
+			.maxRenderedSize(MAX_RENDERED_CHARS)
+			.build()
+
+	// Template names by id, for the active database. Content rows reference a template by id; every
+	// reference between templates is by name, which is what the loader and the engine cache use.
+	private val templateNames = ConcurrentHashMap<Int, String>()
+
+	private val gson: Gson =
+		GsonBuilder()
+			.setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
+			.create()
+
+	private val templateContextType = object : TypeToken<Map<String, Any>>() {}.type
+
+	private val debugCheckIntervalNanos = TimeUnit.MILLISECONDS.toNanos(debugCheckIntervalMs)
+
+	// One interval in the past, so the first lookup still checks for a changed database. The one
+	// gate covers both stats: the sdcard debug file and the installed file's rewrite check.
+	private val lastSwapCheckNanos = AtomicLong(System.nanoTime() - debugCheckIntervalNanos)
+
+	/**
+	 * Opens the installed documentation database if it is not already open.
+	 *
+	 * @throws IllegalStateException If this source has been closed.
+	 */
+	fun open() {
+		databaseLock.write {
+			check(!closed) { "documentation content source for '$databaseFile' is closed" }
+			if (database != null) return@write
+			switchToDatabase(databaseFile.absolutePath, timestampOf(databaseFile))
+		}
+	}
+
+	/**
+	 * Looks up documentation content by path.
+	 *
+	 * @param path The documentation path to query.
+	 * @return The matching content, or an outcome indicating that no match was found,
+	 * an ambiguous match exists, or reading failed.
+	 */
+	fun lookup(path: String): DocumentationLookup {
+		// Both of these take the write lock when they act, so they run before the read lock below:
+		// a ReentrantReadWriteLock does not upgrade.
+		if (!openIfNeeded()) return DocumentationLookup.NotFound
+		swapDatabaseIfChanged()
+
+		return databaseLock.read {
+			val database = database ?: return@read DocumentationLookup.NotFound
+
+			try {
+				readContent(database, path)
+			} catch (e: Exception) {
+				log.error("Cannot read '{}'", path, e)
+				DocumentationLookup.Failed(e)
+			}
+		}
+	}
+
+	/**
+	 * Looks up a request path, retrying with a percent-decoded path when the raw path is not found.
+	 *
+	 * @param rawPath The request path as received from the client.
+	 * @return The path used for the successful lookup and its result.
+	 */
+	fun lookupRequestPath(rawPath: String): RequestLookup {
+		val raw = lookup(rawPath)
+		if (raw !is DocumentationLookup.NotFound) return RequestLookup(rawPath, raw)
+
+		val decodedPath = decodeRequestPath(rawPath)
+		if (decodedPath == rawPath) return RequestLookup(rawPath, raw)
+
+		return RequestLookup(decodedPath, lookup(decodedPath))
+	}
+
+	/**
+	 * Decodes a request path while preserving literal plus signs.
+	 *
+	 * @param path The request path to decode.
+	 * @return The decoded path, or the original path when decoding fails.
+	 */
+	private fun decodeRequestPath(path: String): String =
+		try {
+			URLDecoder.decode(path.replace("+", "%2B"), "UTF-8")
+		} catch (e: IllegalArgumentException) {
+			// A malformed escape ("%zz") is not a reason to fail the request: the caller has already
+			// looked the path up verbatim, so there is simply no fallback form left to try.
+			log.warn("Cannot decode request path '{}'; using it as-is.", path, e)
+			path
+		}
+
+	/**
+	 * Ensures the documentation database is open and applies any pending database changes.
+	 *
+	 * Does nothing when the source is closed or the database cannot be opened. No production caller:
+	 * [lookup] and [withDatabase] apply a pending swap themselves, so this is the seam a test uses to
+	 * drive one directly.
+	 */
+	@VisibleForTesting
+	fun refreshDatabase() {
+		if (!openIfNeeded()) return
+		swapDatabaseIfChanged()
+	}
+
+	/**
+	 * Executes [block] with the active documentation database while holding the read lock.
+	 *
+	 * @param block The operation to execute against the active database.
+	 * @return The value produced by [block].
+	 * @throws IllegalStateException If the database cannot be opened or the source is closed.
+	 */
+	fun <T> withDatabase(block: (SQLiteDatabase) -> T): T {
+		// The same verdict lookup() acts on, surfaced as a throw because this returns the block's
+		// value: could-not-open (or closed) is terminal here too, not a checkNotNull accident.
+		check(openIfNeeded()) { "documentation database '$databaseFile' is not open" }
+		swapDatabaseIfChanged()
+
+		return databaseLock.read {
+			val database = checkNotNull(database) { "documentation database '$databaseFile' is not open" }
+			block(database)
+		}
+	}
+
+	/**
+	 * Renders the named template using the supplied JSON context.
+	 *
+	 * For a caller that knows a well-known template by name -- the bookshelf, say -- rather than
+	 * through a `Content` row's `templateId`.
+	 *
+	 * [contextJson] builds the payload from the same database the template is then loaded from,
+	 * under one acquisition. Building it through a separate [withDatabase] and passing the bytes in
+	 * would let a debug-database swap land between the two, rendering the new database's template
+	 * against the old one's payload. Nesting is not the alternative: [withDatabase] takes the write
+	 * lock to check for a swap before it takes the read lock, so a nested call deadlocks.
+	 *
+	 * @param name The template's `Templates.name`.
+	 * @param path The path associated with the rendering request for diagnostics.
+	 * @param contextJson Builds the JSON object used as the template context.
+	 * @return The rendered content encoded as UTF-8 bytes.
+	 */
+	fun renderNamedTemplate(
+		name: String,
+		path: String,
+		contextJson: (SQLiteDatabase) -> ByteArray,
+	): ByteArray = withDatabase { database -> renderNamed(name, contextJson(database), path) }
+
+	/**
+	 * Clears all cached templates, compiled and by name.
+	 *
+	 * Takes the write lock, which `ReentrantReadWriteLock` will not upgrade to from a read hold, so
+	 * `withDatabase { clearTemplateCache() }` deadlocks that thread permanently.
+	 */
+	fun clearTemplateCache() =
+		// All three under one write lock: clearing them piecemeal under a concurrent render can hand
+		// it a template from before the clear and a tag cache from after it. The engine's two caches
+		// are keyed by name, so a template edited under the same name survives without this.
+		databaseLock.write {
+			templateNames.clear()
+			pebbleEngine.templateCache.invalidateAll()
+			pebbleEngine.tagCache.invalidateAll()
+		}
+
+	/** The last-modified time of [file], or -1 when it does not exist. */
+	private fun timestampOf(
+		file: File,
+		silent: Boolean = true,
+	): Long {
+		if (!file.exists()) return -1
+
+		val timestamp = file.lastModified()
+		if (!silent) {
+			val format = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+			log.debug("{} was last modified at {}.", file, format.format(Date(timestamp)))
+		}
+
+		return timestamp
+	}
+
+	/** Closes the handle for good: no later call reopens it (see [openIfNeeded]). */
+	override fun close() {
+		databaseLock.write {
+			closed = true
+			try {
+				database?.close()
+			} catch (e: Exception) {
+				log.error("Cannot close the documentation database", e)
+			}
+			database = null
+		}
+	}
+
+	/**
+	 * Ensures that the documentation database is open when the source is active.
+	 *
+	 * @return `true` if the source is open and has an active database, `false` otherwise.
+	 */
+	private fun openIfNeeded(): Boolean {
+		if (closed) return false
+		if (database != null) return true
+
+		return try {
+			open()
+			database != null
+		} catch (e: Exception) {
+			log.error("Cannot open the documentation database '{}'", databaseFile, e)
+			false
+		}
+	}
+
+	/**
+	 * Reads and processes documentation content for a path.
+	 *
+	 * @param path The documentation path to look up.
+	 * @return The matching content, or a not-found or ambiguous lookup result.
+	 */
+	private fun readContent(
+		database: SQLiteDatabase,
+		path: String,
+	): DocumentationLookup {
+		// Primed before the row is read, not inside decompressBrotli, so a database's dictionary is
+		// loaded on its first content fetch (ADFA-5153's contract) rather than on the first fetch
+		// that happens to be Brotli-compressed. Still at most once per database.
+		//
+		// Best-effort, unlike the call inside the decode: this is an optimisation, and letting a
+		// transient failure here propagate would fail *every* lookup -- including rows with
+		// compression = 'none', which need no dictionary at all. The staleness flag is left set, so
+		// the next read retries, and a brotli row that genuinely cannot resolve its dictionary still
+		// fails loudly from decompressBrotli.
+		try {
+			codec(database)
+		} catch (e: Exception) {
+			log.warn("Could not prime the compression dictionary; will retry on the next read: {}", e.message)
+		}
+
+		database.rawQuery(CONTENT_QUERY, arrayOf(path)).use { cursor ->
+			if (cursor.count == 0) return DocumentationLookup.NotFound
+			if (cursor.count != 1) return DocumentationLookup.Ambiguous(cursor.count)
+
+			cursor.moveToFirst()
+			val firstChunk = cursor.getBlob(0)
+			val mimeType = cursor.getString(1)
+			val compression = cursor.getString(2)
+			val templateId = cursor.getInt(3)
+
+			val chunks = readChunks(database, path, firstChunk)
+			val decoded = if (compression == "brotli") decompressBrotli(database, chunks) else joinChunks(chunks)
+			val bytes = if (templateId > 0) render(database, templateId, decoded, path) else decoded
+
+			return DocumentationLookup.Found(DocumentationContent(bytes, mimeType))
+		}
+	}
+
+	/**
+	 * Renders a template using the provided JSON context.
+	 *
+	 * @param templateId The identifier of the template to render.
+	 * @param contextJson The JSON-encoded context supplied to the template.
+	 * @return The rendered template content encoded as UTF-8 bytes.
+	 */
+	private fun render(
+		database: SQLiteDatabase,
+		templateId: Int,
+		contextJson: ByteArray,
+		path: String,
+	): ByteArray {
+		val name =
+			templateNames.getOrPut(templateId) {
+				if (log.isDebugEnabled) log.debug("Template name cache miss for id {}, path '{}'.", templateId, path)
+				templateName(database, templateId, path)
+			}
+
+		return renderNamed(name, contextJson, path)
+	}
+
+	/**
+	 * Renders the named template using the provided JSON context.
+	 *
+	 * Callers hold the read lock, since the loader the engine resolves through reads the active
+	 * database -- for this template and for every one it references.
+	 *
+	 * @param name The template's `Templates.name`.
+	 * @param contextJson The JSON-encoded context supplied to the template.
+	 * @param path The content path associated with the rendering request.
+	 * @return The rendered template content encoded as UTF-8 bytes.
+	 */
+	private fun renderNamed(
+		name: String,
+		contextJson: ByteArray,
+		path: String,
+	): ByteArray {
+		val contextString = contextJson.toString(Charsets.UTF_8)
+		if (contextString.isBlank() || contextString.trim() == "null") {
+			throw TemplateRenderException("Template '$name' has empty or null JSON context, for path '$path'")
+		}
+		val context: Map<String, Any> = gson.fromJson(contextString, templateContextType)
+
+		return try {
+			StringWriter().also { pebbleEngine.getTemplate(name).evaluate(it, context) }.toString().toByteArray()
+		} catch (e: PebbleException) {
+			// PebbleException formats getMessage() as "<text> (<file>:<line>)". When it carries
+			// neither -- the loader's throws, and the rendered-size limit -- that suffix is a bare
+			// "(?:?)" in the response body; when it carries both, as a parse error in a template
+			// does, it is the diagnostic that says which template and line to go fix.
+			val message = if (e.fileName == null && e.lineNumber == null) e.pebbleMessage else e.message
+			throw TemplateRenderException(message, e)
+		} catch (e: StackOverflowError) {
+			// Templates can reference each other now (ADFA-5405), so they can also reference each
+			// other in a cycle, which Pebble resolves by recursing until the stack runs out. Raised
+			// here as an exception because an Error passes through every catch on this path: the
+			// client would get a closed socket with no status line and nothing naming the template.
+			throw TemplateRenderException(
+				"Rendering template '$name' overflowed the stack; check for a reference cycle between templates",
+				e,
+			)
+		}
+	}
+
+	/**
+	 * Resolves a template id to the name the engine loads it by.
+	 *
+	 * @param templateId The database identifier of the template.
+	 * @param path The content path associated with the template.
+	 * @return The template's name.
+	 * @throws TemplateRenderException If the template is missing, has multiple database rows, or
+	 * cannot be read.
+	 */
+	private fun templateName(
+		database: SQLiteDatabase,
+		templateId: Int,
+		path: String,
+	): String =
+		try {
+			database.rawQuery("SELECT name FROM Templates WHERE id = ?", arrayOf(templateId.toString())).use { cursor ->
+				when {
+					cursor.count > 1 -> {
+						throw TemplateRenderException("Template ID $templateId is shared by more than one template")
+					}
+
+					!cursor.moveToFirst() -> {
+						throw TemplateRenderException("Template ID $templateId not found in the database, for path '$path'")
+					}
+
+					// The same guard the loader applies to getBlob. getString returns a platform
+					// type, so a NULL name column yields null and the implicit null check throws a
+					// bare NPE -- rewrapped below as the generic message, losing both the column
+					// and, unlike the loader's path, the template's identity.
+					else -> {
+						cursor.getString(0)
+							?: throw TemplateRenderException("Template ID $templateId has no name, for path '$path'")
+					}
+				}
+			}
+		} catch (e: TemplateRenderException) {
+			throw e
+		} catch (e: RuntimeException) {
+			// Not the raw exception: a SQLiteException's message carries SQL text and one caller
+			// puts a TemplateRenderException's message in an HTTP response body.
+			throw TemplateRenderException("Cannot read the template for ID $templateId", e)
+		}
+
+	/**
+	 * Content over [CONTENT_CHUNK_SIZE] is split across rows named `path-1`, `path-2`, ... The
+	 * chunks stay a list rather than being concatenated: accumulating into a
+	 * ByteArrayOutputStream held its doubling buffer *and* the copy from toByteArray() live
+	 * alongside the decompressed output, roughly 35 MB transient for the largest bundled PDF.
+	 */
+	private fun readChunks(
+		database: SQLiteDatabase,
+		path: String,
+		firstChunk: ByteArray,
+	): List<ByteArray> {
+		val chunks = mutableListOf(firstChunk)
+		if (firstChunk.size != CONTENT_CHUNK_SIZE) return chunks
+
+		var chunkNumber = 1
+		var chunk = firstChunk
+		while (chunk.size == CONTENT_CHUNK_SIZE) {
+			database.rawQuery(CHUNK_QUERY, arrayOf("$path-$chunkNumber")).use { cursor ->
+				if (!cursor.moveToFirst()) return chunks
+				chunk = cursor.getBlob(0)
+				chunks.add(chunk)
+				chunkNumber++
+			}
+		}
+
+		return chunks
+	}
+
+	/**
+	 * Decompresses one Brotli-compressed Content row, attaching the shared dictionary when the
+	 * active database declares one. Every brotli row in such a database is compressed against it,
+	 * whether built offline or contributed by a plugin (ADFA-5240), so a single decode is enough
+	 * and a failure is a real failure -- not, as it once was, a row that might simply have been
+	 * written the other way.
+	 *
+	 * @param database The database used to obtain the Brotli dictionary.
+	 * @param chunks The compressed content chunks.
+	 * @return The decompressed content.
+	 */
+	private fun decompressBrotli(
+		database: SQLiteDatabase,
+		chunks: List<ByteArray>,
+	): ByteArray = codec(database).decompress(chunksAsStream(chunks))
+
+	/**
+	 * The codec for the active database, (re)built on the first use after a swap.
+	 *
+	 * Only clears the staleness flag on a clean build -- a definitive dictionary or a definitive
+	 * absence, per [loadCompressionDictionary]'s contract -- so an unexpected exception leaves it
+	 * set and the next read retries, rather than caching a transient failure as "no dictionary"
+	 * for the rest of this database's lifetime.
+	 *
+	 * @param database The active documentation database.
+	 * @return The codec holding that database's dictionary, dictionary-free when it declares none.
+	 */
+	private fun codec(database: SQLiteDatabase): BrotliDictionaryCodec =
+		synchronized(this) {
+			var current = codec
+			if (codecStale || current == null) {
+				current = BrotliDictionaryCodec(loadCompressionDictionary(database))
+				codec = current
+				codecStale = false
+			}
+			current
+		}
+
+	/**
+	 * Applies a pending database replacement when the active database file is stale.
+	 *
+	 * Checks for a newer debug database before checking whether the installed database was rewritten.
+	 * Change detection is rate-limited, and this method must not be called while holding the read lock.
+	 */
+	private fun swapDatabaseIfChanged() {
+		if (!swapCheckDue()) return
+		if (swapDebugDatabaseIfNewer()) return
+		reopenInstalledDatabaseIfRewritten()
+	}
+
+	/**
+	 * Determines whether a database change check is due and claims the check interval when permitted.
+	 *
+	 * @return `true` if this call may perform the check, `false` if the interval has not elapsed or another thread claimed it.
+	 */
+	private fun swapCheckDue(): Boolean {
+		val now = System.nanoTime()
+		val last = lastSwapCheckNanos.get()
+		if (now - last < debugCheckIntervalNanos) return false
+		return lastSwapCheckNanos.compareAndSet(last, now)
+	}
+
+	/**
+	 * Checks for a newer debug database and switches to it when available.
+	 *
+	 * @return `true` if a newer debug database was found and processed, `false` otherwise.
+	 */
+	private fun swapDebugDatabaseIfNewer(): Boolean {
+		val debugTimestamp = timestampOf(debugDatabaseFile)
+		if (debugTimestamp <= databaseTimestamp || debugTimestamp == failedDebugSwapTimestamp) return false
+
+		databaseLock.write {
+			// Another thread may have swapped while this one waited for the lock.
+			if (debugTimestamp <= databaseTimestamp || debugTimestamp == failedDebugSwapTimestamp) return@write
+
+			try {
+				switchToDatabase(debugDatabaseFile.absolutePath, debugTimestamp)
+				failedDebugSwapTimestamp = -1
+				log.info("Swapped to the debug database '{}'.", debugDatabaseFile)
+			} catch (e: Exception) {
+				failedDebugSwapTimestamp = debugTimestamp
+				log.error(
+					"Cannot swap to debug database '{}'; ignoring it until it changes.",
+					debugDatabaseFile,
+					e,
+				)
+			}
+		}
+		return true
+	}
+
+	/**
+	 * Reopens the installed database when its file has been rewritten.
+	 */
+	private fun reopenInstalledDatabaseIfRewritten() {
+		if (activeDatabasePath != databaseFile.absolutePath) return
+
+		val installedTimestamp = timestampOf(databaseFile)
+		if (installedTimestamp == databaseTimestamp || installedTimestamp == failedInstalledSwapTimestamp) return
+
+		databaseLock.write {
+			if (installedTimestamp == databaseTimestamp || installedTimestamp == failedInstalledSwapTimestamp) return@write
+
+			try {
+				switchToDatabase(databaseFile.absolutePath, installedTimestamp)
+				failedInstalledSwapTimestamp = -1
+				log.info("Installed database '{}' was rewritten in place; reopened it.", databaseFile)
+			} catch (e: Exception) {
+				// Typically an installer still streaming into the file. The timestamp moves again
+				// when it finishes, which is what retries this.
+				failedInstalledSwapTimestamp = installedTimestamp
+				log.error(
+					"Cannot reopen the rewritten installed database '{}'; ignoring it until it changes.",
+					databaseFile,
+					e,
+				)
+			}
+		}
+	}
+
+	/**
+	 * Opens [path] as the active database and refreshes state associated with the active file.
+	 *
+	 * The replacement database is opened before the previous database is closed, so a failed open
+	 * preserves the existing active database.
+	 *
+	 * @param path The path of the replacement database.
+	 * @param timestamp The replacement database's recorded timestamp.
+	 */
+	private fun switchToDatabase(
+		path: String,
+		timestamp: Long,
+	) {
+		// Belt and braces for close()'s terminality: every caller holds the write lock, as does
+		// close(), so this check cannot race the close it guards against -- a swap that was already
+		// past its own closed check when close() took the lock still cannot reopen a handle.
+		check(!closed) { "documentation content source for '$databaseFile' is closed" }
+
+		val opened = SQLiteDatabase.openDatabase(path, null, SQLiteDatabase.OPEN_READONLY)
+		val previous = database
+
+		database = opened
+		activeDatabasePath = path
+		databaseTimestamp = timestamp
+		// Nulled as well as marked stale: a different database can carry a different dictionary
+		// (or none), and decoding its rows against the previous one can succeed with wrong bytes
+		// rather than fail (see BrotliDictionaryCodec). A null codec can only be rebuilt, never
+		// reused.
+		codec = null
+		codecStale = true
+		clearTemplateCache()
+		generation++
+
+		try {
+			previous?.close()
+		} catch (e: Exception) {
+			log.error("Cannot close previous database", e)
+		}
+	}
+
+	companion object {
+		const val CONTENT_CHUNK_SIZE = 1024 * 1024
+
+		// Bounds a render whose output grows without end -- a runaway {% for %}, say -- which would
+		// otherwise raise OutOfMemoryError, an Error every catch on this path misses. Pebble's own
+		// default is unbounded, so this is a cap where there was none: it has to be high enough
+		// that no real page reaches it and low enough that it fires before the heap does.
+		//
+		// Pebble counts characters, so 4 Mi chars is an 8 MB char[], and the doubling step that
+		// reaches it holds the old 8 MB and the new 16 MB at once, then toString() copies another
+		// 8 MB -- ~32 MB transient against a 192-256 MB heap. 16 MiB failed that test, which is
+		// why it never fired. The largest rendered page is not measurable from this repo, so the
+		// margin above it is deliberately wide rather than tight: the only thing this has to
+		// catch is unbounded growth, and unbounded growth passes any finite number.
+		//
+		// Untemplated content is irrelevant to it. render() runs only for templateId > 0, so the
+		// multi-megabyte rows readChunks exists for -- the bundled PDFs -- never reach the writer.
+		private const val MAX_RENDERED_CHARS = 4 * 1024 * 1024
+
+		private const val CONTENT_QUERY = """
+			SELECT C.content, CT.value, CT.compression, C.templateId
+			FROM   Content C, ContentTypes CT
+			WHERE  C.contentTypeID = CT.id
+			AND    C.path = ?
+		"""
+
+		private const val CHUNK_QUERY = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
+	}
+}

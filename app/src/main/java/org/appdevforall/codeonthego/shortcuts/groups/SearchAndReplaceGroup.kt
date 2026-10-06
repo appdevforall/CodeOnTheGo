@@ -1,0 +1,60 @@
+package org.appdevforall.codeonthego.shortcuts.groups
+
+import android.content.Context
+import android.view.KeyEvent
+import org.appdevforall.codeonthego.actions.etc.FindInFileAction
+import org.appdevforall.codeonthego.actions.etc.FindInProjectAction
+import org.appdevforall.codeonthego.actions.etc.ReplaceInProjectAction
+import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.shortcuts.KeyShortcut
+import org.appdevforall.codeonthego.shortcuts.ShortcutCategory
+import org.appdevforall.codeonthego.shortcuts.ShortcutContext
+import org.appdevforall.codeonthego.shortcuts.ShortcutDefinition
+
+internal class SearchAndReplaceGroup : ShortcutGroup {
+	override fun shortcuts(context: Context): List<ShortcutDefinition> =
+		listOf(
+			ShortcutDefinition(
+				id = ShortcutDefinitionIds.FIND_IN_PROJECT,
+				title = context.getString(R.string.menu_find_project),
+				bindings =
+					listOf(
+						KeyShortcut.ctrlShift(KeyEvent.KEYCODE_F),
+					),
+				category = ShortcutCategory.SEARCH_AND_REPLACE,
+				contexts =
+					setOf(
+						ShortcutContext.EDITOR,
+					),
+				actionId = FindInProjectAction.ID,
+			),
+			ShortcutDefinition(
+				id = ShortcutDefinitionIds.FIND_IN_FILE,
+				title = context.getString(R.string.menu_find_file),
+				bindings =
+					listOf(
+						KeyShortcut.ctrl(KeyEvent.KEYCODE_F),
+					),
+				category = ShortcutCategory.SEARCH_AND_REPLACE,
+				contexts =
+					setOf(
+						ShortcutContext.EDITOR,
+					),
+				actionId = FindInFileAction.ID,
+			),
+			ShortcutDefinition(
+				id = ShortcutDefinitionIds.REPLACE_IN_PROJECT,
+				title = context.getString(R.string.menu_replace_project),
+				bindings =
+					listOf(
+						KeyShortcut.ctrlShift(KeyEvent.KEYCODE_R),
+					),
+				category = ShortcutCategory.SEARCH_AND_REPLACE,
+				contexts =
+					setOf(
+						ShortcutContext.EDITOR,
+					),
+				actionId = ReplaceInProjectAction.ID,
+			),
+		)
+}

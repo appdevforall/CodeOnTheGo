@@ -101,7 +101,7 @@ jobs:
             --results-dir=test-results/kotlin \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithKtsGradle" > test-results/kotlin/test_output.txt 2>&1 || KOTLIN_EXIT_CODE=$?
+            --test-targets "class org.appdevforall.codeonthego.ProjectBuildTestWithKtsGradle" > test-results/kotlin/test_output.txt 2>&1 || KOTLIN_EXIT_CODE=$?
           
           echo "Kotlin tests exit code: $KOTLIN_EXIT_CODE"
           
@@ -129,7 +129,7 @@ jobs:
             --results-dir=test-results/groovy \
             --results-bucket=gs://firebase-test-results-${RANDOM} \
             --project=codeonthego-64a92 \
-            --test-targets "class com.itsaky.androidide.ProjectBuildTestWithGroovyGradle" > test-results/groovy/test_output.txt 2>&1 || GROOVY_EXIT_CODE=$?
+            --test-targets "class org.appdevforall.codeonthego.ProjectBuildTestWithGroovyGradle" > test-results/groovy/test_output.txt 2>&1 || GROOVY_EXIT_CODE=$?
           
           echo "Groovy tests exit code: $GROOVY_EXIT_CODE"
           

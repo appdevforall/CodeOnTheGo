@@ -23,7 +23,7 @@ One declaration a reference resolved to. A reference normally has exactly one; a
 _Avoid_: match, result, hit.
 
 **Location**:
-The existing `com.itsaky.androidide.models.Location` (file + range) that a candidate is converted into for transport to the editor. A candidate has a location only if its declaration lives in a workspace source.
+The existing `org.appdevforall.codeonthego.models.Location` (file + range) that a candidate is converted into for transport to the editor. A candidate has a location only if its declaration lives in a workspace source.
 _Avoid_: position, target, site.
 
 **Workspace source**:

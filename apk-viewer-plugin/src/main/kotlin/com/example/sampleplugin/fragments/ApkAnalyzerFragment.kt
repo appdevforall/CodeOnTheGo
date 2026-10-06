@@ -24,7 +24,7 @@ import com.example.sampleplugin.R
 import com.example.sampleplugin.viewmodel.ApkAnalyzerViewModel
 import com.example.sampleplugin.viewmodel.ApkParseResult
 import com.google.android.material.color.MaterialColors
-import com.itsaky.androidide.plugins.base.PluginFragmentHelper
+import org.appdevforall.codeonthego.plugins.base.PluginFragmentHelper
 import kotlinx.coroutines.launch
 
 data class TableSection(

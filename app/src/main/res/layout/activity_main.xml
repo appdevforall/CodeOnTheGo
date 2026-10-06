@@ -41,43 +41,43 @@
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/main"
-            android:name="com.itsaky.androidide.fragments.MainFragment"
+            android:name="org.appdevforall.codeonthego.fragments.MainFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/template_list"
-            android:name="com.itsaky.androidide.fragments.TemplateListFragment"
+            android:name="org.appdevforall.codeonthego.fragments.TemplateListFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/template_details"
-            android:name="com.itsaky.androidide.fragments.TemplateDetailsFragment"
+            android:name="org.appdevforall.codeonthego.fragments.TemplateDetailsFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/tooltip_web_view"
-            android:name="com.itsaky.androidide.fragments.IDETooltipWebviewFragment"
+            android:name="org.appdevforall.codeonthego.fragments.IDETooltipWebviewFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/saved_projects_view"
-            android:name="com.itsaky.androidide.fragments.RecentProjectsFragment"
+            android:name="org.appdevforall.codeonthego.fragments.RecentProjectsFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/delete_projects_view"
-            android:name="com.itsaky.androidide.fragments.DeleteProjectFragment"
+            android:name="org.appdevforall.codeonthego.fragments.DeleteProjectFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/clone_repository_view"
-            android:name="com.itsaky.androidide.fragments.CloneRepositoryFragment"
+            android:name="org.appdevforall.codeonthego.fragments.CloneRepositoryFragment"
             android:layout_width="match_parent"
             android:layout_height="match_parent" 
             android:visibility="gone" />

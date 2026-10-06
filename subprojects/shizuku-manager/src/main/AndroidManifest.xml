@@ -10,30 +10,30 @@
 		android:name="android.permission.WRITE_SECURE_SETTINGS"
 		tools:ignore="ProtectedPermissions" />
 
-	<permission-group android:name="com.itsaky.androidide.shizuku.permission-group.SHIZUKU_API" />
+	<permission-group android:name="org.appdevforall.codeonthego.shizuku.permission-group.SHIZUKU_API" />
 
 	<permission
-		android:name="com.itsaky.androidide.shizuku.permission.SHIZUKU_MANAGER"
+		android:name="org.appdevforall.codeonthego.shizuku.permission.SHIZUKU_MANAGER"
 		android:protectionLevel="signature" />
 
-	<uses-permission android:name="com.itsaky.androidide.shizuku.permission.SHIZUKU_MANAGER" />
+	<uses-permission android:name="org.appdevforall.codeonthego.shizuku.permission.SHIZUKU_MANAGER" />
 
 	<permission
-		android:name="com.itsaky.androidide.shizuku.permission.SHIZUKU_API_V23"
-		android:permissionGroup="com.itsaky.androidide.shizuku.permission-group.SHIZUKU_API"
+		android:name="org.appdevforall.codeonthego.shizuku.permission.SHIZUKU_API_V23"
+		android:permissionGroup="org.appdevforall.codeonthego.shizuku.permission-group.SHIZUKU_API"
 		android:protectionLevel="signature" />
 
 	<uses-permission
-		android:name="com.itsaky.androidide.shizuku.permission.SHIZUKU_API_V23"
+		android:name="org.appdevforall.codeonthego.shizuku.permission.SHIZUKU_API_V23"
 		tools:node="remove" />
 
 	<permission
-		android:name="com.itsaky.androidide.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+		android:name="org.appdevforall.codeonthego.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 		android:protectionLevel="signature"
 		tools:node="remove" />
 
 	<uses-permission
-		android:name="com.itsaky.androidide.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+		android:name="org.appdevforall.codeonthego.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 		tools:node="remove" />
 
 	<application android:directBootAware="true">
@@ -56,7 +56,7 @@
 		</receiver>
 		<provider
 			android:name=".ShizukuManagerProvider"
-			android:authorities="com.itsaky.androidide.shizuku"
+			android:authorities="org.appdevforall.codeonthego.shizuku"
 			android:directBootAware="true"
 			android:enabled="true"
 			android:exported="true"

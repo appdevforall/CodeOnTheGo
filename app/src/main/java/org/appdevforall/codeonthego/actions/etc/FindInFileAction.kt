@@ -1,0 +1,52 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package org.appdevforall.codeonthego.actions.etc
+
+import android.content.Context
+import androidx.core.content.ContextCompat
+import org.appdevforall.codeonthego.actions.ActionData
+import org.appdevforall.codeonthego.actions.ActionItem
+import org.appdevforall.codeonthego.actions.EditorRelatedAction
+import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import com.itsaky.androidide.resources.R
+
+/** @author Akash Yadav */
+class FindInFileAction() : EditorRelatedAction() {
+
+  override val id: String = ID
+  override var requiresUIThread: Boolean = true
+  override var location: ActionItem.Location = ActionItem.Location.EDITOR_FIND_ACTION_MENU
+  override var order: Int = 0
+  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE
+
+  companion object{
+    const val ID = "ide.editor.find.inFile"
+  }
+
+  constructor(context: Context, order: Int) : this() {
+    this.label = context.getString(R.string.menu_find_file)
+    this.icon = ContextCompat.getDrawable(context, R.drawable.ic_search_file)
+    this.order = order
+  }
+
+  override suspend fun execAction(data: ActionData): Boolean {
+    val editor = data.getEditorView() ?: return false
+    editor.beginSearch()
+    return true
+  }
+}

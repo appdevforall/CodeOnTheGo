@@ -1,0 +1,78 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package org.appdevforall.codeonthego.actions.build
+
+import android.content.Context
+import androidx.core.content.ContextCompat
+import org.appdevforall.codeonthego.actions.ActionData
+import org.appdevforall.codeonthego.actions.BaseBuildAction
+import org.appdevforall.codeonthego.fragments.RunTasksDialogFragment
+import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import com.itsaky.androidide.resources.R
+
+/** @author Akash Yadav */
+class RunTasksAction(
+	context: Context,
+	override val order: Int,
+) : BaseBuildAction() {
+	override val id: String = ID
+
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.PROJECT_GRADLE_TASKS
+
+	private var dialog: RunTasksDialogFragment? = null
+
+	companion object {
+		const val ID = "ide.editor.build.runTasks"
+	}
+
+	init {
+		label = context.getString(R.string.title_run_tasks)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_run_tasks)
+	}
+
+	override suspend fun execAction(data: ActionData): Any {
+		if (refuseWhileSlotBusy(data)) return false
+		data.requireActivity().saveAll(requestSync = false)
+		dialog?.dismiss()
+		dialog = null
+		dialog = RunTasksDialogFragment()
+		return dialog!!
+	}
+
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is RunTasksDialogFragment) {
+			return
+		}
+
+		val activity = data.getActivity()!!
+		result.show(activity.supportFragmentManager, this.id)
+	}
+
+	override fun destroy() {
+		super.destroy()
+		try {
+			dialog?.dismiss()
+		} catch (e: Exception) {
+			// ignored
+		}
+		dialog = null
+	}
+}

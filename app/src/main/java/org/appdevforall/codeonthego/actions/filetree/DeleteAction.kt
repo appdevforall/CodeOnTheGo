@@ -1,0 +1,114 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package org.appdevforall.codeonthego.actions.filetree
+
+import android.app.ProgressDialog
+import android.content.Context
+import org.appdevforall.codeonthego.actions.ActionData
+import org.appdevforall.codeonthego.actions.requireFile
+import org.appdevforall.codeonthego.eventbus.events.file.FileDeletionEvent
+import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.idetooltips.attachTooltip
+import org.appdevforall.codeonthego.projects.FileManager
+import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.tasks.executeAsync
+import org.appdevforall.codeonthego.utils.DialogUtils
+import org.appdevforall.codeonthego.utils.FileUtils
+import org.appdevforall.codeonthego.utils.FlashType
+import org.appdevforall.codeonthego.utils.flashMessage
+import org.greenrobot.eventbus.EventBus
+import java.io.File
+
+/**
+ * File tree action to delete files.
+ *
+ * @author Akash Yadav
+ */
+class DeleteAction(
+	context: Context,
+	override val order: Int,
+) : BaseFileTreeAction(context, labelRes = R.string.delete_file, iconRes = R.drawable.ic_delete) {
+	override val id: String = "ide.editor.fileTree.delete"
+
+	override fun retrieveTooltipTag(isAlternateContext: Boolean): String = TooltipTag.PROJECT_ITEM_DELETE
+
+	override suspend fun execAction(data: ActionData) {
+		val context = data.requireActivity()
+		val file = data.requireFile()
+		val lastHeld = data.getTreeNode()
+		DialogUtils
+			.newMaterialDialogBuilder(context)
+			.setNegativeButton(R.string.no, null)
+			.setPositiveButton(R.string.yes) { dialogInterface, _ ->
+				dialogInterface.dismiss()
+				@Suppress("DEPRECATION")
+				val progressDialog =
+					ProgressDialog.show(context, null, context.getString(R.string.please_wait), true, false)
+				executeAsync({ FileUtils.delete(file) }) {
+					progressDialog.dismiss()
+
+					val deleted = it ?: false
+
+					flashMessage(
+						if (deleted) R.string.deleted else R.string.delete_failed,
+						if (deleted) FlashType.SUCCESS else FlashType.ERROR,
+					)
+
+					if (!deleted) {
+						return@executeAsync
+					}
+
+					notifyFileDeleted(file, context)
+
+					if (lastHeld != null) {
+						val parent = lastHeld.parent
+						parent.deleteChild(lastHeld)
+						requestExpandNode(parent)
+					} else {
+						requestFileListing()
+					}
+
+					val frag = context.getEditorForFile(file)
+					if (frag != null) {
+						context.closeFile(context.findIndexOfEditorByFile(frag.file))
+					}
+				}
+			}.setTitle(R.string.title_confirm_delete)
+			.setMessage(
+				context.getString(
+					R.string.msg_confirm_delete,
+					String.format("%s [%s]", file.name, file.absolutePath),
+				),
+			).setCancelable(false)
+			.create()
+			.attachTooltip(TooltipTag.PROJECT_CONFIRM_DELETE)
+			.show()
+	}
+
+	private fun notifyFileDeleted(
+		file: File,
+		context: Context,
+	) {
+		val deletionEvent = FileDeletionEvent(file)
+
+		// Notify FileManager first
+		FileManager.onFileDeleted(deletionEvent)
+
+		EventBus.getDefault().post(deletionEvent.putData(context))
+	}
+}

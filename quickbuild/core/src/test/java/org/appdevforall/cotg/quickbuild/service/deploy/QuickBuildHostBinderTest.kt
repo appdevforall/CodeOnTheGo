@@ -4,7 +4,7 @@ import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.RemoteException
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.quickbuild.IQuickBuildTarget
+import org.appdevforall.codeonthego.quickbuild.IQuickBuildTarget
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher

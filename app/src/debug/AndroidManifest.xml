@@ -22,7 +22,7 @@
             android:permission="android.permission.DUMP"
             android:theme="@android:style/Theme.NoDisplay">
             <intent-filter>
-                <action android:name="com.itsaky.androidide.quickbuild.action.BENCH_OPEN_PROJECT" />
+                <action android:name="org.appdevforall.codeonthego.quickbuild.action.BENCH_OPEN_PROJECT" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

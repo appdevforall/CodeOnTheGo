@@ -33,14 +33,14 @@ my-plugin/
         └── values/
 ```
 
-The build is wired up by applying `com.itsaky.androidide.plugins.build`
+The build is wired up by applying `org.appdevforall.codeonthego.plugins.build`
 in `build.gradle.kts`:
 
 ```kotlin
 plugins {
     id("com.android.application") version "8.8.2"
     id("org.jetbrains.kotlin.android") version "2.3.0"
-    id("com.itsaky.androidide.plugins.build")
+    id("org.appdevforall.codeonthego.plugins.build")
 }
 
 pluginBuilder {
@@ -57,14 +57,14 @@ resolves offline, with no `libs/*.jar` to commit:
 
 ```kotlin
 dependencies {
-    compileOnly("com.itsaky.androidide:plugin-api:1.0.0")
+    compileOnly("org.appdevforall.codeonthego:plugin-api:1.0.0")
 }
 ```
 
 `plugin-api:1.0.0` is a single jar bundling the API surface plugins compile
 against — the `:plugin-api` module plus `common`, `eventbus-events`, and
 `idetooltips`. The builder plugin applied above resolves the same way, from the
-injected `com.itsaky.androidide.plugins.build` `1.0.0` marker.
+injected `org.appdevforall.codeonthego.plugins.build` `1.0.0` marker.
 
 #### Building on-device (offline) pins the AGP/Kotlin/Gradle versions
 

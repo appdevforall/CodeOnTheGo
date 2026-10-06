@@ -45,7 +45,7 @@ answers.
 6. **Is the app on screen actually the proxy app?** A Standard Run install occupies the same
    package slot, so both look identical from the launcher. Three markers:
    - the installed package declares `android:appComponentFactory` =
-     `com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory`
+     `org.appdevforall.codeonthego.quickbuild.runtime.QuickBuildAppComponentFactory`
      ([`RealIdInstall.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/reload/RealIdInstall.kt));
    - it logs under the tag `QB-Runtime`;
    - it has a `files/quickbuild/payload/` directory once a deploy has landed.
@@ -298,16 +298,16 @@ worst open one of the user's own projects
 
 ```bash
 adb shell am start-activity \
-  -a com.itsaky.androidide.quickbuild.action.BENCH_OPEN_PROJECT \
+  -a org.appdevforall.codeonthego.quickbuild.action.BENCH_OPEN_PROJECT \
   -n com.itsaky.androidide/.quickbuild.QuickBuildBenchActivity \
-  --es com.itsaky.androidide.quickbuild.extra.PROJECT_PATH \
+  --es org.appdevforall.codeonthego.quickbuild.extra.PROJECT_PATH \
      /storage/emulated/0/CodeOnTheGoProjects/<project>
 ```
 
 - **Idempotent.** Re-sending for the already-open, already-initialized project just taps Quick
   Build again, so a session can be retried (after an install-confirm timeout, say) without a
   force-stop and full re-open.
-- **Optional `--es com.itsaky.androidide.quickbuild.extra.MODE <mode>`**, either `quickbuild`
+- **Optional `--es org.appdevforall.codeonthego.quickbuild.extra.MODE <mode>`**, either `quickbuild`
   (the default) or `standard`. `standard` fires the normal Run button instead, which is how a
   standard build is measured on the same warm daemon. An unknown value rejects the intent
   outright.

@@ -1,0 +1,289 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package org.appdevforall.codeonthego.services.builder
+
+import android.content.Context
+import org.appdevforall.codeonthego.logging.provider.IdeLogRouter
+import org.appdevforall.codeonthego.managers.ToolsManager
+import org.appdevforall.codeonthego.tasks.cancelIfActive
+import org.appdevforall.codeonthego.tasks.ifCancelledOrInterrupted
+import org.appdevforall.codeonthego.tooling.api.IToolingApiClient
+import org.appdevforall.codeonthego.tooling.api.IToolingApiServer
+import org.appdevforall.codeonthego.tooling.api.util.ToolingApiLauncher
+import org.appdevforall.codeonthego.tooling.api.util.ToolingProps
+import org.appdevforall.codeonthego.utils.Environment
+import org.appdevforall.codeonthego.utils.FeatureFlags
+import com.termux.shared.reflection.ReflectionUtils
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
+import java.io.InputStream
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * Runner thread for the Tooling API.
+ *
+ * @author Akash Yadav
+ */
+internal class ToolingServerRunner(
+	private var listener: OnServerStartListener?,
+	private var observer: Observer?,
+	private val context: Context,
+	/** Starts the server JVM; a seam so a test can hand the runner a process it controls. */
+	private val startProcess: (command: List<String>, environment: Map<String, String>) -> Process =
+		::launchToolingProcess,
+) {
+	/**
+	 * The server process's pid, or `null` before it has started.
+	 *
+	 * Volatile for the same reason as [GradleBuildService.gradleDaemonPid]: [startAsync] writes it
+	 * from a coroutine on [runnerScope], and the editor reads it on the main thread when it
+	 * re-adopts the watched processes after being recreated.
+	 */
+	@Volatile
+	internal var pid: Int? = null
+	private var job: Job? = null
+	private var _isStarted = AtomicBoolean(false)
+
+	var isStarted: Boolean
+		get() = _isStarted.get()
+		private set(value) {
+			_isStarted.set(value)
+		}
+
+	private val runnerScope = CoroutineScope(Dispatchers.IO + CoroutineName("ToolingServerRunner"))
+
+	companion object {
+		private val log = LoggerFactory.getLogger(ToolingServerRunner::class.java)
+
+		/**
+		 * Whether to enable logging of the error stream of the tooling server.
+		 */
+		val TOOLING_ERR_STREAM_LOGGING_ENABLED = FeatureFlags.isDebugLoggingEnabled
+
+		/**
+		 * Whether to enable force killing the Gradle daemon.
+		 */
+		const val TOOLING_DAEMON_KILL_ENABLED = true
+
+		/**
+		 * Timeout for killing the tooling daemon. The tooling API waits for this timeout before
+		 * forcibly killing the daemon process tree if it's still alive.
+		 */
+		val TOOLING_DAEMON_KILL_TIMEOUT = 3.seconds
+
+		/**
+		 * Android/ART classpath variables must not be inherited by the standalone
+		 * OpenJDK process used for the tooling API. Some OEM framework images contain
+		 * stale entries here (for example Huawei/Honor UniPerf classes) that can make
+		 * native ART registration abort the JVM before the server starts.
+		 */
+		private val ANDROID_RUNTIME_ENV_KEYS =
+			setOf(
+				"BOOTCLASSPATH",
+				"DEX2OATBOOTCLASSPATH",
+				"SYSTEMSERVERCLASSPATH",
+				"STANDALONE_SYSTEMSERVER_JARS",
+				"CLASSPATH",
+			)
+	}
+
+	fun setListener(listener: OnServerStartListener?) {
+		this.listener = listener
+	}
+
+	fun startAsync(envs: Map<String, String>) =
+		runnerScope
+			.launch {
+				var process: Process?
+				var exitCode: Int? = null
+				try {
+					log.info("Starting tooling API server...")
+					// The bundled jar is extracted asynchronously at app init, and nothing else
+					// orders that against this launch. On an APK update the PREVIOUS install's jar
+					// still sits at the final path until that extraction renames over it, so
+					// launching first would run the prior APK's tooling server for the whole
+					// session. This is stamp-guarded and idempotent - a no-op once init has done
+					// it, the extraction itself when it has not - and we are on Dispatchers.IO.
+					if (!ToolsManager.ensureToolingJar(context)) {
+						log.error("Could not confirm the tooling API jar is from this install; starting it anyway")
+					}
+					val command =
+						listOf(
+							Environment.JAVA.absolutePath, // The 'java' binary executable
+							// Allow reflective access to private members of classes in the following
+							// packages:
+							// - java.lang
+							// - java.io
+							// - java.util
+							//
+							// If any of the model classes in 'tooling-api-model' module send/receive
+							// objects from the JDK, their package name must be declared here with
+							// '--add-opens' to prevent InaccessibleObjectException.
+							// For example, some of the model classes has members of type java.io.File.
+							// When sending/receiving these type of objects using LSP4J, members of
+							// these objects are reflectively accessed by Gson. If we do no specify
+							// '--add-opens' for 'java.io' (for java.io.File) package, JVM will throw an
+							// InaccessibleObjectException.
+							"--add-opens",
+							"java.base/java.lang=ALL-UNNAMED",
+							"--add-opens",
+							"java.base/java.util=ALL-UNNAMED",
+							"--add-opens",
+							"java.base/java.io=ALL-UNNAMED", // The JAR file to run
+							"-D${ToolingProps.DAEMON_FORCE_KILL}=${TOOLING_DAEMON_KILL_ENABLED}",
+							"-D${ToolingProps.DESCENDANT_FORCE_KILL_TIMEOUT_MS}=${TOOLING_DAEMON_KILL_TIMEOUT.inWholeMilliseconds}",
+							"-D${IdeLogRouter.PROP_JVM_STDERR_ENABLED}=${TOOLING_ERR_STREAM_LOGGING_ENABLED}",
+							"-jar",
+							Environment.TOOLING_API_JAR.absolutePath,
+						)
+
+					val sanitizedEnv = envs.filterKeys { it !in ANDROID_RUNTIME_ENV_KEYS }
+
+					process = startProcess(command, sanitizedEnv)
+
+					pid =
+						ReflectionUtils
+							.getDeclaredField(process::class.java, "pid")
+							?.get(process) as Int?
+					pid ?: throw IllegalStateException("Unable to get process ID")
+
+					log.info("Tooling API server running with PID: {}", pid)
+
+					val inputStream = process.inputStream
+					val outputStream = process.outputStream
+					val errorStream = process.errorStream
+
+					val processJob =
+						launch(Dispatchers.IO) {
+							try {
+								exitCode = process?.waitFor()
+								log.info("Tooling API process exited with code : {}", exitCode ?: "<unknown>")
+								process = null
+							} finally {
+								log.info("Destroying Tooling API process...")
+								process?.destroyForcibly()
+							}
+						}
+
+					val launcher =
+						ToolingApiLauncher.newClientLauncher(
+							observer!!.getClient(),
+							inputStream,
+							outputStream,
+						)
+
+					val future = launcher.startListening()
+					observer?.onListenerStarted(
+						server = launcher.remoteProxy as IToolingApiServer,
+						errorStream = errorStream,
+					)
+
+					isStarted = true
+
+					listener?.onServerStarted(pid!!)
+
+					// we don't need the listener anymore
+					// also, this might be a reference to the activity
+					// release to prevent memory leak
+					listener = null
+
+					// Wait(block) until the process terminates
+					val serverJob =
+						launch(Dispatchers.IO) {
+							try {
+								future.get()
+							} catch (err: Throwable) {
+								err.ifCancelledOrInterrupted {
+									log.info("ToolingServerThread has been cancelled or interrupted.")
+								}
+
+								// rethrow the error
+								throw err
+							}
+						}
+
+					joinAll(serverJob, processJob)
+				} catch (e: Throwable) {
+					if (e !is CancellationException) {
+						log.error("Unable to start tooling API server", e)
+					}
+				} finally {
+					// Here rather than in processJob: a JVM that dies at once (java -jar on a
+					// missing jar) would otherwise reset before isStarted is set above, and the
+					// dead process would read as started for the rest of the session.
+					isStarted = false
+					pid = null
+					exitCode?.let { observer?.onServerExited(it) }
+				}
+			}.also {
+				job = it
+			}
+
+	fun release() {
+		this.listener = null
+		this.observer = null
+		this.job?.cancel(CancellationException("Cancellation was requested"))
+		this.runnerScope.cancelIfActive("Cancellation was requested")
+	}
+
+	interface Observer {
+		fun onListenerStarted(
+			server: IToolingApiServer,
+			errorStream: InputStream,
+		)
+
+		/**
+		 * Called once the server process is gone and the runner has cleared [isStarted] and [pid].
+		 * Not called when [release] ends the runner, since the observer is dropped first.
+		 */
+		fun onServerExited(exitCode: Int)
+
+		fun getClient(): IToolingApiClient
+	}
+
+	/** Callback to listen for Tooling API server start event.  */
+	fun interface OnServerStartListener {
+		/** Called when the tooling API server has been successfully started.  */
+		fun onServerStarted(pid: Int)
+	}
+}
+
+private fun launchToolingProcess(
+	command: List<String>,
+	environment: Map<String, String>,
+): Process =
+	ProcessBuilder(command).run {
+		// input and output is used for communication to the tooling server
+		// error stream is used to read the server logs
+		redirectErrorStream(false)
+		directory(Environment.HOME)
+
+		// Do not inherit the app process environment. Inheriting Android runtime
+		// classpath variables can crash the standalone OpenJDK process on some
+		// OEM images before our tooling server is initialized.
+		environment().clear()
+		environment().putAll(environment)
+		start()
+	}

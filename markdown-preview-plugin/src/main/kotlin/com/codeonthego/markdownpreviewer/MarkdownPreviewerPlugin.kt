@@ -1,16 +1,16 @@
 package com.codeonthego.markdownpreviewer
 
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.plugins.IPlugin
-import com.itsaky.androidide.plugins.PluginContext
-import com.itsaky.androidide.plugins.extensions.UIExtension
-import com.itsaky.androidide.plugins.extensions.EditorTabExtension
-import com.itsaky.androidide.plugins.extensions.MenuItem
-import com.itsaky.androidide.plugins.extensions.TabItem
-import com.itsaky.androidide.plugins.extensions.EditorTabItem
-import com.itsaky.androidide.plugins.extensions.NavigationItem
-import com.itsaky.androidide.plugins.extensions.ContextMenuContext
-import com.itsaky.androidide.plugins.services.IdeEditorTabService
+import org.appdevforall.codeonthego.plugins.IPlugin
+import org.appdevforall.codeonthego.plugins.PluginContext
+import org.appdevforall.codeonthego.plugins.extensions.UIExtension
+import org.appdevforall.codeonthego.plugins.extensions.EditorTabExtension
+import org.appdevforall.codeonthego.plugins.extensions.MenuItem
+import org.appdevforall.codeonthego.plugins.extensions.TabItem
+import org.appdevforall.codeonthego.plugins.extensions.EditorTabItem
+import org.appdevforall.codeonthego.plugins.extensions.NavigationItem
+import org.appdevforall.codeonthego.plugins.extensions.ContextMenuContext
+import org.appdevforall.codeonthego.plugins.services.IdeEditorTabService
 import com.codeonthego.markdownpreviewer.fragments.MarkdownPreviewFragment
 import java.io.File
 

@@ -41,7 +41,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />
 
-      <com.itsaky.androidide.ui.BottomInsetHeightDistributor
+      <org.appdevforall.codeonthego.ui.BottomInsetHeightDistributor
         android:layout_width="match_parent"
         android:layout_height="0dp" />
 

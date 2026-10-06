@@ -2,7 +2,7 @@
 
 	<application>
 		<activity
-			android:name="com.itsaky.androidide.testing.android.TestActivity"
+			android:name="org.appdevforall.codeonthego.testing.android.TestActivity"
 			android:exported="true">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
@@ -10,7 +10,7 @@
 			</intent-filter>
 		</activity>
 		<activity
-			android:name="com.itsaky.androidide.testing.android.TestAppCompatActivity"
+			android:name="org.appdevforall.codeonthego.testing.android.TestAppCompatActivity"
 			android:exported="true">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
@@ -18,7 +18,7 @@
 			</intent-filter>
 		</activity>
 		<activity
-			android:name="com.itsaky.androidide.testing.android.TestMaterialActivity"
+			android:name="org.appdevforall.codeonthego.testing.android.TestMaterialActivity"
 			android:exported="true"
 			android:theme="@style/Theme.AndroidIDE">
 			<intent-filter>

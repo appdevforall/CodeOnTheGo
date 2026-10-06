@@ -1,1 +1,1 @@
--keep class com.itsaky.androidide.lsp.debug.model.ThreadState { *; }
+-keep class org.appdevforall.codeonthego.lsp.debug.model.ThreadState { *; }

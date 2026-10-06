@@ -1,0 +1,87 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package org.appdevforall.codeonthego.utils
+
+/**
+ * Mutable version of [ShiftedLongArray].
+ *
+ * @author Akash Yadav
+ */
+class MutableShiftedLongArray(
+	array: LongArray,
+	shift: Int = 0,
+) : ShiftedLongArray(array, shift) {
+	/**
+	 * @param capacity The capacity of the array.
+	 * @param shift The shift amount.
+	 * @param init A function to initialize the values of the array.
+	 */
+	constructor(capacity: Int, shift: Int = 0, init: (Int) -> Long = { 0 }) : this(
+		LongArray(capacity, init),
+		shift,
+	)
+
+	operator fun set(
+		index: Int,
+		value: Long,
+	) {
+		checkIdx(index)
+		array[getShiftedIndex(index)] = value
+	}
+
+	/**
+	 * Sets the given value at the specified absolute (un-shifted) index.
+	 */
+	fun setAbsolute(
+		index: Int,
+		value: Long,
+	) {
+		array[index] = value
+	}
+
+	/**
+	 * An independent copy, in the same logical order.
+	 *
+	 * For handing a reader a stable view while the sampler keeps appending to this one. The copy
+	 * carries no shift, so index 0 is the oldest entry in it.
+	 */
+	fun copy(): MutableShiftedLongArray = MutableShiftedLongArray(LongArray(size) { this[it] })
+
+	/**
+	 * Fills every element with [fillWith] and returns the shift to its starting position, so the
+	 * array reads as though nothing had ever been recorded.
+	 *
+	 * The fill value is a parameter because zero is a measurement for some series and an absence
+	 * for others: a memory buffer of zeros means "no memory used", while a temperature buffer of
+	 * zeros would plot a flat 0 C line and present it as a reading (ADFA-5499).
+	 */
+	@JvmOverloads
+	fun clear(fillWith: Long = 0L) {
+		array.fill(fillWith)
+		shift = 0
+	}
+
+	/**
+	 * Shifts the array by the specified amount. The shift amount is added to the current shift.
+	 *
+	 * @param shift The shift amount.
+	 */
+	fun shift(shift: Int) {
+		this.shift = (this.shift + shift) % size
+	}
+}

@@ -4,8 +4,8 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
-import com.itsaky.androidide.quickbuild.IQuickBuildHost
-import com.itsaky.androidide.quickbuild.IQuickBuildTarget
+import org.appdevforall.codeonthego.quickbuild.IQuickBuildHost
+import org.appdevforall.codeonthego.quickbuild.IQuickBuildTarget
 import org.slf4j.LoggerFactory
 
 /**
@@ -169,6 +169,6 @@ class QuickBuildHostService : Service() {
 		private val log = LoggerFactory.getLogger("QB-HostService")
 
 		/** Matches the manifest intent-filter and the runtime's bind intent. */
-		const val ACTION_QUICK_BUILD = "com.itsaky.androidide.QUICK_BUILD_ACTION"
+		const val ACTION_QUICK_BUILD = "org.appdevforall.codeonthego.QUICK_BUILD_ACTION"
 	}
 }

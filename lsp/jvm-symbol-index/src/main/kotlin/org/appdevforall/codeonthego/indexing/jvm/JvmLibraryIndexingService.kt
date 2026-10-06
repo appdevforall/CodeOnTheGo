@@ -1,11 +1,11 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
-import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.projects.api.AndroidModule
-import com.itsaky.androidide.projects.api.ModuleProject
-import com.itsaky.androidide.projects.models.bootClassPaths
-import com.itsaky.androidide.tasks.cancelIfActive
+import org.appdevforall.codeonthego.projects.ProjectManagerImpl
+import org.appdevforall.codeonthego.projects.api.AndroidModule
+import org.appdevforall.codeonthego.projects.api.ModuleProject
+import org.appdevforall.codeonthego.projects.models.bootClassPaths
+import org.appdevforall.codeonthego.tasks.cancelIfActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

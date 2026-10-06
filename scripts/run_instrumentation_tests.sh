@@ -31,7 +31,7 @@ DEVICE=true
 # The task for installing the tools in the emulator
 INSTALLER_TEST_TASK_NAME=":app:connectedArm64-v8aDebugAndroidTest"
 # Fully qualified name of the class which install installs the build tools
-INSTALLER_TEST_CLASS_NAME="com.itsaky.androidide.BuildToolsInstallerTest"
+INSTALLER_TEST_CLASS_NAME="org.appdevforall.codeonthego.BuildToolsInstallerTest"
 
 # Common Gradle invocation arguments
 GRADLE_INVOCATION_ARGS="--scan --continue --no-configuration-cache --stacktrace"

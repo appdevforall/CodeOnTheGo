@@ -1,0 +1,618 @@
+package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
+
+import com.github.benmanes.caffeine.cache.Caffeine
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.CompilationKind
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPriority
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.KtModule
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.UnpinnedAnalysis
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.analyzeMaybeDangling
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.backingFilePath
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.read
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.services.ProjectStructureProvider
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.write
+import org.appdevforall.codeonthego.lsp.kotlin.utils.toVirtualFileOrNull
+import org.appdevforall.codeonthego.projects.FileManager
+import org.appdevforall.codeonthego.utils.DocumentUtils
+import io.sentry.Sentry
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
+import org.checkerframework.checker.index.qual.NonNegative
+import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.analysis.api.platform.modification.KaElementModificationType
+import org.jetbrains.kotlin.analysis.api.platform.modification.KaSourceModificationService
+import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
+import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
+import org.jetbrains.kotlin.com.intellij.openapi.project.Project
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
+import org.jetbrains.kotlin.com.intellij.psi.PsiManager
+import org.jetbrains.kotlin.com.intellij.psi.impl.PsiManagerEx
+import org.jetbrains.kotlin.com.intellij.psi.impl.file.impl.FileManagerImpl
+import org.jetbrains.kotlin.psi.KtElement
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtPsiFactory
+import org.slf4j.LoggerFactory
+import java.nio.file.Path
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import kotlin.io.path.pathString
+
+/**
+ * An index of symbols from Kotlin source files and JARs.
+ *
+ * NOTE: This index does not own the provided [fileIndex], [sourceIndex] and [libraryIndex].
+ * Callers are responsible for closing the provided indexes.
+ */
+internal class KtSymbolIndex(
+	val kind: CompilationKind,
+	val project: Project,
+	modules: List<KtModule>,
+	val fileIndex: KtFileMetadataIndex,
+	val sourceIndex: JvmSymbolIndex,
+	val libraryIndex: JvmSymbolIndex,
+	cacheSize: @NonNegative Long = DEFAULT_CACHE_SIZE,
+	private val scope: CoroutineScope =
+		CoroutineScope(
+			Dispatchers.Default + SupervisorJob() +
+				CoroutineName(
+					"KtSymbolIndex",
+				),
+		),
+) {
+	companion object {
+		private val logger = LoggerFactory.getLogger(KtSymbolIndex::class.java)
+		const val DEFAULT_CACHE_SIZE = 100L
+		private const val CLOSE_DRAIN_TIMEOUT_SECONDS = 5L
+
+		/** Pin version stamp for a path with no open document, which no real version can equal. */
+		private const val NO_DOCUMENT_VERSION = -1
+	}
+
+	private val workerQueue = WorkerQueue<IndexCommand>()
+	private val indexWorker =
+		IndexWorker(
+			project = project,
+			queue = workerQueue,
+			fileIndex = fileIndex,
+			sourceIndex = sourceIndex,
+			scope = scope,
+		)
+
+	private val scanningWorker =
+		ScanningWorker(
+			kind = kind,
+			sourceIndex = sourceIndex,
+			indexWorker = indexWorker,
+			modules = modules,
+		)
+
+	private var scanningJob: Job? = null
+	private var indexingJob: Job? = null
+
+	private val ktFileCache =
+		Caffeine
+			.newBuilder()
+			.maximumSize(cacheSize)
+			.build<Path, KtFile>()
+
+	/** Set by AbstractCompilationEnvironment.initialize once the env's KtPsiFactory exists. */
+	lateinit var parser: KtPsiFactory
+
+	private data class VersionedKtFile(
+		val version: Int,
+		val ktFile: KtFile,
+	)
+
+	private val refreshExecutor: ExecutorService =
+		Executors.newFixedThreadPool(2) { r -> Thread(r, "KtCurrentFileRefresh").apply { isDaemon = true } }
+
+	/** path -> in-flight/last-launched refresh; mutated only inside the per-key `compute` below. */
+	private val currentFiles = ConcurrentHashMap<Path, CompletableFuture<VersionedKtFile>>()
+
+	/** path -> last-launched version; read/written only inside that same `compute` section. */
+	private val currentVersions = ConcurrentHashMap<Path, Int>()
+
+	/**
+	 * path -> the instance pinned for the duration of one or more open [LiveKtFile] scopes.
+	 *
+	 * A pinned path is frozen: [getCurrentKtFile] hands back the pinned instance rather than minting a
+	 * new one for a newer document version, and [getKtFile] resolves to it too, so an analysis and the
+	 * declaration provider cannot disagree about which instance is the file. The refresh a version bump
+	 * would have triggered is recorded and launched when the last scope closes.
+	 *
+	 * That deferral is best-effort, not a guarantee: [getCurrentKtFile] reads the pin outside the map's
+	 * atomic section, so a bump observed exactly as the last scope releases can be recorded on an entry
+	 * that has already been removed, and lost. It self-heals - [currentVersions] still holds the older
+	 * version, so the next request for the path refreshes.
+	 */
+	private val pins = ConcurrentHashMap<Path, Pin>()
+
+	private class Pin(
+		val file: KtFile,
+		val version: Int,
+	) {
+		var count: Int = 0
+
+		/** Written outside the map's `compute` section, by whichever thread observes the version bump. */
+		@Volatile
+		var refreshOwed: Boolean = false
+	}
+
+	fun syncIndexInBackground() {
+		indexingJob?.cancel()
+		startIndexing()
+
+		scanningJob?.cancel()
+		startScanning()
+	}
+
+	private fun startIndexing() {
+		val job =
+			scope.launch {
+				try {
+					indexWorker.start()
+				} finally {
+					if (indexingJob === coroutineContext[Job]) {
+						indexingJob = null
+					}
+				}
+			}
+
+		indexingJob = job
+	}
+
+	private fun startScanning() {
+		scanningJob =
+			scope.launch {
+				try {
+					scanningWorker.scan()
+				} finally {
+					if (scanningJob === coroutineContext[Job]) {
+						scanningJob = null
+					}
+				}
+			}
+	}
+
+	fun refreshSources() {
+		Sentry.addBreadcrumb("KtSymbolIndex.refreshSources()")
+		indexingJob ?: startIndexing()
+
+		scanningJob?.cancel()
+		startScanning()
+	}
+
+	private fun getVirtualFileOrWarn(path: Path): VirtualFile? =
+		path.toVirtualFileOrNull() ?: run {
+			logger.warn("unable to find virtual file for path {}", path)
+			null
+		}
+
+	suspend fun submitForIndexing(path: Path) {
+		val vf = getVirtualFileOrWarn(path) ?: return
+		indexWorker.apply {
+			submitCommand(IndexCommand.ScanSourceFile(vf))
+			submitCommand(IndexCommand.IndexSourceFile(vf))
+		}
+	}
+
+	suspend fun removeFromIndex(path: Path) {
+		indexWorker.submitCommand(IndexCommand.RemoveFromIndex(path))
+	}
+
+	fun queueOnFileChangedAsync(ktFile: KtFile) {
+		scope.launch {
+			queueOnFileChanged(ktFile)
+		}
+	}
+
+	suspend fun queueOnFileChanged(ktFile: KtFile) {
+		indexWorker.submitCommand(IndexCommand.IndexModifiedFile(ktFile))
+	}
+
+	/**
+	 * Returns the canonical [KtFile] for [path] at the current document version, parsing (once) on a
+	 * version miss. For non-open paths (no active document) falls back to the disk [getKtFile].
+	 * Single-flight: concurrent callers at the same version share one parse.
+	 */
+	private fun getCurrentKtFile(path: Path): CompletableFuture<KtFile?> =
+		getCurrentVersionedKtFile(path)?.thenApply { it.ktFile } ?: CompletableFuture.completedFuture(null)
+
+	/**
+	 * [getCurrentKtFile] with the document version the instance was parsed from, or `null` if [path]
+	 * has no Kotlin PSI at all.
+	 *
+	 * Pin acquisition needs the version *of the resolved instance*, not the one the document happens
+	 * to be at once the parse finishes - re-reading [FileManager] after a blocking resolve stamps a
+	 * pin with a version its PSI does not have, which makes [LiveKtFile.isStale] claim a superseded
+	 * instance is current.
+	 */
+	@OptIn(ResolutionSideKtFileAccess::class)
+	private fun getCurrentVersionedKtFile(path: Path): CompletableFuture<VersionedKtFile>? {
+		if (!DocumentUtils.isKotlinFile(path)) return null
+
+		pins[path]?.let { pin ->
+			val current = FileManager.getActiveDocument(path)?.version
+			if (current != null && current != pin.version) {
+				pin.refreshOwed = true
+			}
+			return CompletableFuture.completedFuture(VersionedKtFile(pin.version, pin.file))
+		}
+
+		val doc =
+			FileManager.getActiveDocument(path)
+				?: return getKtFile(path)?.let {
+					// not open -> disk path
+					CompletableFuture.completedFuture(VersionedKtFile(NO_DOCUMENT_VERSION, it))
+				}
+
+		val version = doc.version
+		val future =
+			currentFiles.compute(path) { p, existing ->
+				if (existing != null && !existing.isCompletedExceptionally && currentVersions[p] == version) {
+					existing
+				} else {
+					currentVersions[p] = version
+					val prior = existing
+					CompletableFuture.supplyAsync({
+						// Serialize with any prior refresh for this path so old->new succession is linear.
+						val old =
+							try {
+								prior?.get()?.ktFile
+							} catch (_: Throwable) {
+								null
+							}
+						refreshToCurrent(p, version, old)
+					}, refreshExecutor)
+				}
+			}!!
+		return future
+	}
+
+	/**
+	 * Parses [path]'s live document into a fresh [KtFile], registers it as the in-memory file, and
+	 * transitions the module's FIR session (invalidate + reindex) so later analysis sees the content.
+	 *
+	 * The result is stamped with [version] (captured when the refresh was launched) even though the
+	 * content is read later, here. FileManager writes version-before-content unsynchronized, so the
+	 * stamp may lag the content but never lead it: callers never get older-than-requested content, and
+	 * a lagging stamp only costs one redundant re-parse on the next request.
+	 */
+	private fun refreshToCurrent(
+		path: Path,
+		version: Int,
+		old: KtFile?,
+	): VersionedKtFile {
+		val content = FileManager.getDocumentContents(path)
+		val newKtFile = project.read { parser.createFile(path.pathString, content) }
+		newKtFile.backingFilePath = path
+		// KtFile.virtualFile is null for non-physical PSI (unit-test env); the view provider's is
+		// always present, and identical to it in production.
+		ProjectStructureProvider
+			.getInstance(project)
+			.registerInMemoryFile(path.pathString, newKtFile.viewProvider.virtualFile)
+		// project.write serializes the mutation against a concurrent `analyze` (read lock); runWriteAction
+		// supplies the platform write access handleElementModification asserts, which our RW lock does not.
+		project.write {
+			ApplicationManager.getApplication().runWriteAction {
+				KaSourceModificationService
+					.getInstance(project)
+					.handleElementModification(old ?: newKtFile, KaElementModificationType.Unknown)
+			}
+			queueOnFileChangedAsync(newKtFile)
+		}
+		return VersionedKtFile(version, newKtFile)
+	}
+
+	fun evictDiskCopy(path: Path) {
+		ktFileCache.invalidate(path)
+		val vf = path.toVirtualFileOrNull() ?: return
+		project.write {
+			ApplicationManager.getApplication().runWriteAction {
+				(PsiManagerEx.getInstanceEx(project).fileManager as FileManagerImpl).setViewProvider(vf, null)
+			}
+		}
+	}
+
+	/** Drops the cached current file for [path] (e.g. on close). */
+	fun invalidateCurrent(path: Path) {
+		currentFiles.remove(path)
+		currentVersions.remove(path)
+		ProjectStructureProvider.getInstance(project).unregisterInMemoryFile(path.pathString)
+	}
+
+	/**
+	 * Non-blocking: the current cached instance for [path] if a refresh has already completed,
+	 * else `null`. Safe to call while holding `project.read` (unlike [getCurrentKtFile], which may
+	 * trigger a blocking refresh that needs `project.write`).
+	 */
+	private fun getCurrentKtFileIfPresent(path: Path): KtFile? = currentFiles[path]?.getNow(null)?.ktFile
+
+	/**
+	 * Runs [block] with the file at [path] pinned, or returns `null` if the path has no Kotlin PSI.
+	 *
+	 * Blocking: resolves the current instance before pinning, and that refresh needs `project.write`.
+	 * Never call this while holding `project.read` - it deadlocks. Acquire the scope first, then use
+	 * [LiveKtFile.read] / [LiveKtFile.analyzing] inside it, which take the read lock for you.
+	 *
+	 * The pin is process-wide, not per-caller: while any scope on [path] is open, *every* request for
+	 * that path joins it and sees the same instance and the same text, including requests from unrelated
+	 * features. So a scope's duration is a staleness window for everyone else - a caller that joins a
+	 * long-running scope can get text older than the buffer the user is looking at. Any site whose
+	 * output is an edit, or that indexes into the text with coordinates from its own request, must
+	 * therefore check [LiveKtFile.isStale] and degrade rather than compute against frozen text.
+	 *
+	 * Known gap: the instance is resolved *before* the pin is installed, so a request arriving in that
+	 * window sees no pin and can launch a refresh that completes inside this scope, firing
+	 * `registerInMemoryFile` and a FIR modification event underneath it. Instance identity still holds -
+	 * every door answers with the pinned instance for the whole scope - and the pin is stamped with the
+	 * resolved instance's own version, so the bump is not lost. Closing the window entirely would mean
+	 * publishing a pin before its file exists, making joiners wait on an unresolved entry inside the one
+	 * path every caller depends on; that deadlock risk is worse than the window.
+	 */
+	fun <R> withLiveKtFile(
+		path: Path,
+		block: (LiveKtFile) -> R,
+	): R? {
+		val pin = acquirePin(path) { getCurrentVersionedKtFile(path)?.get() } ?: return null
+		try {
+			return block(PinnedKtFile(path, pin))
+		} finally {
+			releasePin(path)
+		}
+	}
+
+	/** Suspending [withLiveKtFile], for callers that must not block a dispatcher thread. */
+	suspend fun <R> withLiveKtFileAsync(
+		path: Path,
+		block: (LiveKtFile) -> R,
+	): R? {
+		val pin = acquirePinAsync(path) ?: return null
+		try {
+			return block(PinnedKtFile(path, pin))
+		} finally {
+			releasePin(path)
+		}
+	}
+
+	/**
+	 * Pulls [path] through the current-file cache so a refresh (and its reindex) happens, without
+	 * handing the instance to the caller.
+	 *
+	 * This is the door for callers that want the refresh side effect only, so wanting a refresh never
+	 * becomes a reason to hold a live instance.
+	 */
+	suspend fun refreshCurrentKtFile(path: Path) {
+		getCurrentKtFile(path).await()
+	}
+
+	/**
+	 * The current instance for [path] with no pin, or `null` if none is cached.
+	 *
+	 * Non-blocking and PSI-only. See [UnpinnedKtFileAccess] for why this is opt-in.
+	 */
+	@UnpinnedKtFileAccess
+	fun peekLiveKtFile(path: Path): KtFile? = getCurrentKtFileIfPresent(path)
+
+	private inline fun acquirePin(
+		path: Path,
+		resolve: () -> VersionedKtFile?,
+	): Pin? {
+		joinExistingPin(path)?.let { return it }
+		// Resolved outside the map mutation: it can block on a refresh, and holding a ConcurrentHashMap
+		// bin lock across that would stall every other path.
+		val resolved = resolve() ?: return null
+		return installPin(path, resolved)
+	}
+
+	private suspend fun acquirePinAsync(path: Path): Pin? {
+		joinExistingPin(path)?.let { return it }
+		val resolved = getCurrentVersionedKtFile(path)?.await() ?: return null
+		return installPin(path, resolved)
+	}
+
+	private fun joinExistingPin(path: Path): Pin? = pins.compute(path) { _, existing -> existing?.also { it.count++ } }
+
+	private fun installPin(
+		path: Path,
+		resolved: VersionedKtFile,
+	): Pin {
+		val pin =
+			pins.compute(path) { _, existing ->
+				// A concurrent acquirer may have won the race; join its pin and let this file go. Both
+				// resolved through the same single-flight future, so they are the same instance anyway.
+				existing?.also { it.count++ }
+					?: Pin(resolved.ktFile, resolved.version).also { it.count = 1 }
+			}!!
+
+		/*
+		 * The document can move on while the resolve is still parsing, so the pinned instance may already
+		 * be behind by the time it is installed. That bump has no pinned instance left to refresh into,
+		 * hence record it as owed here rather than let it fall between the resolve and the pin. Safe to
+		 * write outside the section above: this thread holds a count, so no release can be reading it.
+		 */
+		val current = FileManager.getActiveDocument(path)?.version
+		if (current != null && current != pin.version) {
+			pin.refreshOwed = true
+		}
+		return pin
+	}
+
+	private fun releasePin(path: Path) {
+		var refreshOwed = false
+		pins.compute(path) { _, pin ->
+			if (pin == null) return@compute null
+			if (--pin.count > 0) return@compute pin
+			refreshOwed = pin.refreshOwed
+			null
+		}
+
+		// Applied on the way out rather than during the pin: the version bump that arrived while the path
+		// was frozen still has to reach the FIR session. Skipped once the document is gone, since
+		// invalidateCurrent already unregistered it.
+		if (refreshOwed && FileManager.isActive(path)) {
+			scope.launch { refreshCurrentKtFile(path) }
+		}
+	}
+
+	private inner class PinnedKtFile(
+		override val path: Path,
+		private val pin: Pin,
+	) : LiveKtFile {
+		override val isStale: Boolean
+			get() {
+				val current = FileManager.getActiveDocument(path)?.version ?: return false
+				return current != pin.version
+			}
+
+		override fun <R> read(block: (KtFile) -> R): R = project.read { guarded(block(pin.file)) }
+
+		@OptIn(UnpinnedAnalysis::class)
+		override fun <R> analyzing(
+			priority: AnalysisPriority,
+			cancelChecker: ScheduledCancelChecker,
+			useSite: KtElement?,
+			block: KaSession.(KtFile) -> R,
+		): R =
+			project.read {
+				guarded(
+					analyzeMaybeDangling(useSite ?: pin.file, priority, cancelChecker) { block(pin.file) },
+				)
+			}
+
+		@OptIn(UnpinnedAnalysis::class)
+		override fun <R> analyzingVariant(
+			name: String,
+			text: String,
+			priority: AnalysisPriority,
+			cancelChecker: ScheduledCancelChecker,
+			block: KaSession.(KtFile) -> R,
+		): R {
+			val variant =
+				project.read {
+					parser.createFile(fileName = name, text = text).apply {
+						originalFile = pin.file
+						originalKtFile = pin.file
+					}
+				}
+			// No guard here: the block only ever sees the variant, so it cannot return the pinned file.
+			return project.read {
+				analyzeMaybeDangling(variant, priority, cancelChecker) { block(variant) }
+			}
+		}
+
+		/** Catches `read { it }`: returning the pinned file outlives the pin that made it safe to use. */
+		private fun <R> guarded(result: R): R {
+			check(result !== pin.file) {
+				"The pinned KtFile for $path must not escape its LiveKtFile scope."
+			}
+			return result
+		}
+	}
+
+	/** [getKtFile] for [vf], keyed by the path it maps to. */
+	@ResolutionSideKtFileAccess
+	internal fun getKtFile(vf: VirtualFile): KtFile? = getKtFile(vf.toNioPath(), vf)
+
+	/**
+	 * The resolution-side door: what the Analysis API service providers answer a path lookup with.
+	 *
+	 * A pinned path resolves to the pinned instance, so an open analysis and the declaration provider
+	 * cannot disagree about which instance is the file. Otherwise the live cache is peeked, then the
+	 * on-disk instance is loaded. See [ResolutionSideKtFileAccess] for why this is opt-in.
+	 */
+	@ResolutionSideKtFileAccess
+	internal fun getKtFile(
+		path: Path,
+		virtualFile: VirtualFile? = null,
+	): KtFile? {
+		if (!DocumentUtils.isKotlinFile(path)) return null
+
+		// A pinned path resolves to the pinned instance for every door, which is the whole point of the
+		// pin: this is the branch the Analysis API declaration providers take while an analysis is open.
+		pins[path]?.let { return it.file }
+
+		if (FileManager.isActive(path)) {
+			/*
+			 * Peek, never block: getKtFile runs under project.read inside Analysis-API services, so a
+			 * blocking refresh (which needs project.write) would deadlock. A miss falls through to the disk
+			 * instance; the edit already scheduled a refresh for next time.
+			 */
+			getCurrentKtFileIfPresent(path)?.let { return it }
+		}
+
+		ktFileCache.getIfPresent(path)?.also {
+			return it
+		}
+
+		var file = virtualFile
+		if (file == null) {
+			file = path.toVirtualFileOrNull()
+		}
+
+		if (file == null) {
+			return null
+		}
+
+		val ktFile = loadKtFile(file)
+		ktFileCache.put(path, ktFile)
+		return ktFile
+	}
+
+	private fun loadKtFile(vf: VirtualFile): KtFile =
+		project.read {
+			PsiManager
+				.getInstance(project)
+				.findFile(vf) as KtFile
+		}
+
+	suspend fun close() {
+		indexWorker.submitCommand(IndexCommand.Stop)
+
+		scanningJob?.cancelAndJoin()
+		indexingJob?.join()
+
+		// Cancel AND JOIN the index's own scope. Beyond the main worker loop drained above, the
+		// debounced modifiedFileIndexer and queueOnFileChangedAsync coroutines also run
+		// project.read { PsiManager … }. Joining guarantees none survive into the caller's
+		// Disposer.dispose(...), which would otherwise crash with "Project is already disposed"
+		// (APPDEVFORALL-17R). This index owns `scope`.
+		scope.coroutineContext[Job]?.cancelAndJoin()
+
+		// Drain the refresh pool before disposal: refreshToCurrent runs project.read/write on it (same
+		// rationale as the scope join above). Bounded so a slow parse can't stall shutdown.
+		refreshExecutor.shutdownNow()
+		refreshExecutor.awaitTermination(CLOSE_DRAIN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+	}
+}
+
+internal fun KtSymbolIndex.packageExistsInSource(packageFqn: String) = fileIndex.packageExists(packageFqn)
+
+internal fun KtSymbolIndex.filesForPackage(packageFqn: String) = fileIndex.getFilesForPackage(packageFqn)
+
+internal fun KtSymbolIndex.subpackageNames(packageFqn: String) = fileIndex.getSubpackageNames(packageFqn)
+
+/**
+ * Returns source- and library-index symbols whose simple name equals [name].
+ *
+ * [limit] `<= 0` means unbounded, honoring the same convention as
+ * [org.appdevforall.codeonthego.indexing.api.ReadableIndex.query] ("If IndexQuery.limit is 0, all
+ * matches are emitted"). A plain `take(limit)` would turn the common `limit = 0` call into
+ * `take(0)`, silently yielding no results.
+ */
+internal fun KtSymbolIndex.findSymbolBySimpleName(
+	name: String,
+	limit: Int,
+) = (sourceIndex.findBySimpleName(name, 0) + libraryIndex.findBySimpleName(name, 0))
+	.let { if (limit <= 0) it else it.take(limit) }

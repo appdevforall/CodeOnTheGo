@@ -73,7 +73,7 @@
     app:layout_constraintEnd_toEndOf="parent"
     app:layout_constraintStart_toEndOf="@+id/completion_iconText"
     app:layout_constraintTop_toBottomOf="@id/completion_label"
-    tools:text="com.itsaky.androidide.activities.MainActivity" />
+    tools:text="org.appdevforall.codeonthego.activities.MainActivity" />
 
   <TextView
     android:id="@+id/completion_api_info"

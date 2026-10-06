@@ -87,10 +87,10 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
     that does not implement it reads as `AVAILABLE`. `isAvailable()` still means only "set up"; a
     configured OpenAI-compatible server that is not running is `DEGRADED`. Same cheap,
     non-blocking rule and unknown-constant reading as for a tool source.
-  - `com.itsaky.androidide.plugins.services.CapabilityStatus` (new top-level enum) is the one
+  - `org.appdevforall.codeonthego.plugins.services.CapabilityStatus` (new top-level enum) is the one
     status both contracts return, so a consumer showing backends and tool sources side by side
     maps one vocabulary, not two identical enums.
-  - `com.itsaky.androidide.plugins.ai.LlmBackendRegistration` keeps a backend plugin's
+  - `org.appdevforall.codeonthego.plugins.ai.LlmBackendRegistration` keeps a backend plugin's
     `LlmBackend` registered with the router: `start(backend)` from `activate`, `stop()` from
     `deactivate` and `dispose`. It re-registers when AI Core restarts, and calls
     `notifyBackendChanged` when one of the `watchedKeys` in the plugin's settings changes, so
@@ -124,7 +124,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   config, and the credential screens their own copy of the reveal toggle and pane
   styling, so a fix had to be repeated per plugin and a missed copy made the plugins
   drift. The host now ships one copy.
-  `com.itsaky.androidide.plugins.ai.prompt`: `PromptTemplateEngine` and `PromptText`
+  `org.appdevforall.codeonthego.plugins.ai.prompt`: `PromptTemplateEngine` and `PromptText`
   (the `{{NAME}}` / `{{#NAME}}` / `{{^NAME}}` renderer; names may be in any case and hold
   dots, e.g. `{{fileName}}` or `{{item.name}}`, `{{{{` writes a literal `{{`, and config text keeps its whitespace as YAML
   parsed it); `PromptConfigLoader.load(source,
@@ -137,7 +137,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `val shared = PromptConfigStore(MyParser)`, and calls `shared.reload(source, onLoaded, onFailed)`
   from `activate()` and `shared.clear()` from `deactivate()`. The YAML library (snakeyaml-engine 2.10)
   is on the host side, so a plugin using the loader no longer bundles it.
-  `com.itsaky.androidide.plugins.ai.ui`: `SecretRevealController`, whose two states are
+  `org.appdevforall.codeonthego.plugins.ai.ui`: `SecretRevealController`, whose two states are
   each a `RevealToggle` (icon and content description), and
   `View.applyPaneStyling(PaneStyle, outlinedButtonIds)`, with `PaneStyle` grouping a
   `ButtonColors` per emphasis and a `FieldColors`. Both take the plugin's own resource ids
@@ -416,8 +416,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   The plugin API and the builder Gradle plugin are injected into the on-device
   local Maven repository at onboarding, so a plugin resolves them by coordinate,
   offline, without committing `libs/*.jar`:
-  `compileOnly("com.itsaky.androidide:plugin-api:1.0.0")` and
-  `plugins { id("com.itsaky.androidide.plugins.build") version "1.0.0" }`.
+  `compileOnly("org.appdevforall.codeonthego:plugin-api:1.0.0")` and
+  `plugins { id("org.appdevforall.codeonthego.plugins.build") version "1.0.0" }`.
   `plugin-api:1.0.0` bundles `:plugin-api` + `common` + `eventbus-events` +
   `idetooltips`. (No-`libs/` project detection lands separately in ADFA-4913.)
 

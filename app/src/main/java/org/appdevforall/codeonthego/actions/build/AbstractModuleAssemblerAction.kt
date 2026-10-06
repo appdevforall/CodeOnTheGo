@@ -1,0 +1,136 @@
+package org.appdevforall.codeonthego.actions.build
+
+import android.content.Context
+import androidx.activity.viewModels
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import org.appdevforall.codeonthego.actions.ActionData
+import org.appdevforall.codeonthego.actions.openApplicationModuleChooser
+import org.appdevforall.codeonthego.actions.profiler.ProfilerAction
+import org.appdevforall.codeonthego.activities.editor.QuickBuildClobberConfirmation
+import org.appdevforall.codeonthego.project.AndroidModels
+import org.appdevforall.codeonthego.projects.IProjectManager
+import org.appdevforall.codeonthego.projects.api.AndroidModule
+import org.appdevforall.codeonthego.projects.isPluginProject
+import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.utils.flashError
+import org.appdevforall.codeonthego.viewmodel.BuildViewModel
+
+/**
+ * @author Akash Yadav
+ */
+abstract class AbstractModuleAssemblerAction(
+	context: Context,
+	@StringRes private val labelRes: Int,
+	@DrawableRes private val iconRes: Int,
+) : AbstractCancellableRunAction(context, labelRes, iconRes) {
+	/**
+	 * Extra Gradle arguments (e.g. `-P` properties) to pass for this action's build. Subclasses
+	 * override this to influence the build; for example, the profiler action enables a profileable APK.
+	 */
+	protected open val gradleArgs: List<String>
+		get() = emptyList()
+
+	/**
+	 * Resolves the variant that should actually be built for this action, given the user's
+	 * [selectedVariant]. The default returns [selectedVariant] unchanged. Subclasses may override
+	 * to build a different variant (e.g. the profiler builds the release counterpart). Returning
+	 * `null` aborts the build; an overriding implementation must surface its own error first.
+	 */
+	protected open fun resolveBuildVariant(
+		data: ActionData,
+		module: AndroidModule,
+		selectedVariant: AndroidModels.AndroidVariant,
+	): AndroidModels.AndroidVariant? = selectedVariant
+
+	override fun doExec(data: ActionData): Boolean {
+		val projectManager = IProjectManager.getInstance()
+
+		if (projectManager.isPluginProject()) {
+			val module = projectManager.getAndroidModules().firstOrNull()
+			if (module != null) {
+				val variant = module.getSelectedVariant()
+				if (variant != null) {
+					onModuleSelected(data, module, variant, isPluginProject = true)
+					return true
+				}
+			}
+			data.requireActivity().flashError(R.string.err_selected_variant_not_found)
+			return false
+		}
+
+		openApplicationModuleChooser(data) { module ->
+			val activity = data.requireActivity()
+
+			val variant =
+				module.getSelectedVariant() ?: run {
+					activity.flashError(
+						activity.getString(R.string.err_selected_variant_not_found),
+					)
+					return@openApplicationModuleChooser
+				}
+
+			onModuleSelected(data, module, variant, isPluginProject = false)
+		}
+		return true
+	}
+
+	/**
+	 * @param isPluginProject a plugin project builds a `.cgp`, not an APK, so nothing it produces
+	 *   can occupy the project's applicationId - the clobber confirm below would be asking about a
+	 *   package this build never installs.
+	 */
+	private fun onModuleSelected(
+		data: ActionData,
+		module: AndroidModule,
+		variant: AndroidModels.AndroidVariant,
+		isPluginProject: Boolean,
+	) {
+		val activity = data.requireActivity()
+		val resolvedVariant = resolveBuildVariant(data, module, variant) ?: return
+		// Resolved on the UI thread, which doExec already runs on: ViewModelProvider.get is
+		// @MainThread and ViewModelLazy's cache is an unsynchronised field, so touching the
+		// delegate from a background coroutine mutates the activity's ViewModelStore off-main.
+		val buildViewModel: BuildViewModel by activity.viewModels()
+		val startBuild = { clobberAnswerAtTap: QuickBuildClobberConfirmation? ->
+			// Save, THEN build - the build must be of what the user sees. The save runs INSIDE
+			// runQuickBuild's coroutine, after it has reserved BuildState.InProgress, rather than
+			// in actionScope here: a save on emulated storage is slow enough that a second tap
+			// would otherwise slip past the already-in-progress guard, and actionScope dies with
+			// the activity's onPause, which would start a Gradle build from a cancelled coroutine.
+			// A save failure aborts the build rather than quietly building stale content.
+			buildViewModel.runQuickBuild(
+				module,
+				resolvedVariant,
+				launchInDebugMode = id == DebugAction.ID,
+				launchProfilerAfterInstall = id == ProfilerAction.ID,
+				gradleArgs = gradleArgs,
+				clobberAnswerAtTap = clobberAnswerAtTap,
+				beforeBuild = {
+					// A dead activity has released its editors, so nothing can be saved; a build
+					// that went ahead anyway would build whatever was last on disk. The throw
+					// lands in runQuickBuild's catch, which finishes the run as an Error.
+					check(!activity.isDestroyed && !activity.isFinishing) { "Editor closed before the pre-build save" }
+					activity.saveAllResult()
+				},
+			)
+		}
+		// Confirm-on-switch (ADFA-4128) is asked here rather than at install time so a user who
+		// says no has not already paid for a full Gradle build.
+		when (
+			val decision =
+				standardRunClobberDecision(
+					isPluginProject = isPluginProject,
+					applicationId = resolvedVariant.mainArtifact.applicationId,
+				)
+		) {
+			StandardRunClobberDecision.SkipConfirm -> {
+				startBuild(null)
+			}
+
+			is StandardRunClobberDecision.AskFirst -> {
+				activity.ensureStandardRunClobberConfirmed(decision.applicationId, startBuild)
+			}
+		}
+	}
+}

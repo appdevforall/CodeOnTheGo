@@ -1,0 +1,43 @@
+package org.appdevforall.codeonthego.actions.debug
+
+import android.content.Context
+import androidx.core.content.ContextCompat
+import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.actions.ActionData
+import org.appdevforall.codeonthego.actions.requireContext
+import org.appdevforall.codeonthego.idetooltips.TooltipTag
+
+/**
+ * @author Akash Yadav
+ */
+class SuspendResumeVmAction(
+    context: Context
+) : AbstractDebuggerAction(R.drawable.ic_pause) {
+
+    override val id = "ide.debug.suspend-resume"
+    override var label = context.getString(R.string.debugger_suspend)
+    override val order = 0
+    override var tooltipTag = TooltipTag.DEBUGGER_ACTION_PAUSE_RESUME
+
+    override fun prepare(data: ActionData) {
+        super.prepare(data)
+        val context = data.requireContext()
+        val isSuspended = debugClient?.isVmSuspended() == true
+        if (isSuspended) {
+            label = context.getString(R.string.debugger_resume)
+            icon = ContextCompat.getDrawable(context, R.drawable.ic_run)
+        } else {
+            label = context.getString(R.string.debugger_suspend)
+            icon = ContextCompat.getDrawable(context, R.drawable.ic_pause)
+        }
+    }
+
+    override suspend fun execAction(data: ActionData) {
+        val client = debugClient ?: return
+        if (client.isVmSuspended()) {
+            client.resumeVm()
+        } else {
+            client.suspendVm()
+        }
+    }
+}

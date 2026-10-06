@@ -24,10 +24,10 @@
 -keep class com.android.** { *; }
 
 # Tooling API classes
--keep class com.itsaky.androidide.tooling.** { *; }
+-keep class org.appdevforall.codeonthego.tooling.** { *; }
 
 # Builder model implementations
--keep class com.itsaky.androidide.builder.model.** { *; }
+-keep class org.appdevforall.codeonthego.builder.model.** { *; }
 
 # lsp/kotlin registers its own IntelliJ project/application services -- some
 # by class name in lsp/kotlin/src/main/resources/META-INF/kt-lsp/kt-lsp.xml,
@@ -40,7 +40,7 @@
 # then a PicoInitializationException on ModuleDependentsProvider's missing
 # constructor). Keep the whole package rather than list every implementation
 # class in AnalysisApiServiceProviders.kt individually.
--keep class com.itsaky.androidide.lsp.kotlin.compiler.services.** { *; }
+-keep class org.appdevforall.codeonthego.lsp.kotlin.compiler.services.** { *; }
 
 # Kotlin Analysis API (bundled in subprojects/kotlin-analysis-api, used by the
 # Kotlin LSP). subprojects/kotlin-analysis-api/consumer-rules.pro keeps every
@@ -94,30 +94,30 @@
     io.github.rosemoe.sora.widget.component.EditorCompletionAdapter adapter;
     int currentSelection;
 }
--keep class com.itsaky.androidide.projects.util.StringSearch {
+-keep class org.appdevforall.codeonthego.projects.util.StringSearch {
     packageName(java.nio.file.Path);
 }
 -keep class * implements org.antlr.v4.runtime.Lexer {
     <init>(...);
 }
--keep class * extends com.itsaky.androidide.lsp.java.providers.completion.IJavaCompletionProvider {
+-keep class * extends org.appdevforall.codeonthego.lsp.java.providers.completion.IJavaCompletionProvider {
     <init>(...);
 }
--keep class com.itsaky.androidide.editor.api.IEditor { *; }
--keep class * extends com.itsaky.androidide.inflater.IViewAdapter { *; }
--keep class * extends com.itsaky.androidide.inflater.drawable.IDrawableParser {
+-keep class org.appdevforall.codeonthego.editor.api.IEditor { *; }
+-keep class * extends org.appdevforall.codeonthego.inflater.IViewAdapter { *; }
+-keep class * extends org.appdevforall.codeonthego.inflater.drawable.IDrawableParser {
     <init>(...);
     android.graphics.drawable.Drawable parse();
     android.graphics.drawable.Drawable parseDrawable();
 }
--keep class com.itsaky.androidide.utils.DialogUtils {  public <methods>; }
+-keep class org.appdevforall.codeonthego.utils.DialogUtils {  public <methods>; }
 
 # Gson model classes deserialized only via reflection (gson.fromJson(...,
 # X::class.java)), same "R8 strips the unreachable constructor" issue as
 # templates.impl.zip below. Covers OpenedFilesCache/OpenedFile (no prior
 # rule) as well as the APK metadata classes already listed individually.
--keep class com.itsaky.androidide.models.** { *; }
--keep class com.itsaky.androidide.lsp.debug.model.** { *; }
+-keep class org.appdevforall.codeonthego.models.** { *; }
+-keep class org.appdevforall.codeonthego.lsp.debug.model.** { *; }
 
 # Parcelable
 -keepclassmembers class * implements android.os.Parcelable {
@@ -126,7 +126,7 @@
 
 # Used in preferences
 -keep enum org.eclipse.lemminx.dom.builder.EmptyElements { *; }
--keep enum com.itsaky.androidide.xml.permissions.Permission { *; }
+-keep enum org.appdevforall.codeonthego.xml.permissions.Permission { *; }
 
 # Lots of native methods in tree-sitter
 # There are some fields as well that are accessed from native field
@@ -168,7 +168,7 @@
 # With no traceable constructor call, R8 strips the constructor and Gson's
 # runtime then reports the class as abstract ("Failed to load template
 # archive ... Abstract classes can't be instantiated!").
--keep class com.itsaky.androidide.templates.impl.zip.** { *; }
+-keep class org.appdevforall.codeonthego.templates.impl.zip.** { *; }
 
 -keepclassmembers,allowobfuscation class * {
   @com.google.gson.annotations.SerializedName <fields>;
@@ -179,12 +179,12 @@
 -keep,allowobfuscation,allowshrinking class * extends com.google.gson.reflect.TypeToken
 
 ## Themes
--keep enum com.itsaky.androidide.ui.themes.IDETheme {
+-keep enum org.appdevforall.codeonthego.ui.themes.IDETheme {
   *;
 }
 
 ## Contributor models - deserialized with GSON
--keep class * implements com.itsaky.androidide.contributors.Contributor {
+-keep class * implements org.appdevforall.codeonthego.contributors.Contributor {
   *;
 }
 
@@ -268,8 +268,8 @@
 ## returning emptyList()) to EmptyList, then inserts CHECKCAST at call sites.
 ## When a plugin returns a non-EmptyList (listOf(x), mutableListOf(), etc),
 ## the cast fails at runtime.
--keep class com.itsaky.androidide.plugins.** { *; }
--keep interface com.itsaky.androidide.plugins.** { *; }
+-keep class org.appdevforall.codeonthego.plugins.** { *; }
+-keep interface org.appdevforall.codeonthego.plugins.** { *; }
 
 ## ADFA-3604: JDI's SocketAttachingConnector/SocketListeningConnector are
 ## loaded via ServiceLoader (META-INF/services), which R8 can't trace, so it
@@ -286,6 +286,6 @@
 
 ## R8 Kotlin metadata workaround for Kotlin 2.3.0 compatibility
 ## Suppresses D8 errors when parsing kotlin metadata for StopWatch inline functions
--keep class com.itsaky.androidide.utils.StopWatch { *; }
--keepclassmembers class com.itsaky.androidide.utils.StopWatch** { *; }
+-keep class org.appdevforall.codeonthego.utils.StopWatch { *; }
+-keepclassmembers class org.appdevforall.codeonthego.utils.StopWatch** { *; }
 

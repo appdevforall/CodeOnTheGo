@@ -1,0 +1,395 @@
+package org.appdevforall.codeonthego.assets
+
+import android.content.Context
+import android.os.StatFs
+import androidx.annotation.WorkerThread
+import com.aayushatharva.brotli4j.Brotli4jLoader
+import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
+import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.utils.ContainedPathResolver
+import org.appdevforall.codeonthego.utils.ContainedPathResolver.Resolution
+import org.appdevforall.codeonthego.utils.Environment.DEFAULT_ROOT
+import org.appdevforall.codeonthego.utils.useEntriesEach
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.adfa.constants.ANDROID_SDK_ZIP
+import org.adfa.constants.DOCUMENTATION_DB
+import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
+import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
+import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
+import org.slf4j.LoggerFactory
+import java.io.File
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.StandardOpenOption
+import java.util.Locale
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.ZipException
+import java.util.zip.ZipInputStream
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.deleteRecursively
+import kotlin.math.pow
+
+typealias AssetsInstallerProgressConsumer = (AssetsInstallationHelper.Progress) -> Unit
+
+object AssetsInstallationHelper {
+	private const val STATUS_INSTALLING = "Installing"
+	private const val STATUS_FINISHED = "FINISHED"
+
+	sealed interface Result {
+		data object Success : Result
+
+		data class Failure(
+			val cause: Throwable?,
+			val errorMessage: String? = cause?.message,
+			val shouldReportToGlitchTip: Boolean = true,
+		) : Result
+	}
+
+	data class Progress(
+		val message: String,
+	)
+
+	const val PLUGIN_ARTIFACTS_ZIP = "plugin-artifacts.zip"
+	private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
+	private val ASSETS_INSTALLER = AssetsInstaller.CURRENT_INSTALLER
+	const val BOOTSTRAP_ENTRY_NAME = "bootstrap.zip"
+
+	suspend fun install(
+		context: Context,
+		onProgress: AssetsInstallerProgressConsumer = {},
+	): Result =
+		withContext(Dispatchers.IO) {
+			checkStorageAccessibility(context, onProgress)?.let { return@withContext it }
+
+			val result =
+				runCatching {
+					doInstall(context, onProgress)
+				}
+
+			if (result.isFailure) {
+				val e = result.exceptionOrNull() ?: RuntimeException(context.getString(R.string.error_installation_failed))
+				if (e is CancellationException) throw e
+
+				// ZipException means the asset archive itself is corrupt, not just missing --
+				// same "reinstall/redownload" remedy as a missing file, so it shares the
+				// friendly message and GlitchTip suppression below.
+				val isMissingAsset = generateSequence(e) { it.cause }.any { it is FileNotFoundException || it is ZipException }
+				val cause = if (isMissingAsset) MissingAssetsEntryException(e) else e
+				val msg =
+					if (isMissingAsset) {
+						context.getString(R.string.err_missing_or_corrupt_assets, context.getString(R.string.app_name))
+					} else {
+						e.message ?: context.getString(R.string.error_installation_failed)
+					}
+				logger.error("Failed to install assets", e)
+				onProgress(Progress(msg))
+				return@withContext Result.Failure(cause, errorMessage = msg, shouldReportToGlitchTip = !isMissingAsset)
+			}
+
+			return@withContext Result.Success
+		}
+
+	@OptIn(ExperimentalPathApi::class)
+	private suspend fun doInstall(
+		context: Context,
+		onProgress: AssetsInstallerProgressConsumer,
+	) = coroutineScope {
+		onProgress(Progress("Preparing..."))
+
+		val buildConfig = IDEBuildConfigProvider.getInstance()
+		val cpuArch = buildConfig.cpuArch
+		val expectedEntries =
+			arrayOf(
+				GRADLE_DISTRIBUTION_ARCHIVE_NAME,
+				ANDROID_SDK_ZIP,
+				DOCUMENTATION_DB,
+				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
+				BOOTSTRAP_ENTRY_NAME,
+				GRADLE_API_NAME_JAR_ZIP,
+				PLUGIN_ARTIFACTS_ZIP,
+				TEMPLATE_CORE_ARCHIVE,
+			)
+
+		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())
+		logger.debug("Staging directory ({}): {}", cpuArch, stagingDir)
+
+		try {
+			// Ensure relevant shared libraries are loaded
+			Brotli4jLoader.ensureAvailability()
+
+			// pre-install hook. Log here for diagnostics, then rethrow so install()'s
+			// runCatching actually observes it -- returning a Result.Failure value here
+			// instead would be silently discarded, since doInstall() otherwise has no
+			// meaningful return value on its success path. The user-facing message is
+			// left entirely to install()'s failure handling (onProgress/ShowError), so
+			// there is exactly one notification per failure, not one here plus another
+			// once the exception unwinds.
+			try {
+				ASSETS_INSTALLER.preInstall(context, stagingDir)
+			} catch (e: FileNotFoundException) {
+				logAndRethrow("ZIP file not found", e)
+			} catch (e: ZipException) {
+				logAndRethrow("Invalid ZIP format", e)
+			} catch (e: IOException) {
+				logAndRethrow("I/O error during preInstall", e)
+			}
+
+			val entrySizes: Map<String, Long> =
+				expectedEntries.associateWith { entry ->
+					ASSETS_INSTALLER.expectedSize(entry)
+				}
+
+			val totalSize = entrySizes.values.sum()
+
+			val entryStatusMap = ConcurrentHashMap<String, String>()
+
+			val installerJobs =
+				expectedEntries.map { entry ->
+					async {
+						entryStatusMap[entry] = STATUS_INSTALLING
+
+						ASSETS_INSTALLER.doInstall(
+							context = context,
+							stagingDir = stagingDir,
+							cpuArch = cpuArch,
+							entryName = entry,
+						)
+
+						entryStatusMap[entry] = STATUS_FINISHED
+					}
+				}
+
+			val progressUpdater =
+				launch {
+					var previousSnapshot = ""
+					while (isActive) {
+						val installedSize =
+							entryStatusMap
+								.filterValues { it == STATUS_FINISHED }
+								.keys
+								.sumOf { entrySizes[it] ?: 0 }
+
+						val percent =
+							if (totalSize > 0) {
+								(installedSize * 100.0 / totalSize)
+							} else {
+								0.0
+							}
+
+						val freeStorage = getAvailableStorage(File(DEFAULT_ROOT))
+
+						val snapshot =
+							if (percent >= 99.0) {
+								"Post install processing in progress...."
+							} else {
+								buildString {
+									entryStatusMap.forEach { (entry, status) ->
+										appendLine("$entry ${if (status == STATUS_FINISHED) "✓" else ""}")
+									}
+									appendLine("--------------------")
+									appendLine("Progress: ${formatPercent(percent)}")
+									appendLine("Installed: ${formatBytes(installedSize)} / ${formatBytes(totalSize)}")
+									appendLine("Remaining storage: ${formatBytes(freeStorage)}")
+								}
+							}
+
+						if (snapshot != previousSnapshot) {
+							onProgress(Progress(snapshot))
+							previousSnapshot = snapshot
+						}
+
+						delay(500)
+					}
+				}
+
+			// wait for all jobs to complete
+			installerJobs.joinAll()
+
+			// then cancel progress updater
+			progressUpdater.cancel()
+		} finally {
+			// Always run postInstall so zip/FS resources are closed (e.g. SplitAssetsInstaller.zipFile),
+			// and always clean up the staging dir -- on any exit path, including a preInstall
+			// failure or one of the parallel installerJobs failing. postInstall() runs under
+			// NonCancellable: when a job above throws, this coroutineScope is already
+			// Cancelling by the time this finally block runs, and postInstall()'s own
+			// withContext(Dispatchers.IO) would otherwise throw CancellationException at that
+			// suspension point before its body -- the real cleanup -- ever executes. Both
+			// cleanup calls are runCatching so a cleanup failure can't replace whatever
+			// exception is already propagating out of the try block above (e.g. the very
+			// preInstall failure logAndRethrow just rethrew).
+			runCatching { withContext(NonCancellable) { ASSETS_INSTALLER.postInstall(context, stagingDir) } }
+				.onFailure { e ->
+					if (e is CancellationException) throw e
+					logger.warn("postInstall failed", e)
+				}
+			runCatching { stagingDir.deleteRecursively() }
+				.onFailure { e -> logger.warn("Failed to delete staging directory {}", stagingDir, e) }
+		}
+	}
+
+	/** Logs [e] with [prefix], then rethrows it -- never swallow-and-return here. */
+	private fun logAndRethrow(
+		prefix: String,
+		e: Exception,
+	): Nothing {
+		logger.error("{}: {}", prefix, e.message)
+		throw e
+	}
+
+	@WorkerThread
+	internal fun extractZipToDir(
+		srcFile: Path,
+		destDir: Path,
+	) = extractZipToDir(Files.newInputStream(srcFile), destDir)
+
+	/**
+	 * Containment is [ContainedPathResolver]'s, shared with `ZipUtils.unzipFile`. It does *not*
+	 * memoize: the per-parent cache this loop used to keep was measured against a real 1.8 GB asset
+	 * installation and bought nothing (48.0s without it, 51.4s with), so every path is re-verified
+	 * against the filesystem rather than trusting an ancestor proven earlier.
+	 *
+	 * What stays local is the policy: this refuses to write through *any* existing symlink at an
+	 * entry's target -- in-base, dangling, or pointing outside destDir -- and says so. An installer
+	 * directory reused across runs is the case that matters, and unlike unzipping a user's project
+	 * there is no legitimate reason for a symlink to be there. The three failure messages are kept
+	 * distinct on purpose: an escaping entry is a hostile archive, a symlink at the target is this
+	 * policy, and unverifiable containment is a filesystem problem -- a 1.8 GB install that dies
+	 * 9,000 entries in should name the real cause (ADFA-5257 review).
+	 */
+	@WorkerThread
+	internal fun extractZipToDir(
+		srcStream: InputStream,
+		destDir: Path,
+	) {
+		Files.createDirectories(destDir)
+		val contained = ContainedPathResolver(destDir.toFile())
+
+		ZipInputStream(srcStream.buffered()).useEntriesEach { zipInput, entry ->
+			// A "." or "./" root directory entry names destDir itself, which already exists. The
+			// asset zips are refreshed from an external URL, and archivers that emit such an entry
+			// exist -- a no-op, not a reason to abort the installation (ADFA-5257 review).
+			if (entry.isDirectory && ContainedPathResolver.namesBase(entry.name)) {
+				return@useEntriesEach
+			}
+
+			val destFile =
+				when (val resolution = contained.resolve(entry.name)) {
+					is Resolution.Contained -> {
+						resolution.file.toPath()
+					}
+
+					is Resolution.Rejected -> {
+						// A pre-existing symlink at the entry's own target -- dangling, or leading
+						// outside destDir -- is this caller's refusal policy at work, not a
+						// zip-slip attempt; report it as such.
+						val overSymlink = resolution.lexicalTarget?.let { Files.isSymbolicLink(it) } == true
+						throw IllegalStateException(
+							if (overSymlink) {
+								"Refusing to extract over an existing symlink: ${entry.name}"
+							} else {
+								"Zip entry escapes the target dir: ${entry.name}"
+							},
+						)
+					}
+
+					is Resolution.Unverifiable -> {
+						throw IllegalStateException(
+							"Cannot verify that a zip entry stays in the target dir: ${entry.name} (${resolution.cause})",
+							resolution.cause,
+						)
+					}
+				}
+
+			// Policy, not containment: the resolver allows a symlink whose target is still inside
+			// destDir, and this caller does not.
+			if (Files.isSymbolicLink(destFile)) {
+				throw IllegalStateException("Refusing to extract over an existing symlink: ${entry.name}")
+			}
+
+			if (entry.isDirectory) {
+				Files.createDirectories(destFile)
+			} else {
+				Files.createDirectories(destFile.parent)
+				// NOFOLLOW_LINKS: the isSymbolicLink check above is a stat, and this is a separate
+				// open, so a link appearing in between would be followed. O_NOFOLLOW makes the
+				// refusal part of the open. Parent directories are still followed -- that needs
+				// openat(2), which java.nio does not expose (ADFA-5257 review).
+				Files
+					.newOutputStream(
+						destFile,
+						StandardOpenOption.WRITE,
+						StandardOpenOption.CREATE,
+						StandardOpenOption.TRUNCATE_EXISTING,
+						LinkOption.NOFOLLOW_LINKS,
+					).use { dest ->
+						zipInput.copyTo(dest)
+					}
+			}
+		}
+	}
+
+	private fun getAvailableStorage(path: File): Long =
+		try {
+			val stat = StatFs(path.absolutePath)
+			stat.availableBytes
+		} catch (e: Exception) {
+			logger.warn("Failed to get available storage for {}: {}", path, e.message)
+			-1L
+		}
+
+	private fun formatBytes(bytes: Long): String {
+		val unit = 1024
+		if (bytes < unit) return "$bytes B"
+		val exp = (Math.log(bytes.toDouble()) / Math.log(unit.toDouble())).toInt()
+		val pre = "KMGTPE"[exp - 1]
+		return String.format(
+			Locale.getDefault(), // use device locale
+			"%.1f %sB",
+			bytes / unit.toDouble().pow(exp.toDouble()),
+			pre,
+		)
+	}
+
+	private fun formatPercent(value: Double): String = String.format(Locale.getDefault(), "%.1f%%", value)
+
+	private fun checkStorageAccessibility(
+		context: Context,
+		onProgress: AssetsInstallerProgressConsumer,
+	): Result.Failure? {
+		val rootDir = File(DEFAULT_ROOT)
+
+		if (!rootDir.exists()) {
+			runCatching {
+				rootDir.mkdirs()
+			}.onFailure { logger.warn("Failed to create root dir: ${it.message}") }
+		}
+
+		if (!rootDir.exists() || !rootDir.canWrite()) {
+			val errorMsg = context.getString(R.string.storage_not_accessible)
+			logger.error("Storage not accessible: {}", DEFAULT_ROOT)
+			onProgress(Progress(errorMsg))
+			return Result.Failure(
+				IllegalStateException(errorMsg),
+				errorMsg,
+				false,
+			)
+		}
+		return null
+	}
+}

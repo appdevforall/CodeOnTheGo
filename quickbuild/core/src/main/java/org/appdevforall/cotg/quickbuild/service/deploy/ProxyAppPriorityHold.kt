@@ -95,7 +95,7 @@ class BoundServicePriorityHold internal constructor(
 		 * app bakes in. Must match `QuickBuildKeepAliveService` and the Gradle plugin's
 		 * `UNPROXIABLE_BY_NAME` entry that keeps the manifest transform from renaming it.
 		 */
-		const val KEEP_ALIVE_SERVICE = "com.itsaky.androidide.quickbuild.runtime.QuickBuildKeepAliveService"
+		const val KEEP_ALIVE_SERVICE = "org.appdevforall.codeonthego.quickbuild.runtime.QuickBuildKeepAliveService"
 
 		/**
 		 * Builds a hold that binds from [context].

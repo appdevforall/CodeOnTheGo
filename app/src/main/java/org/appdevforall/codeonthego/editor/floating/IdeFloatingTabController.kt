@@ -1,0 +1,203 @@
+
+package org.appdevforall.codeonthego.editor.floating
+
+import android.content.Intent
+import android.widget.Toast
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
+import org.appdevforall.codeonthego.floating.model.DockingEvent
+import org.appdevforall.codeonthego.floating.model.DockingManager
+import org.appdevforall.codeonthego.floating.permission.OverlayPermission
+import org.appdevforall.codeonthego.floating.service.FloatingTabService
+import org.appdevforall.codeonthego.floating.window.InitialBounds
+import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.ui.MetricsCarouselController
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
+
+/**
+ * Bridges the editor activity to the floating-window system: turns an editor file tab into a
+ * floating window and back.
+ *
+ * - Undock: persist the docked panel, close its docked tab, then float a fresh panel built against
+ *   the service's window context (so it survives this activity being destroyed).
+ * - Redock/Close ([DockingManager.events]): persist and release the floating panel, and for redock,
+ *   re-open the file as a docked tab.
+ */
+class IdeFloatingTabController(
+	private val activity: EditorHandlerActivity,
+) {
+	private var undockCounter = 0
+
+	fun start() {
+		activity.lifecycleScope.launch {
+			DockingManager.events.collect(::onEvent)
+		}
+	}
+
+	fun undock(fileIndex: Int) {
+		if (!OverlayPermission.canDrawOverlays(activity)) {
+			activity.startActivity(OverlayPermission.requestIntent(activity))
+			return
+		}
+
+		val panel = activity.getEditorAtIndex(fileIndex) ?: return
+		val file = panel.file ?: return
+
+		activity.lifecycleScope.launch {
+			val wasModified = panel.isModified
+			val saved = panel.save()
+			if (wasModified && !saved) {
+				Toast.makeText(activity, activity.getString(R.string.msg_undock_save_failed, file.name), Toast.LENGTH_LONG).show()
+				return@launch
+			}
+			panel.markAsSaved()
+			activity.closeFile(fileIndex) {}
+			DockingManager.undock(
+				EditorPanelDockableContent(file),
+				InitialBounds.cascaded(activity, undockCounter++),
+			)
+			FloatingTabService.ensureRunning(activity.applicationContext)
+		}
+	}
+
+	/**
+	 * Float the metrics carousel, moving it out of the editor. [MetricsCarouselDockableContent]
+	 * rebinds the same controller, since only one carousel may be live at a time.
+	 */
+	fun floatMetricsCarousel(
+		controller: MetricsCarouselController,
+		title: String,
+		onUndocked: () -> Unit,
+	) {
+		if (!OverlayPermission.canDrawOverlays(activity)) {
+			activity.startActivity(OverlayPermission.requestIntent(activity))
+			return
+		}
+		if (DockingManager.isFloating(MetricsCarouselDockableContent.ID)) {
+			return
+		}
+
+		onUndocked()
+		DockingManager.undock(
+			MetricsCarouselDockableContent(controller, title),
+			InitialBounds.cascaded(activity, undockCounter++),
+		)
+		FloatingTabService.ensureRunning(activity.applicationContext)
+	}
+
+	/** Bring the floating metrics carousel back into the editor. */
+	fun redockMetricsCarousel() {
+		DockingManager.dock(MetricsCarouselDockableContent.ID)
+	}
+
+	fun floatPluginTab(
+		tabId: String,
+		title: String,
+		remove: () -> Unit,
+	) {
+		if (!OverlayPermission.canDrawOverlays(activity)) {
+			activity.startActivity(OverlayPermission.requestIntent(activity))
+			return
+		}
+		remove()
+		DockingManager.undock(
+			PluginTabDockableContent(tabId, title),
+			InitialBounds.cascaded(activity, undockCounter++),
+		)
+		FloatingTabService.ensureRunning(activity.applicationContext)
+	}
+
+	/**
+	 * Tears down every floating window because the project is closing: a docked plugin tab or file
+	 * panel is closed with the project, and an undocked one is the same tab in another window.
+	 *
+	 * File panels are saved (when [save] is set, i.e. the user chose "save and close") and released
+	 * inline, not through [onEvent]: that coroutine dies with the finishing activity, and it saves
+	 * unconditionally, which would defeat "close without saving". Hence [DockingManager.remove]
+	 * rather than [DockingManager.close] - the teardown is done, no listener should redo it.
+	 */
+	suspend fun closeAll(save: Boolean) {
+		for (tab in DockingManager.windows.value) {
+			val panel = tab.content as? EditorPanelDockableContent
+			if (save && panel != null && panel.isModified && !savePanel(panel)) {
+				Toast
+					.makeText(
+						activity,
+						activity.getString(R.string.msg_floating_close_save_failed, panel.title),
+						Toast.LENGTH_LONG,
+					).show()
+			}
+			DockingManager.remove(tab.id)
+			panel?.release()
+
+			// A fallback, not the primary path: removing the tab makes the service's reconcile
+			// dismiss the window, and dismiss() already runs onDestroyView. This covers the case
+			// where no live window was there to dismiss -- the service not bound, or a tab removed
+			// before its window was created -- so content holding resources is still released.
+			// It follows that onDestroyView must be idempotent; the metrics carousel's unbind is.
+			if (panel == null) {
+				runCatching { tab.content.onDestroyView() }
+					.onFailure { log.error("Failed to release floating content {}", tab.id, it) }
+			}
+		}
+	}
+
+	private suspend fun savePanel(panel: EditorPanelDockableContent): Boolean =
+		try {
+			panel.save()
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			log.error("Failed to save floating panel '{}' while closing the project", panel.title, e)
+			false
+		}
+
+	private fun onEvent(event: DockingEvent) {
+		when (val content = event.content) {
+			is EditorPanelDockableContent -> {
+				activity.lifecycleScope.launch {
+					content.save()
+					content.release()
+					if (event is DockingEvent.Redock) {
+						bringIdeToFront()
+						activity.openFile(content.file, null)
+					}
+				}
+			}
+
+			is PluginTabDockableContent -> {
+				if (event is DockingEvent.Redock) {
+					bringIdeToFront()
+					activity.selectPluginTabById(content.tabId)
+				}
+			}
+
+			is MetricsCarouselDockableContent -> {
+				// onDestroyView has already unbound the controller from the window, so the editor
+				// only has to put its own carousel back. Done for Close as well as Redock: closing
+				// the window must not leave the editor showing "tap to bring them back" forever.
+				if (event is DockingEvent.Redock) {
+					bringIdeToFront()
+				}
+				activity.onFloatingMetricsCarouselGone()
+			}
+		}
+	}
+
+	private fun bringIdeToFront() {
+		if (activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+			return
+		}
+		activity.startActivity(
+			Intent(activity, activity.javaClass)
+				.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+		)
+	}
+
+	private companion object {
+		private val log = LoggerFactory.getLogger(IdeFloatingTabController::class.java)
+	}
+}

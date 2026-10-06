@@ -131,7 +131,7 @@ sealed interface DeployResult {
 
 /**
  * The on-device [DeploySender]: passes payload files as read-only fds over the oneway
- * [com.itsaky.androidide.quickbuild.IQuickBuildTarget.onPayload] and awaits the matching
+ * [org.appdevforall.codeonthego.quickbuild.IQuickBuildTarget.onPayload] and awaits the matching
  * report.
  *
  * Every wait is bounded, so a hung proxy app surfaces as [DeployResult.TimedOut] instead

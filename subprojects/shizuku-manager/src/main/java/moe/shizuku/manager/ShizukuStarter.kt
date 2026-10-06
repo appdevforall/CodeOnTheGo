@@ -1,6 +1,6 @@
 package moe.shizuku.manager
 
-import com.itsaky.androidide.app.BaseApplication
+import org.appdevforall.codeonthego.app.BaseApplication
 import java.io.File
 
 object ShizukuStarter {

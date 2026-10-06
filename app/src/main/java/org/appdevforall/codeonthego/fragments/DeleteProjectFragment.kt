@@ -1,0 +1,218 @@
+package org.appdevforall.codeonthego.fragments
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.view.isVisible
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.adapters.DeleteProjectListAdapter
+import com.itsaky.androidide.databinding.FragmentDeleteProjectBinding
+import org.appdevforall.codeonthego.idetooltips.TooltipManager
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT_BUTTON
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT_CONFIRM
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT_SELECT
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.EXIT_TO_MAIN
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.PROJECT_NEW
+import org.appdevforall.codeonthego.models.Checkable
+import org.appdevforall.codeonthego.ui.CustomDividerItemDecoration
+import org.appdevforall.codeonthego.utils.flashError
+import org.appdevforall.codeonthego.utils.flashSuccess
+import org.appdevforall.codeonthego.viewmodel.MainViewModel
+import org.appdevforall.codeonthego.viewmodel.RecentProjectsViewModel
+import kotlinx.coroutines.launch
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
+
+class DeleteProjectFragment : BaseFragment() {
+	@Suppress("ktlint:standard:backing-property-naming")
+	private var _binding: FragmentDeleteProjectBinding? = null
+	private val binding get() = _binding!!
+
+	private val recentProjectsViewModel: RecentProjectsViewModel by activityViewModels()
+	private val mainViewModel: MainViewModel by activityViewModel()
+	private var adapter: DeleteProjectListAdapter? = null
+	private var isDeleteButtonClickable = false
+
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		_binding = FragmentDeleteProjectBinding.inflate(inflater, container, false)
+		return binding.root
+	}
+
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		setupRecyclerView()
+		observeProjects()
+		observeDeletionStatus()
+		setupClickListeners()
+	}
+
+	private fun setupRecyclerView() =
+		with(binding) {
+			listProjects.layoutManager = LinearLayoutManager(requireContext())
+			listProjects.addItemDecoration(
+				CustomDividerItemDecoration(requireContext(), R.drawable.custom_list_divider),
+			)
+		}
+
+	private fun observeProjects() {
+		recentProjectsViewModel.projects.observe(viewLifecycleOwner) { projects ->
+			val selectedPaths =
+				adapter
+					?.getSelectedProjects()
+					?.map { it.path }
+					?.toSet()
+					.orEmpty()
+
+			val checkableProjects =
+				projects.map { project ->
+					Checkable(project.path in selectedPaths, project)
+				}
+
+			if (adapter == null) {
+				// Create adapter and pass a callback to update delete button state on selection change
+				adapter =
+					DeleteProjectListAdapter(
+						checkableProjects,
+						{ enableBtn ->
+							updateDeleteButtonState(enableBtn)
+						},
+						onCheckboxLongPress = {
+							showToolTip(DELETE_PROJECT_SELECT, binding.listProjects)
+							true
+						},
+					)
+				binding.listProjects.adapter = adapter
+			} else {
+				adapter?.updateProjects(checkableProjects)
+			}
+
+			binding.recentProjectsTxt.isVisible = projects.isNotEmpty()
+			binding.noProjectsView.isVisible = projects.isEmpty()
+
+			// Change button text and state based on whether projects exist
+			if (projects.isEmpty()) {
+				binding.delete.text = getString(R.string.new_project)
+				binding.delete.isEnabled = true
+			} else {
+				binding.delete.text = getString(R.string.delete_project)
+				updateDeleteButtonState(adapter?.getSelectedProjects()?.isNotEmpty() == true)
+			}
+		}
+	}
+
+	private fun observeDeletionStatus() {
+		viewLifecycleOwner.lifecycleScope.launch {
+			recentProjectsViewModel.deletionStatus.collect { status ->
+				if (status) {
+					flashSuccess(R.string.deleted)
+				} else {
+					flashError(R.string.delete_failed)
+				}
+			}
+		}
+	}
+
+	private fun updateDeleteButtonState(hasSelection: Boolean) {
+		isDeleteButtonClickable = hasSelection
+		binding.delete.isEnabled = true
+		binding.delete.alpha = if (hasSelection) 1.0f else 0.5f
+	}
+
+	private fun setupClickListeners() {
+		binding.delete.setOnClickListener {
+			// If no projects exist, navigate to the create project screen.
+			val projects = recentProjectsViewModel.projects.value
+			if (projects.isNullOrEmpty()) {
+				mainViewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_LIST)
+			} else if (isDeleteButtonClickable) {
+				showDeleteDialog()
+			}
+		}
+		binding.delete.setOnLongClickListener {
+			val projects = recentProjectsViewModel.projects.value
+
+			val tooltipTag =
+				if (projects.isNullOrEmpty()) {
+					PROJECT_NEW
+				} else {
+					DELETE_PROJECT_BUTTON
+				}
+			showToolTip(tooltipTag)
+			true
+		}
+
+		binding.exitButton.setOnClickListener { mainViewModel.setScreen(MainViewModel.SCREEN_MAIN) }
+		binding.exitButton.setOnLongClickListener {
+			showToolTip(EXIT_TO_MAIN)
+			true
+		}
+
+		binding.recentProjectsTxt.setOnLongClickListener {
+			showToolTip(DELETE_PROJECT)
+			true
+		}
+	}
+
+	fun showToolTip(
+		tag: String,
+		anchorView: View? = null,
+	) {
+		anchorView ?: return
+		TooltipManager.showIdeCategoryTooltip(
+			context = requireContext(),
+			anchorView = anchorView,
+			tag = tag,
+		)
+	}
+
+	private fun showDeleteDialog() {
+		val dialog =
+			MaterialAlertDialogBuilder(requireContext())
+				.setTitle(R.string.delete_project)
+				.setMessage(R.string.msg_delete_selected_project)
+				.setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
+				.setPositiveButton(R.string.yes) { _, _ ->
+					adapter?.getSelectedProjects().let { projectFiles ->
+						recentProjectsViewModel.deleteSelectedProjects(
+							projectFiles?.map { it.path } ?: emptyList(),
+						)
+					}
+				}.show()
+
+		val contentView = dialog.findViewById<View>(android.R.id.content)
+		contentView?.setOnLongClickListener {
+			showToolTip(DELETE_PROJECT_DIALOG, contentView)
+			true
+		}
+
+		dialog
+			.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+			?.setOnLongClickListener { button ->
+				showToolTip(DELETE_PROJECT_CONFIRM, button)
+				true
+			}
+	}
+
+	override fun onResume() {
+		super.onResume()
+		recentProjectsViewModel.loadProjects()
+	}
+
+	override fun onDestroyView() {
+		super.onDestroyView()
+		_binding = null
+	}
+}

@@ -4,7 +4,7 @@ import android.content.Context;
 
 import androidx.annotation.NonNull;
 
-import com.itsaky.androidide.utils.Environment;
+import org.appdevforall.codeonthego.utils.Environment;
 import com.termux.shared.shell.command.ExecutionCommand;
 
 import java.io.File;

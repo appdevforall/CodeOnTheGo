@@ -47,27 +47,27 @@
 			android:layout_marginTop="16dp"
 			android:layout_marginBottom="12dp" />
 
-		<com.itsaky.androidide.ui.InfoRowView
+		<org.appdevforall.codeonthego.ui.InfoRowView
 			android:id="@+id/info_name"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content" />
 
-		<com.itsaky.androidide.ui.InfoRowView
+		<org.appdevforall.codeonthego.ui.InfoRowView
 			android:id="@+id/info_location"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content" />
 
-		<com.itsaky.androidide.ui.InfoRowView
+		<org.appdevforall.codeonthego.ui.InfoRowView
 			android:id="@+id/info_template"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content" />
 
-		<com.itsaky.androidide.ui.InfoRowView
+		<org.appdevforall.codeonthego.ui.InfoRowView
 			android:id="@+id/info_created_at"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content" />
 
-		<com.itsaky.androidide.ui.InfoRowView
+		<org.appdevforall.codeonthego.ui.InfoRowView
 			android:id="@+id/info_modified_at"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content" />
@@ -99,12 +99,12 @@
 				android:layout_marginTop="16dp"
 				android:layout_marginBottom="12dp" />
 
-			<com.itsaky.androidide.ui.InfoRowView
+			<org.appdevforall.codeonthego.ui.InfoRowView
 				android:id="@+id/info_size"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content" />
 
-			<com.itsaky.androidide.ui.InfoRowView
+			<org.appdevforall.codeonthego.ui.InfoRowView
 				android:id="@+id/info_files_count"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content" />
@@ -120,22 +120,22 @@
 				android:layout_marginTop="16dp"
 				android:layout_marginBottom="12dp" />
 
-			<com.itsaky.androidide.ui.InfoRowView
+			<org.appdevforall.codeonthego.ui.InfoRowView
 				android:id="@+id/info_language"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content" />
 
-			<com.itsaky.androidide.ui.InfoRowView
+			<org.appdevforall.codeonthego.ui.InfoRowView
 				android:id="@+id/info_gradle_version"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content" />
 
-			<com.itsaky.androidide.ui.InfoRowView
+			<org.appdevforall.codeonthego.ui.InfoRowView
 				android:id="@+id/info_kotlin_version"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content" />
 
-			<com.itsaky.androidide.ui.InfoRowView
+			<org.appdevforall.codeonthego.ui.InfoRowView
 				android:id="@+id/info_java_version"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content" />

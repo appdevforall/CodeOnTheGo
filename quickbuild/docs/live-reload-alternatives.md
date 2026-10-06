@@ -45,8 +45,8 @@ and never restarts.
 
 | Class | Kind |
 |---|---|
-| `com.itsaky.androidide.logsender.LogSenderService` | service |
-| `com.itsaky.androidide.logsender.utils.LogSenderInstaller` | provider |
+| `org.appdevforall.codeonthego.logsender.LogSenderService` | service |
+| `org.appdevforall.codeonthego.logsender.utils.LogSenderInstaller` | provider |
 
 Without this, **every** app restarts on **every** save: `LogSenderPlugin` adds the logsender AAR
 to every debuggable variant, so its service and installer provider land in every app CoGo

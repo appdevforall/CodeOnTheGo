@@ -1,7 +1,7 @@
 package org.appdevforall.cotg.quickbuild.service.deploy
 
 import android.os.IBinder
-import com.itsaky.androidide.quickbuild.IQuickBuildTarget
+import org.appdevforall.codeonthego.quickbuild.IQuickBuildTarget
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow

@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-	namespace = "com.itsaky.androidide.plugins.api"
+	namespace = "org.appdevforall.codeonthego.plugins.api"
 	compileSdk = 36
 
 	defaultConfig {
@@ -32,7 +32,7 @@ kotlin {
 
 apiValidation {
 	ignoredClasses.add("com.itsaky.androidide.plugins.api.BuildConfig")
-	nonPublicMarkers.add("com.itsaky.androidide.plugins.base.InternalPluginApi")
+	nonPublicMarkers.add("org.appdevforall.codeonthego.plugins.base.InternalPluginApi")
 }
 
 dependencies {

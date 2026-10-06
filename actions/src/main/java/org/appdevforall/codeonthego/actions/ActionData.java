@@ -1,0 +1,71 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package org.appdevforall.codeonthego.actions;
+
+import android.content.Context;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * @author Akash Yadav
+ */
+public class ActionData {
+
+  private ActionData() {}
+
+  /**
+   * Creates a new {@link ActionData} instance.
+   *
+   * @param context The context to this instance is attached to.
+   * @return A new {@link ActionData} instance.
+   */
+  @NonNull
+  public static ActionData create(@NonNull Context context) {
+    final var data = new ActionData();
+    data.put(Context.class, context);
+    return data;
+  }
+
+  private final Map<Class<?>, Object> instances = new HashMap<>();
+
+  public <T> void put(@NonNull Class<T> type, @Nullable T object) {
+    Objects.requireNonNull(type);
+    this.instances.put(type, object);
+  }
+
+  @Nullable
+  public <T> T get(@NonNull Class<T> type) {
+    Objects.requireNonNull(type);
+
+    final var object = this.instances.get(type);
+    if (object == null) {
+      return null;
+    }
+
+    return type.cast(object);
+  }
+
+  public void clear() {
+    this.instances.clear();
+  }
+}

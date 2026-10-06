@@ -8,7 +8,7 @@ This is *not* a plugin-authoring how-to. For that — project layout, manifest c
 
 The surface a plugin binds to is broader than one module. All of the following are contract:
 
-- **The `:plugin-api` module** — package `com.itsaky.androidide.plugins.*`:
+- **The `:plugin-api` module** — package `org.appdevforall.codeonthego.plugins.*`:
   - Core: `IPlugin` (lifecycle), `PluginContext`, `PluginLogger`, `ServiceRegistry`, `ResourceManager`.
   - Extension interfaces plugins **implement**: `UIExtension`, `EditorExtension`, `EditorTabExtension`, `DocumentationExtension`, `BuildActionExtension`, `SnippetExtension`, `ProjectExtension`, `FileOpenExtension`, `SettingsExtension`, `LanguageExtension`.
   - IDE service interfaces plugins **call** (via `ServiceRegistry.get(X::class.java)`): `IdeProjectService`, `IdeEditorService`, `IdeFileService`, `IdeEnvironmentService`, `IdeArchiveService`, `IdeBuildService`, `IdeLogService`, `IdeUIService`, `IdeEditorTabService`, `IdeTooltipService`, `IdeThemeService`, `IdeFeatureFlagService`, `IdeCommandService`, `IdeTemplateService`, `IdeSnippetService`, `IdeSidebarService`.
@@ -47,7 +47,7 @@ These look source-compatible but break already-built `.cgp` plugins:
   - *Plugin-implemented service interfaces* (`LlmInferenceService` and the backend interfaces nested in it) are implemented **by a plugin** even though they are shaped like services. The extension-interface rule applies, not the host-service one: **adding** a method is breaking. A Kotlin implementor that already declares a same-signature method without `override` stops compiling when a Java `default` appears above it, so the break is in the *other* repo — the impact check below catches it. Prefer a new interface extending the old one over a new method on it: `StatusReportingBackend`, `ActiveModelReportingBackend` and `StatusReportingToolSource` follow this, and the consumer asks with `instanceof`. The same rule covers `ToolSource`, which every contributing plugin implements. `LlmInferenceService` and `ToolSourceRegistry` themselves took `default` methods in 26.41 as an exception: AI-Core is their only implementor, and its released implementations were checked to declare none of the new names.
 - **Enum constants.** Removing or renaming a constant (`PluginPermission`, `ShowAsAction`, `ArchiveFormat`, `ToolbarActionIds`, `BuildActionCategory`) breaks plugins that name it; adding one can still break an exhaustive `when`.
 - **Types & nullability.** Flipping nullable↔non-null, changing a parameter/return type, or `val`↔`var` on an API property.
-- **Moving or renaming** any class/package under `com.itsaky.androidide.plugins.*` — breaks imports and `ServiceRegistry.get(...)` lookups.
+- **Moving or renaming** any class/package under `org.appdevforall.codeonthego.plugins.*` — breaks imports and `ServiceRegistry.get(...)` lookups.
 - **Manifest key or permission-string renames** — silently break every existing plugin, since both are matched by string.
 
 ## Before you change the plugin API — checklist

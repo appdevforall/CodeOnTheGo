@@ -24,9 +24,9 @@ import androidx.lifecycle.lifecycleScope
 import com.codeonthego.markdownpreviewer.MarkdownPreviewerPlugin
 import com.codeonthego.markdownpreviewer.PreviewState
 import com.codeonthego.markdownpreviewer.R
-import com.itsaky.androidide.plugins.base.PluginFragmentHelper
-import com.itsaky.androidide.plugins.services.IdeProjectService
-import com.itsaky.androidide.plugins.services.IdeFileService
+import org.appdevforall.codeonthego.plugins.base.PluginFragmentHelper
+import org.appdevforall.codeonthego.plugins.services.IdeProjectService
+import org.appdevforall.codeonthego.plugins.services.IdeFileService
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin

@@ -46,13 +46,13 @@ class DeployPolicyTest {
 	private val logSenderService =
 		ComponentInfo(
 			ComponentKind.SERVICE,
-			"com.itsaky.androidide.logsender.LogSenderService",
+			"org.appdevforall.codeonthego.logsender.LogSenderService",
 			proxyClass = "com.example.quickbuild.proxies.Proxy1Service",
 		)
 	private val logSenderInstaller =
 		ComponentInfo(
 			ComponentKind.PROVIDER,
-			"com.itsaky.androidide.logsender.utils.LogSenderInstaller",
+			"org.appdevforall.codeonthego.logsender.utils.LogSenderInstaller",
 			proxyClass = "com.example.quickbuild.proxies.Proxy1Provider",
 		)
 
@@ -185,19 +185,19 @@ class DeployPolicyTest {
 		// A user class that happens to sit in logsender's package is still the user's code and
 		// still ships in the payload. A prefix match would silently stop restarting for it.
 		val neighbour =
-			ComponentInfo(ComponentKind.SERVICE, "com.itsaky.androidide.logsender.MyOwnService")
+			ComponentInfo(ComponentKind.SERVICE, "org.appdevforall.codeonthego.logsender.MyOwnService")
 		val nestedNeighbour =
-			ComponentInfo(ComponentKind.PROVIDER, "com.itsaky.androidide.logsender.utils.MyOwnProvider")
+			ComponentInfo(ComponentKind.PROVIDER, "org.appdevforall.codeonthego.logsender.utils.MyOwnProvider")
 
 		assertThat(policy(logSenderService, neighbour).decide(null))
 			.isEqualTo(
-				DeployDecision.Restart(ComponentKind.SERVICE, "com.itsaky.androidide.logsender.MyOwnService"),
+				DeployDecision.Restart(ComponentKind.SERVICE, "org.appdevforall.codeonthego.logsender.MyOwnService"),
 			)
 		assertThat(policy(logSenderInstaller, nestedNeighbour).decide(null))
 			.isEqualTo(
 				DeployDecision.Restart(
 					ComponentKind.PROVIDER,
-					"com.itsaky.androidide.logsender.utils.MyOwnProvider",
+					"org.appdevforall.codeonthego.logsender.utils.MyOwnProvider",
 				),
 			)
 	}
@@ -208,8 +208,8 @@ class DeployPolicyTest {
 		// set silently restores restart-on-every-save.
 		assertThat(COGO_INJECTED_COMPONENTS)
 			.containsExactly(
-				"com.itsaky.androidide.logsender.LogSenderService",
-				"com.itsaky.androidide.logsender.utils.LogSenderInstaller",
+				"org.appdevforall.codeonthego.logsender.LogSenderService",
+				"org.appdevforall.codeonthego.logsender.utils.LogSenderInstaller",
 			)
 	}
 

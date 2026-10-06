@@ -1,4 +1,4 @@
-package com.itsaky.androidide.test;
+package org.appdevforall.codeonthego.test;
 
 import java.util.function.Consumer;
 

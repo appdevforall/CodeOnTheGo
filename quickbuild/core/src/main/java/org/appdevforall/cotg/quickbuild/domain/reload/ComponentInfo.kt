@@ -57,8 +57,8 @@ val RESTART_SENSITIVE_KINDS: Set<ComponentKind> =
  */
 val COGO_INJECTED_COMPONENTS: Set<String> =
 	setOf(
-		"com.itsaky.androidide.logsender.LogSenderService",
-		"com.itsaky.androidide.logsender.utils.LogSenderInstaller",
+		"org.appdevforall.codeonthego.logsender.LogSenderService",
+		"org.appdevforall.codeonthego.logsender.utils.LogSenderInstaller",
 	)
 
 /**

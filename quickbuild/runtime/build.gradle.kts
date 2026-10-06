@@ -68,23 +68,23 @@ tasks.register<JacocoReport>("jacocoTestReport") {
 		fileTree(
 			layout.buildDirectory.dir("intermediates/javac/v8Debug/compileV8DebugJavaWithJavac/classes"),
 		) {
-			exclude("com/itsaky/androidide/quickbuild/IQuickBuild*")
+			exclude("org/appdevforall/codeonthego/quickbuild/IQuickBuild*")
 			// Binder host service: payload fds, Handler/Looper, activity relaunch orchestration.
-			exclude("com/itsaky/androidide/quickbuild/runtime/QuickBuildRuntime*")
+			exclude("org/appdevforall/codeonthego/quickbuild/runtime/QuickBuildRuntime*")
 			// ServiceConnection bind/reconnect to CoGo; binder death + rebind only happen on-device.
-			exclude("com/itsaky/androidide/quickbuild/runtime/QuickBuildClient*")
+			exclude("org/appdevforall/codeonthego/quickbuild/runtime/QuickBuildClient*")
 			// Framework-instantiated AppComponentFactory (Activity/Service/Provider hooks).
-			exclude("com/itsaky/androidide/quickbuild/runtime/QuickBuildAppComponentFactory*")
+			exclude("org/appdevforall/codeonthego/quickbuild/runtime/QuickBuildAppComponentFactory*")
 			// InMemoryDexClassLoader (ART-only) + /proc + android.os.Process boot path; not
 			// splittable without moving prod code around - the generation-gate logic it defers
 			// to (Generations, PayloadPersistence, PersistedSelection) is JVM-tested.
-			exclude("com/itsaky/androidide/quickbuild/runtime/PayloadStore*")
+			exclude("org/appdevforall/codeonthego/quickbuild/runtime/PayloadStore*")
 			// API 30+ ResourcesLoader/ResourcesProvider attach; framework Resources objects only.
-			exclude("com/itsaky/androidide/quickbuild/runtime/ResourceStore*")
+			exclude("org/appdevforall/codeonthego/quickbuild/runtime/ResourceStore*")
 			// Overlay banner View/TextView UI (UI is DoD-exempt; OverlayState text model is JVM-tested).
-			exclude("com/itsaky/androidide/quickbuild/runtime/StatusOverlay*")
+			exclude("org/appdevforall/codeonthego/quickbuild/runtime/StatusOverlay*")
 			// Application.ActivityLifecycleCallbacks census over real Activity instances.
-			exclude("com/itsaky/androidide/quickbuild/runtime/ActivityTracker*")
+			exclude("org/appdevforall/codeonthego/quickbuild/runtime/ActivityTracker*")
 		},
 	)
 	sourceDirectories.setFrom(files("src/main/java"))

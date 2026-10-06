@@ -71,7 +71,7 @@
 
                 </com.google.android.material.appbar.MaterialToolbar>
 
-                <com.itsaky.androidide.ui.ProjectActionsToolbar
+                <org.appdevforall.codeonthego.ui.ProjectActionsToolbar
                     android:id="@+id/project_actions_toolbar"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -166,7 +166,7 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/desc_enter_fullscreen" />
 
-    <com.itsaky.androidide.ui.EditorBottomSheet
+    <org.appdevforall.codeonthego.ui.EditorBottomSheet
         android:id="@+id/bottom_sheet"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

@@ -7,7 +7,7 @@
 
 <!-- Must stay a single view: SwipeRevealLayout asserts childCount == 2 and indexes its children positionally, so this include
 	is its hidden content and cannot gain a sibling. -->
-<com.itsaky.androidide.ui.MetricsCarouselLayout
+<org.appdevforall.codeonthego.ui.MetricsCarouselLayout
 	xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:app="http://schemas.android.com/apk/res-auto"
 	android:layout_width="match_parent"
@@ -138,4 +138,4 @@
 		app:layout_constraintStart_toStartOf="parent"
 		app:layout_constraintTop_toTopOf="parent" />
 
-</com.itsaky.androidide.ui.MetricsCarouselLayout>
+</org.appdevforall.codeonthego.ui.MetricsCarouselLayout>

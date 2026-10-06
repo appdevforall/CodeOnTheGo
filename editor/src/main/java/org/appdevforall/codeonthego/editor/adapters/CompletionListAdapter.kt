@@ -1,0 +1,251 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package org.appdevforall.codeonthego.editor.adapters
+
+import android.content.res.Resources
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
+import android.util.TypedValue
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.core.view.isVisible
+import com.itsaky.androidide.editor.R
+import com.itsaky.androidide.editor.databinding.LayoutCompletionItemBinding
+import org.appdevforall.codeonthego.lookup.Lookup
+import org.appdevforall.codeonthego.lsp.models.ClassCompletionData
+import org.appdevforall.codeonthego.lsp.models.CompletionItemKind.CLASS
+import org.appdevforall.codeonthego.lsp.models.CompletionItemKind.CONSTRUCTOR
+import org.appdevforall.codeonthego.lsp.models.CompletionItemKind.ENUM
+import org.appdevforall.codeonthego.lsp.models.CompletionItemKind.FIELD
+import org.appdevforall.codeonthego.lsp.models.CompletionItemKind.INTERFACE
+import org.appdevforall.codeonthego.lsp.models.CompletionItemKind.METHOD
+import org.appdevforall.codeonthego.lsp.models.MemberCompletionData
+import org.appdevforall.codeonthego.lsp.models.MethodCompletionData
+import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
+import com.itsaky.androidide.resources.R.string.msg_api_info_deprecated
+import com.itsaky.androidide.resources.R.string.msg_api_info_removed
+import com.itsaky.androidide.resources.R.string.msg_api_info_since
+import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE
+import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE.COMPLETION_WND_TEXT_API
+import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE.COMPLETION_WND_TEXT_DETAIL
+import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE.COMPLETION_WND_TEXT_LABEL
+import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE.COMPLETION_WND_TEXT_TYPE
+import org.appdevforall.codeonthego.tasks.executeAsync
+import org.appdevforall.codeonthego.utils.customOrJBMono
+import org.appdevforall.codeonthego.xml.versions.ApiVersion
+import org.appdevforall.codeonthego.xml.versions.ApiVersions
+import org.appdevforall.codeonthego.xml.versions.Info
+import io.github.rosemoe.sora.widget.component.EditorCompletionAdapter
+import org.appdevforall.codeonthego.lsp.models.CompletionItem as LspCompletionItem
+
+class CompletionListAdapter : EditorCompletionAdapter() {
+	override fun getItemHeight(): Int =
+		TypedValue
+			.applyDimension(
+				TypedValue.COMPLEX_UNIT_DIP,
+				40f,
+				Resources.getSystem().displayMetrics,
+			).toInt()
+
+	override fun getView(
+		position: Int,
+		convertView: View?,
+		parent: ViewGroup?,
+		isCurrentCursorPosition: Boolean,
+	): View {
+		val binding =
+			convertView?.let { LayoutCompletionItemBinding.bind(it) }
+				?: LayoutCompletionItemBinding.inflate(LayoutInflater.from(context), parent, false)
+		val item = getItem(position) as LspCompletionItem
+		val label = item.ideLabel
+		val desc = item.detail
+		var type: String? = item.completionKind.toString()
+		val header = if (type!!.isEmpty()) "O" else type[0].toString()
+		if (item.overrideTypeText != null) {
+			type = item.overrideTypeText
+		}
+		binding.completionIconText.text = header
+		binding.completionLabel.text = label
+		binding.completionType.text = type
+		binding.completionDetail.text = desc
+		binding.completionIconText.setTypeface(
+			customOrJBMono(EditorPreferences.useCustomFont),
+			Typeface.BOLD,
+		)
+		binding.completionApiInfo.visibility = View.GONE
+		binding.completionDetail.isVisible = desc.isNotEmpty()
+
+		applyColorScheme(binding, isCurrentCursorPosition)
+		showApiInfoIfNeeded(item, binding.completionApiInfo)
+		return binding.root
+	}
+
+	private fun applyColorScheme(
+		binding: LayoutCompletionItemBinding,
+		isCurrent: Boolean,
+	) {
+		setItemBackground(binding, isCurrent)
+		var color = getThemeColor(COMPLETION_WND_TEXT_LABEL)
+		if (color != 0) {
+			binding.completionLabel.setTextColor(color)
+			binding.completionIconText.setTextColor(color)
+		}
+
+		color = getThemeColor(COMPLETION_WND_TEXT_DETAIL)
+		if (color != 0) {
+			binding.completionDetail.setTextColor(color)
+		}
+
+		color = getThemeColor(COMPLETION_WND_TEXT_API)
+		if (color != 0) {
+			binding.completionApiInfo.setTextColor(color)
+		}
+
+		color = getThemeColor(COMPLETION_WND_TEXT_TYPE)
+		if (color != 0) {
+			binding.completionType.setTextColor(color)
+		}
+	}
+
+	private fun setItemBackground(
+		binding: LayoutCompletionItemBinding,
+		isCurrent: Boolean,
+	) {
+		val color =
+			if (isCurrent) {
+				getThemeColor(SchemeAndroidIDE.COMPLETION_WND_BG_CURRENT_ITEM)
+			} else {
+				0
+			}
+
+		val cornerRadius =
+			binding.root.context.resources
+				.getDimensionPixelSize(R.dimen.completion_window_corner_radius)
+				.toFloat()
+
+		val gd =
+			GradientDrawable().apply {
+				setColor(color)
+				setCornerRadius(cornerRadius)
+			}
+
+		binding.root.background = gd
+	}
+
+	private fun showApiInfoIfNeeded(
+		item: LspCompletionItem,
+		textView: TextView,
+	) {
+		executeAsync({
+			if (!isValidForApiVersion(item)) {
+				return@executeAsync null
+			}
+
+			val data = item.data
+			val versions =
+				Lookup.getDefault().lookup(ApiVersions.COMPLETION_LOOKUP_KEY)
+					?: return@executeAsync null
+			val className =
+				when (data) {
+					is ClassCompletionData -> data.className
+					is MemberCompletionData -> data.classInfo.className
+					else -> return@executeAsync null
+				}
+			val kind = item.completionKind
+
+			val clazz = versions.getClass(className) ?: return@executeAsync null
+			var info: Info? = clazz
+
+			if (data is MethodCompletionData) {
+				if (
+					kind == METHOD && data.erasedParameterTypes.isNotEmpty() && data.memberName.isNotBlank()
+				) {
+					val method =
+						clazz.getMethod(data.memberName, *data.erasedParameterTypes.toTypedArray())
+					if (method != null) {
+						info = method
+					}
+				} else if (kind == FIELD && data.memberName.isNotBlank()) {
+					val field = clazz.getField(data.memberName)
+					if (field != null) {
+						info = field
+					}
+				}
+			}
+			val sb = StringBuilder()
+			if (info!!.since > ApiVersion.of(1)) {
+				sb.append(textView.context.getString(msg_api_info_since, info.since.toString()))
+				sb.append("\n")
+			}
+
+			if (info.removed.isKnown) {
+				sb.append(textView.context.getString(msg_api_info_removed, info.removed.toString()))
+				sb.append("\n")
+			}
+
+			if (info.deprecated.isKnown) {
+				sb.append(textView.context.getString(msg_api_info_deprecated, info.deprecated.toString()))
+				sb.append("\n")
+			}
+
+			return@executeAsync sb
+		}) {
+			if (it.isNullOrBlank()) {
+				textView.visibility = View.GONE
+				return@executeAsync
+			}
+
+			textView.text = it
+			textView.visibility = View.VISIBLE
+		}
+	}
+
+	private fun isValidForApiVersion(item: LspCompletionItem?): Boolean {
+		if (item == null) {
+			return false
+		}
+		val type = item.completionKind
+		val data = item.data
+		return if ( // These represent a class type
+			(
+				type === CLASS ||
+					type === INTERFACE ||
+					type === ENUM ||
+
+					// These represent a method type
+					type === METHOD ||
+					type === CONSTRUCTOR ||
+
+					// A field type
+					type === FIELD
+			) && data != null
+		) {
+			val className =
+				when (data) {
+					is ClassCompletionData -> data.className
+					is MemberCompletionData -> data.classInfo.className
+					else -> null
+				}
+			!TextUtils.isEmpty(className)
+		} else {
+			false
+		}
+	}
+}

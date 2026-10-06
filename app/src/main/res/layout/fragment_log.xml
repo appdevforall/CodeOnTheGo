@@ -21,7 +21,7 @@
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content" />
 
-	<com.itsaky.androidide.editor.ui.IDEEditor
+	<org.appdevforall.codeonthego.editor.ui.IDEEditor
 		android:id="@+id/editor"
 		android:layout_width="match_parent"
 		android:layout_height="0dp"

@@ -1,0 +1,86 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package com.itsaky.androidide.gradle
+
+import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
+import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
+import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED
+import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_ENABLED
+import org.gradle.api.GradleException
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.logging.Logging
+
+/**
+ * Gradle Plugin for projects built in AndroidIDE.
+ *
+ * @author Akash Yadav
+ */
+class AndroidIDEGradlePlugin : Plugin<Project> {
+	companion object {
+		private val logger = Logging.getLogger(AndroidIDEGradlePlugin::class.java)
+
+		/**
+		 * QuickBuildPlugin's FQN, applied reflectively below so this file carries no
+		 * compile-time reference to it: the minAgpCheck guard (see build.gradle.kts)
+		 * recompiles every non-Quick-Build source against AGP_VERSION_MINIMUM, and only
+		 * the Quick Build sources are allowed newer AGP APIs. Pinned to the real class by
+		 * `QuickBuildPluginTest`.
+		 */
+		internal const val QUICK_BUILD_PLUGIN_CLASS = "com.itsaky.androidide.gradle.QuickBuildPlugin"
+	}
+
+	override fun apply(target: Project) {
+		if (target.isTestEnv) {
+			logger.lifecycle("Applying ${javaClass.simpleName} to project '${target.path}'")
+		}
+
+		target.run {
+			val isLogSenderEnabled = findProperty(PROPERTY_LOG_SENDER_ENABLED) == "true"
+			if (isLogSenderEnabled) {
+				pluginManager.apply(LogSenderPlugin::class.java)
+			}
+
+			val isJdwpEnabled = findProperty(PROPERTY_JDWP_ENABLED) == "true"
+			if (isJdwpEnabled) {
+				pluginManager.apply(JdwpPlugin::class.java)
+			}
+
+			val isProfileableEnabled = findProperty(PROPERTY_PROFILEABLE_ENABLED) == "true"
+			if (isProfileableEnabled) {
+				pluginManager.apply(ProfilerPlugin::class.java)
+			}
+
+			val isQuickBuildEnabled = findProperty(PROPERTY_QUICK_BUILD_ENABLED) == "true"
+			if (isQuickBuildEnabled) {
+				// By name, not ::class: Quick Build classes load (and touch newer AGP APIs)
+				// only when the property enables them - see QUICK_BUILD_PLUGIN_CLASS.
+				pluginManager.apply(Class.forName(QUICK_BUILD_PLUGIN_CLASS))
+			}
+
+			tasks.configureEach { task ->
+				val message = adbTaskReplacementMessage(task) ?: return@configureEach
+				task.setActions(emptyList())
+				if (task.name.endsWith("AndroidTest")) {
+					task.doLast { throw GradleException(ANDROID_TEST_INSTALL_UNSUPPORTED_MESSAGE) }
+				} else {
+					task.doLast { it.logger.lifecycle(message) }
+				}
+			}
+		}
+	}
+}

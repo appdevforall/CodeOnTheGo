@@ -19,7 +19,7 @@ package io.github.rosemoe.sora.editor.ts
 
 import android.os.Handler
 import android.os.Looper
-import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
+import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TSInputEdit
 import com.itsaky.androidide.treesitter.TSQueryCursor
 import com.itsaky.androidide.treesitter.TSTree

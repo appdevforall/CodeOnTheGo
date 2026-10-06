@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.annotation.IntDef
 import androidx.core.content.edit
-import com.itsaky.androidide.app.BaseApplication.Companion.baseInstance
+import org.appdevforall.codeonthego.app.BaseApplication.Companion.baseInstance
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

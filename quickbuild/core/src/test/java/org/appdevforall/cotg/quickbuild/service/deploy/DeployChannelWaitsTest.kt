@@ -5,7 +5,7 @@ package org.appdevforall.cotg.quickbuild.service.deploy
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.quickbuild.IQuickBuildTarget
+import org.appdevforall.codeonthego.quickbuild.IQuickBuildTarget
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent

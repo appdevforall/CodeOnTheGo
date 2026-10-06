@@ -5,8 +5,8 @@ import android.content.Context;
 import android.content.res.TypedArray;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
-import com.itsaky.androidide.preferences.internal.GeneralPreferences;
-import com.itsaky.androidide.utils.ContextUtilsKt;
+import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences;
+import org.appdevforall.codeonthego.utils.ContextUtilsKt;
 
 public class ThemeUtils {
 

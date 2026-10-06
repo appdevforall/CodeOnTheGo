@@ -2,7 +2,7 @@ syntax = "proto3";
 option optimize_for = LITE_RUNTIME;
 option java_outer_classname = "JavaModels";
 
-package com.itsaky.androidide.project;
+package org.appdevforall.codeonthego.project;
 import "common.proto";
 
 // A Java source directory.
