@@ -1295,7 +1295,7 @@
 	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
 	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
 	<string name="action_discover_plugins">Discover plugins</string>
-	<string name="url_discover_plugins" translatable="false">https://www.appdevforall.org/contribute/</string>
+	<string name="url_discover_plugins" translatable="false">https://addons.appdevforall.org</string>
 	<string name="title_uninstall_plugin">Uninstall Plugin</string>
 	<string name="msg_uninstall_plugin_confirm">Are you sure you want to uninstall \'%1$s\'?</string>
 	<string name="label_plugin_name">Name</string>
