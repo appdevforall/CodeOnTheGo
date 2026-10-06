@@ -21,7 +21,7 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 | [0005](0005-per-abi-product-flavors.md) | Ship per-ABI product flavors (v7/v8), not a universal APK | Proposed |
 | [0006](0006-koin-dependency-injection.md) | Use Koin for dependency injection, not Hilt/Dagger | Proposed |
 | [0007](0007-strictmode-whitelist-engine.md) | Enforce StrictMode via a custom whitelist engine | Proposed |
-| [0008](0008-retain-androidide-namespace.md) | Retain the `com.itsaky.androidide` namespace after rebrand | Proposed |
+| [0008](0008-retain-androidide-namespace.md) | Retain the `com.itsaky.androidide` namespace after rebrand | Superseded by 0017 |
 | [0009](0009-jetpack-compose-for-new-ui.md) | Build new UI in Jetpack Compose, not XML Views | Proposed |
 | [0010](0010-navigation-resolves-via-analysis-api.md) | Kotlin navigation resolves via the Analysis API, not the symbol index | Proposed |
 | [0011](0011-command-analysis-priority.md) | User-invoked commands get their own analysis priority | Proposed |
@@ -30,3 +30,4 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 | [0014](0014-refactorings-decline-rather-than-rewrite.md) | Interactive refactorings decline rather than rewrite unselected code | Proposed |
 | [0015](0015-one-pinned-ktfile-per-analysis.md) | One pinned live KtFile per analysis, enforced by the type system | Proposed |
 | [0016](0016-quick-build-compiles-outside-gradle.md) | Quick Build's per-save path compiles incrementally outside Gradle | Proposed |
+| [0017](0017-rename-to-appdevforall-codeonthego-namespace.md) | Rename the application id / namespace to `org.appdevforall.codeonthego` | Proposed |
