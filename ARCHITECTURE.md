@@ -71,7 +71,8 @@ Strategy: **layer-and-subsystem based**, not feature-by-feature. The Gradle buil
 |---|---|---|
 | Application | `app` | The IDE itself — activities, fragments, services, DI, agent, web server. Wires everything together. |
 | Build engine | `subprojects:tooling-api*`, `gradle-plugin*`, `subprojects:projects`, `subprojects:builder-model-impl` | Runs a real Gradle build of the user's project out-of-process and streams events back. |
-| Language tooling | `lsp:{api,java,kotlin,xml,indexing,refactor-core,ui,…}`, `lexers`, `editor*`, `editor-treesitter` | Language servers, indexing, the Sora-based editor and highlighting, and the tree-sitter document outline (`editor/.../language/outline`, rendered by `app`'s sidebar `OutlineFragment`). `lsp:refactor-core` holds the language-agnostic half of the refactorings (offset spans, block geometry, rewrite composition, name primitives) so `lsp:java` and `lsp:kotlin` share one copy; `lsp:ui` holds the Compose sheets they share. Neither depends on a language server. |
+| Quick Build (experimental, ADFA-4128) | `quickbuild:core`, `quickbuild:daemon`, `quickbuild:protocol`, `quickbuild:runtime` | Live-reloads the user's app on every save in seconds, by running it as a generated proxy app instead of doing a full Gradle rebuild. |
+| Language tooling | `lsp:{api,java,kotlin,xml,external,indexing,refactor-core,ui,…}`, `lexers`, `editor*`, `editor-treesitter` | Language servers, indexing, the Sora-based editor and highlighting, and the tree-sitter document outline (`editor/.../language/outline`, rendered by `app`'s sidebar `OutlineFragment`). `lsp:refactor-core` holds the language-agnostic half of the refactorings (offset spans, block geometry, rewrite composition, name primitives) so `lsp:java` and `lsp:kotlin` share one copy; `lsp:ui` holds the Compose sheets they share. Neither depends on a language server. `lsp:external` adapts a plugin's stdio language server to `ILanguageServer` over LSP4J; `app`'s `PluginLanguageSupport` installs plugin grammars and servers. |
 | UI design tooling | `layouteditor`, `uidesigner`, `xml-inflater`, `vectormaster`, `compose-preview` | Visual/XML design surfaces for the *user's* app. |
 | Shell | `termux:{termux-app,termux-shared,termux-view,termux-emulator}` | Embedded Termux shell and terminal. |
 | Plugin system | `plugin-api`, `plugin-api:plugin-builder`, `plugin-manager` | In-app plugin SDK + manager — `AndroidManifest.xml` `<meta-data>` contract, permissions, extensions. See [plugin-api.md](docs/plugin-api.md) for the API surface & compatibility policy. |
@@ -80,6 +81,7 @@ Strategy: **layer-and-subsystem based**, not feature-by-feature. The Gradle buil
 | Testing | `testing:{android,unit,lsp,tooling,common}` | Shared test harnesses, split by what's under test. |
 
 **Dependency rules (enforced):**
+
 - **`app` depends inward; libraries never depend on `app`.** Subsystems are consumed by `app`, not vice versa.
 - **Vendored forks are substituted, not imported ad hoc.** `composite-builds/build-deps` and `build-deps-common` provide forked `javac`/`jdt`/`layoutlib`/etc.; `settings.gradle.kts` substitutes them in for `com.itsaky.androidide.build:*`. Don't add a Maven coordinate for something already substituted.
 - **All module config flows through `composite-builds/build-logic`.** Every Android module gets the `v7`/`v8` ABI flavors centrally (`AndroidModuleConf.kt`) — there is no flavorless `assembleDebug`. `:plugin-api` is intentionally excluded from flavors.
@@ -97,6 +99,22 @@ These structural facts shape every module. Day-to-day build *commands* live in `
 - **Native lib compression** (ADFA-2306, ADFA-4729). The app manifest hard-codes `android:extractNativeLibs="true"` (required: the installer must materialize libs in `nativeLibraryDir`, e.g. `libshizuku.so` is an executable the adb shell runs from there). That attribute overrides the `jniLibs.useLegacyPackaging` DSL, so AGP packages `lib/<abi>/*.so` deflate-compressed in **every** APK — ~5.9 MB smaller (`libtree-sitter-kotlin.so` alone is 4.18 MB → 339 kB). The trap is the `recompressApk` post-step (release always, debug in CI only): its no-compress lists in `app/build.gradle.kts` must NOT contain `"so"`, or it silently re-stores the libs and undoes the saving — which is what ADFA-2306 fixed for release and ADFA-4729 for CI debug. Locally built debug APKs (including the e2e farm's) never run that step and were always fine.
 - **`app` package layout is by concern, not feature:** `activities`, `fragments`, `services`, `di`, `agent`, `viewmodel(s)`, `repositories`, `roomData`, `localWebServer`, `preferences`, `ui` (Compose screens live under `ui/compose`), `templates/manager` (the Manager screen's `.cgt`-parsing data layer, with direct filesystem access to `Environment.TEMPLATES_DIR` — distinct from the plugin-facing `IdeTemplateService` in `plugin-api`/`plugin-manager`), `utils`, ….
 
+## Sibling Repositories & Asset Provenance
+
+Large assets are not in this repo. They are `.gitignore`d and fetched at build time by the `Asset(...)` list in `app/build.gradle.kts`, so a local copy can be stale regardless of git history.
+
+- **[appdevforall/dev-assets](https://github.com/appdevforall/dev-assets)** (private) stores the blobs behind that `Asset(...)` list: the per-ABI Android SDK and bootstrap, the Gradle distribution and API jars, `localMvnRepository.zip`, `core.cgt` (built from its `templates/`), and a copy of `documentation.db` (`debug/`) / `documentation.db.br` (`release/`). It uses no Git LFS: `assets-update.sh` splits each blob into 90 MB parts plus an `.md5`, and `assets-reconstruct.sh` reassembles them. Its `deploy.yml` reconstructs the parts and copies them by `scp` to the web host, which serves them at `https://appdevforall.org/dev-assets/{debug,release}/`. Local builds download over HTTP and check the `.md5`; CI (`isCiCd`) copies the same directory from the host by `scp`. Gradle tasks: `:app:assetsDownloadDebug`, `:app:assetsDownloadRelease`.
+- **[appdevforall/OfflineDocumentationTools](https://github.com/appdevforall/OfflineDocumentationTools)** (public) builds and edits `documentation.db` and owns its schema (`docdb-studio`, ingest scripts, the `Dokka-plugin-kdoc2json` Dokka plugin that turns KDoc into JSON for Pebble templates). See [docs/documentation-database.md](docs/documentation-database.md).
+- **[appdevforall/addons](https://github.com/appdevforall/addons)** (public; formerly `plugin-examples`) holds the plugins (`plugins/`, each a standalone Gradle project whose `assemblePlugin` builds a `.cgp`) and templates. Its `publish-addons.yml` builds them against this repo's `plugin-api-latest` GitHub Release and publishes the catalog to `https://addons.appdevforall.org` (the `url_discover_plugins` string).
+
+**`documentation.db` provenance.** The canonical copy is on **Google Drive**; OfflineDocumentationTools' workflows edit it there. This repo's CI reads it from Drive, not from dev-assets:
+
+- `compress_docdb.yml` (daily) downloads `documentation.db`, and if its MD5 changed, Brotli-compresses it and uploads `documentation.db.br` back to Drive.
+- `release.yml` fetches dev-assets' release assets, then its `download_documentation` job replaces `documentation.db.br` with the Drive copy.
+- `generate_assets.yml` (manual) fetches dev-assets' debug assets, replaces `assets/documentation.db` with the Drive copy, builds `assets-arm64-v8a.zip` / `assets-armeabi-v7a.zip` (`:app:assembleAssets`), and uploads them to Drive.
+
+Local builds get `documentation.db` from dev-assets instead, which is updated by hand and can lag Drive.
+
 ## Technology Stack
 
 | Concern | Library / Approach |
@@ -106,9 +124,9 @@ These structural facts shape every module. Day-to-day build *commands* live in `
 | Asynchronous work | **Kotlin Coroutines + Flow** (`StateFlow`/`SharedFlow`, `viewModelScope`, app-scoped `CoroutineScope(SupervisorJob() + Dispatchers.IO)`); **GreenRobot EventBus** for cross-subsystem events. |
 | Networking | Offline-first; no general REST layer. External I/O is **Google GenAI SDK** (Gemini), **on-device llama.cpp**, and **JGit** (git). Retrofit is in the catalog but effectively unused in app code. |
 | Database / Persistence | **Room** is the default for relational/queryable data; **filesystem + preferences (DataStore)** for non-relational settings. **Raw SQLite** (`SQLiteDatabase` / `SupportSQLiteOpenHelper`) only for justified exceptions (see policy below). |
-| Serialization | `kotlinx.serialization` and Gson. |
-| Parceling | Kotlin **`@Parcelize`** (`kotlin-parcelize` plugin) for `Parcelable` data classes — never hand-implement `Parcelable`. Do it manually only if `@Parcelize` genuinely can't express it (custom serialization logic, unsupported member types). |
-| AI agent | Google GenAI (cloud) + llama (local), behind `GeminiRepository` / `SwitchableGeminiRepository`, with planner/critic/executor agents in `agent/repository`. |
+| Serialization          | `kotlinx.serialization` and Gson.                            |
+| Parceling              | Kotlin **`@Parcelize`** (`kotlin-parcelize` plugin) for `Parcelable` data classes — never hand-implement `Parcelable`. Do it manually only if `@Parcelize` genuinely can't express it (custom serialization logic, unsupported member types). |
+| AI agent               | Google GenAI (cloud) + llama (local), behind `GeminiRepository` / `SwitchableGeminiRepository`, with planner/critic/executor agents in `agent/repository`. |
 
 > **Persistence policy (authoritative):** new relational/queryable persistence uses **Room** (`@Entity` + DAO + `RoomDatabase` with explicit migrations, provided via Koin). Non-relational settings use the **filesystem/preferences (DataStore)**. **Raw SQLite is the exception, not the default** — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md).
 >
@@ -196,13 +214,14 @@ fun onEvent(event: PluginManagerUiEvent) = viewModelScope.launch(Dispatchers.IO)
 
 Test code lives both alongside each module and in the shared `testing:{unit,android,lsp,tooling,common}` harnesses. Run with the flox wrapper, e.g. `flox activate -d flox/local -- ./gradlew :testing:unit:test` or a module's `:module:test --tests "…"`.
 
-| Layer | Runner / Tools | What to test |
-|---|---|---|
-| Unit (pure JVM) | **JUnit Jupiter (5)**, some legacy **JUnit 4**; assertions via **Google Truth**; mocking via **MockK** (primary) and **Mockito-Kotlin** (legacy) | ViewModels (state transitions over a fake repository), repositories, parsers, builder/tooling logic. Keep these off the device. |
-| JVM + Android framework | **Robolectric** | Code needing `Context`/resources/`SQLiteOpenHelper` without an emulator. |
-| Instrumented / UI | **Espresso** + **AndroidX Test** + **UiAutomator**, run under **Test Orchestrator**; `mockk-android` for on-device mocks | End-to-end IDE flows (create/build/deploy, editor, terminal). |
+| Layer                   | Runner / Tools                                               | What to test                                                 |
+| ----------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Unit (pure JVM)         | **JUnit Jupiter (5)**, some legacy **JUnit 4**; assertions via **Google Truth**; mocking via **MockK** (primary) and **Mockito-Kotlin** (legacy) | ViewModels (state transitions over a fake repository), repositories, parsers, builder/tooling logic. Keep these off the device. |
+| JVM + Android framework | **Robolectric**                                              | Code needing `Context`/resources/`SQLiteOpenHelper` without an emulator. |
+| Instrumented / UI       | **Espresso** + **AndroidX Test** + **UiAutomator**, run under **Test Orchestrator**; `mockk-android` for on-device mocks | End-to-end IDE flows (create/build/deploy, editor, terminal). |
 
 Preferences and conventions:
+
 - **Assertions: Google Truth** (`assertThat(x).isEqualTo(...)`) over raw JUnit asserts.
 - **Mocking: MockK** for new code; relax it deliberately rather than over-stubbing.
 - For UDF ViewModels, drive `onEvent(...)`/method calls against a fake or mocked repository and assert the emitted `UiState` sequence (collect the `StateFlow`); assert effects by collecting the effect `SharedFlow`.

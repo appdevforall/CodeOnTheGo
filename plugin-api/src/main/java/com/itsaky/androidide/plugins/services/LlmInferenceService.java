@@ -13,9 +13,20 @@ import java.util.concurrent.CompletableFuture;
  * Service for LLM inference operations. Provided by ai-core plugin.
  *
  * <p>
- * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend}, {@link EmbeddingBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
+ * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link ActiveModelReportingBackend}, {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend}, {@link EmbeddingBackend}, {@link StatusReportingBackend}, {@link WebSearchBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
  */
 public interface LlmInferenceService {
+
+	/**
+	 * Adds a listener told whenever the backends change: one registers or unregisters, reports a change through {@link #notifyBackendChanged}, or the user selects a different one ({@link #getPreferredBackendId}). Adding a listener already added has no effect.
+	 *
+	 * <p>
+	 * Defaults to doing nothing, which is what a service built before this method provides: its listeners are never called, and a consumer must read {@link #getAvailableBackends} when it needs it.
+	 *
+	 * @param listener
+	 *            the listener to add (must not be null)
+	 */
+	default void addBackendChangeListener(@NonNull BackendChangeListener listener) {}
 
 	/**
 	 * Cancels any ongoing generation operation.
@@ -137,6 +148,17 @@ public interface LlmInferenceService {
 	boolean isBackendAvailable(@NonNull String backendId);
 
 	/**
+	 * Signals that a registered backend's {@link LlmBackend#isAvailable}, {@link StatusReportingBackend#getStatus} or {@link ActiveModelReportingBackend#getActiveModelName} has changed and must be read again -- a key was entered, a local model finished loading, the user picked another model. The service tells every {@link BackendChangeListener}.
+	 *
+	 * <p>
+	 * Defaults to doing nothing, which is what a service built before this method provides.
+	 *
+	 * @param backendId
+	 *            the {@link LlmBackend#getId} that changed; unknown ids are ignored
+	 */
+	default void notifyBackendChanged(@NonNull String backendId) {}
+
+	/**
 	 * Registers an LLM backend with the service.
 	 *
 	 * @param backend
@@ -145,12 +167,63 @@ public interface LlmInferenceService {
 	void registerBackend(@NonNull LlmBackend backend);
 
 	/**
+	 * Removes a listener previously passed to {@link #addBackendChangeListener}; it is not called again once this returns. A listener that is not added is ignored.
+	 *
+	 * <p>
+	 * Defaults to doing nothing, matching {@link #addBackendChangeListener}.
+	 *
+	 * @param listener
+	 *            the listener to remove (must not be null)
+	 */
+	default void removeBackendChangeListener(@NonNull BackendChangeListener listener) {}
+
+	/**
 	 * Unregisters an LLM backend from the service.
 	 *
 	 * @param backendId
 	 *            the backend identifier (must not be null)
 	 */
 	void unregisterBackend(@NonNull String backendId);
+
+	/**
+	 * An {@link LlmBackend} that names the model it will answer with. A backend that does not implement this names none.
+	 *
+	 * <p>
+	 * A separate interface rather than a default on {@link LlmBackend}, so a backend built before it cannot have an unrelated method of the same name taken for this one.
+	 */
+	interface ActiveModelReportingBackend extends LlmBackend {
+
+		/**
+		 * Gets the name of the model this backend will answer with, for showing to the user -- for example {@code "gemini-2.5-flash"}, or a local model's file name.
+		 *
+		 * <p>
+		 * Must be cheap and non-blocking: answer from state the backend already holds, never by asking a server. Call {@link LlmInferenceService#notifyBackendChanged} when it changes.
+		 *
+		 * <p>
+		 * Named for the active model rather than {@code getModelName} because shipped backends already declare a private {@code getModelName()}, which a method of that name would clash with.
+		 *
+		 * @return the model name, or null when the backend has no model selected
+		 */
+		@Nullable
+		String getActiveModelName();
+	}
+
+	/**
+	 * Told when the backends change. Implemented by a consumer, not by a backend.
+	 *
+	 * <p>
+	 * The service calls it synchronously on whichever thread made the change, never while holding its own lock, so the listener may call back into the service. It must return promptly and hop to its own thread for anything slow, including UI work. An exception it throws is caught and does not reach the backend or the other listeners.
+	 */
+	interface BackendChangeListener {
+
+		/**
+		 * Called after a backend registered, unregistered, signalled a change, or became the user's selection. Re-read {@link LlmInferenceService#getBackend}; when the backend has unregistered, it returns null.
+		 *
+		 * @param backendId
+		 *            the {@link LlmBackend#getId} that changed (never null)
+		 */
+		void onBackendChanged(@NonNull String backendId);
+	}
 
 	/**
 	 * A backend whose in-flight streaming generation can be cancelled (Stop pressed).
@@ -315,7 +388,7 @@ public interface LlmInferenceService {
 		 * Gets the number of components in every vector this backend produces.
 		 *
 		 * <p>
-		 * Constant for the lifetime of the backend instance, so a consumer may size its storage once. It is not on its own an identity: two unrelated models commonly share a width, and comparing their vectors yields a similarity that looks ordinary and means nothing. Pair it with {@link #getEmbeddingModelId} wherever provenance is recorded.
+		 * Constant while {@link #getEmbeddingModelId} is unchanged, so a consumer may size its storage once per model; only an {@link EmbeddingModelSelectable} backend changes model. It is not on its own an identity: two unrelated models commonly share a width, and comparing their vectors yields a similarity that looks ordinary and means nothing. Pair it with {@link #getEmbeddingModelId} wherever provenance is recorded.
 		 *
 		 * @return the vector length, always positive
 		 */
@@ -331,6 +404,44 @@ public interface LlmInferenceService {
 		 */
 		@NonNull
 		String getEmbeddingModelId();
+	}
+
+	/**
+	 * An {@link EmbeddingBackend} whose embedding model a consumer may list and change, so a screen outside the backend's plugin can offer the choice.
+	 *
+	 * <p>
+	 * The backend still owns where the choice is stored; the consumer only reads the options and names one. Implementing this is the declaration, and the consumer asks with {@code instanceof} before it draws a picker.
+	 *
+	 * <p>
+	 * <b>Changing the model.</b> Once {@link #setEmbeddingModelId} returns, {@link #getEmbeddingModelId} and {@link #getEmbeddingDimensions} describe the new model, and the backend calls {@link LlmInferenceService#notifyBackendChanged}. A consumer that stores vectors compares the model id it recorded and reindexes when it differs.
+	 */
+	interface EmbeddingModelSelectable extends EmbeddingBackend {
+
+		/**
+		 * Lists the embedding models this backend can use right now, for example the ones the user's API key is allowed to call.
+		 *
+		 * <p>
+		 * May ask a server, so it must not block the calling thread: start the work and return the future. A failure -- no key, no network -- completes the future exceptionally.
+		 *
+		 * @return a future yielding the model identifiers, in display order, possibly empty (never null)
+		 */
+		@NonNull
+		CompletableFuture<List<String>> listEmbeddingModels();
+
+		/**
+		 * Makes {@code modelId} the model {@link #embed} uses, and stores the choice where the backend keeps its own settings.
+		 *
+		 * <p>
+		 * Must be cheap and non-blocking, because a consumer calls it from the UI thread. Setting the current model again changes nothing and need not notify.
+		 *
+		 * @param modelId
+		 *            one of the identifiers {@link #listEmbeddingModels} returned (must not be null or empty)
+		 * @throws IllegalArgumentException
+		 *             if {@code modelId} is empty
+		 * @throws NullPointerException
+		 *             if {@code modelId} is null
+		 */
+		void setEmbeddingModelId(@NonNull String modelId);
 	}
 
 	/**
@@ -560,6 +671,34 @@ public interface LlmInferenceService {
 	}
 
 	/**
+	 * An {@link LlmBackend} that knows whether it can answer right now, which {@link LlmBackend#isAvailable} does not say. A backend that does not implement this is read as {@link CapabilityStatus#AVAILABLE}.
+	 *
+	 * <p>
+	 * A separate interface rather than defaults on {@link LlmBackend}, so a backend built before it cannot have an unrelated method of the same name taken for these.
+	 */
+	interface StatusReportingBackend extends LlmBackend {
+
+		/**
+		 * Gets whether this backend can answer right now. Only meaningful while {@link #isAvailable} is true; a backend that is not set up is not asked.
+		 *
+		 * <p>
+		 * Must be cheap and non-blocking: answer from state the backend already holds, never by probing a server. Consumers call it on the UI thread; learning the state is the backend's own background work, and {@link LlmInferenceService#notifyBackendChanged} is how it reports a change.
+		 *
+		 * @return the status (never null)
+		 */
+		@NonNull
+		CapabilityStatus getStatus();
+
+		/**
+		 * Gets one user-facing sentence explaining a {@link #getStatus} other than {@link CapabilityStatus#AVAILABLE}, for example {@code "Couldn't reach http://localhost:1234/v1"}. Same cheap, non-blocking rule as {@link #getStatus}.
+		 *
+		 * @return the reason, or null when the status is {@link CapabilityStatus#AVAILABLE} or there is nothing to add
+		 */
+		@Nullable
+		String getStatusMessage();
+	}
+
+	/**
 	 * Callback for streaming responses
 	 */
 	interface StreamCallback {
@@ -641,6 +780,11 @@ public interface LlmInferenceService {
 	 * Implementing this is the declaration, and it means {@link ToolStreamCallback#onToolCall} will fire for a call the model makes. A backend that merely wants earlier turns implements {@link HistoryCapableBackend} instead: accepting tools and never calling one leaves the consumer waiting on an action the model was never able to take.
 	 */
 	interface ToolCallingBackend extends LlmBackend {
+		/**
+		 * {@link LlmConfig#extraParams} key naming the one declared tool the model must call this turn. A backend that cannot force a call ignores it.
+		 */
+		String EXTRA_PARAM_REQUIRED_TOOL = "required_tool";
+
 		/**
 		 * Generates a completion with streaming output and tool calling support.
 		 *
@@ -771,5 +915,25 @@ public interface LlmInferenceService {
 		 *            the tool the model wants called, and the arguments it supplied
 		 */
 		void onToolCall(ToolCallRequest request);
+	}
+
+	/**
+	 * An {@link LlmBackend} that can answer a request from a live web search, sent with {@link #EXTRA_PARAM_WEB_SEARCH} {@code = true} in {@link LlmConfig#extraParams}.
+	 *
+	 * <p>
+	 * The answer can change with the backend's settings (an OpenAI-compatible server may not search), so the consumer asks before each run rather than once.
+	 */
+	interface WebSearchBackend extends LlmBackend {
+		/**
+		 * {@link LlmConfig#extraParams} key asking a backend to answer from a web search.
+		 */
+		String EXTRA_PARAM_WEB_SEARCH = "web_search";
+
+		/**
+		 * Whether a web search request sent now would be searched rather than refused.
+		 *
+		 * @return true when the backend's current configuration can search the web
+		 */
+		boolean canSearchWeb();
 	}
 }
