@@ -28,7 +28,7 @@ import com.itsaky.androidide.resources.R.string
  *
  * @author Akash Yadav
  */
-@com.itsaky.androidide.annotations.inflater.ViewAdapter(ProgressBar::class)
+@org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(ProgressBar::class)
 open class ProgressBarAdapter<T : ProgressBar> : ViewAdapter<T>() {
 
   override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {

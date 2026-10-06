@@ -19,8 +19,8 @@ package com.itsaky.androidide.inflater.internal.adapters
 
 import android.widget.RadioButton
 import android.widget.RadioGroup
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
 import com.itsaky.androidide.inflater.AttributeHandlerScope
 import com.itsaky.androidide.inflater.IView
 import com.itsaky.androidide.inflater.IViewGroup
@@ -33,7 +33,7 @@ import com.itsaky.androidide.resources.R.string
  *
  * @author Akash Yadav
  */
-@com.itsaky.androidide.annotations.inflater.ViewAdapter(
+@org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(
   forView = RadioGroup::class)
 @IncludeInDesigner(group = LAYOUTS)
 open class RadioGroupAdapter<T : RadioGroup> : LinearLayoutAdapter<T>() {

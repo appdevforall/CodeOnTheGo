@@ -23,8 +23,8 @@ import android.graphics.BlendMode
 import android.os.Build.VERSION_CODES
 import android.widget.AnalogClock
 import androidx.annotation.RequiresApi
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import com.itsaky.androidide.inflater.AttributeHandlerScope
 import com.itsaky.androidide.inflater.models.UiWidget
 import com.itsaky.androidide.resources.R.drawable
@@ -35,7 +35,7 @@ import com.itsaky.androidide.resources.R.string
  *
  * @author Deep Kr. Ghosh
  */
-@com.itsaky.androidide.annotations.inflater.ViewAdapter(AnalogClock::class)
+@org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(AnalogClock::class)
 @IncludeInDesigner(group = WIDGETS)
 @RequiresApi(VERSION_CODES.S)
 open class AnalogClockAdapter<T : AnalogClock> : ViewAdapter<T>() {

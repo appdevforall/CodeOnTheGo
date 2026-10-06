@@ -15,21 +15,23 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.annotations.ksp.inflater
-
-import com.google.devtools.ksp.processing.SymbolProcessor
-import com.google.devtools.ksp.processing.SymbolProcessorEnvironment
-import com.google.devtools.ksp.processing.SymbolProcessorProvider
+package org.appdevforall.codeonthego.annotations.uidesigner
 
 /**
- * [SymbolProcessorProvider] implementation for
- * [ViewAdapter][com.itsaky.androidide.annotations.inflater.ViewAdapter] annotation.
+ * Indicates that the view (whose view adapter is annotated with [ViewAdapter]
+ * [org.appdevforall.codeonthego.annotations.inflater.ViewAdapter] and [IncludeInDesigner]) should be
+ * included in the UI Designer and made accessible to the user.
  *
  * @author Akash Yadav
  */
-class ViewAdapterSymbolProcessorProvider : SymbolProcessorProvider {
+annotation class IncludeInDesigner(val group: Group) {
 
-  override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor {
-    return ViewAdapterSymbolProcessor(environment.codeGenerator, environment.logger)
+  /** The widget groups that are available in the UI Designer. */
+  enum class Group {
+    /** Includes the Android platform widgets. */
+    WIDGETS,
+
+    /** Includes the Android platform layouts. */
+    LAYOUTS
   }
 }

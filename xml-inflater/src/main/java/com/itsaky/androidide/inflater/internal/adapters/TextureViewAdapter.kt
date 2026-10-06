@@ -20,8 +20,8 @@ package com.itsaky.androidide.inflater.internal.adapters
 import android.content.Context
 import android.view.TextureView
 import android.view.View
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import com.itsaky.androidide.inflater.AttributeHandlerScope
 import com.itsaky.androidide.inflater.internal.ui.DesignerTextureView
 import com.itsaky.androidide.inflater.models.UiWidget
@@ -33,7 +33,7 @@ import com.itsaky.androidide.resources.R.string
  *
  * @author Akash Yadav
  */
-@com.itsaky.androidide.annotations.inflater.ViewAdapter(TextureView::class)
+@org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(TextureView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class TextureViewAdapter<T : TextureView> : ViewAdapter<T>() {
 

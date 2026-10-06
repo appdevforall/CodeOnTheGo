@@ -17,8 +17,8 @@
 
 package com.itsaky.androidide.uidesigner.utils
 
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import com.itsaky.androidide.inflater.IViewAdapterIndex
 import com.itsaky.androidide.inflater.internal.utils.simpleName
 import com.itsaky.androidide.uidesigner.R.string

@@ -14,24 +14,20 @@
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
+package org.appdevforall.codeonthego.annotations.inflater
 
-package com.itsaky.androidide.annotations.uidesigner
+import android.view.View
+import kotlin.annotation.AnnotationTarget.CLASS
+import kotlin.reflect.KClass
 
 /**
- * Indicates that the view (whose view adapter is annotated with [ViewAdapter]
- * [com.itsaky.androidide.annotations.inflater.ViewAdapter] and [IncludeInDesigner]) should be
- * included in the UI Designer and made accessible to the user.
+ * Annotation used to indicate that a class is an attribute adapater for the given view class.
  *
+ * @property forView The view that this adpater handles.
+ * @property moduleNamespace The package name of the artifact/module in which the [view][forView] is
+ * declared. Set to `android` by default.
  * @author Akash Yadav
  */
-annotation class IncludeInDesigner(val group: Group) {
-
-  /** The widget groups that are available in the UI Designer. */
-  enum class Group {
-    /** Includes the Android platform widgets. */
-    WIDGETS,
-
-    /** Includes the Android platform layouts. */
-    LAYOUTS
-  }
-}
+@Target(CLASS)
+@Retention(AnnotationRetention.SOURCE)
+annotation class ViewAdapter(val forView: KClass<out View>, val moduleNamespace: String = "android")

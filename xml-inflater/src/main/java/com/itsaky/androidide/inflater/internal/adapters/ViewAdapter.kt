@@ -51,9 +51,9 @@ import android.widget.RelativeLayout.START_OF
 import androidx.annotation.ChecksSdkIntAtLeast
 import androidx.core.view.updatePadding
 import androidx.core.view.updatePaddingRelative
-import com.itsaky.androidide.annotations.inflater.ViewAdapter
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
+import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import com.itsaky.androidide.inflater.AttributeHandlerScope
 import com.itsaky.androidide.inflater.IAttribute
 import com.itsaky.androidide.inflater.INamespace

@@ -23,8 +23,8 @@ import android.text.TextUtils
 import android.text.util.Linkify
 import android.util.TypedValue
 import android.widget.TextView
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import com.itsaky.androidide.inflater.AttributeHandlerScope
 import com.itsaky.androidide.inflater.IView
 import com.itsaky.androidide.inflater.models.UiWidget
@@ -37,7 +37,7 @@ import java.util.regex.Pattern
  *
  * @author Akash Yadav
  */
-@com.itsaky.androidide.annotations.inflater.ViewAdapter(TextView::class)
+@org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(TextView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class TextViewAdapter<T : TextView> : ViewAdapter<T>() {
 	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {

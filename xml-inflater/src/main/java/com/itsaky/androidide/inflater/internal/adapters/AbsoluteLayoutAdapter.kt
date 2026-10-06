@@ -20,7 +20,7 @@
 package com.itsaky.androidide.inflater.internal.adapters
 
 import android.widget.AbsoluteLayout
-import com.itsaky.androidide.annotations.inflater.ViewAdapter
+import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 
 /**
  * Attribute adapter for [AbsoluteLayout].

@@ -27,8 +27,8 @@ import android.widget.ImageView.ScaleType.FIT_END
 import android.widget.ImageView.ScaleType.FIT_START
 import android.widget.ImageView.ScaleType.FIT_XY
 import android.widget.ImageView.ScaleType.MATRIX
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import com.itsaky.androidide.inflater.AttributeHandlerScope
 import com.itsaky.androidide.inflater.IView
 import com.itsaky.androidide.inflater.models.UiWidget
@@ -41,7 +41,7 @@ import com.itsaky.androidide.resources.R.string
  *
  * @author Akash Yadav
  */
-@com.itsaky.androidide.annotations.inflater.ViewAdapter(ImageView::class)
+@org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(ImageView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class ImageViewAdapter<T : ImageView> : ViewAdapter<T>() {
 

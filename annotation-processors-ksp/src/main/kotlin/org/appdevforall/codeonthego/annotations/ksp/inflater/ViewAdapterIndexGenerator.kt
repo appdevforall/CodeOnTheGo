@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.annotations.ksp.inflater
+package org.appdevforall.codeonthego.annotations.ksp.inflater
 
 import androidx.annotation.RequiresApi
 import com.google.devtools.ksp.KspExperimental
@@ -26,8 +26,8 @@ import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSType
-import com.itsaky.androidide.annotations.inflater.ViewAdapter
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
+import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import com.squareup.javapoet.ClassName
 import com.squareup.javapoet.CodeBlock
 import com.squareup.javapoet.FieldSpec

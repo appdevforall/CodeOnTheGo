@@ -18,7 +18,7 @@
 package com.itsaky.androidide.inflater
 
 import android.view.View
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import com.itsaky.androidide.inflater.internal.ViewAdapterIndexImpl
 
 /**

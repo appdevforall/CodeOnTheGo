@@ -34,9 +34,9 @@ import com.itsaky.androidide.inflater.models.UiWidget
  * - Provides list of supported attributes for the view.
  *
  * The following annotations are used to provide metadata about the view adapter implementation :
- * - [ViewAdapter][com.itsaky.androidide.annotations.inflater.ViewAdapter] is used to specify the
+ * - [ViewAdapter][org.appdevforall.codeonthego.annotations.inflater.ViewAdapter] is used to specify the
  *   view whose attributes are handled by the view adapter implementation.
- * - [IncludeInDesigner][com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner] is used to
+ * - [IncludeInDesigner][org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner] is used to
  *   indicate that the view adapter provides [UiWidget] models to the UI designer.
  * - [RequiresApi][androidx.annotation.RequiresApi] is used to indicate that the view adapter
  *   implementation provides support for views that can be used only for the given API version (or
@@ -49,7 +49,7 @@ abstract class IViewAdapter<T : View> : AbstractParser() {
   /**
    * The package name or namespace of the module/artifact in which the view that this adapter
    * handles is defined. The value is set to "android" by default unless explicitly specified in the
-   * [ViewAdapter][com.itsaky.androidide.annotations.inflater.ViewAdapter] annotation.
+   * [ViewAdapter][org.appdevforall.codeonthego.annotations.inflater.ViewAdapter] annotation.
    *
    * This is used by the UI designer to quickly look for attributes of an inflated view from the
    * resource tables.

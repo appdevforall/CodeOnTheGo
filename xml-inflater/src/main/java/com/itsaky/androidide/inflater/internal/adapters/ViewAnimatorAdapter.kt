@@ -18,9 +18,9 @@
 package com.itsaky.androidide.inflater.internal.adapters
 
 import android.widget.ViewAnimator
-import com.itsaky.androidide.annotations.inflater.ViewAdapter
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
+import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
 import com.itsaky.androidide.inflater.AttributeHandlerScope
 import com.itsaky.androidide.inflater.models.UiWidget
 import com.itsaky.androidide.resources.R

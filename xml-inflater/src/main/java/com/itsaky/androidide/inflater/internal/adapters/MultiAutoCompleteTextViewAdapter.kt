@@ -18,8 +18,8 @@
 package com.itsaky.androidide.inflater.internal.adapters
 
 import android.widget.MultiAutoCompleteTextView
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
-import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
+import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import com.itsaky.androidide.inflater.models.UiWidget
 import com.itsaky.androidide.resources.R
 
@@ -28,7 +28,7 @@ import com.itsaky.androidide.resources.R
  *
  * @author Akash Yadav
  */
-@com.itsaky.androidide.annotations.inflater.ViewAdapter(forView = MultiAutoCompleteTextView::class)
+@org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(forView = MultiAutoCompleteTextView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class MultiAutoCompleteTextViewAdapter<T : MultiAutoCompleteTextView> :
   AutoCompleteTextViewAdapter<T>() {
