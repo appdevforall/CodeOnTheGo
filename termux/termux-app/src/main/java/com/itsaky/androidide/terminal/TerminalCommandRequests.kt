@@ -1,108 +1,179 @@
 package com.itsaky.androidide.terminal
 
+import com.itsaky.androidide.terminal.TerminalCommand.State
 import com.termux.terminal.TerminalSession
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
+import java.util.concurrent.Executor
 
 /**
- * Commands a plugin asked to run in a visible Terminal session.
+ * The commands plugins asked to run in the visible Terminal, and the sessions they run in.
  *
- * The caller [enqueue]s one and starts [com.itsaky.androidide.activities.TerminalActivity] with its
- * id; the activity [claim]s it and creates the session; the session clients report its exit through
- * [onSessionFinished].
+ * The launcher [enqueue]s a command and opens the Terminal with its id, which [CommandIntentRouter]
+ * then [claim]s and [start]s in an idle session of the plugin, or a new one. [CommandMarkListener]
+ * follows the runner's marks for where the command's output starts and that it exited;
+ * [onSessionFinished] covers a session that dies first.
+ *
+ * Every method must be called on the main thread, where the sessions deliver their output.
  */
-object TerminalCommandRequests {
-	/** Intent extra carrying the id [enqueue] returned. */
-	const val EXTRA_COMMAND_REQUEST_ID = "com.itsaky.androidide.terminal.COMMAND_REQUEST_ID"
+class TerminalCommandRequests internal constructor(
+	private val runner: AgentRunner,
+	maxSessionsPerPlugin: Int,
+	/** Where file I/O runs, off the main thread. */
+	private val io: Executor,
+) {
+	// Every command from enqueue until it ends.
+	private val commands = mutableMapOf<String, TerminalCommand>()
+	private val pool = PluginSessionPool(maxSessionsPerPlugin)
+	private val marks = CommandMarkListener(pool, ::exited)
+
+	/** Queues command [id], which the runner prepared, for plugin [owner], whose new sessions are named after [sessionLabel]. */
+	fun enqueue(
+		id: String,
+		workingDirectory: String?,
+		owner: String,
+		listener: TerminalCommandListener,
+		sessionLabel: String = owner,
+	) {
+		commands[id] = TerminalCommand(id, workingDirectory, owner, listener, sessionLabel)
+	}
 
 	/**
-	 * Echoes the command, then runs it, so the session shows what ran. The command is passed as `$1`
-	 * rather than spliced into the script, so it needs no quoting.
+	 * Takes queued command [id] for the Terminal, or returns null if it was already claimed or
+	 * withdrawn. One-shot, so an activity recreated with the same intent does not run it twice.
 	 */
-	const val RUN_SCRIPT = "printf '$ %s\\n' \"$1\"; eval \"$1\""
+	fun claim(id: String): TerminalCommand? = commands[id]?.takeIf { it.state == State.Queued }?.also { it.state = State.Claimed }
 
-	class Request internal constructor(
-		val id: String,
-		val command: String,
-		val workingDirectory: String?,
-		val sessionName: String,
-		private val onExit: (exitCode: Int, transcript: String) -> Unit,
-		private val onNotStarted: (reason: String) -> Unit,
-	) {
-		@Volatile
-		internal var session: TerminalSession? = null
+	/**
+	 * Withdraws command [id] if the Terminal has not claimed it, reporting [reason].
+	 *
+	 * @return true if it was withdrawn.
+	 */
+	fun withdraw(
+		id: String,
+		reason: TerminalStartFailure,
+	): Boolean {
+		val command = commands[id]?.takeIf { it.state == State.Queued } ?: return false
+		notStarted(command, reason)
+		return true
+	}
 
-		@Volatile
-		internal var cancelled = false
+	/**
+	 * Runs claimed [command] in an idle session of its plugin, or in a new one from [factory] while
+	 * the plugin has room for one.
+	 *
+	 * @return the session it runs in, or null if it does not run; the listener has been told why,
+	 *   unless the command was cancelled.
+	 */
+	fun start(
+		command: TerminalCommand,
+		factory: TerminalSessionFactory,
+	): TerminalSession? {
+		when (command.state) {
+			State.Claimed -> Unit
+			State.Cancelled -> {
+				end(command)
+				return null
+			}
+			State.Queued, is State.Running, State.Ended -> return null
+		}
 
-		internal fun exited(
-			exitCode: Int,
-			transcript: String,
-		) = onExit(exitCode, transcript)
+		val session =
+			when (val slot = pool.slotFor(command.owner, command.sessionLabel, factory::isOpen)) {
+				is PluginSessionPool.Slot.Idle -> slot.session.also { it.terminal.write(runner.typedRunLine(command.id)) }
+				is PluginSessionPool.Slot.Free ->
+					openSession(command, slot.name, factory) ?: return notStarted(command, TerminalStartFailure.SessionNotCreated)
+				is PluginSessionPool.Slot.Full ->
+					return notStarted(command, TerminalStartFailure.AllSessionsBusy(slot.busySessionNames))
+			}
 
-		/** Reports that the session for this request could not be created. */
-		fun notStarted(reason: String) {
-			requests.remove(id)
-			onNotStarted(reason)
+		session.begin(command)
+		session.terminal.setShellIntegrationListener(marks)
+		command.state = State.Running(session.terminal)
+		command.listener.onStarted(session.name)
+		return session.terminal
+	}
+
+	/** Interrupts command [id] with Ctrl-C if it runs, or makes sure it never starts. */
+	fun cancel(id: String) {
+		val command = commands[id] ?: return
+		when (val state = command.state) {
+			State.Queued -> end(command)
+			State.Claimed -> command.state = State.Cancelled
+			is State.Running -> state.session.write(ControlKeys.CTRL_C)
+			State.Cancelled, State.Ended -> Unit
 		}
 	}
 
-	// Every request until it ends, so a cancel that lands between claim and attach is not lost.
-	private val requests = ConcurrentHashMap<String, Request>()
-	private val pending = ConcurrentHashMap<String, Request>()
-	private val running = ConcurrentHashMap<TerminalSession, Request>()
+	/** Command [id] and what it printed so far while it runs; null before it starts and after it ends. */
+	fun snapshot(id: String): CommandState.Running? {
+		val state = commands[id]?.state as? State.Running ?: return null
+		return pool.find(state.session)?.state() as? CommandState.Running
+	}
 
-	fun enqueue(
-		command: String,
-		workingDirectory: String?,
+	/** The last command in plugin [owner]'s session [sessionName], or null if it has no command or no such session. */
+	fun read(
+		owner: String,
 		sessionName: String,
-		onExit: (exitCode: Int, transcript: String) -> Unit,
-		onNotStarted: (reason: String) -> Unit,
-	): String {
-		val id = UUID.randomUUID().toString()
-		val request = Request(id, command, workingDirectory, sessionName, onExit, onNotStarted)
-		requests[id] = request
-		pending[id] = request
-		return id
-	}
+	): CommandState? = pool.find(owner, sessionName)?.state()
 
 	/**
-	 * Removes and returns request [id], or null if it was already claimed or withdrawn. One-shot, so
-	 * an activity recreated with the same intent does not run the command twice.
-	 */
-	fun claim(id: String): Request? = pending.remove(id)
-
-	/** Withdraws request [id] if no session has claimed it yet. Returns true if it was withdrawn. */
-	fun withdraw(id: String): Boolean = (pending.remove(id) != null).also { if (it) requests.remove(id) }
-
-	/** Records that [session] runs [request]. Call on the main thread, before the session can exit. */
-	fun attach(
-		request: Request,
-		session: TerminalSession,
-	) {
-		request.session = session
-		running[session] = request
-		if (request.cancelled) session.finishIfRunning()
-	}
-
-	/** Kills the command of request [id], whether or not its session has started. */
-	fun cancel(id: String) {
-		val request = requests[id] ?: return
-		request.cancelled = true
-		if (pending.remove(id) != null) requests.remove(id)
-		// attach reads cancelled after setting session, so one side or the other kills it.
-		request.session?.finishIfRunning()
-	}
-
-	/**
-	 * Called by the session clients when [session] exits. Returns true if the session ran a plugin
+	 * Called by the session clients when [terminal] exits. Returns true if it was running a plugin
 	 * command; the caller then keeps it open so the user can read what ran.
 	 */
-	@JvmStatic
-	fun onSessionFinished(session: TerminalSession): Boolean {
-		val request = running.remove(session) ?: return false
-		requests.remove(request.id)
-		request.exited(session.exitStatus, TerminalTranscript.of(session))
+	fun onSessionFinished(terminal: TerminalSession): Boolean {
+		val session = pool.remove(terminal) ?: return false
+		terminal.setShellIntegrationListener(null)
+		if (session.isIdle) return false
+		exited(session, terminal.exitStatus)
 		return true
+	}
+
+	/** The sessions plugin [owner] has open. */
+	internal fun sessionsOf(owner: String): List<TerminalSession> = pool.sessionsOf(owner).map { it.terminal }
+
+	private fun openSession(
+		command: TerminalCommand,
+		name: String,
+		factory: TerminalSessionFactory,
+	): PluginSession? =
+		factory
+			.open(name, runner.firstRunArguments(command.id), command.workingDirectory)
+			?.let(::PluginSession)
+			?.also { pool.add(command.owner, it) }
+
+	private fun exited(
+		session: PluginSession,
+		exitCode: Int,
+	) {
+		val command = session.command ?: return
+		val exited = session.finish(exitCode)
+		end(command)
+		command.listener.onExited(exited.exitCode, exited.output)
+	}
+
+	private fun notStarted(
+		command: TerminalCommand,
+		reason: TerminalStartFailure,
+	): TerminalSession? {
+		end(command)
+		command.listener.onNotStarted(reason)
+		return null
+	}
+
+	private fun end(command: TerminalCommand) {
+		commands.remove(command.id)
+		// A command that never ran leaves its files behind in $TMPDIR until Termux stops.
+		if (command.state !is State.Running) io.execute { runner.discard(command.id) }
+		command.state = State.Ended
+	}
+
+	companion object {
+		/** Most sessions one plugin keeps open; a command while all of them are busy is refused. */
+		const val MAX_SESSIONS_PER_PLUGIN = 3
+
+		/** The instance the plugin launcher, the intent router and the session clients share. */
+		@JvmField
+		val shared = TerminalCommandRequests(AgentRunner.termux, MAX_SESSIONS_PER_PLUGIN, Dispatchers.IO.asExecutor())
 	}
 }

@@ -29,4 +29,8 @@ public abstract class TerminalOutput {
 
     public abstract void onColorsChanged();
 
+    /** Notify the terminal client that the shell printed a shell-integration mark (OSC 133). */
+    public void onShellIntegrationMark(ShellIntegrationMark mark) {
+    }
+
 }
