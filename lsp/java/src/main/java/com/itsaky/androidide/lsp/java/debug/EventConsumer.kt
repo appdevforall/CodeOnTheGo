@@ -15,29 +15,42 @@ import com.sun.jdi.event.VMDisconnectEvent
 import com.sun.jdi.event.VMStartEvent
 import com.sun.jdi.event.WatchpointEvent
 
-
 /**
  * A consumer of JDWP events.
  */
 interface EventConsumer {
-    fun vmStartEvent(e: VMStartEvent) {}
-    fun vmDeathEvent(e: VMDeathEvent) {}
-    fun vmDisconnectEvent(e: VMDisconnectEvent) {}
+	fun vmStartEvent(e: VMStartEvent) {}
 
-    fun threadStartEvent(e: ThreadStartEvent) {}
-    fun threadDeathEvent(e: ThreadDeathEvent) {}
+	fun vmDeathEvent(e: VMDeathEvent) {}
 
-    fun classPrepareEvent(e: ClassPrepareEvent) {}
-    fun classUnloadEvent(e: ClassUnloadEvent) {}
+	fun vmDisconnectEvent(e: VMDisconnectEvent) {}
 
-    fun breakpointEvent(e: BreakpointEvent) {}
-    fun fieldWatchEvent(e: WatchpointEvent) {}
-    fun stepEvent(e: StepEvent) {}
-    fun exceptionEvent(e: ExceptionEvent) {}
+	fun threadStartEvent(e: ThreadStartEvent) {}
 
-    fun methodEntryEvent(e: MethodEntryEvent) {}
-    fun methodExitEvent(e: MethodExitEvent): Boolean = false
-    fun vmInterrupted() {}
+	fun threadDeathEvent(e: ThreadDeathEvent) {}
 
-    fun receivedEvent(event: Event) {}
+	fun classPrepareEvent(e: ClassPrepareEvent) {}
+
+	fun classUnloadEvent(e: ClassUnloadEvent) {}
+
+	fun breakpointEvent(e: BreakpointEvent) {}
+
+	fun fieldWatchEvent(e: WatchpointEvent) {}
+
+	/**
+	 * Called for a step event.
+	 *
+	 * @return `true` to keep the VM suspended for this event, `false` to let it resume.
+	 */
+	fun stepEvent(e: StepEvent): Boolean = true
+
+	fun exceptionEvent(e: ExceptionEvent) {}
+
+	fun methodEntryEvent(e: MethodEntryEvent) {}
+
+	fun methodExitEvent(e: MethodExitEvent): Boolean = false
+
+	fun vmInterrupted() {}
+
+	fun receivedEvent(event: Event) {}
 }

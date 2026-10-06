@@ -25,6 +25,7 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
+import android.view.View.MeasureSpec
 import android.view.ViewTreeObserver
 import android.widget.RelativeLayout
 import androidx.activity.viewModels
@@ -103,10 +104,58 @@ class EditorBottomSheet
 		defStyleAttr: Int = 0,
 		defStyleRes: Int = 0,
 	) : RelativeLayout(context, attrs, defStyleAttr, defStyleRes) {
-		private val collapsedHeight: Float by lazy {
+		/**
+		 * The floor for the collapsed header, and its height whenever the status block fits in it.
+		 */
+		private val minCollapsedHeight: Float by lazy {
 			val localContext = getContext() ?: return@lazy 0f
 			localContext.resources.getDimension(R.dimen.editor_sheet_collapsed_height)
 		}
+
+		/** What the build-status block last measured at, or 0 before it has been measured. */
+		private var measuredStatusHeight = 0f
+
+		/**
+		 * While true the collapsed header only grows. A Gradle build narrates one status line
+		 * per task, and at a 2x font scale those alternate between one and three rows, so a
+		 * header that followed each measurement made the peek jump on every task; it settles
+		 * back to fit once the build ends.
+		 */
+		private var statusHeightRatchet = false
+
+		/**
+		 * The part of the sheet above the header: its status-bar top padding and the divider row.
+		 *
+		 * The collapsed peek is the header height alone, so while the sheet is collapsed this much
+		 * of the header hangs below the window. The header carries it as bottom padding, so the
+		 * status block is laid out in the part that is on screen, and [collapsedHeight] adds it
+		 * back when the block needs more room than the floor leaves visible. Zero before the sheet
+		 * has been laid out. The inflated root sits inside this view's padding, so its own top is
+		 * the padding; the header's top is relative to that root.
+		 */
+		private val chromeAboveHeader: Int
+			get() = binding.root.top + binding.headerContainer.top
+
+		/**
+		 * The collapsed header's height.
+		 *
+		 * A fixed dp cannot hold text. At a 2x font scale the longest Quick Build status lines
+		 * wrap to three lines and the swipe hint sits below them, and both were clipped against a
+		 * 100dp box - the remedy the line names being the half that went missing. The dimen is
+		 * kept as a floor so ordinary text keeps the familiar height; larger text raises it.
+		 *
+		 * The height goes onto the header's ViewFlipper, so it counts the status block only while
+		 * that is the child on show: the symbol input and the install-progress row wrap their own
+		 * content and keep the floor, whatever the status line last measured at.
+		 */
+		private val collapsedHeight: Float
+			get() =
+				collapsedHeaderHeightPx(
+					minCollapsedHeight,
+					measuredStatusHeight,
+					chromeAboveHeader,
+					statusShown = binding.headerContainer.displayedChild == CHILD_HEADER,
+				)
 		private val behavior: BottomSheetBehavior<EditorBottomSheet> by lazy {
 			BottomSheetBehavior.from(this).apply {
 				isFitToContents = false
@@ -135,10 +184,16 @@ class EditorBottomSheet
 		private var currentObservedFragment: Fragment? = null
 
 		// BottomSheetBehavior repositions the sheet after layout without triggering onSlide,
-		// so refresh the FABs afterward
+		// so refresh the FABs afterward. The peek and the header's padding go with them: the
+		// chrome above the header is only known once the sheet has been laid out, and its
+		// status-bar padding can land after the header was first padded.
 		private val fabLayoutChangeListener =
 			OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-				post { updateFabVisibility(viewModel.sheetState.value) }
+				post {
+					updateFabVisibility(viewModel.sheetState.value)
+					applyPeekHeight()
+					applyCollapsedHeaderChrome()
+				}
 			}
 
 		companion object {
@@ -424,6 +479,67 @@ class EditorBottomSheet
 			behavior.peekHeight = if (isSearchModeActive) 0 else collapsedHeight.roundToInt()
 		}
 
+		/**
+		 * Pads the collapsed header so its content box ends at the window, not [chromeAboveHeader]
+		 * px below it. Only while collapsed: mid-slide the padding belongs to [onSlide].
+		 */
+		private fun applyCollapsedHeaderChrome() {
+			if (behavior.state != BottomSheetBehavior.STATE_COLLAPSED) {
+				return
+			}
+			binding.headerContainer.updatePaddingRelative(bottom = insetBottom + chromeAboveHeader)
+		}
+
+		/**
+		 * Re-measures the build-status block and, if it now needs more room than the header has,
+		 * grows the header to fit it.
+		 *
+		 * The header's height is set explicitly (a slide scales it), so the block cannot simply
+		 * wrap - it has to be measured against an unbounded height on its own. Only applied while
+		 * the sheet is collapsed: mid-slide the height belongs to [onSlide], which reads
+		 * [collapsedHeight] itself and so picks the new value up on its next frame.
+		 */
+		private fun refreshCollapsedHeight() {
+			val header = binding.headerContainer
+			val status = binding.buildStatus.root
+			if (header.width == 0) {
+				return
+			}
+			// AT_MOST, not UNSPECIFIED: ConstraintLayout does not support an UNSPECIFIED height
+			// spec. It reports a height that leaves the swipe hint out, and that stale figure is
+			// what the block is then laid out at, clipping the hint away.
+			status.measure(
+				MeasureSpec.makeMeasureSpec(header.width, MeasureSpec.EXACTLY),
+				MeasureSpec.makeMeasureSpec(resources.displayMetrics.heightPixels, MeasureSpec.AT_MOST),
+			)
+			val measured =
+				statusHeightAfterMeasure(measuredStatusHeight, status.measuredHeight.toFloat(), statusHeightRatchet)
+			// Only a changed height needs a layout pass. setStatus's own setText already scheduled
+			// one for the text, and this runs on every Gradle task line, so an unconditional
+			// request here would add a second measure/layout round-trip per progress event.
+			if (measured <= 0f || measured == measuredStatusHeight) {
+				return
+			}
+			measuredStatusHeight = measured
+			// The measure above ran outside a layout pass, so ask for a real one to replace it.
+			header.requestLayout()
+			applyCollapsedHeaderHeight()
+		}
+
+		/**
+		 * Puts the current [collapsedHeight] onto the header and the peek. Only while collapsed:
+		 * mid-slide the height belongs to [onSlide], which reads [collapsedHeight] every frame.
+		 */
+		private fun applyCollapsedHeaderHeight() {
+			if (behavior.state != BottomSheetBehavior.STATE_COLLAPSED) {
+				return
+			}
+			applyPeekHeight()
+			binding.headerContainer.updateLayoutParams<LayoutParams> {
+				height = (collapsedHeight + insetBottom).roundToInt()
+			}
+		}
+
 		fun setOffsetAnchor(view: View) {
 			val listener =
 				object : ViewTreeObserver.OnGlobalLayoutListener {
@@ -431,13 +547,13 @@ class EditorBottomSheet
 						view.viewTreeObserver.removeOnGlobalLayoutListener(this)
 						anchorOffset = view.height + view.context.dpToPx(1f)
 
-						behavior.peekHeight = collapsedHeight.roundToInt()
+						applyPeekHeight()
 						behavior.expandedOffset = anchorOffset
 						behavior.isGestureInsetBottomIgnored = true
 
 						binding.root.updatePadding(bottom = anchorOffset + insetBottom)
 						binding.headerContainer.apply {
-							updatePaddingRelative(bottom = paddingBottom + insetBottom)
+							updatePaddingRelative(bottom = insetBottom + chromeAboveHeader)
 							updateLayoutParams<LayoutParams> {
 								height = (collapsedHeight + insetBottom).roundToInt()
 							}
@@ -450,11 +566,11 @@ class EditorBottomSheet
 
 		fun resetOffsetAnchor() {
 			anchorOffset = 0
-			behavior.peekHeight = collapsedHeight.roundToInt()
+			applyPeekHeight()
 			behavior.expandedOffset = 0
 			binding.root.updatePadding(bottom = insetBottom)
 			binding.headerContainer.apply {
-				updatePaddingRelative(bottom = insetBottom)
+				updatePaddingRelative(bottom = insetBottom + chromeAboveHeader)
 				updateLayoutParams<LayoutParams> {
 					height = (collapsedHeight + insetBottom).roundToInt()
 				}
@@ -478,8 +594,10 @@ class EditorBottomSheet
 				updateLayoutParams<LayoutParams> {
 					height = ((collapsedHeight + padding) * heightScale).roundToInt()
 				}
+				// The chrome padding goes with the header: as the sheet rises the header shrinks to
+				// nothing, and none of it hangs below the window any more.
 				updatePaddingRelative(
-					bottom = padding.roundToInt(),
+					bottom = (padding + chromeAboveHeader * heightScale).roundToInt(),
 				)
 			}
 
@@ -488,6 +606,10 @@ class EditorBottomSheet
 
 		fun showChild(index: Int) {
 			binding.headerContainer.displayedChild = index
+			// collapsedHeight depends on which child is on show, so the header is re-sized with
+			// it: the status block's extra rows must not come along to the symbol input or the
+			// install-progress row, and must be back when the status returns.
+			applyCollapsedHeaderHeight()
 		}
 
 		fun setActionText(text: CharSequence) {
@@ -591,11 +713,7 @@ class EditorBottomSheet
 			)
 
 			val activity = context as Activity
-			if (activity.isSoftInputVisible()) {
-				binding.headerContainer.displayedChild = CHILD_SYMBOL_INPUT
-			} else {
-				binding.headerContainer.displayedChild = CHILD_HEADER
-			}
+			showChild(if (activity.isSoftInputVisible()) CHILD_SYMBOL_INPUT else CHILD_HEADER)
 		}
 
 		fun setStatus(
@@ -607,6 +725,24 @@ class EditorBottomSheet
 					it.statusText.gravity = gravity
 					it.statusText.text = text
 				}
+				// A longer line can take more rows than the last one did, so the header has to be
+				// re-measured against the new text rather than against the dimen.
+				post { refreshCollapsedHeight() }
+			}
+		}
+
+		/**
+		 * Whether a user build is narrating into the status line. While it is, the collapsed
+		 * header keeps the tallest height it has needed; when it stops, the header re-fits the
+		 * final status line.
+		 */
+		fun setBuildNarrating(narrating: Boolean) {
+			if (statusHeightRatchet == narrating) {
+				return
+			}
+			statusHeightRatchet = narrating
+			if (!narrating) {
+				post { refreshCollapsedHeight() }
 			}
 		}
 
@@ -768,3 +904,38 @@ class EditorBottomSheet
 			binding.copyDiagnosticsFab.translationY = translationY
 		}
 	}
+
+/**
+ * The collapsed header's height: [floorPx], unless the status block needs more.
+ *
+ * [chromePx] of the header hang below the window while the sheet is collapsed (see
+ * `chromeAboveHeader`), so a block of [statusPx] needs a header of `statusPx + chromePx` to be
+ * fully on screen. A block that has not been measured yet ([statusPx] <= 0) keeps the floor.
+ *
+ * [statusShown] is whether the status block is the header child on show. The header is a
+ * ViewFlipper whose other children (the symbol input, the install-progress row) wrap their own
+ * content, so while one of those is showing the status block's height keeps the floor too.
+ */
+internal fun collapsedHeaderHeightPx(
+	floorPx: Float,
+	statusPx: Float,
+	chromePx: Int,
+	statusShown: Boolean,
+): Float = if (!statusShown || statusPx <= 0f) floorPx else maxOf(floorPx, statusPx + chromePx)
+
+/**
+ * The status-block height to size the collapsed header from after one measurement.
+ *
+ * [measuredPx] as it is, except while a build is narrating: then the header only grows, because
+ * Gradle's per-task status lines wrap to a different row count from one task to the next and a
+ * header that followed each one made the peek jump through the whole build.
+ *
+ * @param previousPx what the block was last sized from, or 0 before the first measurement.
+ * @param measuredPx what the block measured at just now.
+ * @param buildNarrating whether a user build is writing the status line.
+ */
+internal fun statusHeightAfterMeasure(
+	previousPx: Float,
+	measuredPx: Float,
+	buildNarrating: Boolean,
+): Float = if (buildNarrating) maxOf(previousPx, measuredPx) else measuredPx

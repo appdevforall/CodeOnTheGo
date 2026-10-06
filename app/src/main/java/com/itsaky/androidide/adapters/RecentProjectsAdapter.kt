@@ -33,6 +33,7 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.IOException
 
 class RecentProjectsAdapter(
 	private var projects: List<ProjectFile>,
@@ -40,7 +41,7 @@ class RecentProjectsAdapter(
 	private val onRemoveProjectClick: (ProjectFile) -> Unit,
 	private val onFileRenamed: (RenamedFile) -> Unit,
 	private val onInfoClick: (ProjectFile) -> Unit,
-	private val nameExists: (String) -> Boolean,
+	private val renameTargetExists: (ProjectFile, String) -> Boolean,
 ) : RecyclerView.Adapter<RecentProjectsAdapter.ProjectViewHolder>() {
 	private var projectOptionsPopup: PopupWindow? = null
 
@@ -251,7 +252,20 @@ class RecentProjectsAdapter(
 					.trim()
 			val oldPath = project.path
 			val newPath = oldPath.substringBeforeLast("/") + "/" + newName
-			executeAsyncProvideError({ project.rename(newPath) }) { _, error ->
+			executeAsyncProvideError({
+				val source = File(oldPath)
+				val target = File(newPath)
+				val sameLocation =
+					project.isCaseOnlyRenameTo(newPath) ||
+						runCatching { source.canonicalPath == target.canonicalPath }
+							.getOrElse { source.absolutePath == target.absolutePath }
+				if (target.exists() && !sameLocation) {
+					throw IOException("A project already exists at $newPath")
+				}
+				if (!project.rename(newPath)) {
+					throw IOException("Could not rename project to $newPath")
+				}
+			}) { _, error ->
 				if (error != null) {
 					logger.error("Failed to rename project", error)
 					flashError(R.string.rename_failed)
@@ -298,13 +312,14 @@ class RecentProjectsAdapter(
 				) {}
 
 				override fun afterTextChanged(s: Editable?) {
-					validateProjectName(binding.textinputLayout, s.toString().trim(), oldName, dialog)
+					validateProjectName(binding.textinputLayout, project, s.toString().trim(), oldName, dialog)
 				}
 			},
 		)
 
 		validateProjectName(
 			binding.textinputLayout,
+			project,
 			binding.textinputEdittext.text
 				.toString()
 				.trim(),
@@ -315,12 +330,18 @@ class RecentProjectsAdapter(
 
 	private fun validateProjectName(
 		inputLayout: TextInputLayout,
+		project: ProjectFile,
 		newName: String,
 		oldName: String,
 		dialog: AlertDialog,
 	) {
 		val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
 		when {
+			newName == oldName -> {
+				positiveButton.isEnabled = false
+				inputLayout.error = null
+			}
+
 			newName.isEmpty() -> {
 				inputLayout.error = dialog.context.getString(R.string.msg_cannnot_empty)
 				positiveButton.isEnabled = false
@@ -335,7 +356,7 @@ class RecentProjectsAdapter(
 				positiveButton.isEnabled = false
 			}
 
-			newName != oldName && nameExists(newName) -> {
+			newName != oldName && renameTargetExists(project, newName) -> {
 				inputLayout.error =
 					dialog.context.getString(R.string.msg_current_name_unavailable)
 				positiveButton.isEnabled = false

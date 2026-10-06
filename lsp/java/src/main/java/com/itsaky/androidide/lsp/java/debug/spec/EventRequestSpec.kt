@@ -43,7 +43,22 @@ internal abstract class EventRequestSpec(
 		event: ClassPrepareEvent,
 	): EventRequest? {
 		if (resolved == null && prepareRequest != null && prepareRequest == event.request()) {
-			val resolved = resolveEventRequest(vm, event.referenceType())
+			// The prepare filter is a suffix match on the file name alone, with no package part, so
+			// it admits a same-named file from anywhere on the classpath.
+			if (!refSpec.matches(vm, event.referenceType())) {
+				return null
+			}
+
+			val resolved =
+				try {
+					resolveEventRequest(vm, event.referenceType())
+				} catch (err: LineNotFoundException) {
+					logger.debug(
+						"class {} shares the source file but not line, waiting for another",
+						event.referenceType().name(),
+					)
+					return null
+				}
 			this.resolved = resolved
 
 			this.prepareRequest!!.disable()
@@ -68,6 +83,16 @@ internal abstract class EventRequestSpec(
 	fun remove(vm: VirtualMachine) {
 		if (isResolved) {
 			vm.eventRequestManager().deleteEventRequest(this.resolved)
+			this.resolved = null
+		}
+
+		// An unresolved spec still owns an enabled ClassPrepareRequest. Left behind it keeps
+		// round-tripping the VM on every matching class load, and resolves later into a breakpoint
+		// the user has already deleted.
+		prepareRequest?.let { request ->
+			request.disable()
+			vm.eventRequestManager().deleteEventRequest(request)
+			this.prepareRequest = null
 		}
 
 		val patternSpec = this.refSpec as? PatternReferenceTypeSpec?
@@ -117,12 +142,30 @@ internal abstract class EventRequestSpec(
 		vm: VirtualMachine,
 		classes: List<ReferenceType>,
 	): EventRequest? {
+		var sourceMatchedWithoutLine = false
+
 		classes.firstOrNull { refType ->
 			if (refSpec.matches(vm, refType)) {
-				resolved = resolveEventRequest(vm, refType)
+				resolved =
+					try {
+						resolveEventRequest(vm, refType)
+					} catch (err: LineNotFoundException) {
+						// Another class from the same file may still carry the line: a Kotlin file
+						// compiles to many, and its lambdas load lazily. Only the deferred path can
+						// tell "not yet" from "never".
+						sourceMatchedWithoutLine = true
+						null
+					}
 			}
 
 			resolved != null
+		}
+
+		if (resolved == null && sourceMatchedWithoutLine) {
+			logger.warn(
+				"no prepared class from {} carries this line; waiting for one that does",
+				refSpec,
+			)
 		}
 
 		return resolved

@@ -24,6 +24,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
+import com.itsaky.androidide.eventbus.events.file.FileContentChangedEvent
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
@@ -33,19 +34,21 @@ import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
-import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_INDEX_KEY
-import com.itsaky.androidide.lsp.kotlin.compiler.index.KT_SOURCE_FILE_META_INDEX_KEY
+import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetRepository
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
+import com.itsaky.androidide.lsp.kotlin.format.KotlinCodeFormatter
 import com.itsaky.androidide.lsp.kotlin.navigation.findDefinitionAt
 import com.itsaky.androidide.lsp.kotlin.navigation.findUsagesAt
 import com.itsaky.androidide.lsp.kotlin.signaturehelp.doSignatureHelp
+import com.itsaky.androidide.lsp.models.CodeFormatResult
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DefinitionParams
 import com.itsaky.androidide.lsp.models.DefinitionResult
 import com.itsaky.androidide.lsp.models.DiagnosticResult
 import com.itsaky.androidide.lsp.models.ExpandSelectionParams
+import com.itsaky.androidide.lsp.models.FormatCodeParams
 import com.itsaky.androidide.lsp.models.ReferenceParams
 import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
@@ -67,6 +70,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
+import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
@@ -77,6 +82,7 @@ import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.io.path.extension
 
 class KotlinLanguageServer : ILanguageServer {
 	private var _client: ILanguageClient? = null
@@ -90,6 +96,13 @@ class KotlinLanguageServer : ILanguageServer {
 
 	override val serverId: String = SERVER_ID
 
+	/**
+	 * True for `.kt` only. A `.kts` script is served by this language server but compiles to no
+	 * class the debuggee loads, so a breakpoint in one could be drawn and persisted and would then
+	 * never bind.
+	 */
+	override fun supportsDebugging(file: Path): Boolean = file.extension == KOTLIN_SOURCE_EXTENSION
+
 	override val client: ILanguageClient?
 		get() = _client
 
@@ -98,6 +111,7 @@ class KotlinLanguageServer : ILanguageServer {
 
 	companion object {
 		const val SERVER_ID = "ide.lsp.kotlin"
+		const val KOTLIN_SOURCE_EXTENSION = "kt"
 		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
 	}
 
@@ -208,6 +222,8 @@ class KotlinLanguageServer : ILanguageServer {
 			}
 		}
 
+		KotlinSnippetRepository.init()
+
 		initialized = true
 		logger.info("Kotlin project initialized")
 	}
@@ -258,6 +274,8 @@ class KotlinLanguageServer : ILanguageServer {
 	}
 
 	override suspend fun expandSelection(params: ExpandSelectionParams): Range = params.selection
+
+	override fun formatCode(params: FormatCodeParams?): CodeFormatResult = KotlinCodeFormatter.format(requireNotNull(params).content)
 
 	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
 		if (!settings.signatureHelpEnabled()) {
@@ -365,6 +383,21 @@ class KotlinLanguageServer : ILanguageServer {
 			runCatching { compiler?.compilationEnvironmentFor(path) }
 				.getOrNull()
 				?.onFileCreated(path)
+		}
+	}
+
+	@Subscribe
+	@Suppress("unused")
+	fun onFileContentChanged(event: FileContentChangedEvent) {
+		val path = event.file.toPath()
+		if (!DocumentUtils.isKotlinFile(path)) {
+			return
+		}
+
+		scope.launch {
+			runCatching { compiler?.compilationEnvironmentFor(path) }
+				.getOrNull()
+				?.onFileChangedOnDisk(path)
 		}
 	}
 
