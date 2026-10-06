@@ -81,12 +81,14 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.events.PluginLanguagesChangedEvent
 import com.itsaky.androidide.floating.model.DockingManager
 import com.itsaky.androidide.floating.window.OverlayDialogs
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
+import com.itsaky.androidide.lsp.PluginLanguageSupport
 import com.itsaky.androidide.models.DeepLinkOpenRequest
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.models.EditorIntentExtras
@@ -381,6 +383,7 @@ open class EditorHandlerActivity :
 			TSLanguageRegistry.instance.registerIfNeeded(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
 			TSLanguageRegistry.instance.registerIfNeeded(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
 			TSLanguageRegistry.instance.registerIfNeeded(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
+			PluginLanguageSupport.registerGrammars()
 			IDEColorSchemeProvider.initIfNeeded()
 		}
 
@@ -636,6 +639,7 @@ open class EditorHandlerActivity :
 
 	override fun onStart() {
 		super.onStart()
+		reloadChangedPluginLanguages()
 
 		lifecycleScope.launch {
 			try {
@@ -1959,6 +1963,25 @@ open class EditorHandlerActivity :
 
 		val baseName = tab.text?.removePrefix("*") ?: return
 		tab.text = if (isModified) "*$baseName" else baseName
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPluginLanguagesChanged(
+		@Suppress("UNUSED_PARAMETER") event: PluginLanguagesChangedEvent,
+	) {
+		reloadChangedPluginLanguages()
+	}
+
+	private fun reloadChangedPluginLanguages() {
+		val fileTypes = PluginLanguageSupport.takeChangedFileTypes()
+		if (fileTypes.isEmpty()) return
+		val editors =
+			editorViewModel
+				.getOpenedFiles()
+				.filter { it.extension.lowercase() in fileTypes }
+				.mapNotNull { getEditorForFile(it) }
+		editors.forEach { it.releaseLanguage() }
+		editors.forEach { it.reloadLanguage() }
 	}
 
 	@Subscribe(threadMode = ThreadMode.MAIN)

@@ -36,6 +36,28 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.41 — unreleased
+- **added — Plugin languages: tree-sitter highlighting and a language server** _(ADFA-4851)_ **[verified]**
+  A plugin implementing `LanguageExtension` returns `LanguageDefinition`s, each claiming file
+  extensions and optionally carrying a `TreeSitterGrammar` and a `LanguageServerDefinition`.
+  The grammar is `lib/<abi>/libtree-sitter-<name>.so` exporting `tree_sitter_<name>`, built
+  at tree-sitter language ABI 13 or 14, with `highlights.scm` (and optionally `locals`,
+  `blocks`, `brackets`, `indents`) under `queriesAssetPath` in the plugin's assets. Captures
+  use the standard names (`keyword`, `string`, `function`, `type`, ...); every colour scheme
+  maps them through its `generic.json`. The server is any stdio LSP process: a bare command
+  name resolves against the Termux `bin` directory, and it runs with the Termux environment
+  plus `environment`. A grammar needs `native.code`; a server needs `system.commands`.
+  Extensions the IDE already handles (`java`, `kt`, `kts`, `xml`, `json`, `log`, `gradle`,
+  C/C++) cannot be claimed. Purely additive. Floor `plugin.min_ide_version` at `26.41`: an
+  older IDE cannot load a plugin class that implements `LanguageExtension`.
+- **added — No cap on sidebar items** _(ADFA-4977)_
+  The sidebar held 12 items: the IDE's seven plus the slots plugins declared with
+  `plugin.sidebar_items`. A plugin declaring more than the free slots failed to load, and
+  plugins loaded before the editor counted its own items could overfill the sidebar and
+  crash the IDE at launch. The sidebar now scrolls, so every declared item is shown.
+  `IdeSidebarService.getMaxSidebarItems()` and `getAvailableSidebarSlots()` return
+  `Int.MAX_VALUE`, and `canAddSidebarItems()` returns `true`. A plugin still returns no
+  more items than it declares. Floor `plugin.min_ide_version` at `26.41` if the plugin
+  declares more than 5 items, the slots an older IDE leaves free.
 - **added — Tool-source groups and health, backend model names, and change listeners** _(ADFA-6278)_ **[verified]**
   A consumer such as the agent's chat screen could not tell which tools the agent has, whether
   they work, or which model will answer, and was never told when any of that changed.
