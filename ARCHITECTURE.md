@@ -99,6 +99,22 @@ These structural facts shape every module. Day-to-day build *commands* live in `
 - **Native lib compression** (ADFA-2306, ADFA-4729). The app manifest hard-codes `android:extractNativeLibs="true"` (required: the installer must materialize libs in `nativeLibraryDir`, e.g. `libshizuku.so` is an executable the adb shell runs from there). That attribute overrides the `jniLibs.useLegacyPackaging` DSL, so AGP packages `lib/<abi>/*.so` deflate-compressed in **every** APK — ~5.9 MB smaller (`libtree-sitter-kotlin.so` alone is 4.18 MB → 339 kB). The trap is the `recompressApk` post-step (release always, debug in CI only): its no-compress lists in `app/build.gradle.kts` must NOT contain `"so"`, or it silently re-stores the libs and undoes the saving — which is what ADFA-2306 fixed for release and ADFA-4729 for CI debug. Locally built debug APKs (including the e2e farm's) never run that step and were always fine.
 - **`app` package layout is by concern, not feature:** `activities`, `fragments`, `services`, `di`, `agent`, `viewmodel(s)`, `repositories`, `roomData`, `localWebServer`, `preferences`, `ui` (Compose screens live under `ui/compose`), `templates/manager` (the Manager screen's `.cgt`-parsing data layer, with direct filesystem access to `Environment.TEMPLATES_DIR` — distinct from the plugin-facing `IdeTemplateService` in `plugin-api`/`plugin-manager`), `utils`, ….
 
+## Sibling Repositories & Asset Provenance
+
+Large assets are not in this repo. They are `.gitignore`d and fetched at build time by the `Asset(...)` list in `app/build.gradle.kts`, so a local copy can be stale regardless of git history.
+
+- **[appdevforall/dev-assets](https://github.com/appdevforall/dev-assets)** (private) stores the blobs behind that `Asset(...)` list: the per-ABI Android SDK and bootstrap, the Gradle distribution and API jars, `localMvnRepository.zip`, `core.cgt` (built from its `templates/`), and a copy of `documentation.db` (`debug/`) / `documentation.db.br` (`release/`). It uses no Git LFS: `assets-update.sh` splits each blob into 90 MB parts plus an `.md5`, and `assets-reconstruct.sh` reassembles them. Its `deploy.yml` reconstructs the parts and copies them by `scp` to the web host, which serves them at `https://appdevforall.org/dev-assets/{debug,release}/`. Local builds download over HTTP and check the `.md5`; CI (`isCiCd`) copies the same directory from the host by `scp`. Gradle tasks: `:app:assetsDownloadDebug`, `:app:assetsDownloadRelease`.
+- **[appdevforall/OfflineDocumentationTools](https://github.com/appdevforall/OfflineDocumentationTools)** (public) builds and edits `documentation.db` and owns its schema (`docdb-studio`, ingest scripts, the `Dokka-plugin-kdoc2json` Dokka plugin that turns KDoc into JSON for Pebble templates). See [docs/documentation-database.md](docs/documentation-database.md).
+- **[appdevforall/addons](https://github.com/appdevforall/addons)** (public; formerly `plugin-examples`) holds the plugins (`plugins/`, each a standalone Gradle project whose `assemblePlugin` builds a `.cgp`) and templates. Its `publish-addons.yml` builds them against this repo's `plugin-api-latest` GitHub Release and publishes the catalog to `https://addons.appdevforall.org` (the `url_discover_plugins` string).
+
+**`documentation.db` provenance.** The canonical copy is on **Google Drive**; OfflineDocumentationTools' workflows edit it there. This repo's CI reads it from Drive, not from dev-assets:
+
+- `compress_docdb.yml` (daily) downloads `documentation.db`, and if its MD5 changed, Brotli-compresses it and uploads `documentation.db.br` back to Drive.
+- `release.yml` fetches dev-assets' release assets, then its `download_documentation` job replaces `documentation.db.br` with the Drive copy.
+- `generate_assets.yml` (manual) fetches dev-assets' debug assets, replaces `assets/documentation.db` with the Drive copy, builds `assets-arm64-v8a.zip` / `assets-armeabi-v7a.zip` (`:app:assembleAssets`), and uploads them to Drive.
+
+Local builds get `documentation.db` from dev-assets instead, which is updated by hand and can lag Drive.
+
 ## Technology Stack
 
 | Concern | Library / Approach |
