@@ -936,6 +936,44 @@ public abstract interface class com/itsaky/androidide/plugins/extensions/IProjec
 	public abstract fun getType ()Lcom/itsaky/androidide/plugins/extensions/ProjectType;
 }
 
+public final class com/itsaky/androidide/plugins/extensions/LanguageDefinition {
+	public fun <init> (Ljava/lang/String;Ljava/util/Set;Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Set;Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/Set;
+	public final fun component3 ()Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;
+	public final fun component4 ()Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;
+	public final fun copy (Ljava/lang/String;Ljava/util/Set;Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;)Lcom/itsaky/androidide/plugins/extensions/LanguageDefinition;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/LanguageDefinition;Ljava/lang/String;Ljava/util/Set;Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/LanguageDefinition;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFileExtensions ()Ljava/util/Set;
+	public final fun getGrammar ()Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;
+	public final fun getLanguageId ()Ljava/lang/String;
+	public final fun getServer ()Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/extensions/LanguageExtension : com/itsaky/androidide/plugins/IPlugin {
+	public abstract fun getLanguages ()Ljava/util/List;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/LanguageServerDefinition {
+	public fun <init> (Ljava/util/List;Ljava/util/Map;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/Map;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()Ljava/util/Map;
+	public final fun component3 ()Ljava/util/Map;
+	public final fun copy (Ljava/util/List;Ljava/util/Map;Ljava/util/Map;)Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;Ljava/util/List;Ljava/util/Map;Ljava/util/Map;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/LanguageServerDefinition;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCommand ()Ljava/util/List;
+	public final fun getEnvironment ()Ljava/util/Map;
+	public final fun getInitializationOptions ()Ljava/util/Map;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/itsaky/androidide/plugins/extensions/MenuItem {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function0;)V
@@ -1403,6 +1441,19 @@ public final class com/itsaky/androidide/plugins/extensions/ToolbarActionIds {
 	public static final field UNDO Ljava/lang/String;
 	public final fun getALL ()Ljava/util/Set;
 	public final fun getBUILD_HIDEABLE ()Ljava/util/Set;
+}
+
+public final class com/itsaky/androidide/plugins/extensions/TreeSitterGrammar {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/extensions/TreeSitterGrammar;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getQueriesAssetPath ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/extensions/UIExtension : com/itsaky/androidide/plugins/IPlugin {

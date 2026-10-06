@@ -18,6 +18,8 @@ import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.EditorDecorationProvider
 import com.itsaky.androidide.plugins.extensions.FileOpenExtension
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
+import com.itsaky.androidide.plugins.extensions.LanguageDefinition
+import com.itsaky.androidide.plugins.extensions.LanguageExtension
 import com.itsaky.androidide.plugins.extensions.PluginSettingsEntry
 import com.itsaky.androidide.plugins.extensions.SettingsExtension
 import com.itsaky.androidide.plugins.extensions.SnippetExtension
@@ -32,6 +34,7 @@ import com.itsaky.androidide.plugins.manager.context.ServiceRegistryImpl
 import com.itsaky.androidide.plugins.manager.context.SharedServiceRegistry
 import com.itsaky.androidide.plugins.manager.documentation.PluginDocumentationManager
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
+import com.itsaky.androidide.plugins.manager.language.PluginLanguageContribution
 import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
@@ -329,6 +332,9 @@ class PluginManager private constructor(
 	private val documentationManager = PluginDocumentationManager(context)
 	private var templateReloadListener: (() -> Unit)? = null
 	private var snippetRefreshListener: ((String) -> Unit)? = null
+
+	@Volatile
+	private var languageContributionsListener: (() -> Unit)? = null
 	val crashTracker = PluginCrashTracker(context, logger)
 
 	private val statePersistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -341,6 +347,16 @@ class PluginManager private constructor(
 
 	fun setSnippetRefreshListener(listener: ((String) -> Unit)?) {
 		this.snippetRefreshListener = listener
+	}
+
+	fun setLanguageContributionsListener(listener: (() -> Unit)?) {
+		this.languageContributionsListener = listener
+	}
+
+	private fun notifyLanguageContributionsChanged(plugin: IPlugin) {
+		if (plugin is LanguageExtension) {
+			languageContributionsListener?.invoke()
+		}
 	}
 
 	// Helper methods for cleaner error handling
@@ -711,6 +727,7 @@ class PluginManager private constructor(
 			}
 			buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
 			lifecycleDispatcher.notifyActivated(manifest.id)
+			notifyLanguageContributionsChanged(plugin)
 		}.onFailure { e ->
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
 			loadedPlugin.isEnabled = false
@@ -825,6 +842,7 @@ class PluginManager private constructor(
 				if (dir.exists()) dir.deleteRecursively()
 			}
 
+			notifyLanguageContributionsChanged(loadedPlugin.plugin)
 			logger.info("Unloaded plugin: $pluginId")
 			return true
 		} catch (e: Exception) {
@@ -997,6 +1015,61 @@ class PluginManager private constructor(
 			.map { it.plugin }
 			.filterIsInstance<EditorDecorationProvider>()
 
+	fun getEnabledLanguageContributions(): List<PluginLanguageContribution> =
+		loadedPlugins.entries
+			.filter { it.value.isEnabled && it.value.plugin is LanguageExtension }
+			.flatMap { (pluginId, loaded) ->
+				val definitions =
+					executeWithErrorHandling("get language definitions", pluginId) {
+						(loaded.plugin as LanguageExtension).getLanguages()
+					}.getOrDefault(emptyList())
+				val assets = PluginFragmentHelper.getPluginContext(pluginId)?.assets
+				if (assets == null) {
+					logger.error("No resource context registered for plugin $pluginId; ignoring its languages")
+					return@flatMap emptyList()
+				}
+				val nativeLibraryDir =
+					File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).takeIf { it.isDirectory }
+				definitions
+					.filter { definition -> isLanguageAllowed(pluginId, loaded.manifest, definition, nativeLibraryDir) }
+					.map { definition -> PluginLanguageContribution(pluginId, definition, assets, nativeLibraryDir) }
+			}
+
+	private fun isLanguageAllowed(
+		pluginId: String,
+		manifest: PluginManifest,
+		definition: LanguageDefinition,
+		nativeLibraryDir: File?,
+	): Boolean {
+		if (definition.server?.command?.isEmpty() == true) {
+			logger.error("Plugin $pluginId declares a language server for '${definition.languageId}' with no command")
+			return false
+		}
+		if (definition.server != null && PluginPermission.SYSTEM_COMMANDS.key !in manifest.permissions) {
+			logger.error(
+				"Plugin $pluginId declares a language server for '${definition.languageId}' without the " +
+					"'${PluginPermission.SYSTEM_COMMANDS.key}' permission",
+			)
+			return false
+		}
+		val invalidVariable =
+			definition.server?.environment?.entries?.firstOrNull { (name, value) ->
+				name.isEmpty() || '=' in name || '\u0000' in name || '\u0000' in value
+			}
+		if (invalidVariable != null) {
+			logger.error(
+				"Plugin $pluginId declares an invalid environment variable '${invalidVariable.key}' for the " +
+					"'${definition.languageId}' language server",
+			)
+			return false
+		}
+		if (definition.grammar != null && nativeLibraryDir == null) {
+			logger.error("Plugin $pluginId declares a grammar for '${definition.languageId}' but bundles no native libraries")
+			return false
+		}
+		return true
+	}
+
 	fun notifyFileOpened(file: File) {
 		getEnabledFileOpenExtensions().forEach { extension ->
 			executeWithErrorHandling("notify file opened") {
@@ -1080,6 +1153,7 @@ class PluginManager private constructor(
 			loadedPlugin.isEnabled = false
 			savePluginState(pluginId, false)
 			lifecycleDispatcher.notifyDeactivated(pluginId)
+			notifyLanguageContributionsChanged(loadedPlugin.plugin)
 
 			logger.info("Disabled plugin: $pluginId")
 			true
@@ -1102,6 +1176,7 @@ class PluginManager private constructor(
 		loadedPlugin.isEnabled = false
 		savePluginState(pluginId, false)
 		lifecycleDispatcher.notifyDeactivated(pluginId)
+		notifyLanguageContributionsChanged(loadedPlugin.plugin)
 		logger.warn("Force-disabled plugin due to crashes: $pluginId")
 	}
 
