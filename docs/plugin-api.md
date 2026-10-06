@@ -51,7 +51,7 @@ These look source-compatible but break already-built `.cgp` plugins:
 - [ ] Is the change to `:plugin-api` (or a manifest key / permission string / format) actually necessary? Prefer additive over breaking.
 - [ ] If it breaks compatibility, is that called out explicitly in the PR — what breaks, who's affected, why it's worth it?
 - [ ] Recorded here or in a changelog so plugin authors can find it.
-- [ ] Impact-checked against the in-tree example plugins — `apk-viewer-plugin/`, `markdown-preview-plugin/` — and, for significant changes, the plugins under `plugins/` in the external `addons` repo (`AI-Core`, `Keystore-Generator`, ...): do they still compile and load?
+- [ ] Impact-checked against the example plugins under `plugins/` in the external `addons` repo — `APK-Analyzer`, `Markdown-Previewer`, `Keystore-Generator`, and, for significant changes, the rest (e.g. `AI-Core`): do they still compile and load?
 - [ ] Version gating (`plugin.min_ide_version` / `plugin.max_ide_version`) considered if runtime behavior changes.
 
 ## Follow-ups
