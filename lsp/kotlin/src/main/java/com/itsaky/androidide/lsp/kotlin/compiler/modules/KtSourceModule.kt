@@ -31,7 +31,9 @@ internal class KtSourceModule(
 		private val project: Project,
 	) {
 		lateinit var module: ModuleProject
-		private val dependencies = mutableListOf<KtModule>()
+
+		// A set: a jar on both the boot and compile classpath is one shared module (ADFA-6381).
+		private val dependencies = linkedSetOf<KtModule>()
 
 		fun addDependency(dep: KtModule) {
 			dependencies.add(dep)

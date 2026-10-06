@@ -47,7 +47,9 @@ internal class KtLibraryModule(
 	) {
 		lateinit var id: String
 		private val contentRoots = mutableSetOf<Path>()
-		private val dependencies = mutableListOf<KtModule>()
+
+		// A set, like KtSourceModule.Builder: no module is a dependency twice.
+		private val dependencies = linkedSetOf<KtModule>()
 		var isSdk: Boolean = false
 		var jvmTarget: JvmTarget = DEFAULT_JVM_TARGET
 		var librarySources: KaLibrarySourceModule? = null
