@@ -30,24 +30,25 @@ internal fun Workspace.collectKtModules(
 
 	val jarToModMap = mutableMapOf<Path, KtLibraryModule>()
 
-	fun addLibrary(path: Path): KtLibraryModule {
-		val module = buildKtLibraryModule(project, appEnv) {
-			id = path.pathString
-			addContentRoot(path)
+	// One module per jar: every module shares android.jar, and each KtLibraryModule
+	// materializes the jar's full file list for its search scope (ADFA-6381).
+	fun addLibrary(path: Path): KtLibraryModule =
+		jarToModMap.getOrPut(path) {
+			buildKtLibraryModule(project, appEnv) {
+				id = path.pathString
+				addContentRoot(path)
+			}
 		}
-		jarToModMap[path] = module
-		return module
-	}
 
+	// A List, not a Sequence: a Sequence would re-run addLibrary for every source module below.
 	val bootClassPaths = moduleProjects
 		.filterIsInstance<AndroidModule>()
-		.flatMap { project ->
-			project.bootClassPaths
-				.asSequence()
-				.filter { it.exists() }
-				.map { it.toPath() }
-				.map(::addLibrary)
-		}
+		.flatMap { it.bootClassPaths.asSequence() }
+		.filter { it.exists() }
+		.map { it.toPath() }
+		.distinct()
+		.map(::addLibrary)
+		.toList()
 
 	val libraryDependencies = moduleProjects
 		.flatMap { it.getCompileClasspaths() }
