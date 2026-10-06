@@ -30,9 +30,13 @@
 		android:layout_below="@id/border"
 		android:background="?attr/colorSurface">
 
+		<!-- match_parent, not the block's own wrap_content: the block fills the header's content box, which EditorBottomSheet
+			keeps inside the window with bottom padding, so the swipe hint at the bottom of the block is on screen. -->
 		<include
 			android:id="@+id/build_status"
-			layout="@layout/layout_editor_build_status" />
+			layout="@layout/layout_editor_build_status"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
 		<com.itsaky.androidide.ui.SymbolInputView
 			android:id="@+id/symbol_input"
