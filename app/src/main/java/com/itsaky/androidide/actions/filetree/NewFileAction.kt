@@ -18,7 +18,9 @@
 package com.itsaky.androidide.actions.filetree
 
 import android.content.Context
+import android.content.DialogInterface
 import android.view.LayoutInflater
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.FileActionManager
@@ -51,6 +53,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.nio.file.FileAlreadyExistsException
 import java.util.Objects
 import java.util.regex.Pattern
 
@@ -116,10 +119,6 @@ class NewFileAction(
 
 		val projectDir = IProjectManager.getInstance().projectDirPath
 		Objects.requireNonNull(projectDir)
-		val isJava =
-			Pattern.compile(Pattern.quote(projectDir) + JAVA_PATH_REGEX).matcher(file.absolutePath).find()
-		val isCpp =
-			Pattern.compile(Pattern.quote(projectDir) + CPP_PATH_REGEX).matcher(file.absolutePath).find()
 		val isRes =
 			Pattern.compile(Pattern.quote(projectDir) + RES_PATH_REGEX).matcher(file.absolutePath).find()
 		val isLayoutRes =
@@ -138,14 +137,18 @@ class NewFileAction(
 				.matcher(file.absolutePath)
 				.find()
 
-		if (isJava) {
-			createJavaClass(context, node, file)
-			return
-		}
+		when (sourceDialogFor(projectDir, file.absolutePath)) {
+			SourceDialog.CPP -> {
+				createNativeSource(context, node, file)
+				return
+			}
 
-		if (isCpp) {
-			createNativeSource(context, node, file)
-			return
+			SourceDialog.JAVA -> {
+				createJavaClass(context, node, file)
+				return
+			}
+
+			null -> {}
 		}
 
 		if (isLayoutRes && file.name == "layout") {
@@ -329,8 +332,18 @@ class NewFileAction(
 		directory: File,
 	) {
 		val binding = LayoutCreateFileCppBinding.inflate(LayoutInflater.from(context))
-		binding.languageGroup.addOnButtonCheckedListener { _, _, _ -> refreshNativeDialog(context, binding) }
-		binding.typeGroup.addOnButtonCheckedListener { _, _, _ -> refreshNativeDialog(context, binding) }
+		val dialog =
+			DialogUtils
+				.newMaterialDialogBuilder(context)
+				.setView(binding.root)
+				.setTitle(R.string.new_file)
+				.setPositiveButton(R.string.text_create, null)
+				.setNegativeButton(android.R.string.cancel, null)
+				.setCancelable(false)
+				.create()
+				.attachTooltip(TooltipTag.PROJECT_FOLDER_NEWFILE)
+		binding.languageGroup.addOnButtonCheckedListener { _, _, _ -> refreshNativeDialog(context, binding, dialog) }
+		binding.typeGroup.addOnButtonCheckedListener { _, _, _ -> refreshNativeDialog(context, binding, dialog) }
 		binding.name.editText?.addTextChangedListener(
 			object : SingleTextWatcher() {
 				override fun onTextChanged(
@@ -339,29 +352,22 @@ class NewFileAction(
 					before: Int,
 					count: Int,
 				) {
-					refreshNativeDialog(context, binding)
+					refreshNativeDialog(context, binding, dialog)
 				}
 			},
 		)
-		refreshNativeDialog(context, binding)
 
-		DialogUtils
-			.newMaterialDialogBuilder(context)
-			.setView(binding.root)
-			.setTitle(R.string.new_file)
-			.setPositiveButton(R.string.text_create) { dialogInterface, _ ->
-				dialogInterface.dismiss()
-				doCreateNativeSource(binding, directory, node)
-			}.setNegativeButton(android.R.string.cancel, null)
-			.setCancelable(false)
-			.create()
-			.attachTooltip(TooltipTag.PROJECT_FOLDER_NEWNATIVE)
-			.show()
+		dialog.show()
+		dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+			doCreateNativeSource(context, binding, dialog, directory, node)
+		}
+		refreshNativeDialog(context, binding, dialog)
 	}
 
 	private fun refreshNativeDialog(
 		context: Context,
 		binding: LayoutCreateFileCppBinding,
+		dialog: AlertDialog,
 	) {
 		val language = nativeLanguage(binding)
 		val isCpp = language == NativeSourceBuilder.Language.CPP
@@ -371,37 +377,48 @@ class NewFileAction(
 		binding.typeClass.isVisible = isCpp
 
 		val kind = nativeKind(binding)
-		binding.name.suffixText = NativeSourceBuilder.extensions(language, kind).joinToString(" + ") { ".$it" }
+		binding.languageGroup.isEnabled = kind != NativeSourceBuilder.Kind.OTHER
+		binding.name.suffixText =
+			NativeSourceBuilder
+				.extensions(language, kind)
+				.joinToString(" + ") { ".$it" }
+				.ifEmpty { null }
+		binding.name.counterMaxLength = NativeSourceBuilder.maxNameLength(language, kind, MAX_FILE_NAME_LENGTH)
 
 		val name = nativeName(binding)
-		val isInvalid = name.isNotEmpty() && !NativeSourceBuilder.isValidName(name, kind)
-		binding.name.isErrorEnabled = isInvalid
-		binding.name.error = if (isInvalid) context.getString(R.string.msg_invalid_name) else null
+		val isValid = NativeSourceBuilder.isValidName(name, language, kind, MAX_FILE_NAME_LENGTH)
+		val showError = name.isNotEmpty() && !isValid
+		binding.name.isErrorEnabled = showError
+		binding.name.error = if (showError) context.getString(R.string.msg_invalid_name) else null
+		dialog.getButton(DialogInterface.BUTTON_POSITIVE)?.isEnabled = isValid
 	}
 
 	private fun doCreateNativeSource(
+		context: Context,
 		binding: LayoutCreateFileCppBinding,
+		dialog: AlertDialog,
 		directory: File,
 		node: TreeNode?,
 	) {
-		val name = nativeName(binding)
-		val kind = nativeKind(binding)
-		if (!NativeSourceBuilder.isValidName(name, kind)) {
-			flashError(R.string.msg_invalid_name)
-			return
+		val files = NativeSourceBuilder.createFiles(nativeName(binding), nativeLanguage(binding), nativeKind(binding))
+		val createButton = dialog.getButton(DialogInterface.BUTTON_POSITIVE)
+		createButton.isEnabled = false
+		fileActionManager.createNewFiles(directory, files.map { it.name to it.content }) { result ->
+			result
+				.onSuccess {
+					dialog.dismiss()
+					onFilesCreated(node)
+				}.onFailure { error ->
+					createButton.isEnabled = true
+					if (error is FileAlreadyExistsException) {
+						binding.name.isErrorEnabled = true
+						binding.name.error = context.getString(R.string.msg_file_exists)
+					} else {
+						log.error("Failed to create native source files", error)
+						flashError(error.message)
+					}
+				}
 		}
-
-		val files = NativeSourceBuilder.createFiles(name, nativeLanguage(binding), kind)
-		if (files.any { it.name.length > MAX_FILE_NAME_LENGTH }) {
-			flashError(R.string.msg_invalid_name)
-			return
-		}
-		if (files.any { File(directory, it.name).exists() }) {
-			flashError(R.string.msg_file_exists)
-			return
-		}
-
-		files.forEach { createFile(node, directory, it.name, it.content) }
 	}
 
 	private fun nativeName(binding: LayoutCreateFileCppBinding): String =
@@ -422,6 +439,7 @@ class NewFileAction(
 			binding.typeSource.id -> NativeSourceBuilder.Kind.SOURCE
 			binding.typeHeader.id -> NativeSourceBuilder.Kind.HEADER
 			binding.typeClass.id -> NativeSourceBuilder.Kind.CLASS
+			binding.typeOther.id -> NativeSourceBuilder.Kind.OTHER
 			else -> error("Unexpected type button: $id")
 		}
 
@@ -610,10 +628,14 @@ class NewFileAction(
 		message: String,
 		createdFile: File?,
 	) {
+		onFilesCreated(currentNode)
+	}
+
+	private fun onFilesCreated(node: TreeNode?) {
 		flashSuccess(R.string.msg_file_created)
-		if (currentNode != null) {
-			requestCollapseNode(currentNode!!, false)
-			requestExpandNode(currentNode!!)
+		if (node != null) {
+			requestCollapseNode(node, false)
+			requestExpandNode(node)
 		} else {
 			requestFileListing()
 		}
@@ -621,5 +643,22 @@ class NewFileAction(
 
 	override fun onActionFailure(errorMessage: String) {
 		flashError(errorMessage)
+	}
+}
+
+internal enum class SourceDialog {
+	CPP,
+	JAVA,
+}
+
+internal fun sourceDialogFor(
+	projectDir: String,
+	path: String,
+): SourceDialog? {
+	fun matches(regex: String) = Pattern.compile(Pattern.quote(projectDir) + regex).matcher(path).find()
+	return when {
+		matches(NewFileAction.CPP_PATH_REGEX) -> SourceDialog.CPP
+		matches(NewFileAction.JAVA_PATH_REGEX) -> SourceDialog.JAVA
+		else -> null
 	}
 }

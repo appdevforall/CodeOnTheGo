@@ -8,7 +8,6 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import java.util.Locale
 
 @RunWith(JUnit4::class)
 class NativeSourceBuilderTest {
@@ -25,30 +24,24 @@ class NativeSourceBuilderTest {
 	}
 
 	@Test
-	fun givenHyphenatedHeader_whenCreated_thenGuardUsesUnderscores() {
-		assertThat(NativeSourceBuilder.createFiles("native-lib", Language.C, Kind.HEADER))
-			.containsExactly(NativeFile("native-lib.h", "#ifndef NATIVE_LIB_H\n#define NATIVE_LIB_H\n\n#endif\n"))
+	fun givenHeader_whenCreated_thenGuardedByPragmaOnceRatherThanANameDerivedMacro() {
+		assertThat(NativeSourceBuilder.createFiles("_impl", Language.C, Kind.HEADER))
+			.containsExactly(NativeFile("_impl.h", "#pragma once\n"))
 	}
 
 	@Test
 	fun givenCppClass_whenCreated_thenHeaderDeclaresItAndSourceIncludesHeader() {
 		assertThat(NativeSourceBuilder.createFiles("Renderer", Language.CPP, Kind.CLASS))
 			.containsExactly(
-				NativeFile("Renderer.h", "#ifndef RENDERER_H\n#define RENDERER_H\n\nclass Renderer {\n};\n\n#endif\n"),
+				NativeFile("Renderer.h", "#pragma once\n\nclass Renderer {\n};\n"),
 				NativeFile("Renderer.cpp", "#include \"Renderer.h\"\n"),
 			).inOrder()
 	}
 
 	@Test
-	fun givenTurkishDefaultLocale_whenCreatingHeader_thenGuardIsAscii() {
-		val previous = Locale.getDefault()
-		Locale.setDefault(Locale.forLanguageTag("tr-TR"))
-		try {
-			assertThat(NativeSourceBuilder.createFiles("io", Language.C, Kind.HEADER).single().content)
-				.startsWith("#ifndef IO_H\n")
-		} finally {
-			Locale.setDefault(previous)
-		}
+	fun givenOtherFile_whenCreated_thenExactNameWithNoContent() {
+		assertThat(NativeSourceBuilder.createFiles("CMakeLists.txt", Language.CPP, Kind.OTHER))
+			.containsExactly(NativeFile("CMakeLists.txt", ""))
 	}
 
 	@Test
@@ -59,20 +52,42 @@ class NativeSourceBuilderTest {
 	}
 
 	@Test
-	fun givenNames_whenValidated_thenFileNamesAllowHyphensButClassNamesNeedIdentifiers() {
-		assertThat(NativeSourceBuilder.isValidName("native-lib", Kind.SOURCE)).isTrue()
-		assertThat(NativeSourceBuilder.isValidName("_impl2", Kind.HEADER)).isTrue()
-		assertThat(NativeSourceBuilder.isValidName("native-lib", Kind.CLASS)).isFalse()
-		assertThat(NativeSourceBuilder.isValidName("Renderer", Kind.CLASS)).isTrue()
+	fun givenNames_whenValidated_thenEachKindAppliesItsOwnRule() {
+		assertThat(isValid("native-lib", Language.CPP, Kind.SOURCE)).isTrue()
+		assertThat(isValid("_impl2", Language.C, Kind.HEADER)).isTrue()
+		assertThat(isValid("Renderer", Language.CPP, Kind.CLASS)).isTrue()
+		assertThat(isValid("CMakeLists.txt", Language.CPP, Kind.OTHER)).isTrue()
+		assertThat(isValid("include/defs.hpp", Language.CPP, Kind.OTHER)).isTrue()
+
+		assertThat(isValid("", Language.CPP, Kind.SOURCE)).isFalse()
+		assertThat(isValid("2d", Language.CPP, Kind.SOURCE)).isFalse()
+		assertThat(isValid("util.cpp", Language.CPP, Kind.SOURCE)).isFalse()
+		assertThat(isValid("dir/util", Language.C, Kind.HEADER)).isFalse()
+		assertThat(isValid("native-lib", Language.CPP, Kind.CLASS)).isFalse()
+		assertThat(isValid("delete", Language.CPP, Kind.CLASS)).isFalse()
+		assertThat(isValid("", Language.CPP, Kind.OTHER)).isFalse()
+		assertThat(isValid("/abs.txt", Language.CPP, Kind.OTHER)).isFalse()
+		assertThat(isValid("../escape.txt", Language.CPP, Kind.OTHER)).isFalse()
+		assertThat(isValid("dir//file.txt", Language.CPP, Kind.OTHER)).isFalse()
 	}
 
 	@Test
-	fun givenInvalidNames_whenValidated_thenRejected() {
-		assertThat(NativeSourceBuilder.isValidName("", Kind.SOURCE)).isFalse()
-		assertThat(NativeSourceBuilder.isValidName("2d", Kind.SOURCE)).isFalse()
-		assertThat(NativeSourceBuilder.isValidName("util.cpp", Kind.SOURCE)).isFalse()
-		assertThat(NativeSourceBuilder.isValidName("dir/util", Kind.HEADER)).isFalse()
-		assertThat(NativeSourceBuilder.isValidName("delete", Kind.CLASS)).isFalse()
+	fun givenTheFileNameLimit_whenSizingTheBareName_thenTheLongestExtensionIsReserved() {
+		assertThat(NativeSourceBuilder.maxNameLength(Language.C, Kind.SOURCE, 40)).isEqualTo(38)
+		assertThat(NativeSourceBuilder.maxNameLength(Language.CPP, Kind.SOURCE, 40)).isEqualTo(36)
+		assertThat(NativeSourceBuilder.maxNameLength(Language.CPP, Kind.HEADER, 40)).isEqualTo(38)
+		assertThat(NativeSourceBuilder.maxNameLength(Language.CPP, Kind.CLASS, 40)).isEqualTo(36)
+		assertThat(NativeSourceBuilder.maxNameLength(Language.CPP, Kind.OTHER, 40)).isEqualTo(40)
+	}
+
+	@Test
+	fun givenANameThatFitsButItsFileNameDoesNot_whenValidated_thenRejected() {
+		val name = "a".repeat(37)
+
+		assertThat(isValid(name, Language.CPP, Kind.HEADER)).isTrue()
+		assertThat(isValid(name, Language.CPP, Kind.CLASS)).isFalse()
+		assertThat(NativeSourceBuilder.createFiles("a".repeat(36), Language.CPP, Kind.CLASS).map { it.name.length })
+			.containsExactly(38, 40)
 	}
 
 	@Test
@@ -80,5 +95,12 @@ class NativeSourceBuilderTest {
 		assertThat(NativeSourceBuilder.extensions(Language.C, Kind.SOURCE)).containsExactly("c")
 		assertThat(NativeSourceBuilder.extensions(Language.CPP, Kind.HEADER)).containsExactly("h")
 		assertThat(NativeSourceBuilder.extensions(Language.CPP, Kind.CLASS)).containsExactly("h", "cpp").inOrder()
+		assertThat(NativeSourceBuilder.extensions(Language.CPP, Kind.OTHER)).isEmpty()
 	}
+
+	private fun isValid(
+		name: String,
+		language: Language,
+		kind: Kind,
+	) = NativeSourceBuilder.isValidName(name, language, kind, maxFileNameLength = 40)
 }

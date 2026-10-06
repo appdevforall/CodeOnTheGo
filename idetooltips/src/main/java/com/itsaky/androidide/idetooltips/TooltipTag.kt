@@ -268,7 +268,6 @@ object TooltipTag {
 	const val PROJECT_FOLDER_NEW_FOLDER = "project.folder.newfolder"
 	const val PROJECT_NEWFILE_DIALOG = "project.newfile.dialog"
 	const val PROJECT_FOLDER_NEWTYPE = "project.folder.newtype"
-	const val PROJECT_FOLDER_NEWNATIVE = "project.folder.newnative"
 	const val PROJECT_FOLDER_NEWXML = "project.folder.newxml"
 	const val PROJECT_ITEM_RENAME = "project.item.rename"
 	const val PROJECT_RENAME_DIALOG = "project.rename.dialog"

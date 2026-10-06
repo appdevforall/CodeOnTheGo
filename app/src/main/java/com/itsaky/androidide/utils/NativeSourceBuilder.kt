@@ -1,7 +1,5 @@
 package com.itsaky.androidide.utils
 
-import java.util.Locale
-
 object NativeSourceBuilder {
 	enum class Language(
 		val sourceExtension: String,
@@ -14,6 +12,7 @@ object NativeSourceBuilder {
 		SOURCE,
 		HEADER,
 		CLASS,
+		OTHER,
 	}
 
 	data class NativeFile(
@@ -131,23 +130,28 @@ object NativeSourceBuilder {
 			Kind.SOURCE -> listOf(language.sourceExtension)
 			Kind.HEADER -> listOf(HEADER_EXTENSION)
 			Kind.CLASS -> listOf(HEADER_EXTENSION, requireCpp(language).sourceExtension)
+			Kind.OTHER -> emptyList()
 		}
+
+	fun maxNameLength(
+		language: Language,
+		kind: Kind,
+		maxFileNameLength: Int,
+	): Int = maxFileNameLength - (extensions(language, kind).maxOfOrNull { it.length + 1 } ?: 0)
 
 	fun isValidName(
 		name: String,
+		language: Language,
 		kind: Kind,
-	): Boolean =
-		when (kind) {
-			Kind.CLASS -> IDENTIFIER.matches(name) && name !in CPP_KEYWORDS
-			Kind.SOURCE, Kind.HEADER -> FILE_NAME.matches(name)
-		}
+		maxFileNameLength: Int,
+	): Boolean = followsNamingRule(name, kind) && name.length <= maxNameLength(language, kind, maxFileNameLength)
 
 	fun createFiles(
 		name: String,
 		language: Language,
 		kind: Kind,
 	): List<NativeFile> {
-		require(isValidName(name, kind)) { "Invalid $kind name: '$name'" }
+		require(followsNamingRule(name, kind)) { "Invalid $kind name: '$name'" }
 		val headerName = "$name.$HEADER_EXTENSION"
 		return when (kind) {
 			Kind.SOURCE -> {
@@ -155,37 +159,43 @@ object NativeSourceBuilder {
 			}
 
 			Kind.HEADER -> {
-				listOf(NativeFile(headerName, header(name, body = null)))
+				listOf(NativeFile(headerName, header(body = null)))
 			}
 
 			Kind.CLASS -> {
 				listOf(
-					NativeFile(headerName, header(name, body = "class $name {\n};\n")),
+					NativeFile(headerName, header(body = "class $name {\n};\n")),
 					NativeFile("$name.${requireCpp(language).sourceExtension}", "#include \"$headerName\"\n"),
 				)
 			}
+
+			Kind.OTHER -> {
+				listOf(NativeFile(name, ""))
+			}
 		}
 	}
+
+	private fun followsNamingRule(
+		name: String,
+		kind: Kind,
+	): Boolean =
+		when (kind) {
+			Kind.CLASS -> IDENTIFIER.matches(name) && name !in CPP_KEYWORDS
+			Kind.SOURCE, Kind.HEADER -> FILE_NAME.matches(name)
+			Kind.OTHER -> name.split('/').all { it.isNotBlank() && it != "." && it != ".." }
+		}
 
 	private fun requireCpp(language: Language): Language {
 		require(language == Language.CPP) { "A class needs C++, not $language" }
 		return language
 	}
 
-	private fun header(
-		name: String,
-		body: String?,
-	): String {
-		val guard = "${name.uppercase(Locale.ROOT).replace('-', '_')}_H"
-		return buildString {
-			appendLine("#ifndef $guard")
-			appendLine("#define $guard")
-			appendLine()
+	private fun header(body: String?): String =
+		buildString {
+			appendLine("#pragma once")
 			if (body != null) {
-				append(body)
 				appendLine()
+				append(body)
 			}
-			appendLine("#endif")
 		}
-	}
 }
