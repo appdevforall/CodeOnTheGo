@@ -776,16 +776,10 @@ open class EditorHandlerActivity :
 			// when not applicable, instead of the legacy grey-out used by built-in actions.
 			if (action.honorVisibility && !action.visible) return@forEachIndexed
 
-			action.icon?.apply {
-				colorFilter = action.createColorFilter(data)
-				alpha = if (action.enabled) 255 else 76
-			}
-
 			content.projectActionsToolbar.addMenuItem(
-				// This custom toolbar bypasses DefaultActionsRegistry's menu path, so its
-				// disabled-icon dim (alpha 76 there) must be mirrored here or a disabled
-				// action renders at full strength while refusing the tap.
-				icon = action.icon?.mutate()?.apply { alpha = if (action.enabled) 255 else 76 },
+				// This toolbar bypasses DefaultActionsRegistry's menu path, so it mirrors that
+				// path's tint and disabled dim here.
+				icon = toolbarIcon(action.icon, action.createColorFilter(data), action.enabled),
 				hint = getToolbarContentDescription(action, data),
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
