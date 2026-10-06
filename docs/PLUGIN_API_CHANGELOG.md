@@ -36,6 +36,19 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.41 — unreleased
+- **added — Plugin languages: tree-sitter highlighting and a language server** _(ADFA-4851)_ **[verified]**
+  A plugin implementing `LanguageExtension` returns `LanguageDefinition`s, each claiming file
+  extensions and optionally carrying a `TreeSitterGrammar` and a `LanguageServerDefinition`.
+  The grammar is `lib/<abi>/libtree-sitter-<name>.so` exporting `tree_sitter_<name>`, built
+  at tree-sitter language ABI 13 or 14, with `highlights.scm` (and optionally `locals`,
+  `blocks`, `brackets`, `indents`) under `queriesAssetPath` in the plugin's assets. Captures
+  use the standard names (`keyword`, `string`, `function`, `type`, ...); every colour scheme
+  maps them through its `generic.json`. The server is any stdio LSP process: a bare command
+  name resolves against the Termux `bin` directory, and it runs with the Termux environment
+  plus `environment`. A grammar needs `native.code`; a server needs `system.commands`.
+  Extensions the IDE already handles (`java`, `kt`, `kts`, `xml`, `json`, `log`, `gradle`,
+  C/C++) cannot be claimed. Purely additive. Floor `plugin.min_ide_version` at `26.41`: an
+  older IDE cannot load a plugin class that implements `LanguageExtension`.
 - **added — No cap on sidebar items** _(ADFA-4977)_
   The sidebar held 12 items: the IDE's seven plus the slots plugins declared with
   `plugin.sidebar_items`. A plugin declaring more than the free slots failed to load, and
