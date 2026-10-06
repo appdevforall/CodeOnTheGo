@@ -15,7 +15,11 @@ import kotlin.io.path.pathString
 class CollectKtModulesTest : KtLspTest() {
 	@Test
 	fun `modules sharing android jar share one library module`() {
-		val androidJar = lspTestRule.tempDir.root.toPath().resolve("android.jar").createFile()
+		val androidJar =
+			lspTestRule.tempDir.root
+				.toPath()
+				.resolve("android.jar")
+				.createFile()
 		val modulePaths = listOf(":a", ":b", ":c")
 		val workspace =
 			Workspace(
