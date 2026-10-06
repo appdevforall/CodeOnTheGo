@@ -20,7 +20,11 @@ interface TemplateRepository {
 	/** Moves [item]'s file from Downloads into the templates directory and reloads templates. */
 	suspend fun installTemplate(item: CgtFileItem): Result<Unit>
 
-	/** Restores a copy of [item]'s file to Downloads, removes it from the templates directory, and reloads templates. */
+	/**
+	 * Removes [item] from the templates directory and reloads templates. A user-imported item is
+	 * restored to Downloads first; a plugin-provided item is just deleted, since it never came
+	 * from Downloads in the first place.
+	 */
 	suspend fun uninstallTemplate(item: CgtFileItem): Result<Unit>
 
 	/** Deletes a not-installed [item]'s file from Downloads. */
