@@ -22,6 +22,7 @@ import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.manager.services.IdeLogServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
@@ -393,6 +394,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			setupBuildServiceProviders()
 			setupProjectManipulationProviders()
 			IdeLogServiceImpl.getInstance().setLogReader(LogsProvider::read)
+			IdeTerminalServiceImpl.setSessionLauncher(PluginTerminalLauncher { application.foregroundActivity })
 			logger.info("Plugin services configured successfully")
 		}
 	}

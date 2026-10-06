@@ -394,6 +394,35 @@ interface IdeBuildService {
 	fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
 
 	/**
+	 * Runs [tasks] (e.g. ":app:testDebugUnitTest") with Gradle [arguments] (e.g. "--tests",
+	 * "com.example.FooTest", "-Pkey=value", "--info") through the IDE's tooling server, the same
+	 * Gradle daemon the IDE builds with. The output goes to the Build Output pane; read it
+	 * afterwards with [getBuildOutput]. A task option such as `--tests` or `--rerun` applies to
+	 * the last task in [tasks], as on a command line.
+	 *
+	 * Only one build runs at a time. If one is already running, or the tooling server has not
+	 * started, the future completes with [GradleTaskResult.Refused] at once and no build starts.
+	 *
+	 * The default body is not a compatibility shim: this module sets no `-Xjvm-default`, so an
+	 * IDE older than 26.41 has no such method and the call fails with `NoSuchMethodError`. Floor
+	 * `plugin.min_ide_version` at 26.41 to use it.
+	 */
+	fun executeTasks(
+		tasks: List<String>,
+		arguments: List<String> = emptyList(),
+	): CompletableFuture<GradleTaskResult> =
+		CompletableFuture.completedFuture(GradleTaskResult.Refused("Running Gradle tasks is not supported"))
+
+	/**
+	 * Asks Gradle to cancel the running build, whoever started it. The future completes with
+	 * true if the request was accepted, false if no build is running or the tooling server is
+	 * down. The cancelled run's own future then completes with [GradleTaskResult.Cancelled].
+	 *
+	 * Floor `plugin.min_ide_version` at 26.41 to use it (see [executeTasks]).
+	 */
+	fun cancelBuild(): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
+
+	/**
 	 * Builds and runs the app on the connected device.
 	 * @param callback The callback to be invoked when the operation completes
 	 */
@@ -414,6 +443,30 @@ interface IdeBuildService {
 	 * @return The build output as a string, or null if no build output is available
 	 */
 	fun getBuildOutput(): String? = null
+}
+
+/**
+ * Outcome of [IdeBuildService.executeTasks] with Gradle arguments.
+ */
+sealed class GradleTaskResult {
+	/** The build ran and succeeded. */
+	data object Success : GradleTaskResult()
+
+	/**
+	 * The build ran and failed. [reason] names the failure (e.g. "BUILD_FAILED"); the log is in
+	 * [IdeBuildService.getBuildOutput].
+	 */
+	data class Failed(
+		val reason: String,
+	) : GradleTaskResult()
+
+	/** The build never started. [reason] says why, e.g. another build is in progress. */
+	data class Refused(
+		val reason: String,
+	) : GradleTaskResult()
+
+	/** The build started and was cancelled, by [IdeBuildService.cancelBuild] or by the user. */
+	data object Cancelled : GradleTaskResult()
 }
 
 /**

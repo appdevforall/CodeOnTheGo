@@ -5,10 +5,17 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.plugins.services.BuildAndLaunchCallback
 import com.itsaky.androidide.plugins.services.BuildStatusListener
 import com.itsaky.androidide.plugins.services.GradleSyncCallback
+import com.itsaky.androidide.plugins.services.GradleTaskResult
 import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
+import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
+import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
+import com.itsaky.androidide.tooling.api.messages.result.BuildCancellationRequestResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionException
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
@@ -109,27 +116,68 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 		}
 	}
 
-	override fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> {
+	override fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> =
+		executeTasks(tasks.toList(), emptyList()).thenApply { it == GradleTaskResult.Success }
+
+	override fun executeTasks(
+		tasks: List<String>,
+		arguments: List<String>,
+	): CompletableFuture<GradleTaskResult> {
+		if (tasks.isEmpty()) return refuse(tasks, "no tasks were given")
 		val buildService =
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 				?: return refuse(tasks, "build service is not registered")
 		if (!buildService.isToolingServerStarted()) return refuse(tasks, "tooling server is not started")
 		if (buildService.isBuildInProgress) return refuse(tasks, "another build is in progress")
 
-		return buildService.executeTasks(*tasks).handle { result, error ->
-			if (error != null) {
-				log.error("Tasks {} failed", tasks.toList(), error)
-			}
-			error == null && result?.isSuccessful == true
+		val message =
+			TaskExecutionMessage(
+				tasks = tasks,
+				buildId = buildService.nextBuildId(BuildRunType.TaskRun),
+				buildParams = GradleBuildParams(gradleArgs = arguments),
+			)
+		return runCatching { buildService.executeTasks(message) }
+			.getOrElse { CompletableFuture<TaskExecutionResult>().apply { completeExceptionally(it) } }
+			.handle { result, error -> toGradleTaskResult(tasks, result, error) }
+	}
+
+	private fun toGradleTaskResult(
+		tasks: List<String>,
+		result: TaskExecutionResult?,
+		error: Throwable?,
+	): GradleTaskResult {
+		if (error != null) {
+			log.error("Tasks {} failed", tasks, error)
+			val cause = (error as? CompletionException)?.cause ?: error
+			return GradleTaskResult.Failed(cause.message ?: cause.javaClass.simpleName)
+		}
+		return when {
+			result == null -> GradleTaskResult.Failed(TaskExecutionResult.Failure.UNKNOWN.name)
+			result.isSuccessful -> GradleTaskResult.Success
+			result.failure == TaskExecutionResult.Failure.BUILD_CANCELLED -> GradleTaskResult.Cancelled
+			else -> GradleTaskResult.Failed((result.failure ?: TaskExecutionResult.Failure.UNKNOWN).name)
 		}
 	}
 
 	private fun refuse(
-		tasks: Array<out String>,
+		tasks: List<String>,
 		reason: String,
-	): CompletableFuture<Boolean> {
-		log.warn("Not executing tasks {}: {}", tasks.toList(), reason)
-		return CompletableFuture.completedFuture(false)
+	): CompletableFuture<GradleTaskResult> {
+		log.warn("Not executing tasks {}: {}", tasks, reason)
+		return CompletableFuture.completedFuture(GradleTaskResult.Refused(reason))
+	}
+
+	override fun cancelBuild(): CompletableFuture<Boolean> {
+		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+		if (buildService == null || !buildService.isToolingServerStarted()) {
+			return CompletableFuture.completedFuture(false)
+		}
+		return runCatching { buildService.cancelCurrentBuild() }
+			.getOrElse { CompletableFuture<BuildCancellationRequestResult>().apply { completeExceptionally(it) } }
+			.handle { result, error ->
+				if (error != null) log.error("Failed to cancel the running build", error)
+				error == null && result?.wasEnqueued == true
+			}
 	}
 
 	override fun runApp(callback: BuildAndLaunchCallback) {

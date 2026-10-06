@@ -70,6 +70,11 @@ data class PluginBuildAction(
 )
 
 sealed class CommandSpec {
+	/**
+	 * Runs [executable] directly, without a shell. [workingDirectory] is absolute or relative to
+	 * the project root, and must lie inside it; null means the project root. Giving one with no
+	 * project open throws [SecurityException].
+	 */
 	data class ShellCommand(
 		val executable: String,
 		val arguments: List<String> = emptyList(),
@@ -77,6 +82,16 @@ sealed class CommandSpec {
 		val environment: Map<String, String> = emptyMap(),
 	) : CommandSpec()
 
+	/**
+	 * Runs [taskPath] with Gradle [arguments] through the IDE's tooling server, as
+	 * [com.itsaky.androidide.plugins.services.IdeBuildService.executeTasks] does; it never starts
+	 * a second Gradle daemon. Output goes to the Build Output pane and arrives as one
+	 * [CommandOutput.StdOut] per line once the build ends; it is not streamed. Exit code 0 means
+	 * success, 1 a failed build. A refused build (another one running, tooling server down)
+	 * fails with exit code -1 and the reason in [CommandResult.Failure.error].
+	 *
+	 * Before 26.41 this ran `./gradlew` as a separate process.
+	 */
 	data class GradleTask(
 		val taskPath: String,
 		val arguments: List<String> = emptyList(),

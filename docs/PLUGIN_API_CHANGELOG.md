@@ -36,6 +36,35 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.41 — unreleased
+- **added — Terminal readiness and visible terminal commands** _(ADFA-6373)_ **[verified]**
+  `IdeTerminalService.isTerminalReady()` reports whether the terminal environment is installed
+  and bash runs; it needs no permission. `runInTerminal(command, workingDirectory)` opens a new
+  session in the visible Terminal, runs the command with bash and suspends until it exits,
+  returning `TerminalCommandResult.Completed(exitCode, output)` with the session transcript, or
+  `NotStarted(reason)` (environment missing, IDE not in the foreground). The session stays open
+  so the user sees what ran; cancelling the caller kills the command. Needs `system.commands`;
+  the working directory must lie inside the project. Floor `plugin.min_ide_version` at `26.41`:
+  an older IDE has no `IdeTerminalService` class, so referencing it fails to load.
+- **added — Run Gradle tasks with arguments, get a structured result, cancel** _(ADFA-6373)_ **[verified]**
+  `IdeBuildService.executeTasks(tasks: List<String>, arguments: List<String>)` runs on the
+  IDE's tooling server, so `--tests`, `-P` and `--info` work and the output reaches the Build
+  Output pane (read it with `getBuildOutput()`). It completes with a `GradleTaskResult`:
+  `Success`, `Failed(reason)`, `Refused(reason)` when the build never started (another build
+  running, tooling server down), or `Cancelled`. `IdeBuildService.cancelBuild()` cancels the
+  running build, whoever started it. `executeTasks(vararg String)` is unchanged. Floor
+  `plugin.min_ide_version` at `26.41`: an older IDE has neither method.
+- **breaking — `CommandSpec.GradleTask` runs on the tooling server** _(ADFA-6373)_
+  It used to start `./gradlew` as a separate process: a second Gradle daemon on the device,
+  with output that never reached the Build Output pane. It now runs like `executeTasks` above.
+  Output arrives in one batch of `StdOut` lines when the build ends instead of streaming; the
+  exit code is 0 on success and 1 on a failed build; a refused build fails with exit code -1
+  and the reason in `CommandResult.Failure.error`. No source change is needed. A plugin that
+  ran a Gradle task while another build was running now gets that refusal instead of a
+  second build.
+- **breaking — `CommandSpec.ShellCommand.workingDirectory` needs an open project** _(ADFA-6373)_
+  With no project open, a `workingDirectory` used to be accepted unchecked; `executeCommand` now
+  throws `SecurityException`, as it does for one outside the project. Pass null to run in the
+  default directory.
 - **added — Plugin languages: tree-sitter highlighting and a language server** _(ADFA-4851)_ **[verified]**
   A plugin implementing `LanguageExtension` returns `LanguageDefinition`s, each claiming file
   extensions and optionally carrying a `TreeSitterGrammar` and a `LanguageServerDefinition`.

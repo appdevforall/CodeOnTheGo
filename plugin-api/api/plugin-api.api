@@ -1610,6 +1610,45 @@ public abstract interface class com/itsaky/androidide/plugins/services/GradleSyn
 	public abstract fun onComplete (ZLjava/lang/String;)V
 }
 
+public abstract class com/itsaky/androidide/plugins/services/GradleTaskResult {
+}
+
+public final class com/itsaky/androidide/plugins/services/GradleTaskResult$Cancelled : com/itsaky/androidide/plugins/services/GradleTaskResult {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/services/GradleTaskResult$Cancelled;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/GradleTaskResult$Failed : com/itsaky/androidide/plugins/services/GradleTaskResult {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/GradleTaskResult$Failed;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/GradleTaskResult$Failed;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/GradleTaskResult$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/GradleTaskResult$Refused : com/itsaky/androidide/plugins/services/GradleTaskResult {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/GradleTaskResult$Refused;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/GradleTaskResult$Refused;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/GradleTaskResult$Refused;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/GradleTaskResult$Success : com/itsaky/androidide/plugins/services/GradleTaskResult {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/services/GradleTaskResult$Success;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class com/itsaky/androidide/plugins/services/IdeArchiveService {
 	public abstract fun extract (Ljava/io/InputStream;Lcom/itsaky/androidide/plugins/services/ArchiveFormat;Ljava/io/File;Lkotlin/jvm/functions/Function2;)Lcom/itsaky/androidide/plugins/services/ExtractResult;
 }
@@ -1620,6 +1659,8 @@ public final class com/itsaky/androidide/plugins/services/IdeArchiveService$Defa
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeBuildService {
 	public abstract fun addBuildStatusListener (Lcom/itsaky/androidide/plugins/services/BuildStatusListener;)V
+	public abstract fun cancelBuild ()Ljava/util/concurrent/CompletableFuture;
+	public abstract fun executeTasks (Ljava/util/List;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun executeTasks ([Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun getBuildOutput ()Ljava/lang/String;
 	public abstract fun isBuildInProgress ()Z
@@ -1630,7 +1671,10 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeBuildS
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeBuildService$DefaultImpls {
+	public static fun cancelBuild (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Ljava/util/concurrent/CompletableFuture;
+	public static fun executeTasks (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Ljava/util/List;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
 	public static fun executeTasks (Lcom/itsaky/androidide/plugins/services/IdeBuildService;[Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun executeTasks$default (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 	public static fun getBuildOutput (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Ljava/lang/String;
 	public static fun runApp (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Lcom/itsaky/androidide/plugins/services/BuildAndLaunchCallback;)V
 	public static fun triggerGradleSync (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Lcom/itsaky/androidide/plugins/services/GradleSyncCallback;)V
@@ -1781,6 +1825,15 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeTempla
 	public abstract fun registerTemplate (Ljava/io/File;)Z
 	public abstract fun reloadTemplates ()V
 	public abstract fun unregisterTemplate (Ljava/lang/String;)Z
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/IdeTerminalService {
+	public abstract fun isTerminalReady (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun runInTerminal (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/itsaky/androidide/plugins/services/IdeTerminalService$DefaultImpls {
+	public static synthetic fun runInTerminal$default (Lcom/itsaky/androidide/plugins/services/IdeTerminalService;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeThemeService {
@@ -2092,6 +2145,33 @@ public final class com/itsaky/androidide/plugins/services/SharedServices {
 	public final fun get (Ljava/lang/Class;)Ljava/lang/Object;
 	public final fun register (Ljava/lang/Class;Ljava/lang/Object;)V
 	public final fun unregister (Ljava/lang/Class;)V
+}
+
+public abstract class com/itsaky/androidide/plugins/services/TerminalCommandResult {
+}
+
+public final class com/itsaky/androidide/plugins/services/TerminalCommandResult$Completed : com/itsaky/androidide/plugins/services/TerminalCommandResult {
+	public fun <init> (ILjava/lang/String;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (ILjava/lang/String;)Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$Completed;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$Completed;ILjava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$Completed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExitCode ()I
+	public final fun getOutput ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/TerminalCommandResult$NotStarted : com/itsaky/androidide/plugins/services/TerminalCommandResult {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$NotStarted;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$NotStarted;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$NotStarted;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/ThemeChangeListener {

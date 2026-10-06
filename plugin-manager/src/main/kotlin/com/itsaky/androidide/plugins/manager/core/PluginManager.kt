@@ -56,6 +56,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSnippetServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTemplateServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
@@ -75,6 +76,7 @@ import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeSidebarService
 import com.itsaky.androidide.plugins.services.IdeSnippetService
 import com.itsaky.androidide.plugins.services.IdeTemplateService
+import com.itsaky.androidide.plugins.services.IdeTerminalService
 import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeUIService
@@ -1620,6 +1622,20 @@ class PluginManager private constructor(
 			"command",
 		) {
 			IdeCommandServiceImpl(
+				pluginId = pluginId,
+				permissions = permissions,
+				projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+				appFilesDir = context.filesDir,
+			)
+		}
+
+		registerServiceWithErrorHandling(
+			pluginServiceRegistry,
+			IdeTerminalService::class.java,
+			pluginId,
+			"terminal",
+		) {
+			IdeTerminalServiceImpl(
 				pluginId = pluginId,
 				permissions = permissions,
 				projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },

@@ -49,9 +49,9 @@ abstract class BaseBuildAction : EditorActivityAction() {
 
 	/**
 	 * Refuses a tap while an internal build (Quick Build's proxy app build) holds the one Gradle
-	 * slot, and flashes why. [prepare] leaves these actions enabled in that window, and starting a
-	 * second build would throw BuildInProgressException deep in the service and surface as a raw
-	 * error. Reads the raw [BuildService.isBuildInProgress], because this guards the slot rather
+	 * slot, and flashes why. [prepare] leaves these actions enabled in that window, and the service
+	 * would refuse a second build silently, so the tap would seem to do nothing. Reads the raw
+	 * [BuildService.isBuildInProgress], because this guards the slot rather
 	 * than presenting state.
 	 *
 	 * @return true when the tap was refused and the caller must start nothing.

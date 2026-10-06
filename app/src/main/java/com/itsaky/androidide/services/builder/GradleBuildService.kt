@@ -94,6 +94,7 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -111,11 +112,11 @@ class GradleBuildService :
 	private var mBinder: GradleServiceBinder? = null
 	private var isToolingServerStarted = false
 
-	// Volatile: written on the Tooling API's CompletableFuture pool, read cross-thread
-	// by Quick Build's slot pre-check.
-	@Volatile
-	override var isBuildInProgress = false
-		private set
+	// Atomic: two callers may race for the slot, and Quick Build's pre-check reads it cross-thread.
+	private val buildSlot = AtomicBoolean(false)
+
+	override val isBuildInProgress: Boolean
+		get() = buildSlot.get()
 
 	/**
 	 * Gradle output captured while the editor's listener is suppressed, oldest line first.
@@ -237,8 +238,7 @@ class GradleBuildService :
 	/**
 	 * The RPC future of the build holding the slot, failed by [onServerExited]: the RPC layer never
 	 * completes a request whose server process died, and only that completion clears
-	 * [isBuildInProgress]. Never nulled - completing a finished future is a no-op, and a clear in
-	 * [markBuildAsFinished] would also run for a request rejected while another build still ran.
+	 * [isBuildInProgress]. Never nulled - completing a finished future is a no-op.
 	 */
 	@Volatile
 	private var pendingBuild: CompletableFuture<*>? = null
@@ -817,7 +817,7 @@ class GradleBuildService :
 		checkServerStarted()
 		Objects.requireNonNull(params)
 		return try {
-			performBuildTasks(server!!.initialize(params))
+			performBuildTasks { server!!.initialize(params) }
 		} catch (_: ScanPluginMissingException) {
 			log.info("Retrying initialization without --scan option...")
 			initializeProject(params)
@@ -836,7 +836,7 @@ class GradleBuildService :
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
 		checkServerStarted()
 
-		val future = performBuildTasks(server!!.executeTasks(message))
+		val future = performBuildTasks { server!!.executeTasks(message) }
 
 		return future.handle { result, exception ->
 			if (exception != null) {
@@ -856,9 +856,25 @@ class GradleBuildService :
 		return server!!.cancelCurrentBuild()
 	}
 
-	private fun <T> performBuildTasks(future: CompletableFuture<T>): CompletableFuture<T> {
+	private fun <T> performBuildTasks(dispatch: () -> CompletableFuture<T>): CompletableFuture<T> {
+		// Claimed before the request is sent and released only by the build that claimed it, so a
+		// refused request can neither reach the tooling server nor free another build's slot.
+		if (!buildSlot.compareAndSet(false, true)) {
+			logBuildInProgress()
+			// Null, as a failed build completes here: markBuildAsFinished drops the error.
+			return CompletableFuture.completedFuture(null)
+		}
+		val future =
+			try {
+				dispatch()
+			} catch (e: Throwable) {
+				buildSlot.set(false)
+				throw e
+			}
+		pendingBuild = future
+
 		return CompletableFuture
-			.runAsync { onPrepareBuildRequest(future) }
+			.runAsync { ensureTmpdir() }
 			.handleAsync { _, _ ->
 				try {
 					return@handleAsync future.get()
@@ -917,17 +933,6 @@ class GradleBuildService :
 		return false
 	}
 
-	private fun onPrepareBuildRequest(future: CompletableFuture<*>) {
-		checkServerStarted()
-		ensureTmpdir()
-		if (isBuildInProgress) {
-			logBuildInProgress()
-			throw BuildInProgressException()
-		}
-		isBuildInProgress = true
-		pendingBuild = future
-	}
-
 	@Throws(ToolingServerNotStartedException::class)
 	private fun checkServerStarted() {
 		if (!isToolingServerStarted()) {
@@ -948,7 +953,7 @@ class GradleBuildService :
 		result: T,
 		throwable: Throwable?,
 	): T {
-		isBuildInProgress = false
+		buildSlot.set(false)
 		return result
 	}
 

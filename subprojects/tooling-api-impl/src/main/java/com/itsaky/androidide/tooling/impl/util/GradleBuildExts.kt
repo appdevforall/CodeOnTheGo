@@ -12,9 +12,15 @@ import java.nio.charset.StandardCharsets
 
 private val logger = LoggerFactory.getLogger("GradleBuildExts")
 
+/**
+ * Configures this launcher's output, progress and arguments. [tasks] go into the argument list,
+ * between the client's arguments and [buildParams]', as on a command line: a task option such as
+ * `--tests` or `--rerun` binds to the task before it, and `forTasks` would leave it unbound.
+ */
 fun ConfigurableLauncher<*>.configureFrom(
 	clientConfig: ClientGradleBuildConfig? = null,
 	buildParams: GradleBuildParams? = null,
+	tasks: List<String> = emptyList(),
 ) {
 	logger.debug(
 		"configuring build launcher: hasClientConfig={}, hasBuildParams: {}",
@@ -41,6 +47,8 @@ fun ConfigurableLauncher<*>.configureFrom(
 		addArguments(clientGradleArgs)
 		addJvmArguments(clientJvmArgs)
 	}
+
+	addArguments(tasks.filter(String::isNotBlank))
 
 	if (buildParams != null) {
 		val gradleArgs = buildParams.gradleArgs.filter(String::isNotBlank)
