@@ -52,5 +52,6 @@ data class TaskExecutionResult(
 		CONNECTION_CLOSED,
 		CACHE_READ_ERROR,
 		CACHE_WRITE_ERROR,
+		BUILD_IN_PROGRESS,
 	}
 }

@@ -67,6 +67,7 @@ import com.itsaky.androidide.tooling.api.messages.result.BuildResult
 import com.itsaky.androidide.tooling.api.messages.result.GradleWrapperCheckResult
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_IN_PROGRESS
 import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
@@ -817,7 +818,7 @@ class GradleBuildService :
 		checkServerStarted()
 		Objects.requireNonNull(params)
 		return try {
-			performBuildTasks { server!!.initialize(params) }
+			performBuildTasks(refused = InitializeResult.Failure(BUILD_IN_PROGRESS)) { server!!.initialize(params) }
 		} catch (_: ScanPluginMissingException) {
 			log.info("Retrying initialization without --scan option...")
 			initializeProject(params)
@@ -836,7 +837,10 @@ class GradleBuildService :
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
 		checkServerStarted()
 
-		val future = performBuildTasks { server!!.executeTasks(message) }
+		val future =
+			performBuildTasks(refused = TaskExecutionResult(false, BUILD_IN_PROGRESS)) {
+				server!!.executeTasks(message)
+			}
 
 		return future.handle { result, exception ->
 			if (exception != null) {
@@ -856,13 +860,17 @@ class GradleBuildService :
 		return server!!.cancelCurrentBuild()
 	}
 
-	private fun <T> performBuildTasks(dispatch: () -> CompletableFuture<T>): CompletableFuture<T> {
+	private fun <T> performBuildTasks(
+		refused: T,
+		dispatch: () -> CompletableFuture<T>,
+	): CompletableFuture<T> {
 		// Claimed before the request is sent and released only by the build that claimed it, so a
 		// refused request can neither reach the tooling server nor free another build's slot.
 		if (!buildSlot.compareAndSet(false, true)) {
 			logBuildInProgress()
-			// Null, as a failed build completes here: markBuildAsFinished drops the error.
-			return CompletableFuture.completedFuture(null)
+			// Not null: markBuildAsFinished turns a failed build into null, and callers must tell a
+			// build that never started from one that failed.
+			return CompletableFuture.completedFuture(refused)
 		}
 		val future =
 			try {

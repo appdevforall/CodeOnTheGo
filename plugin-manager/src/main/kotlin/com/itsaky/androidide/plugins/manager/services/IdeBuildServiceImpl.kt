@@ -37,6 +37,7 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 
 	companion object {
 		private val log = LoggerFactory.getLogger(IdeBuildServiceImpl::class.java)
+		private const val BUILD_IN_PROGRESS_REASON = "another build is in progress"
 
 		@Volatile
 		private var instance: IdeBuildServiceImpl? = null
@@ -128,7 +129,7 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 				?: return refuse(tasks, "build service is not registered")
 		if (!buildService.isToolingServerStarted()) return refuse(tasks, "tooling server is not started")
-		if (buildService.isBuildInProgress) return refuse(tasks, "another build is in progress")
+		if (buildService.isBuildInProgress) return refuse(tasks, BUILD_IN_PROGRESS_REASON)
 
 		val message =
 			TaskExecutionMessage(
@@ -153,8 +154,14 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 		}
 		return when {
 			result == null -> GradleTaskResult.Failed(TaskExecutionResult.Failure.UNKNOWN.name)
+
 			result.isSuccessful -> GradleTaskResult.Success
+
 			result.failure == TaskExecutionResult.Failure.BUILD_CANCELLED -> GradleTaskResult.Cancelled
+
+			// Another build took the slot between the check above and the service's own claim.
+			result.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS -> GradleTaskResult.Refused(BUILD_IN_PROGRESS_REASON)
+
 			else -> GradleTaskResult.Failed((result.failure ?: TaskExecutionResult.Failure.UNKNOWN).name)
 		}
 	}

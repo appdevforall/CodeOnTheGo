@@ -52,7 +52,9 @@ class GradleBuildServiceSlotTest {
 		service.executeTasks(listOf(":app:assembleDebug"))
 		val second = service.executeTasks(listOf(":app:test"))
 
-		assertThat(second.get(5, TimeUnit.SECONDS)).isNull()
+		// Distinct from a failed build, which completes as null.
+		assertThat(second.get(5, TimeUnit.SECONDS))
+			.isEqualTo(TaskExecutionResult(false, TaskExecutionResult.Failure.BUILD_IN_PROGRESS))
 		verify(exactly = 1) { server.executeTasks(any()) }
 	}
 

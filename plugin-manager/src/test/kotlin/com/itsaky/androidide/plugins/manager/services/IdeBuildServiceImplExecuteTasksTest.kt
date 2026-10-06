@@ -192,6 +192,17 @@ class IdeBuildServiceImplExecuteTasksTest {
 	}
 
 	@Test
+	fun buildThatTakesTheSlotAfterTheCheckIsRefused() {
+		register(
+			FakeBuildService {
+				CompletableFuture.completedFuture(TaskExecutionResult(false, TaskExecutionResult.Failure.BUILD_IN_PROGRESS))
+			},
+		)
+
+		assertThat(run()).isEqualTo(GradleTaskResult.Refused("another build is in progress"))
+	}
+
+	@Test
 	fun stoppedToolingServerIsRefusedWithTheReason() {
 		val service = register(FakeBuildService(serverStarted = false) { error("must not execute") })
 
