@@ -2,11 +2,14 @@
 package com.itsaky.androidide.plugins.manager.services
 
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.plugins.services.BuildAndLaunchCallback
 import com.itsaky.androidide.plugins.services.BuildStatusListener
 import com.itsaky.androidide.plugins.services.GradleSyncCallback
+import com.itsaky.androidide.plugins.services.GradleTaskInfo
 import com.itsaky.androidide.plugins.services.GradleTaskResult
 import com.itsaky.androidide.plugins.services.IdeBuildService
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
@@ -46,6 +49,24 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 			instance ?: synchronized(this) {
 				instance ?: IdeBuildServiceImpl().also { instance = it }
 			}
+
+		/** The tasks of [build]'s root project and modules, in that order; empty before a sync. */
+		internal fun tasksOf(build: GradleModels.GradleBuild?): List<GradleTaskInfo> {
+			if (build == null) return emptyList()
+			val projects = listOfNotNull(build.rootProject.takeIf { build.hasRootProject() }) + build.subProjectList
+			// Sync puts the root in subProjectList too (RootModelBuilder maps every IDEA module).
+			return projects.flatMap { it.taskList }.distinctBy { it.path }.map { it.toInfo() }
+		}
+
+		// Proto3 reads an unset optional string as "", which a plugin would take for a real value.
+		private fun GradleModels.GradleTask.toInfo() =
+			GradleTaskInfo(
+				path = path,
+				name = name,
+				projectPath = projectPath,
+				group = group.takeIf { hasGroup() && it.isNotBlank() },
+				description = description.takeIf { hasDescription() && it.isNotBlank() },
+			)
 	}
 
 	override fun isBuildInProgress(): Boolean = buildInProgress
@@ -198,6 +219,8 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 	}
 
 	override fun getBuildOutput(): String? = buildOutputProvider?.invoke()
+
+	override fun getTasks(): List<GradleTaskInfo> = tasksOf(IProjectManager.getInstance().gradleBuild)
 
 	/**
 	 * Set the run app provider (should be called by Code On the Go's app module during initialization)

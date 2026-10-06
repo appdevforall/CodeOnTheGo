@@ -443,7 +443,31 @@ interface IdeBuildService {
 	 * @return The build output as a string, or null if no build output is available
 	 */
 	fun getBuildOutput(): String? = null
+
+	/**
+	 * Lists the Gradle tasks of the open project, root project and modules alike, as Gradle
+	 * reported them at the last sync. Empty when no project is open or it has not synced. A task
+	 * added to a build script since then appears only after the next sync.
+	 *
+	 * Floor `plugin.min_ide_version` at 26.41 to use it (see [executeTasks]).
+	 */
+	fun getTasks(): List<GradleTaskInfo> = emptyList()
 }
+
+/**
+ * A Gradle task of the open project, as listed by [IdeBuildService.getTasks].
+ *
+ * @param path The task path to run it by, e.g. ":app:testDebugUnitTest".
+ * @param projectPath The path of the project that owns the task, e.g. ":app" or ":" for the root.
+ * @param group The task's group, e.g. "verification"; null for a task with no group.
+ */
+data class GradleTaskInfo(
+	val path: String,
+	val name: String,
+	val projectPath: String,
+	val group: String?,
+	val description: String?,
+)
 
 /**
  * Outcome of [IdeBuildService.executeTasks] with Gradle arguments.
