@@ -155,7 +155,7 @@ class IdeCommandServiceImplGradleTaskTest {
 		val service = service(build)
 		val execution = service.executeCommand(spec)
 
-		execution.cancel()
+		assertThat(service.cancelCommand(execution.executionId)).isTrue()
 
 		// The build still holds the slot, so the command is not over.
 		assertThat(service.isCommandRunning(execution.executionId)).isTrue()
@@ -168,8 +168,7 @@ class IdeCommandServiceImplGradleTaskTest {
 
 	@Test
 	fun cancelledCommandsFreeTheirConcurrencySlots() {
-		// The build never completes, so the completion callback never fires.
-		val build = FakeRunner { CompletableFuture() }
+		val build = FakeRunner(onCancel = { it.complete(GradleTaskResult.Cancelled) }) { CompletableFuture() }
 		val service = service(build)
 
 		repeat(3) {

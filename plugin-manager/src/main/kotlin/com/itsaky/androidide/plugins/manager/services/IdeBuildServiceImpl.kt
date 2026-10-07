@@ -158,7 +158,7 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 	 * the slot at a time, so every line seen while a run is in flight is that run's.
 	 */
 	fun onBuildOutput(line: String) {
-		outputCaptures.forEach { it.append(line) }
+		outputCaptures.forEach { it.append(line.removeSuffix("\n")) }
 	}
 
 	/** Runs [tasks] like [executeTasks], and also gives the caller this run's output and a cancel for it. */

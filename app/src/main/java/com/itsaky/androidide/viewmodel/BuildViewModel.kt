@@ -230,6 +230,9 @@ class BuildViewModel(
 			try {
 				val result = withContext(Dispatchers.IO) { buildService.executeTasks(tasks) }.await()
 				if (result == null || !result.isSuccessful) {
+					if (result?.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS) {
+						throw RuntimeException("A build is already running!")
+					}
 					throw RuntimeException("Task execution failed: ${result?.failure}")
 				}
 				val apkFile = withContext(Dispatchers.IO) { apkForInstallRequests(tasks) }

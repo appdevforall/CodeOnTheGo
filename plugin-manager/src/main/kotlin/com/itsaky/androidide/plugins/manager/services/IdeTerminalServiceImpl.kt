@@ -73,13 +73,18 @@ class IdeTerminalServiceImpl(
 		if (PluginPermission.SYSTEM_COMMANDS !in permissions) {
 			throw SecurityException("Plugin $pluginId does not have SYSTEM_COMMANDS permission")
 		}
-		val workDir = resolvePluginWorkingDirectory(pluginId, projectRootProvider(), workingDirectory)
-		if (workDir != null && !workDir.isDirectory) {
-			return TerminalCommandResult.NotStarted("Working directory does not exist: $workDir")
-		}
-		if (bashProvider()?.canExecute() != true) {
-			return TerminalCommandResult.NotStarted("The terminal environment is not installed")
-		}
+		// Disk checks off the caller's thread: plugins call this from main-thread coroutines.
+		val (workDir, notStarted) =
+			withContext(Dispatchers.IO) {
+				val dir = resolvePluginWorkingDirectory(pluginId, projectRootProvider(), workingDirectory)
+				dir to
+					when {
+						dir != null && !dir.isDirectory -> "Working directory does not exist: $dir"
+						bashProvider()?.canExecute() != true -> "The terminal environment is not installed"
+						else -> null
+					}
+			}
+		if (notStarted != null) return TerminalCommandResult.NotStarted(notStarted)
 		val launcher = launcherProvider() ?: return TerminalCommandResult.NotStarted("The Terminal is not available")
 
 		return suspendCancellableCoroutine { continuation ->

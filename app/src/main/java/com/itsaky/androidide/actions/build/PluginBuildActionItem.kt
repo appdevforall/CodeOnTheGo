@@ -117,12 +117,13 @@ class PluginBuildActionItem(
 			sheetState = targetState,
 			currentTab = BottomSheetViewModel.TAB_BUILD_OUTPUT,
 		)
-		activity.appendBuildOutput("━━━ ${registered.action.name} ━━━")
+		// The tooling server streams a Gradle task's output into the pane itself, and clears the
+		// pane when the build starts, so a header would be wiped.
+		val echoOutput = registered.action.command !is CommandSpec.GradleTask
+		if (echoOutput) activity.appendBuildOutput("━━━ ${registered.action.name} ━━━")
 		activity.invalidateOptionsMenu()
 
 		activity.lifecycleScope.launch(Dispatchers.Default) {
-			// The tooling server streams a Gradle task's output into the pane itself.
-			val echoOutput = registered.action.command !is CommandSpec.GradleTask
 			runCatching {
 				execution.output.collect { output ->
 					if (!echoOutput) return@collect

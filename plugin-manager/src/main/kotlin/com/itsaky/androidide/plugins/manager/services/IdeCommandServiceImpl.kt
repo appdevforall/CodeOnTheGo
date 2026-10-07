@@ -65,8 +65,9 @@ class IdeCommandServiceImpl internal constructor(
 
 	override fun isCommandRunning(executionId: String): Boolean = runningCommands[executionId]?.isRunning() == true
 
+	// onComplete removes the entry: a GradleTask stays running until Gradle has stopped.
 	override fun cancelCommand(executionId: String): Boolean =
-		runningCommands.remove(executionId)?.let {
+		runningCommands[executionId]?.let {
 			it.cancel()
 			true
 		} ?: false

@@ -288,9 +288,9 @@ class IdeBuildServiceImplExecuteTasksTest {
 		impl.onBuildOutput("an earlier build")
 
 		val run = impl.startTasks(listOf(":app:test"), emptyList())
-		impl.onBuildOutput("> Task :app:test")
-		impl.onBuildOutput("")
-		impl.onBuildOutput("BUILD SUCCESSFUL")
+		impl.onBuildOutput("> Task :app:test\n")
+		impl.onBuildOutput("\n")
+		impl.onBuildOutput("BUILD SUCCESSFUL\n")
 		pending.complete(TaskExecutionResult.SUCCESS)
 		run.result.get(5, TimeUnit.SECONDS)
 		impl.onBuildOutput("a later build")
