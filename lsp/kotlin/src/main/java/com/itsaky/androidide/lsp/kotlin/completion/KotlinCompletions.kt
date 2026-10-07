@@ -621,6 +621,12 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 		)
 
 	item.overrideTypeText = symbol.returnTypeDisplay
+	// Every item imports its symbol when chosen; setClassCompletionData swaps in an equivalent handler.
+	item.additionalEditHandler =
+		KotlinAutoImportEditHandler(
+			analysisContext = ctx,
+			symbolToImport = symbol,
+		)
 	when (symbol.kind) {
 		JvmSymbolKind.EXTENSION_FUNCTION, JvmSymbolKind.FUNCTION, JvmSymbolKind.CONSTRUCTOR -> {
 			val data = symbol.data as JvmFunctionInfo
@@ -630,24 +636,12 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 				hasParams = data.parameterCount > 0,
 			)
 
-			item.additionalEditHandler =
-				KotlinAutoImportEditHandler(
-					analysisContext = ctx,
-					symbolToImport = symbol,
-				)
-
 			if (symbol.kind == JvmSymbolKind.CONSTRUCTOR) {
 				item.overrideTypeText = symbol.shortName
 			}
 		}
 
-		in JvmSymbolKind.CALLABLE_KINDS -> {
-			item.additionalEditHandler =
-				KotlinAutoImportEditHandler(
-					analysisContext = ctx,
-					symbolToImport = symbol,
-				)
-		}
+		in JvmSymbolKind.CALLABLE_KINDS -> Unit
 
 		JvmSymbolKind.TYPE_ALIAS -> {
 			item.detail = (symbol.data as JvmTypeAliasInfo).expandedTypeFqName
