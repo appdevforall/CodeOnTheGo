@@ -151,7 +151,7 @@ class IndexWorkerBatchRemovalTest {
 			symbolIndex.insertAll(rmPaths.asSequence().map { symbol(it) })
 			for (p in rmPaths) fileIndex.upsert(fileMeta(p))
 
-			val interloper: IndexCommand = IndexCommand.IndexingComplete
+			val interloper: IndexCommand = IndexCommand.IndexingComplete(pass = 1)
 			val queue =
 				ArrayDeque(
 					listOf(removeCmd(rmPaths[1]) as IndexCommand, interloper),
