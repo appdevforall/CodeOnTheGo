@@ -106,6 +106,13 @@ internal class FlashbarContainerView(context: Context)
         return super.onInterceptTouchEvent(event)
     }
 
+    // The dismiss paths unregister from a post{}, which never runs once the view is detached, so a
+    // bar still up when its activity is destroyed left the callback holding that activity.
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        unregisterConfigurationCallback()
+    }
+
     override fun onSwipe(isSwiping: Boolean) {
         isBarDismissing = isSwiping
         if (isSwiping) {
