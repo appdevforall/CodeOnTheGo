@@ -86,7 +86,6 @@ internal class FlashbarContainerView(context: Context)
 
     private var configCallbacks: ComponentCallbacks? = null
     private var registeredActivity: Activity? = null
-    private var hostActivity: Activity? = null
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
@@ -111,7 +110,7 @@ internal class FlashbarContainerView(context: Context)
     // relied on the dismiss paths, whose post{} never runs once the view is detached.
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        hostActivity?.let { registerConfigurationCallback(it) }
+        (context as? Activity)?.let { registerConfigurationCallback(it) }
     }
 
     override fun onDetachedFromWindow() {
@@ -190,7 +189,6 @@ internal class FlashbarContainerView(context: Context)
 
         // Only add the withView to the parent once
         if (this.parent == null) {
-            hostActivity = activity
             activityRootView.addView(this)
             post {
                 adjustOrientation(activity)
