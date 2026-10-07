@@ -816,6 +816,8 @@ class CodeEditorView(
 	}
 
 	override fun close() {
+		// Cancel first so a load still in codeEditorScope cannot reopen the document after the close.
+		codeEditorScope.cancelIfActive("Cancellation was requested")
 		_binding?.editor?.notifyClose()
 		release()
 	}
