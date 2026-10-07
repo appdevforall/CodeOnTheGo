@@ -187,6 +187,25 @@ val JvmSymbol.dedupeKey: String
 	get() = if (kind.isCallable) key else fqName
 
 /**
+ * Builds the [JvmSymbol.key] of a Kotlin or Java callable named [name].
+ *
+ * [receiverTypeName] (an internal name, null for a non-extension) is part of the key because
+ * extension overloads can differ by receiver alone, such as `Iterable<T>.first()` and
+ * `List<T>.first()`, and rows sharing a key within one source replace each other.
+ * [parameterTypeNames] is null for a property, which has no parameter list.
+ */
+fun jvmCallableKey(
+	name: String,
+	receiverTypeName: String?,
+	parameterTypeNames: List<String>?,
+): String =
+	buildString {
+		append(name)
+		if (receiverTypeName != null) append('@').append(receiverTypeName.toFqName())
+		parameterTypeNames?.joinTo(this, ",", "(", ")")
+	}
+
+/**
  * Base for all type-specific symbol data.
  * Every variant provides [containingClassName] (empty for top-level).
  */

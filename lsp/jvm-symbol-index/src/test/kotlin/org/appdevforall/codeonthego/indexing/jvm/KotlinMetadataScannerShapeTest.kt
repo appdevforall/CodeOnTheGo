@@ -114,4 +114,29 @@ class KotlinMetadataScannerShapeTest {
 
 		assertThat(symbols.any { it.kind.isCallable }).isTrue()
 	}
+
+	@Test
+	fun `extension overloads that differ only by receiver get distinct keys`() {
+		// Iterable<T>.first() and List<T>.first(): same name, same (empty) parameter list.
+		val firsts = noArgFirstExtensions()
+
+		assertThat(firsts.map { it.receiverTypeName }).containsAtLeast("kotlin/collections/Iterable", "kotlin/collections/List")
+		assertThat(firsts.map { it.key }.toSet()).hasSize(firsts.size)
+	}
+
+	@Test
+	fun `a callable's key survives a round trip through the index payload`() {
+		val firsts = noArgFirstExtensions()
+
+		val restored = firsts.map { JvmSymbolDescriptor.deserialize(JvmSymbolDescriptor.serialize(it)) }
+
+		assertThat(restored.map { it.key }).containsExactlyElementsIn(firsts.map { it.key }).inOrder()
+	}
+
+	private fun noArgFirstExtensions(): List<JvmSymbol> =
+		symbolsFor("kotlin/collections/CollectionsKt___CollectionsKt.class").filter {
+			it.kind == JvmSymbolKind.EXTENSION_FUNCTION &&
+				it.shortName == "first" &&
+				(it.data as JvmFunctionInfo).parameters.isEmpty()
+		}
 }
