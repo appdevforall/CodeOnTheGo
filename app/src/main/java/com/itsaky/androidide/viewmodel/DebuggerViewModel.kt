@@ -177,6 +177,9 @@ class DebuggerViewModel : ViewModel() {
 	override fun onCleared() {
 		super.onCleared()
 		Lookup.getDefault().unregister(IDEDebugClientImpl::class.java)
+		// The client registered itself with EventBus in its init block; without this the default
+		// EventBus keeps it, and through it this view model, for the life of the process.
+		debugClient.unregister()
 	}
 
 	fun setConnectionState(state: DebuggerConnectionState) {
