@@ -299,7 +299,7 @@ class CodeEditorView(
 	}
 
 	private fun resetBreakpointsInFile(file: File) {
-		val handler = IDEDebugClientImpl.requireInstance().breakpoints
+		val handler = debugClient.breakpoints
 
 		codeEditorScope.launch {
 			val breakpoints = handler.positionalBreakpointsInFile(file)
