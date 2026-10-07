@@ -105,17 +105,20 @@ open class JvmSymbolIndex(
 	 * @param limit The result limit.
 	 * @param kinds When non-null, only symbols of these kinds, filtered in the query so that the
 	 * limit is not spent on rows the caller would discard.
+	 * @param topLevelOnly Whether to leave out symbols declared inside a class.
 	 * @see query
 	 */
 	fun findByPrefix(
 		prefix: String,
 		limit: Int = 200,
 		kinds: Set<JvmSymbolKind>? = null,
+		topLevelOnly: Boolean = false,
 	): Sequence<JvmSymbol> =
 		query(
 			indexQuery {
 				prefix(KEY_NAME, prefix)
 				if (kinds != null) anyOf(KEY_KIND, kinds.map { it.name })
+				if (topLevelOnly) notExists(KEY_CONTAINING_CLASS)
 				this.limit = limit
 			},
 		)
@@ -192,16 +195,18 @@ open class JvmSymbolIndex(
 	 *
 	 * Restricting by kind matters more than it looks: without it an exact-name lookup still returns
 	 * every method and field sharing that name, and a caller wanting only classifiers pays for all
-	 * of them.
+	 * of them. [topLevelOnly] likewise leaves out symbols declared inside a class.
 	 */
 	fun findBySimpleName(
 		name: String,
 		limit: Int = 200,
 		kinds: Set<JvmSymbolKind>? = null,
+		topLevelOnly: Boolean = false,
 	) = query(
 		indexQuery {
 			eq(KEY_NAME, name)
 			if (kinds != null) anyOf(KEY_KIND, kinds.map { it.name })
+			if (topLevelOnly) notExists(KEY_CONTAINING_CLASS)
 			this.limit = limit
 		},
 	)

@@ -93,13 +93,9 @@ private const val UNIMPORTED_SYMBOL_DISPLAY_LIMIT = 100
  * Rows each index's prefix query may return before filtering, sized so ordinary filtering cannot
  * starve the result.
  *
- * The query's `kinds` filter already excludes every kind unimported-symbol completion can never
- * offer (a file facade, a companion object, anything neither classifier nor callable), but it
- * cannot tell a top-level or extension callable from a member one -- that distinction is
- * [isUnimportedSymbolCandidate]'s job, run after the fetch, and member callables dominate most
- * packages. The budget covers that remaining rejection, plus the current-package and visibility
- * filters, without being unbounded: an unrestricted prefix query over the symbol table runs on
- * every keystroke.
+ * The queries already leave out every row [isUnimportedSymbolCandidate] would reject, so the budget
+ * only has to cover the current-package and visibility filters, without being unbounded: an
+ * unrestricted prefix query over the symbol table runs on every keystroke.
  */
 private const val UNIMPORTED_SYMBOL_FETCH_BUDGET = 3 * UNIMPORTED_SYMBOL_DISPLAY_LIMIT
 
@@ -465,6 +461,7 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
 		indexes = indexes,
 		partial = ctx.partial,
 		kinds = UNIMPORTED_SYMBOL_KINDS,
+		topLevelKinds = UNIMPORTED_TOP_LEVEL_SYMBOL_KINDS,
 		limit = UNIMPORTED_SYMBOL_DISPLAY_LIMIT,
 		fetchBudget = UNIMPORTED_SYMBOL_FETCH_BUDGET,
 		accept = ::addCompletionItem,
@@ -489,11 +486,14 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
  * duplicate from a source [accept] does allow through. A rejected row's own source and key are
  * remembered too, so the same physical row surfacing again from the prefix stage is skipped without
  * a second call to [accept].
+ *
+ * [kinds] are matched wherever they are declared, [topLevelKinds] only at the top level.
  */
 internal fun collectUnimportedSymbolMatches(
 	indexes: List<JvmSymbolIndex>,
 	partial: String,
 	kinds: Set<JvmSymbolKind>,
+	topLevelKinds: Set<JvmSymbolKind> = emptySet(),
 	limit: Int,
 	fetchBudget: Int,
 	accept: (JvmSymbol) -> Boolean,
@@ -523,8 +523,16 @@ internal fun collectUnimportedSymbolMatches(
 		return true
 	}
 
-	val exactSources = indexes.map { index -> { index.findBySimpleName(partial, limit = limit, kinds = kinds) } }
-	val prefixSources = indexes.map { index -> { index.findByPrefix(partial, limit = fetchBudget, kinds = kinds) } }
+	fun exactMatches(index: JvmSymbolIndex): Sequence<JvmSymbol> =
+		index.findBySimpleName(partial, limit = limit, kinds = kinds) +
+			index.findBySimpleName(partial, limit = limit, kinds = topLevelKinds, topLevelOnly = true)
+
+	fun prefixMatches(index: JvmSymbolIndex): Sequence<JvmSymbol> =
+		index.findByPrefix(partial, limit = fetchBudget, kinds = kinds) +
+			index.findByPrefix(partial, limit = fetchBudget, kinds = topLevelKinds, topLevelOnly = true)
+
+	val exactSources = indexes.map { index -> { exactMatches(index) } }
+	val prefixSources = indexes.map { index -> { prefixMatches(index) } }
 
 	return collectUpToLimit(limit = limit, sources = exactSources + prefixSources, accept = ::acceptFirstOccurrence)
 }
@@ -569,23 +577,33 @@ internal fun <T> collectUpToLimit(
 }
 
 /**
- * The kinds unimported-symbol completion can offer: classifiers and callables.
+ * The kinds unimported-symbol completion offers wherever they are declared: classifiers and
+ * extensions.
  *
- * A file facade is neither, and Kotlin cannot name one. A companion object is reached through its
- * class, so offering every `Companion` in the index by that bare name only adds noise.
+ * A file facade is not a classifier, and Kotlin cannot name one. A companion object is reached
+ * through its class, so offering every `Companion` in the index by that bare name only adds noise.
  */
 internal val UNIMPORTED_SYMBOL_KINDS: Set<JvmSymbolKind> =
-	(JvmSymbolKind.CLASSIFIER_KINDS - JvmSymbolKind.COMPANION_OBJECT) + JvmSymbolKind.CALLABLE_KINDS
+	(JvmSymbolKind.CLASSIFIER_KINDS - JvmSymbolKind.COMPANION_OBJECT) +
+		JvmSymbolKind.EXTENSION_FUNCTION +
+		JvmSymbolKind.EXTENSION_PROPERTY
+
+/**
+ * The kinds unimported-symbol completion offers only when declared at the top level.
+ *
+ * A member is reached through its receiver, never imported by name. Constructors and Java fields
+ * are always members, so they are not here at all.
+ */
+internal val UNIMPORTED_TOP_LEVEL_SYMBOL_KINDS: Set<JvmSymbolKind> =
+	setOf(JvmSymbolKind.FUNCTION, JvmSymbolKind.PROPERTY)
 
 /**
  * Whether [symbol] can be offered as an unimported completion, whose bare name Kotlin resolves once
  * the item's auto-import is applied.
  */
-internal fun isUnimportedSymbolCandidate(symbol: JvmSymbol): Boolean {
-	if (symbol.kind !in UNIMPORTED_SYMBOL_KINDS) return false
-	// A member callable is reached through its receiver, never imported by name.
-	return !symbol.kind.isCallable || symbol.isTopLevel || symbol.isExtension
-}
+internal fun isUnimportedSymbolCandidate(symbol: JvmSymbol): Boolean =
+	symbol.kind in UNIMPORTED_SYMBOL_KINDS ||
+		(symbol.kind in UNIMPORTED_TOP_LEVEL_SYMBOL_KINDS && symbol.isTopLevel)
 
 context(ctx: AnalysisContext)
 private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionItem? {
@@ -628,20 +646,18 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 			symbolToImport = symbol,
 		)
 	when (symbol.kind) {
-		JvmSymbolKind.EXTENSION_FUNCTION, JvmSymbolKind.FUNCTION, JvmSymbolKind.CONSTRUCTOR -> {
+		JvmSymbolKind.EXTENSION_FUNCTION, JvmSymbolKind.FUNCTION -> {
 			val data = symbol.data as JvmFunctionInfo
 			item.detail = data.signatureDisplay
 			item.setInsertTextForFunction(
 				name = symbol.shortName,
 				hasParams = data.parameterCount > 0,
 			)
-
-			if (symbol.kind == JvmSymbolKind.CONSTRUCTOR) {
-				item.overrideTypeText = symbol.shortName
-			}
 		}
 
-		in JvmSymbolKind.CALLABLE_KINDS -> Unit
+		in JvmSymbolKind.CALLABLE_KINDS -> {
+			Unit
+		}
 
 		JvmSymbolKind.TYPE_ALIAS -> {
 			item.detail = (symbol.data as JvmTypeAliasInfo).expandedTypeFqName
