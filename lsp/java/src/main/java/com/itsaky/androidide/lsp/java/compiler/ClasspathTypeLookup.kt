@@ -20,9 +20,6 @@ interface ClasspathPackages {
 
 /** The top-level classes of one module's compile classpath, as the JVM symbol indexes hold them. */
 internal interface ClasspathClassNames : ClasspathPackages {
-	/** Returns the qualified names of the top-level classes whose simple name is exactly [simpleName]. */
-	fun qualifiedNamesOf(simpleName: String): List<String>
-
 	/**
 	 * Returns the qualified names of top-level classes whose simple name starts with [prefix], ignoring
 	 * case: the exact simple-name matches first, then up to [limit] more from each index.
@@ -61,9 +58,11 @@ class ClasspathTypeLookup internal constructor(
 	 *
 	 * Each source has its own limit so that one with many matches cannot crowd out another's: a
 	 * library index holding dozens of `View*` classes must still leave room for `android.view.View`.
-	 * The caller ranks and trims the union. A caller that shows at most N names should pass N + 1, so
-	 * a source with more matches than fit yields more names than it can show and it can tell the
-	 * result is incomplete. There is no fuzzy matching.
+	 * The classpath applies the limit to each of its indexes, so it can return more than
+	 * [limitPerSource] names, and all of them are kept. A name already taken from an earlier source
+	 * does not count against a later source's limit. The caller ranks and trims the union. A caller
+	 * that shows at most N names should pass N + 1, so a source with more matches than fit yields more
+	 * names than it can show and it can tell the result is incomplete. There is no fuzzy matching.
 	 */
 	fun findTypeNamesMatching(
 		partial: String,
@@ -73,20 +72,24 @@ class ClasspathTypeLookup internal constructor(
 
 		val sources = sourceClasses()
 		val boot = bootClasses()
-		val classpath = classpath()
+		val (classpathNamed, classpathPrefixed) =
+			classpath()
+				?.qualifiedNamesByPrefix(partial, limitPerSource)
+				.orEmpty()
+				.partition { simpleNameOf(it) == partial }
 		val names = LinkedHashSet<String>()
 
-		fun add(candidates: Sequence<String>) = candidates.take(limitPerSource).forEach(names::add)
+		fun add(candidates: Sequence<String>) = candidates.filterNot(names::contains).take(limitPerSource).forEach(names::add)
 
 		fun Collection<String>.named() = asSequence().filter { simpleNameOf(it) == partial }
 
 		fun Collection<String>.prefixed() = asSequence().filter { simpleNameOf(it).startsWith(partial, ignoreCase = true) }
 
 		add(sources.named())
-		add(classpath?.qualifiedNamesOf(partial).orEmpty().asSequence())
+		names += classpathNamed
 		add(boot.named())
 		add(sources.prefixed())
-		add(classpath?.qualifiedNamesByPrefix(partial, limitPerSource).orEmpty().asSequence())
+		names += classpathPrefixed
 		add(boot.prefixed())
 		return names.toList()
 	}
@@ -95,12 +98,11 @@ class ClasspathTypeLookup internal constructor(
 	 * Returns the qualified names of the top-level classes whose simple name is exactly [simpleName]
 	 * that a file in [importingPackage] may import.
 	 *
-	 * Source and boot classes are returned unconditionally, matching what the classpath trie offered.
-	 * A classpath (index-backed) class is excluded when it is package-private or file-private outside
-	 * [importingPackage]: unlike the trie, the index can hold classes visible only within their own
-	 * package. A Kotlin file-private top-level class compiles to package-private bytecode, but the
-	 * index records its declared Kotlin visibility as [JvmVisibility.PRIVATE], so it needs the same
-	 * package check.
+	 * Source and boot classes are returned unconditionally. A classpath (index-backed) class is
+	 * excluded when it is package-private or file-private outside [importingPackage], since an import
+	 * of it from there does not compile. A Kotlin file-private top-level class compiles to
+	 * package-private bytecode, but the index records its declared Kotlin visibility as
+	 * [JvmVisibility.PRIVATE], so it needs the same package check.
 	 */
 	fun findImportableQualifiedNames(
 		simpleName: String,
@@ -156,8 +158,6 @@ class ClasspathTypeLookup internal constructor(
 		private fun indexedClassNames(module: ModuleProject): ClasspathClassNames {
 			val lookup = ModuleClasspathLookup.of(module, ProjectManagerImpl.getInstance().indexingServiceManager.registry)
 			return object : ClasspathClassNames {
-				override fun qualifiedNamesOf(simpleName: String) = lookup.qualifiedNamesOf(simpleName)
-
 				override fun qualifiedNamesByPrefix(
 					prefix: String,
 					limit: Int,

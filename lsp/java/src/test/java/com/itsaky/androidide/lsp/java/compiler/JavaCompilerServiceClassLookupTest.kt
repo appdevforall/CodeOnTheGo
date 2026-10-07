@@ -38,7 +38,7 @@ class JavaCompilerServiceClassLookupTest {
 
 	private val indexed =
 		object : ClasspathClassNames {
-			override fun qualifiedNamesOf(simpleName: String) = listOf("com.indexed.$simpleName").filter { simpleName == "Indexed" }
+			fun qualifiedNamesOf(simpleName: String) = listOf("com.indexed.$simpleName").filter { simpleName == "Indexed" }
 
 			override fun qualifiedNamesByPrefix(
 				prefix: String,
