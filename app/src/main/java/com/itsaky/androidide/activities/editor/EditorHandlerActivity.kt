@@ -37,6 +37,7 @@ import androidx.collection.MutableIntObjectMap
 import androidx.core.content.IntentCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
+import androidx.core.view.children
 import androidx.core.view.doOnNextLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
@@ -264,6 +265,17 @@ open class EditorHandlerActivity :
 	override fun provideEditorAt(index: Int): CodeEditorView? = getEditorAtIndex(index)
 
 	override fun preDestroy() {
+		// A recreate (dark mode, locale) destroys this instance without closing its editors, and their
+		// dispatcher job, EventBus registration and breakpoint listener kept it alive. Finishing closes
+		// them through doCloseAll() instead.
+		if (!isDestroying) {
+			_binding
+				?.content
+				?.editorContainer
+				?.children
+				?.filterIsInstance<CodeEditorView>()
+				?.forEach { it.release() }
+		}
 		super.preDestroy()
 		// TSLanguageRegistry.instance is a process-wide singleton whose own KDoc says destroy() "must
 		// be called only when the application is exiting" -- guarded on didCompleteLiveOnCreate (same

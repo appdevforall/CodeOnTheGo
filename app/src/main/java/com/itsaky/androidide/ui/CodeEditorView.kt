@@ -818,14 +818,20 @@ class CodeEditorView(
 	}
 
 	override fun close() {
+		_binding?.editor?.notifyClose()
+		release()
+		readWriteContext.use { }
+	}
+
+	/**
+	 * Drops what ties this editor to the activity, for a recreate that reopens the same file in a new
+	 * editor. Unlike [close] it neither tells the language server the file closed (that event can land
+	 * after the reopen) nor shuts [readWriteContext], since a save may still be writing through it.
+	 */
+	fun release() {
 		codeEditorScope.cancelIfActive("Cancellation was requested")
 		debugClient.breakpoints.removeListener(this)
-		_binding?.editor?.apply {
-			notifyClose()
-			release()
-		}
-
-		readWriteContext.use { }
+		_binding?.editor?.release()
 	}
 
 	private fun changeFontSizeBy(delta: Float) {
