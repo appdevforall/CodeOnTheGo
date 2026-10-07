@@ -23,8 +23,6 @@ internal class FakeClasspathPackages(
 		return subpackages + topLevelClasses
 	}
 
-	override fun qualifiedNamesOf(simpleName: String) = emptyList<String>()
-
 	override fun qualifiedNamesByPrefix(
 		prefix: String,
 		limit: Int,

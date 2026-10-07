@@ -18,7 +18,7 @@ class ClasspathTypeLookupTest {
 		private val names: List<String>,
 		private val visibilityOf: (String) -> JvmVisibility = { JvmVisibility.PUBLIC },
 	) : ClasspathClassNames {
-		override fun qualifiedNamesOf(simpleName: String) = names.filter { it.substringAfterLast('.') == simpleName }
+		fun qualifiedNamesOf(simpleName: String) = names.filter { it.substringAfterLast('.') == simpleName }
 
 		override fun qualifiedNamesByPrefix(
 			prefix: String,
@@ -149,6 +149,29 @@ class ClasspathTypeLookupTest {
 			)
 
 		assertThat(types.findTypeNamesMatching("Bar", 6)).hasSize(6)
+	}
+
+	@Test
+	fun `a later classpath index's prefix matches survive a full first index`() {
+		val library = (1..3).map { "com.lib.Ma$it" }
+		val classpath =
+			object : ClasspathClassNames by FakeClasspath(library) {
+				// The real lookup caps each index separately, so it returns more than the limit.
+				override fun qualifiedNamesByPrefix(
+					prefix: String,
+					limit: Int,
+				) = library + "com.module.MainViewModel"
+			}
+		val types = lookup(classpath = classpath)
+
+		assertThat(types.findTypeNamesMatching("Ma", 3)).contains("com.module.MainViewModel")
+	}
+
+	@Test
+	fun `an exact match does not cost its source a prefix slot`() {
+		val types = lookup(sources = listOf("com.app.Foo") + (1..3).map { "com.app.Foo$it" })
+
+		assertThat(types.findTypeNamesMatching("Foo", 3)).hasSize(4)
 	}
 
 	@Test
