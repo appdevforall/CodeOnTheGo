@@ -90,6 +90,10 @@ sealed class CommandSpec {
 	 * success, 1 a failed build. A refused build (another one running, tooling server down)
 	 * fails with exit code -1 and the reason in [CommandResult.Failure.error].
 	 *
+	 * The IDE runs one build at a time, so while the task runs a sync or build the user starts is
+	 * refused. Keep the timeout no longer than the task needs. A cancel or timeout asks Gradle to
+	 * stop and completes once it has.
+	 *
 	 * Before 26.41 this ran `./gradlew` as a separate process.
 	 */
 	data class GradleTask(

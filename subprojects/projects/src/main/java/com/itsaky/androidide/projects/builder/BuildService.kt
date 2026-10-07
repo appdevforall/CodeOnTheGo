@@ -102,6 +102,13 @@ interface BuildService {
 	 */
 	fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult>
 
+	/**
+	 * The id of the [TaskExecutionMessage] whose build holds the slot, or null when no build does
+	 * or the one that does (a sync) has no id. Lets a caller cancel its own build and nobody else's.
+	 */
+	val currentBuildId: BuildId?
+		get() = null
+
 	/** Cancel any running build. */
 	fun cancelCurrentBuild(): CompletableFuture<BuildCancellationRequestResult>
 }

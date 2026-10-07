@@ -386,7 +386,8 @@ interface IdeBuildService {
 
 	/**
 	 * Executes the given Gradle task paths (e.g. ":app:assembleDebug") and completes with
-	 * true on success, false on failure/cancellation.
+	 * true on success, false on failure/cancellation. Since 26.41, no tasks, or a task name
+	 * starting with `-`, completes with false without building.
 	 *
 	 * Default completes with false so this addition is binary-compatible: hosts that predate
 	 * the method, and any implementor that does not override it, report "not executed".
@@ -400,8 +401,13 @@ interface IdeBuildService {
 	 * afterwards with [getBuildOutput]. A task option such as `--tests` or `--rerun` applies to
 	 * the last task in [tasks], as on a command line.
 	 *
-	 * Only one build runs at a time. If one is already running, or the tooling server has not
-	 * started, the future completes with [GradleTaskResult.Refused] at once and no build starts.
+	 * Only one build runs at a time. If one is already running, the tooling server has not
+	 * started, or a task name starts with `-`, the future completes with [GradleTaskResult.Refused]
+	 * at once and no build starts. While this build runs, a sync or build the user starts is
+	 * refused.
+	 *
+	 * Non-empty [arguments] need the `system.commands` permission (`--init-script` runs any code
+	 * in the IDE's Gradle daemon); without it this throws [SecurityException].
 	 *
 	 * The default body is not a compatibility shim: this module sets no `-Xjvm-default`, so an
 	 * IDE older than 26.41 has no such method and the call fails with `NoSuchMethodError`. Floor
@@ -417,6 +423,7 @@ interface IdeBuildService {
 	 * Asks Gradle to cancel the running build, whoever started it. The future completes with
 	 * true if the request was accepted, false if no build is running or the tooling server is
 	 * down. The cancelled run's own future then completes with [GradleTaskResult.Cancelled].
+	 * Needs the `system.commands` permission; without it this throws [SecurityException].
 	 *
 	 * Floor `plugin.min_ide_version` at 26.41 to use it (see [executeTasks]).
 	 */

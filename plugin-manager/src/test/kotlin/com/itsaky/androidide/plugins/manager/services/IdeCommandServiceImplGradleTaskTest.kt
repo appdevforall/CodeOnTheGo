@@ -5,11 +5,7 @@ import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.extensions.CommandOutput
 import com.itsaky.androidide.plugins.extensions.CommandResult
 import com.itsaky.androidide.plugins.extensions.CommandSpec
-import com.itsaky.androidide.plugins.services.BuildAndLaunchCallback
-import com.itsaky.androidide.plugins.services.BuildStatusListener
-import com.itsaky.androidide.plugins.services.GradleSyncCallback
 import com.itsaky.androidide.plugins.services.GradleTaskResult
-import com.itsaky.androidide.plugins.services.IdeBuildService
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -18,49 +14,45 @@ import java.io.File
 import java.util.concurrent.CompletableFuture
 
 class IdeCommandServiceImplGradleTaskTest {
-	private class FakeIdeBuildService(
-		private val buildOutput: String? = "> Task :app:test\nBUILD SUCCESSFUL",
-		private val run: () -> CompletableFuture<GradleTaskResult>,
-	) : IdeBuildService {
-		val runs = mutableListOf<Pair<List<String>, List<String>>>()
-		var cancelRequests = 0
-		var outputReads = 0
+	private class FakeRun(
+		override val result: CompletableFuture<GradleTaskResult>,
+		private val output: String?,
+		private val onCancel: () -> Unit,
+	) : GradleTaskRun {
+		override fun output(): String = output.orEmpty()
 
-		override fun executeTasks(
-			tasks: List<String>,
-			arguments: List<String>,
-		): CompletableFuture<GradleTaskResult> {
-			runs += tasks to arguments
-			return run()
-		}
-
-		override fun cancelBuild(): CompletableFuture<Boolean> {
-			cancelRequests++
+		override fun cancel(): CompletableFuture<Boolean> {
+			onCancel()
 			return CompletableFuture.completedFuture(true)
 		}
+	}
 
-		override fun getBuildOutput(): String? {
-			outputReads++
-			return buildOutput
+	private class FakeRunner(
+		private val buildOutput: String? = "> Task :app:test\nBUILD SUCCESSFUL",
+		private val onCancel: (CompletableFuture<GradleTaskResult>) -> Unit = {},
+		private val result: () -> CompletableFuture<GradleTaskResult>,
+	) : GradleTaskRunner {
+		val runs = mutableListOf<Pair<List<String>, List<String>>>()
+		val started = mutableListOf<FakeRun>()
+		var cancelRequests = 0
+
+		override fun start(
+			tasks: List<String>,
+			arguments: List<String>,
+		): GradleTaskRun {
+			runs += tasks to arguments
+			val future = result()
+			return FakeRun(future, buildOutput) {
+				cancelRequests++
+				onCancel(future)
+			}.also { started += it }
 		}
-
-		override fun isBuildInProgress() = false
-
-		override fun isToolingServerStarted() = true
-
-		override fun addBuildStatusListener(callback: BuildStatusListener) = Unit
-
-		override fun removeBuildStatusListener(callback: BuildStatusListener) = Unit
-
-		override fun runApp(callback: BuildAndLaunchCallback) = Unit
-
-		override fun triggerGradleSync(callback: GradleSyncCallback) = Unit
 	}
 
 	private val spec = CommandSpec.GradleTask(":app:testDebugUnitTest", listOf("--tests", "com.example.FooTest"))
 
 	private fun service(
-		buildService: IdeBuildService,
+		runner: GradleTaskRunner,
 		permissions: Set<PluginPermission> = setOf(PluginPermission.SYSTEM_COMMANDS),
 	) = IdeCommandServiceImpl(
 		pluginId = "test.plugin",
@@ -68,14 +60,14 @@ class IdeCommandServiceImplGradleTaskTest {
 		// No project and no gradlew: the tooling-server path needs neither.
 		projectRootProvider = { null },
 		appFilesDir = File("unused"),
-		buildService = buildService,
+		gradleTaskRunner = runner,
 	)
 
 	private fun <T> await(block: suspend () -> T): T = runBlocking { withTimeout(5_000) { block() } }
 
 	@Test
 	fun gradleTaskRunsOnTheToolingServerWithItsArguments() {
-		val build = FakeIdeBuildService { CompletableFuture.completedFuture(GradleTaskResult.Success) }
+		val build = FakeRunner { CompletableFuture.completedFuture(GradleTaskResult.Success) }
 
 		val result = await { service(build).executeCommand(spec).await() }
 
@@ -89,7 +81,7 @@ class IdeCommandServiceImplGradleTaskTest {
 
 	@Test
 	fun outputFlowCarriesTheBuildOutputThenTheExitCode() {
-		val build = FakeIdeBuildService { CompletableFuture.completedFuture(GradleTaskResult.Success) }
+		val build = FakeRunner { CompletableFuture.completedFuture(GradleTaskResult.Success) }
 
 		val output = await { service(build).executeCommand(spec).output.toList() }
 
@@ -104,7 +96,7 @@ class IdeCommandServiceImplGradleTaskTest {
 	@Test
 	fun outputFlowKeepsBlankLinesButNotTheTrailingNewline() {
 		val build =
-			FakeIdeBuildService(buildOutput = "FAILURE\n\n* What went wrong:\n") {
+			FakeRunner(buildOutput = "FAILURE\n\n* What went wrong:\n") {
 				CompletableFuture.completedFuture(GradleTaskResult.Success)
 			}
 
@@ -121,7 +113,7 @@ class IdeCommandServiceImplGradleTaskTest {
 
 	@Test
 	fun failedBuildIsAFailureWithExitCodeOne() {
-		val build = FakeIdeBuildService { CompletableFuture.completedFuture(GradleTaskResult.Failed("BUILD_FAILED")) }
+		val build = FakeRunner { CompletableFuture.completedFuture(GradleTaskResult.Failed("BUILD_FAILED")) }
 
 		val result = await { service(build).executeCommand(spec).await() } as CommandResult.Failure
 
@@ -132,21 +124,18 @@ class IdeCommandServiceImplGradleTaskTest {
 	@Test
 	fun refusedBuildIsAFailureCarryingTheReason() {
 		val build =
-			FakeIdeBuildService { CompletableFuture.completedFuture(GradleTaskResult.Refused("another build is in progress")) }
+			FakeRunner { CompletableFuture.completedFuture(GradleTaskResult.Refused("another build is in progress")) }
 
 		val result = await { service(build).executeCommand(spec).await() } as CommandResult.Failure
 
 		assertThat(result.exitCode).isEqualTo(-1)
 		assertThat(result.error).isEqualTo("another build is in progress")
-		// A refused run produced no output; the pane holds someone else's build.
-		assertThat(build.outputReads).isEqualTo(0)
 		assertThat(result.stdout).isEmpty()
 	}
 
 	@Test
-	fun cancellingARunningTaskCancelsTheBuild() {
-		val pending = CompletableFuture<GradleTaskResult>()
-		val build = FakeIdeBuildService { pending }
+	fun cancellingARunningTaskCompletesWhenTheBuildStops() {
+		val build = FakeRunner(onCancel = { it.complete(GradleTaskResult.Cancelled) }) { CompletableFuture() }
 		val service = service(build)
 		val execution = service.executeCommand(spec)
 
@@ -154,13 +143,33 @@ class IdeCommandServiceImplGradleTaskTest {
 		execution.cancel()
 
 		assertThat(build.cancelRequests).isEqualTo(1)
+		val result = await { execution.await() } as CommandResult.Cancelled
+		// The run's own output, not an empty placeholder.
+		assertThat(result.partialStdout).isEqualTo("> Task :app:test\nBUILD SUCCESSFUL")
+		assertThat(service.getRunningCommandCount()).isEqualTo(0)
+	}
+
+	@Test
+	fun cancelledTaskStaysRunningUntilTheBuildStops() {
+		val build = FakeRunner { CompletableFuture() }
+		val service = service(build)
+		val execution = service.executeCommand(spec)
+
+		execution.cancel()
+
+		// The build still holds the slot, so the command is not over.
+		assertThat(service.isCommandRunning(execution.executionId)).isTrue()
+		build.started
+			.single()
+			.result
+			.complete(GradleTaskResult.Cancelled)
 		assertThat(await { execution.await() }).isInstanceOf(CommandResult.Cancelled::class.java)
 	}
 
 	@Test
 	fun cancelledCommandsFreeTheirConcurrencySlots() {
 		// The build never completes, so the completion callback never fires.
-		val build = FakeIdeBuildService { CompletableFuture() }
+		val build = FakeRunner { CompletableFuture() }
 		val service = service(build)
 
 		repeat(3) {
@@ -173,18 +182,8 @@ class IdeCommandServiceImplGradleTaskTest {
 	}
 
 	@Test
-	fun cancellingTheExecutionDirectlyFreesItsSlot() {
-		val build = FakeIdeBuildService { CompletableFuture() }
-		val service = service(build)
-
-		service.executeCommand(spec).cancel()
-
-		assertThat(service.getRunningCommandCount()).isEqualTo(0)
-	}
-
-	@Test
 	fun cancellingAFinishedTaskLeavesLaterBuildsAlone() {
-		val build = FakeIdeBuildService { CompletableFuture.completedFuture(GradleTaskResult.Success) }
+		val build = FakeRunner { CompletableFuture.completedFuture(GradleTaskResult.Success) }
 		val execution = service(build).executeCommand(spec)
 		await { execution.await() }
 
@@ -195,23 +194,40 @@ class IdeCommandServiceImplGradleTaskTest {
 
 	@Test
 	fun timeoutCancelsTheBuildAndReportsATimeout() {
-		val pending = CompletableFuture<GradleTaskResult>()
-		val build =
-			object : IdeBuildService by FakeIdeBuildService(run = { pending }) {
-				override fun cancelBuild(): CompletableFuture<Boolean> {
-					pending.complete(GradleTaskResult.Cancelled)
-					return CompletableFuture.completedFuture(true)
-				}
-			}
+		val build = FakeRunner(onCancel = { it.complete(GradleTaskResult.Cancelled) }) { CompletableFuture() }
 
 		val result = await { service(build).executeCommand(spec, timeoutMs = 50).await() } as CommandResult.Failure
 
-		assertThat(result.error).contains("timed out")
+		assertThat(build.cancelRequests).isEqualTo(1)
+		assertThat(result.error).isEqualTo("Gradle task timed out after 50ms")
+	}
+
+	@Test
+	fun timeoutCompletesEvenIfGradleIgnoresTheCancel() {
+		val build = FakeRunner { CompletableFuture() }
+		val execution =
+			GradleTaskExecution("id", spec, build, timeoutMs = 50, stopGraceMs = 50).apply { start {} }
+
+		val result = await { execution.await() } as CommandResult.Failure
+
+		assertThat(result.error).contains("did not stop")
+		assertThat(result.stdout).isEqualTo("> Task :app:test\nBUILD SUCCESSFUL")
+	}
+
+	@Test
+	fun cancelCompletesEvenIfGradleIgnoresIt() {
+		val build = FakeRunner { CompletableFuture() }
+		val execution =
+			GradleTaskExecution("id", spec, build, timeoutMs = 60_000, stopGraceMs = 50).apply { start {} }
+
+		execution.cancel()
+
+		assertThat(await { execution.await() }).isInstanceOf(CommandResult.Cancelled::class.java)
 	}
 
 	@Test(expected = SecurityException::class)
 	fun gradleTaskStillRequiresSystemCommands() {
-		val build = FakeIdeBuildService { error("must not run") }
+		val build = FakeRunner { error("must not run") }
 
 		service(build, permissions = emptySet()).executeCommand(spec)
 	}

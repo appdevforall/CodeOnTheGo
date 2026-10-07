@@ -50,9 +50,15 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   IDE's tooling server, so `--tests`, `-P` and `--info` work and the output reaches the Build
   Output pane (read it with `getBuildOutput()`). It completes with a `GradleTaskResult`:
   `Success`, `Failed(reason)`, `Refused(reason)` when the build never started (another build
-  running, tooling server down), or `Cancelled`. `IdeBuildService.cancelBuild()` cancels the
-  running build, whoever started it. `executeTasks(vararg String)` is unchanged. Floor
+  running, tooling server down, a task name starting with `-`), or `Cancelled`.
+  `IdeBuildService.cancelBuild()` cancels the running build, whoever started it. Non-empty
+  `arguments` and `cancelBuild()` need `system.commands` and throw `SecurityException` without
+  it. While the build runs, a sync or build the user starts is refused. Floor
   `plugin.min_ide_version` at `26.41`: an older IDE has neither method.
+- **breaking — `IdeBuildService.executeTasks(vararg String)` needs at least one task** _(ADFA-6373)_
+  With no tasks it used to run the project's default tasks; it now completes with `false`
+  without building. Name the tasks to run. A task name starting with `-` still completes with
+  `false`, now without starting a build.
 - **breaking — `CommandSpec.GradleTask` runs on the tooling server** _(ADFA-6373)_
   It used to start `./gradlew` as a separate process: a second Gradle daemon on the device,
   with output that never reached the Build Output pane. It now runs like `executeTasks` above.
@@ -60,7 +66,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   exit code is 0 on success and 1 on a failed build; a refused build fails with exit code -1
   and the reason in `CommandResult.Failure.error`. No source change is needed. A plugin that
   ran a Gradle task while another build was running now gets that refusal instead of a
-  second build.
+  second build, and while its task runs, a sync or build the user starts is refused: keep
+  `timeoutMs` no longer than the task needs. A cancel or timeout completes once Gradle stops.
 - **breaking — `CommandSpec.ShellCommand.workingDirectory` needs an open project** _(ADFA-6373)_
   With no project open, a `workingDirectory` used to be accepted unchecked; `executeCommand` now
   throws `SecurityException`, as it does for one outside the project. Pass null to run in the

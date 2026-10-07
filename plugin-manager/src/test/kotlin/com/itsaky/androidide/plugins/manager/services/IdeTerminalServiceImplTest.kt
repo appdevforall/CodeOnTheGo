@@ -154,4 +154,20 @@ class IdeTerminalServiceImplTest {
 
 		assertThat(launcher.killed).isTrue()
 	}
+
+	@Test
+	fun cancelAllKillsTheCommandAndCancelsItsCaller() {
+		val launcher = FakeLauncher(result = null)
+		val service = service(launcher = launcher)
+
+		runBlocking {
+			val run = async { service.runInTerminal("sleep 100") }
+			while (launcher.launches.isEmpty()) yield()
+			service.cancelAll()
+			withTimeout(5_000) { run.join() }
+			assertThat(run.isCancelled).isTrue()
+		}
+
+		assertThat(launcher.killed).isTrue()
+	}
 }

@@ -128,6 +128,12 @@ class TerminalActivity : TermuxActivity() {
     private fun runCommand(service: TermuxService, requestId: String): Boolean {
         // Null when already run (a recreated activity sees the same intent again) or withdrawn.
         val request = TerminalCommandRequests.claim(requestId) ?: return false
+        // TermuxActivity finishes a window with no sessions when its service connects before
+        // onStart; a session started now would run the command with nothing on screen.
+        if (isFinishing) {
+            request.notStarted("The Terminal closed before the command could start")
+            return false
+        }
         val newSession = service.createTermuxSession(
             Environment.BASH_SHELL.absolutePath,
             arrayOf("-c", TerminalCommandRequests.RUN_SCRIPT, "cogo", request.command),

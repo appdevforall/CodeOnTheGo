@@ -2,6 +2,8 @@ package com.itsaky.androidide.services.builder
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
+import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.utils.Environment
 import io.mockk.every
@@ -77,5 +79,19 @@ class GradleBuildServiceSlotTest {
 		runCatching { service.executeTasks(listOf(":app:assembleDebug")) }
 
 		assertThat(service.isBuildInProgress).isFalse()
+	}
+
+	@Test
+	fun `the current build id belongs to the build holding the slot`() {
+		val message = TaskExecutionMessage(tasks = listOf(":app:test"), buildId = service.nextBuildId(BuildRunType.TaskRun))
+		val first = service.executeTasks(message)
+		// A refused second build must not take over the id.
+		service.executeTasks(listOf(":app:assembleDebug")).get(5, TimeUnit.SECONDS)
+
+		assertThat(service.currentBuildId).isEqualTo(message.buildId)
+
+		rpc.complete(TaskExecutionResult(isSuccessful = true, failure = null))
+		first.get(5, TimeUnit.SECONDS)
+		assertThat(service.currentBuildId).isNull()
 	}
 }

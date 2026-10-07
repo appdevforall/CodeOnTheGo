@@ -5,11 +5,13 @@ import com.itsaky.androidide.plugins.services.IdeTerminalService
 import com.itsaky.androidide.plugins.services.TerminalCommandResult
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TermuxProcessEnvironment
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 
@@ -42,6 +44,9 @@ class IdeTerminalServiceImpl(
 	private val bashProvider: () -> File? = { Environment.BASH_SHELL },
 	private val launcherProvider: () -> TerminalSessionLauncher? = { sessionLauncher },
 ) : IdeTerminalService {
+	// Cancelled on unload: a command run from a scope the plugin never cancels would outlive it.
+	private val running = ConcurrentHashMap.newKeySet<CancellableContinuation<TerminalCommandResult>>()
+
 	override suspend fun isTerminalReady(): Boolean =
 		withContext(Dispatchers.IO) {
 			val bash = bashProvider()?.takeIf { it.canExecute() } ?: return@withContext false
@@ -78,9 +83,22 @@ class IdeTerminalServiceImpl(
 		val launcher = launcherProvider() ?: return TerminalCommandResult.NotStarted("The Terminal is not available")
 
 		return suspendCancellableCoroutine { continuation ->
-			val kill = launcher.launch(command, workDir, pluginId) { continuation.resume(it) }
-			continuation.invokeOnCancellation { kill() }
+			running += continuation
+			val kill =
+				launcher.launch(command, workDir, pluginId) {
+					running -= continuation
+					continuation.resume(it)
+				}
+			continuation.invokeOnCancellation {
+				running -= continuation
+				kill()
+			}
 		}
+	}
+
+	/** Kills this plugin's terminal commands; each caller's [runInTerminal] is cancelled. */
+	fun cancelAll() {
+		running.forEach { it.cancel() }
 	}
 
 	companion object {

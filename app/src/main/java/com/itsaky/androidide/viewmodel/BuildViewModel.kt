@@ -134,6 +134,10 @@ class BuildViewModel(
 						reporter.finish(BuildState.Idle)
 						return@launch
 					}
+					// Another build claimed the slot after this action's isBuildInProgress check.
+					if (result?.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS) {
+						throw RuntimeException("A build is already running!")
+					}
 					throw RuntimeException("Task execution failed: ${result?.failure}")
 				}
 

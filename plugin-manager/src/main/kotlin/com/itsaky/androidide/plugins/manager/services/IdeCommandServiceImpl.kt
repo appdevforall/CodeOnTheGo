@@ -5,7 +5,6 @@ import com.itsaky.androidide.plugins.extensions.CommandOutput
 import com.itsaky.androidide.plugins.extensions.CommandResult
 import com.itsaky.androidide.plugins.extensions.CommandSpec
 import com.itsaky.androidide.plugins.services.CommandExecution
-import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.services.IdeCommandService
 import com.itsaky.androidide.utils.TermuxProcessEnvironment
 import kotlinx.coroutines.CompletableDeferred
@@ -24,12 +23,12 @@ import java.io.InputStreamReader
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-class IdeCommandServiceImpl(
+class IdeCommandServiceImpl internal constructor(
 	private val pluginId: String,
 	private val permissions: Set<PluginPermission>,
 	private val projectRootProvider: () -> File?,
 	private val appFilesDir: File,
-	private val buildService: IdeBuildService = IdeBuildServiceImpl.getInstance(),
+	private val gradleTaskRunner: GradleTaskRunner = GradleTaskRunner(IdeBuildServiceImpl.getInstance()::startTasks),
 ) : IdeCommandService {
 	private val runningCommands = ConcurrentHashMap<String, RunningCommand>()
 
@@ -41,37 +40,27 @@ class IdeCommandServiceImpl(
 		requireConcurrencyLimit()
 
 		val executionId = "$pluginId-${UUID.randomUUID()}"
-		val projectRoot = projectRootProvider()
-
-		if (spec is CommandSpec.GradleTask) {
-			// Through the tooling server, never ./gradlew: a second daemon doubles Gradle's memory
-			// on the device, and its output would never reach the Build Output pane.
-			val execution = GradleTaskExecution(executionId, spec, buildService, timeoutMs)
-			runningCommands[executionId] = execution
-			execution.start { runningCommands.remove(executionId) }
-			return execution
-		}
-
-		val shell = spec as CommandSpec.ShellCommand
-		val workDir = resolvePluginWorkingDirectory(pluginId, projectRoot, shell.workingDirectory)
-		val processBuilder =
-			ProcessBuilder(listOf(shell.executable) + shell.arguments).apply {
-				workDir?.let { directory(it) }
-				environment().putAll(shell.environment)
-			}
-
-		processBuilder.redirectErrorStream(false)
-		TermuxProcessEnvironment.applyTo(processBuilder.environment(), appFilesDir)
-
 		val execution =
-			CommandExecutionImpl(
-				executionId = executionId,
-				processBuilder = processBuilder,
-				timeoutMs = timeoutMs,
-			)
+			when (spec) {
+				// Through the tooling server, never ./gradlew: a second daemon doubles Gradle's memory
+				// on the device, and its output would never reach the Build Output pane.
+				is CommandSpec.GradleTask -> GradleTaskExecution(executionId, spec, gradleTaskRunner, timeoutMs)
+
+				is CommandSpec.ShellCommand -> CommandExecutionImpl(executionId, shellProcess(spec), timeoutMs)
+			}
 		runningCommands[executionId] = execution
 		execution.start { runningCommands.remove(executionId) }
 		return execution
+	}
+
+	private fun shellProcess(spec: CommandSpec.ShellCommand): ProcessBuilder {
+		val workDir = resolvePluginWorkingDirectory(pluginId, projectRootProvider(), spec.workingDirectory)
+		return ProcessBuilder(listOf(spec.executable) + spec.arguments).apply {
+			workDir?.let { directory(it) }
+			environment().putAll(spec.environment)
+			redirectErrorStream(false)
+			TermuxProcessEnvironment.applyTo(environment(), appFilesDir)
+		}
 	}
 
 	override fun isCommandRunning(executionId: String): Boolean = runningCommands[executionId]?.isRunning() == true
@@ -113,6 +102,9 @@ class IdeCommandServiceImpl(
 }
 
 internal interface RunningCommand : CommandExecution {
+	/** Starts the command; [onComplete] runs once it ends or is cancelled. */
+	fun start(onComplete: () -> Unit)
+
 	fun isRunning(): Boolean
 }
 
@@ -134,7 +126,7 @@ private class CommandExecutionImpl(
 
 	override val output: Flow<CommandOutput> = outputChannel.receiveAsFlow()
 
-	fun start(onComplete: () -> Unit) {
+	override fun start(onComplete: () -> Unit) {
 		this.onComplete = onComplete
 		scope.launch {
 			val startTime = System.currentTimeMillis()

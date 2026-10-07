@@ -43,7 +43,6 @@ import com.itsaky.androidide.plugins.manager.project.PluginProjectManager
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
 import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
-import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeCommandServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
@@ -60,6 +59,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
+import com.itsaky.androidide.plugins.manager.services.PluginBuildService
 import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.services.IdeArchiveService
@@ -809,6 +809,10 @@ class PluginManager private constructor(
 			if (commandService is IdeCommandServiceImpl) {
 				commandService.cancelAllCommands()
 			}
+			val terminalService = loadedPlugin.context.services.get(IdeTerminalService::class.java)
+			if (terminalService is IdeTerminalServiceImpl) {
+				terminalService.cancelAll()
+			}
 
 			val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
 			if (templateService is IdeTemplateServiceImpl) {
@@ -1197,6 +1201,10 @@ class PluginManager private constructor(
 			if (commandService is IdeCommandServiceImpl) commandService.cancelAllCommands()
 		}.onFailure { logger.error("Failed to cancel commands for: $pluginId", it) }
 		runCatching {
+			val terminalService = loadedPlugin.context.services.get(IdeTerminalService::class.java)
+			if (terminalService is IdeTerminalServiceImpl) terminalService.cancelAll()
+		}.onFailure { logger.error("Failed to cancel terminal commands for: $pluginId", it) }
+		runCatching {
 			val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
 			if (templateService is IdeTemplateServiceImpl) templateService.cleanupAllTemplates()
 		}.onFailure { logger.error("Failed to cleanup templates for: $pluginId", it) }
@@ -1448,7 +1456,7 @@ class PluginManager private constructor(
 			pluginId,
 			"build",
 		) {
-			IdeBuildServiceImpl.getInstance()
+			PluginBuildService(pluginId, permissions)
 		}
 
 		registerServiceWithErrorHandling(
@@ -1721,7 +1729,7 @@ class PluginManager private constructor(
 			pluginId,
 			"build",
 		) {
-			IdeBuildServiceImpl.getInstance()
+			PluginBuildService(pluginId, permissions)
 		}
 
 		registerServiceWithErrorHandling(

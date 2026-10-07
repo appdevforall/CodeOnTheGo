@@ -2,15 +2,16 @@
 package com.itsaky.androidide.plugins.manager.services
 
 import com.itsaky.androidide.lookup.Lookup
-import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.plugins.services.BuildAndLaunchCallback
 import com.itsaky.androidide.plugins.services.BuildStatusListener
 import com.itsaky.androidide.plugins.services.GradleSyncCallback
 import com.itsaky.androidide.plugins.services.GradleTaskInfo
 import com.itsaky.androidide.plugins.services.GradleTaskResult
 import com.itsaky.androidide.plugins.services.IdeBuildService
+import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
@@ -41,6 +42,9 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 	companion object {
 		private val log = LoggerFactory.getLogger(IdeBuildServiceImpl::class.java)
 		private const val BUILD_IN_PROGRESS_REASON = "another build is in progress"
+
+		// What a plugin's run keeps of its output: the tail, where Gradle reports a failure.
+		private const val MAX_OUTPUT_CHARS = 128 * 1024
 
 		@Volatile
 		private var instance: IdeBuildServiceImpl? = null
@@ -144,23 +148,50 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 	override fun executeTasks(
 		tasks: List<String>,
 		arguments: List<String>,
-	): CompletableFuture<GradleTaskResult> {
+	): CompletableFuture<GradleTaskResult> = startTasks(tasks, arguments).result
+
+	/** Gradle output of the runs [startTasks] has in flight; fed by [onBuildOutput]. */
+	private val outputCaptures = CopyOnWriteArraySet<BuildOutputCapture>()
+
+	/**
+	 * Called by Code On the Go's build system with each line Gradle prints. Only one build holds
+	 * the slot at a time, so every line seen while a run is in flight is that run's.
+	 */
+	fun onBuildOutput(line: String) {
+		outputCaptures.forEach { it.append(line) }
+	}
+
+	/** Runs [tasks] like [executeTasks], and also gives the caller this run's output and a cancel for it. */
+	internal fun startTasks(
+		tasks: List<String>,
+		arguments: List<String>,
+	): GradleTaskRun {
 		if (tasks.isEmpty()) return refuse(tasks, "no tasks were given")
+		// Tasks are passed as command-line arguments, so "-I x" would be read as an option.
+		tasks.firstOrNull { it.isBlank() || it.startsWith("-") }?.let { return refuse(tasks, "'$it' is not a task") }
 		val buildService =
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 				?: return refuse(tasks, "build service is not registered")
 		if (!buildService.isToolingServerStarted()) return refuse(tasks, "tooling server is not started")
 		if (buildService.isBuildInProgress) return refuse(tasks, BUILD_IN_PROGRESS_REASON)
 
+		val buildId = buildService.nextBuildId(BuildRunType.TaskRun)
 		val message =
 			TaskExecutionMessage(
 				tasks = tasks,
-				buildId = buildService.nextBuildId(BuildRunType.TaskRun),
+				buildId = buildId,
 				buildParams = GradleBuildParams(gradleArgs = arguments),
 			)
-		return runCatching { buildService.executeTasks(message) }
-			.getOrElse { CompletableFuture<TaskExecutionResult>().apply { completeExceptionally(it) } }
-			.handle { result, error -> toGradleTaskResult(tasks, result, error) }
+		val capture = BuildOutputCapture(MAX_OUTPUT_CHARS)
+		outputCaptures += capture
+		val result =
+			runCatching { buildService.executeTasks(message) }
+				.getOrElse { CompletableFuture<TaskExecutionResult>().apply { completeExceptionally(it) } }
+				.handle { result, error ->
+					outputCaptures -= capture
+					toGradleTaskResult(tasks, result, error)
+				}
+		return ToolingServerRun(result, capture, buildId, buildService)
 	}
 
 	private fun toGradleTaskResult(
@@ -190,9 +221,36 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 	private fun refuse(
 		tasks: List<String>,
 		reason: String,
-	): CompletableFuture<GradleTaskResult> {
+	): GradleTaskRun {
 		log.warn("Not executing tasks {}: {}", tasks, reason)
-		return CompletableFuture.completedFuture(GradleTaskResult.Refused(reason))
+		return RefusedRun(reason)
+	}
+
+	private class RefusedRun(
+		reason: String,
+	) : GradleTaskRun {
+		override val result: CompletableFuture<GradleTaskResult> = CompletableFuture.completedFuture(GradleTaskResult.Refused(reason))
+
+		override fun output() = ""
+
+		override fun cancel(): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
+	}
+
+	private inner class ToolingServerRun(
+		override val result: CompletableFuture<GradleTaskResult>,
+		private val capture: BuildOutputCapture,
+		private val buildId: BuildId,
+		private val buildService: BuildService,
+	) : GradleTaskRun {
+		// A run refused at the slot claim captured the lines of the build that holds it.
+		override fun output() = if (result.getNow(null) is GradleTaskResult.Refused) "" else capture.text()
+
+		override fun cancel(): CompletableFuture<Boolean> =
+			if (!result.isDone && buildService.currentBuildId == buildId) {
+				cancelCurrentBuild(buildService)
+			} else {
+				CompletableFuture.completedFuture(false)
+			}
 	}
 
 	override fun cancelBuild(): CompletableFuture<Boolean> {
@@ -200,13 +258,16 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 		if (buildService == null || !buildService.isToolingServerStarted()) {
 			return CompletableFuture.completedFuture(false)
 		}
-		return runCatching { buildService.cancelCurrentBuild() }
+		return cancelCurrentBuild(buildService)
+	}
+
+	private fun cancelCurrentBuild(buildService: BuildService): CompletableFuture<Boolean> =
+		runCatching { buildService.cancelCurrentBuild() }
 			.getOrElse { CompletableFuture<BuildCancellationRequestResult>().apply { completeExceptionally(it) } }
 			.handle { result, error ->
 				if (error != null) log.error("Failed to cancel the running build", error)
 				error == null && result?.wasEnqueued == true
 			}
-	}
 
 	override fun runApp(callback: BuildAndLaunchCallback) {
 		runAppProvider?.invoke(callback)

@@ -39,6 +39,7 @@ import com.itsaky.androidide.eventbus.events.BuildStartedEvent
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.managers.ToolsManager
+import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -118,6 +119,11 @@ class GradleBuildService :
 
 	override val isBuildInProgress: Boolean
 		get() = buildSlot.get()
+
+	// Written only while the slot is held, by the build holding it.
+	@Volatile
+	override var currentBuildId: BuildId? = null
+		private set
 
 	/**
 	 * Gradle output captured while the editor's listener is suppressed, oldest line first.
@@ -525,6 +531,8 @@ class GradleBuildService :
 		// tail is kept anyway: if that build FAILS it is the only copy of Gradle's reason,
 		// since the tooling API's own failure is a bare enum. See takeInternalBuildOutput.
 		internalBuildOutput.onLine(line, editorListener(), internalBuild.progressListener)
+		// A plugin's run reads its own lines here, not the pane, which holds whatever ran last.
+		IdeBuildServiceImpl.getInstance().onBuildOutput(line)
 	}
 
 	/**
@@ -839,6 +847,7 @@ class GradleBuildService :
 
 		val future =
 			performBuildTasks(refused = TaskExecutionResult(false, BUILD_IN_PROGRESS)) {
+				currentBuildId = message.buildId
 				server!!.executeTasks(message)
 			}
 
@@ -876,6 +885,7 @@ class GradleBuildService :
 			try {
 				dispatch()
 			} catch (e: Throwable) {
+				currentBuildId = null
 				buildSlot.set(false)
 				throw e
 			}
@@ -961,6 +971,7 @@ class GradleBuildService :
 		result: T,
 		throwable: Throwable?,
 	): T {
+		currentBuildId = null
 		buildSlot.set(false)
 		return result
 	}
