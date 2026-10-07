@@ -55,8 +55,12 @@ open class JvmSymbolIndex(
 		 * unchanged source is never re-indexed, so it would answer every package lookup with nothing.
 		 *
 		 * Version 4 added the `_gen` column that lets a source be re-indexed in place.
+		 *
+		 * Version 5 keys extension callables by their receiver and stores the key in the payload: a
+		 * version 4 source kept only the last of its overloads that differ by receiver alone. It also
+		 * stops indexing a top-level class with '$' in its name, such as `Foo$$ViewBinder`, as nested.
 		 */
-		const val FORMAT_VERSION = 4
+		const val FORMAT_VERSION = 5
 
 		/**
 		 * Create (or get) a JVM symbol index backed by SQLite.
