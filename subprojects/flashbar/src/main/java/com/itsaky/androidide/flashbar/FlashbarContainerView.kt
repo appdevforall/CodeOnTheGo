@@ -86,6 +86,7 @@ internal class FlashbarContainerView(context: Context)
 
     private var configCallbacks: ComponentCallbacks? = null
     private var registeredActivity: Activity? = null
+    private var hostActivity: Activity? = null
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
@@ -106,8 +107,13 @@ internal class FlashbarContainerView(context: Context)
         return super.onInterceptTouchEvent(event)
     }
 
-    // The dismiss paths unregister from a post{}, which never runs once the view is detached, so a
-    // bar still up when its activity is destroyed left the callback holding that activity.
+    // The callback is paired with the window attachment so it cannot outlive it. Registering in show()
+    // relied on the dismiss paths, whose post{} never runs once the view is detached.
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        hostActivity?.let { registerConfigurationCallback(it) }
+    }
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         unregisterConfigurationCallback()
@@ -184,8 +190,8 @@ internal class FlashbarContainerView(context: Context)
 
         // Only add the withView to the parent once
         if (this.parent == null) {
+            hostActivity = activity
             activityRootView.addView(this)
-            registerConfigurationCallback(activity)
             post {
                 adjustOrientation(activity)
                 ViewCompat.requestApplyInsets(this)
