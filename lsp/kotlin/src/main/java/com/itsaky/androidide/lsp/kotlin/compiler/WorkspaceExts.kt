@@ -19,75 +19,82 @@ private val logger = LoggerFactory.getLogger("WorkspaceExts")
 
 internal fun Workspace.collectKtModules(
 	project: Project,
-	appEnv: CoreApplicationEnvironment
-): List<KtModule> = buildList {
-	fun addModule(module: KtModule) = add(module)
+	appEnv: CoreApplicationEnvironment,
+): List<KtModule> =
+	buildList {
+		fun addModule(module: KtModule) = add(module)
 
-	val moduleProjects = subProjects
-		.asSequence()
-		.filterIsInstance<ModuleProject>()
-		.filter { it.path != rootProject.path }
-
-	val jarToModMap = mutableMapOf<Path, KtLibraryModule>()
-
-	fun addLibrary(path: Path): KtLibraryModule {
-		val module = buildKtLibraryModule(project, appEnv) {
-			id = path.pathString
-			addContentRoot(path)
-		}
-		jarToModMap[path] = module
-		return module
-	}
-
-	val bootClassPaths = moduleProjects
-		.filterIsInstance<AndroidModule>()
-		.flatMap { project ->
-			project.bootClassPaths
+		val moduleProjects =
+			subProjects
 				.asSequence()
+				.filterIsInstance<ModuleProject>()
+				.filter { it.path != rootProject.path }
+
+		val jarToModMap = mutableMapOf<Path, KtLibraryModule>()
+
+		// One module per jar: every module shares android.jar, and each KtLibraryModule
+		// materializes the jar's full file list for its search scope (ADFA-6381).
+		fun addLibrary(path: Path): KtLibraryModule =
+			jarToModMap.getOrPut(path) {
+				buildKtLibraryModule(project, appEnv) {
+					id = path.pathString
+					addContentRoot(path)
+				}
+			}
+
+		// A List, not a Sequence: a Sequence would re-run addLibrary for every source module below.
+		val bootClassPaths =
+			moduleProjects
+				.filterIsInstance<AndroidModule>()
+				.flatMap { it.bootClassPaths.asSequence() }
 				.filter { it.exists() }
 				.map { it.toPath() }
+				.distinct()
 				.map(::addLibrary)
-		}
+				.toList()
 
-	val libraryDependencies = moduleProjects
-		.flatMap { it.getCompileClasspaths() }
-		.filter { it.exists() }
-		.map { it.toPath() }
-		.associateWith(::addLibrary)
+		val libraryDependencies =
+			moduleProjects
+				.flatMap { it.getCompileClasspaths() }
+				.filter { it.exists() }
+				.map { it.toPath() }
+				.associateWith(::addLibrary)
 
-	val subprojectsAsModules = mutableMapOf<ModuleProject, KtSourceModule>()
-	val sourceRootToModuleMap = mutableMapOf<Path, KtSourceModule>()
+		val subprojectsAsModules = mutableMapOf<ModuleProject, KtSourceModule>()
+		val sourceRootToModuleMap = mutableMapOf<Path, KtSourceModule>()
 
-	fun getOrCreateModule(moduleProject: ModuleProject): KtSourceModule {
-		subprojectsAsModules[moduleProject]?.let { return it }
+		fun getOrCreateModule(moduleProject: ModuleProject): KtSourceModule {
+			subprojectsAsModules[moduleProject]?.let { return it }
 
-		val module = buildKtSourceModule(project) {
-			this.module = moduleProject
+			val module =
+				buildKtSourceModule(project) {
+					this.module = moduleProject
 
-			bootClassPaths.forEach { addDependency(it) }
+					bootClassPaths.forEach { addDependency(it) }
 
-			moduleProject.getCompileClasspaths(excludeSourceGeneratedClassPath = true)
-				.forEach { classpath ->
-					val libDep = libraryDependencies[classpath.toPath()]
-					if (libDep == null) {
-						logger.error(
-							"Skipping non-existent classpath classpath: {}",
-							classpath
-						)
-						return@forEach
+					moduleProject
+						.getCompileClasspaths(excludeSourceGeneratedClassPath = true)
+						.forEach { classpath ->
+							val libDep = libraryDependencies[classpath.toPath()]
+							if (libDep == null) {
+								logger.error(
+									"Skipping non-existent classpath classpath: {}",
+									classpath,
+								)
+								return@forEach
+							}
+							addDependency(libDep)
+						}
+
+					moduleProject.getCompileModuleProjects().forEach { dep ->
+						addDependency(getOrCreateModule(dep))
 					}
-					addDependency(libDep)
 				}
 
-			moduleProject.getCompileModuleProjects().forEach { dep ->
-				addDependency(getOrCreateModule(dep))
-			}
+			subprojectsAsModules[moduleProject] = module
+			module.contentRoots.forEach { root -> sourceRootToModuleMap[root] = module }
+			return module
 		}
 
-		subprojectsAsModules[moduleProject] = module
-		module.contentRoots.forEach { root -> sourceRootToModuleMap[root] = module }
-		return module
+		moduleProjects.forEach { addModule(getOrCreateModule(it)) }
 	}
-
-	moduleProjects.forEach { addModule(getOrCreateModule(it)) }
-}
