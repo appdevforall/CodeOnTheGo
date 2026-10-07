@@ -268,7 +268,9 @@ open class EditorHandlerActivity :
 		// A recreate (dark mode, locale) destroys this instance without closing its editors, and their
 		// dispatcher job, EventBus registration and breakpoint listener kept it alive. Finishing closes
 		// them through doCloseAll() instead.
-		if (!isDestroying) {
+		// ponytail: skipped while a save is in flight - release() would null the file it is about to
+		// read and drop the write - so a recreate mid-save still leaks this instance once.
+		if (!isDestroying && !editorViewModel.areFilesSaving) {
 			_binding
 				?.content
 				?.editorContainer
