@@ -159,10 +159,10 @@ class CodeEditorView(
 		private val log = LoggerFactory.getLogger(CodeEditorView::class.java)
 	}
 
-	init {
-		val debugClient = IDEDebugClientImpl.requireInstance()
-		debugClient.breakpoints.addListener(this)
+	// Held directly so removal doesn't depend on Lookup still holding the client (ADFA-5388).
+	private val debugClient = IDEDebugClientImpl.requireInstance()
 
+	init {
 		_binding = LayoutCodeEditorBinding.inflate(LayoutInflater.from(context))
 
 		binding.editor.apply {
@@ -801,21 +801,25 @@ class CodeEditorView(
 		binding.editor.dispatchDocumentSaveEvent()
 	}
 
+	// Breakpoint listening follows the window, not close(): a recreate (dark mode, locale) destroys
+	// the activity without closing its editors, and the process-wide handler would keep them all.
 	override fun onAttachedToWindow() {
 		super.onAttachedToWindow()
 		if (!EventBus.getDefault().isRegistered(this)) {
 			EventBus.getDefault().register(this)
 		}
+		debugClient.breakpoints.addListener(this)
 	}
 
 	override fun onDetachedFromWindow() {
 		super.onDetachedFromWindow()
 		EventBus.getDefault().unregister(this)
+		debugClient.breakpoints.removeListener(this)
 	}
 
 	override fun close() {
 		codeEditorScope.cancelIfActive("Cancellation was requested")
-		IDEDebugClientImpl.getInstance()?.breakpoints?.removeListener(this)
+		debugClient.breakpoints.removeListener(this)
 		_binding?.editor?.apply {
 			notifyClose()
 			release()
