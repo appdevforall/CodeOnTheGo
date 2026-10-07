@@ -9,6 +9,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicInteger
 
 internal class ScanningWorker(
 	private val kind: CompilationKind,
@@ -20,9 +21,12 @@ internal class ScanningWorker(
 		private val logger = LoggerFactory.getLogger(ScanningWorker::class.java)
 	}
 
+	private val passes = AtomicInteger()
+
 	suspend fun scan() =
 		coroutineScope {
-			indexWorker.submitCommand(IndexCommand.SourceScanningStarted)
+			val pass = passes.incrementAndGet()
+			indexWorker.submitCommand(IndexCommand.SourceScanningStarted(pass))
 
 			val sourceFiles =
 				modules
@@ -50,15 +54,17 @@ internal class ScanningWorker(
 				indexWorker.submitCommand(IndexCommand.ScanSourceFile(sourceFile))
 			}
 
-			indexWorker.submitCommand(IndexCommand.SourceScanningComplete)
+			indexWorker.submitCommand(IndexCommand.SourceScanningComplete(pass))
 
 			sourceFiles
 				.asSequence()
 				.takeWhile { isActive }
 				.forEach { sourceFile ->
-					indexWorker.submitCommand(IndexCommand.IndexSourceFile(sourceFile))
+					indexWorker.submitCommand(IndexCommand.IndexSourceFile(sourceFile, pass))
 				}
 
-			indexWorker.submitCommand(IndexCommand.IndexingComplete)
+			// A send into a channel with room does not suspend, so it would not notice cancellation.
+			if (!isActive) return@coroutineScope
+			indexWorker.submitCommand(IndexCommand.IndexingComplete(pass))
 		}
 }
