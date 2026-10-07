@@ -86,8 +86,19 @@ class UnimportedSymbolCandidateTest {
 	}
 
 	@Test
-	fun `the query asks for exactly the kinds that can be offered`() {
-		assertThat(UNIMPORTED_SYMBOL_KINDS)
-			.containsExactlyElementsIn(JvmSymbolKind.CLASSIFIER_KINDS - JvmSymbolKind.COMPANION_OBJECT + JvmSymbolKind.CALLABLE_KINDS)
+	fun `a constructor is not offered`() {
+		val constructor =
+			symbol("Regex", JvmSymbolKind.CONSTRUCTOR, JvmFunctionInfo(containingClassName = "kotlin/text/Regex"))
+
+		assertThat(isUnimportedSymbolCandidate(constructor)).isFalse()
+	}
+
+	@Test
+	fun `the queries ask for exactly the kinds that can be offered`() {
+		assertThat(UNIMPORTED_SYMBOL_KINDS + UNIMPORTED_TOP_LEVEL_SYMBOL_KINDS)
+			.containsExactlyElementsIn(
+				JvmSymbolKind.CLASSIFIER_KINDS - JvmSymbolKind.COMPANION_OBJECT +
+					JvmSymbolKind.CALLABLE_KINDS - JvmSymbolKind.CONSTRUCTOR - JvmSymbolKind.FIELD,
+			)
 	}
 }

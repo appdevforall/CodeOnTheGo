@@ -222,4 +222,38 @@ class CollectUnimportedSymbolMatchesTest {
 
 		assertThat(accepted).hasSize(2)
 	}
+
+	@Test
+	fun `member functions do not use up the fetch budget before a top-level match`() {
+		val libraryIndex = newIndex()
+		for (suffix in listOf("A", "B", "C", "D", "E")) {
+			libraryIndex.insertBlocking(memberFunSymbol(shortName = "get$suffix"))
+		}
+		libraryIndex.insertBlocking(funSymbol(sourceId = "lib.jar", key = "com/example#getTop()", shortName = "getTop"))
+
+		val accepted = mutableListOf<JvmSymbol>()
+		collectUnimportedSymbolMatches(
+			indexes = listOf(libraryIndex),
+			partial = "get",
+			kinds = UNIMPORTED_SYMBOL_KINDS,
+			topLevelKinds = UNIMPORTED_TOP_LEVEL_SYMBOL_KINDS,
+			limit = 10,
+			fetchBudget = 3,
+			accept = { symbol -> isUnimportedSymbolCandidate(symbol).also { if (it) accepted += symbol } },
+		)
+
+		assertThat(accepted.map { it.shortName }).containsExactly("getTop")
+	}
+
+	private fun memberFunSymbol(shortName: String): JvmSymbol =
+		JvmSymbol(
+			key = "com/example/Foo#$shortName()",
+			sourceId = "lib.jar",
+			name = "com/example/Foo#$shortName",
+			shortName = shortName,
+			packageName = "com.example",
+			kind = JvmSymbolKind.FUNCTION,
+			language = JvmSourceLanguage.JAVA,
+			data = JvmFunctionInfo(containingClassName = "com/example/Foo"),
+		)
 }
