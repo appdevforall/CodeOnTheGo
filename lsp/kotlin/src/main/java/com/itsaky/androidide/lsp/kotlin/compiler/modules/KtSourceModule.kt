@@ -21,15 +21,19 @@ internal class KtSourceModule(
 	project: Project,
 	val module: ModuleProject,
 	directRegularDependencies: List<KtModule>,
-) : KaSourceModule, AbstractSourceModule(project, directRegularDependencies) {
-
+) : AbstractSourceModule(project, directRegularDependencies),
+	KaSourceModule {
 	companion object {
 		private val logger = LoggerFactory.getLogger(KtSourceModule::class.java)
 	}
 
-	class Builder(private val project: Project) {
+	class Builder(
+		private val project: Project,
+	) {
 		lateinit var module: ModuleProject
-		private val dependencies = mutableListOf<KtModule>()
+
+		// A set: a jar on both the boot and compile classpath is one shared module (ADFA-6381).
+		private val dependencies = linkedSetOf<KtModule>()
 
 		fun addDependency(dep: KtModule) {
 			dependencies.add(dep)
@@ -42,29 +46,38 @@ internal class KtSourceModule(
 		get() = module.path
 
 	override val contentRoots by lazy {
-		module.getSourceDirectories()
+		module
+			.getSourceDirectories()
 			.asSequence()
 			.map { it.toPath() }
 			.toSet()
 	}
 
 	private val versions by lazy {
-		val kotlinCompilerSettings = when {
-			module.hasJavaProject() -> module.javaProject
-				.kotlinCompilerSettings
+		val kotlinCompilerSettings =
+			when {
+				module.hasJavaProject() -> {
+					module.javaProject
+						.kotlinCompilerSettings
+				}
 
-			module.hasAndroidProject() -> module.androidProject
-				.kotlinCompilerSettings
+				module.hasAndroidProject() -> {
+					module.androidProject
+						.kotlinCompilerSettings
+				}
 
-			else -> null
-		}
+				else -> {
+					null
+				}
+			}
 
 		if (kotlinCompilerSettings == null) {
 			return@lazy DEFAULT_LANGUAGE_VERSION to DEFAULT_JVM_TARGET
 		}
 
-		val apiVersion = LanguageVersion.fromVersionString(kotlinCompilerSettings.apiVersion)
-			?: LanguageVersion.fromFullVersionString(kotlinCompilerSettings.apiVersion)
+		val apiVersion =
+			LanguageVersion.fromVersionString(kotlinCompilerSettings.apiVersion)
+				?: LanguageVersion.fromFullVersionString(kotlinCompilerSettings.apiVersion)
 
 		val jvmTarget = JvmTarget.fromString(kotlinCompilerSettings.jvmTarget)
 
@@ -79,15 +92,14 @@ internal class KtSourceModule(
 		get() = super<AbstractSourceModule>.moduleDescription
 
 	override val languageVersionSettings: LanguageVersionSettings
-		get() = LanguageVersionSettingsImpl(
-			languageVersion = versions.first,
-			apiVersion = ApiVersion.createByLanguageVersion(versions.first),
-		)
+		get() =
+			LanguageVersionSettingsImpl(
+				languageVersion = versions.first,
+				apiVersion = ApiVersion.createByLanguageVersion(versions.first),
+			)
 
 	override val targetPlatform: TargetPlatform
 		get() = JvmPlatforms.jvmPlatformByTargetVersion(versions.second)
-
-
 }
 
 internal fun buildKtSourceModule(

@@ -182,6 +182,15 @@ class NewFileAction(
 		val builder = DialogUtils.newMaterialDialogBuilder(context)
 		val binding: LayoutCreateFileJavaBinding =
 			LayoutCreateFileJavaBinding.inflate(LayoutInflater.from(context))
+		binding.languageGroup.addOnButtonCheckedListener { _, _, _ ->
+			binding.typeClass.setIconResource(
+				if (binding.languageGroup.checkedButtonId == binding.langKotlin.id) {
+					R.drawable.ic_language_kotlin
+				} else {
+					R.drawable.ic_language_java
+				},
+			)
+		}
 		binding.typeGroup.addOnButtonCheckedListener { _, _, _ ->
 			binding.createLayout.isVisible = binding.typeGroup.checkedButtonId == binding.typeActivity.id
 		}
