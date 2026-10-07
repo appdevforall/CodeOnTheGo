@@ -329,7 +329,7 @@ object KotlinMetadataScanner {
 			} else {
 				"$packageName#${fn.name}"
 			}
-		val key = "$name(${parameters.joinToString(",") { it.typeFqName }})"
+		val key = jvmCallableKey(name, receiverType?.let { kmTypeToName(it) }, parameters.map { it.typeFqName })
 
 		val signatureDisplay =
 			buildString {
@@ -400,7 +400,7 @@ object KotlinMetadataScanner {
 			}
 
 		return JvmSymbol(
-			key = name,
+			key = jvmCallableKey(name, receiverType?.let { kmTypeToName(it) }, parameterTypeNames = null),
 			sourceId = sourceId,
 			name = name,
 			shortName = prop.name,

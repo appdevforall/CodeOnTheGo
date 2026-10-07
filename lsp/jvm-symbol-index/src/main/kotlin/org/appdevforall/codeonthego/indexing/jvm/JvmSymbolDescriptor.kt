@@ -56,6 +56,7 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 		val builder =
 			JvmSymbolData
 				.newBuilder()
+				.setKey(s.key)
 				.setName(s.name)
 				.setShortName(s.shortName)
 				.setPackageName(s.packageName)
@@ -206,26 +207,8 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 		val kind = kindFromProto(p.kind)
 		val data = dataFromProto(p)
 
-		val key =
-			when {
-				kind.isCallable && kind != JvmSymbolKind.PROPERTY &&
-					kind != JvmSymbolKind.EXTENSION_PROPERTY &&
-					kind != JvmSymbolKind.FIELD -> {
-					val params =
-						(data as? JvmFunctionInfo)
-							?.parameters
-							?.joinToString(",") { it.typeName }
-							?: ""
-					"${p.name}($params)"
-				}
-
-				else -> {
-					p.name
-				}
-			}
-
 		return JvmSymbol(
-			key = key,
+			key = p.key,
 			sourceId = p.sourceId,
 			name = p.name,
 			shortName = p.shortName,

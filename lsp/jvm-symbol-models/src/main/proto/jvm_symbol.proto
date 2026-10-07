@@ -18,6 +18,9 @@ message JvmSymbolData {
   JvmVisibility visibility = 7;
   bool is_deprecated = 8;
 
+  // The row key, stored because no other field can rebuild it.
+  string key = 9;
+
   oneof data {
     ClassData class_data = 20;
     FunctionData function_data = 21;

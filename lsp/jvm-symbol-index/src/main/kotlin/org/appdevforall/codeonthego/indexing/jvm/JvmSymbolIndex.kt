@@ -45,7 +45,7 @@ open class JvmSymbolIndex(
 		 * source file's symbols are re-indexed only when its metadata row says so; dropping the
 		 * symbols alone would leave files recorded as indexed with no symbols.
 		 */
-		const val FORMAT_VERSION = 2
+		const val FORMAT_VERSION = 3
 
 		/**
 		 * Create (or get) a JVM symbol index backed by SQLite.

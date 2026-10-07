@@ -27,6 +27,7 @@ import org.appdevforall.codeonthego.indexing.jvm.KotlinFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.KotlinPropertyInfo
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
+import org.appdevforall.codeonthego.indexing.jvm.jvmCallableKey
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.KaSession
@@ -327,7 +328,8 @@ private fun KaSession.analyzeFunction(
 		} else {
 			"$pkg#$fnName"
 		}
-	val key = "$qualifiedName(${parameters.joinToString(",") { it.typeFqName }})"
+	val key =
+		jvmCallableKey(qualifiedName, receiverType?.let { kaTypeInternalName(it) }, parameters.map { it.typeFqName })
 
 	val signatureDisplay =
 		buildString {
@@ -473,7 +475,7 @@ private fun KaSession.analyzeProperty(
 		}
 
 	return JvmSymbol(
-		key = qualifiedName,
+		key = jvmCallableKey(qualifiedName, receiverType?.let { kaTypeInternalName(it) }, parameterTypeNames = null),
 		sourceId = filePath,
 		name = qualifiedName,
 		shortName = propName,
