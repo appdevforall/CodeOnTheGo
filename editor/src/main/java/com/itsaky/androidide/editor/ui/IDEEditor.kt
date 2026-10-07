@@ -998,22 +998,8 @@ open class IDEEditor
 					selectionChangeHandler.postDelayed(it, SELECTION_CHANGE_DELAY)
 				}
 			}
-		}
 
-		// EventBus follows the window, not release(): a recreate (dark mode, locale) destroys the
-		// activity without releasing its editors, and the default EventBus would keep them all.
-		override fun onAttachedToWindow() {
-			super.onAttachedToWindow()
-			if (!isReleased && !EventBus.getDefault().isRegistered(this)) {
-				EventBus.getDefault().register(this)
-			}
-		}
-
-		override fun onDetachedFromWindow() {
-			super.onDetachedFromWindow()
-			if (EventBus.getDefault().isRegistered(this)) {
-				EventBus.getDefault().unregister(this)
-			}
+			EventBus.getDefault().register(this)
 		}
 
 		// Inline suggestions (ghost text)
