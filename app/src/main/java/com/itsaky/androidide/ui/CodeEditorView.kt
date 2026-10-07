@@ -163,6 +163,8 @@ class CodeEditorView(
 	private val debugClient = IDEDebugClientImpl.requireInstance()
 
 	init {
+		debugClient.breakpoints.addListener(this)
+
 		_binding = LayoutCodeEditorBinding.inflate(LayoutInflater.from(context))
 
 		binding.editor.apply {
@@ -801,20 +803,16 @@ class CodeEditorView(
 		binding.editor.dispatchDocumentSaveEvent()
 	}
 
-	// Breakpoint listening follows the window, not close(): a recreate (dark mode, locale) destroys
-	// the activity without closing its editors, and the process-wide handler would keep them all.
 	override fun onAttachedToWindow() {
 		super.onAttachedToWindow()
 		if (!EventBus.getDefault().isRegistered(this)) {
 			EventBus.getDefault().register(this)
 		}
-		debugClient.breakpoints.addListener(this)
 	}
 
 	override fun onDetachedFromWindow() {
 		super.onDetachedFromWindow()
 		EventBus.getDefault().unregister(this)
-		debugClient.breakpoints.removeListener(this)
 	}
 
 	override fun close() {
