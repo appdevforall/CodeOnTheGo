@@ -655,7 +655,9 @@ private fun KaSession.buildUnimportedSymbolItem(symbol: JvmSymbol): CompletionIt
 			)
 		}
 
-		in JvmSymbolKind.CALLABLE_KINDS -> Unit
+		in JvmSymbolKind.CALLABLE_KINDS -> {
+			Unit
+		}
 
 		JvmSymbolKind.TYPE_ALIAS -> {
 			item.detail = (symbol.data as JvmTypeAliasInfo).expandedTypeFqName
