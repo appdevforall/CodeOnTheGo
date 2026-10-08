@@ -41,7 +41,9 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 
 	companion object {
 		private val log = LoggerFactory.getLogger(IdeBuildServiceImpl::class.java)
-		private const val BUILD_IN_PROGRESS_REASON = "another build is in progress"
+
+		/** The reason a plugin is given whenever another build holds the Gradle slot. */
+		const val BUILD_IN_PROGRESS_REASON = "another build is in progress"
 
 		// What a plugin's run keeps of its output: the tail, where Gradle reports a failure.
 		private const val MAX_OUTPUT_CHARS = 128 * 1024

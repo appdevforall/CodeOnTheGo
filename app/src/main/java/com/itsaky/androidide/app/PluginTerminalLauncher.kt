@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import com.itsaky.androidide.activities.TerminalActivity
 import com.itsaky.androidide.plugins.manager.services.TerminalSessionLauncher
 import com.itsaky.androidide.plugins.services.TerminalCommandResult
@@ -28,8 +30,10 @@ internal class PluginTerminalLauncher(
 		onResult: (TerminalCommandResult) -> Unit,
 	): () -> Unit {
 		// Android blocks activity starts from the background, so a plugin can only open the
-		// Terminal while the IDE is on screen.
-		val activity = foregroundActivity()
+		// Terminal while the IDE is on screen. foregroundActivity() still returns a backgrounded
+		// activity (it is cleared only on finish or destroy), and a blocked start throws nothing,
+		// so check the activity is at least STARTED or the plugin waits out OPEN_TIMEOUT_MS.
+		val activity = foregroundActivity()?.takeIf { it.isStarted() }
 		if (activity == null) {
 			onResult(TerminalCommandResult.NotStarted("Code On the Go is not in the foreground"))
 			return {}
@@ -67,6 +71,12 @@ internal class PluginTerminalLauncher(
 
 		return { TerminalCommandRequests.cancel(requestId) }
 	}
+
+	private fun Activity.isStarted(): Boolean =
+		(this as? LifecycleOwner)
+			?.lifecycle
+			?.currentState
+			?.isAtLeast(Lifecycle.State.STARTED) == true
 
 	private companion object {
 		private val logger = LoggerFactory.getLogger(PluginTerminalLauncher::class.java)

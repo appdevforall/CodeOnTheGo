@@ -56,7 +56,7 @@ class BuildViewModelTest {
 
 	@Test
 	fun `givenAQueuedBuild_whenASecondRequestArrivesBeforeItRuns_thenTheSecondIsRejected`() {
-		val viewModel = BuildViewModel()
+		val viewModel = BuildViewModel(buildInProgressMessage = { IN_PROGRESS })
 		val outcomes = mutableListOf<BuildState>()
 
 		// Neither launched block has run, so the second call sees exactly what a second thread
@@ -64,12 +64,12 @@ class BuildViewModelTest {
 		viewModel.runQuickBuild(module, variant, launchInDebugMode = false) { outcomes += it }
 		viewModel.runQuickBuild(module, variant, launchInDebugMode = false) { outcomes += it }
 
-		assertThat(outcomes).containsExactly(BuildState.Error("A build is already in progress."))
+		assertThat(outcomes).containsExactly(BuildState.Error(IN_PROGRESS))
 	}
 
 	@Test
 	fun `givenNoBuild_whenRequestingOne_thenTheStateIsClaimedBeforeTheCoroutineRuns`() {
-		val viewModel = BuildViewModel()
+		val viewModel = BuildViewModel(buildInProgressMessage = { IN_PROGRESS })
 
 		viewModel.runQuickBuild(module, variant, launchInDebugMode = false)
 
@@ -78,19 +78,19 @@ class BuildViewModelTest {
 
 	@Test
 	fun `givenAQueuedBuild_whenTasksAreRequested_thenTheRequestIsRefusedAndReported`() {
-		val viewModel = BuildViewModel()
+		val viewModel = BuildViewModel(buildInProgressMessage = { IN_PROGRESS })
 		val outcomes = mutableListOf<BuildState>()
 		viewModel.runQuickBuild(module, variant, launchInDebugMode = false)
 
 		val accepted = viewModel.runTasks(listOf(":app:installDebug")) { outcomes += it }
 
 		assertThat(accepted).isFalse()
-		assertThat(outcomes).containsExactly(BuildState.Error("A build is already in progress."))
+		assertThat(outcomes).containsExactly(BuildState.Error(IN_PROGRESS))
 	}
 
 	@Test
 	fun `givenNoBuild_whenTasksAreRequested_thenTheSlotIsClaimedBeforeTheCoroutineRuns`() {
-		val viewModel = BuildViewModel()
+		val viewModel = BuildViewModel(buildInProgressMessage = { IN_PROGRESS })
 
 		val accepted = viewModel.runTasks(listOf(":app:installDebug"))
 
@@ -100,7 +100,7 @@ class BuildViewModelTest {
 
 	@Test
 	fun `givenARunTapsClobberAnswer_whenTasksRunNext_thenTheInstallDoesNotInheritIt`() {
-		val viewModel = BuildViewModel()
+		val viewModel = BuildViewModel(buildInProgressMessage = { IN_PROGRESS })
 		viewModel.runQuickBuild(
 			module,
 			variant,
@@ -128,7 +128,7 @@ class BuildViewModelTest {
 				every { variantList } returns listOf(debug)
 			}
 		val projectManager = mockk<IProjectManager> { every { getAndroidAppModules() } returns listOf(app) }
-		val viewModel = BuildViewModel { projectManager }
+		val viewModel = BuildViewModel(projectManager = { projectManager })
 
 		assertThat(viewModel.installsAnAppVariant(listOf(":app:installDebug"))).isTrue()
 		assertThat(viewModel.installsAnAppVariant(listOf("installDebug", ":app:assembleDebug"))).isTrue()
@@ -145,7 +145,7 @@ class BuildViewModelTest {
 			}
 		Lookup.getDefault().register(BuildService.KEY_BUILD_SERVICE, buildService)
 		try {
-			val viewModel = BuildViewModel()
+			val viewModel = BuildViewModel(buildInProgressMessage = { IN_PROGRESS })
 			val outcomes = mutableListOf<BuildState>()
 
 			viewModel.runTasks(listOf(":app:installDebug")) { outcomes += it }
@@ -159,7 +159,7 @@ class BuildViewModelTest {
 
 	@Test
 	fun `givenNoBuildService_whenTasksRun_thenTheRunEndsInAnErrorReportedOnce`() {
-		val viewModel = BuildViewModel()
+		val viewModel = BuildViewModel(buildInProgressMessage = { IN_PROGRESS })
 		val outcomes = mutableListOf<BuildState>()
 
 		viewModel.runTasks(listOf(":app:installDebug")) { outcomes += it }
@@ -167,5 +167,30 @@ class BuildViewModelTest {
 
 		assertThat(outcomes).containsExactly(BuildState.Error("Build service not found."))
 		assertThat(viewModel.buildState.value).isEqualTo(BuildState.Error("Build service not found."))
+	}
+
+	@Test
+	fun `givenTheSlotTakenAfterTheGuard_whenTasksRun_thenTheRefusalReadsAsABusySlot`() {
+		val buildService =
+			mockk<BuildService> {
+				every { executeTasks(any<List<String>>()) } returns
+					CompletableFuture.completedFuture(TaskExecutionResult(false, TaskExecutionResult.Failure.BUILD_IN_PROGRESS))
+			}
+		Lookup.getDefault().register(BuildService.KEY_BUILD_SERVICE, buildService)
+		try {
+			val viewModel = BuildViewModel(buildInProgressMessage = { IN_PROGRESS })
+			val outcomes = mutableListOf<BuildState>()
+
+			viewModel.runTasks(listOf(":app:installDebug")) { outcomes += it }
+			awaitOutcome(outcomes)
+
+			assertThat(outcomes).containsExactly(BuildState.Error(IN_PROGRESS))
+		} finally {
+			Lookup.getDefault().unregister(BuildService.KEY_BUILD_SERVICE)
+		}
+	}
+
+	private companion object {
+		const val IN_PROGRESS = "A build is already in progress."
 	}
 }
