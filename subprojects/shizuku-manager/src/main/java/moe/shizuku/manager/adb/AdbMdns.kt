@@ -11,6 +11,7 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
+import java.util.concurrent.ConcurrentHashMap
 
 @RequiresApi(Build.VERSION_CODES.R)
 class AdbMdns(
@@ -18,22 +19,10 @@ class AdbMdns(
 	private val serviceType: String,
 	private val observer: Consumer<Int>,
 ) {
-	/**
-	 * Takes an NsdManager that neither retains [context] nor is shared with another [AdbMdns].
-	 *
-	 * getSystemService caches NsdManager per Context, and the manager holds that Context for its
-	 * own lifetime while the framework keeps the manager alive, so one taken from an Activity or a
-	 * Service retains it for the whole process; stopServiceDiscovery() does not release it. A
-	 * fresh attribution context off the application context avoids that, and since the cache is
-	 * per-ContextImpl it also keeps each instance a separate NsdService client - which matters
-	 * below Android 13, where a second concurrent resolveService fails with FAILURE_ALREADY_ACTIVE.
-	 */
+	/** Takes the process-wide NsdManager for [serviceType]; see [managerFor]. */
 	constructor(context: Context, serviceType: String, observer: Consumer<Int>) :
 		this(
-			nsdManager =
-				context.applicationContext
-					.createAttributionContext(null)
-					.getSystemService(NsdManager::class.java),
+			nsdManager = managerFor(context, serviceType),
 			serviceType = serviceType,
 			observer = observer,
 		)
@@ -169,6 +158,31 @@ class AdbMdns(
 	companion object {
 		const val TLS_CONNECT = "_adb-tls-connect._tcp"
 		const val TLS_PAIRING = "_adb-tls-pairing._tcp"
+
+		private val managers = ConcurrentHashMap<String, NsdManager>()
+
+		/**
+		 * One NsdManager per service type for the whole process.
+		 *
+		 * getSystemService caches NsdManager per Context, and the framework keeps each manager (and
+		 * the Context it holds) alive for the process, so one taken from an Activity or Service
+		 * retains it; stopServiceDiscovery() does not release it. An attribution context off the
+		 * application context avoids that. One per type rather than one per instance: each new
+		 * manager is never freed, and below Android 13 also starts a HandlerThread, so per-instance
+		 * managers grew with every pairing retry (ADFA-6392). Separate types still get separate
+		 * NsdService clients, which matters below Android 13, where a second concurrent
+		 * resolveService on one manager fails with FAILURE_ALREADY_ACTIVE.
+		 */
+		private fun managerFor(
+			context: Context,
+			serviceType: String,
+		): NsdManager =
+			managers.computeIfAbsent(serviceType) {
+				context.applicationContext
+					.createAttributionContext(null)
+					.getSystemService(NsdManager::class.java)
+			}
+
 		const val TAG = "AdbMdns"
 	}
 }
