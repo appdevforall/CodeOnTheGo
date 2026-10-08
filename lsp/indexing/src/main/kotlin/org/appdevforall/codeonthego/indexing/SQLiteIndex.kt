@@ -18,6 +18,7 @@ import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
+import org.appdevforall.codeonthego.indexing.api.requireDeclaredFields
 import org.slf4j.LoggerFactory
 import kotlin.collections.iterator
 
@@ -758,6 +759,7 @@ class SQLiteIndex<T : Indexable>(
 		query: IndexQuery,
 		sourceIdChunk: List<String>?,
 	): Pair<String, List<String>> {
+		query.requireDeclaredFields(descriptor)
 		val where = StringBuilder()
 		val args = mutableListOf<String>()
 
@@ -783,12 +785,12 @@ class SQLiteIndex<T : Indexable>(
 		}
 
 		for ((field, value) in query.exactMatch) {
-			val col = fieldColumns[field] ?: continue
+			val col = fieldColumns.getValue(field)
 			and("${filterUnlessSelective(field)}$col = ?", value)
 		}
 
 		for ((field, values) in query.anyOf) {
-			val col = fieldColumns[field] ?: continue
+			val col = fieldColumns.getValue(field)
 			if (values.isEmpty()) {
 				// Scoped to nothing, as opposed to unscoped: no row can satisfy it.
 				and("0 = 1")
@@ -803,7 +805,7 @@ class SQLiteIndex<T : Indexable>(
 			val lowerCol = prefixColumns[field]
 			// Prefix-searchable fields match case-insensitively through their pre-lowercased column;
 			// everything else matches the stored value as-is.
-			val col = lowerCol ?: fieldColumns[field] ?: continue
+			val col = lowerCol ?: fieldColumns.getValue(field)
 			val value = if (lowerCol != null) prefix.lowercase() else prefix
 
 			if (value.isEmpty()) {
@@ -833,7 +835,7 @@ class SQLiteIndex<T : Indexable>(
 		}
 
 		for ((field, mustExist) in query.presence) {
-			val col = fieldColumns[field] ?: continue
+			val col = fieldColumns.getValue(field)
 			if (mustExist) {
 				and("$filter$col IS NOT NULL")
 			} else {

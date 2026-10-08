@@ -65,6 +65,20 @@ data class IndexQuery(
 }
 
 /**
+ * Throws [IllegalArgumentException] if this query has a predicate on a field [descriptor] does not
+ * declare.
+ *
+ * Every index implementation checks this, so a misspelt field fails the same way everywhere rather
+ * than matching nothing in one implementation and every row in another.
+ */
+internal fun IndexQuery.requireDeclaredFields(descriptor: IndexDescriptor<*>) {
+	val declared = descriptor.fields.mapTo(HashSet()) { it.name }
+	val named = exactMatch.keys + prefixMatch.keys + anyOf.keys + presence.keys
+	val unknown = named - declared
+	require(unknown.isEmpty()) { "Unknown field(s) $unknown in a query on ${descriptor.name}" }
+}
+
+/**
  * DSL builder for [IndexQuery].
  */
 class IndexQueryBuilder {

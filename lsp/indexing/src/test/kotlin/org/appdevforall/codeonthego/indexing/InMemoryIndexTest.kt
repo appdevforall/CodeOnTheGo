@@ -7,6 +7,7 @@ import org.appdevforall.codeonthego.indexing.api.IndexField
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.appdevforall.codeonthego.indexing.api.indexQuery
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -257,13 +258,14 @@ class InMemoryIndexTest {
 		}
 
 	@Test
-	fun `query with unknown field returns empty sequence`() =
+	fun `query with unknown field is rejected`() =
 		runTest {
 			val index = makeIndex()
 			index.insert(entry("k1", "src1", "Foo"))
 
-			val results = index.query(indexQuery { eq("nonexistentField", "value") }).toList()
-			assertThat(results).isEmpty()
+			assertThrows(IllegalArgumentException::class.java) {
+				index.query(indexQuery { eq("nonexistentField", "value") }).toList()
+			}
 		}
 
 	@Test
