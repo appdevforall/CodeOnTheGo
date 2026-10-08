@@ -16,6 +16,7 @@ import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.lsp.PluginLanguageSupport
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
@@ -360,6 +361,8 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 					eventBus = EventBus.getDefault(),
 					logger = pluginLogger,
 				)
+
+			pluginManager?.setLanguageContributionsListener(PluginLanguageSupport::refresh)
 
 			// Set up plugin service providers
 			setupPluginServices()
