@@ -16,9 +16,11 @@ mark() {
 # Set first, so every way out reports an exit code.
 trap 'mark "D;$?"' EXIT
 
-cmd=$(cat "$dir/$id.cmd") || exit 1
+# Taken by a rename, which AgentRunner.withdraw cannot race: either this run or the Terminal gets it.
+mv -- "$dir/$id.cmd" "$dir/$id.run" 2>/dev/null || exit 1
+cmd=$(cat "$dir/$id.run") || exit 1
 wd=$(cat "$dir/$id.dir") || exit 1
-rm -f "$dir/$id.cmd" "$dir/$id.dir"
+rm -f "$dir/$id.run" "$dir/$id.dir"
 
 mark C
 printf '$ %s\n' "$cmd"

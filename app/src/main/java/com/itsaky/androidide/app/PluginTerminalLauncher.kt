@@ -51,13 +51,13 @@ internal class PluginTerminalLauncher(
 
 	override suspend fun read(
 		pluginId: String,
-		sessionName: String,
-	): TerminalCommandResult? = onMain { requests.read(pluginId, sessionName)?.toResult() }
+		commandId: String,
+	): TerminalCommandResult? = onMain { requests.read(pluginId, commandId)?.toResult() }
 
 	override suspend fun interrupt(
 		pluginId: String,
-		sessionName: String,
-	): Deferred<TerminalCommandResult>? = onMain { (requests.interrupt(pluginId, sessionName) as? Launched)?.result }
+		commandId: String,
+	): Deferred<TerminalCommandResult>? = onMain { (requests.interrupt(pluginId, commandId) as? Launched)?.result }
 
 	private suspend fun <T> onMain(block: () -> T): T = withContext(Dispatchers.Main) { block() }
 
@@ -143,7 +143,7 @@ internal class PluginTerminalLauncher(
 		// How long an interrupted command has to exit before its session is ended.
 		const val KILL_GRACE_MS = 5_000L
 
-		fun CommandState.Running.toResult() = TerminalCommandResult.Running(sessionName, output)
+		fun CommandState.Running.toResult() = TerminalCommandResult.Running(commandId, sessionName, output)
 
 		fun CommandState.toResult(): TerminalCommandResult =
 			when (this) {

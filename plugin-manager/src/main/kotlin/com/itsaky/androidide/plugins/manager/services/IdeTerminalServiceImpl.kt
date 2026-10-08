@@ -37,24 +37,24 @@ interface TerminalSessionLauncher {
 	): LaunchedTerminalCommand
 
 	/**
-	 * The last command in session [sessionName] of plugin [pluginId]: [TerminalCommandResult.Running]
-	 * while it runs, [TerminalCommandResult.Completed] once it exits, or null when the plugin has no
-	 * open session by that name.
+	 * Command [commandId] of plugin [pluginId]: [TerminalCommandResult.Running] while it runs,
+	 * [TerminalCommandResult.Completed] once it exits, or null when it is not a command of that
+	 * plugin the Terminal still knows.
 	 */
 	suspend fun read(
 		pluginId: String,
-		sessionName: String,
+		commandId: String,
 	): TerminalCommandResult?
 
 	/**
-	 * Interrupts with Ctrl-C the command running in session [sessionName] of plugin [pluginId],
-	 * whichever caller launched it.
+	 * Interrupts command [commandId] of plugin [pluginId] with Ctrl-C if it runs, whichever caller
+	 * launched it.
 	 *
-	 * @return the command's result, which completes once it exits, or null when nothing runs there.
+	 * @return the command's result, which completes once it exits, or null when it does not run.
 	 */
 	suspend fun interrupt(
 		pluginId: String,
-		sessionName: String,
+		commandId: String,
 	): Deferred<TerminalCommandResult>?
 }
 
@@ -173,22 +173,22 @@ class IdeTerminalServiceImpl(
 		if (running.remove(this)) interrupt()
 	}
 
-	override suspend fun readSession(sessionName: String): TerminalCommandResult? {
+	override suspend fun readCommand(commandId: String): TerminalCommandResult? {
 		requireSystemCommands()
-		return launcherProvider()?.read(pluginId, sessionName)
+		return launcherProvider()?.read(pluginId, commandId)
 	}
 
-	override suspend fun stopSession(
-		sessionName: String,
+	override suspend fun stopCommand(
+		commandId: String,
 		waitMillis: Long,
 	): TerminalCommandResult? {
 		requireSystemCommands()
 		val launcher = launcherProvider() ?: return null
-		// By session, not through [running]: the command may come from a cancelled caller, or from
+		// Through the launcher, not [running]: the command may come from a cancelled caller, or from
 		// this plugin before it was reloaded.
-		val result = launcher.interrupt(pluginId, sessionName) ?: return launcher.read(pluginId, sessionName)
+		val result = launcher.interrupt(pluginId, commandId) ?: return launcher.read(pluginId, commandId)
 		return withTimeoutOrNull(waitMillis.coerceAtLeast(0)) { result.await() }
-			?: launcher.read(pluginId, sessionName)
+			?: launcher.read(pluginId, commandId)
 	}
 
 	private fun requireSystemCommands() {

@@ -20,20 +20,20 @@ class IdeTerminalServiceImplTest {
 
 	/**
 	 * Hands out commands that report [result] if given, after starting if [started]; each snapshot
-	 * takes the next of [snapshots], the last repeating. [read] answers from [sessions], and
-	 * [interrupt] from the commands in [busySessions].
+	 * takes the next of [snapshots], the last repeating. [read] answers from [commands], and
+	 * [interrupt] from [busyCommands].
 	 */
 	private class FakeLauncher(
 		private val result: TerminalCommandResult? = null,
 		private val started: Boolean = result !is TerminalCommandResult.NotStarted,
 		private val snapshots: List<TerminalCommandResult.Running?> = listOf(null),
-		private val sessions: Map<String, TerminalCommandResult> = emptyMap(),
-		private val busySessions: Map<String, CompletableDeferred<TerminalCommandResult>> = emptyMap(),
+		private val commands: Map<String, TerminalCommandResult> = emptyMap(),
+		private val busyCommands: Map<String, CompletableDeferred<TerminalCommandResult>> = emptyMap(),
 	) : TerminalSessionLauncher {
 		val launches = mutableListOf<Triple<String, File?, String>>()
 		val labels = mutableListOf<String>()
 		val reads = mutableListOf<Pair<String, String>>()
-		val sessionInterrupts = mutableListOf<Pair<String, String>>()
+		val commandInterrupts = mutableListOf<Pair<String, String>>()
 		var interrupted = false
 		var snapshotsTaken = 0
 		private val results = mutableListOf<CompletableDeferred<TerminalCommandResult>>()
@@ -67,18 +67,18 @@ class IdeTerminalServiceImplTest {
 
 		override suspend fun read(
 			pluginId: String,
-			sessionName: String,
+			commandId: String,
 		): TerminalCommandResult? {
-			reads += pluginId to sessionName
-			return sessions[sessionName]
+			reads += pluginId to commandId
+			return commands[commandId]
 		}
 
 		override suspend fun interrupt(
 			pluginId: String,
-			sessionName: String,
+			commandId: String,
 		): CompletableDeferred<TerminalCommandResult>? {
-			sessionInterrupts += pluginId to sessionName
-			return busySessions[sessionName]
+			commandInterrupts += pluginId to commandId
+			return busyCommands[commandId]
 		}
 	}
 
@@ -208,7 +208,7 @@ class IdeTerminalServiceImplTest {
 
 	@Test
 	fun commandStillRunningAfterTheWaitIsReturnedAsRunning() {
-		val running = TerminalCommandResult.Running("test.plugin 1", "$ npm start\nlistening on 3000")
+		val running = TerminalCommandResult.Running("3f2a", "test.plugin 1", "$ npm start\nlistening on 3000")
 		val launcher = FakeLauncher(result = null, snapshots = listOf(running))
 
 		val result = await { service(launcher = launcher).runInTerminal("npm start", waitMillis = 50) }
@@ -260,29 +260,29 @@ class IdeTerminalServiceImplTest {
 	}
 
 	@Test
-	fun readingASessionAsksForThisPluginsSession() {
-		val running = TerminalCommandResult.Running("test.plugin 1", "listening on 3000")
-		val launcher = FakeLauncher(sessions = mapOf("test.plugin 1" to running))
+	fun readingACommandAsksForThisPluginsCommand() {
+		val running = TerminalCommandResult.Running("3f2a", "test.plugin 1", "listening on 3000")
+		val launcher = FakeLauncher(commands = mapOf("3f2a" to running))
 
-		val result = await { service(launcher = launcher).readSession("test.plugin 1") }
+		val result = await { service(launcher = launcher).readCommand("3f2a") }
 
 		assertThat(result).isEqualTo(running)
-		assertThat(launcher.reads).containsExactly("test.plugin" to "test.plugin 1")
+		assertThat(launcher.reads).containsExactly("test.plugin" to "3f2a")
 	}
 
 	@Test
-	fun readingAnUnknownSessionIsNull() {
-		assertThat(await { service(launcher = FakeLauncher()).readSession("other 1") }).isNull()
+	fun readingAnUnknownCommandIsNull() {
+		assertThat(await { service(launcher = FakeLauncher()).readCommand("nope") }).isNull()
 	}
 
 	@Test
 	fun readingWithoutATerminalIsNull() {
-		assertThat(await { service(launcher = null).readSession("test.plugin 1") }).isNull()
+		assertThat(await { service(launcher = null).readCommand("3f2a") }).isNull()
 	}
 
 	@Test(expected = SecurityException::class)
 	fun readingRequiresSystemCommands() {
-		await { service(permissions = emptySet()).readSession("test.plugin 1") }
+		await { service(permissions = emptySet()).readCommand("3f2a") }
 	}
 
 	@Test
@@ -303,7 +303,8 @@ class IdeTerminalServiceImplTest {
 
 	@Test
 	fun cancelAllInterruptsACommandReturnedAsRunning() {
-		val launcher = FakeLauncher(result = null, snapshots = listOf(TerminalCommandResult.Running("test.plugin 1", "$ sleep 100")))
+		val running = TerminalCommandResult.Running("3f2a", "test.plugin 1", "$ sleep 100")
+		val launcher = FakeLauncher(result = null, snapshots = listOf(running))
 		val service = service(launcher = launcher)
 
 		assertThat(await { service.runInTerminal("sleep 100", waitMillis = 0) }).isInstanceOf(TerminalCommandResult.Running::class.java)
@@ -334,61 +335,61 @@ class IdeTerminalServiceImplTest {
 	}
 
 	@Test
-	fun stopInterruptsTheCommandInThatSessionAndReturnsHowItExited() {
+	fun stopInterruptsTheCommandAndReturnsHowItExited() {
 		val command = CompletableDeferred<TerminalCommandResult>()
-		val launcher = FakeLauncher(busySessions = mapOf("Test 1" to command))
+		val launcher = FakeLauncher(busyCommands = mapOf("3f2a" to command))
 		val service = service(launcher = launcher)
 
 		val result =
 			await {
 				coroutineScope {
-					val stop = async { service.stopSession("Test 1") }
-					while (launcher.sessionInterrupts.isEmpty()) yield()
+					val stop = async { service.stopCommand("3f2a") }
+					while (launcher.commandInterrupts.isEmpty()) yield()
 					command.complete(TerminalCommandResult.Completed(130, "PING\n^C"))
 					stop.await()
 				}
 			}
 
 		assertThat(result).isEqualTo(TerminalCommandResult.Completed(130, "PING\n^C"))
-		assertThat(launcher.sessionInterrupts).containsExactly("test.plugin" to "Test 1")
+		assertThat(launcher.commandInterrupts).containsExactly("test.plugin" to "3f2a")
 	}
 
 	@Test
 	fun stopReachesACommandThisInstanceDidNotLaunch() {
 		// E.g. started before the plugin was reloaded, or by a caller that was cancelled.
 		val command = CompletableDeferred<TerminalCommandResult>(TerminalCommandResult.Completed(130, "^C"))
-		val launcher = FakeLauncher(busySessions = mapOf("Test 1" to command))
+		val launcher = FakeLauncher(busyCommands = mapOf("3f2a" to command))
 
-		assertThat(await { service(launcher = launcher).stopSession("Test 1") }).isEqualTo(TerminalCommandResult.Completed(130, "^C"))
-		assertThat(launcher.sessionInterrupts).containsExactly("test.plugin" to "Test 1")
+		assertThat(await { service(launcher = launcher).stopCommand("3f2a") }).isEqualTo(TerminalCommandResult.Completed(130, "^C"))
+		assertThat(launcher.commandInterrupts).containsExactly("test.plugin" to "3f2a")
 	}
 
 	@Test
 	fun stopOfACommandThatIgnoresCtrlCReportsItStillRunning() {
-		val running = TerminalCommandResult.Running("Test 1", "still here")
-		val launcher = FakeLauncher(sessions = mapOf("Test 1" to running), busySessions = mapOf("Test 1" to CompletableDeferred()))
+		val running = TerminalCommandResult.Running("3f2a", "Test 1", "still here")
+		val launcher = FakeLauncher(commands = mapOf("3f2a" to running), busyCommands = mapOf("3f2a" to CompletableDeferred()))
 
-		assertThat(await { service(launcher = launcher).stopSession("Test 1", waitMillis = 0) }).isEqualTo(running)
-		assertThat(launcher.sessionInterrupts).containsExactly("test.plugin" to "Test 1")
+		assertThat(await { service(launcher = launcher).stopCommand("3f2a", waitMillis = 0) }).isEqualTo(running)
+		assertThat(launcher.commandInterrupts).containsExactly("test.plugin" to "3f2a")
 	}
 
 	@Test
-	fun stopOfASessionWithNothingRunningOnlyReadsIt() {
+	fun stopOfAnExitedCommandOnlyReadsIt() {
 		val exited = TerminalCommandResult.Completed(0, "done")
-		val launcher = FakeLauncher(sessions = mapOf("Test 1" to exited))
+		val launcher = FakeLauncher(commands = mapOf("3f2a" to exited))
 
-		assertThat(await { service(launcher = launcher).stopSession("Test 1") }).isEqualTo(exited)
-		assertThat(launcher.reads).containsExactly("test.plugin" to "Test 1")
+		assertThat(await { service(launcher = launcher).stopCommand("3f2a") }).isEqualTo(exited)
+		assertThat(launcher.reads).containsExactly("test.plugin" to "3f2a")
 	}
 
 	@Test
-	fun stopOfAnUnknownSessionIsNull() {
-		assertThat(await { service(launcher = FakeLauncher()).stopSession("Nope 1") }).isNull()
+	fun stopOfAnUnknownCommandIsNull() {
+		assertThat(await { service(launcher = FakeLauncher()).stopCommand("nope") }).isNull()
 	}
 
 	@Test(expected = SecurityException::class)
 	fun stopRequiresSystemCommands() {
-		await { service(permissions = emptySet()).stopSession("Test 1") }
+		await { service(permissions = emptySet()).stopCommand("3f2a") }
 	}
 
 	@Test

@@ -22,7 +22,10 @@ class PluginSessionPoolTest {
 		name,
 	)
 
-	private fun busySession(name: String) = session(name).apply { begin(mockk()) }
+	private fun busySession(
+		name: String,
+		id: String = "cmd",
+	) = session(name).apply { begin(TerminalCommand(id, null, "p", mockk())) }
 
 	private fun slot(owner: String = "p") = pool.slotFor(owner)
 
@@ -79,7 +82,7 @@ class PluginSessionPoolTest {
 		val session = session("p 1").also { pool.add("p", it) }
 		session.terminal.mSessionName = "server"
 
-		assertThat(pool.find("p", "p 1")).isSameInstanceAs(session)
+		assertThat(session.name).isEqualTo("p 1")
 		assertThat(pool.slotFor("p") { false }).isEqualTo(PluginSessionPool.Slot.Free("p 2"))
 	}
 
@@ -89,14 +92,6 @@ class PluginSessionPoolTest {
 		pool.add("other", busySession("other 2"))
 
 		assertThat(slot()).isEqualTo(PluginSessionPool.Slot.Free("p 1"))
-	}
-
-	@Test
-	fun sessionsAreFoundOnlyUnderTheirPlugin() {
-		val session = session("p 1").also { pool.add("p", it) }
-
-		assertThat(pool.find("p", "p 1")).isSameInstanceAs(session)
-		assertThat(pool.find("other", "p 1")).isNull()
 	}
 
 	@Test
@@ -127,21 +122,17 @@ class PluginSessionPoolTest {
 	}
 
 	@Test
-	fun sessionStateIsNullUntilACommandRuns() {
-		assertThat(session("p 1").state()).isNull()
+	fun idleSessionHasNoRunningCommand() {
+		assertThat(session("p 1").running()).isNull()
 	}
 
 	@Test
-	fun finishedSessionKeepsTheLastExitUntilTheNextCommand() {
-		val session = busySession("p 1")
+	fun finishReportsTheCommandAndLeavesTheSessionIdle() {
+		val session = busySession("p 1", id = "a")
+		assertThat(session.running()).isEqualTo(CommandState.Running("a", "p 1", ""))
 
-		val exited = session.finish(3)
-
-		assertThat(exited).isEqualTo(CommandState.Exited("p 1", 3, ""))
+		assertThat(session.finish(3)).isEqualTo(CommandState.Exited("a", "p 1", 3, ""))
 		assertThat(session.isIdle).isTrue()
-		assertThat(session.state()).isEqualTo(exited)
-
-		session.begin(mockk())
-		assertThat(session.state()).isEqualTo(CommandState.Running("p 1", ""))
+		assertThat(session.running()).isNull()
 	}
 }

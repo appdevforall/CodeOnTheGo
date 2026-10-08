@@ -11,7 +11,15 @@ class CommandIntentRouterTest {
 	@get:Rule
 	val tmp = TemporaryFolder()
 
-	private val requests by lazy { TerminalCommandRequests(AgentRunner(tmp.root), 1) { it.run() } }
+	private val requests by lazy {
+		TerminalCommandRequests(AgentRunner(tmp.root), 1, io = { it.run() }, main = { it.run() }, processes = UnreadableProcesses, now = { 0L })
+	}
+
+	private object UnreadableProcesses : ProcessProbe {
+		override fun foregroundProcessGroup(pid: Int): Int? = null
+
+		override fun parentOf(pid: Int): Int? = null
+	}
 	private val router by lazy { CommandIntentRouter(requests) }
 	private val events = mutableListOf<String>()
 

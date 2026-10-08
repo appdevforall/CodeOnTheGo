@@ -54,6 +54,13 @@ class CommandMarkListenerTest {
 	}
 
 	@Test
+	fun outputStartRecordsTheRunnersPid() {
+		mark(Kind.OUTPUT_START, options = mapOf(AgentRunner.PID_OPTION to "4242"))
+
+		assertThat(session.runnerPid).isEqualTo(4242)
+	}
+
+	@Test
 	fun markOfAnotherCommandIsIgnored() {
 		mark(Kind.COMMAND_FINISHED, id = "other", exitCode = 0)
 

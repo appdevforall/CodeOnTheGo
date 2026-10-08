@@ -21,10 +21,10 @@ internal class CommandMarkListener(
 		// The user's own shell may print marks too; only the runner's carry this command's id.
 		if (mark.options[AgentRunner.ID_OPTION] != command.id) return
 
+		val runnerPid = mark.options[AgentRunner.PID_OPTION]?.toIntOrNull()
 		when (mark.kind) {
-			ShellIntegrationMark.Kind.OUTPUT_START -> session.startRecording()
-			ShellIntegrationMark.Kind.COMMAND_FINISHED ->
-				onFinished(session, mark.exitCode ?: UNKNOWN_EXIT_CODE, mark.options[AgentRunner.PID_OPTION]?.toIntOrNull())
+			ShellIntegrationMark.Kind.OUTPUT_START -> session.startRecording(runnerPid)
+			ShellIntegrationMark.Kind.COMMAND_FINISHED -> onFinished(session, mark.exitCode ?: UNKNOWN_EXIT_CODE, runnerPid)
 			ShellIntegrationMark.Kind.PROMPT_START, ShellIntegrationMark.Kind.COMMAND_START -> Unit
 		}
 	}
