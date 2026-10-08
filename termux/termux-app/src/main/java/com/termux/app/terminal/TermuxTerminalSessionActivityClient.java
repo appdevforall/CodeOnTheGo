@@ -133,8 +133,8 @@ public class TermuxTerminalSessionActivityClient extends TermuxTerminalSessionCl
 
     @Override
     public void onSessionFinished(@NonNull TerminalSession finishedSession) {
-        // A plugin's command session stays open whatever its exit code, so the user can read it.
-        boolean isIdeCommandSession = TerminalCommandRequests.onSessionFinished(finishedSession);
+        // A session that dies mid plugin command stays open whatever its exit code, so the user can read it.
+        boolean isIdeCommandSession = TerminalCommandRequests.shared.onSessionFinished(finishedSession);
 
         TermuxService service = mActivity.getTermuxService();
 

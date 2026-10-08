@@ -255,6 +255,24 @@ public final class TerminalSession extends TerminalOutput {
         JNI.close(mTerminalFileDescriptor);
     }
 
+    /** Receives the shell-integration marks a session's shell prints; see {@link ShellIntegrationMark}. */
+    public interface ShellIntegrationListener {
+        void onShellIntegrationMark(TerminalSession session, ShellIntegrationMark mark);
+    }
+
+    private ShellIntegrationListener mShellIntegrationListener;
+
+    /** Sets the listener for this session's shell-integration marks, or clears it with null. */
+    public void setShellIntegrationListener(ShellIntegrationListener listener) {
+        mShellIntegrationListener = listener;
+    }
+
+    @Override
+    public void onShellIntegrationMark(ShellIntegrationMark mark) {
+        ShellIntegrationListener listener = mShellIntegrationListener;
+        if (listener != null) listener.onShellIntegrationMark(this, mark);
+    }
+
     @Override
     public void titleChanged(String oldTitle, String newTitle) {
         mClient.onTitleChanged(this);

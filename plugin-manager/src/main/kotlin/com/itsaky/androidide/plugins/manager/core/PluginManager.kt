@@ -648,7 +648,7 @@ class PluginManager private constructor(
 				return Result.failure(RuntimeException("Failed to create plugin context for: ${manifest.id}"))
 			}
 
-			val pluginContext = createPluginContextWithResources(manifest.id, classLoader, permissions, ctx)
+			val pluginContext = createPluginContextWithResources(manifest.id, manifest.name, classLoader, permissions, ctx)
 
 			logger.debug("Initializing  plugin: ${manifest.id}")
 			val initResult =
@@ -1410,6 +1410,7 @@ class PluginManager private constructor(
 	 */
 	private fun createPluginContextWithResources(
 		pluginId: String,
+		pluginName: String,
 		classLoader: ClassLoader,
 		permissions: Set<PluginPermission>,
 		resourceContext: Context,
@@ -1647,6 +1648,7 @@ class PluginManager private constructor(
 		) {
 			IdeTerminalServiceImpl(
 				pluginId = pluginId,
+				sessionLabel = pluginName.ifBlank { pluginId },
 				permissions = permissions,
 				projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
 				appFilesDir = context.filesDir,

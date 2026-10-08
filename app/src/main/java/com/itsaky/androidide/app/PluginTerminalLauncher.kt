@@ -4,72 +4,139 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import androidx.core.os.HandlerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.itsaky.androidide.activities.TerminalActivity
+import com.itsaky.androidide.plugins.manager.services.LaunchedTerminalCommand
 import com.itsaky.androidide.plugins.manager.services.TerminalSessionLauncher
 import com.itsaky.androidide.plugins.services.TerminalCommandResult
+import com.itsaky.androidide.terminal.AgentRunner
+import com.itsaky.androidide.terminal.CommandIntentRouter
+import com.itsaky.androidide.terminal.CommandState
+import com.itsaky.androidide.terminal.TerminalCommandListener
 import com.itsaky.androidide.terminal.TerminalCommandRequests
+import com.itsaky.androidide.terminal.TerminalStartFailure
 import com.itsaky.androidide.utils.applyMultiWindowFlags
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Opens a plugin's command in a new Terminal session, through the same activity the Terminal
- * sidebar action opens.
+ * Runs a plugin's command in one of its Terminal sessions, through the same activity the Terminal
+ * sidebar action opens. [TerminalCommandRequests] is only touched on the main thread.
  */
 internal class PluginTerminalLauncher(
+	private val runner: AgentRunner = AgentRunner.termux,
+	private val requests: TerminalCommandRequests = TerminalCommandRequests.shared,
+	private val router: CommandIntentRouter = CommandIntentRouter.shared,
 	private val foregroundActivity: () -> Activity?,
 ) : TerminalSessionLauncher {
 	private val mainHandler = Handler(Looper.getMainLooper())
 
-	override fun launch(
+	override suspend fun launch(
 		command: String,
 		workingDirectory: File?,
-		sessionName: String,
-		onResult: (TerminalCommandResult) -> Unit,
-	): () -> Unit {
+		pluginId: String,
+		sessionLabel: String,
+	): LaunchedTerminalCommand {
+		val workDir = workingDirectory?.absolutePath
+		val id = withContext(Dispatchers.IO) { runner.prepare(command, workDir) }
+		// Nothing suspends from here on, so a command handed to the Terminal is always returned.
+		val launched = Launched(id)
+		mainHandler.post { open(id, workDir, pluginId, sessionLabel, launched) }
+		return launched
+	}
+
+	override suspend fun read(
+		pluginId: String,
+		commandId: String,
+	): TerminalCommandResult? = onMain { requests.read(pluginId, commandId)?.toResult() }
+
+	override suspend fun interrupt(
+		pluginId: String,
+		commandId: String,
+	): Deferred<TerminalCommandResult>? = onMain { (requests.interrupt(pluginId, commandId) as? Launched)?.result }
+
+	private suspend fun <T> onMain(block: () -> T): T = withContext(Dispatchers.Main) { block() }
+
+	private fun open(
+		id: String,
+		workingDirectory: String?,
+		pluginId: String,
+		sessionLabel: String,
+		listener: TerminalCommandListener,
+	) {
+		requests.enqueue(id, workingDirectory, pluginId, listener, sessionLabel)
+
 		// Android blocks activity starts from the background, so a plugin can only open the
 		// Terminal while the IDE is on screen. foregroundActivity() still returns a backgrounded
 		// activity (it is cleared only on finish or destroy), and a blocked start throws nothing,
 		// so check the activity is at least STARTED or the plugin waits out OPEN_TIMEOUT_MS.
 		val activity = foregroundActivity()?.takeIf { it.isStarted() }
 		if (activity == null) {
-			onResult(TerminalCommandResult.NotStarted("Code On the Go is not in the foreground"))
-			return {}
+			requests.withdraw(id, TerminalStartFailure.NotInForeground)
+			return
 		}
 
-		val requestId =
-			TerminalCommandRequests.enqueue(
-				command = command,
-				workingDirectory = workingDirectory?.absolutePath,
-				sessionName = sessionName,
-				onExit = { exitCode, transcript -> onResult(TerminalCommandResult.Completed(exitCode, transcript)) },
-				onNotStarted = { reason -> onResult(TerminalCommandResult.NotStarted(reason)) },
-			)
-		val intent =
-			Intent(activity, TerminalActivity::class.java)
-				.putExtra(TerminalCommandRequests.EXTRA_COMMAND_REQUEST_ID, requestId)
-				.applyMultiWindowFlags(activity)
+		val intent = router.putRequestId(Intent(activity, TerminalActivity::class.java), id).applyMultiWindowFlags(activity)
 		try {
 			activity.startActivity(intent)
 		} catch (e: Exception) {
 			logger.error("Failed to open the Terminal for a plugin command", e)
-			if (TerminalCommandRequests.withdraw(requestId)) {
-				onResult(TerminalCommandResult.NotStarted("The Terminal could not be opened: ${e.message}"))
-			}
-			return {}
+			requests.withdraw(id, TerminalStartFailure.TerminalNotOpened)
+			return
 		}
 
 		// The activity can fail to start or finish before its service connects; without this the
 		// plugin would wait forever for a session that never comes.
-		mainHandler.postDelayed({
-			if (TerminalCommandRequests.withdraw(requestId)) {
-				onResult(TerminalCommandResult.NotStarted("The Terminal did not open"))
-			}
-		}, OPEN_TIMEOUT_MS)
+		// Posted with the listener as its token, which removes it once the Terminal reports back.
+		HandlerCompat.postDelayed(
+			mainHandler,
+			{ requests.withdraw(id, TerminalStartFailure.TerminalDidNotOpen) },
+			listener,
+			OPEN_TIMEOUT_MS,
+		)
+	}
 
-		return { TerminalCommandRequests.cancel(requestId) }
+	/** Command [id] as the plugin service sees it, fed by the Terminal's reports on the main thread. */
+	private inner class Launched(
+		private val id: String,
+	) : LaunchedTerminalCommand,
+		TerminalCommandListener {
+		override val started = CompletableDeferred<Unit>()
+		override val result = CompletableDeferred<TerminalCommandResult>()
+
+		// Posted after the open in launch, so the command is queued by the time it is cancelled.
+		override fun interrupt() {
+			mainHandler.post { requests.cancel(id) }
+			// A command that ignores Ctrl-C would hold its session until the user ends it.
+			mainHandler.postDelayed({ requests.kill(id) }, KILL_GRACE_MS)
+		}
+
+		override suspend fun snapshot(): TerminalCommandResult.Running? = onMain { requests.snapshot(id)?.toResult() }
+
+		override fun onStarted(sessionName: String) {
+			cancelOpenTimeout()
+			started.complete(Unit)
+		}
+
+		override fun onExited(
+			exitCode: Int,
+			output: String,
+		) {
+			result.complete(TerminalCommandResult.Completed(exitCode, output))
+		}
+
+		override fun onNotStarted(reason: TerminalStartFailure) {
+			cancelOpenTimeout()
+			result.complete(TerminalCommandResult.NotStarted(reason.message))
+		}
+
+		private fun cancelOpenTimeout() = mainHandler.removeCallbacksAndMessages(this)
 	}
 
 	private fun Activity.isStarted(): Boolean =
@@ -82,5 +149,16 @@ internal class PluginTerminalLauncher(
 		private val logger = LoggerFactory.getLogger(PluginTerminalLauncher::class.java)
 
 		const val OPEN_TIMEOUT_MS = 15_000L
+
+		// How long an interrupted command has to exit before its session is ended.
+		const val KILL_GRACE_MS = 5_000L
+
+		fun CommandState.Running.toResult() = TerminalCommandResult.Running(commandId, sessionName, output)
+
+		fun CommandState.toResult(): TerminalCommandResult =
+			when (this) {
+				is CommandState.Running -> toResult()
+				is CommandState.Exited -> TerminalCommandResult.Completed(exitCode, output)
+			}
 	}
 }
