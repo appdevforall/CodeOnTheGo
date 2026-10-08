@@ -120,9 +120,4 @@ internal class PluginSessionPool(
 		byOwner.values.removeAll { it.isEmpty() }
 		return session
 	}
-
-	fun sessionsOf(owner: String): List<PluginSession> = byOwner[owner].orEmpty()
-
-	/** The plugins with a session open. */
-	val owners: Set<String> get() = byOwner.keys
 }

@@ -55,15 +55,7 @@ class PluginSessionPoolTest {
 		open -= busy.terminal
 
 		assertThat(slot()).isEqualTo(PluginSessionPool.Slot.Free("p 1"))
-		assertThat(pool.sessionsOf("p")).isEmpty()
-		assertThat(pool.owners).isEmpty()
-	}
-
-	@Test
-	fun lookingForASlotAddsNoPlugin() {
-		slot()
-
-		assertThat(pool.owners).isEmpty()
+		assertThat(pool.find(busy.terminal)).isNull()
 	}
 
 	@Test
@@ -89,7 +81,6 @@ class PluginSessionPoolTest {
 		assertThat(pool.remove(session.terminal)).isSameInstanceAs(session)
 		assertThat(pool.find(session.terminal)).isNull()
 		assertThat(pool.remove(session.terminal)).isNull()
-		assertThat(pool.owners).isEmpty()
 	}
 
 	@Test

@@ -69,14 +69,8 @@ class TerminalCommand internal constructor(
 	internal var state: State = State.Queued
 
 	internal sealed interface State {
-		/** Waiting for the Terminal to claim it. */
+		/** Waiting for the Terminal to start it. */
 		data object Queued : State
-
-		/** Claimed by the Terminal, which has not started it yet. */
-		data object Claimed : State
-
-		/** Cancelled after it was claimed and before it started; it never will. */
-		data object Cancelled : State
 
 		data class Running(
 			val session: TerminalSession,
