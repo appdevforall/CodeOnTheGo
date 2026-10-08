@@ -80,6 +80,10 @@ class IdeTerminalServiceImpl(
 	private val running = ConcurrentHashMap.newKeySet<LaunchedTerminalCommand>()
 	private val waiting = ConcurrentHashMap.newKeySet<Job>()
 
+	// Set by cancelAll; a run still in its IO checks is not in [running] yet and must not launch after.
+	@Volatile
+	private var closed = false
+
 	override suspend fun isTerminalReady(): Boolean =
 		withContext(Dispatchers.IO) {
 			val bash = bashProvider()?.takeIf { it.canExecute() } ?: return@withContext false
@@ -119,6 +123,7 @@ class IdeTerminalServiceImpl(
 		if (notStarted != null) return TerminalCommandResult.NotStarted(notStarted)
 		val launcher = launcherProvider() ?: return TerminalCommandResult.NotStarted("The Terminal is not available")
 
+		if (closed) throw CancellationException(UNLOADED)
 		val launched = launcher.launch(command, workDir, pluginId, sessionLabel)
 		running += launched
 		launched.result.invokeOnCompletion { running -= launched }
@@ -127,6 +132,8 @@ class IdeTerminalServiceImpl(
 			val wait = coroutineContext.job
 			waiting += wait
 			try {
+				// Checked after joining [running] and [waiting]: cancelAll either sees this run or this run sees closed.
+				if (closed) throw CancellationException(UNLOADED)
 				withTimeoutOrNull(waitMillis.coerceAtLeast(0)) { launched.result.await() } ?: launched.stillRunning()
 			} catch (e: CancellationException) {
 				launched.interruptOnce()
@@ -139,9 +146,10 @@ class IdeTerminalServiceImpl(
 
 	/**
 	 * Interrupts this plugin's terminal commands, also those [runInTerminal] already returned as
-	 * running; each caller still waiting is cancelled.
+	 * running; each caller still waiting is cancelled, and so is any later call. Called on unload.
 	 */
 	fun cancelAll() {
+		closed = true
 		waiting.forEach { it.cancel() }
 		running.forEach { it.interruptOnce() }
 	}
@@ -195,6 +203,8 @@ class IdeTerminalServiceImpl(
 		private val log = LoggerFactory.getLogger(IdeTerminalServiceImpl::class.java)
 
 		private const val READY_TIMEOUT_MS = 5_000L
+
+		private const val UNLOADED = "Plugin unloaded"
 
 		@Volatile
 		private var sessionLauncher: TerminalSessionLauncher? = null
