@@ -44,6 +44,9 @@ open class JvmSymbolIndex(
 		 * produced by an older scanner get replaced. [KtFileMetadataIndex] shares it because a
 		 * source file's symbols are re-indexed only when its metadata row says so; dropping the
 		 * symbols alone would leave files recorded as indexed with no symbols.
+		 *
+		 * Version 3 keys extension callables by their receiver, stores the key in the payload, and
+		 * stops treating a top-level class with '$' in its name as nested.
 		 */
 		const val FORMAT_VERSION = 3
 

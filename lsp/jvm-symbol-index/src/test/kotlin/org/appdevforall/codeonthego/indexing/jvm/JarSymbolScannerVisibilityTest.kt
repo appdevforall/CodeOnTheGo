@@ -107,15 +107,6 @@ class JarSymbolScannerVisibilityTest {
 		assertThat(info.isStatic).isFalse()
 	}
 
-	@Test
-	fun `a nested class records its outer class`() {
-		val nested = scan("com/example/Outer\$Inner", Opcodes.ACC_PUBLIC).single()
-
-		assertThat(nested.shortName).isEqualTo("Inner")
-		assertThat(nested.isTopLevel).isFalse()
-		assertThat(nested.data.containingClassFqName).isEqualTo("com.example.Outer")
-	}
-
 	companion object {
 		/**
 		 * JUnit4 builds a fresh test instance per `@Test` method, so an instance-level `by lazy`
