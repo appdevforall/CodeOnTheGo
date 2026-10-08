@@ -50,4 +50,31 @@ class EditorViewModelSaveFlagTest {
 		viewModel.endFileSave()
 		assertThat(viewModel.areFilesSaving).isFalse()
 	}
+
+	@Test
+	fun givenNoSaveInFlight_whenAnActionIsDeferred_thenItRunsNow() {
+		var runs = 0
+		viewModel.whenNoSaves { runs++ }
+		assertThat(runs).isEqualTo(1)
+	}
+
+	@Test
+	fun givenOverlappingSaves_whenAnActionIsDeferred_thenItRunsOnceAfterTheLastFinishes() {
+		// A recreate defers releasing the old editors this way; releasing earlier would null the
+		// file an in-flight save is about to read.
+		var runs = 0
+		viewModel.beginFileSave()
+		viewModel.beginFileSave()
+		viewModel.whenNoSaves { runs++ }
+
+		viewModel.endFileSave()
+		assertThat(runs).isEqualTo(0)
+
+		viewModel.endFileSave()
+		assertThat(runs).isEqualTo(1)
+
+		viewModel.beginFileSave()
+		viewModel.endFileSave()
+		assertThat(runs).isEqualTo(1)
+	}
 }
