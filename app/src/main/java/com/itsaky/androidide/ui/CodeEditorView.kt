@@ -812,7 +812,7 @@ class CodeEditorView(
 
 	override fun onDetachedFromWindow() {
 		super.onDetachedFromWindow()
-		EventBus.getDefault().unregister(this)
+		if (EventBus.getDefault().isRegistered(this)) EventBus.getDefault().unregister(this)
 	}
 
 	override fun close() {
@@ -830,6 +830,7 @@ class CodeEditorView(
 	 */
 	fun release() {
 		codeEditorScope.cancelIfActive("Cancellation was requested")
+		if (EventBus.getDefault().isRegistered(this)) EventBus.getDefault().unregister(this)
 		debugClient.breakpoints.removeListener(this)
 		_binding?.editor?.release()
 		readWriteContext.use { }
