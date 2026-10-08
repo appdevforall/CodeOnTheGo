@@ -94,7 +94,8 @@ class IdeTerminalServiceImpl(
 	private val running = ConcurrentHashMap.newKeySet<LaunchedTerminalCommand>()
 	private val waiting = ConcurrentHashMap.newKeySet<Job>()
 
-	// Set by cancelAll; a run still in its IO checks is not in [running] yet and must not launch after.
+	// Set by cancelAll, cleared by reopen. A run still in its IO checks is not in [running] yet and
+	// must not launch after.
 	@Volatile
 	private var closed = false
 
@@ -161,7 +162,7 @@ class IdeTerminalServiceImpl(
 	/**
 	 * Interrupts this plugin's terminal commands, also those [runInTerminal] already returned as
 	 * running, and ends the sessions of those that ignore it; each caller still waiting is
-	 * cancelled, and so is any later call. Called on unload.
+	 * cancelled, and so is any later call until [reopen]. Called on disable and unload.
 	 */
 	fun cancelAll() {
 		closed = true
@@ -210,6 +211,11 @@ class IdeTerminalServiceImpl(
 			}
 		// A null snapshot means the command exited in between; its result is then on its way.
 		return ended ?: snapshot() ?: result.await()
+	}
+
+	/** Lets [runInTerminal] launch again after [cancelAll]. Called when the plugin is re-enabled. */
+	fun reopen() {
+		closed = false
 	}
 
 	companion object {
