@@ -159,8 +159,10 @@ class CodeEditorView(
 		private val log = LoggerFactory.getLogger(CodeEditorView::class.java)
 	}
 
+	// Held directly so removal doesn't depend on Lookup still holding the client (ADFA-5388).
+	private val debugClient = IDEDebugClientImpl.requireInstance()
+
 	init {
-		val debugClient = IDEDebugClientImpl.requireInstance()
 		debugClient.breakpoints.addListener(this)
 
 		_binding = LayoutCodeEditorBinding.inflate(LayoutInflater.from(context))
@@ -297,7 +299,7 @@ class CodeEditorView(
 	}
 
 	private fun resetBreakpointsInFile(file: File) {
-		val handler = IDEDebugClientImpl.requireInstance().breakpoints
+		val handler = debugClient.breakpoints
 
 		codeEditorScope.launch {
 			val breakpoints = handler.positionalBreakpointsInFile(file)
@@ -810,17 +812,27 @@ class CodeEditorView(
 
 	override fun onDetachedFromWindow() {
 		super.onDetachedFromWindow()
-		EventBus.getDefault().unregister(this)
+		if (EventBus.getDefault().isRegistered(this)) EventBus.getDefault().unregister(this)
 	}
 
 	override fun close() {
+		// Cancel first so a load still in codeEditorScope cannot reopen the document after the close.
 		codeEditorScope.cancelIfActive("Cancellation was requested")
-		IDEDebugClientImpl.getInstance()?.breakpoints?.removeListener(this)
-		_binding?.editor?.apply {
-			notifyClose()
-			release()
-		}
+		_binding?.editor?.notifyClose()
+		release()
+	}
 
+	/**
+	 * Drops what ties this editor to the activity, for a recreate that reopens the same file in a new
+	 * editor. Unlike [close] it does not tell the language server the file closed: that event can land
+	 * after the reopen. Callers must not release while a save may still be writing through
+	 * [readWriteContext].
+	 */
+	fun release() {
+		codeEditorScope.cancelIfActive("Cancellation was requested")
+		if (EventBus.getDefault().isRegistered(this)) EventBus.getDefault().unregister(this)
+		debugClient.breakpoints.removeListener(this)
+		_binding?.editor?.release()
 		readWriteContext.use { }
 	}
 
