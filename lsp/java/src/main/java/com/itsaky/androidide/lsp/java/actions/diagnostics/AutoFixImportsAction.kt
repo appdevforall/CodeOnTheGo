@@ -61,30 +61,22 @@ class AutoFixImportsAction : BaseJavaCodeAction() {
 		val path = data.requirePath()
 		val compiler = data.requireCompiler()
 		val importingPackage = StringSearch.packageName(path)
-		return compiler.compile(path).get { task ->
-			val classes = mutableMapOf<String, List<String>>()
-
-			// find all unresolved simple names
-			unresolvedNames(path, task).forEach { simpleName ->
-
-				// if we have already looked for this simple name
-				// we do not need to look it up again
-				if (classes[simpleName] != null) return@forEach
-
-				// find importable classes with those names, excluding those outside the file's
-				// package that aren't visible to it
-				compiler.findImportableQualifiedNames(simpleName, importingPackage).let { names ->
-
-					// if we find classes with that specific simple name, map them to the simple name
-					if (names.isNotEmpty()) {
-						classes[simpleName] = names
-					}
-				}
+		/*
+		 * Only the compile-tree reads run inside get(), which holds the compiler's task: Java completion
+		 * returns nothing while it is held, and the class lookups below wait on the index's disk I/O.
+		 */
+		val (fileImports, unresolved) =
+			compiler.compile(path).get { task ->
+				getFileImports(task, path) to unresolvedNames(path, task).distinct()
 			}
 
-			// return the result
-			Result(getFileImports(task, path), classes)
-		}
+		// Importable classes per unresolved simple name, leaving out those this file's package cannot see.
+		val classes =
+			unresolved
+				.associateWith { simpleName -> compiler.findImportableQualifiedNames(simpleName, importingPackage) }
+				.filterValues { it.isNotEmpty() }
+				.toMutableMap()
+		return Result(fileImports, classes)
 	}
 
 	override fun postExec(
