@@ -22,8 +22,9 @@ interface IdeTerminalService {
 	 * does not carry over to the next command. [workingDirectory] is absolute or relative to the
 	 * project root, and must lie inside it; null means the project root.
 	 *
-	 * Cancelling the calling coroutine interrupts the command with Ctrl-C. After [waitMillis] the
-	 * command keeps running and [TerminalCommandResult.Running] is returned.
+	 * Cancelling the calling coroutine, or unloading the plugin, interrupts the command with Ctrl-C,
+	 * and ends its session if it has not exited a few seconds later. After [waitMillis] the command
+	 * keeps running and [TerminalCommandResult.Running] is returned.
 	 *
 	 * Requires the SYSTEM_COMMANDS permission.
 	 *

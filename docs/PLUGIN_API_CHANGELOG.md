@@ -45,7 +45,9 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `TerminalCommandResult.Completed(exitCode, output)` with that command's output, `Running(sessionName,
   output)` when the command is still running after `waitMillis` (default 30 s; it keeps running), or
   `NotStarted(reason)` (environment missing, IDE not in the foreground, all 3 sessions busy, naming them).
-  Cancelling the caller interrupts the command with Ctrl-C. `readSession(sessionName)` returns the
+  Cancelling the caller, or unloading the plugin, interrupts the command with Ctrl-C and ends its
+  session if it has not exited a few seconds later. A session where the user started a program of
+  their own is busy. `readSession(sessionName)` returns the
   last command in one of the plugin's own sessions, `Running` or `Completed`, or null when it has
   no such session; a plugin cannot read another's sessions or the user's. `stopSession(sessionName,
   waitMillis)` interrupts that session's command with Ctrl-C and returns its state as `readSession`

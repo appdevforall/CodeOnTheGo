@@ -7,6 +7,9 @@ interface TerminalSessionFactory {
 	/** Whether [session] is still open and its shell running, so it can take another command. */
 	fun isOpen(session: TerminalSession): Boolean
 
+	/** The process group in the foreground of [session]'s terminal, or null if that cannot be told. */
+	fun foregroundProcessGroup(session: TerminalSession): Int?
+
 	/** Opens a visible session named [name] running bash with [bashArguments], or null if it cannot. */
 	fun open(
 		name: String,
@@ -15,11 +18,17 @@ interface TerminalSessionFactory {
 	): TerminalSession?
 }
 
-/** A Terminal session a plugin opened: the command it runs now, what that printed, and the last one that exited. */
+/**
+ * A Terminal session a plugin opened: the command it runs now, what that printed, and the last one
+ * that exited.
+ *
+ * @param name what the session was opened as, which the plugin addresses it by even after the user
+ *   renames it.
+ */
 internal class PluginSession(
 	val terminal: TerminalSession,
+	val name: String,
 ) {
-	val name: String get() = terminal.mSessionName
 
 	/** The command running here, or null while the session is idle. */
 	var command: TerminalCommand? = null
@@ -29,6 +38,15 @@ internal class PluginSession(
 
 	private var recorder: CommandRecorder? = null
 	private var lastExited: CommandState.Exited? = null
+
+	// The runner of the last command, which keeps the foreground for a moment after it reports its end.
+	private var lastRunnerPid: Int? = null
+
+	/**
+	 * Whether a line typed now reaches the session's shell rather than a program the user started in
+	 * it, given the terminal's [foreground] process group; null means it cannot be told.
+	 */
+	fun isAtPrompt(foreground: Int?): Boolean = foreground == null || foreground == terminal.pid || foreground == lastRunnerPid
 
 	fun begin(command: TerminalCommand) {
 		this.command = command
@@ -41,11 +59,15 @@ internal class PluginSession(
 		recorder = CommandRecorder.sizedLike(emulator).also { emulator?.setOutputTap(it) }
 	}
 
-	/** Ends the running command with [exitCode], and returns what it left behind. */
-	fun finish(exitCode: Int): CommandState.Exited {
+	/** Ends the running command with [exitCode], run by process [runnerPid], and returns what it left behind. */
+	fun finish(
+		exitCode: Int,
+		runnerPid: Int? = null,
+	): CommandState.Exited {
 		terminal.emulator?.setOutputTap(null)
 		val exited = CommandState.Exited(name, exitCode, output())
 		lastExited = exited
+		lastRunnerPid = runnerPid
 		command = null
 		recorder = null
 		return exited
@@ -74,25 +96,37 @@ internal class PluginSessionPool(
 			val name: String,
 		) : Slot
 
-		/** Every session runs a command and there is no room for another. */
+		/** Every session is busy, with a command or a program the user started, and there is no room for another. */
 		data class Full(
 			val busySessionNames: List<String>,
 		) : Slot
 	}
 
+	/** Forgets the sessions of [owner] that [isOpen] rejects, and returns them. */
+	fun prune(
+		owner: String,
+		isOpen: (TerminalSession) -> Boolean,
+	): List<PluginSession> {
+		val sessions = byOwner[owner] ?: return emptyList()
+		val closed = sessions.filterNot { isOpen(it.terminal) }
+		sessions -= closed.toSet()
+		// A plugin with no session left keeps no entry.
+		if (sessions.isEmpty()) byOwner -= owner
+		return closed
+	}
+
 	/**
-	 * Finds a slot for a command of [owner], first forgetting its sessions [isOpen] rejects. A new
-	 * session is named after [label]; names only need to be unique per owner.
+	 * Finds a slot for a command of [owner]. An idle session counts only if [isAtPrompt]; one where
+	 * the user started a program of their own is busy. A new session is named after [label]; names
+	 * only need to be unique per owner.
 	 */
 	fun slotFor(
 		owner: String,
 		label: String = owner,
-		isOpen: (TerminalSession) -> Boolean,
+		isAtPrompt: (PluginSession) -> Boolean = { true },
 	): Slot {
-		val sessions = byOwner[owner]?.apply { retainAll { isOpen(it.terminal) } }.orEmpty()
-		// A plugin with no session left keeps no entry.
-		if (sessions.isEmpty()) byOwner -= owner
-		sessions.firstOrNull { it.isIdle }?.let { return Slot.Idle(it) }
+		val sessions = byOwner[owner].orEmpty()
+		sessions.firstOrNull { it.isIdle && isAtPrompt(it) }?.let { return Slot.Idle(it) }
 		if (sessions.size >= maxPerPlugin) return Slot.Full(sessions.map { it.name })
 		val taken = sessions.mapTo(mutableSetOf()) { it.name }
 		return Slot.Free((1..maxPerPlugin).map { "$label $it" }.first { it !in taken })

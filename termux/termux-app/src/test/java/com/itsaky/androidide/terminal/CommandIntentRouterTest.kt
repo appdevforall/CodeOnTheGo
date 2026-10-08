@@ -19,6 +19,8 @@ class CommandIntentRouterTest {
 		object : TerminalSessionFactory {
 			override fun isOpen(session: TerminalSession) = true
 
+			override fun foregroundProcessGroup(session: TerminalSession): Int? = null
+
 			override fun open(
 				name: String,
 				bashArguments: Array<String>,

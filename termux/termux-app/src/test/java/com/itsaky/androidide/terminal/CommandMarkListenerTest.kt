@@ -10,10 +10,15 @@ import org.junit.Test
 class CommandMarkListenerTest {
 	private val pool = PluginSessionPool(maxPerPlugin = 1)
 	private val finished = mutableListOf<Pair<PluginSession, Int>>()
-	private val listener = CommandMarkListener(pool) { session, exitCode -> finished += session to exitCode }
+	private val runnerPids = mutableListOf<Int?>()
+	private val listener =
+		CommandMarkListener(pool) { session, exitCode, runnerPid ->
+			finished += session to exitCode
+			runnerPids += runnerPid
+		}
 
 	private val session =
-		PluginSession(mockk<TerminalSession>(relaxed = true).also { it.mSessionName = "p 1" }).also {
+		PluginSession(mockk(relaxed = true), "p 1").also {
 			pool.add("p", it)
 			it.begin(TerminalCommand("cmd", null, "p", mockk()))
 		}
@@ -23,7 +28,8 @@ class CommandMarkListenerTest {
 		id: String = "cmd",
 		exitCode: Int? = null,
 		terminal: TerminalSession = session.terminal,
-	) = listener.onShellIntegrationMark(terminal, ShellIntegrationMark(kind, exitCode, mapOf(AgentRunner.ID_OPTION to id)))
+		options: Map<String, String> = emptyMap(),
+	) = listener.onShellIntegrationMark(terminal, ShellIntegrationMark(kind, exitCode, mapOf(AgentRunner.ID_OPTION to id) + options))
 
 	@Test
 	fun finishedMarkReportsTheExitCode() {
@@ -37,6 +43,14 @@ class CommandMarkListenerTest {
 		mark(Kind.COMMAND_FINISHED)
 
 		assertThat(finished).containsExactly(session to CommandMarkListener.UNKNOWN_EXIT_CODE)
+	}
+
+	@Test
+	fun finishedMarkReportsTheRunnersPid() {
+		mark(Kind.COMMAND_FINISHED, exitCode = 0, options = mapOf(AgentRunner.PID_OPTION to "4242"))
+		mark(Kind.COMMAND_FINISHED, exitCode = 0, options = mapOf(AgentRunner.PID_OPTION to "not a pid"))
+
+		assertThat(runnerPids).containsExactly(4242, null).inOrder()
 	}
 
 	@Test

@@ -19,6 +19,7 @@ import com.itsaky.androidide.terminal.TerminalCommandRequests
 import com.itsaky.androidide.terminal.TerminalStartFailure
 import com.itsaky.androidide.utils.applyMultiWindowFlags
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -54,6 +55,11 @@ internal class PluginTerminalLauncher(
 		pluginId: String,
 		sessionName: String,
 	): TerminalCommandResult? = onMain { requests.read(pluginId, sessionName)?.toResult() }
+
+	override suspend fun interrupt(
+		pluginId: String,
+		sessionName: String,
+	): Deferred<TerminalCommandResult>? = onMain { (requests.interrupt(pluginId, sessionName) as? Launched)?.result }
 
 	private suspend fun <T> onMain(block: () -> T): T = withContext(Dispatchers.Main) { block() }
 
@@ -107,6 +113,8 @@ internal class PluginTerminalLauncher(
 		// Posted after the open in launch, so the command is queued by the time it is cancelled.
 		override fun interrupt() {
 			mainHandler.post { requests.cancel(id) }
+			// A command that ignores Ctrl-C would hold its session until the user ends it.
+			mainHandler.postDelayed({ requests.kill(id) }, KILL_GRACE_MS)
 		}
 
 		override suspend fun snapshot(): TerminalCommandResult.Running? = onMain { requests.snapshot(id)?.toResult() }
@@ -141,6 +149,9 @@ internal class PluginTerminalLauncher(
 		private val logger = LoggerFactory.getLogger(PluginTerminalLauncher::class.java)
 
 		const val OPEN_TIMEOUT_MS = 15_000L
+
+		// How long an interrupted command has to exit before its session is ended.
+		const val KILL_GRACE_MS = 5_000L
 
 		fun CommandState.Running.toResult() = TerminalCommandResult.Running(sessionName, output)
 
