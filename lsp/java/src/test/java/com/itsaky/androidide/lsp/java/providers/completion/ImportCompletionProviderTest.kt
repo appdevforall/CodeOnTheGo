@@ -12,6 +12,7 @@ import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.project.JavaModels
 import com.itsaky.androidide.projects.api.JavaModule
 import com.itsaky.androidide.projects.api.ModuleProject
+import com.itsaky.androidide.projects.util.BootClasspathProvider
 import com.itsaky.androidide.utils.Environment
 import io.mockk.every
 import io.mockk.mockk
@@ -101,10 +102,21 @@ class ImportCompletionProviderTest {
 	}
 
 	@Test
-	fun `without a module only the static keyword is offered`() {
-		val items = complete("", module = null, classpath = null, bootClasses = setOf("java.util.List"))
+	fun `without a module the boot classpath is still completed`() {
+		// Any real JAR stands in for android.jar; kotlin-stdlib is on the test classpath.
+		val bootJar =
+			File(
+				Unit::class.java.protectionDomain.codeSource.location
+					.toURI(),
+			).path
+		BootClasspathProvider.update(listOf(bootJar))
+		try {
+			val items = complete("kotlin.La", module = null, classpath = null)
 
-		assertThat(items.labels()).containsExactly("static")
+			assertThat(items.labels()).contains("Lazy")
+		} finally {
+			BootClasspathProvider.drop(bootJar)
+		}
 	}
 
 	@Test

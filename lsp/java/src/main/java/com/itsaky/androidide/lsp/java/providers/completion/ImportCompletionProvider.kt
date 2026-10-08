@@ -26,6 +26,7 @@ import com.itsaky.androidide.lsp.models.MatchLevel.CASE_SENSITIVE_EQUAL
 import com.itsaky.androidide.lsp.models.MatchLevel.NO_MATCH
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.util.BootClasspathProvider
+import com.itsaky.androidide.utils.ClassTrie
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.ElementKind.ANNOTATION_TYPE
@@ -98,9 +99,7 @@ class ImportCompletionProvider(
 		}
 
 		abortCompletionIfCancelled()
-		val module = compiler.module ?: return CompletionResult(list)
-
-		val children = importPathChildren(module)
+		val children = importPathChildren(compiler.module)
 		if (pkgName.isBlank()) {
 			// User is typing first segment of package name
 			// Javac APIs will not work here
@@ -235,8 +234,13 @@ class ImportCompletionProvider(
 		return list
 	}
 
-	private fun importPathChildren(module: ModuleProject) =
-		ImportPathChildren(module.compileJavaSourceClasses, compiler.classpathPackages(), BootClasspathProvider.getAllEntries())
+	// A file in no module has no sources or classpath of its own, but still completes boot classpath imports.
+	private fun importPathChildren(module: ModuleProject?) =
+		ImportPathChildren(
+			module?.compileJavaSourceClasses ?: ClassTrie(),
+			compiler.classpathPackages(),
+			BootClasspathProvider.getAllEntries(),
+		)
 
 	private fun addChildItems(
 		children: Sequence<Child>,
