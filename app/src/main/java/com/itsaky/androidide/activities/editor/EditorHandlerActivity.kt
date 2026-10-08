@@ -267,16 +267,18 @@ open class EditorHandlerActivity :
 	override fun preDestroy() {
 		// A recreate (dark mode, locale) destroys this instance without closing its editors, and their
 		// dispatcher job, EventBus registration and breakpoint listener kept it alive. Finishing closes
-		// them through doCloseAll() instead.
-		// ponytail: skipped while a save is in flight - release() would null the file it is about to
-		// read and drop the write - so a recreate mid-save still leaks this instance once.
-		if (!isDestroying && !editorViewModel.areFilesSaving) {
-			_binding
-				?.content
-				?.editorContainer
-				?.children
-				?.filterIsInstance<CodeEditorView>()
-				?.forEach { it.release() }
+		// them through doCloseAll() instead. Deferred while a save is in flight: release() nulls the
+		// file that save is about to read, which would drop the write.
+		if (!isDestroying) {
+			val editors =
+				_binding
+					?.content
+					?.editorContainer
+					?.children
+					?.filterIsInstance<CodeEditorView>()
+					?.toList()
+					.orEmpty()
+			editorViewModel.whenNoSaves { editors.forEach { it.release() } }
 		}
 		super.preDestroy()
 		// TSLanguageRegistry.instance is a process-wide singleton whose own KDoc says destroy() "must
@@ -1459,18 +1461,24 @@ open class EditorHandlerActivity :
 			// Off-main: debug builds install StrictMode's detectDiskReads on the main thread.
 			val existedBefore = withContext(Dispatchers.IO) { file.exists() }
 
+			// The save count goes up in the same main-thread section that captures the view, so a
+			// recreate cannot release it in between (preDestroy defers the release while saving).
+			// NonCancellable: a prompt cancellation on resume would drop the result and with it the
+			// matching endFileSave below.
 			val (view, alreadyClean) =
-				withContext(Dispatchers.Main.immediate) {
+				withContext(Dispatchers.Main.immediate + NonCancellable) {
 					val editor = getEditorForFile(file)
-					editor to (editor != null && !editor.isModified && existedBefore)
+					val clean = editor != null && !editor.isModified && existedBefore
+					if (editor != null && !clean) editorViewModel.beginFileSave()
+					editor to clean
 				}
 			if (view == null) {
 				outcome.set(FileSaveOutcome.NOT_OPEN)
 				return false
 			}
 
-			// Nothing to write. Returning before [performFileSave] keeps the saving flag from
-			// flapping true/false for a no-op, which SaveFileAction observes to enable itself.
+			// Nothing to write, and the save count was left alone above, so the saving flag does not
+			// flap true/false for a no-op, which SaveFileAction observes to enable itself.
 			if (alreadyClean) {
 				outcome.set(FileSaveOutcome.ALREADY_CLEAN)
 				return true
@@ -1486,7 +1494,12 @@ open class EditorHandlerActivity :
 			// to prevent, reached by the cancellation path instead.
 			withContext(Dispatchers.IO + NonCancellable) {
 				val result = SaveResult()
-				val saved = performFileSave { saveEditorInternal(view, result) }
+				val saved =
+					try {
+						saveEditorInternal(view, result)
+					} finally {
+						endFileSave()
+					}
 				// Every claim that the content is on disk is checked against disk. Covers the
 				// corners where CodeEditorView.save returns false without writing and without
 				// the buffer being clean either - an archive extension, a null text.

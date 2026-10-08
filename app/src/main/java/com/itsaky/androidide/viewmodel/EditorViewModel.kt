@@ -191,7 +191,21 @@ class EditorViewModel : ViewModel() {
 		activeSaveCount = (activeSaveCount - 1).coerceAtLeast(0)
 		if (activeSaveCount == 0) {
 			areFilesSaving = false
+			val actions = afterSaves.toList()
+			afterSaves.clear()
+			actions.forEach { it() }
 		}
+	}
+
+	private val afterSaves = mutableListOf<() -> Unit>()
+
+	/**
+	 * Runs [action] once no save is in flight: now, or when the last one finishes. Lives here for
+	 * the same reason as [activeSaveCount] - the save that drains the count may belong to either
+	 * side of a recreate. Main-thread confined.
+	 */
+	fun whenNoSaves(action: () -> Unit) {
+		if (activeSaveCount == 0) action() else afterSaves += action
 	}
 
 	var openedFilesCache: OpenedFilesCache?
