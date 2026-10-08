@@ -52,6 +52,14 @@ At 2.0, look for text cut off mid-word, labels overrunning their control, action
 
 See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for the module map, layering/data flow, dependency rules, tech stack (DI, async, persistence, networking), state management, and testing strategy. Don't re-document those here; update ARCHITECTURE.md.
 
+### Sibling repos
+
+CoGo depends on three other `appdevforall` repos; ARCHITECTURE.md (Sibling Repositories & Asset Provenance) explains how they feed the build.
+
+- **[addons](https://github.com/appdevforall/addons)** (public; formerly `plugin-examples`) - the plugins (`.cgp`) and templates published at `addons.appdevforall.org`.
+- **[dev-assets](https://github.com/appdevforall/dev-assets)** (private) - large binary blobs (SDK, bootstrap, Gradle, `core.cgt`, a copy of `documentation.db`) served at `appdevforall.org/dev-assets/`.
+- **[OfflineDocumentationTools](https://github.com/appdevforall/OfflineDocumentationTools)** (public) - the tooling that builds and edits `documentation.db` and owns its schema.
+
 ## Project-specific constraints
 
 - **Avoid new dependencies** — the build almost certainly already has what's needed. Check `gradle/libs.versions.toml` and `build.gradle.kts` first.

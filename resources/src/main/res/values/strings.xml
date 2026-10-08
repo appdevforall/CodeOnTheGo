@@ -320,6 +320,10 @@
 	<string name="classtype_enum">Enum</string>
 	<string name="lang_java">Java</string>
 	<string name="lang_kotlin">Kotlin</string>
+	<string name="lang_c">C</string>
+	<string name="lang_cpp">C++</string>
+	<string name="filetype_source">Source</string>
+	<string name="filetype_header">Header</string>
 	<string name="new_kotlin_class">New Kotlin class</string>
 	<string name="msg_failed_list_files">Failed to list project files</string>
 	<string name="msg_file_tree_drop_import_failed">Failed to import dropped files</string>
@@ -1041,8 +1045,8 @@
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
-	<string name="plugin_manager_title">Extensions Manager</string>
-	<string name="plugin_manager_summary">Manage IDE plugins and templates</string>
+	<string name="plugin_manager_title">Addons Manager</string>
+	<string name="plugin_manager_summary">Manage IDE addons</string>
 	<string name="msg_open_plugin_settings_failed">Could not open this plugin\'s settings</string>
 	<string name="plugins">Plugins</string>
 	<string name="no_plugins_installed">No plugins installed</string>
@@ -1508,7 +1512,7 @@
 	<string name="title_plugin_manager">Plugin Manager</string>
 
 	<!-- Combined Plugin/Template Manager screen (ADFA-4928) -->
-	<string name="title_manager">Plugins &amp; Templates</string>
+	<string name="title_manager">Addons Manager</string>
 	<string name="tab_plugins">Plugins</string>
 	<string name="tab_templates">Templates</string>
 	<string name="no_templates_found">No templates found</string>
