@@ -38,8 +38,7 @@ class CommandIntentRouter internal constructor(
 			requests.withdraw(id, TerminalStartFailure.TerminalClosed)
 			return null
 		}
-		val command = requests.claim(id) ?: return null
-		return requests.start(command, factory)
+		return requests.start(id, factory)
 	}
 
 	companion object {

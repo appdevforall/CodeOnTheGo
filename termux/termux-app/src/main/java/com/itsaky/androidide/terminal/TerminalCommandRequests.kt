@@ -10,7 +10,7 @@ import java.util.concurrent.Executor
  * The commands plugins asked to run in the visible Terminal, and the sessions they run in.
  *
  * The launcher [enqueue]s a command and opens the Terminal with its id, which [CommandIntentRouter]
- * then [claim]s and [start]s in an idle session of the plugin, or a new one. [CommandMarkListener]
+ * then [start]s in an idle session of the plugin, or a new one. [CommandMarkListener]
  * follows the runner's marks for where the command's output starts and that it exited;
  * [onSessionFinished] covers a session that dies first.
  *
@@ -39,13 +39,7 @@ class TerminalCommandRequests internal constructor(
 	}
 
 	/**
-	 * Takes queued command [id] for the Terminal, or returns null if it was already claimed or
-	 * withdrawn. One-shot, so an activity recreated with the same intent does not run it twice.
-	 */
-	fun claim(id: String): TerminalCommand? = commands[id]?.takeIf { it.state == State.Queued }?.also { it.state = State.Claimed }
-
-	/**
-	 * Withdraws command [id] if the Terminal has not claimed it, reporting [reason].
+	 * Withdraws command [id] if the Terminal has not started it, reporting [reason].
 	 *
 	 * @return true if it was withdrawn.
 	 */
@@ -59,24 +53,18 @@ class TerminalCommandRequests internal constructor(
 	}
 
 	/**
-	 * Runs claimed [command] in an idle session of its plugin, or in a new one from [factory] while
-	 * the plugin has room for one.
+	 * Runs queued command [id] in an idle session of its plugin, or in a new one from [factory] while
+	 * the plugin has room for one. One-shot, so an activity recreated with the same intent does not
+	 * run it twice.
 	 *
 	 * @return the session it runs in, or null if it does not run; the listener has been told why,
-	 *   unless the command was cancelled.
+	 *   unless it was not queued.
 	 */
 	fun start(
-		command: TerminalCommand,
+		id: String,
 		factory: TerminalSessionFactory,
 	): TerminalSession? {
-		when (command.state) {
-			State.Claimed -> Unit
-			State.Cancelled -> {
-				end(command)
-				return null
-			}
-			State.Queued, is State.Running, State.Ended -> return null
-		}
+		val command = commands[id]?.takeIf { it.state == State.Queued } ?: return null
 
 		val session =
 			when (val slot = pool.slotFor(command.owner, command.sessionLabel, factory::isOpen)) {
@@ -99,9 +87,8 @@ class TerminalCommandRequests internal constructor(
 		val command = commands[id] ?: return
 		when (val state = command.state) {
 			State.Queued -> end(command)
-			State.Claimed -> command.state = State.Cancelled
 			is State.Running -> state.session.write(ControlKeys.CTRL_C)
-			State.Cancelled, State.Ended -> Unit
+			State.Ended -> Unit
 		}
 	}
 
@@ -128,9 +115,6 @@ class TerminalCommandRequests internal constructor(
 		exited(session, terminal.exitStatus)
 		return true
 	}
-
-	/** The sessions plugin [owner] has open. */
-	internal fun sessionsOf(owner: String): List<TerminalSession> = pool.sessionsOf(owner).map { it.terminal }
 
 	private fun openSession(
 		command: TerminalCommand,

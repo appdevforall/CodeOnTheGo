@@ -104,14 +104,15 @@ class TerminalCommandRequestsTest {
 
 	private fun hasFiles(id: String) = File(tmp.root, "$id.cmd").exists() || File(tmp.root, "$id.dir").exists()
 
-	private fun start(id: String): Shell? = requests.start(requests.claim(id)!!, factory)?.let(shells::getValue)
+	private fun start(id: String): Shell? = requests.start(id, factory)?.let(shells::getValue)
 
 	@Test
-	fun claimIsOneShot() {
+	fun startIsOneShot() {
 		val id = enqueue()
 
-		assertThat(requests.claim(id)?.id).isEqualTo(id)
-		assertThat(requests.claim(id)).isNull()
+		assertThat(start(id)).isNotNull()
+		assertThat(start(id)).isNull()
+		assertThat(events).containsExactly("started test.plugin 1")
 	}
 
 	@Test
@@ -178,7 +179,6 @@ class TerminalCommandRequestsTest {
 		start(enqueue())
 
 		assertThat(opened.map { it.first }).containsExactly("test.plugin 1", "test.plugin 1")
-		assertThat(requests.sessionsOf("test.plugin")).hasSize(1)
 	}
 
 	@Test
@@ -221,21 +221,12 @@ class TerminalCommandRequestsTest {
 	}
 
 	@Test
-	fun cancelBeforeClaimMeansItNeverRuns() {
+	fun cancelBeforeStartMeansItNeverRuns() {
 		val id = enqueue()
 
 		requests.cancel(id)
 
-		assertThat(requests.claim(id)).isNull()
-	}
-
-	@Test
-	fun cancelBetweenClaimAndStartMeansItNeverRuns() {
-		val id = enqueue()
-		val command = requests.claim(id)!!
-		requests.cancel(id)
-
-		assertThat(requests.start(command, factory)).isNull()
+		assertThat(start(id)).isNull()
 		assertThat(opened).isEmpty()
 		assertThat(events).isEmpty()
 	}
@@ -281,7 +272,7 @@ class TerminalCommandRequestsTest {
 
 		assertThat(requests.onSessionFinished(shell.terminal)).isTrue()
 		assertThat(events.last()).isEqualTo("exited 137: \$ ./gradlew --version")
-		assertThat(requests.sessionsOf("test.plugin")).isEmpty()
+		assertThat(requests.read("test.plugin", "test.plugin 1")).isNull()
 	}
 
 	@Test
@@ -291,7 +282,7 @@ class TerminalCommandRequestsTest {
 		shell.runs(id, "", exitCode = 0)
 
 		assertThat(requests.onSessionFinished(shell.terminal)).isFalse()
-		assertThat(requests.sessionsOf("test.plugin")).isEmpty()
+		assertThat(requests.read("test.plugin", "test.plugin 1")).isNull()
 	}
 
 	@Test
@@ -300,13 +291,12 @@ class TerminalCommandRequestsTest {
 	}
 
 	@Test
-	fun withdrawOnlyTakesBackAnUnclaimedCommandAndReportsWhy() {
-		val claimed = enqueue()
-		requests.claim(claimed)
+	fun withdrawOnlyTakesBackAnUnstartedCommandAndReportsWhy() {
+		val started = enqueue().also(::start)
 
-		assertThat(requests.withdraw(claimed, TerminalStartFailure.TerminalDidNotOpen)).isFalse()
+		assertThat(requests.withdraw(started, TerminalStartFailure.TerminalDidNotOpen)).isFalse()
 		assertThat(requests.withdraw(enqueue(), TerminalStartFailure.TerminalDidNotOpen)).isTrue()
-		assertThat(events).containsExactly("not started ${TerminalStartFailure.TerminalDidNotOpen}")
+		assertThat(events).containsExactly("started test.plugin 1", "not started ${TerminalStartFailure.TerminalDidNotOpen}").inOrder()
 	}
 
 	@Test
@@ -348,15 +338,9 @@ class TerminalCommandRequestsTest {
 	@Test
 	fun commandsThatNeverRunLeaveNoFiles() {
 		val withdrawn = enqueuePrepared().also { requests.withdraw(it, TerminalStartFailure.NotInForeground) }
-		val cancelledQueued = enqueuePrepared().also(requests::cancel)
-		val cancelledClaimed =
-			enqueuePrepared().also {
-				val command = requests.claim(it)!!
-				requests.cancel(it)
-				requests.start(command, factory)
-			}
+		val cancelled = enqueuePrepared().also(requests::cancel)
 
-		assertThat(listOf(withdrawn, cancelledQueued, cancelledClaimed).filter(::hasFiles)).isEmpty()
+		assertThat(listOf(withdrawn, cancelled).filter(::hasFiles)).isEmpty()
 	}
 
 	@Test

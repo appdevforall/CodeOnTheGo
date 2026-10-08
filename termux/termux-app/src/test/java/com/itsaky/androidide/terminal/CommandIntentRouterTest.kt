@@ -67,7 +67,7 @@ class CommandIntentRouterTest {
 
 		assertThat(router.route(id, factory, screenClosing = true)).isNull()
 		assertThat(events).containsExactly("not started ${TerminalStartFailure.TerminalClosed}")
-		assertThat(requests.claim(id)).isNull()
+		assertThat(router.route(id, factory, screenClosing = false)).isNull()
 	}
 
 	@Test
