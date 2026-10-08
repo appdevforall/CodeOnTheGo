@@ -57,7 +57,7 @@ See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for th
 CoGo depends on three other `appdevforall` repos; ARCHITECTURE.md (Sibling Repositories & Asset Provenance) explains how they feed the build.
 
 - **[addons](https://github.com/appdevforall/addons)** (public; formerly `plugin-examples`) - the plugins (`.cgp`) and templates published at `addons.appdevforall.org`.
-- **[dev-assets](https://github.com/appdevforall/dev-assets)** (private) - large binary blobs (SDK, bootstrap, Gradle, `core.cgt`, a copy of `documentation.db`) served at `appdevforall.org/dev-assets/`.
+- **[dev-assets](https://github.com/appdevforall/dev-assets)** (private) - large binary blobs (SDK, bootstrap, Gradle, `core.cgt`, a copy of `documentation.db`) served at `dev-assets.appdevforall.org`.
 - **[OfflineDocumentationTools](https://github.com/appdevforall/OfflineDocumentationTools)** (public) - the tooling that builds and edits `documentation.db` and owns its schema.
 
 ## Project-specific constraints
