@@ -1853,9 +1853,9 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeTermin
 	public static final field DEFAULT_STOP_WAIT_MILLIS J
 	public static final field DEFAULT_WAIT_MILLIS J
 	public abstract fun isTerminalReady (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun readSession (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun readCommand (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun runInTerminal (Ljava/lang/String;Ljava/lang/String;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun stopSession (Ljava/lang/String;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun stopCommand (Ljava/lang/String;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeTerminalService$Companion {
@@ -1865,7 +1865,7 @@ public final class com/itsaky/androidide/plugins/services/IdeTerminalService$Com
 
 public final class com/itsaky/androidide/plugins/services/IdeTerminalService$DefaultImpls {
 	public static synthetic fun runInTerminal$default (Lcom/itsaky/androidide/plugins/services/IdeTerminalService;Ljava/lang/String;Ljava/lang/String;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static synthetic fun stopSession$default (Lcom/itsaky/androidide/plugins/services/IdeTerminalService;Ljava/lang/String;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun stopCommand$default (Lcom/itsaky/androidide/plugins/services/IdeTerminalService;Ljava/lang/String;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeThemeService {
@@ -2207,12 +2207,14 @@ public final class com/itsaky/androidide/plugins/services/TerminalCommandResult$
 }
 
 public final class com/itsaky/androidide/plugins/services/TerminalCommandResult$Running : com/itsaky/androidide/plugins/services/TerminalCommandResult {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$Running;
-	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$Running;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$Running;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$Running;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$Running;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/TerminalCommandResult$Running;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCommandId ()Ljava/lang/String;
 	public final fun getOutput ()Ljava/lang/String;
 	public final fun getSessionName ()Ljava/lang/String;
 	public fun hashCode ()I

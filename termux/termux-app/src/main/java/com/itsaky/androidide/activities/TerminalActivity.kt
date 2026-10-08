@@ -25,7 +25,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.terminal.CommandIntentRouter
-import com.itsaky.androidide.terminal.ForegroundProcessGroup
+import com.itsaky.androidide.terminal.ProcStat
 import com.itsaky.androidide.terminal.TerminalSessionFactory
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.allowThreadDiskReads
@@ -144,7 +144,7 @@ class TerminalActivity : TermuxActivity() {
         override fun isOpen(session: TerminalSession) = service.getIndexOfSession(session) >= 0 && session.isRunning
 
         override fun foregroundProcessGroup(session: TerminalSession) =
-            allowThreadDiskReads("/proc is in memory, not on disk") { ForegroundProcessGroup.of(session.pid) }
+            allowThreadDiskReads("/proc is in memory, not on disk") { ProcStat().foregroundProcessGroup(session.pid) }
 
         override fun open(name: String, bashArguments: Array<String>, workingDirectory: String?) =
             service.createTermuxSession(

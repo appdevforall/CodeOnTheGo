@@ -53,6 +53,14 @@ class AgentRunner(
 	}
 
 	/**
+	 * Takes back command [id] unless its runner already took it, so it never runs. Does file I/O, so
+	 * call it off the main thread.
+	 *
+	 * @return true if taken back; false if the runner took it first, or it was never prepared.
+	 */
+	fun withdraw(id: String): Boolean = File(directory, "$id.cmd").delete().also { if (it) File(directory, "$id.dir").delete() }
+
+	/**
 	 * Deletes the files of command [id], which will never run; the runner deletes them once it
 	 * reads them. Does file I/O, so call it off the main thread.
 	 */
@@ -62,10 +70,11 @@ class AgentRunner(
 	}
 
 	/**
-	 * The bash arguments of a new session: run command [id], then become a login shell for the
-	 * commands after it. The INT trap keeps that shell alive when Ctrl-C stops the command.
+	 * The bash arguments of a new session: run command [id], then become an interactive login shell
+	 * for the commands typed after it. Both are login shells, so every command starts with the
+	 * profile sourced. The INT trap keeps the first shell alive when Ctrl-C stops the command.
 	 */
-	fun firstRunArguments(id: String): Array<String> = arrayOf("-c", "trap : INT; bash \"$scriptPath\" \"\$1\"; exec bash -l", "cogo", id)
+	fun firstRunArguments(id: String): Array<String> = arrayOf("-l", "-c", "trap : INT; bash \"$scriptPath\" \"\$1\"; exec bash -l", "cogo", id)
 
 	/** What is typed into an idle session to run command [id]: clear the prompt line, then run it. */
 	fun typedRunLine(id: String): String = "${ControlKeys.CTRL_U}bash \"$scriptPath\" $id\r"

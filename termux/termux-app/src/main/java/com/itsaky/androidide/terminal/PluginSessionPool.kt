@@ -19,8 +19,7 @@ interface TerminalSessionFactory {
 }
 
 /**
- * A Terminal session a plugin opened: the command it runs now, what that printed, and the last one
- * that exited.
+ * A Terminal session a plugin opened: the command it runs now, and what that printed.
  *
  * @param name what the session was opened as, which the plugin addresses it by even after the user
  *   renames it.
@@ -36,25 +35,48 @@ internal class PluginSession(
 
 	val isIdle: Boolean get() = command == null
 
-	private var recorder: CommandRecorder? = null
-	private var lastExited: CommandState.Exited? = null
+	/** Whether the running command's run line was typed at the prompt, rather than given to a new session. */
+	var typed = false
+		private set
 
-	// The runner of the last command, which keeps the foreground for a moment after it reports its end.
-	private var lastRunnerPid: Int? = null
+	/** When the running command was handed to the session. */
+	var startedAt = 0L
+		private set
+
+	/**
+	 * The runner of the running command once it reported in, else of the last command, which keeps
+	 * the foreground for a moment after it reports its end.
+	 */
+	var runnerPid: Int? = null
+		private set
+
+	/** Since when the running command's runner has looked gone without reporting its end; null while it looks alive. */
+	var goneSince: Long? = null
+
+	private var recorder: CommandRecorder? = null
 
 	/**
 	 * Whether a line typed now reaches the session's shell rather than a program the user started in
 	 * it, given the terminal's [foreground] process group; null means it cannot be told.
 	 */
-	fun isAtPrompt(foreground: Int?): Boolean = foreground == null || foreground == terminal.pid || foreground == lastRunnerPid
+	fun isAtPrompt(foreground: Int?): Boolean = foreground == null || foreground == terminal.pid || foreground == runnerPid
 
-	fun begin(command: TerminalCommand) {
+	fun begin(
+		command: TerminalCommand,
+		typed: Boolean = false,
+		startedAt: Long = 0L,
+	) {
 		this.command = command
+		this.typed = typed
+		this.startedAt = startedAt
+		runnerPid = null
+		goneSince = null
 		recorder = null
 	}
 
-	/** Records what the running command prints from now on, rendered as this session renders it. */
-	fun startRecording() {
+	/** Records what the running command, run by process [runnerPid], prints from now on, rendered as this session renders it. */
+	fun startRecording(runnerPid: Int? = null) {
+		if (runnerPid != null) this.runnerPid = runnerPid
 		val emulator = terminal.emulator
 		recorder = CommandRecorder.sizedLike(emulator).also { emulator?.setOutputTap(it) }
 	}
@@ -65,16 +87,15 @@ internal class PluginSession(
 		runnerPid: Int? = null,
 	): CommandState.Exited {
 		terminal.emulator?.setOutputTap(null)
-		val exited = CommandState.Exited(name, exitCode, output())
-		lastExited = exited
-		lastRunnerPid = runnerPid
+		val exited = CommandState.Exited(checkNotNull(command).id, name, exitCode, output())
+		if (runnerPid != null) this.runnerPid = runnerPid
 		command = null
 		recorder = null
 		return exited
 	}
 
-	/** The running command and its output so far, else the last one that exited, else null. */
-	fun state(): CommandState? = if (isIdle) lastExited else CommandState.Running(name, output())
+	/** The running command and its output so far, or null while the session is idle. */
+	fun running(): CommandState.Running? = command?.let { CommandState.Running(it.id, name, output()) }
 
 	private fun output(): String = recorder?.output().orEmpty()
 }
@@ -132,18 +153,15 @@ internal class PluginSessionPool(
 		return Slot.Free((1..maxPerPlugin).map { "$label $it" }.first { it !in taken })
 	}
 
+	/** The sessions of [owner] running a command. */
+	fun busy(owner: String): List<PluginSession> = byOwner[owner].orEmpty().filterNot { it.isIdle }
+
 	fun add(
 		owner: String,
 		session: PluginSession,
 	) {
 		byOwner.getOrPut(owner) { mutableListOf() } += session
 	}
-
-	/** The open session of [owner] named [name]; never another plugin's. */
-	fun find(
-		owner: String,
-		name: String,
-	): PluginSession? = byOwner[owner]?.firstOrNull { it.name == name }
 
 	fun find(terminal: TerminalSession): PluginSession? = byOwner.values.firstNotNullOfOrNull { sessions -> sessions.firstOrNull { it.terminal == terminal } }
 

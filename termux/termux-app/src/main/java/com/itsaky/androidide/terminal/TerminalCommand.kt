@@ -39,17 +39,20 @@ interface TerminalCommandListener {
 	fun onNotStarted(reason: TerminalStartFailure)
 }
 
-/** The last command in one of a plugin's Terminal sessions. */
+/** A plugin's command in one of its Terminal sessions, running or exited. */
 sealed interface CommandState {
+	val commandId: String
 	val sessionName: String
 	val output: String
 
 	data class Running(
+		override val commandId: String,
 		override val sessionName: String,
 		override val output: String,
 	) : CommandState
 
 	data class Exited(
+		override val commandId: String,
 		override val sessionName: String,
 		val exitCode: Int,
 		override val output: String,

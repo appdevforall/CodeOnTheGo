@@ -1,5 +1,6 @@
 package com.itsaky.androidide.terminal
 
+import android.os.SystemClock
 import com.itsaky.androidide.terminal.TerminalCommand.State
 import com.termux.terminal.TerminalSession
 import kotlinx.coroutines.Dispatchers
@@ -12,20 +13,29 @@ import java.util.concurrent.Executor
  * The launcher [enqueue]s a command and opens the Terminal with its id, which [CommandIntentRouter]
  * then [start]s in an idle session of the plugin, or a new one. [CommandMarkListener]
  * follows the runner's marks for where the command's output starts and that it exited;
- * [onSessionFinished] covers a session that dies first.
+ * [onSessionFinished] covers a session that dies first, and [checkGone] a runner that never
+ * reports its end.
  *
  * Every method must be called on the main thread, where the sessions deliver their output.
  */
 class TerminalCommandRequests internal constructor(
 	private val runner: AgentRunner,
 	maxSessionsPerPlugin: Int,
-	/** Where file I/O runs, off the main thread. */
+	/** Where file and /proc I/O runs, off the main thread. */
 	private val io: Executor,
+	/** The main thread, where what that I/O found is acted on. */
+	private val main: Executor,
+	private val processes: ProcessProbe,
+	/** Milliseconds on a clock that never goes back. */
+	private val now: () -> Long,
 ) {
 	// Every command from enqueue until it ends.
 	private val commands = mutableMapOf<String, TerminalCommand>()
 	private val pool = PluginSessionPool(maxSessionsPerPlugin)
 	private val marks = CommandMarkListener(pool, ::exited)
+
+	// The last commands of each plugin that exited, by id, oldest first, for read after the session moved on.
+	private val exitedByOwner = mutableMapOf<String, LinkedHashMap<String, CommandState.Exited>>()
 
 	/** Queues command [id], which the runner prepared, for plugin [owner], whose new sessions are named after [sessionLabel]. */
 	fun enqueue(
@@ -66,10 +76,13 @@ class TerminalCommandRequests internal constructor(
 	): TerminalSession? {
 		val command = commands[id]?.takeIf { it.state == State.Queued } ?: return null
 		pool.prune(command.owner, factory::isOpen).forEach(::closed)
+		// Frees, for a later command, a session whose command will never report its end.
+		pool.busy(command.owner).forEach(::checkGone)
 
 		val atPrompt = { session: PluginSession -> session.isAtPrompt(factory.foregroundProcessGroup(session.terminal)) }
+		val slot = pool.slotFor(command.owner, command.sessionLabel, atPrompt)
 		val session =
-			when (val slot = pool.slotFor(command.owner, command.sessionLabel, atPrompt)) {
+			when (slot) {
 				is PluginSessionPool.Slot.Idle -> slot.session.also { it.terminal.write(runner.typedRunLine(command.id)) }
 				is PluginSessionPool.Slot.Free ->
 					openSession(command, slot.name, factory) ?: return notStarted(command, TerminalStartFailure.SessionNotCreated)
@@ -77,7 +90,7 @@ class TerminalCommandRequests internal constructor(
 					return notStarted(command, TerminalStartFailure.AllSessionsBusy(slot.busySessionNames))
 			}
 
-		session.begin(command)
+		session.begin(command, typed = slot is PluginSessionPool.Slot.Idle, startedAt = now())
 		session.terminal.setShellIntegrationListener(marks)
 		command.state = State.Running(session.terminal)
 		command.listener.onStarted(session.name)
@@ -103,31 +116,41 @@ class TerminalCommandRequests internal constructor(
 	}
 
 	/**
-	 * Interrupts with Ctrl-C the command running in plugin [owner]'s session [sessionName], whichever
-	 * caller started it.
+	 * Interrupts plugin [owner]'s command [id] with Ctrl-C if it runs, whichever caller started it.
 	 *
-	 * @return the listener of the command interrupted, or null if none runs there.
+	 * @return the listener of the command interrupted, or null if it does not run, or is another plugin's.
 	 */
 	fun interrupt(
 		owner: String,
-		sessionName: String,
+		id: String,
 	): TerminalCommandListener? {
-		val command = pool.find(owner, sessionName)?.command ?: return null
-		cancel(command.id)
+		val command = commands[id]?.takeIf { it.owner == owner } ?: return null
+		runningSession(id) ?: return null
+		cancel(id)
 		return command.listener
 	}
 
 	/** Command [id] and what it printed so far while it runs; null before it starts and after it ends. */
-	fun snapshot(id: String): CommandState.Running? {
+	fun snapshot(id: String): CommandState.Running? = runningSession(id)?.running()
+
+	// Each look at a running command also checks that it can still report its end.
+	private fun runningSession(id: String): PluginSession? {
 		val state = commands[id]?.state as? State.Running ?: return null
-		return pool.find(state.session)?.state() as? CommandState.Running
+		return pool.find(state.session)?.also(::checkGone)
 	}
 
-	/** The last command in plugin [owner]'s session [sessionName], or null if it has no command or no such session. */
+	/**
+	 * Plugin [owner]'s command [id]: running, or exited while among the plugin's last
+	 * [EXITED_KEPT_PER_PLUGIN] to exit. Null otherwise, and for another plugin's command.
+	 */
 	fun read(
 		owner: String,
-		sessionName: String,
-	): CommandState? = pool.find(owner, sessionName)?.state()
+		id: String,
+	): CommandState? {
+		if (commands[id]?.let { it.owner != owner } == true) return null
+		// After the snapshot, which can end a command whose runner is gone.
+		return snapshot(id) ?: exitedByOwner[owner]?.get(id)
+	}
 
 	/**
 	 * Called by the session clients when [terminal] exits. Returns true if it was running a plugin
@@ -147,6 +170,58 @@ class TerminalCommandRequests internal constructor(
 		return true
 	}
 
+	/**
+	 * Ends, with an unknown exit code, the command in [session] if it will never report its end: its
+	 * runner was killed, its output swallowed the end mark in an unfinished escape sequence, or a
+	 * `read` at the prompt took its typed run line. That holds once the shell has the terminal back
+	 * and the runner is gone; the ending lands on a later call, as the end mark may still be coming.
+	 */
+	private fun checkGone(session: PluginSession) {
+		val command = session.command ?: return
+		val shellPid = session.terminal.pid
+		val runnerPid = session.runnerPid
+		val typedAt = session.startedAt.takeIf { session.typed }
+		io.execute {
+			val found = runnerOf(command.id, shellPid, runnerPid, typedAt)
+			main.execute { onRunnerChecked(session, command, found) }
+		}
+	}
+
+	private enum class Runner { ALIVE, GONE, NEVER_STARTED }
+
+	// Off the main thread.
+	private fun runnerOf(
+		id: String,
+		shellPid: Int,
+		runnerPid: Int?,
+		typedAt: Long?,
+	): Runner {
+		if (processes.foregroundProcessGroup(shellPid) != shellPid) return Runner.ALIVE
+		if (runnerPid != null) return if (processes.parentOf(runnerPid) == shellPid) Runner.ALIVE else Runner.GONE
+		// The runner has not reported in. Only a typed run line can have gone elsewhere, and only
+		// once it had time to start is that worth checking.
+		if (typedAt == null || now() - typedAt < GONE_GRACE_MS) return Runner.ALIVE
+		return if (runner.withdraw(id)) Runner.NEVER_STARTED else Runner.ALIVE
+	}
+
+	private fun onRunnerChecked(
+		session: PluginSession,
+		command: TerminalCommand,
+		runner: Runner,
+	) {
+		// Ended meanwhile, by its end mark or otherwise.
+		if (session.command !== command) return
+		when (runner) {
+			Runner.ALIVE -> session.goneSince = null
+			Runner.NEVER_STARTED -> exited(session, CommandMarkListener.UNKNOWN_EXIT_CODE)
+			Runner.GONE -> {
+				// Its end mark may still be on its way from the session.
+				val since = session.goneSince ?: now().also { session.goneSince = it }
+				if (now() - since >= GONE_GRACE_MS) exited(session, CommandMarkListener.UNKNOWN_EXIT_CODE)
+			}
+		}
+	}
+
 	private fun openSession(
 		command: TerminalCommand,
 		name: String,
@@ -164,6 +239,9 @@ class TerminalCommandRequests internal constructor(
 	) {
 		val command = session.command ?: return
 		val exited = session.finish(exitCode, runnerPid)
+		val kept = exitedByOwner.getOrPut(command.owner) { LinkedHashMap() }
+		kept[command.id] = exited
+		while (kept.size > EXITED_KEPT_PER_PLUGIN) kept.remove(kept.keys.first())
 		end(command)
 		command.listener.onExited(exited.exitCode, exited.output)
 	}
@@ -188,8 +266,22 @@ class TerminalCommandRequests internal constructor(
 		/** Most sessions one plugin keeps open; a command while all of them are busy is refused. */
 		const val MAX_SESSIONS_PER_PLUGIN = 3
 
+		/** How many of a plugin's exited commands [read] still finds. */
+		const val EXITED_KEPT_PER_PLUGIN = 8
+
+		/** How long a command's runner must look gone, or a typed run line go unanswered, before the command is ended. */
+		const val GONE_GRACE_MS = 5_000L
+
 		/** The instance the plugin launcher, the intent router and the session clients share. */
 		@JvmField
-		val shared = TerminalCommandRequests(AgentRunner.termux, MAX_SESSIONS_PER_PLUGIN, Dispatchers.IO.asExecutor())
+		val shared =
+			TerminalCommandRequests(
+				AgentRunner.termux,
+				MAX_SESSIONS_PER_PLUGIN,
+				Dispatchers.IO.asExecutor(),
+				Dispatchers.Main.asExecutor(),
+				ProcStat(),
+				SystemClock::uptimeMillis,
+			)
 	}
 }

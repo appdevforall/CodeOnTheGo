@@ -187,8 +187,27 @@ class AgentRunnerTest {
 
 		run(id)
 
-		assertThat(File(tmp.root, "$id.cmd").exists()).isFalse()
-		assertThat(File(tmp.root, "$id.dir").exists()).isFalse()
+		assertThat(tmp.root.list()).asList().containsExactly("agent-run")
+	}
+
+	@Test
+	fun withdrawnCommandNeverRuns() {
+		val id = runner.prepare("echo ran", null)
+
+		assertThat(runner.withdraw(id)).isTrue()
+		val run = run(id)
+
+		assertThat(run.marks.map { it.kind }).containsExactly(ShellIntegrationMark.Kind.COMMAND_FINISHED)
+		assertThat(run.marks.single().exitCode).isEqualTo(1)
+		assertThat(tmp.root.list()).asList().containsExactly("agent-run")
+	}
+
+	@Test
+	fun commandTheRunnerTookCannotBeWithdrawn() {
+		val id = runner.prepare("true", null)
+		run(id)
+
+		assertThat(runner.withdraw(id)).isFalse()
 	}
 
 	@Test
@@ -198,11 +217,24 @@ class AgentRunnerTest {
 	}
 
 	@Test
-	fun firstRunArgumentsRunTheCommandThenALoginShell() {
-		assertThat(AgentRunner(File("/tmp"), "\$TMPDIR").firstRunArguments("3f2a"))
-			.asList()
-			.containsExactly("-c", "trap : INT; bash \"\$TMPDIR/agent-run\" \"\$1\"; exec bash -l", "cogo", "3f2a")
-			.inOrder()
+	fun firstCommandOfASessionSeesTheLoginProfile() {
+		// What a typed command inherits from the session's login shell.
+		File(tmp.root, ".bash_profile").writeText("export FROM_PROFILE=yes\n")
+		val id = runner.prepare("echo \"profile: \$FROM_PROFILE\"", null)
+
+		val process =
+			ProcessBuilder(listOf(BASH) + runner.firstRunArguments(id))
+				.apply {
+					environment()["HOME"] = tmp.root.path
+					environment().remove("FROM_PROFILE")
+				}.redirectErrorStream(true)
+				.start()
+		// The login shell the session becomes afterwards reads end-of-input and exits.
+		process.outputStream.close()
+		val output = process.inputStream.readBytes().toString(Charsets.UTF_8)
+		process.waitFor()
+
+		assertThat(output).contains("profile: yes")
 	}
 
 	private fun inode(file: File): Any = Files.getAttribute(file.toPath(), "unix:ino")
