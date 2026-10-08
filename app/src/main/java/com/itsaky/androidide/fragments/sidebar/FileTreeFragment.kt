@@ -19,16 +19,24 @@ package com.itsaky.androidide.fragments.sidebar
 import android.content.Context
 import android.os.Bundle
 import android.text.TextUtils
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import androidx.core.view.WindowInsetsCompat.Type.statusBars
+import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.transition.ChangeBounds
 import androidx.transition.TransitionManager
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.itsaky.androidide.R
+import com.itsaky.androidide.adapters.FileSearchAdapter
 import com.itsaky.androidide.adapters.viewholders.FileTreeViewHolder
 import com.itsaky.androidide.databinding.LayoutEditorFileTreeBinding
 import com.itsaky.androidide.dnd.FileDragError
@@ -46,15 +54,20 @@ import com.itsaky.androidide.tasks.TaskExecutor.executeAsync
 import com.itsaky.androidide.tasks.callables.FileTreeCallable
 import com.itsaky.androidide.tasks.callables.FileTreeCallable.SortFileName
 import com.itsaky.androidide.tasks.callables.FileTreeCallable.SortFolder
+import com.itsaky.androidide.utils.FileMatch
+import com.itsaky.androidide.utils.KeyboardUtils
 import com.itsaky.androidide.utils.doOnApplyWindowInsets
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
+import com.itsaky.androidide.viewmodel.FileSearchUiState
+import com.itsaky.androidide.viewmodel.FileSearchViewModel
 import com.itsaky.androidide.viewmodel.FileTreeViewModel
 import com.unnamed.b.atv.model.TreeNode
 import com.unnamed.b.atv.model.TreeNode.TreeNodeClickListener
 import com.unnamed.b.atv.model.TreeNode.TreeNodeLongClickListener
 import com.unnamed.b.atv.view.AndroidTreeView
+import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
@@ -80,6 +93,8 @@ class FileTreeFragment :
 		}
 
 	private val viewModel by viewModels<FileTreeViewModel>(ownerProducer = { requireActivity() })
+	private val searchViewModel by viewModels<FileSearchViewModel>()
+	private var searchAdapter: FileSearchAdapter? = null
 	private val fileDragStarter by lazy(LazyThreadSafetyMode.NONE) {
 		FileDragStarter(requireContext())
 	}
@@ -125,6 +140,7 @@ class FileTreeFragment :
 		savedInstanceState: Bundle?,
 	) {
 		super.onViewCreated(view, savedInstanceState)
+		setupSearch()
 		listProjectFiles()
 	}
 
@@ -136,9 +152,116 @@ class FileTreeFragment :
 		saveTreeState()
 
 		binding = null
+		searchAdapter = null
 		fileTreeView = null
 		treeRoot = null
 		_dropController = null
+	}
+
+	private fun setupSearch() {
+		val binding = binding!!
+		val adapter = FileSearchAdapter(::openSearchMatch)
+		searchAdapter = adapter
+		binding.searchResultsList.adapter = adapter
+		binding.searchInput.doAfterTextChanged { searchViewModel.onQueryChanged(it?.toString().orEmpty()) }
+		binding.searchInput.setOnEditorActionListener { _, actionId, event ->
+			val isEnter = actionId == EditorInfo.IME_ACTION_GO || event?.keyCode == KeyEvent.KEYCODE_ENTER
+			if (isEnter && event?.action != KeyEvent.ACTION_UP) {
+				openFilesForEnter()
+			}
+			isEnter
+		}
+
+		viewLifecycleOwner.lifecycleScope.launch {
+			viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+				launch { searchViewModel.isSearchOpen.collect { binding.searchLayout.isVisible = it } }
+				searchViewModel.uiState.collect(::renderSearch)
+			}
+		}
+	}
+
+	fun toggleSearch() {
+		val searchInput = binding?.searchInput ?: return
+		searchViewModel.toggleSearch()
+		if (searchViewModel.isSearchOpen.value) {
+			searchInput.post {
+				searchInput.requestFocus()
+				KeyboardUtils.showSoftInput(searchInput)
+			}
+		} else {
+			searchInput.text?.clear()
+			KeyboardUtils.hideSoftInput(searchInput)
+		}
+	}
+
+	private fun renderSearch(state: FileSearchUiState) {
+		val binding = binding ?: return
+		val isSearching = state !is FileSearchUiState.Inactive
+		binding.treeContainer.isVisible = !isSearching
+		binding.searchResults.isVisible = isSearching
+
+		when (state) {
+			FileSearchUiState.Inactive -> {
+				searchAdapter?.submitList(emptyList())
+			}
+
+			is FileSearchUiState.InvalidPattern -> {
+				binding.searchStatus.text = getString(R.string.msg_file_search_invalid_pattern, state.reason)
+				searchAdapter?.submitList(emptyList())
+			}
+
+			is FileSearchUiState.Results -> {
+				binding.searchStatus.text = searchStatus(state)
+				searchAdapter?.submitList(state.matches) { binding.searchResultsList.scrollToPosition(0) }
+			}
+		}
+	}
+
+	private fun searchStatus(state: FileSearchUiState.Results): String =
+		when {
+			state.matches.isEmpty() -> {
+				getString(R.string.msg_file_search_no_matches)
+			}
+
+			!state.isGlob -> {
+				getString(R.string.msg_file_search_enter_opens, state.filesOpenedByEnter.single().name)
+			}
+
+			state.exceedsOpenLimit -> {
+				getString(
+					R.string.msg_file_search_too_many,
+					state.matches.size,
+					FileSearchUiState.Results.MAX_FILES_OPENED_AT_ONCE,
+				)
+			}
+
+			else -> {
+				resources.getQuantityString(R.plurals.msg_file_search_enter_opens_all, state.matches.size, state.matches.size)
+			}
+		}
+
+	private fun openFilesForEnter() {
+		val state = searchViewModel.uiState.value as? FileSearchUiState.Results ?: return
+		openFiles(state.filesOpenedByEnter)
+	}
+
+	private fun openSearchMatch(match: FileMatch) {
+		val state = searchViewModel.uiState.value as? FileSearchUiState.Results ?: return
+		openFiles(listOf(state.fileOf(match)))
+	}
+
+	private fun openFiles(files: List<File>) {
+		if (files.isEmpty()) {
+			return
+		}
+		KeyboardUtils.hideSoftInput(binding!!.searchInput)
+		files.forEach(::postFileClick)
+	}
+
+	private fun postFileClick(file: File) {
+		val event = FileClickEvent(file)
+		event.put(Context::class.java, requireContext())
+		EventBus.getDefault().post(event)
 	}
 
 	fun saveTreeState() {
@@ -161,9 +284,7 @@ class FileTreeFragment :
 				listNode(node) { expandNode(node) }
 			}
 		}
-		val event = FileClickEvent(file)
-		event.put(Context::class.java, requireContext())
-		EventBus.getDefault().post(event)
+		postFileClick(file)
 	}
 
 	private fun updateChevron(node: TreeNode) {
