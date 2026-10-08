@@ -58,8 +58,8 @@ internal class IndexWorker(
 				) { (path, ktFile), cancelChecker ->
 					logger.debug("Indexing modified file: {}", path)
 					try {
+						// Not counted in sourceIndexCount: this runs on another coroutine, and an edit is not part of a pass.
 						indexSourceFile(project, ktFile, fileIndex, sourceIndex, cancelChecker)
-						sourceIndexCount++
 					} catch (e: AnalysisPreemptedException) {
 						// Preempted by higher-priority analysis; re-queue so the edit still gets indexed.
 						logger.debug("Indexing of modified file {} preempted; re-queueing", path)
