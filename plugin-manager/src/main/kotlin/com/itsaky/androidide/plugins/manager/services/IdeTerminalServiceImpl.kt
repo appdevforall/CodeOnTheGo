@@ -45,6 +45,17 @@ interface TerminalSessionLauncher {
 		pluginId: String,
 		sessionName: String,
 	): TerminalCommandResult?
+
+	/**
+	 * Interrupts with Ctrl-C the command running in session [sessionName] of plugin [pluginId],
+	 * whichever caller launched it.
+	 *
+	 * @return the command's result, which completes once it exits, or null when nothing runs there.
+	 */
+	suspend fun interrupt(
+		pluginId: String,
+		sessionName: String,
+	): Deferred<TerminalCommandResult>?
 }
 
 /** A command [TerminalSessionLauncher.launch] handed to the Terminal. */
@@ -55,7 +66,10 @@ interface LaunchedTerminalCommand {
 	/** [TerminalCommandResult.Completed] once the command exits, or [TerminalCommandResult.NotStarted]. */
 	val result: Deferred<TerminalCommandResult>
 
-	/** Interrupts the command with Ctrl-C, or withdraws it if no session has taken it yet. */
+	/**
+	 * Interrupts the command with Ctrl-C, and ends its session if it has not exited a few seconds
+	 * later; withdraws it if no session has taken it yet.
+	 */
 	fun interrupt()
 
 	/** The session the command runs in and its output so far; null before a session takes it or once it exited. */
@@ -146,7 +160,8 @@ class IdeTerminalServiceImpl(
 
 	/**
 	 * Interrupts this plugin's terminal commands, also those [runInTerminal] already returned as
-	 * running; each caller still waiting is cancelled, and so is any later call. Called on unload.
+	 * running, and ends the sessions of those that ignore it; each caller still waiting is
+	 * cancelled, and so is any later call. Called on unload.
 	 */
 	fun cancelAll() {
 		closed = true
@@ -169,12 +184,10 @@ class IdeTerminalServiceImpl(
 	): TerminalCommandResult? {
 		requireSystemCommands()
 		val launcher = launcherProvider() ?: return null
-		val command =
-			running.firstOrNull { it.snapshot()?.sessionName == sessionName }
-				?: return launcher.read(pluginId, sessionName)
-		// Not interruptOnce: it stays in [running], so a second stop, or unload, can Ctrl-C it again.
-		command.interrupt()
-		return withTimeoutOrNull(waitMillis.coerceAtLeast(0)) { command.result.await() }
+		// By session, not through [running]: the command may come from a cancelled caller, or from
+		// this plugin before it was reloaded.
+		val result = launcher.interrupt(pluginId, sessionName) ?: return launcher.read(pluginId, sessionName)
+		return withTimeoutOrNull(waitMillis.coerceAtLeast(0)) { result.await() }
 			?: launcher.read(pluginId, sessionName)
 	}
 

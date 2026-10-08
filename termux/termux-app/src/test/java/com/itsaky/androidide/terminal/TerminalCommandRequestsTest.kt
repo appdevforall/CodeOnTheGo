@@ -24,9 +24,14 @@ class TerminalCommandRequestsTest {
 	private val shells = mutableMapOf<TerminalSession, Shell>()
 	private val closed = mutableSetOf<TerminalSession>()
 
+	// What holds each terminal's foreground; a session missing here cannot be told.
+	private val foreground = mutableMapOf<TerminalSession, Int>()
+	private var nextPid = 100
+
 	/** A Terminal session as the registry sees it: marks and bytes arrive as the runner prints them. */
 	private class Shell(
 		name: String,
+		val pid: Int,
 		exitStatus: Int = 0,
 	) {
 		private var listener: TerminalSession.ShellIntegrationListener? = null
@@ -36,6 +41,7 @@ class TerminalCommandRequestsTest {
 			mockk<TerminalSession>(relaxed = true).also {
 				it.mSessionName = name
 				every { it.exitStatus } returns exitStatus
+				every { it.pid } returns pid
 				every { it.emulator } returns emulator
 				every { it.setShellIntegrationListener(any()) } answers { listener = firstArg() }
 				every { emulator.setOutputTap(any()) } answers { tap = firstArg() }
@@ -45,7 +51,15 @@ class TerminalCommandRequestsTest {
 			kind: Kind,
 			id: String,
 			exitCode: Int? = null,
-		) = listener!!.onShellIntegrationMark(terminal, ShellIntegrationMark(kind, exitCode, mapOf(AgentRunner.ID_OPTION to id)))
+			runnerPid: Int? = null,
+		) = listener!!.onShellIntegrationMark(
+			terminal,
+			ShellIntegrationMark(
+				kind,
+				exitCode,
+				mapOf(AgentRunner.ID_OPTION to id) + listOfNotNull(runnerPid?.let { AgentRunner.PID_OPTION to "$it" }),
+			),
+		)
 
 		fun prints(text: String) = text.toByteArray().forEach { tap?.onByte(it) }
 
@@ -54,10 +68,11 @@ class TerminalCommandRequestsTest {
 			id: String,
 			output: String,
 			exitCode: Int,
+			runnerPid: Int? = null,
 		) {
 			mark(Kind.OUTPUT_START, id)
 			prints(output)
-			mark(Kind.COMMAND_FINISHED, id, exitCode)
+			mark(Kind.COMMAND_FINISHED, id, exitCode, runnerPid)
 		}
 	}
 
@@ -65,13 +80,15 @@ class TerminalCommandRequestsTest {
 		object : TerminalSessionFactory {
 			override fun isOpen(session: TerminalSession) = session !in closed
 
+			override fun foregroundProcessGroup(session: TerminalSession) = foreground[session]
+
 			override fun open(
 				name: String,
 				bashArguments: Array<String>,
 				workingDirectory: String?,
 			): TerminalSession {
 				opened += name to bashArguments.toList()
-				return Shell(name).also { shells[it.terminal] = it }.terminal
+				return Shell(name, nextPid++).also { shells[it.terminal] = it }.terminal
 			}
 		}
 
@@ -182,6 +199,80 @@ class TerminalCommandRequestsTest {
 	}
 
 	@Test
+	fun idleSessionAtThePromptIsReused() {
+		val first = enqueue()
+		val shell = start(first)!!
+		shell.runs(first, "", exitCode = 0)
+		foreground[shell.terminal] = shell.pid
+
+		assertThat(start(enqueue())).isSameInstanceAs(shell)
+	}
+
+	@Test
+	fun idleSessionStillHeldByTheExitingRunnerIsReused() {
+		val first = enqueue()
+		val shell = start(first)!!
+		shell.runs(first, "", exitCode = 0, runnerPid = 4242)
+		foreground[shell.terminal] = 4242
+
+		assertThat(start(enqueue())).isSameInstanceAs(shell)
+	}
+
+	@Test
+	fun idleSessionRunningAProgramOfTheUsersIsNotTypedInto() {
+		val first = enqueue()
+		val shell = start(first)!!
+		shell.runs(first, "", exitCode = 0, runnerPid = 4242)
+		// The user started vim at the prompt the command left.
+		foreground[shell.terminal] = 5000
+
+		val second = enqueue()
+		val other = start(second)
+
+		assertThat(other).isNotSameInstanceAs(shell)
+		assertThat(opened.map { it.first }).containsExactly("test.plugin 1", "test.plugin 2").inOrder()
+		verify(exactly = 0) { shell.terminal.write(runner.typedRunLine(second)) }
+	}
+
+	@Test
+	fun busySessionThatLeftTheTerminalReportsItsCommandEnded() {
+		val id = enqueue()
+		val shell = start(id)!!
+		every { shell.terminal.exitStatus } returns 137
+		// Gone from the Terminal before it reported finishing.
+		closed += shell.terminal
+
+		start(enqueue())
+
+		assertThat(events).contains("exited 137: ")
+		assertThat(requests.snapshot(id)).isNull()
+		assertThat(opened.map { it.first }).containsExactly("test.plugin 1", "test.plugin 1")
+	}
+
+	@Test
+	fun busySessionThatLeftTheTerminalStillRunningReportsAnUnknownExit() {
+		val id = enqueue()
+		val shell = start(id)!!
+		every { shell.terminal.isRunning } returns true
+		closed += shell.terminal
+
+		start(enqueue())
+
+		assertThat(events).contains("exited ${CommandMarkListener.UNKNOWN_EXIT_CODE}: ")
+	}
+
+	@Test
+	fun renamedSessionIsStillTheOneItWasOpenedAs() {
+		val id = enqueue()
+		val shell = start(id)!!
+		shell.terminal.mSessionName = "server"
+
+		assertThat(requests.read("test.plugin", "test.plugin 1")).isEqualTo(CommandState.Running("test.plugin 1", ""))
+		assertThat(requests.interrupt("test.plugin", "test.plugin 1")).isSameInstanceAs(listener)
+		assertThat(requests.read("test.plugin", "server")).isNull()
+	}
+
+	@Test
 	fun marksOfAnotherCommandAreIgnored() {
 		val id = enqueue()
 		val shell = start(id)!!
@@ -242,6 +333,51 @@ class TerminalCommandRequestsTest {
 	}
 
 	@Test
+	fun killEndsTheSessionOfACommandThatIgnoredCtrlC() {
+		val id = enqueue()
+		val shell = start(id)!!
+		requests.cancel(id)
+
+		requests.kill(id)
+
+		verify { shell.terminal.finishIfRunning() }
+		every { shell.terminal.exitStatus } returns 137
+		assertThat(requests.onSessionFinished(shell.terminal)).isTrue()
+		assertThat(events.last()).isEqualTo("exited 137: ")
+	}
+
+	@Test
+	fun killLeavesASessionWhoseCommandExitedAlone() {
+		val id = enqueue()
+		val shell = start(id)!!
+		shell.runs(id, "^C\r\n", exitCode = 130)
+
+		requests.kill(id)
+
+		verify(exactly = 0) { shell.terminal.finishIfRunning() }
+	}
+
+	@Test
+	fun interruptBySessionSendsCtrlCAndReturnsTheCommandsListener() {
+		val shell = start(enqueue())!!
+
+		assertThat(requests.interrupt("test.plugin", "test.plugin 1")).isSameInstanceAs(listener)
+		verify { shell.terminal.write(ControlKeys.CTRL_C) }
+	}
+
+	@Test
+	fun interruptOfAnIdleOrUnknownOrAnotherPluginsSessionIsNull() {
+		val id = enqueue()
+		val shell = start(id)!!
+
+		assertThat(requests.interrupt("other.plugin", "test.plugin 1")).isNull()
+		assertThat(requests.interrupt("test.plugin", "test.plugin 2")).isNull()
+		shell.runs(id, "", exitCode = 0)
+		assertThat(requests.interrupt("test.plugin", "test.plugin 1")).isNull()
+		verify(exactly = 0) { shell.terminal.write(ControlKeys.CTRL_C) }
+	}
+
+	@Test
 	fun interruptedCommandReportsItsExitCodeAndLeavesTheSessionForTheNext() {
 		val id = enqueue()
 		val shell = start(id)!!
@@ -287,7 +423,7 @@ class TerminalCommandRequestsTest {
 
 	@Test
 	fun unrelatedSessionIsNotClaimed() {
-		assertThat(requests.onSessionFinished(Shell("user").terminal)).isFalse()
+		assertThat(requests.onSessionFinished(Shell("user", 1).terminal)).isFalse()
 	}
 
 	@Test

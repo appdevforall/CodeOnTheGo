@@ -10,6 +10,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
 
 /** Runs the real agent-run.sh with bash and reads its output the way the Terminal does. */
 class AgentRunnerTest {
@@ -141,6 +142,36 @@ class AgentRunnerTest {
 	}
 
 	@Test
+	fun marksGiveTheRunnersPid() {
+		val run = run(runner.prepare("true", null))
+
+		assertThat(run.marks.map { it.options[AgentRunner.PID_OPTION]?.toIntOrNull() }).doesNotContain(null)
+	}
+
+	@Test
+	fun preparingAgainLeavesAnUpToDateRunnerUntouched() {
+		runner.prepare("true", null)
+		val installed = inode(File(tmp.root, "agent-run"))
+
+		runner.prepare("true", null)
+
+		assertThat(inode(File(tmp.root, "agent-run"))).isEqualTo(installed)
+	}
+
+	@Test
+	fun staleRunnerIsReplacedWithoutCuttingShortARunReadingIt() {
+		val script = File(tmp.root, "agent-run").apply { writeText("echo old runner\n") }
+
+		script.inputStream().use { reading ->
+			runner.prepare("true", null)
+
+			// A bash already reading the old runner reads it to its end.
+			assertThat(reading.readBytes().toString(Charsets.UTF_8)).isEqualTo("echo old runner\n")
+		}
+		assertThat(script.readText()).contains("cogo-id")
+	}
+
+	@Test
 	fun discardRemovesTheCommandFiles() {
 		val id = runner.prepare("true", null)
 
@@ -173,6 +204,8 @@ class AgentRunnerTest {
 			.containsExactly("-c", "trap : INT; bash \"\$TMPDIR/agent-run\" \"\$1\"; exec bash -l", "cogo", "3f2a")
 			.inOrder()
 	}
+
+	private fun inode(file: File): Any = Files.getAttribute(file.toPath(), "unix:ino")
 
 	private companion object {
 		const val BASH = "/bin/bash"

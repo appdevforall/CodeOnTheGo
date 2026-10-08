@@ -3,13 +3,14 @@
 #
 # It reports to the Terminal with OSC 133 shell-integration marks, which the terminal does not
 # show: "C" where the command's output starts and "D;<exit code>" when it ends, Ctrl-C included.
-# Both carry cogo-id=<id>, so a mark the user's own shell prints is never taken for this command.
+# Both carry cogo-id=<id>, so a mark the user's own shell prints is never taken for this command,
+# and cogo-pid=<pid>, so the Terminal can tell this run still holds the foreground as it exits.
 
 id=$1
 dir=${0%/*}
 
 mark() {
-	printf '\033]133;%s;cogo-id=%s\007' "$1" "$id"
+	printf '\033]133;%s;cogo-id=%s;cogo-pid=%s\007' "$1" "$id" "$$"
 }
 
 # Set first, so every way out reports an exit code.

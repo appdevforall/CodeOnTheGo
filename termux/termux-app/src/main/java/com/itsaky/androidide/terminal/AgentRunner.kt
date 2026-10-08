@@ -2,6 +2,7 @@ package com.itsaky.androidide.terminal
 
 import com.termux.shared.termux.TermuxConstants
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 
 /**
@@ -31,10 +32,24 @@ class AgentRunner(
 		// Short, because a reused session shows it on the line that runs the command.
 		val id = UUID.randomUUID().toString().take(ID_LENGTH)
 		directory.mkdirs()
-		File(directory, SCRIPT_NAME).writeText(script)
+		installScript()
 		File(directory, "$id.cmd").writeText(command)
 		File(directory, "$id.dir").writeText(workingDirectory.orEmpty())
 		return id
+	}
+
+	// Written only when missing or stale, and then as a new file renamed over the old one: bash reads
+	// a script as it goes, so rewriting it in place would cut short a run in another session.
+	private fun installScript() {
+		val file = File(directory, SCRIPT_NAME)
+		if (file.isFile && file.readText() == script) return
+		val temp = File.createTempFile(SCRIPT_NAME, null, directory)
+		try {
+			temp.writeText(script)
+			if (!temp.renameTo(file)) throw IOException("Could not install $file")
+		} finally {
+			temp.delete()
+		}
 	}
 
 	/**
@@ -61,6 +76,9 @@ class AgentRunner(
 
 		/** The option on each of the runner's shell-integration marks naming the command. */
 		const val ID_OPTION = "cogo-id"
+
+		/** The option on each of the runner's shell-integration marks giving the runner's process id. */
+		const val PID_OPTION = "cogo-pid"
 
 		private val script: String by lazy {
 			checkNotNull(AgentRunner::class.java.getResource("agent-run.sh")) { "agent-run.sh is missing" }.readText()

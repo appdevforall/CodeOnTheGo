@@ -10,7 +10,7 @@ import com.termux.terminal.TerminalSession
  */
 internal class CommandMarkListener(
 	private val pool: PluginSessionPool,
-	private val onFinished: (session: PluginSession, exitCode: Int) -> Unit,
+	private val onFinished: (session: PluginSession, exitCode: Int, runnerPid: Int?) -> Unit,
 ) : TerminalSession.ShellIntegrationListener {
 	override fun onShellIntegrationMark(
 		terminal: TerminalSession,
@@ -23,13 +23,14 @@ internal class CommandMarkListener(
 
 		when (mark.kind) {
 			ShellIntegrationMark.Kind.OUTPUT_START -> session.startRecording()
-			ShellIntegrationMark.Kind.COMMAND_FINISHED -> onFinished(session, mark.exitCode ?: UNKNOWN_EXIT_CODE)
+			ShellIntegrationMark.Kind.COMMAND_FINISHED ->
+				onFinished(session, mark.exitCode ?: UNKNOWN_EXIT_CODE, mark.options[AgentRunner.PID_OPTION]?.toIntOrNull())
 			ShellIntegrationMark.Kind.PROMPT_START, ShellIntegrationMark.Kind.COMMAND_START -> Unit
 		}
 	}
 
 	companion object {
-		/** The exit code reported when a finished mark carries none. */
+		/** The exit code reported when a command's end gives none. */
 		const val UNKNOWN_EXIT_CODE = -1
 	}
 }

@@ -65,9 +65,11 @@ class TerminalCommandRequests internal constructor(
 		factory: TerminalSessionFactory,
 	): TerminalSession? {
 		val command = commands[id]?.takeIf { it.state == State.Queued } ?: return null
+		pool.prune(command.owner, factory::isOpen).forEach(::closed)
 
+		val atPrompt = { session: PluginSession -> session.isAtPrompt(factory.foregroundProcessGroup(session.terminal)) }
 		val session =
-			when (val slot = pool.slotFor(command.owner, command.sessionLabel, factory::isOpen)) {
+			when (val slot = pool.slotFor(command.owner, command.sessionLabel, atPrompt)) {
 				is PluginSessionPool.Slot.Idle -> slot.session.also { it.terminal.write(runner.typedRunLine(command.id)) }
 				is PluginSessionPool.Slot.Free ->
 					openSession(command, slot.name, factory) ?: return notStarted(command, TerminalStartFailure.SessionNotCreated)
@@ -92,6 +94,29 @@ class TerminalCommandRequests internal constructor(
 		}
 	}
 
+	/**
+	 * Ends the session of command [id] if it still runs, for a command that ignored [cancel]. The
+	 * session stays on screen, and [onSessionFinished] reports the command's end.
+	 */
+	fun kill(id: String) {
+		(commands[id]?.state as? State.Running)?.session?.finishIfRunning()
+	}
+
+	/**
+	 * Interrupts with Ctrl-C the command running in plugin [owner]'s session [sessionName], whichever
+	 * caller started it.
+	 *
+	 * @return the listener of the command interrupted, or null if none runs there.
+	 */
+	fun interrupt(
+		owner: String,
+		sessionName: String,
+	): TerminalCommandListener? {
+		val command = pool.find(owner, sessionName)?.command ?: return null
+		cancel(command.id)
+		return command.listener
+	}
+
 	/** Command [id] and what it printed so far while it runs; null before it starts and after it ends. */
 	fun snapshot(id: String): CommandState.Running? {
 		val state = commands[id]?.state as? State.Running ?: return null
@@ -110,9 +135,15 @@ class TerminalCommandRequests internal constructor(
 	 */
 	fun onSessionFinished(terminal: TerminalSession): Boolean {
 		val session = pool.remove(terminal) ?: return false
+		return closed(session)
+	}
+
+	// Reports the command [session] ran, if any, as ended with the session; true if there was one.
+	private fun closed(session: PluginSession): Boolean {
+		val terminal = session.terminal
 		terminal.setShellIntegrationListener(null)
 		if (session.isIdle) return false
-		exited(session, terminal.exitStatus)
+		exited(session, if (terminal.isRunning) CommandMarkListener.UNKNOWN_EXIT_CODE else terminal.exitStatus)
 		return true
 	}
 
@@ -123,15 +154,16 @@ class TerminalCommandRequests internal constructor(
 	): PluginSession? =
 		factory
 			.open(name, runner.firstRunArguments(command.id), command.workingDirectory)
-			?.let(::PluginSession)
+			?.let { PluginSession(it, name) }
 			?.also { pool.add(command.owner, it) }
 
 	private fun exited(
 		session: PluginSession,
 		exitCode: Int,
+		runnerPid: Int? = null,
 	) {
 		val command = session.command ?: return
-		val exited = session.finish(exitCode)
+		val exited = session.finish(exitCode, runnerPid)
 		end(command)
 		command.listener.onExited(exited.exitCode, exited.output)
 	}
