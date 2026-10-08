@@ -47,7 +47,8 @@ class IdeTerminalServiceImpl(
 	// Cancelled on unload: a command run from a scope the plugin never cancels would outlive it.
 	private val running = ConcurrentHashMap.newKeySet<CancellableContinuation<TerminalCommandResult>>()
 
-	// Set by cancelAll; a run still in its IO checks is not in [running] yet and must not launch after.
+	// Set by cancelAll, cleared by reopen. A run still in its IO checks is not in [running] yet and
+	// must not launch after.
 	@Volatile
 	private var closed = false
 
@@ -113,11 +114,16 @@ class IdeTerminalServiceImpl(
 
 	/**
 	 * Kills this plugin's terminal commands; each caller's [runInTerminal] is cancelled, and so is
-	 * any later call. Called on unload.
+	 * any later call until [reopen]. Called on disable and unload.
 	 */
 	fun cancelAll() {
 		closed = true
 		running.forEach { it.cancel() }
+	}
+
+	/** Lets [runInTerminal] launch again after [cancelAll]. Called when the plugin is re-enabled. */
+	fun reopen() {
+		closed = false
 	}
 
 	companion object {

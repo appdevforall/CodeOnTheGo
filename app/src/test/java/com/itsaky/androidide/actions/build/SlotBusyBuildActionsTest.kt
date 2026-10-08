@@ -30,9 +30,9 @@ import org.robolectric.RobolectricTestRunner
  * Run tasks and Sync project while Quick Build's eager prebuild holds the one Gradle slot.
  *
  * Both actions stay enabled for that internal build, because the user has no build running and a
- * greyed-out item gave no reason. A tap therefore reaches the action, and starting a second build
- * would throw BuildInProgressException, so the tap must flash the slot-busy message and start
- * nothing. Whether the flash is readable and the toolbar repaints is device-only.
+ * greyed-out item gave no reason. A tap therefore reaches the action, and the service would refuse
+ * a second build with a BUILD_IN_PROGRESS result, so the tap must flash the slot-busy message and
+ * start nothing. Whether the flash is readable and the toolbar repaints is device-only.
  */
 @RunWith(RobolectricTestRunner::class)
 class SlotBusyBuildActionsTest {

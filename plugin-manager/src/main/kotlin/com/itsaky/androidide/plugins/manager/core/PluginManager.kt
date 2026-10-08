@@ -1132,6 +1132,8 @@ class PluginManager private constructor(
 			return true
 		}
 
+		// The services outlive a disable, which closed the terminal service.
+		(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.reopen()
 		loadedPlugin.isEnabled = true
 		activateLoadedPlugin(loadedPlugin)
 		return if (loadedPlugin.isEnabled) {

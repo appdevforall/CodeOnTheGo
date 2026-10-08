@@ -191,4 +191,16 @@ class IdeTerminalServiceImplTest {
 
 		assertThat(launcher.launches).isEmpty()
 	}
+
+	@Test
+	fun reopenAfterCancelAllRunsAgain() {
+		// Disable then enable reuses the same service instance.
+		val service = service()
+		service.cancelAll()
+		service.reopen()
+
+		val result = await { service.runInTerminal("ls") }
+
+		assertThat(result).isEqualTo(TerminalCommandResult.Completed(0, "$ ls"))
+	}
 }

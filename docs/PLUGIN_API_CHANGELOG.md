@@ -55,6 +55,12 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `arguments` and `cancelBuild()` need `system.commands` and throw `SecurityException` without
   it. While the build runs, a sync or build the user starts is refused. Floor
   `plugin.min_ide_version` at `26.41`: an older IDE has neither method.
+- **added — List the project's Gradle tasks** _(ADFA-6373)_ **[verified]**
+  `IdeBuildService.getTasks()` returns the open project's tasks, root project and modules alike,
+  as `GradleTaskInfo(path, name, projectPath, group, description)`. It reflects the last sync:
+  empty before one or with no project open, and a task added since appears after the next.
+  Needs no permission. Floor `plugin.min_ide_version` at `26.41`: an older IDE has no such
+  method or class.
 - **breaking — `IdeBuildService.executeTasks(vararg String)` needs at least one task** _(ADFA-6373)_
   With no tasks it used to run the project's default tasks; it now completes with `false`
   without building. Name the tasks to run. A task name starting with `-` still completes with
