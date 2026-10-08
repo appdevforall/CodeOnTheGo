@@ -20,18 +20,17 @@ import kotlinx.coroutines.withTimeout
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
-import java.nio.file.Path
-import java.nio.file.Paths
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-class IdeCommandServiceImpl(
+class IdeCommandServiceImpl internal constructor(
 	private val pluginId: String,
 	private val permissions: Set<PluginPermission>,
 	private val projectRootProvider: () -> File?,
 	private val appFilesDir: File,
+	private val gradleTaskRunner: GradleTaskRunner = GradleTaskRunner(IdeBuildServiceImpl.getInstance()::startTasks),
 ) : IdeCommandService {
-	private val runningCommands = ConcurrentHashMap<String, CommandExecutionImpl>()
+	private val runningCommands = ConcurrentHashMap<String, RunningCommand>()
 
 	override fun executeCommand(
 		spec: CommandSpec,
@@ -41,56 +40,32 @@ class IdeCommandServiceImpl(
 		requireConcurrencyLimit()
 
 		val executionId = "$pluginId-${UUID.randomUUID()}"
-		val projectRoot = projectRootProvider()
-
-		val processBuilder =
-			when (spec) {
-				is CommandSpec.ShellCommand -> {
-					val workDir =
-						when {
-							spec.workingDirectory == null -> projectRoot
-							Paths.get(spec.workingDirectory).isAbsolute -> File(spec.workingDirectory)
-							else -> projectRoot?.let { File(it, spec.workingDirectory).canonicalFile }
-						}
-					validateWorkingDirectory(workDir)
-					ProcessBuilder(listOf(spec.executable) + spec.arguments).apply {
-						workDir?.let { directory(it) }
-						environment().putAll(spec.environment)
-					}
-				}
-
-				is CommandSpec.GradleTask -> {
-					val gradleWrapper =
-						projectRoot?.let { File(it, "gradlew") }
-							?: throw IllegalStateException("No project root available for Gradle task execution")
-					if (!gradleWrapper.exists()) {
-						throw IllegalStateException("Gradle wrapper not found at ${gradleWrapper.absolutePath}")
-					}
-					if (!gradleWrapper.canExecute()) {
-						throw IllegalStateException("Gradle wrapper is not executable: ${gradleWrapper.absolutePath}")
-					}
-					ProcessBuilder(listOf(gradleWrapper.absolutePath, spec.taskPath) + spec.arguments).apply {
-						directory(projectRoot)
-					}
-				}
-			}
-
-		processBuilder.redirectErrorStream(false)
-		TermuxProcessEnvironment.applyTo(processBuilder.environment(), appFilesDir)
-
 		val execution =
-			CommandExecutionImpl(
-				executionId = executionId,
-				processBuilder = processBuilder,
-				timeoutMs = timeoutMs,
-			)
+			when (spec) {
+				// Through the tooling server, never ./gradlew: a second daemon doubles Gradle's memory
+				// on the device, and its output would never reach the Build Output pane.
+				is CommandSpec.GradleTask -> GradleTaskExecution(executionId, spec, gradleTaskRunner, timeoutMs)
+
+				is CommandSpec.ShellCommand -> CommandExecutionImpl(executionId, shellProcess(spec), timeoutMs)
+			}
 		runningCommands[executionId] = execution
 		execution.start { runningCommands.remove(executionId) }
 		return execution
 	}
 
+	private fun shellProcess(spec: CommandSpec.ShellCommand): ProcessBuilder {
+		val workDir = resolvePluginWorkingDirectory(pluginId, projectRootProvider(), spec.workingDirectory)
+		return ProcessBuilder(listOf(spec.executable) + spec.arguments).apply {
+			workDir?.let { directory(it) }
+			environment().putAll(spec.environment)
+			redirectErrorStream(false)
+			TermuxProcessEnvironment.applyTo(environment(), appFilesDir)
+		}
+	}
+
 	override fun isCommandRunning(executionId: String): Boolean = runningCommands[executionId]?.isRunning() == true
 
+	// onComplete removes the entry: a GradleTask stays running until Gradle has stopped.
 	override fun cancelCommand(executionId: String): Boolean =
 		runningCommands[executionId]?.let {
 			it.cancel()
@@ -122,28 +97,23 @@ class IdeCommandServiceImpl(
 		}
 	}
 
-	private fun validateWorkingDirectory(dir: File?) {
-		if (dir == null) return
-		val projectRoot = projectRootProvider() ?: return
-		val normalizedDir = dir.canonicalFile.toPath()
-		val normalizedRoot = projectRoot.canonicalFile.toPath()
-		if (normalizedDir != normalizedRoot && !normalizedDir.startsWith(normalizedRoot)) {
-			throw SecurityException(
-				"Plugin $pluginId attempted to execute in directory outside project root: $normalizedDir",
-			)
-		}
-	}
-
 	companion object {
 		private const val MAX_CONCURRENT_COMMANDS = 3
 	}
+}
+
+internal interface RunningCommand : CommandExecution {
+	/** Starts the command; [onComplete] runs once it ends or is cancelled. */
+	fun start(onComplete: () -> Unit)
+
+	fun isRunning(): Boolean
 }
 
 private class CommandExecutionImpl(
 	override val executionId: String,
 	private val processBuilder: ProcessBuilder,
 	private val timeoutMs: Long,
-) : CommandExecution {
+) : RunningCommand {
 	private val outputChannel = Channel<CommandOutput>(capacity = Channel.UNLIMITED)
 	private val resultDeferred = CompletableDeferred<CommandResult>()
 	private val scope = CoroutineScope(Dispatchers.IO + Job())
@@ -151,9 +121,14 @@ private class CommandExecutionImpl(
 	private val stdoutBuilder = StringBuilder()
 	private val stderrBuilder = StringBuilder()
 
+	// Also run by cancel(): a cancel landing before the launched body starts skips its call.
+	@Volatile
+	private var onComplete: () -> Unit = {}
+
 	override val output: Flow<CommandOutput> = outputChannel.receiveAsFlow()
 
-	fun start(onComplete: () -> Unit) {
+	override fun start(onComplete: () -> Unit) {
+		this.onComplete = onComplete
 		scope.launch {
 			val startTime = System.currentTimeMillis()
 
@@ -240,9 +215,10 @@ private class CommandExecutionImpl(
 			)
 		}
 		scope.cancel()
+		onComplete()
 	}
 
-	fun isRunning(): Boolean = process?.isAlive == true
+	override fun isRunning(): Boolean = process?.isAlive == true
 
 	companion object {
 		private const val MAX_OUTPUT_BYTES = 10 * 1024 * 1024

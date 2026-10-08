@@ -39,6 +39,7 @@ import com.itsaky.androidide.eventbus.events.BuildStartedEvent
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.java.debug.JdwpOptions
 import com.itsaky.androidide.managers.ToolsManager
+import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -67,6 +68,7 @@ import com.itsaky.androidide.tooling.api.messages.result.BuildResult
 import com.itsaky.androidide.tooling.api.messages.result.GradleWrapperCheckResult
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_IN_PROGRESS
 import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
@@ -94,6 +96,7 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -111,10 +114,15 @@ class GradleBuildService :
 	private var mBinder: GradleServiceBinder? = null
 	private var isToolingServerStarted = false
 
-	// Volatile: written on the Tooling API's CompletableFuture pool, read cross-thread
-	// by Quick Build's slot pre-check.
+	// Atomic: two callers may race for the slot, and Quick Build's pre-check reads it cross-thread.
+	private val buildSlot = AtomicBoolean(false)
+
+	override val isBuildInProgress: Boolean
+		get() = buildSlot.get()
+
+	// Written only while the slot is held, by the build holding it.
 	@Volatile
-	override var isBuildInProgress = false
+	override var currentBuildId: BuildId? = null
 		private set
 
 	/**
@@ -237,8 +245,7 @@ class GradleBuildService :
 	/**
 	 * The RPC future of the build holding the slot, failed by [onServerExited]: the RPC layer never
 	 * completes a request whose server process died, and only that completion clears
-	 * [isBuildInProgress]. Never nulled - completing a finished future is a no-op, and a clear in
-	 * [markBuildAsFinished] would also run for a request rejected while another build still ran.
+	 * [isBuildInProgress]. Never nulled - completing a finished future is a no-op.
 	 */
 	@Volatile
 	private var pendingBuild: CompletableFuture<*>? = null
@@ -524,6 +531,8 @@ class GradleBuildService :
 		// tail is kept anyway: if that build FAILS it is the only copy of Gradle's reason,
 		// since the tooling API's own failure is a bare enum. See takeInternalBuildOutput.
 		internalBuildOutput.onLine(line, editorListener(), internalBuild.progressListener)
+		// A plugin's run reads its own lines here, not the pane, which holds whatever ran last.
+		IdeBuildServiceImpl.getInstance().onBuildOutput(line)
 	}
 
 	/**
@@ -817,7 +826,7 @@ class GradleBuildService :
 		checkServerStarted()
 		Objects.requireNonNull(params)
 		return try {
-			performBuildTasks(server!!.initialize(params))
+			performBuildTasks(refused = InitializeResult.Failure(BUILD_IN_PROGRESS)) { server!!.initialize(params) }
 		} catch (_: ScanPluginMissingException) {
 			log.info("Retrying initialization without --scan option...")
 			initializeProject(params)
@@ -836,7 +845,11 @@ class GradleBuildService :
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
 		checkServerStarted()
 
-		val future = performBuildTasks(server!!.executeTasks(message))
+		val future =
+			performBuildTasks(refused = TaskExecutionResult(false, BUILD_IN_PROGRESS)) {
+				currentBuildId = message.buildId
+				server!!.executeTasks(message)
+			}
 
 		return future.handle { result, exception ->
 			if (exception != null) {
@@ -856,9 +869,30 @@ class GradleBuildService :
 		return server!!.cancelCurrentBuild()
 	}
 
-	private fun <T> performBuildTasks(future: CompletableFuture<T>): CompletableFuture<T> {
+	private fun <T> performBuildTasks(
+		refused: T,
+		dispatch: () -> CompletableFuture<T>,
+	): CompletableFuture<T> {
+		// Claimed before the request is sent and released only by the build that claimed it, so a
+		// refused request can neither reach the tooling server nor free another build's slot.
+		if (!buildSlot.compareAndSet(false, true)) {
+			logBuildInProgress()
+			// Not null: markBuildAsFinished turns a failed build into null, and callers must tell a
+			// build that never started from one that failed.
+			return CompletableFuture.completedFuture(refused)
+		}
+		val future =
+			try {
+				dispatch()
+			} catch (e: Throwable) {
+				currentBuildId = null
+				buildSlot.set(false)
+				throw e
+			}
+		pendingBuild = future
+
 		return CompletableFuture
-			.runAsync { onPrepareBuildRequest(future) }
+			.runAsync { ensureTmpdir() }
 			.handleAsync { _, _ ->
 				try {
 					return@handleAsync future.get()
@@ -917,17 +951,6 @@ class GradleBuildService :
 		return false
 	}
 
-	private fun onPrepareBuildRequest(future: CompletableFuture<*>) {
-		checkServerStarted()
-		ensureTmpdir()
-		if (isBuildInProgress) {
-			logBuildInProgress()
-			throw BuildInProgressException()
-		}
-		isBuildInProgress = true
-		pendingBuild = future
-	}
-
 	@Throws(ToolingServerNotStartedException::class)
 	private fun checkServerStarted() {
 		if (!isToolingServerStarted()) {
@@ -948,7 +971,8 @@ class GradleBuildService :
 		result: T,
 		throwable: Throwable?,
 	): T {
-		isBuildInProgress = false
+		currentBuildId = null
+		buildSlot.set(false)
 		return result
 	}
 

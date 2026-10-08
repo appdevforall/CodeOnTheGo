@@ -21,10 +21,13 @@ import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeLogServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.EditorDecorationBridge
@@ -393,15 +396,14 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			setupBuildServiceProviders()
 			setupProjectManipulationProviders()
 			IdeLogServiceImpl.getInstance().setLogReader(LogsProvider::read)
+			IdeTerminalServiceImpl.setSessionLauncher(PluginTerminalLauncher { application.foregroundActivity })
 			logger.info("Plugin services configured successfully")
 		}
 	}
 
 	@OptIn(DelicateCoroutinesApi::class)
 	private fun setupBuildServiceProviders() {
-		val buildServiceImpl =
-			com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
-				.getInstance()
+		val buildServiceImpl = IdeBuildServiceImpl.getInstance()
 
 		// Provide runApp functionality
 		buildServiceImpl.setRunAppProvider { callback ->
@@ -423,7 +425,12 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 					val result = buildService.executeTasks(listOf("generateDebugSources")).get()
 
 					if (result == null || !result.isSuccessful) {
-						val errorMsg = result?.failure?.toString() ?: "Unknown error"
+						val errorMsg =
+							when (val failure = result?.failure) {
+								null -> "Unknown error"
+								TaskExecutionResult.Failure.BUILD_IN_PROGRESS -> IdeBuildServiceImpl.BUILD_IN_PROGRESS_REASON
+								else -> failure.toString()
+							}
 						logger.error("Gradle sync failed: {}", errorMsg)
 						callback.onComplete(false, "Gradle sync failed: $errorMsg")
 					} else {
