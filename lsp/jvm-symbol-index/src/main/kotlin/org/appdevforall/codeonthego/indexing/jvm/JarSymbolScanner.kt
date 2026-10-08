@@ -46,6 +46,7 @@ object JarSymbolScanner {
 		private var superName: String? = null
 		private var interfaces: Array<out String>? = null
 		private var isInnerClass = false
+		private var outerClassName: String? = null
 		private var classDeprecated = false
 
 		override fun visit(
@@ -57,7 +58,7 @@ object JarSymbolScanner {
 			interfaces: Array<out String>?,
 		) {
 			className = name
-			classFqName = name.replace('/', '.').replace('$', '.')
+			classFqName = name.replace('/', '.')
 			classAccess = access
 			this.superName = superName
 			this.interfaces = interfaces
@@ -67,15 +68,17 @@ object JarSymbolScanner {
 			packageName = if (lastSlash >= 0) name.substring(0, lastSlash).replace('/', '.') else ""
 
 			val afterPackage = if (lastSlash >= 0) name.substring(lastSlash + 1) else name
-			shortClassName = afterPackage.replace('$', '.')
-
-			isInnerClass = name.contains('$')
+			shortClassName = afterPackage
+			isInnerClass = false
+			outerClassName = null
 		}
 
 		/*
-		 * JVMS 4.1 forbids ACC_PRIVATE, ACC_PROTECTED and ACC_STATIC in a class file header, so javac
-		 * records a nested class's declared visibility and staticness only in its own InnerClasses
-		 * entry. ASM visits that entry before any member, so the member gates below see the real flags.
+		 * JVMS 4.7.6 gives every nested class an InnerClasses entry for itself, and a top-level class
+		 * none, so that entry, not a '$' in the name, decides nesting: `Foo$$ViewBinder` is top-level.
+		 * JVMS 4.1 also forbids ACC_PRIVATE, ACC_PROTECTED and ACC_STATIC in a class file header, so
+		 * the entry is the only record of a nested class's declared visibility and staticness. ASM
+		 * visits it before any member, so the member gates below see the real flags.
 		 */
 		override fun visitInnerClass(
 			name: String,
@@ -84,6 +87,10 @@ object JarSymbolScanner {
 			access: Int,
 		) {
 			if (name != className) return
+			isInnerClass = true
+			outerClassName = outerName
+			classFqName = className.replace('/', '.').replace('$', '.')
+			shortClassName = shortClassName.replace('$', '.')
 			classAccess = (classAccess and VISIBILITY_AND_STATIC_FLAGS.inv()) or (access and VISIBILITY_AND_STATIC_FLAGS)
 		}
 
@@ -128,7 +135,7 @@ object JarSymbolScanner {
 
 			val containingClass =
 				if (isInnerClass) {
-					className.substringBeforeLast('$')
+					outerClassName ?: className.substringBeforeLast('$')
 				} else {
 					""
 				}
