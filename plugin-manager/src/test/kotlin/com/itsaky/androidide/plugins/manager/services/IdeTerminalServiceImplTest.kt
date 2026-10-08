@@ -45,13 +45,14 @@ class IdeTerminalServiceImplTest {
 		launcher: TerminalSessionLauncher? = FakeLauncher(TerminalCommandResult.Completed(0, "$ ls")),
 		projectRoot: File? = tmp.root,
 		permissions: Set<PluginPermission> = setOf(PluginPermission.SYSTEM_COMMANDS),
+		launcherProvider: () -> TerminalSessionLauncher? = { launcher },
 	) = IdeTerminalServiceImpl(
 		pluginId = "test.plugin",
 		permissions = permissions,
 		projectRootProvider = { projectRoot },
 		appFilesDir = tmp.root,
 		bashProvider = { bash },
-		launcherProvider = { launcher },
+		launcherProvider = launcherProvider,
 	)
 
 	private fun <T> await(block: suspend () -> T): T = runBlocking { withTimeout(5_000) { block() } }
@@ -169,5 +170,25 @@ class IdeTerminalServiceImplTest {
 		}
 
 		assertThat(launcher.killed).isTrue()
+	}
+
+	@Test
+	fun cancelAllDuringTheChecksStopsTheLaunch() {
+		val launcher = FakeLauncher(result = null)
+		lateinit var service: IdeTerminalServiceImpl
+		// The launcher is looked up after the IO checks, just before launching: unload lands there.
+		service =
+			service(launcherProvider = {
+				service.cancelAll()
+				launcher
+			})
+
+		runBlocking {
+			val run = async { service.runInTerminal("sleep 100") }
+			withTimeout(5_000) { run.join() }
+			assertThat(run.isCancelled).isTrue()
+		}
+
+		assertThat(launcher.launches).isEmpty()
 	}
 }

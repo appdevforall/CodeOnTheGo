@@ -26,6 +26,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
 import com.itsaky.androidide.utils.EditorDecorationBridge
@@ -425,7 +426,12 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 					val result = buildService.executeTasks(listOf("generateDebugSources")).get()
 
 					if (result == null || !result.isSuccessful) {
-						val errorMsg = result?.failure?.toString() ?: "Unknown error"
+						val errorMsg =
+							when (val failure = result?.failure) {
+								null -> "Unknown error"
+								TaskExecutionResult.Failure.BUILD_IN_PROGRESS -> "another build is in progress"
+								else -> failure.toString()
+							}
 						logger.error("Gradle sync failed: {}", errorMsg)
 						callback.onComplete(false, "Gradle sync failed: $errorMsg")
 					} else {
