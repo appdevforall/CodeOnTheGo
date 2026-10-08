@@ -176,7 +176,10 @@ class DebuggerViewModel : ViewModel() {
 
 	override fun onCleared() {
 		super.onCleared()
-		Lookup.getDefault().unregister(IDEDebugClientImpl::class.java)
+		// Only our own client: an overlapping editor activity may already have registered its own.
+		if (Lookup.getDefault().lookup(IDEDebugClientImpl::class.java) === debugClient) {
+			Lookup.getDefault().unregister(IDEDebugClientImpl::class.java)
+		}
 		// The client registered itself with EventBus in its init block; without this the default
 		// EventBus keeps it, and through it this view model, for the life of the process.
 		debugClient.unregister()
