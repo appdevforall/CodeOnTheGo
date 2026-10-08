@@ -21,6 +21,7 @@ import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeLogServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
@@ -402,9 +403,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 	@OptIn(DelicateCoroutinesApi::class)
 	private fun setupBuildServiceProviders() {
-		val buildServiceImpl =
-			com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
-				.getInstance()
+		val buildServiceImpl = IdeBuildServiceImpl.getInstance()
 
 		// Provide runApp functionality
 		buildServiceImpl.setRunAppProvider { callback ->
@@ -429,7 +428,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 						val errorMsg =
 							when (val failure = result?.failure) {
 								null -> "Unknown error"
-								TaskExecutionResult.Failure.BUILD_IN_PROGRESS -> "another build is in progress"
+								TaskExecutionResult.Failure.BUILD_IN_PROGRESS -> IdeBuildServiceImpl.BUILD_IN_PROGRESS_REASON
 								else -> failure.toString()
 							}
 						logger.error("Gradle sync failed: {}", errorMsg)

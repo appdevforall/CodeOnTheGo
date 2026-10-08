@@ -5,6 +5,8 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import androidx.core.os.HandlerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import com.itsaky.androidide.activities.TerminalActivity
 import com.itsaky.androidide.plugins.manager.services.LaunchedTerminalCommand
 import com.itsaky.androidide.plugins.manager.services.TerminalSessionLauncher
@@ -71,8 +73,10 @@ internal class PluginTerminalLauncher(
 		requests.enqueue(id, workingDirectory, pluginId, listener, sessionLabel)
 
 		// Android blocks activity starts from the background, so a plugin can only open the
-		// Terminal while the IDE is on screen.
-		val activity = foregroundActivity()
+		// Terminal while the IDE is on screen. foregroundActivity() still returns a backgrounded
+		// activity (it is cleared only on finish or destroy), and a blocked start throws nothing,
+		// so check the activity is at least STARTED or the plugin waits out OPEN_TIMEOUT_MS.
+		val activity = foregroundActivity()?.takeIf { it.isStarted() }
 		if (activity == null) {
 			requests.withdraw(id, TerminalStartFailure.NotInForeground)
 			return
@@ -134,6 +138,12 @@ internal class PluginTerminalLauncher(
 
 		private fun cancelOpenTimeout() = mainHandler.removeCallbacksAndMessages(this)
 	}
+
+	private fun Activity.isStarted(): Boolean =
+		(this as? LifecycleOwner)
+			?.lifecycle
+			?.currentState
+			?.isAtLeast(Lifecycle.State.STARTED) == true
 
 	private companion object {
 		private val logger = LoggerFactory.getLogger(PluginTerminalLauncher::class.java)
