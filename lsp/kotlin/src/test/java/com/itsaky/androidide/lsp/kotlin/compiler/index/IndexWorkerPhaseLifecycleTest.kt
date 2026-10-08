@@ -30,6 +30,7 @@ import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.psi.KtFile
 import org.junit.After
 import org.junit.Test
+import java.nio.file.Path
 import java.util.Collections
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
@@ -225,6 +226,32 @@ class IndexWorkerPhaseLifecycleTest {
 				).inOrder()
 		}
 
+	@Test
+	fun `an edit re-indexed during a pass is not counted in that pass`(): Unit =
+		runBlocking {
+			Memprof.sink = sink
+			mockkStatic("com.itsaky.androidide.lsp.kotlin.compiler.index.SourceFileIndexerKt")
+			coEvery { indexSourceFile(any(), any(), any(), any(), any()) } answers { sink.events += "indexed edit" }
+			val editedFile = mockk<KtFile>()
+			every { editedFile.getUserData(any<Key<Path>>()) } returns Path.of("/project/src/Edited.kt")
+			val worker = worker()
+
+			worker.submitCommand(IndexCommand.SourceScanningStarted(pass = 1))
+			worker.submitCommand(IndexCommand.SourceScanningComplete(pass = 1))
+			worker.submitCommand(IndexCommand.IndexModifiedFile(editedFile))
+
+			withTimeout(5_000) {
+				val running = launch { worker.start() }
+				while ("indexed edit" !in sink.events) delay(10)
+				worker.submitCommand(IndexCommand.IndexingComplete(pass = 1))
+				while ("end phase source_index_complete" !in sink.events) delay(10)
+				worker.submitCommand(IndexCommand.Stop)
+				running.join()
+			}
+
+			assertThat(sink.values["source_index_complete.indexed"]).isEqualTo(0L)
+		}
+
 	private fun mockPsiManager(ktFile: KtFile?) {
 		val psiManager = mockk<PsiManager>()
 		every { psiManager.findFile(any()) } returns ktFile
@@ -241,6 +268,7 @@ class IndexWorkerPhaseLifecycleTest {
 
 	private class RecordingSink : MemprofSink {
 		val events: MutableList<String> = Collections.synchronizedList(mutableListOf())
+		val values: MutableMap<String, Long> = Collections.synchronizedMap(mutableMapOf())
 
 		override fun beginPhase(
 			title: String,
@@ -272,7 +300,9 @@ class IndexWorkerPhaseLifecycleTest {
 			override fun put(
 				key: String,
 				value: Long,
-			) = Unit
+			) {
+				values["$label.$key"] = value
+			}
 
 			// Idempotent, matching MemprofSpan's documented contract: once ended or abandoned,
 			// further calls do nothing.
