@@ -4,6 +4,7 @@ import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
+import org.appdevforall.codeonthego.indexing.api.requireDeclaredFields
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.collections.iterator
@@ -193,8 +194,9 @@ class InMemoryIndex<T : Indexable>(
 	 * has matches nothing rather than being ignored. The result is materialized under the read lock
 	 * so callers never iterate a set a concurrent writer is mutating.
 	 */
-	private fun resolveMatchingRows(query: IndexQuery): List<RowId> =
-		lock.read {
+	private fun resolveMatchingRows(query: IndexQuery): List<RowId> {
+		query.requireDeclaredFields(descriptor)
+		return lock.read {
 			var candidates: Set<RowId>? = null
 
 			if (query.key != null) {
@@ -241,6 +243,7 @@ class InMemoryIndex<T : Indexable>(
 
 			(candidates ?: rows.keys).toList()
 		}
+	}
 
 	/**
 	 * Rows whose [field] starts with [prefix], or `null` when [field] is not declared.
