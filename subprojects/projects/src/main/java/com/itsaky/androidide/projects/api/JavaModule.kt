@@ -46,18 +46,24 @@ class JavaModule(
 		}
 	}
 
-	private val classesJar by lazy {
-		var jar = File(delegate.buildDir, "libs/${delegate.name}.jar")
-		if (jar.exists()) {
-			return@lazy jar
+	/**
+	 * Returns this module's built JAR under `build/libs`, or a non-existent sentinel file when it
+	 * has not been built.
+	 *
+	 * Resolved on every call, since a build can create the JAR after the first lookup. Stats the
+	 * filesystem, so never call it on the main thread.
+	 */
+	fun getClassesJar(): File {
+		val libs = File(delegate.buildDir, "libs")
+		val named = File(libs, "${delegate.name}.jar")
+		if (named.exists()) {
+			return named
 		}
 
-		jar = File(delegate.buildDir, "libs")
+		return libs
 			.listFiles()
-			?.first { delegate.name?.let(it.name::startsWith) ?: false }
+			?.firstOrNull { delegate.name?.let(it.name::startsWith) ?: false }
 			?: File("module-jar-does-not-exist.jar")
-
-		return@lazy jar
 	}
 
 	override fun isInitialized(): Boolean = super.isInitialized()
@@ -84,7 +90,7 @@ class JavaModule(
 		return dirs
 	}
 
-	override fun getModuleClasspaths(): Set<File> = mutableSetOf(classesJar)
+	override fun getModuleClasspaths(): Set<File> = mutableSetOf(getClassesJar())
 
 	override fun getCompileClasspaths(
 		excludeSourceGeneratedClassPath: Boolean,

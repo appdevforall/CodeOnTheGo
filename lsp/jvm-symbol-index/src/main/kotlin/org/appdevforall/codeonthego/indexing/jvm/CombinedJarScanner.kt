@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
+import org.appdevforall.codeonthego.indexing.util.CloseableSequence
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VfsUtilCore
@@ -11,7 +12,9 @@ import org.jetbrains.org.objectweb.asm.Opcodes
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicReference
 import java.util.jar.JarFile
+import kotlin.io.path.notExists
 import kotlin.io.path.pathString
 
 /**
@@ -46,47 +49,70 @@ object CombinedJarScanner {
 			}
 		}
 
+	/**
+	 * Scans [jarPath], routing each class to [KotlinMetadataScanner] or [JarSymbolScanner].
+	 *
+	 * @throws UnreadableJarException if [jarPath] cannot be opened as a JAR (a truncated download,
+	 * corrupt file, etc.). A per-entry parse failure is logged and skipped instead, since the JAR as
+	 * a whole is still readable. A JAR that no longer exists (deleted after the caller listed it)
+	 * rethrows the open failure unwrapped instead, since the file is gone rather than unreadable.
+	 *
+	 * The JAR is opened on first iteration and closed when iteration ends. A consumer that may stop
+	 * part-way must [close][CloseableSequence.close] the result, or the JAR stays open until it is
+	 * garbage collected.
+	 */
 	fun scan(
 		jarPath: Path,
 		sourceId: String = jarPath.pathString,
-	): Sequence<JvmSymbol> =
-		sequence {
-			val jar =
-				try {
-					JarFile(jarPath.toFile())
-				} catch (e: Exception) {
-					log.warn("Failed to open JAR: {}", jarPath, e)
-					return@sequence
-				}
-
-			jar.use {
-				val entries = jar.entries()
-				while (entries.hasMoreElements()) {
-					val entry = entries.nextElement()
-					if (!isIndexableClassEntry(entry.name)) continue
-
+	): CloseableSequence<JvmSymbol> {
+		val opened = AtomicReference<JarFile?>()
+		val symbols =
+			sequence {
+				val jar =
 					try {
-						val bytes =
-							jar.getInputStream(entry).use { input ->
-								val buf = ByteArrayOutputStream(entry.size.toInt().coerceAtLeast(1024))
-								input.copyTo(buf)
-								buf.toByteArray()
-							}
-
-						val symbols =
-							if (hasKotlinMetadata(bytes)) {
-								KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
-							} else {
-								JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
-							}
-
-						symbols?.forEach { yield(it) }
+						JarFile(jarPath.toFile())
 					} catch (e: Exception) {
-						log.debug("Failed to parse {}: {}", entry.name, e.message)
+						if (jarPath.notExists()) throw e
+						throw UnreadableJarException(jarPath, e)
 					}
+				opened.set(jar)
+				scanEntries(jar, sourceId)
+			}
+		return CloseableSequence(symbols) { opened.getAndSet(null)?.close() }
+	}
+
+	private suspend fun SequenceScope<JvmSymbol>.scanEntries(
+		jar: JarFile,
+		sourceId: String,
+	) {
+		jar.use {
+			val entries = jar.entries()
+			while (entries.hasMoreElements()) {
+				val entry = entries.nextElement()
+				if (!isIndexableClassEntry(entry.name)) continue
+
+				try {
+					val bytes =
+						jar.getInputStream(entry).use { input ->
+							val buf = ByteArrayOutputStream(entry.size.toInt().coerceAtLeast(1024))
+							input.copyTo(buf)
+							buf.toByteArray()
+						}
+
+					val symbols =
+						if (hasKotlinMetadata(bytes)) {
+							KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
+						} else {
+							JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
+						}
+
+					symbols?.forEach { yield(it) }
+				} catch (e: Exception) {
+					log.debug("Failed to parse {}: {}", entry.name, e.message)
 				}
 			}
 		}
+	}
 
 	/*
 	 * Everything under META-INF is skipped. A multi-release JAR's META-INF/versions/<n>/ copy of a
@@ -120,3 +146,9 @@ object CombinedJarScanner {
 		return found
 	}
 }
+
+/** Thrown by [CombinedJarScanner.scan] when [path] cannot be opened as a JAR. */
+class UnreadableJarException(
+	val path: Path,
+	cause: Throwable,
+) : Exception("Failed to open JAR: $path", cause)

@@ -18,6 +18,9 @@ import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
+import org.appdevforall.codeonthego.indexing.api.PackageTree
+import org.appdevforall.codeonthego.indexing.api.packageWithAncestors
+import org.appdevforall.codeonthego.indexing.api.parentPackage
 import org.appdevforall.codeonthego.indexing.api.requireDeclaredFields
 import org.slf4j.LoggerFactory
 import kotlin.collections.iterator
@@ -35,6 +38,7 @@ import kotlin.collections.iterator
  *     f_{field2} TEXT,
  *     ...
  *     _payload BLOB NOT NULL,
+ *     _gen INTEGER NOT NULL DEFAULT 0,
  *     PRIMARY KEY (_source_id, _key)
  * );
  * ```
@@ -43,10 +47,30 @@ import kotlin.collections.iterator
  * JARs, say) has one row per source. The primary key leads with `_source_id`, which is what serves
  * source-scoped reads and bulk removal.
  *
+ * `_gen` is the [insertSource] pass that wrote the row. Re-indexing a source overwrites its rows in
+ * place and only then deletes the ones the pass did not write, so a reader never finds the source
+ * missing or half-loaded while it is re-indexed: it sees the old rows, the new ones, or both.
+ *
  * SQL indexes are created on:
  * - `(_key, _source_id)` (for key lookups, already ordered by source)
  * - Each `f_{field}` (for equality filter)
  * - Each `f_{field}_lower` (for prefix search)
+ *
+ * The [PackageTree] lives in a second table, filled from [IndexDescriptor.packageOf]:
+ * ```
+ * CREATE TABLE IF NOT EXISTS {name}_packages (
+ *     _source_id TEXT NOT NULL,
+ *     name TEXT NOT NULL,     -- full dotted name
+ *     parent TEXT NOT NULL,   -- '' for a root package
+ *     _gen INTEGER NOT NULL DEFAULT 0,
+ *     PRIMARY KEY (_source_id, name)
+ * ) WITHOUT ROWID;
+ * ```
+ * with an index on `(parent, _source_id)`, which serves both lookups. A batch writes its entries'
+ * packages and their ancestors in the same transaction as the entries, and removing a source
+ * removes its packages in the same transaction as its entries. A package row is only removed with
+ * its source or by an [insertSource] pass that no longer has it, so replacing a single entry with
+ * one in another package leaves the old package in place.
  *
  * When a query has a selective predicate (a key, a prefix, or a match on a
  * [selective][org.appdevforall.codeonthego.indexing.api.IndexField.selective] field), its source
@@ -84,7 +108,8 @@ class SQLiteIndex<T : Indexable>(
 	override val name: String = "sqlite:${descriptor.name}",
 	private val batchSize: Int = 500,
 	@param:VisibleForTesting internal val sourceIdChunkSize: Int = SOURCE_ID_CHUNK_SIZE,
-) : Index<T> {
+) : Index<T>,
+	PackageTree {
 	companion object {
 		private val log = LoggerFactory.getLogger(SQLiteIndex::class.java)
 
@@ -139,6 +164,9 @@ class SQLiteIndex<T : Indexable>(
 
 	/** One row per source that was indexed with a fingerprint, see [insertSource]. */
 	private val sourcesTableName = "${tableName}_sources"
+
+	/** One row per package per source, see [PackageTree]. */
+	private val packagesTableName = "${tableName}_packages"
 
 	/** Field column names: `f_{fieldName}`. */
 	private val fieldColumns =
@@ -294,13 +322,24 @@ class SQLiteIndex<T : Indexable>(
 			}
 		}
 
-	override suspend fun insertAll(entries: Sequence<T>) = insertBatched(entries, fingerprint = null)
+	override suspend fun insertAll(entries: Sequence<T>) = insertBatched(entries, pass = null)
 
+	/**
+	 * Replaces [sourceId]'s rows with [entries] without ever removing the source from view.
+	 *
+	 * The source's fingerprint is dropped first, then each batch overwrites rows in place under a
+	 * new generation, and the last transaction deletes the rows and packages of older generations and
+	 * records [fingerprint]. A pass that fails or is cancelled part-way leaves the old rows mixed with
+	 * the new and no fingerprint, so the next pass re-indexes the source.
+	 */
 	override suspend fun insertSource(
 		sourceId: String,
 		fingerprint: String,
 		entries: Sequence<T>,
-	) = insertBatched(entries, SourceFingerprint(sourceId, fingerprint))
+	) = withContext(Dispatchers.IO) {
+		val generation = ifOpen(null) { beginPassLocked(sourceId) } ?: return@withContext
+		insertBatched(entries, SourcePass(sourceId, fingerprint, generation))
+	}
 
 	override suspend fun sourceFingerprint(sourceId: String): String? =
 		withContext(Dispatchers.IO) {
@@ -313,10 +352,42 @@ class SQLiteIndex<T : Indexable>(
 			}
 		}
 
+	override fun subpackages(
+		parent: String,
+		sourceIds: Collection<String>?,
+	): Set<String> =
+		runBlocking {
+			ifOpen(emptySet()) {
+				val names = HashSet<String>()
+				for (chunk in sourceIdChunks(sourceIds)) {
+					val (sql, args) = buildSubpackagesQuery(parent, chunk)
+					db.query(sql, args.toTypedArray()).use {
+						while (it.moveToNext()) {
+							names.add(it.getString(0))
+						}
+					}
+				}
+				names
+			}
+		}
+
+	override fun containsPackage(
+		name: String,
+		sourceIds: Collection<String>?,
+	): Boolean =
+		runBlocking {
+			ifOpen(false) {
+				sourceIdChunks(sourceIds).any { chunk ->
+					val (sql, args) = buildContainsPackageQuery(name, chunk)
+					db.query(sql, args.toTypedArray()).use { it.moveToFirst() }
+				}
+			}
+		}
+
 	/**
 	 * Inserts [entries] in transactions of [batchSize] rows, taking the lock per batch so reads can
-	 * interleave with a long insert. A [fingerprint] goes into the last transaction, which runs
-	 * even when there are no entries, so an empty source is still recorded as indexed.
+	 * interleave with a long insert. A [pass] completes in the last transaction, which runs even
+	 * when there are no entries, so an empty source is still recorded as indexed.
 	 *
 	 * Checks for cancellation before each transaction: [Mutex.withLock] only checks it while
 	 * actually suspended waiting for the lock, and its uncontended fast path never suspends, so a
@@ -325,26 +396,27 @@ class SQLiteIndex<T : Indexable>(
 	 */
 	private suspend fun insertBatched(
 		entries: Sequence<T>,
-		fingerprint: SourceFingerprint?,
+		pass: SourcePass?,
 	) = withContext(Dispatchers.IO) {
+		val generation = pass?.generation ?: 0L
 		val batch = mutableListOf<T>()
 		for (entry in entries) {
 			batch.add(entry)
 			if (batch.size >= batchSize) {
 				ensureActive()
-				ifOpen { insertBatchLocked(batch, fingerprint = null) }
+				ifOpen { insertBatchLocked(batch, generation, completing = null) }
 				batch.clear()
 			}
 		}
-		if (batch.isNotEmpty() || fingerprint != null) {
+		if (batch.isNotEmpty() || pass != null) {
 			ensureActive()
-			ifOpen { insertBatchLocked(batch, fingerprint) }
+			ifOpen { insertBatchLocked(batch, generation, completing = pass) }
 		}
 	}
 
 	override suspend fun insert(entry: T) =
 		withContext(Dispatchers.IO) {
-			ifOpen { insertBatchLocked(listOf(entry), fingerprint = null) }
+			ifOpen { insertBatchLocked(listOf(entry), generation = 0L, completing = null) }
 		}
 
 	override suspend fun removeBySource(sourceId: String) = removeBySources(listOf(sourceId))
@@ -374,6 +446,10 @@ class SQLiteIndex<T : Indexable>(
 							"DELETE FROM $sourcesTableName WHERE _source_id IN ($placeholders)",
 							chunk.toTypedArray(),
 						)
+						db.execSQL(
+							"DELETE FROM $packagesTableName WHERE _source_id IN ($placeholders)",
+							chunk.toTypedArray(),
+						)
 					}
 					db.setTransactionSuccessful()
 				} finally {
@@ -389,6 +465,7 @@ class SQLiteIndex<T : Indexable>(
 				try {
 					db.execSQL("DELETE FROM $tableName")
 					db.execSQL("DELETE FROM $sourcesTableName")
+					db.execSQL("DELETE FROM $packagesTableName")
 					db.setTransactionSuccessful()
 				} finally {
 					db.endTransaction()
@@ -493,12 +570,22 @@ class SQLiteIndex<T : Indexable>(
 				}
 
 				append("_payload BLOB NOT NULL, ")
+				append("_gen INTEGER NOT NULL DEFAULT 0, ")
 				append("PRIMARY KEY (_source_id, _key)")
 			}
 
 		db.execSQL("CREATE TABLE IF NOT EXISTS $tableName ($columns)")
 		db.execSQL(
 			"CREATE TABLE IF NOT EXISTS $sourcesTableName (_source_id TEXT NOT NULL PRIMARY KEY, _fingerprint TEXT NOT NULL)",
+		)
+
+		db.execSQL(
+			"CREATE TABLE IF NOT EXISTS $packagesTableName " +
+				"(_source_id TEXT NOT NULL, name TEXT NOT NULL, parent TEXT NOT NULL, _gen INTEGER NOT NULL DEFAULT 0, " +
+				"PRIMARY KEY (_source_id, name)) WITHOUT ROWID",
+		)
+		db.execSQL(
+			"CREATE INDEX IF NOT EXISTS idx_${packagesTableName}_parent ON $packagesTableName(parent, _source_id)",
 		)
 
 		db.execSQL(
@@ -520,9 +607,36 @@ class SQLiteIndex<T : Indexable>(
 		}
 	}
 
+	/**
+	 * Drops [sourceId]'s fingerprint and returns the generation for a new pass over it: one past any
+	 * its rows or packages carry.
+	 */
+	private fun beginPassLocked(sourceId: String): Long {
+		db.beginTransaction()
+		try {
+			db.execSQL("DELETE FROM $sourcesTableName WHERE _source_id = ?", arrayOf(sourceId))
+			val generation =
+				db
+					.query(
+						"SELECT MAX(IFNULL((SELECT MAX(_gen) FROM $tableName WHERE _source_id = ?1), 0), " +
+							"IFNULL((SELECT MAX(_gen) FROM $packagesTableName WHERE _source_id = ?1), 0)) + 1",
+						arrayOf(sourceId),
+					).use { if (it.moveToFirst()) it.getLong(0) else 1L }
+			db.setTransactionSuccessful()
+			return generation
+		} finally {
+			db.endTransaction()
+		}
+	}
+
+	/**
+	 * Writes [entries] under [generation]. When [completing] is set, also deletes that source's rows
+	 * and packages from older generations and records its fingerprint, in the same transaction.
+	 */
 	private fun insertBatchLocked(
 		entries: List<T>,
-		fingerprint: SourceFingerprint?,
+		generation: Long,
+		completing: SourcePass?,
 	) {
 		db.beginTransaction()
 		try {
@@ -544,6 +658,7 @@ class SQLiteIndex<T : Indexable>(
 						}
 
 						put("_payload", descriptor.serialize(entry))
+						put("_gen", generation)
 					}
 
 				db.insert(
@@ -552,13 +667,9 @@ class SQLiteIndex<T : Indexable>(
 					cv,
 				)
 			}
-			if (fingerprint != null) {
-				val cv =
-					ContentValues().apply {
-						put("_source_id", fingerprint.sourceId)
-						put("_fingerprint", fingerprint.value)
-					}
-				db.insert(sourcesTableName, SQLiteDatabase.CONFLICT_REPLACE, cv)
+			insertPackagesLocked(entries, generation)
+			if (completing != null) {
+				completePassLocked(completing)
 			}
 			db.setTransactionSuccessful()
 		} finally {
@@ -566,9 +677,50 @@ class SQLiteIndex<T : Indexable>(
 		}
 	}
 
-	private data class SourceFingerprint(
+	private fun completePassLocked(pass: SourcePass) {
+		val args = arrayOf<Any>(pass.sourceId, pass.generation)
+		db.execSQL("DELETE FROM $tableName WHERE _source_id = ? AND _gen <> ?", args)
+		db.execSQL("DELETE FROM $packagesTableName WHERE _source_id = ? AND _gen <> ?", args)
+		val cv =
+			ContentValues().apply {
+				put("_source_id", pass.sourceId)
+				put("_fingerprint", pass.fingerprint)
+			}
+		db.insert(sourcesTableName, SQLiteDatabase.CONFLICT_REPLACE, cv)
+	}
+
+	/**
+	 * Records the packages of [entries] and their ancestors under [generation]. Must run inside the
+	 * entries' transaction. A package already recorded for the source takes the new generation.
+	 */
+	private fun insertPackagesLocked(
+		entries: List<T>,
+		generation: Long,
+	) {
+		val seen = HashSet<Pair<String, String>>()
+		for (entry in entries) {
+			val name = descriptor.packageOf(entry) ?: continue
+			for (pkg in packageWithAncestors(name)) {
+				if (!seen.add(entry.sourceId to pkg)) {
+					break
+				}
+				val cv =
+					ContentValues().apply {
+						put("_source_id", entry.sourceId)
+						put("name", pkg)
+						put("parent", parentPackage(pkg))
+						put("_gen", generation)
+					}
+				db.insert(packagesTableName, SQLiteDatabase.CONFLICT_REPLACE, cv)
+			}
+		}
+	}
+
+	/** One [insertSource] pass: the source, the fingerprint it records, and the generation it writes. */
+	private data class SourcePass(
 		val sourceId: String,
-		val value: String,
+		val fingerprint: String,
+		val generation: Long,
 	)
 
 	private data class SqlQuery(
@@ -638,8 +790,13 @@ class SQLiteIndex<T : Indexable>(
 	 * queries, that is what makes a limited key lookup return the smallest source id overall rather
 	 * than the smallest within whichever chunk happened to run first.
 	 */
-	private fun sourceIdChunks(query: IndexQuery): List<List<String>?> {
-		val sourceIds = query.sourceIds ?: return listOf(null)
+	private fun sourceIdChunks(query: IndexQuery): List<List<String>?> = sourceIdChunks(query.sourceIds)
+
+	/** Splits a source scope into `IN (...)`-sized chunks, as [sourceIdChunks] does for a query's. */
+	private fun sourceIdChunks(sourceIds: Collection<String>?): List<List<String>?> {
+		if (sourceIds == null) {
+			return listOf(null)
+		}
 		if (sourceIds.isEmpty()) {
 			return emptyList()
 		}
@@ -692,6 +849,52 @@ class SQLiteIndex<T : Indexable>(
 		return SqlQuery(sql, args)
 	}
 
+	private fun buildSubpackagesQuery(
+		parent: String,
+		sourceIdChunk: List<String>?,
+	): SqlQuery {
+		val (scope, scopeArgs) = sourceScopeClause(sourceIdChunk)
+		return SqlQuery("SELECT DISTINCT name FROM $packagesTableName WHERE parent = ?$scope", listOf(parent) + scopeArgs)
+	}
+
+	/**
+	 * Matches the parent as well as the name: the name alone has no index, while the parent is
+	 * implied by the name and leads the `(parent, _source_id)` index.
+	 */
+	private fun buildContainsPackageQuery(
+		name: String,
+		sourceIdChunk: List<String>?,
+	): SqlQuery {
+		val (scope, scopeArgs) = sourceScopeClause(sourceIdChunk)
+		return SqlQuery(
+			"SELECT 1 FROM $packagesTableName WHERE parent = ? AND name = ?$scope LIMIT 1",
+			listOf(parentPackage(name), name) + scopeArgs,
+		)
+	}
+
+	/** An ` AND _source_id IN (...)` clause for [sourceIdChunk], or nothing when it is unscoped. */
+	private fun sourceScopeClause(sourceIdChunk: List<String>?): Pair<String, List<String>> {
+		if (sourceIdChunk == null) {
+			return "" to emptyList()
+		}
+		val placeholders = sourceIdChunk.joinToString(",") { "?" }
+		return " AND _source_id IN ($placeholders)" to sourceIdChunk
+	}
+
+	/** Returns the plan of the first statement [subpackages] runs for [parent] and [sourceIds]. */
+	@VisibleForTesting
+	internal fun explainSubpackages(
+		parent: String,
+		sourceIds: Collection<String>?,
+	): String = explain(buildSubpackagesQuery(parent, firstSourceIdChunk(sourceIds)))
+
+	/** Returns the plan of the first statement [containsPackage] runs for [name] and [sourceIds]. */
+	@VisibleForTesting
+	internal fun explainContainsPackage(
+		name: String,
+		sourceIds: Collection<String>?,
+	): String = explain(buildContainsPackageQuery(name, firstSourceIdChunk(sourceIds)))
+
 	/** Returns the plan of the first statement [query] runs, one plan row per line. */
 	@VisibleForTesting
 	internal fun explainQuery(query: IndexQuery): String {
@@ -709,8 +912,10 @@ class SQLiteIndex<T : Indexable>(
 		return explain(buildDistinctQuery(col, query, firstSourceIdChunk(query), effectiveLimit(query)))
 	}
 
-	private fun firstSourceIdChunk(query: IndexQuery): List<String>? {
-		val chunks = sourceIdChunks(query)
+	private fun firstSourceIdChunk(query: IndexQuery): List<String>? = firstSourceIdChunk(query.sourceIds)
+
+	private fun firstSourceIdChunk(sourceIds: Collection<String>?): List<String>? {
+		val chunks = sourceIdChunks(sourceIds)
 		require(chunks.isNotEmpty()) { "A query scoped to no sources runs no statement" }
 		return chunks.first()
 	}

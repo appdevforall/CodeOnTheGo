@@ -94,7 +94,7 @@ class BackgroundIndexer<T : Indexable>(
 	 * result, so cancelling and resubmitting it would only throw away its progress. A
 	 * source being indexed under a different fingerprint (its content changed again before
 	 * the previous pass finished) is handled by cancelling and joining that job before this
-	 * one deletes its rows, so the two passes' writes can never interleave.
+	 * one writes its rows, so the two passes' writes can never interleave.
 	 *
 	 * The check for an existing job and the recording of this call's own job in [activeJobs] are
 	 * not atomic with each other, so two overlapping calls for the same [sourceId] could each
@@ -105,7 +105,9 @@ class BackgroundIndexer<T : Indexable>(
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
 	 * @param fingerprint  Identifies the source's current content, or `null` to not track it.
-	 * @param provider     Lambda returning a [Sequence] of entries.
+	 * @param provider     Lambda returning a [Sequence] of entries. One that is also [Closeable],
+	 *                     such as a [CloseableSequence], is closed once the pass ends, whether it
+	 *                     finished, failed or was cancelled.
 	 * @return The launched job, or the already-running one this call was folded into.
 	 */
 	fun indexSource(
@@ -141,27 +143,34 @@ class BackgroundIndexer<T : Indexable>(
 
 					log.info("Indexing: {}", sourceId)
 
-					// Remove stale entries first
-					index.removeBySource(sourceId)
+					// insertSource replaces the source's entries itself, without a window where it has none.
+					if (fingerprint == null) {
+						index.removeBySource(sourceId)
+					}
 
 					if (!isActive) return@launch
 
 					progressListener?.onProgress(sourceId, IndexingEvent.Started)
 
 					var count = 0
-					val tracked =
-						provider(sourceId).map { entry ->
-							count++
-							if (count % 1000 == 0) {
-								progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
+					val entries = provider(sourceId)
+					try {
+						val tracked =
+							entries.map { entry ->
+								count++
+								if (count % 1000 == 0) {
+									progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
+								}
+								entry
 							}
-							entry
-						}
 
-					if (fingerprint != null) {
-						index.insertSource(sourceId, fingerprint, tracked)
-					} else {
-						index.insertAll(tracked)
+						if (fingerprint != null) {
+							index.insertSource(sourceId, fingerprint, tracked)
+						} else {
+							index.insertAll(tracked)
+						}
+					} finally {
+						(entries as? Closeable)?.close()
 					}
 
 					progressListener?.onProgress(sourceId, IndexingEvent.Completed(count))

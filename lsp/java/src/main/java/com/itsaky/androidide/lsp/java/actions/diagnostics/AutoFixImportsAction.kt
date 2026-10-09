@@ -35,6 +35,7 @@ import com.itsaky.androidide.lsp.models.CodeActionKind
 import com.itsaky.androidide.lsp.models.DocumentChange
 import com.itsaky.androidide.lsp.models.TextEdit
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.projects.util.StringSearch
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.applyLongPressRecursively
 import com.itsaky.androidide.utils.flashInfo
@@ -59,29 +60,23 @@ class AutoFixImportsAction : BaseJavaCodeAction() {
 	override suspend fun execAction(data: ActionData): Result {
 		val path = data.requirePath()
 		val compiler = data.requireCompiler()
-		return compiler.compile(path).get { task ->
-			val classes = mutableMapOf<String, List<String>>()
-
-			// find all unresolved simple names
-			unresolvedNames(path, task).forEach { simpleName ->
-
-				// if we have already looked for this simple name
-				// we do not need to look it up again
-				if (classes[simpleName] != null) return@forEach
-
-				// find classes with those names
-				compiler.findQualifiedNames(simpleName).let { names ->
-
-					// if we find classes with that specific simple name, map them to the simple name
-					if (names.isNotEmpty()) {
-						classes[simpleName] = names
-					}
-				}
+		val importingPackage = StringSearch.packageName(path)
+		/*
+		 * Only the compile-tree reads run inside get(), which holds the compiler's task: Java completion
+		 * returns nothing while it is held, and the class lookups below wait on the index's disk I/O.
+		 */
+		val (fileImports, unresolved) =
+			compiler.compile(path).get { task ->
+				getFileImports(task, path) to unresolvedNames(path, task).distinct()
 			}
 
-			// return the result
-			Result(getFileImports(task, path), classes)
-		}
+		// Importable classes per unresolved simple name, leaving out those this file's package cannot see.
+		val classes =
+			unresolved
+				.associateWith { simpleName -> compiler.findImportableQualifiedNames(simpleName, importingPackage) }
+				.filterValues { it.isNotEmpty() }
+				.toMutableMap()
+		return Result(fileImports, classes)
 	}
 
 	override fun postExec(

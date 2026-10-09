@@ -16,6 +16,8 @@ import org.appdevforall.codeonthego.indexing.jvm.proto.JvmSymbolProtos.JvmSymbol
  * - `containingClass`: exact, for member lookup
  * - `language`       : exact, for Java-only or Kotlin-only queries
  *
+ * Its [packageOf] makes a package exist for each package holding a top-level class file.
+ *
  * Blob serialization uses Protobuf with `oneof` for type-specific data.
  */
 object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
@@ -47,6 +49,14 @@ object JvmSymbolDescriptor : IndexDescriptor<JvmSymbol> {
 			KEY_CONTAINING_CLASS to entry.containingClassName.ifEmpty { null },
 			KEY_LANGUAGE to entry.language.name,
 		)
+
+	/**
+	 * Returns the package of a top-level class file, `null` for anything else.
+	 *
+	 * A package exists only where a top-level class file is, as on the classpath: members, nested
+	 * classes and type aliases name a package but never put a class file in it.
+	 */
+	override fun packageOf(entry: JvmSymbol): String? = entry.packageName.takeIf { entry.kind.isJvmClass && entry.isTopLevel }
 
 	override fun serialize(entry: JvmSymbol): ByteArray = toProto(entry).toByteArray()
 
