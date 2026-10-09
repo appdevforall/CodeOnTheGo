@@ -45,6 +45,7 @@ import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.lsp.BreakpointHandler
 import com.itsaky.androidide.lsp.IDEDebugClientImpl
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
+import com.itsaky.androidide.lsp.PluginLanguageSupport
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.java.JavaLanguageServer
@@ -60,6 +61,7 @@ import com.itsaky.androidide.utils.dpToPx
 import io.github.rosemoe.sora.event.ClickEvent
 import io.github.rosemoe.sora.event.InterceptTarget
 import io.github.rosemoe.sora.event.TextSizeChangeEvent
+import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.LineSeparator
 import io.github.rosemoe.sora.util.IntPair
@@ -157,8 +159,10 @@ class CodeEditorView(
 		private val log = LoggerFactory.getLogger(CodeEditorView::class.java)
 	}
 
+	// Held directly so removal doesn't depend on Lookup still holding the client (ADFA-5388).
+	private val debugClient = IDEDebugClientImpl.requireInstance()
+
 	init {
-		val debugClient = IDEDebugClientImpl.requireInstance()
 		debugClient.breakpoints.addListener(this)
 
 		_binding = LayoutCodeEditorBinding.inflate(LayoutInflater.from(context))
@@ -295,7 +299,7 @@ class CodeEditorView(
 	}
 
 	private fun resetBreakpointsInFile(file: File) {
-		val handler = IDEDebugClientImpl.requireInstance().breakpoints
+		val handler = debugClient.breakpoints
 
 		codeEditorScope.launch {
 			val breakpoints = handler.positionalBreakpointsInFile(file)
@@ -328,6 +332,15 @@ class CodeEditorView(
 		val editor = _binding?.editor ?: return
 		editor.file = file
 		postRead(file)
+	}
+
+	fun releaseLanguage() {
+		_binding?.editor?.setEditorLanguage(EmptyLanguage())
+	}
+
+	fun reloadLanguage() {
+		if (_binding == null) return
+		postRead(file ?: return)
 	}
 
 	/**
@@ -619,7 +632,7 @@ class CodeEditorView(
 				"java" -> JavaLanguageServer.SERVER_ID
 				"kt", "kts" -> KotlinLanguageServer.SERVER_ID
 				"xml" -> XMLLanguageServer.SERVER_ID
-				else -> return null
+				else -> PluginLanguageSupport.serverIdFor(file) ?: return null
 			}
 
 		return ILanguageServerRegistry.default.getServer(serverID)
@@ -799,17 +812,27 @@ class CodeEditorView(
 
 	override fun onDetachedFromWindow() {
 		super.onDetachedFromWindow()
-		EventBus.getDefault().unregister(this)
+		if (EventBus.getDefault().isRegistered(this)) EventBus.getDefault().unregister(this)
 	}
 
 	override fun close() {
+		// Cancel first so a load still in codeEditorScope cannot reopen the document after the close.
 		codeEditorScope.cancelIfActive("Cancellation was requested")
-		IDEDebugClientImpl.getInstance()?.breakpoints?.removeListener(this)
-		_binding?.editor?.apply {
-			notifyClose()
-			release()
-		}
+		_binding?.editor?.notifyClose()
+		release()
+	}
 
+	/**
+	 * Drops what ties this editor to the activity, for a recreate that reopens the same file in a new
+	 * editor. Unlike [close] it does not tell the language server the file closed: that event can land
+	 * after the reopen. Callers must not release while a save may still be writing through
+	 * [readWriteContext].
+	 */
+	fun release() {
+		codeEditorScope.cancelIfActive("Cancellation was requested")
+		if (EventBus.getDefault().isRegistered(this)) EventBus.getDefault().unregister(this)
+		debugClient.breakpoints.removeListener(this)
+		_binding?.editor?.release()
 		readWriteContext.use { }
 	}
 

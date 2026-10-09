@@ -18,6 +18,7 @@
 package com.itsaky.androidide.projects
 
 import androidx.annotation.RestrictTo
+import androidx.annotation.VisibleForTesting
 import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
 import com.itsaky.androidide.app.BaseApplication
@@ -77,7 +78,6 @@ import kotlin.io.path.pathString
 class ProjectManagerImpl :
 	IProjectManager,
 	EventReceiver {
-
 	private var _indexingServiceManager: IndexingServiceManager? = null
 	lateinit var projectPath: String
 
@@ -90,14 +90,15 @@ class ProjectManagerImpl :
 			return _indexingServiceManager!!
 		}
 
-    @Volatile
-    internal var pluginProjectCached: Boolean? = null
+	@Volatile
+	internal var pluginProjectCached: Boolean? = null
 
 	override var gradleBuild: GradleModels.GradleBuild? = null
 	override var workspace: Workspace? = null
 
 	override var androidBuildVariants: Map<String, BuildVariantInfo> = emptyMap()
-		private set
+		@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+		internal set
 
 	/**
 	 * The project directory path, or an empty string when [projectPath] has not yet been
@@ -125,9 +126,10 @@ class ProjectManagerImpl :
 			log.warn("Project path not initialized before setup(); skipping plugin project cache check.")
 			pluginProjectCached = null
 		} else {
-			pluginProjectCached = withContext(Dispatchers.IO) {
-				File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
-			}
+			pluginProjectCached =
+				withContext(Dispatchers.IO) {
+					File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
+				}
 		}
 
 		this.gradleBuild = gradleBuild
@@ -194,11 +196,12 @@ class ProjectManagerImpl :
 	 * offering a recovery path (re-sync) — instead of silently dropping its code-completion symbols.
 	 */
 	private fun reportUnreadableClasspathJars(workspace: Workspace) {
-		val names = workspace.subProjects
-			.filterIsInstance<ModuleProject>()
-			.flatMap { it.unreadableClasspathJars }
-			.map { it.name }
-			.distinct()
+		val names =
+			workspace.subProjects
+				.filterIsInstance<ModuleProject>()
+				.flatMap { it.unreadableClasspathJars }
+				.map { it.name }
+				.distinct()
 		if (names.isEmpty()) {
 			return
 		}
@@ -290,20 +293,39 @@ class ProjectManagerImpl :
 		(this.androidBuildVariants as? MutableMap?)?.clear()
 	}
 
+	/**
+	 * Where a resource file created or deleted in the file tree sends its `generateSources` run.
+	 *
+	 * The direct call by default. The app swaps in Quick Build's generate-sources deferral so a
+	 * file added from the file tree parks like a save does: an undeferred build landing under a
+	 * live session is handed back as an external build and costs the session a full recompile.
+	 * This module cannot see the deferral (it lives in the app), hence the seam.
+	 */
+	@Volatile
+	var resourceChangeBuild: () -> Unit = { generateSources() }
+
+	/**
+	 * Hands the resource/source generation tasks to the tooling server and returns immediately.
+	 *
+	 * @return whether the tasks were actually dispatched. False means the request did nothing:
+	 *   no build service, no tooling server, or a Gradle build already in progress. Callers that
+	 *   owe the request a retry (the Quick Build generate-sources deferral, added later in this
+	 *   stack) key off this, because the in-progress refusal is silent and transient.
+	 */
 	@JvmOverloads
-	fun generateSources(builder: BuildService? = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)) {
+	fun generateSources(builder: BuildService? = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)): Boolean {
 		if (builder == null) {
 			log.warn("Cannot generate sources. BuildService is null.")
-			return
+			return false
 		}
 
 		if (!builder.isToolingServerStarted()) {
 			flashError(R.string.msg_tooling_server_unavailable)
-			return
+			return false
 		}
 
 		if (builder.isBuildInProgress) {
-			return
+			return false
 		}
 
 		val tasks =
@@ -342,6 +364,7 @@ class ProjectManagerImpl :
 				notifyProjectUpdate()
 			}
 		}
+		return true
 	}
 
 	fun notifyProjectUpdate() {
@@ -392,13 +415,11 @@ class ProjectManagerImpl :
 	private fun isInitialized() = workspace != null
 
 	private fun generateSourcesIfNecessary(event: FileEvent) {
-		val builder = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) ?: return
-		val file = event.file
-		if (!isAndroidResource(file)) {
+		if (!isAndroidResource(event.file)) {
 			return
 		}
 
-		generateSources(builder)
+		resourceChangeBuild()
 	}
 
 	@Suppress("unused")

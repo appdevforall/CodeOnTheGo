@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.handlers
 
+import com.itsaky.androidide.lsp.PluginLanguageSupport
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServerRegistry
 import com.itsaky.androidide.lsp.debug.IDebugClient
@@ -30,13 +31,13 @@ import com.itsaky.androidide.utils.FeatureFlags
  * @author Akash Yadav
  */
 object LspHandler {
-
 	fun registerLanguageServers() {
 		ILanguageServerRegistry.default.apply {
 			getServer(JavaLanguageServer.SERVER_ID) ?: register(JavaLanguageServer())
 			getServer(KotlinLanguageServer.SERVER_ID) ?: register(KotlinLanguageServer())
 			getServer(XMLLanguageServer.SERVER_ID) ?: register(XMLLanguageServer())
 		}
+		PluginLanguageSupport.registerServers()
 	}
 
 	fun connectClient(client: ILanguageClient) {
@@ -44,8 +45,7 @@ object LspHandler {
 	}
 
 	@Throws(Throwable::class)
-	suspend fun connectDebugClient(client: IDebugClient) =
-		ILanguageServerRegistry.default.connectDebugClient(client)
+	suspend fun connectDebugClient(client: IDebugClient) = ILanguageServerRegistry.default.connectDebugClient(client)
 
 	fun destroyLanguageServers(isConfigurationChange: Boolean) {
 		if (isConfigurationChange) {

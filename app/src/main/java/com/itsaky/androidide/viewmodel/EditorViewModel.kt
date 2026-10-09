@@ -28,6 +28,8 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.quickbuild.QuickBuildFlashes
+import com.itsaky.androidide.search.replace.ReplaceSession
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.ILogger
@@ -47,6 +49,14 @@ import java.util.concurrent.atomic.AtomicInteger
 /** ViewModel for data used in [com.itsaky.androidide.activities.editor.EditorActivityKt] */
 @Suppress("PropertyName")
 class EditorViewModel : ViewModel() {
+	/**
+	 * Decides which Quick Build outcomes get a flashbar over the editor (ADFA-4128). Held here
+	 * rather than on the activity because the one bit of history it keeps must survive a
+	 * configuration change: an activity-scoped instance is rebuilt on rotation, and the rebuilt
+	 * one has never seen a failure, so the recovery flash that only fires after one is lost.
+	 */
+	val quickBuildFlashes = QuickBuildFlashes()
+
 	data class SearchResultSection(
 		val title: String?,
 		val results: Map<File, List<SearchResult>>,
@@ -57,6 +67,10 @@ class EditorViewModel : ViewModel() {
 	)
 
 	internal val _isBuildInProgress = MutableLiveData(false)
+
+	// A build the user never started (Quick Build's proxy app build). Separate from
+	// _isBuildInProgress so it can show progress without offering to cancel.
+	internal val _isInternalBuildInProgress = MutableLiveData(false)
 	internal val _isInitializing = MutableLiveData(false)
 	internal val _statusText = MutableLiveData<Pair<CharSequence, Int>>("" to CENTER)
 	internal val _displayedFile = MutableLiveData(-1)
@@ -73,6 +87,9 @@ class EditorViewModel : ViewModel() {
 
 	private val _searchResultSections = MutableStateFlow<List<SearchResultSection>>(emptyList())
 	val searchResultSections: StateFlow<List<SearchResultSection>> = _searchResultSections.asStateFlow()
+
+	private val _replaceSession = MutableStateFlow<ReplaceSession?>(null)
+	val replaceSession: StateFlow<ReplaceSession?> = _replaceSession.asStateFlow()
 	val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
 	private val searchGeneration = AtomicInteger()
@@ -87,10 +104,27 @@ class EditorViewModel : ViewModel() {
 
 	fun onSearchResultsReady(results: Map<File, List<SearchResult>>) {
 		searchGeneration.incrementAndGet()
+		_replaceSession.value = null
 		_searchResultSections.value =
 			listOfNotNull(
 				results.takeIf { it.isNotEmpty() }?.let { SearchResultSection(title = null, results = it) },
 			)
+	}
+
+	fun startReplaceSession(session: ReplaceSession) {
+		_replaceSession.value = session
+	}
+
+	fun toggleReplaceMatch(match: SearchResult) {
+		_replaceSession.update { it?.toggleMatch(match) }
+	}
+
+	fun toggleReplaceFile(file: File) {
+		_replaceSession.update { it?.toggleFile(file) }
+	}
+
+	fun clearReplaceSession() {
+		_replaceSession.value = null
 	}
 
 	/** Publishes [sections] unless [generation] no longer matches [currentSearchGeneration]. */
@@ -157,7 +191,21 @@ class EditorViewModel : ViewModel() {
 		activeSaveCount = (activeSaveCount - 1).coerceAtLeast(0)
 		if (activeSaveCount == 0) {
 			areFilesSaving = false
+			val actions = afterSaves.toList()
+			afterSaves.clear()
+			actions.forEach { it() }
 		}
+	}
+
+	private val afterSaves = mutableListOf<() -> Unit>()
+
+	/**
+	 * Runs [action] once no save is in flight: now, or when the last one finishes. Lives here for
+	 * the same reason as [activeSaveCount] - the save that drains the count may belong to either
+	 * side of a recreate. Main-thread confined.
+	 */
+	fun whenNoSaves(action: () -> Unit) {
+		if (activeSaveCount == 0) action() else afterSaves += action
 	}
 
 	var openedFilesCache: OpenedFilesCache?
@@ -176,6 +224,12 @@ class EditorViewModel : ViewModel() {
 		get() = _isBuildInProgress.value ?: false
 		set(value) {
 			_isBuildInProgress.value = value
+		}
+
+	var isInternalBuildInProgress: Boolean
+		get() = _isInternalBuildInProgress.value ?: false
+		set(value) {
+			_isInternalBuildInProgress.value = value
 		}
 
 	var isInitializing: Boolean

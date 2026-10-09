@@ -221,8 +221,9 @@ abstract class LogViewFragment<V : LogViewModel> :
 				}
 
 				is LogViewModel.UiEvent.Append -> {
-					append(event.text)
-					trimLinesAtStart()
+					if (append(event.text)) {
+						trimLinesAtStart()
+					}
 				}
 			}
 		}
@@ -345,29 +346,27 @@ abstract class LogViewFragment<V : LogViewModel> :
 		onContentReplaced()
 	}
 
-	private suspend fun append(chars: CharSequence?) {
+	private suspend fun append(chars: CharSequence?): Boolean {
 		if (chars == null) {
-			return
+			return false
 		}
 
-		val editor = _binding?.editor ?: return
+		val editor = _binding?.editor ?: return false
 
 		// Flip to the content child BEFORE waiting for layout
 		updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 
-		val laidOut =
-			withTimeoutOrNull(LAYOUT_TIMEOUT_MS) {
-				editor.awaitLayout(
-					onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) },
-				)
-			}
+		val showContent = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) }
+		val laidOut = withTimeoutOrNull(LAYOUT_TIMEOUT_MS) { editor.awaitLayout(onForceVisible = showContent) }
 
 		if (laidOut != null && editor.appendBatch(chars.toString())) {
-			return
-		} else {
-			log.warn("Editor append failed; requesting log re-sync")
-			viewModel.resync()
+			return true
 		}
+
+		log.warn("Editor append failed; re-syncing once the editor is laid out")
+		editor.awaitLayout(onForceVisible = showContent)
+		viewModel.resync()
+		return false
 	}
 
 	@UiThread

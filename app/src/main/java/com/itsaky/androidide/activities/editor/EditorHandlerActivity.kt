@@ -29,6 +29,7 @@ import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
+import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
@@ -36,6 +37,7 @@ import androidx.collection.MutableIntObjectMap
 import androidx.core.content.IntentCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
+import androidx.core.view.children
 import androidx.core.view.doOnNextLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
@@ -49,6 +51,7 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.ActionItem.Location.EDITOR_TOOLBAR
 import com.itsaky.androidide.actions.ActionsRegistry.Companion.getInstance
+import com.itsaky.androidide.actions.build.QuickBuildAction
 import com.itsaky.androidide.actions.build.QuickRunAction
 import com.itsaky.androidide.actions.internal.DefaultActionsRegistry
 import com.itsaky.androidide.activities.PluginManagerActivity
@@ -79,12 +82,14 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
+import com.itsaky.androidide.events.PluginLanguagesChangedEvent
 import com.itsaky.androidide.floating.model.DockingManager
 import com.itsaky.androidide.floating.window.OverlayDialogs
 import com.itsaky.androidide.fragments.sidebar.EditorSidebarFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.interfaces.IEditorHandler
+import com.itsaky.androidide.lsp.PluginLanguageSupport
 import com.itsaky.androidide.models.DeepLinkOpenRequest
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.models.EditorIntentExtras
@@ -106,6 +111,7 @@ import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildResult
+import com.itsaky.androidide.quickbuild.GenerateSourcesDeferral
 import com.itsaky.androidide.repositories.RecentProjectRepository
 import com.itsaky.androidide.shortcuts.IdeShortcutActions
 import com.itsaky.androidide.shortcuts.ShortcutContext
@@ -140,6 +146,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildTone
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.koin.android.ext.android.inject
@@ -258,6 +265,21 @@ open class EditorHandlerActivity :
 	override fun provideEditorAt(index: Int): CodeEditorView? = getEditorAtIndex(index)
 
 	override fun preDestroy() {
+		// A recreate (dark mode, locale) destroys this instance without closing its editors, and their
+		// dispatcher job, EventBus registration and breakpoint listener kept it alive. Finishing closes
+		// them through doCloseAll() instead. Deferred while a save is in flight: release() nulls the
+		// file that save is about to read, which would drop the write.
+		if (!isDestroying) {
+			val editors =
+				_binding
+					?.content
+					?.editorContainer
+					?.children
+					?.filterIsInstance<CodeEditorView>()
+					?.toList()
+					.orEmpty()
+			editorViewModel.whenNoSaves { editors.forEach { it.release() } }
+		}
 		super.preDestroy()
 		// TSLanguageRegistry.instance is a process-wide singleton whose own KDoc says destroy() "must
 		// be called only when the application is exiting" -- guarded on didCompleteLiveOnCreate (same
@@ -377,6 +399,7 @@ open class EditorHandlerActivity :
 			TSLanguageRegistry.instance.registerIfNeeded(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
 			TSLanguageRegistry.instance.registerIfNeeded(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
 			TSLanguageRegistry.instance.registerIfNeeded(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
+			PluginLanguageSupport.registerGrammars()
 			IDEColorSchemeProvider.initIfNeeded()
 		}
 
@@ -632,6 +655,7 @@ open class EditorHandlerActivity :
 
 	override fun onStart() {
 		super.onStart()
+		reloadChangedPluginLanguages()
 
 		lifecycleScope.launch {
 			try {
@@ -756,6 +780,7 @@ open class EditorHandlerActivity :
 		val hiddenIds =
 			PluginBuildActionManager.getInstance().getHiddenActionIds() +
 				PluginUiActionManager.getHiddenActionIds()
+
 		actions.forEachIndexed { index, action ->
 			val isLast = index == actions.size - 1
 
@@ -773,16 +798,26 @@ open class EditorHandlerActivity :
 			}
 
 			content.projectActionsToolbar.addMenuItem(
-				icon = action.icon,
+				// This custom toolbar bypasses DefaultActionsRegistry's menu path, so its
+				// disabled-icon dim (alpha 76 there) must be mirrored here or a disabled
+				// action renders at full strength while refusing the tap.
+				icon = action.icon?.mutate()?.apply { alpha = if (action.enabled) 255 else 76 },
 				hint = getToolbarContentDescription(action, data),
 				onClick = { if (action.enabled) registry.executeAction(action, data) },
 				onLongClick = {
-					TooltipManager.showTooltip(
-						context = this,
-						anchorView = content.projectActionsToolbar,
-						category = action.retrieveTooltipCategory(),
-						tag = action.retrieveTooltipTag(false),
-					)
+					// Quick Build is a split button: long-press opens the
+					// Quick Build / Restart session / Help dropdown instead of the
+					// plain tooltip every other toolbar action shows.
+					if (action.id == QuickBuildAction.ID) {
+						showQuickBuildDropdownMenu(content.projectActionsToolbar, data)
+					} else {
+						TooltipManager.showTooltip(
+							context = this,
+							anchorView = content.projectActionsToolbar,
+							category = action.retrieveTooltipCategory(),
+							tag = action.retrieveTooltipTag(false),
+						)
+					}
 				},
 				onHover = { anchor ->
 					TooltipManager.cancelScheduledDismiss()
@@ -800,6 +835,76 @@ open class EditorHandlerActivity :
 				shouldAddMargin = !isLast,
 			)
 		}
+	}
+
+	/**
+	 * Quick Build's split-button dropdown, with three items.
+	 *
+	 * "Quick Build" goes through the registry rather than calling the session manager, so the
+	 * menu entry and the toolbar's own tap share one code path - including the analytics event and
+	 * the refresh-baseline-on-return hand-back wired at the Run button's install callback.
+	 * "Restart session" rebuilds the proxy app rather than only stopping the session, which is
+	 * what every notice naming it as the remedy needs (see
+	 * [org.appdevforall.cotg.quickbuild.service.session.QuickBuildSessionManager.restartSessionAndReprovision]).
+	 * "Help" looks up the Quick Build entry in `documentation.db`. That database is a prebuilt
+	 * asset owned by the documentation repository, not written here, so the item opens the
+	 * no-tooltip fallback until a row for
+	 * [com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_TOOLBAR_QUICK_BUILD] ships in it.
+	 */
+	private fun showQuickBuildDropdownMenu(
+		anchor: View,
+		data: ActionData,
+	) {
+		val registry = getInstance() as DefaultActionsRegistry
+		val popup = PopupMenu(this, anchor)
+		popup.menuInflater.inflate(R.menu.menu_quick_build, popup.menu)
+		val quickBuild = registry.findAction(EDITOR_TOOLBAR, QuickBuildAction.ID)
+		// The entry presents the SAME state as the button it hangs off: the toolbar's own
+		// prepare() already decided whether a Quick Build can start and what the button does,
+		// and a menu row that ignored it would offer "Quick Build" while the button is a stop
+		// button - a tap there cancels the build the user is waiting on. A missing action means
+		// the toolbar has none either, so the row goes with it.
+		popup.menu.findItem(R.id.action_quick_build)?.apply {
+			isVisible = quickBuild != null
+			if (quickBuild != null) {
+				title = quickBuild.label
+				isEnabled = quickBuild.enabled
+			}
+		}
+		// Same gate as the button: while a standard Gradle build holds the slot, a restart tears
+		// the warm session down and then the reprovision is refused as slot-busy - the user
+		// would lose the session and be told to wait.
+		popup.menu.findItem(R.id.action_quick_build_restart_session)?.isEnabled =
+			!QuickBuildAction.isBlockedByStandardBuild()
+		popup.setOnMenuItemClickListener { item ->
+			when (item.itemId) {
+				R.id.action_quick_build -> {
+					// Through the registry, same as Standard Run below, so the menu entry
+					// and the toolbar tap share one code path (incl. the analytics event).
+					if (quickBuild != null && quickBuild.enabled) registry.executeAction(quickBuild, data)
+					true
+				}
+
+				R.id.action_quick_build_restart_session -> {
+					quickBuildSessionManager()?.restartSessionAndReprovision()
+					true
+				}
+
+				R.id.action_quick_build_help -> {
+					TooltipManager.showIdeCategoryTooltip(
+						context = this@EditorHandlerActivity,
+						anchorView = anchor,
+						tag = TooltipTag.EDITOR_TOOLBAR_QUICK_BUILD,
+					)
+					true
+				}
+
+				else -> {
+					false
+				}
+			}
+		}
+		popup.show()
 	}
 
 	private fun createToolbarActionData(): ActionData {
@@ -830,6 +935,43 @@ open class EditorHandlerActivity :
 			when (action.id) {
 				QuickRunAction.ID -> {
 					string.cd_toolbar_quick_run
+				}
+
+				QuickBuildAction.ID -> {
+					// While a quick build runs this button IS the stop button, so the spoken
+					// label has to move with the icon - a screen reader announcing "Quick
+					// Build" over a stop affordance is a bug the user cannot see around. The
+					// same holds for the greyed-out state: "Quick Build" over a button that
+					// does nothing says nothing about why.
+					// Every tone has its own icon shape, so a sighted user can tell them
+					// apart; collapsing them all to "Quick Build" hides that distinction
+					// from exactly the user who cannot see the icon. ERROR is the costly
+					// one - it reads identically to READY while the bolt shows a failure.
+					when {
+						QuickBuildAction.currentTone() == QuickBuildTone.BUILDING -> {
+							string.cd_toolbar_cancel_build
+						}
+
+						QuickBuildAction.isBlockedByStandardBuild() -> {
+							string.quick_build_standard_build_in_progress
+						}
+
+						QuickBuildAction.currentTone() == QuickBuildTone.ERROR -> {
+							string.cd_quick_build_error
+						}
+
+						QuickBuildAction.currentTone() == QuickBuildTone.SLOW -> {
+							string.cd_quick_build_slow
+						}
+
+						QuickBuildAction.currentTone() == QuickBuildTone.RECONNECTING -> {
+							string.cd_quick_build_reconnecting
+						}
+
+						else -> {
+							string.cd_quick_build
+						}
+					}
 				}
 
 				"ide.editor.syncProject" -> {
@@ -870,6 +1012,10 @@ open class EditorHandlerActivity :
 
 				"ide.editor.find.inProject" -> {
 					string.cd_toolbar_find_in_project
+				}
+
+				"ide.editor.replace.inProject" -> {
+					string.cd_toolbar_replace_in_project
 				}
 
 				"ide.editor.launchInstalledApp" -> {
@@ -1234,8 +1380,15 @@ open class EditorHandlerActivity :
 			}
 		}
 
-		if (processResources) {
-			ProjectManagerImpl.getInstance().generateSources()
+		// Only a resource or manifest save can change what generateSources produces (R.jar,
+		// ViewBinding accessors, the Manifest class - see SaveResult.resourceXmlSaved), so only
+		// those warrant the Gradle run. Deliberately un-gated (experiments flag off included):
+		// previously this ran after EVERY save here, so skipping it on Kotlin/Java and other
+		// non-resource saves is a save-latency win for every user.
+		// Routed through the deferral: immediate with no Quick Build session, parked and
+		// coalesced until the session pipeline settles with one (see GenerateSourcesDeferral).
+		if (processResources && result.resourceXmlSaved) {
+			GenerateSourcesDeferral.notifyResourceSaved()
 		}
 
 		return result.gradleSaved
@@ -1248,10 +1401,13 @@ open class EditorHandlerActivity :
 		withContext(Dispatchers.IO) {
 			performFileSave {
 				val result = SaveResult()
+				var wrote = false
 				for (i in 0 until editorViewModel.getOpenedFileCount()) {
-					saveResultInternal(i, result)
+					if (saveResultInternal(i, result)) wrote = true
 					progressConsumer?.invoke(i + 1, editorViewModel.getOpenedFileCount())
 				}
+				// Once per save-all, not per editor - see [notifyQuickBuildOfSave].
+				if (wrote) notifyQuickBuildOfSave()
 
 				return@performFileSave result
 			}
@@ -1266,9 +1422,19 @@ open class EditorHandlerActivity :
 		// dispatcher.
 		withContext(Dispatchers.IO) {
 			performFileSave {
-				saveResultInternal(index, result)
+				if (saveResultInternal(index, result)) notifyQuickBuildOfSave()
 			}
 		}
+	}
+
+	/**
+	 * Tells the Quick Build session a save wrote something, which clears a failed-start error
+	 * tone on the bolt. A no-op in every other session state, and it never starts a build - a
+	 * live session learns about the writes from its own watcher. Called once per save
+	 * operation rather than per editor, so a save-all posts one event, not N identical ones.
+	 */
+	private fun notifyQuickBuildOfSave() {
+		quickBuildSessionManager()?.onFileSaved()
 	}
 
 	/**
@@ -1295,18 +1461,24 @@ open class EditorHandlerActivity :
 			// Off-main: debug builds install StrictMode's detectDiskReads on the main thread.
 			val existedBefore = withContext(Dispatchers.IO) { file.exists() }
 
+			// The save count goes up in the same main-thread section that captures the view, so a
+			// recreate cannot release it in between (preDestroy defers the release while saving).
+			// NonCancellable: a prompt cancellation on resume would drop the result and with it the
+			// matching endFileSave below.
 			val (view, alreadyClean) =
-				withContext(Dispatchers.Main.immediate) {
+				withContext(Dispatchers.Main.immediate + NonCancellable) {
 					val editor = getEditorForFile(file)
-					editor to (editor != null && !editor.isModified && existedBefore)
+					val clean = editor != null && !editor.isModified && existedBefore
+					if (editor != null && !clean) editorViewModel.beginFileSave()
+					editor to clean
 				}
 			if (view == null) {
 				outcome.set(FileSaveOutcome.NOT_OPEN)
 				return false
 			}
 
-			// Nothing to write. Returning before [performFileSave] keeps the saving flag from
-			// flapping true/false for a no-op, which SaveFileAction observes to enable itself.
+			// Nothing to write, and the save count was left alone above, so the saving flag does not
+			// flap true/false for a no-op, which SaveFileAction observes to enable itself.
 			if (alreadyClean) {
 				outcome.set(FileSaveOutcome.ALREADY_CLEAN)
 				return true
@@ -1322,7 +1494,12 @@ open class EditorHandlerActivity :
 			// to prevent, reached by the cancellation path instead.
 			withContext(Dispatchers.IO + NonCancellable) {
 				val result = SaveResult()
-				val saved = performFileSave { saveEditorInternal(view, result) }
+				val saved =
+					try {
+						saveEditorInternal(view, result)
+					} finally {
+						endFileSave()
+					}
 				// Every claim that the content is on disk is checked against disk. Covers the
 				// corners where CodeEditorView.save returns false without writing and without
 				// the buffer being clean either - an archive extension, a null text.
@@ -1330,6 +1507,7 @@ open class EditorHandlerActivity :
 					if (saved.reachedDisk && !file.exists()) FileSaveOutcome.FAILED else saved,
 				)
 				if (outcome.get() != FileSaveOutcome.WRITTEN) return@withContext
+				notifyQuickBuildOfSave()
 
 				// The same follow-ups the UI save paths run (see [saveAll] and
 				// SaveFileAction.postExec). Without them a plugin that edits a Gradle script
@@ -1338,8 +1516,11 @@ open class EditorHandlerActivity :
 				if (result.gradleSaved) {
 					withContext(Dispatchers.Main.immediate) { editorViewModel.isSyncNeeded = true }
 				}
-				if (result.xmlSaved) {
-					ProjectManagerImpl.getInstance().generateSources()
+				// Same gate as the UI save paths: only a resource save can change R, and it goes
+				// through the deferral so a live Quick Build session coalesces it instead of
+				// racing the build (see GenerateSourcesDeferral).
+				if (result.resourceXmlSaved) {
+					GenerateSourcesDeferral.notifyResourceSaved()
 				}
 			}
 			return outcome.get().reachedDisk
@@ -1441,14 +1622,10 @@ open class EditorHandlerActivity :
 
 			fileTimestamps[savedFile.absolutePath] = savedFile.lastModified()
 
-			val isGradle = fileName.endsWith(".gradle") || fileName.endsWith(".gradle.kts")
-			val isXml: Boolean = fileName.endsWith(".xml")
-			if (!result.gradleSaved) {
-				result.gradleSaved = modified && isGradle
-			}
-
-			if (!result.xmlSaved) {
-				result.xmlSaved = modified && isXml
+			// savedFile, not frag.file: the editor's file is read through the view binding,
+			// which a tab closed after the write has already released.
+			accumulateSaveFlags(result, fileName, modified) {
+				ProjectManagerImpl.getInstance().isAndroidResource(savedFile)
 			}
 
 			withContext(Dispatchers.Main) {
@@ -1813,6 +1990,25 @@ open class EditorHandlerActivity :
 
 		val baseName = tab.text?.removePrefix("*") ?: return
 		tab.text = if (isModified) "*$baseName" else baseName
+	}
+
+	@Subscribe(threadMode = ThreadMode.MAIN)
+	fun onPluginLanguagesChanged(
+		@Suppress("UNUSED_PARAMETER") event: PluginLanguagesChangedEvent,
+	) {
+		reloadChangedPluginLanguages()
+	}
+
+	private fun reloadChangedPluginLanguages() {
+		val fileTypes = PluginLanguageSupport.takeChangedFileTypes()
+		if (fileTypes.isEmpty()) return
+		val editors =
+			editorViewModel
+				.getOpenedFiles()
+				.filter { it.extension.lowercase() in fileTypes }
+				.mapNotNull { getEditorForFile(it) }
+		editors.forEach { it.releaseLanguage() }
+		editors.forEach { it.reloadLanguage() }
 	}
 
 	@Subscribe(threadMode = ThreadMode.MAIN)
