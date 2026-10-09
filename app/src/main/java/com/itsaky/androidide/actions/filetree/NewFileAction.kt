@@ -86,6 +86,7 @@ class NewFileAction(
 		const val MENU_RES_PATH_REGEX = "/.*/src/.*/res/menu"
 		const val DRAWABLE_RES_PATH_REGEX = "/.*/src/.*/res/drawable"
 		const val JAVA_PATH_REGEX = "/.*/src/.*/java"
+		const val KOTLIN_PATH_REGEX = "/.*/src/.*/kotlin"
 		const val CPP_PATH_REGEX = "/.*/src/[^/]+/cpp(/.*)?$"
 		private const val MAX_FILE_NAME_LENGTH = 40
 
@@ -667,7 +668,7 @@ internal fun sourceDialogFor(
 	fun matches(regex: String) = Pattern.compile(Pattern.quote(projectDir) + regex).matcher(path).find()
 	return when {
 		matches(NewFileAction.CPP_PATH_REGEX) -> SourceDialog.CPP
-		matches(NewFileAction.JAVA_PATH_REGEX) -> SourceDialog.JAVA
+		matches(NewFileAction.JAVA_PATH_REGEX) || matches(NewFileAction.KOTLIN_PATH_REGEX) -> SourceDialog.JAVA
 		else -> null
 	}
 }
