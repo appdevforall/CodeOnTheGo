@@ -474,7 +474,7 @@ class NewFileAction(
 		packagePath: String,
 		isKotlin: Boolean = false,
 	) {
-		val dir = directory.toString().replace("java/$packagePath", "res/layout/")
+		val dir = directory.toString().replace(Regex("(?:java|kotlin)/${Pattern.quote(packagePath)}$"), "res/layout")
 		val sourceExtension = if (isKotlin) ".kt" else ".java"
 		val layoutName = ProjectWriter.createLayoutName(fileName.replace(sourceExtension, ".xml"))
 		val newFileLayout = File(dir, layoutName)
