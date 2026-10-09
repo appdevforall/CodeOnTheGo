@@ -11,77 +11,96 @@ import java.io.Closeable
  * @param T The indexed type.
  */
 interface ReadableIndex<T : Indexable> {
+	/**
+	 * Query the index. Returns a lazy [Sequence] of matching entries.
+	 *
+	 * Results are not guaranteed to be in any particular order
+	 * unless the implementation specifies otherwise.
+	 *
+	 * If [IndexQuery.limit] is 0, all matches are emitted.
+	 */
+	fun query(query: IndexQuery): Sequence<T>
 
-    /**
-     * Query the index. Returns a lazy [Sequence] of matching entries.
-     *
-     * Results are not guaranteed to be in any particular order
-     * unless the implementation specifies otherwise.
-     *
-     * If [IndexQuery.limit] is 0, all matches are emitted.
-     */
-    fun query(query: IndexQuery): Sequence<T>
+	/**
+	 * Point lookup by key. Returns null if not found.
+	 *
+	 * When several sources hold an entry for [key], returns the one with the smallest source id, so
+	 * the answer does not depend on insertion order.
+	 */
+	suspend fun get(key: String): T?
 
-    /**
-     * Point lookup by key. Returns null if not found.
-     */
-    suspend fun get(key: String): T?
+	/**
+	 * Fast existence check for a source.
+	 */
+	suspend fun containsSource(sourceId: String): Boolean
 
-    /**
-     * Fast existence check for a source.
-     */
-    suspend fun containsSource(sourceId: String): Boolean
+	/**
+	 * Returns distinct values for a given field across all entries.
+	 *
+	 * Useful for enumerating packages, kinds, etc. without
+	 * deserializing full entries.
+	 *
+	 * @param fieldName Must be one of the fields declared in the
+	 *                  [IndexDescriptor].
+	 */
+	fun distinctValues(fieldName: String): Sequence<String> = distinctValues(fieldName, IndexQuery(limit = 0))
 
-    /**
-     * Returns distinct values for a given field across all entries.
-     *
-     * Useful for enumerating packages, kinds, etc. without
-     * deserializing full entries.
-     *
-     * @param fieldName Must be one of the fields declared in the
-     *                  [IndexDescriptor].
-     */
-    fun distinctValues(fieldName: String): Sequence<String>
+	/**
+	 * Returns the distinct values of [fieldName] among the entries matching [query].
+	 *
+	 * This projects a single column instead of materializing entries, which is what makes it usable
+	 * for enumerating a large field -- every package on a classpath, say -- where fetching the
+	 * matching entries and reducing them in memory would defeat the point.
+	 *
+	 * Values are deduplicated across the whole result, and their order is unspecified. A positive
+	 * [IndexQuery.limit] caps how many distinct values are emitted; 0 or negative means unlimited.
+	 *
+	 * @param fieldName Must be one of the fields declared in the [IndexDescriptor].
+	 * @param query Restricts which entries contribute a value.
+	 */
+	fun distinctValues(
+		fieldName: String,
+		query: IndexQuery,
+	): Sequence<String>
 }
 
 /**
  * Write interface for mutating an index.
  */
 interface WritableIndex<T : Indexable> {
+	/**
+	 * Insert entries from a [Sequence].
+	 *
+	 * Entries are consumed lazily from the sequence and batched
+	 * internally for throughput. If an entry with the same source
+	 * and key already exists, it is replaced.
+	 */
+	suspend fun insertAll(entries: Sequence<T>)
 
-    /**
-     * Insert entries from a [Sequence].
-     *
-     * Entries are consumed lazily from the sequence and batched
-     * internally for throughput. If an entry with the same key
-     * already exists, it is replaced.
-     */
-    suspend fun insertAll(entries: Sequence<T>)
+	/**
+	 * Convenience: insert a single entry.
+	 */
+	suspend fun insert(entry: T)
 
-    /**
-     * Convenience: insert a single entry.
-     */
-    suspend fun insert(entry: T)
+	/**
+	 * Remove all entries from the given source, and its fingerprint if one is recorded.
+	 */
+	suspend fun removeBySource(sourceId: String)
 
-    /**
-     * Remove all entries from the given source.
-     */
-    suspend fun removeBySource(sourceId: String)
+	/**
+	 * Remove all entries from the given sources in a single transaction.
+	 *
+	 * Equivalent to calling [removeBySource] for each id, but issues the
+	 * deletes as one batched, transactional operation instead of N
+	 * sequential statements. Implementations should chunk the ids so the
+	 * generated SQL stays within parameter limits.
+	 */
+	suspend fun removeBySources(sourceIds: Collection<String>)
 
-    /**
-     * Remove all entries from the given sources in a single transaction.
-     *
-     * Equivalent to calling [removeBySource] for each id, but issues the
-     * deletes as one batched, transactional operation instead of N
-     * sequential statements. Implementations should chunk the ids so the
-     * generated SQL stays within parameter limits.
-     */
-    suspend fun removeBySources(sourceIds: Collection<String>)
-
-    /**
-     * Remove all entries.
-     */
-    suspend fun clear()
+	/**
+	 * Remove all entries and fingerprints.
+	 */
+	suspend fun clear()
 }
 
 /**
@@ -89,13 +108,38 @@ interface WritableIndex<T : Indexable> {
  *
  * @param T The indexed type.
  */
-interface Index<T : Indexable> : ReadableIndex<T>, WritableIndex<T>, Closeable {
+interface Index<T : Indexable> :
+	ReadableIndex<T>,
+	WritableIndex<T>,
+	Closeable {
+	/** Human-readable name for logging. */
+	val name: String
 
-    /** Human-readable name for logging. */
-    val name: String
+	/** The descriptor governing serialization and field extraction. */
+	val descriptor: IndexDescriptor<T>
 
-    /** The descriptor governing serialization and field extraction. */
-    val descriptor: IndexDescriptor<T>
+	/**
+	 * Inserts [entries], all from [sourceId], and records [fingerprint] as that source's.
+	 *
+	 * The fingerprint is opaque to the index; it is what lets a caller tell whether the source has
+	 * changed since it was indexed. It is committed with the last batch of rows, so it is present
+	 * only once every entry is stored: an insert that fails or is cancelled part-way leaves none.
+	 * Removing the source's entries removes it too.
+	 */
+	suspend fun insertSource(
+		sourceId: String,
+		fingerprint: String,
+		entries: Sequence<T>,
+	)
 
-    override fun close() {}
+	/** Returns the fingerprint recorded for [sourceId] by [insertSource], or `null` if there is none. */
+	suspend fun sourceFingerprint(sourceId: String): String?
+
+	/**
+	 * Refreshes whatever the index keeps to plan its queries, after a bulk change to its entries.
+	 * Does nothing by default.
+	 */
+	suspend fun optimize() {}
+
+	override fun close() {}
 }
