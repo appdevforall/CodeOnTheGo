@@ -86,7 +86,7 @@ class NewFileAction(
 		const val MENU_RES_PATH_REGEX = "/.*/src/.*/res/menu"
 		const val DRAWABLE_RES_PATH_REGEX = "/.*/src/.*/res/drawable"
 		const val JAVA_PATH_REGEX = "/.*/src/.*/java"
-		const val KOTLIN_PATH_REGEX = "/.*/src/.*/kotlin"
+		const val KOTLIN_PATH_REGEX = "/.*/src/.*/kotlin(?:/|$)"
 		const val CPP_PATH_REGEX = "/.*/src/[^/]+/cpp(/.*)?$"
 		private const val MAX_FILE_NAME_LENGTH = 40
 
