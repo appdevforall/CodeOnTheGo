@@ -23,11 +23,9 @@ import com.itsaky.androidide.javac.services.fs.CacheFSInfoSingleton
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.project.Common
 import com.itsaky.androidide.project.GradleModels
-import com.itsaky.androidide.projects.classpath.JarFsClasspathReader
 import com.itsaky.androidide.projects.models.DEFAULT_COMPILER_SETTINGS
 import com.itsaky.androidide.projects.models.bootClassPaths
 import com.itsaky.androidide.projects.util.BootClasspathProvider
-import com.itsaky.androidide.utils.ClassTrie
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.SourceClassTrie
 import com.itsaky.androidide.utils.SourceClassTrie.SourceNode
@@ -73,9 +71,6 @@ abstract class ModuleProject(
 
 	@JvmField
 	val compileJavaSourceClasses = SourceClassTrie()
-
-	@JvmField
-	val compileClasspathClasses = ClassTrie()
 
 	/**
 	 * Get the source directories of this module (non-transitive i.e for this module only).
@@ -217,7 +212,7 @@ abstract class ModuleProject(
 	 */
 	fun findSourceRoot(file: File): Path? = getCompileSourceDirectories().find { file.path.startsWith(it.path) }?.toPath()
 
-	/** Finds the source files and classes from source directories and classpaths and indexes them. */
+	/** Indexes the source files' classes and prepares the classpaths for the compiler. */
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 	fun indexSourcesAndClasspaths() {
 		log.info("Indexing sources and classpaths for project: {}", path)
@@ -227,9 +222,6 @@ abstract class ModuleProject(
 
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 	fun indexClasspaths() {
-		this.compileClasspathClasses.clear()
-
-		val watch = StopWatch("Indexing classpaths")
 		val paths = getCompileClasspaths().filter { it.exists() }
 
 		for (path in paths) {
@@ -237,13 +229,6 @@ abstract class ModuleProject(
 			// See JavacFileManager.getContainer(Path) for more details
 			CacheFSInfoSingleton.cache(CacheFSInfoSingleton.getCanonicalFile(path.toPath()))
 		}
-
-		val reader = JarFsClasspathReader()
-		val topLevelClasses = reader.listClasses(paths).filter { it.isTopLevel }
-		topLevelClasses.forEach { this.compileClasspathClasses.append(it.name) }
-
-		watch.log()
-		log.debug("Found {} classpaths.", topLevelClasses.size)
 
 		if (this is AndroidModule) {
 			BootClasspathProvider.update(bootClassPaths.map { it.path })
