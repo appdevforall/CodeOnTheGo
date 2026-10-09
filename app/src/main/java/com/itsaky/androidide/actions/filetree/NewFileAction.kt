@@ -329,8 +329,7 @@ class NewFileAction(
 		}
 
 		if (autoLayout) {
-			val packagePath = pkgName.toString().replace(".", "/")
-			createAutoLayout(context, sourceFileDirectory, name, packagePath, isKotlin)
+			createAutoLayout(context, sourceFileDirectory, name, isKotlin)
 		}
 	}
 
@@ -471,10 +470,12 @@ class NewFileAction(
 		context: Context,
 		directory: File,
 		fileName: String,
-		packagePath: String,
 		isKotlin: Boolean = false,
 	) {
-		val dir = directory.toString().replace("java/$packagePath", "res/layout/")
+		val dir =
+            Regex("^(.*?/src/[^/]+)/(?:java|kotlin)(?:/.*)?$").replace(directory.absolutePath) {
+                "${it.groupValues[1]}/res/layout"
+            }
 		val sourceExtension = if (isKotlin) ".kt" else ".java"
 		val layoutName = ProjectWriter.createLayoutName(fileName.replace(sourceExtension, ".xml"))
 		val newFileLayout = File(dir, layoutName)
