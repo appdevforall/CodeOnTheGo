@@ -140,8 +140,13 @@ class KotlinLanguageServer : ILanguageServer {
 			} catch (e: TimeoutException) {
 				logger.error("Previous Kotlin compiler close still running after {}s", PENDING_CLOSE_WAIT_SECONDS)
 				return false
+			} catch (e: InterruptedException) {
+				// The close may still be running; skip setup so a later sync retries.
+				Thread.currentThread().interrupt()
+				logger.warn("Interrupted while waiting for the previous Kotlin compiler close")
+				return false
 			} catch (e: Exception) {
-				// The close task catches Throwable, so this is cancellation/interruption only.
+				// The close task catches Throwable, so this is cancellation only.
 				logger.warn("Previous Kotlin compiler close failed", e)
 			}
 			return true
