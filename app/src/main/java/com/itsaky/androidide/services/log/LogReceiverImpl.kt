@@ -153,12 +153,19 @@ class LogReceiverImpl(
 
 	internal fun disconnectAll() {
 		log.debug("Disconnecting from all senders...")
-		this.senders.forEach { sender ->
-			try {
-				sender.onDisconnect()
-				disconnectSender(sender.packageName, sender.id)
-			} catch (e: Exception) {
-				log.error("Failed to disconnect from sender", e)
+		// onDisconnect() is a synchronous binder call into the user's app, which may be
+		// hung; callers run on the main thread (Activity/Service onDestroy). Snapshot now so
+		// a following close() clearing the registry cannot skip any sender.
+		val toDisconnect = mutableListOf<CachingLogSender>()
+		this.senders.forEach { toDisconnect.add(it) }
+		doAsync("disconnectAll") {
+			toDisconnect.forEach { sender ->
+				try {
+					sender.onDisconnect()
+					disconnectSender(sender.packageName, sender.id)
+				} catch (e: Exception) {
+					log.error("Failed to disconnect from sender", e)
+				}
 			}
 		}
 	}

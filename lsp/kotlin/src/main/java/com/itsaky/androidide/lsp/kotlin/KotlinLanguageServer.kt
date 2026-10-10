@@ -68,11 +68,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
+import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -82,6 +84,8 @@ import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import kotlin.io.path.extension
 
 class KotlinLanguageServer : ILanguageServer {
@@ -113,6 +117,16 @@ class KotlinLanguageServer : ILanguageServer {
 		const val SERVER_ID = "ide.lsp.kotlin"
 		const val KOTLIN_SOURCE_EXTENSION = "kt"
 		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
+
+		// Compiler.close() drains its workers with runBlocking and is reached from
+		// ProjectHandlerActivity.onDestroy on the main thread, so it runs here instead. One
+		// thread serializes closes; setupWithProject waits so a new compiler never starts
+		// while the previous one is still disposing.
+		private val closeExecutor =
+			Executors.newSingleThreadExecutor { Thread(it, "KotlinLspClose").apply { isDaemon = true } }
+
+		@Volatile
+		private var pendingClose: Future<*>? = null
 	}
 
 	init {
@@ -126,7 +140,17 @@ class KotlinLanguageServer : ILanguageServer {
 	override fun shutdown() {
 		EventBus.getDefault().unregister(this)
 		scope.cancel("LSP is being shut down")
-		compiler?.close()
+		compiler?.let { closing ->
+			pendingClose =
+				closeExecutor.submit {
+					try {
+						closing.close()
+					} catch (e: Exception) {
+						logger.error("Failed to close the Kotlin compiler", e)
+					}
+				}
+		}
+		compiler = null
 		initialized = false
 	}
 
@@ -144,6 +168,11 @@ class KotlinLanguageServer : ILanguageServer {
 
 	override fun setupWithProject(workspace: Workspace) {
 		logger.info("setupWithProject called, initialized={}", initialized)
+
+		// Runs on an EventBus background thread. Wait out the previous project's teardown:
+		// its compiler and the SQLite indexes it registered must be closed before we reopen them.
+		pendingClose?.get()
+		runBlocking { IndexingServiceManager.awaitPendingClose() }
 
 		LSPEditorActions.ensureActionsMenuRegistered(KotlinCodeActionsMenu)
 
