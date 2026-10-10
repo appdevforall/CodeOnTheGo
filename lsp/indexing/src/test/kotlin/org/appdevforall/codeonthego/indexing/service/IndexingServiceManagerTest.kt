@@ -1,9 +1,13 @@
 package org.appdevforall.codeonthego.indexing.service
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(JUnit4::class)
 class IndexingServiceManagerTest {
@@ -73,6 +77,7 @@ class IndexingServiceManagerTest {
 		manager.register(svc1)
 		manager.register(svc2)
 		manager.close()
+		runBlocking { IndexingServiceManager.awaitPendingClose() }
 		assertThat(svc1.closed).isTrue()
 		assertThat(svc2.closed).isTrue()
 	}
@@ -116,5 +121,89 @@ class IndexingServiceManagerTest {
 		val manager = IndexingServiceManager()
 		manager.close()
 		manager.close() // second close should be safe
+	}
+
+	@Test
+	fun `close returns without waiting for a slow service`() {
+		val release = CountDownLatch(1)
+		val closed = CountDownLatch(1)
+		val manager = IndexingServiceManager()
+		manager.register(
+			object : IndexingService {
+				override val id = "slow"
+				override val providedKeys = emptyList<IndexKey<*>>()
+
+				override suspend fun initialize(registry: IndexRegistry) {}
+
+				override fun close() {
+					release.await()
+					closed.countDown()
+				}
+			},
+		)
+
+		// Before the fix close() blocked here (on the main thread in production).
+		assertThat(closesWithin(manager, 2_000)).isTrue()
+		assertThat(closed.count).isEqualTo(1)
+
+		release.countDown()
+		assertThat(closed.await(5, TimeUnit.SECONDS)).isTrue()
+	}
+
+	@Test
+	fun `next manager initializes only after the previous close finishes`() {
+		val release = CountDownLatch(1)
+		var oldClosed = false
+		val old = IndexingServiceManager()
+		old.register(
+			object : IndexingService {
+				override val id = "old"
+				override val providedKeys = emptyList<IndexKey<*>>()
+
+				override suspend fun initialize(registry: IndexRegistry) {}
+
+				override fun close() {
+					release.await()
+					oldClosed = true
+				}
+			},
+		)
+		assertThat(closesWithin(old, 2_000)).isTrue()
+
+		val initialized = CountDownLatch(1)
+		var sawOldClosed = false
+		val next = IndexingServiceManager()
+		next.register(
+			object : IndexingService {
+				override val id = "next"
+				override val providedKeys = emptyList<IndexKey<*>>()
+
+				override suspend fun initialize(registry: IndexRegistry) {
+					sawOldClosed = oldClosed
+					initialized.countDown()
+				}
+
+				override fun close() {}
+			},
+		)
+		next.onProjectSynced()
+
+		assertThat(initialized.await(200, TimeUnit.MILLISECONDS)).isFalse()
+		release.countDown()
+		assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue()
+		assertThat(sawOldClosed).isTrue()
+		next.close()
+		runBlocking { withTimeout(5_000) { IndexingServiceManager.awaitPendingClose() } }
+	}
+
+	/** Calls [IndexingServiceManager.close] on a daemon thread so a blocking close fails the test instead of hanging it. */
+	private fun closesWithin(
+		manager: IndexingServiceManager,
+		millis: Long,
+	): Boolean {
+		val closer = Thread { manager.close() }.apply { isDaemon = true }
+		closer.start()
+		closer.join(millis)
+		return !closer.isAlive
 	}
 }
