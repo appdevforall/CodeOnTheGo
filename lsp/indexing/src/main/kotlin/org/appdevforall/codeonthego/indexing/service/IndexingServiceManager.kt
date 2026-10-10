@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.indexing.service
 
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,9 +36,18 @@ class IndexingServiceManager(
 		@Volatile
 		private var pendingClose: Job? = null
 
-		/** Suspends until every [close] issued so far has finished. */
+		/**
+		 * How long [awaitPendingClose] waits. withTimeoutOrNull cannot interrupt a blocking
+		 * service close, so without this a hung close would stall the next project's setup forever.
+		 */
+		@VisibleForTesting
+		internal var pendingCloseWait = 30.seconds
+
+		/** Suspends until every [close] issued so far has finished, or [pendingCloseWait] passes. */
 		suspend fun awaitPendingClose() {
-			pendingClose?.join()
+			val job = pendingClose ?: return
+			withTimeoutOrNull(pendingCloseWait) { job.join() }
+				?: log.warn("Previous indexing close still running after {}; continuing", pendingCloseWait)
 		}
 	}
 
@@ -136,10 +146,11 @@ class IndexingServiceManager(
 		log.info("Shutting down indexing services")
 
 		// Called from ProjectHandlerActivity.onPause on the main thread, so the
-		// closes (bounded per service by SERVICE_CLOSE_TIMEOUT, but SQLiteIndex and
+		// closes (SERVICE_CLOSE_TIMEOUT only bounds cooperative ones; SQLiteIndex and
 		// BackgroundIndexer block inside them) run in the background instead of
 		// parking main into an ANR. The next manager's initializeServices() waits
-		// for this job, so two managers never hold the same index databases.
+		// (bounded by pendingCloseWait) for this job, so two managers don't hold the
+		// same index databases.
 		val toClose = services.values.toList()
 		services.clear()
 		initialized = false
@@ -147,7 +158,7 @@ class IndexingServiceManager(
 		val previous = pendingClose
 		pendingClose =
 			closeScope.launch {
-				previous?.join()
+				withTimeoutOrNull(pendingCloseWait) { previous?.join() }
 
 				// Services are closed concurrently (so no ordering is implied) and
 				// failures are isolated per service.
@@ -195,7 +206,7 @@ class IndexingServiceManager(
 	}
 
 	private suspend fun initializeServices() {
-		pendingClose?.join()
+		awaitPendingClose()
 		log.info("Initializing {} indexing services", services.size)
 
 		val allServices = allServices()
