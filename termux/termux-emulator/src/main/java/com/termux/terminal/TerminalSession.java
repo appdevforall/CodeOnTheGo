@@ -15,7 +15,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.UUID;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * A terminal session, consisting of a process coupled to a terminal interface.
@@ -44,9 +46,12 @@ public final class TerminalSession extends TerminalOutput {
     final ByteQueue mProcessToTerminalIOQueue = new ByteQueue(4096);
     /**
      * A queue written to from the main thread due to user interaction, and read by another thread which forwards by
-     * writing to the {@link #mTerminalFileDescriptor}.
+     * writing to the {@link #mTerminalFileDescriptor}. Unbounded: a bounded queue made the main thread wait (ANR)
+     * whenever the foreground process stopped reading stdin and the pty input buffer filled.
      */
-    final ByteQueue mTerminalToProcessIOQueue = new ByteQueue(4096);
+    final LinkedBlockingQueue<byte[]> mTerminalToProcessIOQueue = new LinkedBlockingQueue<>();
+    /** Queued by {@link #cleanupResources(int)} to stop the writer thread. */
+    private static final byte[] END_OF_INPUT = new byte[0];
     /** Buffer to write translate code points into utf8 before writing to mTerminalToProcessIOQueue */
     private final byte[] mUtf8InputBuffer = new byte[5];
 
@@ -150,14 +155,13 @@ public final class TerminalSession extends TerminalOutput {
         new Thread("TermSessionOutputWriter[pid=" + mShellPid + "]") {
             @Override
             public void run() {
-                final byte[] buffer = new byte[4096];
                 try (FileOutputStream termOut = new FileOutputStream(terminalFileDescriptorWrapped)) {
                     while (true) {
-                        int bytesToWrite = mTerminalToProcessIOQueue.read(buffer, true);
-                        if (bytesToWrite == -1) return;
-                        termOut.write(buffer, 0, bytesToWrite);
+                        byte[] chunk = mTerminalToProcessIOQueue.take();
+                        if (chunk == END_OF_INPUT) return;
+                        termOut.write(chunk);
                     }
-                } catch (IOException e) {
+                } catch (IOException | InterruptedException e) {
                     // Ignore.
                 }
             }
@@ -176,7 +180,7 @@ public final class TerminalSession extends TerminalOutput {
     /** Write data to the shell process. */
     @Override
     public void write(byte[] data, int offset, int count) {
-        if (mShellPid > 0) mTerminalToProcessIOQueue.write(data, offset, count);
+        if (mShellPid > 0 && count > 0) mTerminalToProcessIOQueue.add(Arrays.copyOfRange(data, offset, offset + count));
     }
 
     /** Write the Unicode code point to the terminal encoded in UTF-8. */
@@ -250,7 +254,9 @@ public final class TerminalSession extends TerminalOutput {
         }
 
         // Stop the reader and writer threads, and close the I/O streams
-        mTerminalToProcessIOQueue.close();
+        // Drop input the writer never sent (it exits on an I/O error); the finished session stays around.
+        mTerminalToProcessIOQueue.clear();
+        mTerminalToProcessIOQueue.add(END_OF_INPUT);
         mProcessToTerminalIOQueue.close();
         JNI.close(mTerminalFileDescriptor);
     }

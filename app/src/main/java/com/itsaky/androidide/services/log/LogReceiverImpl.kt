@@ -25,6 +25,7 @@ import com.itsaky.androidide.tasks.executeAsyncProvideError
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.thread
 import kotlin.concurrent.withLock
 
 /**
@@ -153,12 +154,21 @@ class LogReceiverImpl(
 
 	internal fun disconnectAll() {
 		log.debug("Disconnecting from all senders...")
-		this.senders.forEach { sender ->
-			try {
-				sender.onDisconnect()
-				disconnectSender(sender.packageName, sender.id)
-			} catch (e: Exception) {
-				log.error("Failed to disconnect from sender", e)
+		// onDisconnect() is a synchronous binder call into the user's app, which may be
+		// hung; callers run on the main thread (Activity/Service onDestroy). Snapshot now so
+		// a following close() clearing the registry cannot skip any sender. One daemon thread
+		// per sender, not the shared common pool: a hung app must not hold up the others or
+		// starve every other commonPool user.
+		val toDisconnect = mutableListOf<CachingLogSender>()
+		this.senders.forEach { toDisconnect.add(it) }
+		toDisconnect.forEach { sender ->
+			thread(isDaemon = true, name = "LogSenderDisconnect") {
+				try {
+					sender.onDisconnect()
+					disconnectSender(sender.packageName, sender.id)
+				} catch (e: Exception) {
+					log.error("Failed to disconnect from sender", e)
+				}
 			}
 		}
 	}

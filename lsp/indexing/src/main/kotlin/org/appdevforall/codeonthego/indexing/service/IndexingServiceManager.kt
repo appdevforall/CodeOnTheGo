@@ -1,13 +1,14 @@
 package org.appdevforall.codeonthego.indexing.service
 
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.io.Closeable
@@ -18,16 +19,41 @@ import kotlin.time.Duration.Companion.seconds
  * Manages the lifecycle of [IndexingService]s and the [IndexRegistry].
  */
 class IndexingServiceManager(
-	private val scope: CoroutineScope = CoroutineScope(
-		SupervisorJob() + Dispatchers.Default
-	),
+	private val scope: CoroutineScope =
+		CoroutineScope(
+			SupervisorJob() + Dispatchers.Default,
+		),
 ) : Closeable {
-
 	companion object {
 		private val log = LoggerFactory.getLogger(IndexingServiceManager::class.java)
 
 		/** The timeout duration for closing indexing services */
 		private val SERVICE_CLOSE_TIMEOUT = 10.seconds
+
+		private val closeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+		/** The most recent background [close], which the next manager waits for. */
+		@Volatile
+		private var pendingClose: Job? = null
+
+		/**
+		 * How long [awaitPendingClose] waits. withTimeoutOrNull cannot interrupt a blocking
+		 * service close, so without this a hung close would stall the next project's setup forever.
+		 */
+		@VisibleForTesting
+		internal var pendingCloseWait = 30.seconds
+
+		/**
+		 * Suspends until every [close] issued so far has finished, or [pendingCloseWait] passes.
+		 * Returns false on timeout: the old indexes may still be open, so callers must not reopen
+		 * them (a later sync retries).
+		 */
+		suspend fun awaitPendingClose(): Boolean {
+			val job = pendingClose ?: return true
+			if (withTimeoutOrNull(pendingCloseWait) { job.join() } != null) return true
+			log.error("Previous indexing close still running after {}; skipping index setup", pendingCloseWait)
+			return false
+		}
 	}
 
 	/**
@@ -71,8 +97,7 @@ class IndexingServiceManager(
 	fun onProjectSynced() {
 		scope.launch {
 			if (!initialized) {
-				initializeServices()
-				initialized = true
+				initialized = initializeServices()
 			}
 		}
 	}
@@ -111,14 +136,12 @@ class IndexingServiceManager(
 	/**
 	 * Returns the registered service with the given ID, or null.
 	 */
-	fun getService(id: String): IndexingService? =
-		services[id]
+	fun getService(id: String): IndexingService? = services[id]
 
 	/**
 	 * Returns all registered services.
 	 */
-	fun allServices(): List<IndexingService> =
-		services.values.toList()
+	fun allServices(): List<IndexingService> = services.values.toList()
 
 	/**
 	 * Shut down all services and clear the registry.
@@ -126,67 +149,79 @@ class IndexingServiceManager(
 	override fun close() {
 		log.info("Shutting down indexing services")
 
-		// Close all services and the registry, and block until they finish.
-		// Callers (e.g. ProjectManagerImpl.destroy()) rely on shutdown being
-		// complete when close() returns -- the Closeable contract -- before they
-		// drop their reference to the manager.
-		//
-		// Services are closed concurrently on Dispatchers.Default (so no ordering
-		// is implied), and each close is bounded by SERVICE_CLOSE_TIMEOUT so a
-		// cooperatively-cancellable service cannot stall teardown indefinitely.
-		// Failures are isolated per service.
-		runBlocking {
-			val serviceJobs = services.values.map { service ->
-				launch(Dispatchers.Default) {
-					withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
-						try {
-							service.close()
-							log.debug("Closed service: {}", service.id)
-						} catch (e: Exception) {
-							if (e is CancellationException) throw e
-							log.error("Failed to close service: {}", service.id, e)
-						}
-					} ?: log.warn(
-						"Indexing service {} failed to close within timeout period: {}ms",
-						service.id, SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds,
-					)
-				}
-			}
-
-			val closeRegistryJob = launch(Dispatchers.Default) {
-				withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
-					try {
-						registry.close()
-					} catch (e: Exception) {
-						if (e is CancellationException) throw e
-						log.error("Failed to close index registry", e)
-					}
-				} ?: log.warn(
-					"Index registry failed to close within timeout: {}ms",
-					SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds,
-				)
-			}
-
-			joinAll(*serviceJobs.toTypedArray(), closeRegistryJob)
-		}
-
-		// Cancel any in-flight indexing work still running on the manager scope.
-		scope.coroutineContext.cancelChildren()
-
+		// Called from ProjectHandlerActivity.onPause on the main thread, so the
+		// closes (SERVICE_CLOSE_TIMEOUT only bounds cooperative ones; SQLiteIndex and
+		// BackgroundIndexer block inside them) run in the background instead of
+		// parking main into an ANR. The next manager's initializeServices() waits
+		// (bounded by pendingCloseWait, skipping setup on timeout) for this job, so two
+		// managers never hold the same index databases.
+		val toClose = services.values.toList()
 		services.clear()
 		initialized = false
 
-		log.info("Indexing services shut down")
+		val previous = pendingClose
+		pendingClose =
+			closeScope.launch {
+				// Unbounded on purpose: this job must not finish before an earlier close does, or
+				// awaitPendingClose() would report the indexes free while they are still open.
+				previous?.join()
+
+				// Services are closed concurrently (so no ordering is implied) and
+				// failures are isolated per service.
+				val serviceJobs =
+					toClose.map { service ->
+						launch {
+							withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
+								try {
+									service.close()
+									log.debug("Closed service: {}", service.id)
+								} catch (e: Exception) {
+									if (e is CancellationException) throw e
+									log.error("Failed to close service: {}", service.id, e)
+								}
+							} ?: log.warn(
+								"Indexing service {} failed to close within timeout period: {}ms",
+								service.id,
+								SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds,
+							)
+						}
+					}
+
+				val closeRegistryJob =
+					launch {
+						withTimeoutOrNull(SERVICE_CLOSE_TIMEOUT) {
+							try {
+								registry.close()
+							} catch (e: Exception) {
+								if (e is CancellationException) throw e
+								log.error("Failed to close index registry", e)
+							}
+						} ?: log.warn(
+							"Index registry failed to close within timeout: {}ms",
+							SERVICE_CLOSE_TIMEOUT.inWholeMilliseconds,
+						)
+					}
+
+				joinAll(*serviceJobs.toTypedArray(), closeRegistryJob)
+
+				// Cancel any in-flight indexing work still running on the manager scope.
+				scope.coroutineContext.cancelChildren()
+
+				log.info("Indexing services shut down")
+			}
 	}
 
-	private suspend fun initializeServices() {
+	/** Returns false when setup was skipped because the previous close has not finished. */
+	private suspend fun initializeServices(): Boolean {
+		if (!awaitPendingClose()) return false
 		log.info("Initializing {} indexing services", services.size)
 
 		val allServices = allServices()
 		for (service in allServices) {
 			try {
 				service.initialize(registry)
-				log.info("Initialized service: {} (provides: {})",
+				log.info(
+					"Initialized service: {} (provides: {})",
 					service.id,
 					service.providedKeys.joinToString { it.name },
 				)
@@ -201,10 +236,12 @@ class IndexingServiceManager(
 				if (!registry.isRegistered(key)) {
 					log.warn(
 						"Service '{}' promised index '{}' but did not register it",
-						service.id, key.name,
+						service.id,
+						key.name,
 					)
 				}
 			}
 		}
+		return true
 	}
 }
