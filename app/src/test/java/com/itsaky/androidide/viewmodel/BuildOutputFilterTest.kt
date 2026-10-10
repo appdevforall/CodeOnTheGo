@@ -19,6 +19,7 @@ package com.itsaky.androidide.viewmodel
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BuildOutputFilterTest {
@@ -153,4 +154,19 @@ class BuildOutputFilterTest {
 		nowMs: Long = 1_722_000_000_000L,
 		stepDeltaMs: Long = 42L,
 	): String = BuildOutputViewModel.formatLinePrefix(nowMs, stepDeltaMs)
+
+	@Test
+	fun `editorTail is null within the limit`() {
+		assertEquals(null, BuildOutputViewModel.editorTail("x".repeat(BuildOutputViewModel.EDITOR_REWINDOW_CHARS)))
+	}
+
+	@Test
+	fun `editorTail keeps whole lines from the end`() {
+		val line = "0123456789".repeat(9) + "\n" // 91 chars, never divides the window evenly
+		val text = line.repeat(BuildOutputViewModel.EDITOR_REWINDOW_CHARS / line.length + 1) + "last\n"
+		val tail = BuildOutputViewModel.editorTail(text)!!
+		assertTrue(tail.length < BuildOutputViewModel.EDITOR_REWINDOW_CHARS / 2)
+		assertTrue(tail.startsWith(line))
+		assertTrue(tail.endsWith(line + "last\n"))
+	}
 }

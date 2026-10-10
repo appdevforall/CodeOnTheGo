@@ -448,7 +448,6 @@ class BuildOutputFragment :
 		sessionGen: Int,
 		editorGen: Int,
 	) {
-		var rewindow = false
 		editorContentMutex.withLock {
 			// A clear (new build) after this batch was drained invalidates it.
 			if (sessionGen != sessionGeneration) return
@@ -479,8 +478,8 @@ class BuildOutputFragment :
 						// clearOutput() or renderFiltered() may have run since the file append.
 						if (editorGen == editorContentGeneration) {
 							appendBatch(visibleText)
+							trimToWindow()
 							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
-							rewindow = this.text.length > BuildOutputViewModel.EDITOR_REWINDOW_CHARS
 						}
 					} else {
 						// Timeout: defer append until layout is ready (same as restoreWindowFromViewModel)
@@ -490,6 +489,7 @@ class BuildOutputFragment :
 								editorContentMutex.withLock {
 									if (editorGen == editorContentGeneration) {
 										appendBatch(visibleText)
+										trimToWindow()
 										updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 									}
 								}
@@ -499,10 +499,17 @@ class BuildOutputFragment :
 				}
 			}
 		}
+	}
 
-		// Unbounded editor content made every append, wordwrap pass and clearOutput() on the
-		// main thread slower as a build ran on, until they ANR'd. Swap back to the file's tail
-		// window; the session file still holds everything.
-		if (rewindow) renderFiltered()
+	/**
+	 * Replaces the editor content with its own tail once it outgrows the window. Unbounded content
+	 * made every append, wordwrap pass and clearOutput() on the main thread slower as a build ran on,
+	 * until they ANR'd. Trims the editor's own (already filtered) text rather than re-reading the
+	 * session file, whose writer can lag the editor. Call on the main thread under [editorContentMutex].
+	 */
+	private fun IDEEditor.trimToWindow() {
+		val tail = BuildOutputViewModel.editorTail(text) ?: return
+		setText(tail)
+		onContentReplaced()
 	}
 }

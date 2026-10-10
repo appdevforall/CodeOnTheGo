@@ -384,8 +384,18 @@ class BuildOutputViewModel(
 		internal const val SESSION_FILE_NAME = "build_output_session.txt"
 		private const val WINDOW_SIZE_CHARS = 512 * 1024
 
-		/** Editor length past which the fragment swaps back to the [WINDOW_SIZE_CHARS] tail. */
+		/** Editor length past which the fragment trims back to the [WINDOW_SIZE_CHARS] tail. */
 		internal const val EDITOR_REWINDOW_CHARS = 2 * WINDOW_SIZE_CHARS
+
+		/**
+		 * The last [WINDOW_SIZE_CHARS] of [text], starting at a line boundary, or null while [text]
+		 * is within [EDITOR_REWINDOW_CHARS].
+		 */
+		internal fun editorTail(text: CharSequence): String? {
+			if (text.length <= EDITOR_REWINDOW_CHARS) return null
+			val tail = text.subSequence(text.length - WINDOW_SIZE_CHARS, text.length).toString()
+			return tail.substring(tail.indexOf('\n') + 1)
+		}
 
 		/** Max length of [cachedContentSnapshot] to bound memory. */
 		private const val CACHE_SNAPSHOT_MAX_CHARS = WINDOW_SIZE_CHARS
