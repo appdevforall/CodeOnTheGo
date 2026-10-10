@@ -86,6 +86,8 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import kotlin.io.path.extension
 
 class KotlinLanguageServer : ILanguageServer {
@@ -127,6 +129,19 @@ class KotlinLanguageServer : ILanguageServer {
 
 		@Volatile
 		private var pendingClose: Future<*>? = null
+
+		/** A blocking close cannot be interrupted, so the next setup waits at most this long. */
+		private const val PENDING_CLOSE_WAIT_SECONDS = 30L
+
+		private fun awaitPendingClose() {
+			try {
+				pendingClose?.get(PENDING_CLOSE_WAIT_SECONDS, TimeUnit.SECONDS)
+			} catch (e: TimeoutException) {
+				logger.warn("Previous Kotlin compiler close still running after {}s; continuing", PENDING_CLOSE_WAIT_SECONDS)
+			} catch (e: Exception) {
+				logger.warn("Previous Kotlin compiler close failed", e)
+			}
+		}
 	}
 
 	init {
@@ -145,7 +160,9 @@ class KotlinLanguageServer : ILanguageServer {
 				closeExecutor.submit {
 					try {
 						closing.close()
-					} catch (e: Exception) {
+					} catch (e: Throwable) {
+						// Throwable: an Error (e.g. "Project is already disposed") left in the Future
+						// would otherwise be rethrown by every later setupWithProject.
 						logger.error("Failed to close the Kotlin compiler", e)
 					}
 				}
@@ -171,7 +188,7 @@ class KotlinLanguageServer : ILanguageServer {
 
 		// Runs on an EventBus background thread. Wait out the previous project's teardown:
 		// its compiler and the SQLite indexes it registered must be closed before we reopen them.
-		pendingClose?.get()
+		awaitPendingClose()
 		runBlocking { IndexingServiceManager.awaitPendingClose() }
 
 		LSPEditorActions.ensureActionsMenuRegistered(KotlinCodeActionsMenu)
