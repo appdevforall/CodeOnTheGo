@@ -254,6 +254,8 @@ public final class TerminalSession extends TerminalOutput {
         }
 
         // Stop the reader and writer threads, and close the I/O streams
+        // Drop input the writer never sent (it exits on an I/O error); the finished session stays around.
+        mTerminalToProcessIOQueue.clear();
         mTerminalToProcessIOQueue.add(END_OF_INPUT);
         mProcessToTerminalIOQueue.close();
         JNI.close(mTerminalFileDescriptor);
