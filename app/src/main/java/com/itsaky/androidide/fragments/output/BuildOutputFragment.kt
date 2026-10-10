@@ -56,6 +56,7 @@ class BuildOutputFragment :
 
 	companion object {
 		private const val LAYOUT_TIMEOUT_MS = 2000L
+		private const val MAX_BATCH_CHARS = 64 * 1024
 	}
 
 	override val currentEditor: IDEEditor? get() = editor
@@ -394,12 +395,17 @@ class BuildOutputFragment :
 	 * into a single memory operation to avoid saturating the UI queue.
 	 */
 	private fun ReceiveChannel<String>.drainTo(buffer: StringBuilder) {
+		// Bounded: the main thread word-wraps each batch in one appendBatch call, so draining a
+		// flooding build in one go stalled it into an ANR (WordwrapLayout.afterInsert). The rest
+		// stays queued for the next batch.
+		if (buffer.length >= MAX_BATCH_CHARS) return
 		var result = tryReceive()
 		while (result.isSuccess) {
 			val line = result.getOrNull()
 			if (!line.isNullOrEmpty()) {
 				buffer.append(line.ensureNewline())
 			}
+			if (buffer.length >= MAX_BATCH_CHARS) return
 			result = tryReceive()
 		}
 	}
