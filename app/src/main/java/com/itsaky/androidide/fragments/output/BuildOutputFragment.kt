@@ -362,6 +362,8 @@ class BuildOutputFragment :
 		noMatchTracker.reset()
 		buildOutputViewModel.clear()
 		super.clearOutput()
+		// super replaces the Content; drop search results that point into the old one.
+		onContentReplaced()
 		// super sets the empty state unconditionally; re-apply the invariant so an
 		// active filter keeps the content layout (and the filter bar) reachable.
 		updateEmptyState(isSourceEmpty = true, isFilterActive = isFilterActive)
