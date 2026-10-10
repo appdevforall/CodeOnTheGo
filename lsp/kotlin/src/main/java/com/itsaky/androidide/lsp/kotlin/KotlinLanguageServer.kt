@@ -133,14 +133,18 @@ class KotlinLanguageServer : ILanguageServer {
 		/** A blocking close cannot be interrupted, so the next setup waits at most this long. */
 		private const val PENDING_CLOSE_WAIT_SECONDS = 30L
 
-		private fun awaitPendingClose() {
+		/** Returns false if the previous compiler is still disposing after the wait. */
+		private fun awaitPendingClose(): Boolean {
 			try {
 				pendingClose?.get(PENDING_CLOSE_WAIT_SECONDS, TimeUnit.SECONDS)
 			} catch (e: TimeoutException) {
-				logger.warn("Previous Kotlin compiler close still running after {}s; continuing", PENDING_CLOSE_WAIT_SECONDS)
+				logger.error("Previous Kotlin compiler close still running after {}s", PENDING_CLOSE_WAIT_SECONDS)
+				return false
 			} catch (e: Exception) {
+				// The close task catches Throwable, so this is cancellation/interruption only.
 				logger.warn("Previous Kotlin compiler close failed", e)
 			}
+			return true
 		}
 	}
 
@@ -188,8 +192,12 @@ class KotlinLanguageServer : ILanguageServer {
 
 		// Runs on an EventBus background thread. Wait out the previous project's teardown:
 		// its compiler and the SQLite indexes it registered must be closed before we reopen them.
-		awaitPendingClose()
-		runBlocking { IndexingServiceManager.awaitPendingClose() }
+		// If they are still closing, skip setup rather than share them; initialized stays false,
+		// so the next ProjectInitializedEvent (sync) retries.
+		if (!awaitPendingClose() || !runBlocking { IndexingServiceManager.awaitPendingClose() }) {
+			logger.error("Skipping Kotlin setup: the previous project is still closing")
+			return
+		}
 
 		LSPEditorActions.ensureActionsMenuRegistered(KotlinCodeActionsMenu)
 

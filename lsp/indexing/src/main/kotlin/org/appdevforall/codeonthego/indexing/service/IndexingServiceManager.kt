@@ -43,11 +43,16 @@ class IndexingServiceManager(
 		@VisibleForTesting
 		internal var pendingCloseWait = 30.seconds
 
-		/** Suspends until every [close] issued so far has finished, or [pendingCloseWait] passes. */
-		suspend fun awaitPendingClose() {
-			val job = pendingClose ?: return
-			withTimeoutOrNull(pendingCloseWait) { job.join() }
-				?: log.warn("Previous indexing close still running after {}; continuing", pendingCloseWait)
+		/**
+		 * Suspends until every [close] issued so far has finished, or [pendingCloseWait] passes.
+		 * Returns false on timeout: the old indexes may still be open, so callers must not reopen
+		 * them (a later sync retries).
+		 */
+		suspend fun awaitPendingClose(): Boolean {
+			val job = pendingClose ?: return true
+			if (withTimeoutOrNull(pendingCloseWait) { job.join() } != null) return true
+			log.error("Previous indexing close still running after {}; skipping index setup", pendingCloseWait)
+			return false
 		}
 	}
 
@@ -92,8 +97,7 @@ class IndexingServiceManager(
 	fun onProjectSynced() {
 		scope.launch {
 			if (!initialized) {
-				initializeServices()
-				initialized = true
+				initialized = initializeServices()
 			}
 		}
 	}
@@ -149,8 +153,8 @@ class IndexingServiceManager(
 		// closes (SERVICE_CLOSE_TIMEOUT only bounds cooperative ones; SQLiteIndex and
 		// BackgroundIndexer block inside them) run in the background instead of
 		// parking main into an ANR. The next manager's initializeServices() waits
-		// (bounded by pendingCloseWait) for this job, so two managers don't hold the
-		// same index databases.
+		// (bounded by pendingCloseWait, skipping setup on timeout) for this job, so two
+		// managers never hold the same index databases.
 		val toClose = services.values.toList()
 		services.clear()
 		initialized = false
@@ -158,7 +162,9 @@ class IndexingServiceManager(
 		val previous = pendingClose
 		pendingClose =
 			closeScope.launch {
-				withTimeoutOrNull(pendingCloseWait) { previous?.join() }
+				// Unbounded on purpose: this job must not finish before an earlier close does, or
+				// awaitPendingClose() would report the indexes free while they are still open.
+				previous?.join()
 
 				// Services are closed concurrently (so no ordering is implied) and
 				// failures are isolated per service.
@@ -205,8 +211,9 @@ class IndexingServiceManager(
 			}
 	}
 
-	private suspend fun initializeServices() {
-		awaitPendingClose()
+	/** Returns false when setup was skipped because the previous close has not finished. */
+	private suspend fun initializeServices(): Boolean {
+		if (!awaitPendingClose()) return false
 		log.info("Initializing {} indexing services", services.size)
 
 		val allServices = allServices()
@@ -235,5 +242,6 @@ class IndexingServiceManager(
 				}
 			}
 		}
+		return true
 	}
 }

@@ -9,6 +9,7 @@ import org.junit.runners.JUnit4
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 @RunWith(JUnit4::class)
 class IndexingServiceManagerTest {
@@ -198,25 +199,12 @@ class IndexingServiceManagerTest {
 	}
 
 	@Test
-	fun `a hung close does not stall the next manager forever`() {
+	fun `a hung close skips setup instead of sharing indexes, and a later sync retries`() {
 		val release = CountDownLatch(1)
 		val savedWait = IndexingServiceManager.pendingCloseWait
 		IndexingServiceManager.pendingCloseWait = 300.milliseconds
 		try {
-			val hung = IndexingServiceManager()
-			hung.register(
-				object : IndexingService {
-					override val id = "hung"
-					override val providedKeys = emptyList<IndexKey<*>>()
-
-					override suspend fun initialize(registry: IndexRegistry) {}
-
-					override fun close() {
-						release.await() // blocking, so withTimeoutOrNull cannot cut it short
-					}
-				},
-			)
-			hung.close()
+			blockingManager(release).close()
 
 			val initialized = CountDownLatch(1)
 			val next = IndexingServiceManager()
@@ -232,8 +220,13 @@ class IndexingServiceManagerTest {
 					override fun close() {}
 				},
 			)
-			next.onProjectSynced()
 
+			// Bounded: the sync returns, but must not open indexes the hung close still holds.
+			next.onProjectSynced()
+			assertThat(initialized.await(1, TimeUnit.SECONDS)).isFalse()
+
+			release.countDown()
+			next.onProjectSynced()
 			assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue()
 		} finally {
 			release.countDown()
@@ -241,6 +234,44 @@ class IndexingServiceManagerTest {
 			runBlocking { withTimeout(5_000) { IndexingServiceManager.awaitPendingClose() } }
 		}
 	}
+
+	@Test
+	fun `a later close does not hide an earlier one that is still running`() {
+		val release = CountDownLatch(1)
+		val savedWait = IndexingServiceManager.pendingCloseWait
+		IndexingServiceManager.pendingCloseWait = 300.milliseconds
+		try {
+			blockingManager(release).close()
+			IndexingServiceManager().close() // nothing to close; finishes at once on its own
+
+			Thread.sleep(600) // past pendingCloseWait for the second close's wait on the first
+			assertThat(runBlocking { IndexingServiceManager.awaitPendingClose() }).isFalse()
+
+			release.countDown()
+			IndexingServiceManager.pendingCloseWait = 5.seconds
+			assertThat(runBlocking { IndexingServiceManager.awaitPendingClose() }).isTrue()
+		} finally {
+			release.countDown()
+			IndexingServiceManager.pendingCloseWait = savedWait
+		}
+	}
+
+	/** A manager whose only service blocks in close() until [release] opens. */
+	private fun blockingManager(release: CountDownLatch) =
+		IndexingServiceManager().apply {
+			register(
+				object : IndexingService {
+					override val id = "hung"
+					override val providedKeys = emptyList<IndexKey<*>>()
+
+					override suspend fun initialize(registry: IndexRegistry) {}
+
+					override fun close() {
+						release.await() // blocking, so withTimeoutOrNull cannot cut it short
+					}
+				},
+			)
+		}
 
 	/** Calls [IndexingServiceManager.close] on a daemon thread so a blocking close fails the test instead of hanging it. */
 	private fun closesWithin(
