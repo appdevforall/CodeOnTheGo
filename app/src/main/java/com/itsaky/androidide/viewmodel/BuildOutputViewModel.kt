@@ -384,6 +384,9 @@ class BuildOutputViewModel(
 		internal const val SESSION_FILE_NAME = "build_output_session.txt"
 		private const val WINDOW_SIZE_CHARS = 512 * 1024
 
+		/** Editor length past which the fragment swaps back to the [WINDOW_SIZE_CHARS] tail. */
+		internal const val EDITOR_REWINDOW_CHARS = 2 * WINDOW_SIZE_CHARS
+
 		/** Max length of [cachedContentSnapshot] to bound memory. */
 		private const val CACHE_SNAPSHOT_MAX_CHARS = WINDOW_SIZE_CHARS
 		private val log = org.slf4j.LoggerFactory.getLogger(BuildOutputViewModel::class.java)

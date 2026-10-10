@@ -442,6 +442,7 @@ class BuildOutputFragment :
 		sessionGen: Int,
 		editorGen: Int,
 	) {
+		var rewindow = false
 		editorContentMutex.withLock {
 			// A clear (new build) after this batch was drained invalidates it.
 			if (sessionGen != sessionGeneration) return
@@ -473,6 +474,7 @@ class BuildOutputFragment :
 						if (editorGen == editorContentGeneration) {
 							appendBatch(visibleText)
 							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
+							rewindow = this.text.length > BuildOutputViewModel.EDITOR_REWINDOW_CHARS
 						}
 					} else {
 						// Timeout: defer append until layout is ready (same as restoreWindowFromViewModel)
@@ -491,5 +493,10 @@ class BuildOutputFragment :
 				}
 			}
 		}
+
+		// Unbounded editor content made every append, wordwrap pass and clearOutput() on the
+		// main thread slower as a build ran on, until they ANR'd. Swap back to the file's tail
+		// window; the session file still holds everything.
+		if (rewindow) renderFiltered()
 	}
 }
