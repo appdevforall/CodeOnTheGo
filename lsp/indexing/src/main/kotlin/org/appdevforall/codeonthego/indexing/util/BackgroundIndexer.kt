@@ -2,14 +2,12 @@ package org.appdevforall.codeonthego.indexing.util
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -97,8 +95,7 @@ class BackgroundIndexer<T : Indexable>(
 		activeJobs[sourceId]?.cancel()
 
 		val job =
-			// LAZY so the job is registered before it can run and remove itself.
-			scope.launch(start = CoroutineStart.LAZY) {
+			scope.launch {
 				try {
 					if (skipIfExists && index.containsSource(sourceId)) {
 						log.debug("Skipping already-indexed: {}", sourceId)
@@ -153,14 +150,14 @@ class BackgroundIndexer<T : Indexable>(
 				} catch (e: Exception) {
 					log.error("Indexing failed: {}", sourceId, e)
 					progressListener?.onProgress(sourceId, IndexingEvent.Failed(e))
-				} finally {
-					// Remove only this job: a replacement for the same source may already be registered.
-					activeJobs.remove(sourceId, coroutineContext.job)
 				}
 			}
 
 		activeJobs[sourceId] = job
-		job.start()
+		// Untrack on completion, not in the body: a job cancelled before it runs never reaches a
+		// finally, and a handler added after completion runs at once. Remove only this job: a
+		// replacement for the same source may already be registered.
+		job.invokeOnCompletion { activeJobs.remove(sourceId, job) }
 		return job
 	}
 

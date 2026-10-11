@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
@@ -346,10 +347,21 @@ class BackgroundIndexerTest {
 		runTest {
 			val index = InMemoryIndex(descriptor)
 			index.insert(Entry("k1", "src1", "v1"))
-			// Unconfined runs the skip path to completion inside launch/start.
+			// Unconfined runs the skip path to completion inside launch.
 			val indexer = BackgroundIndexer(index, CoroutineScope(Dispatchers.Unconfined))
 
 			indexer.indexSource("src1", skipIfExists = true) { emptyFlow() }.join()
+
+			assertThat(indexer.activeJobCount).isEqualTo(0)
+		}
+
+	@Test
+	fun `job cancelled before its body runs is not left tracked`() =
+		runTest {
+			// A cancelled parent cancels the job before its body runs, so no finally in the body executes.
+			val indexer = BackgroundIndexer(InMemoryIndex(descriptor), CoroutineScope(Job().apply { cancel() }))
+
+			indexer.indexSource("src1", skipIfExists = false) { flowOf(Entry("k1", it, "v1")) }.join()
 
 			assertThat(indexer.activeJobCount).isEqualTo(0)
 		}
