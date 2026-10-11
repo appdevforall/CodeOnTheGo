@@ -2,11 +2,13 @@ package org.appdevforall.codeonthego.indexing.util
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -92,7 +94,8 @@ class BackgroundIndexer<T : Indexable>(
 		activeJobs[sourceId]?.cancel()
 
 		val job =
-			scope.launch {
+			// LAZY so the job is registered before it can run and remove itself.
+			scope.launch(start = CoroutineStart.LAZY) {
 				var entries: Sequence<T>? = null
 				try {
 					if (skipIfExists && index.containsSource(sourceId)) {
@@ -132,18 +135,23 @@ class BackgroundIndexer<T : Indexable>(
 					log.error("Indexing failed: {}", sourceId, e)
 					progressListener?.onProgress(sourceId, IndexingEvent.Failed(e))
 				} finally {
+					// Remove only this job: a replacement for the same source may already be registered.
+					activeJobs.remove(sourceId, coroutineContext.job)
 					// insertAll abandons the sequence on cancellation or error, so a sequence holding
 					// an open JAR must be closed here; otherwise the GC cleaner closes it on the
 					// FinalizerDaemon, where an I/O error (EIO) is fatal.
 					(entries as? AutoCloseable)?.let { closeable ->
-						runCatching { closeable.close() }
-							.onFailure { log.warn("Failed to close entries for {}", sourceId, it) }
+						try {
+							closeable.close()
+						} catch (e: Exception) {
+							log.warn("Failed to close entries for {}", sourceId, e)
+						}
 					}
-					activeJobs.remove(sourceId)
 				}
 			}
 
 		activeJobs[sourceId] = job
+		job.start()
 		return job
 	}
 

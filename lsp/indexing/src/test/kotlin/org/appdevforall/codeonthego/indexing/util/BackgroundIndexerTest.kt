@@ -2,9 +2,13 @@ package org.appdevforall.codeonthego.indexing.util
 
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
@@ -13,6 +17,7 @@ import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(JUnit4::class)
 class BackgroundIndexerTest {
@@ -270,5 +275,56 @@ class BackgroundIndexerTest {
 			job.cancelAndJoin()
 
 			assertThat(entries.closed).isTrue()
+		}
+
+	@Test
+	fun `cancelled job does not untrack the replacement job for the same source`() =
+		runTest {
+			val firstInserting = CompletableDeferred<Unit>()
+			val secondRegistered = CompletableDeferred<Unit>()
+			val releaseSecond = CompletableDeferred<Unit>()
+			val calls = AtomicInteger()
+			val index =
+				object : Index<Entry> by InMemoryIndex(descriptor) {
+					override suspend fun insertAll(entries: Sequence<Entry>) {
+						if (calls.incrementAndGet() == 1) {
+							firstInserting.complete(Unit)
+							try {
+								awaitCancellation()
+							} finally {
+								// Hold the first job's cleanup until the replacement is registered.
+								withContext(NonCancellable) { secondRegistered.await() }
+							}
+						} else {
+							releaseSecond.await()
+						}
+					}
+				}
+			val indexer = BackgroundIndexer(index)
+
+			val first = indexer.indexSource("src1", skipIfExists = false) { emptySequence() }
+			firstInserting.await()
+			val second = indexer.indexSource("src1", skipIfExists = false) { emptySequence() }
+			secondRegistered.complete(Unit)
+			first.join()
+
+			assertThat(indexer.activeJobCount).isEqualTo(1)
+
+			releaseSecond.complete(Unit)
+			second.join()
+			assertThat(indexer.activeJobCount).isEqualTo(0)
+		}
+
+	@Test
+	fun `job that completes before indexSource returns is not left tracked`() =
+		runTest {
+			val index = InMemoryIndex(descriptor)
+			index.insert(Entry("k1", "src1", "v1"))
+			// Unconfined runs the skip path to completion inside launch/start.
+			val indexer = BackgroundIndexer(index, CoroutineScope(Dispatchers.Unconfined))
+
+			indexer.indexSource("src1", skipIfExists = true) { emptySequence() }.join()
+
+			assertThat(indexer.activeJobCount).isEqualTo(0)
 		}
 }

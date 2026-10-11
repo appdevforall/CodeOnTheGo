@@ -10,7 +10,6 @@ import org.jetbrains.org.objectweb.asm.Opcodes
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.nio.file.Path
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.jar.JarFile
 import kotlin.io.path.pathString
 
@@ -60,10 +59,13 @@ object CombinedJarScanner {
 		private val sourceId: String,
 	) : Sequence<JvmSymbol>,
 		AutoCloseable {
-		private val openJars = ConcurrentLinkedQueue<JarFile>()
+		@Volatile private var closed = false
+
+		@Volatile private var jar: JarFile? = null
 
 		override fun iterator(): Iterator<JvmSymbol> =
 			sequence {
+				if (closed) return@sequence
 				val jar =
 					try {
 						JarFile(jarPath.toFile())
@@ -71,7 +73,7 @@ object CombinedJarScanner {
 						log.warn("Failed to open JAR: {}", jarPath, e)
 						return@sequence
 					}
-				openJars.add(jar)
+				this@JarSymbols.jar = jar
 
 				jar.use {
 					val entries = jar.entries()
@@ -101,10 +103,13 @@ object CombinedJarScanner {
 						}
 					}
 				}
+				this@JarSymbols.jar = null
 			}.iterator()
 
 		override fun close() {
-			while (true) (openJars.poll() ?: break).close()
+			closed = true
+			jar?.close()
+			jar = null
 		}
 	}
 

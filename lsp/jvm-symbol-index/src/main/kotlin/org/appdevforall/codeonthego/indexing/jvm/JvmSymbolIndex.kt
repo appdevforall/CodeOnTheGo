@@ -65,7 +65,10 @@ open class JvmSymbolIndex(
 	 *
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
-	 * @param provider     Lambda returning a [Sequence] of entries.
+	 * @param provider     Lambda returning a [Sequence] of entries. If the sequence is
+	 *                     [AutoCloseable], it is closed when the job ends, however it ends.
+	 *                     Return it unwrapped: a wrapper such as `.filter {}` is not
+	 *                     [AutoCloseable], so the underlying JAR would not be closed.
 	 * @return The launched job.
 	 */
 	fun indexSource(
