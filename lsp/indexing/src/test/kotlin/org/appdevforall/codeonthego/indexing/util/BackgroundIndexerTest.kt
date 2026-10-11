@@ -7,6 +7,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
@@ -17,6 +24,7 @@ import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(JUnit4::class)
@@ -54,7 +62,7 @@ class BackgroundIndexerTest {
 
 			indexer
 				.indexSource("src1", skipIfExists = false) { sourceId ->
-					sequenceOf(
+					flowOf(
 						Entry("k1", sourceId, "v1"),
 						Entry("k2", sourceId, "v2"),
 					)
@@ -72,12 +80,12 @@ class BackgroundIndexerTest {
 
 			indexer
 				.indexSource("src1", skipIfExists = false) { sourceId ->
-					sequenceOf(Entry("k1", sourceId, "original"))
+					flowOf(Entry("k1", sourceId, "original"))
 				}.join()
 
 			indexer
 				.indexSource("src1", skipIfExists = true) { sourceId ->
-					sequenceOf(Entry("k1", sourceId, "updated"))
+					flowOf(Entry("k1", sourceId, "updated"))
 				}.join()
 
 			assertThat(index.get("k1")!!.value).isEqualTo("original")
@@ -90,12 +98,12 @@ class BackgroundIndexerTest {
 
 			indexer
 				.indexSource("src1", skipIfExists = false) { sourceId ->
-					sequenceOf(Entry("k1", sourceId, "original"))
+					flowOf(Entry("k1", sourceId, "original"))
 				}.join()
 
 			indexer
 				.indexSource("src1", skipIfExists = false) { sourceId ->
-					sequenceOf(Entry("k1", sourceId, "updated"))
+					flowOf(Entry("k1", sourceId, "updated"))
 				}.join()
 
 			assertThat(index.get("k1")!!.value).isEqualTo("updated")
@@ -110,7 +118,7 @@ class BackgroundIndexerTest {
 
 			indexer
 				.indexSource("src1", skipIfExists = false) { sourceId ->
-					sequenceOf(Entry("k1", sourceId, "v1"))
+					flowOf(Entry("k1", sourceId, "v1"))
 				}.join()
 
 			assertThat(events).contains(IndexingEvent.Started)
@@ -126,7 +134,7 @@ class BackgroundIndexerTest {
 
 			indexer
 				.indexSource("src1", skipIfExists = false) { sourceId ->
-					sequenceOf(Entry("k1", sourceId, "v1"))
+					flowOf(Entry("k1", sourceId, "v1"))
 				}.join()
 
 			val events = mutableListOf<IndexingEvent>()
@@ -134,7 +142,7 @@ class BackgroundIndexerTest {
 
 			indexer
 				.indexSource("src1", skipIfExists = true) { _ ->
-					emptySequence()
+					emptyFlow()
 				}.join()
 
 			assertThat(events).contains(IndexingEvent.Skipped)
@@ -146,10 +154,10 @@ class BackgroundIndexerTest {
 			val (index, indexer) = makeIndexAndIndexer()
 
 			indexer.indexSource("src1", skipIfExists = false) { sourceId ->
-				sequenceOf(Entry("k1", sourceId, "v1"))
+				flowOf(Entry("k1", sourceId, "v1"))
 			}
 			indexer.indexSource("src2", skipIfExists = false) { sourceId ->
-				sequenceOf(Entry("k2", sourceId, "v2"))
+				flowOf(Entry("k2", sourceId, "v2"))
 			}
 
 			indexer.awaitAll()
@@ -165,7 +173,7 @@ class BackgroundIndexerTest {
 
 			val jobs =
 				indexer.indexSources(sources, skipIfExists = false) { sourceId ->
-					sourceId to sequenceOf(Entry("key-$sourceId", sourceId, "val"))
+					sourceId to flowOf(Entry("key-$sourceId", sourceId, "val"))
 				}
 			jobs.forEach { it.join() }
 
@@ -198,7 +206,7 @@ class BackgroundIndexerTest {
 			// Index with two entries
 			indexer
 				.indexSource("src1", skipIfExists = false) { sourceId ->
-					sequenceOf(
+					flowOf(
 						Entry("k1", sourceId, "old1"),
 						Entry("k2", sourceId, "old2"),
 					)
@@ -207,7 +215,7 @@ class BackgroundIndexerTest {
 			// Re-index with only one entry
 			indexer
 				.indexSource("src1", skipIfExists = false) { sourceId ->
-					sequenceOf(Entry("k1", sourceId, "new1"))
+					flowOf(Entry("k1", sourceId, "new1"))
 				}.join()
 
 			assertThat(index.size).isEqualTo(1)
@@ -215,66 +223,84 @@ class BackgroundIndexerTest {
 			assertThat(index.get("k2")).isNull()
 		}
 
-	/** Stands in for a sequence that holds an open JAR. */
-	private class CloseableEntries(
-		private val entries: List<Entry>,
-	) : Sequence<Entry>,
-		AutoCloseable {
+	/** Stands in for a flow that holds an open JAR: [closed] flips when the flow's scope exits. */
+	private class ClosingFlow(
+		private val body: suspend FlowCollector<Entry>.() -> Unit,
+	) {
 		@Volatile var closed = false
 
-		override fun iterator() = entries.iterator()
-
-		override fun close() {
-			closed = true
-		}
+		val flow =
+			flow {
+				try {
+					body()
+				} finally {
+					closed = true
+				}
+			}
 	}
 
-	/** An index whose insertAll consumes one entry, then runs [afterFirst] and abandons the rest. */
-	private fun indexAbandoningAfterFirst(afterFirst: suspend () -> Unit): Index<Entry> =
-		object : Index<Entry> by InMemoryIndex(descriptor) {
-			override suspend fun insertAll(entries: Sequence<Entry>) {
-				entries.first()
-				afterFirst()
-			}
+	@Test
+	fun `indexSource closes the flow when insertion fails partway`() =
+		runTest {
+			val index =
+				object : Index<Entry> by InMemoryIndex(descriptor) {
+					override suspend fun insertAll(entries: Sequence<Entry>) = error("disk full")
+				}
+			val indexer = BackgroundIndexer(index)
+			// More entries than one batch, so insertAll fails while the flow is still open.
+			val source = ClosingFlow { repeat(2000) { emit(Entry("k$it", "src1", "v")) } }
+
+			indexer.indexSource("src1", skipIfExists = false) { source.flow }.join()
+
+			assertThat(source.closed).isTrue()
 		}
 
-	private fun twoEntries(sourceId: String) = CloseableEntries(listOf(Entry("k1", sourceId, "v1"), Entry("k2", sourceId, "v2")))
+	/** Cancels the job after the first entry is collected; returns whether the source closed. */
+	private suspend fun closedAfterCancelPartway(wrap: (Flow<Entry>) -> Flow<Entry>): Boolean {
+		val source =
+			ClosingFlow {
+				emit(Entry("k1", "src1", "v1"))
+				awaitCancellation()
+			}
+		val emitted = CompletableDeferred<Unit>()
+		val job =
+			BackgroundIndexer(InMemoryIndex(descriptor)).indexSource("src1", skipIfExists = false) {
+				wrap(source.flow).onEach { emitted.complete(Unit) }
+			}
+		emitted.await()
+		job.cancelAndJoin()
+		return source.closed
+	}
 
 	@Test
-	fun `indexSource closes the entries when insertion fails partway`() =
+	fun `indexSource closes the flow when the job is cancelled partway`() =
 		runTest {
-			val indexer = BackgroundIndexer(indexAbandoningAfterFirst { error("disk full") })
-			lateinit var entries: CloseableEntries
+			assertThat(closedAfterCancelPartway { it }).isTrue()
+		}
+
+	@Test
+	fun `indexSource closes a wrapped flow when the job is cancelled partway`() =
+		runTest {
+			assertThat(closedAfterCancelPartway { it.filter { true } }).isTrue()
+		}
+
+	@Test
+	fun `entries collected before the flow fails are still inserted`() =
+		runTest {
+			val (index, indexer) = makeIndexAndIndexer()
+			val events = mutableListOf<IndexingEvent>()
+			indexer.progressListener = IndexingProgressListener { _, event -> synchronized(events) { events.add(event) } }
 
 			indexer
 				.indexSource("src1", skipIfExists = false) { sourceId ->
-					twoEntries(sourceId).also { entries = it }
+					flow {
+						repeat(3) { emit(Entry("k$it", sourceId, "v")) }
+						throw IOException("EIO closing the JAR")
+					}
 				}.join()
 
-			assertThat(entries.closed).isTrue()
-		}
-
-	@Test
-	fun `indexSource closes the entries when the job is cancelled partway`() =
-		runTest {
-			val inserting = CompletableDeferred<Unit>()
-			val indexer =
-				BackgroundIndexer(
-					indexAbandoningAfterFirst {
-						inserting.complete(Unit)
-						awaitCancellation()
-					},
-				)
-			lateinit var entries: CloseableEntries
-
-			val job =
-				indexer.indexSource("src1", skipIfExists = false) { sourceId ->
-					twoEntries(sourceId).also { entries = it }
-				}
-			inserting.await()
-			job.cancelAndJoin()
-
-			assertThat(entries.closed).isTrue()
+			assertThat(index.size).isEqualTo(3)
+			assertThat(events.filterIsInstance<IndexingEvent.Failed>()).hasSize(1)
 		}
 
 	@Test
@@ -302,9 +328,9 @@ class BackgroundIndexerTest {
 				}
 			val indexer = BackgroundIndexer(index)
 
-			val first = indexer.indexSource("src1", skipIfExists = false) { emptySequence() }
+			val first = indexer.indexSource("src1", skipIfExists = false) { flowOf(Entry("k1", it, "v1")) }
 			firstInserting.await()
-			val second = indexer.indexSource("src1", skipIfExists = false) { emptySequence() }
+			val second = indexer.indexSource("src1", skipIfExists = false) { flowOf(Entry("k1", it, "v1")) }
 			secondRegistered.complete(Unit)
 			first.join()
 
@@ -323,7 +349,7 @@ class BackgroundIndexerTest {
 			// Unconfined runs the skip path to completion inside launch/start.
 			val indexer = BackgroundIndexer(index, CoroutineScope(Dispatchers.Unconfined))
 
-			indexer.indexSource("src1", skipIfExists = true) { emptySequence() }.join()
+			indexer.indexSource("src1", skipIfExists = true) { emptyFlow() }.join()
 
 			assertThat(indexer.activeJobCount).isEqualTo(0)
 		}

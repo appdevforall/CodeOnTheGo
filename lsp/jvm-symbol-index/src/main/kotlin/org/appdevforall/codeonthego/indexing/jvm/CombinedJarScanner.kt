@@ -1,5 +1,7 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
@@ -45,43 +47,29 @@ object CombinedJarScanner {
 			}
 		}
 
-	/**
-	 * The returned sequence is [AutoCloseable]. Close it when iteration may stop early: an abandoned
-	 * iterator never finishes its `use` block, which leaves the JAR to the GC cleaner.
-	 */
+	/** The JAR is closed when collection completes, fails or is cancelled. */
 	fun scan(
 		jarPath: Path,
 		sourceId: String = jarPath.pathString,
-	): Sequence<JvmSymbol> = JarSymbols(jarPath, sourceId)
+	): Flow<JvmSymbol> =
+		flow {
+			val jar =
+				try {
+					JarFile(jarPath.toFile())
+				} catch (e: Exception) {
+					log.warn("Failed to open JAR: {}", jarPath, e)
+					return@flow
+				}
 
-	private class JarSymbols(
-		private val jarPath: Path,
-		private val sourceId: String,
-	) : Sequence<JvmSymbol>,
-		AutoCloseable {
-		@Volatile private var closed = false
+			jar.use {
+				val entries = jar.entries()
+				while (entries.hasMoreElements()) {
+					val entry = entries.nextElement()
+					if (!entry.name.endsWith(".class")) continue
+					if (entry.name == "module-info.class" || entry.name == "package-info.class") continue
 
-		@Volatile private var jar: JarFile? = null
-
-		override fun iterator(): Iterator<JvmSymbol> =
-			sequence {
-				if (closed) return@sequence
-				val jar =
-					try {
-						JarFile(jarPath.toFile())
-					} catch (e: Exception) {
-						log.warn("Failed to open JAR: {}", jarPath, e)
-						return@sequence
-					}
-				this@JarSymbols.jar = jar
-
-				jar.use {
-					val entries = jar.entries()
-					while (entries.hasMoreElements()) {
-						val entry = entries.nextElement()
-						if (!entry.name.endsWith(".class")) continue
-						if (entry.name == "module-info.class" || entry.name == "package-info.class") continue
-
+					// emit stays outside the try so cancellation is not swallowed.
+					val symbols =
 						try {
 							val bytes =
 								jar.getInputStream(entry).use { input ->
@@ -90,28 +78,20 @@ object CombinedJarScanner {
 									buf.toByteArray()
 								}
 
-							val symbols =
-								if (hasKotlinMetadata(bytes)) {
-									KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
-								} else {
-									JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
-								}
-
-							symbols?.forEach { yield(it) }
+							if (hasKotlinMetadata(bytes)) {
+								KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
+							} else {
+								JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
+							}
 						} catch (e: Exception) {
 							log.debug("Failed to parse {}: {}", entry.name, e.message)
+							null
 						}
-					}
-				}
-				this@JarSymbols.jar = null
-			}.iterator()
 
-		override fun close() {
-			closed = true
-			jar?.close()
-			jar = null
+					symbols?.forEach { emit(it) }
+				}
+			}
 		}
-	}
 
 	private fun hasKotlinMetadata(classBytes: ByteArray): Boolean {
 		var found = false

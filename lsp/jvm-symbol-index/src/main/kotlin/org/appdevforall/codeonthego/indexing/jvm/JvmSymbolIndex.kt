@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.indexing.jvm
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import org.appdevforall.codeonthego.indexing.FilteredIndex
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.api.Index
@@ -56,8 +57,8 @@ open class JvmSymbolIndex(
 	}
 
 	/**
-	 * Index a single source. The [provider] returns a [Sequence] that
-	 * lazily produces entries — it is consumed on [Dispatchers.IO] by
+	 * Index a single source. The [provider] returns a [Flow] that is
+	 * collected on [Dispatchers.IO] and inserted in batches through
 	 * [Index.insertAll].
 	 *
 	 * If [skipIfExists] is true and the source is already indexed,
@@ -65,16 +66,15 @@ open class JvmSymbolIndex(
 	 *
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
-	 * @param provider     Lambda returning a [Sequence] of entries. If the sequence is
-	 *                     [AutoCloseable], it is closed when the job ends, however it ends.
-	 *                     Return it unwrapped: a wrapper such as `.filter {}` is not
-	 *                     [AutoCloseable], so the underlying JAR would not be closed.
+	 * @param provider     Lambda returning a [Flow] of entries. Resources the flow opens
+	 *                     (e.g. a JAR) are released when collection completes, fails or is
+	 *                     cancelled, so Flow operators such as `.filter {}` are safe.
 	 * @return The launched job.
 	 */
 	fun indexSource(
 		sourceId: String,
 		skipIfExists: Boolean = true,
-		provider: (sourceId: String) -> Sequence<JvmSymbol>,
+		provider: (sourceId: String) -> Flow<JvmSymbol>,
 	): Job = indexer.indexSource(sourceId, skipIfExists, provider)
 
 	/**

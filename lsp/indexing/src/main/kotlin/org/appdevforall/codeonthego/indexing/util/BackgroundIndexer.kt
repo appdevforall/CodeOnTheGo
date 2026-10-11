@@ -7,11 +7,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.Indexable
 import org.slf4j.LoggerFactory
@@ -65,6 +67,7 @@ class BackgroundIndexer<T : Indexable>(
 
 	companion object {
 		private val log = LoggerFactory.getLogger(BackgroundIndexer::class.java)
+		private const val BATCH_SIZE = 500
 	}
 
 	var progressListener: IndexingProgressListener? = null
@@ -72,8 +75,8 @@ class BackgroundIndexer<T : Indexable>(
 	private val activeJobs = ConcurrentHashMap<String, Job>()
 
 	/**
-	 * Index a single source. The [provider] returns a [Sequence] that
-	 * lazily produces entries — it is consumed on [Dispatchers.IO] by
+	 * Index a single source. The [provider] returns a [Flow] that is
+	 * collected on [Dispatchers.IO] and inserted in batches through
 	 * [Index.insertAll].
 	 *
 	 * If [skipIfExists] is true and the source is already indexed,
@@ -81,14 +84,14 @@ class BackgroundIndexer<T : Indexable>(
 	 *
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
-	 * @param provider     Lambda returning a [Sequence] of entries. If the sequence is
-	 *                     [AutoCloseable], it is closed when the job ends, however it ends.
+	 * @param provider     Lambda returning a [Flow] of entries. Resources the flow opens
+	 *                     are released when collection completes, fails or is cancelled.
 	 * @return The launched job.
 	 */
 	fun indexSource(
 		sourceId: String,
 		skipIfExists: Boolean = true,
-		provider: (sourceId: String) -> Sequence<T>,
+		provider: (sourceId: String) -> Flow<T>,
 	): Job {
 		// Cancel any in-flight job for this source
 		activeJobs[sourceId]?.cancel()
@@ -96,7 +99,6 @@ class BackgroundIndexer<T : Indexable>(
 		val job =
 			// LAZY so the job is registered before it can run and remove itself.
 			scope.launch(start = CoroutineStart.LAZY) {
-				var entries: Sequence<T>? = null
 				try {
 					if (skipIfExists && index.containsSource(sourceId)) {
 						log.debug("Skipping already-indexed: {}", sourceId)
@@ -114,17 +116,34 @@ class BackgroundIndexer<T : Indexable>(
 					progressListener?.onProgress(sourceId, IndexingEvent.Started)
 
 					var count = 0
-					entries = provider(sourceId)
-					val tracked =
-						entries.map { entry ->
-							count++
-							if (count % 1000 == 0) {
-								progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
+					withContext(Dispatchers.IO) {
+						val batch = ArrayList<T>(BATCH_SIZE)
+						var error: Exception? = null
+						try {
+							provider(sourceId).collect { entry ->
+								batch.add(entry)
+								count++
+								if (count % 1000 == 0) {
+									progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
+								}
+								if (batch.size == BATCH_SIZE) {
+									try {
+										index.insertAll(batch.asSequence())
+									} finally {
+										batch.clear()
+									}
+								}
 							}
-							entry
+						} catch (e: CancellationException) {
+							throw e
+						} catch (e: Exception) {
+							// The flow can fail after its last emit (e.g. EIO closing the JAR);
+							// keep the entries already collected, then report the failure.
+							error = e
 						}
-
-					index.insertAll(tracked)
+						if (batch.isNotEmpty()) index.insertAll(batch.asSequence())
+						error?.let { throw it }
+					}
 
 					progressListener?.onProgress(sourceId, IndexingEvent.Completed(count))
 					log.info("Indexed {} entries from {}", count, sourceId)
@@ -137,16 +156,6 @@ class BackgroundIndexer<T : Indexable>(
 				} finally {
 					// Remove only this job: a replacement for the same source may already be registered.
 					activeJobs.remove(sourceId, coroutineContext.job)
-					// insertAll abandons the sequence on cancellation or error, so a sequence holding
-					// an open JAR must be closed here; otherwise the GC cleaner closes it on the
-					// FinalizerDaemon, where an I/O error (EIO) is fatal.
-					(entries as? AutoCloseable)?.let { closeable ->
-						try {
-							closeable.close()
-						} catch (e: Exception) {
-							log.warn("Failed to close entries for {}", sourceId, e)
-						}
-					}
 				}
 			}
 
@@ -162,16 +171,16 @@ class BackgroundIndexer<T : Indexable>(
 	 * that one failure doesn't cancel the others.
 	 *
 	 * @param sources The sources to index (e.g. a list of JAR paths).
-	 * @param mapper  Maps each source to a (sourceId, Sequence) pair.
+	 * @param mapper  Maps each source to a (sourceId, Flow) pair.
 	 */
 	fun <S> indexSources(
 		sources: Collection<S>,
 		skipIfExists: Boolean = true,
-		mapper: (S) -> Pair<String, Sequence<T>>,
+		mapper: (S) -> Pair<String, Flow<T>>,
 	): List<Job> =
 		sources.map { source ->
-			val (sourceId, seq) = mapper(source)
-			indexSource(sourceId, skipIfExists) { seq }
+			val (sourceId, flow) = mapper(source)
+			indexSource(sourceId, skipIfExists) { flow }
 		}
 
 	/**
