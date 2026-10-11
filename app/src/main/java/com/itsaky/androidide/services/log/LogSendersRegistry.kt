@@ -64,7 +64,8 @@ internal class LogSendersRegistry {
 		this.idToPck.clear()
 	}
 
+	/** Runs [action] on the calling thread; forEachValue(1, ...) would fan out to the common pool. */
 	fun forEach(action: (CachingLogSender) -> Unit) {
-		this.senders.forEachValue(1, action::invoke)
+		this.senders.values.forEach(action)
 	}
 }
