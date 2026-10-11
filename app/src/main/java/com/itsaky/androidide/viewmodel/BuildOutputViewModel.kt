@@ -339,17 +339,18 @@ class BuildOutputViewModel(
 		 *
 		 * A tail sliced at a character offset begins part-way through a line, and [PREFIX_REGEX] is
 		 * anchored to the start of one, so that fragment keeps the timestamp every other line has
-		 * stripped. Text short enough to survive whole keeps its real first line; a tail holding no
-		 * newline at all is returned as it is, being better than nothing.
+		 * stripped. Text short enough to survive whole keeps its real first line; a tail with no line
+		 * start inside it (no newline, or only the final one) is returned as it is, being better than
+		 * nothing.
 		 */
 		internal fun tailFromLineStart(
-			text: String,
+			text: CharSequence,
 			maxChars: Int,
 		): String {
-			if (text.length <= maxChars) return text
-			val tail = text.takeLast(maxChars)
+			if (text.length <= maxChars) return text.toString()
+			val tail = text.subSequence(text.length - maxChars, text.length).toString()
 			val newline = tail.indexOf('\n')
-			return if (newline == -1) tail else tail.substring(newline + 1)
+			return if (newline == -1 || newline == tail.lastIndex) tail else tail.substring(newline + 1)
 		}
 
 		/**
@@ -393,8 +394,7 @@ class BuildOutputViewModel(
 		 */
 		internal fun editorTail(text: CharSequence): String? {
 			if (text.length <= EDITOR_REWINDOW_CHARS) return null
-			val tail = text.subSequence(text.length - WINDOW_SIZE_CHARS, text.length).toString()
-			return tail.substring(tail.indexOf('\n') + 1)
+			return tailFromLineStart(text, WINDOW_SIZE_CHARS)
 		}
 
 		/** Max length of [cachedContentSnapshot] to bound memory. */

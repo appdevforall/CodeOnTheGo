@@ -169,4 +169,17 @@ class BuildOutputFilterTest {
 		assertTrue(tail.startsWith(line))
 		assertTrue(tail.endsWith(line + "last\n"))
 	}
+
+	@Test
+	fun `editorTail keeps a final line longer than the window`() {
+		val text = "a\n" + "x".repeat(BuildOutputViewModel.EDITOR_REWINDOW_CHARS) + "\n"
+		val tail = BuildOutputViewModel.editorTail(text)!!
+		assertEquals(BuildOutputViewModel.EDITOR_REWINDOW_CHARS / 2, tail.length)
+		assertTrue(tail.endsWith("x\n"))
+	}
+
+	@Test
+	fun `tailFromLineStart keeps a final line longer than the window`() {
+		assertEquals("xxxx\n", BuildOutputViewModel.tailFromLineStart("a\n" + "x".repeat(10) + "\n", 5))
+	}
 }
