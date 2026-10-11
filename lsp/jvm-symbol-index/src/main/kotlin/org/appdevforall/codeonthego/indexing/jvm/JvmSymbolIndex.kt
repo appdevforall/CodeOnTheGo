@@ -23,10 +23,10 @@ import java.io.Closeable
 open class JvmSymbolIndex(
 	private val backing: Index<JvmSymbol>,
 	private val indexer: BackgroundIndexer<JvmSymbol>,
-) : FilteredIndex<JvmSymbol>(backing), WritableIndex<JvmSymbol> by backing, Closeable {
-
+) : FilteredIndex<JvmSymbol>(backing),
+	WritableIndex<JvmSymbol> by backing,
+	Closeable {
 	companion object {
-
 		const val DB_NAME_DEFAULT = "jvm_symbol_index.db"
 		const val INDEX_NAME_LIBRARY = "jvm-library-cache"
 
@@ -42,12 +42,13 @@ open class JvmSymbolIndex(
 			dbName: String,
 			indexName: String,
 		): JvmSymbolIndex {
-			val cache = SQLiteIndex(
-				descriptor = JvmSymbolDescriptor,
-				context = context,
-				dbName = dbName,
-				name = indexName,
-			)
+			val cache =
+				SQLiteIndex(
+					descriptor = JvmSymbolDescriptor,
+					context = context,
+					dbName = dbName,
+					name = indexName,
+				)
 
 			val indexer = BackgroundIndexer(cache)
 			return JvmSymbolIndex(cache, indexer)
@@ -80,8 +81,16 @@ open class JvmSymbolIndex(
 	 * @param limit The result limit.
 	 * @see query
 	 */
-	fun findByPrefix(prefix: String, limit: Int = 200): Sequence<JvmSymbol> =
-		query(indexQuery { prefix(KEY_NAME, prefix); this.limit = limit })
+	fun findByPrefix(
+		prefix: String,
+		limit: Int = 200,
+	): Sequence<JvmSymbol> =
+		query(
+			indexQuery {
+				prefix(KEY_NAME, prefix)
+				this.limit = limit
+			},
+		)
 
 	/**
 	 * Find symbols having the given [receiver type][receiverTypeFqName].
@@ -90,47 +99,63 @@ open class JvmSymbolIndex(
 		receiverTypeFqName: String,
 		namePrefix: String = "",
 		limit: Int = 200,
-	): Sequence<JvmSymbol> = query(indexQuery {
-		eq(KEY_RECEIVER_TYPE, receiverTypeFqName)
-		if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
-		this.limit = limit
-	})
+	): Sequence<JvmSymbol> =
+		query(
+			indexQuery {
+				eq(KEY_RECEIVER_TYPE, receiverTypeFqName)
+				if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
+				this.limit = limit
+			},
+		)
 
 	fun findTopLevelCallablesInPackage(
 		packageName: String,
 		namePrefix: String = "",
 		limit: Int = 200,
-	): Sequence<JvmSymbol> = query(indexQuery {
-		eq(KEY_PACKAGE, packageName)
-		if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
-		this.limit = 0
-	}).filter { it.kind.isCallable && it.isTopLevel }.take(limit)
+	): Sequence<JvmSymbol> =
+		query(
+			indexQuery {
+				eq(KEY_PACKAGE, packageName)
+				if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
+				this.limit = 0
+			},
+		).filter { it.kind.isCallable && it.isTopLevel }.take(limit)
 
 	fun findClassifiersInPackage(
 		packageName: String,
 		namePrefix: String = "",
 		limit: Int = 200,
-	): Sequence<JvmSymbol> = query(indexQuery {
-		eq(KEY_PACKAGE, packageName)
-		if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
-		this.limit = 0
-	}).filter { it.kind.isClassifier }.take(limit)
+	): Sequence<JvmSymbol> =
+		query(
+			indexQuery {
+				eq(KEY_PACKAGE, packageName)
+				if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
+				this.limit = 0
+			},
+		).filter { it.kind.isClassifier }.take(limit)
 
 	fun findMembersOf(
 		classFqName: String,
 		namePrefix: String = "",
 		limit: Int = 200,
-	): Sequence<JvmSymbol> = query(indexQuery {
-		eq(KEY_CONTAINING_CLASS, classFqName)
-		if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
-		this.limit = limit
-	})
+	): Sequence<JvmSymbol> =
+		query(
+			indexQuery {
+				eq(KEY_CONTAINING_CLASS, classFqName)
+				if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
+				this.limit = limit
+			},
+		)
 
-	fun findBySimpleName(name: String, limit: Int = 200) =
-		query(indexQuery {
+	fun findBySimpleName(
+		name: String,
+		limit: Int = 200,
+	) = query(
+		indexQuery {
 			eq(KEY_NAME, name)
 			this.limit = limit
-		})
+		},
+	)
 
 	suspend fun findByKey(key: String): JvmSymbol? = get(key)
 
