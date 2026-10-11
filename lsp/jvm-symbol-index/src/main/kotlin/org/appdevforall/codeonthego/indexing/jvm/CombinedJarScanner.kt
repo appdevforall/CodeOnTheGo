@@ -10,6 +10,7 @@ import org.jetbrains.org.objectweb.asm.Opcodes
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.jar.JarFile
 import kotlin.io.path.pathString
 
@@ -45,48 +46,67 @@ object CombinedJarScanner {
 			}
 		}
 
+	/**
+	 * The returned sequence is [AutoCloseable]. Close it when iteration may stop early: an abandoned
+	 * iterator never finishes its `use` block, which leaves the JAR to the GC cleaner.
+	 */
 	fun scan(
 		jarPath: Path,
 		sourceId: String = jarPath.pathString,
-	): Sequence<JvmSymbol> =
-		sequence {
-			val jar =
-				try {
-					JarFile(jarPath.toFile())
-				} catch (e: Exception) {
-					log.warn("Failed to open JAR: {}", jarPath, e)
-					return@sequence
-				}
+	): Sequence<JvmSymbol> = JarSymbols(jarPath, sourceId)
 
-			jar.use {
-				val entries = jar.entries()
-				while (entries.hasMoreElements()) {
-					val entry = entries.nextElement()
-					if (!entry.name.endsWith(".class")) continue
-					if (entry.name == "module-info.class" || entry.name == "package-info.class") continue
+	private class JarSymbols(
+		private val jarPath: Path,
+		private val sourceId: String,
+	) : Sequence<JvmSymbol>,
+		AutoCloseable {
+		private val openJars = ConcurrentLinkedQueue<JarFile>()
 
+		override fun iterator(): Iterator<JvmSymbol> =
+			sequence {
+				val jar =
 					try {
-						val bytes =
-							jar.getInputStream(entry).use { input ->
-								val buf = ByteArrayOutputStream(entry.size.toInt().coerceAtLeast(1024))
-								input.copyTo(buf)
-								buf.toByteArray()
-							}
-
-						val symbols =
-							if (hasKotlinMetadata(bytes)) {
-								KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
-							} else {
-								JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
-							}
-
-						symbols?.forEach { yield(it) }
+						JarFile(jarPath.toFile())
 					} catch (e: Exception) {
-						log.debug("Failed to parse {}: {}", entry.name, e.message)
+						log.warn("Failed to open JAR: {}", jarPath, e)
+						return@sequence
+					}
+				openJars.add(jar)
+
+				jar.use {
+					val entries = jar.entries()
+					while (entries.hasMoreElements()) {
+						val entry = entries.nextElement()
+						if (!entry.name.endsWith(".class")) continue
+						if (entry.name == "module-info.class" || entry.name == "package-info.class") continue
+
+						try {
+							val bytes =
+								jar.getInputStream(entry).use { input ->
+									val buf = ByteArrayOutputStream(entry.size.toInt().coerceAtLeast(1024))
+									input.copyTo(buf)
+									buf.toByteArray()
+								}
+
+							val symbols =
+								if (hasKotlinMetadata(bytes)) {
+									KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
+								} else {
+									JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
+								}
+
+							symbols?.forEach { yield(it) }
+						} catch (e: Exception) {
+							log.debug("Failed to parse {}: {}", entry.name, e.message)
+						}
 					}
 				}
-			}
+			}.iterator()
+
+		override fun close() {
+			while (true) (openJars.poll() ?: break).close()
 		}
+	}
 
 	private fun hasKotlinMetadata(classBytes: ByteArray): Boolean {
 		var found = false

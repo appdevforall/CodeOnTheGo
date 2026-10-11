@@ -1,8 +1,12 @@
 package org.appdevforall.codeonthego.indexing.util
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
+import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexField
 import org.appdevforall.codeonthego.indexing.api.Indexable
@@ -204,5 +208,67 @@ class BackgroundIndexerTest {
 			assertThat(index.size).isEqualTo(1)
 			assertThat(index.get("k1")!!.value).isEqualTo("new1")
 			assertThat(index.get("k2")).isNull()
+		}
+
+	/** Stands in for a sequence that holds an open JAR. */
+	private class CloseableEntries(
+		private val entries: List<Entry>,
+	) : Sequence<Entry>,
+		AutoCloseable {
+		@Volatile var closed = false
+
+		override fun iterator() = entries.iterator()
+
+		override fun close() {
+			closed = true
+		}
+	}
+
+	/** An index whose insertAll consumes one entry, then runs [afterFirst] and abandons the rest. */
+	private fun indexAbandoningAfterFirst(afterFirst: suspend () -> Unit): Index<Entry> =
+		object : Index<Entry> by InMemoryIndex(descriptor) {
+			override suspend fun insertAll(entries: Sequence<Entry>) {
+				entries.first()
+				afterFirst()
+			}
+		}
+
+	private fun twoEntries(sourceId: String) = CloseableEntries(listOf(Entry("k1", sourceId, "v1"), Entry("k2", sourceId, "v2")))
+
+	@Test
+	fun `indexSource closes the entries when insertion fails partway`() =
+		runTest {
+			val indexer = BackgroundIndexer(indexAbandoningAfterFirst { error("disk full") })
+			lateinit var entries: CloseableEntries
+
+			indexer
+				.indexSource("src1", skipIfExists = false) { sourceId ->
+					twoEntries(sourceId).also { entries = it }
+				}.join()
+
+			assertThat(entries.closed).isTrue()
+		}
+
+	@Test
+	fun `indexSource closes the entries when the job is cancelled partway`() =
+		runTest {
+			val inserting = CompletableDeferred<Unit>()
+			val indexer =
+				BackgroundIndexer(
+					indexAbandoningAfterFirst {
+						inserting.complete(Unit)
+						awaitCancellation()
+					},
+				)
+			lateinit var entries: CloseableEntries
+
+			val job =
+				indexer.indexSource("src1", skipIfExists = false) { sourceId ->
+					twoEntries(sourceId).also { entries = it }
+				}
+			inserting.await()
+			job.cancelAndJoin()
+
+			assertThat(entries.closed).isTrue()
 		}
 }

@@ -79,7 +79,8 @@ class BackgroundIndexer<T : Indexable>(
 	 *
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
-	 * @param provider     Lambda returning a [Sequence] of entries.
+	 * @param provider     Lambda returning a [Sequence] of entries. If the sequence is
+	 *                     [AutoCloseable], it is closed when the job ends, however it ends.
 	 * @return The launched job.
 	 */
 	fun indexSource(
@@ -92,6 +93,7 @@ class BackgroundIndexer<T : Indexable>(
 
 		val job =
 			scope.launch {
+				var entries: Sequence<T>? = null
 				try {
 					if (skipIfExists && index.containsSource(sourceId)) {
 						log.debug("Skipping already-indexed: {}", sourceId)
@@ -109,8 +111,9 @@ class BackgroundIndexer<T : Indexable>(
 					progressListener?.onProgress(sourceId, IndexingEvent.Started)
 
 					var count = 0
+					entries = provider(sourceId)
 					val tracked =
-						provider(sourceId).map { entry ->
+						entries.map { entry ->
 							count++
 							if (count % 1000 == 0) {
 								progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
@@ -129,6 +132,13 @@ class BackgroundIndexer<T : Indexable>(
 					log.error("Indexing failed: {}", sourceId, e)
 					progressListener?.onProgress(sourceId, IndexingEvent.Failed(e))
 				} finally {
+					// insertAll abandons the sequence on cancellation or error, so a sequence holding
+					// an open JAR must be closed here; otherwise the GC cleaner closes it on the
+					// FinalizerDaemon, where an I/O error (EIO) is fatal.
+					(entries as? AutoCloseable)?.let { closeable ->
+						runCatching { closeable.close() }
+							.onFailure { log.warn("Failed to close entries for {}", sourceId, it) }
+					}
 					activeJobs.remove(sourceId)
 				}
 			}
