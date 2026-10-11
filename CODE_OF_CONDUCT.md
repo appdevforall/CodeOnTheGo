@@ -112,3 +112,67 @@ by [Mozilla's code of conduct enforcement ladder](https://github.com/mozilla/div
 For answers to common questions about this code of conduct, see the FAQ at
 https://www.contributor-covenant.org/faq. Translations are available at
 https://www.contributor-covenant.org/translations.
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>CÁ AI – Trợ lý Tin học và Công nghệ</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      color: #1f2937;
+      background: #f3f6fb;
+    }
+
+    header, main {
+      width: min(100% - 32px, 900px);
+      margin-inline: auto;
+    }
+
+    header { padding: 28px 0 16px; }
+
+    h1 { margin: 0 0 8px; font-size: clamp(1.5rem, 5vw, 2rem); }
+    p { line-height: 1.6; }
+
+    #webchat {
+      width: 100%;
+      height: min(70vh, 700px);
+      min-height: 420px;
+      overflow: hidden;
+      border: 1px solid #dbe2ea;
+      border-radius: 16px;
+      background: #fff;
+    }
+
+    @media (max-width: 600px) {
+      header, main { width: 100%; }
+      header { padding: 20px 16px 12px; }
+      #webchat {
+        height: calc(100dvh - 150px);
+        min-height: 420px;
+        border-right: 0;
+        border-left: 0;
+        border-radius: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Trò chuyện cùng CÁ AI</h1>
+    <p>Hỏi về Tin học, lập trình, thiết bị hoặc cách xử lý sự cố.</p>
+  </header>
+
+  <main>
+    <div id="webchat"></div>
+  </main>
+
+  <!-- 
+https://cdn.botpress.cloud/webchat/v5.0/shareable.html?configUrl=https://files.bpcontent.cloud/2026/10/11/05/20261011052303-LSPRAAU9.json -->
+</body>
+</html>
