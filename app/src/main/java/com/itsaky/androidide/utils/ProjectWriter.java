@@ -30,7 +30,7 @@ import kotlin.text.StringsKt;
 public class ProjectWriter {
 
 	private static final String XML_TEMPLATE_PATH = "templates/xml";
-	private static final String SOURCE_PATH_REGEX = "/.*/src/.*/java|kt";
+	private static final String SOURCE_PATH_REGEX = "/.*/src/.*?/(java|kotlin)(?:/|$)";
 
 	public static String createActivity(String packageName, String className, boolean appCompatActivity, SourceLanguage language) {
 		return ClassBuilder.createActivity(packageName, className, appCompatActivity, language);
