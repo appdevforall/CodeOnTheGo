@@ -1,6 +1,7 @@
 package com.itsaky.androidide.plugins.base
 
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.res.Resources
 import android.view.LayoutInflater
 import com.itsaky.androidide.plugins.ServiceRegistry
@@ -110,10 +111,13 @@ object PluginFragmentHelper {
 	@JvmStatic
 	fun getPluginInflater(pluginId: String, defaultInflater: LayoutInflater): LayoutInflater {
 		val pluginContext = getPluginContext(pluginId) ?: return defaultInflater
-		activitySnapshots[pluginId] = ActivitySnapshot(
-			contextRef = WeakReference(defaultInflater.context),
-			themeRef = WeakReference(defaultInflater.context.theme)
-		)
+		val hostContext = defaultInflater.context
+		if (!hostContext.isOrWraps(pluginContext)) {
+			activitySnapshots[pluginId] = ActivitySnapshot(
+				contextRef = WeakReference(hostContext),
+				themeRef = WeakReference(hostContext.theme)
+			)
+		}
 		val inflater = if (pluginId in legacyPlugins) {
 			pluginContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE) as? LayoutInflater
 				?: defaultInflater.cloneInContext(pluginContext)
@@ -122,4 +126,10 @@ object PluginFragmentHelper {
 		}
 		return SafePluginLayoutInflater.wrap(inflater, pluginId)
 	}
+}
+
+private tailrec fun Context.isOrWraps(target: Context): Boolean {
+	if (this === target) return true
+	val base = (this as? ContextWrapper)?.baseContext ?: return false
+	return base.isOrWraps(target)
 }
