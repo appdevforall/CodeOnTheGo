@@ -86,7 +86,7 @@ class NewFileAction(
 		const val MENU_RES_PATH_REGEX = "/.*/src/.*/res/menu"
 		const val DRAWABLE_RES_PATH_REGEX = "/.*/src/.*/res/drawable"
 		const val JAVA_PATH_REGEX = "/.*/src/[^/]+/java(?:/|$)"
-        const val KOTLIN_PATH_REGEX = "/.*/src/[^/]+/kotlin(?:/|$)"
+		const val KOTLIN_PATH_REGEX = "/.*/src/[^/]+/kotlin(?:/|$)"
 		const val CPP_PATH_REGEX = "/.*/src/[^/]+/cpp(/.*)?$"
 		private const val MAX_FILE_NAME_LENGTH = 40
 
@@ -473,9 +473,9 @@ class NewFileAction(
 		isKotlin: Boolean = false,
 	) {
 		val dir =
-            Regex("^(.*?/src/[^/]+)/(?:java|kotlin)(?:/.*)?$").replace(directory.absolutePath) {
-                "${it.groupValues[1]}/res/layout"
-            }
+			Regex("^(.*?/src/[^/]+)/(?:java|kotlin)(?:/.*)?$").replace(directory.absolutePath) {
+				"${it.groupValues[1]}/res/layout"
+			}
 		val sourceExtension = if (isKotlin) ".kt" else ".java"
 		val layoutName = ProjectWriter.createLayoutName(fileName.replace(sourceExtension, ".xml"))
 		val newFileLayout = File(dir, layoutName)
