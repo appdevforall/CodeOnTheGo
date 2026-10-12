@@ -35,6 +35,32 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.42 — unreleased
+- **added — Start Quick Build and get its result** _(ADFA-6493)_ **[verified]**
+  `IdeBuildService.getQuickBuildAvailability()` returns `QuickBuildAvailability.Available`, or
+  `Unavailable(reason, message)` with a `QuickBuildUnavailableReason`: `EXPERIMENTS_DISABLED`,
+  `NO_PROJECT`, `PROJECT_SYNCING`, `PLUGIN_PROJECT`, `NO_APP_MODULE`, `RELEASE_VARIANT`, or
+  `NOT_SUPPORTED` from a host without Quick Build. `startQuickBuild()` runs the same tap as the
+  toolbar button: it saves open files, asks the user before replacing an app installed under the
+  project's application ID, and shows in the toolbar and Build Output as usual. It completes once
+  with a `QuickBuildResult`: `Reloaded(durationMillis, restarted)`, `UpToDate` (nothing to build),
+  `AppNotRunning(message)`, `Failed(reason, output)`, `Refused(reason)` (unavailable, another build
+  or Quick Build running, no editor in the foreground), `Declined` (the user kept the installed app),
+  or `Cancelled`. `cancelQuickBuild()` stops a running Quick Build like the stop icon, or drops a
+  plugin's start still saving or asking the user; it needs `system.commands`. `getQuickBuildStatus()` returns a `QuickBuildState`: `READY`, `BUILDING`,
+  `FULL_BUILD_NEXT`, `RECONNECTING`, `ERROR`, or `UNAVAILABLE`. Floor `plugin.min_ide_version` at
+  `26.42`: an older IDE has none of these methods or classes.
+- **added — Context window and typed failures for LLM backends** _(ADFA-6493)_ **[verified]**
+  `LlmInferenceService.ContextWindowReportingBackend.getContextWindowTokens()` lets a backend report
+  the tokens one request may hold (for a local model, the context actually allocated), or 0 while
+  unknown; a consumer asks with `instanceof`. `FailureKind` (`OTHER`, `CONTEXT_TOO_LONG`) says why a
+  generation failed without matching its user-facing wording: `LlmResponse.failure(error, kind)`, a
+  constructor taking `failureKind` for a failure that keeps its partial text and token count, and
+  `LlmResponse.failureKind` (null on success, `OTHER` when the backend did not say), and a default
+  `onError(error, kind)` on `StreamCallback` and `ToolStreamCallback` that falls back to
+  `onError(error)`, so consumers built before it still hear every failure. Floor
+  `plugin.min_ide_version` at `26.42` to call or implement any of them.
+
 ### 26.41 — unreleased
 - **added — Terminal readiness and visible terminal commands** _(ADFA-6373, ADFA-6385)_ **[verified]**
   `IdeTerminalService.isTerminalReady()` reports whether the terminal environment is installed

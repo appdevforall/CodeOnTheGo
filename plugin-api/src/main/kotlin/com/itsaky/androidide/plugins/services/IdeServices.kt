@@ -459,6 +459,40 @@ interface IdeBuildService {
 	 * Floor `plugin.min_ide_version` at 26.41 to use it (see [executeTasks]).
 	 */
 	fun getTasks(): List<GradleTaskInfo> = emptyList()
+
+	/**
+	 * Whether [startQuickBuild] can run for the open project, and if not, why. Needs no permission.
+	 *
+	 * The default body is not a compatibility shim (see [executeTasks]): floor
+	 * `plugin.min_ide_version` at 26.42 to use the Quick Build methods.
+	 */
+	fun getQuickBuildAvailability(): QuickBuildAvailability =
+		QuickBuildAvailability.Unavailable(QuickBuildUnavailableReason.NOT_SUPPORTED, "Quick Build is not supported")
+
+	/**
+	 * Starts Quick Build exactly as a tap on its toolbar button does: open files are saved first,
+	 * the user is asked before an app installed under the project's application ID is replaced,
+	 * and the run shows in the toolbar, Build Output and on-screen messages like any other.
+	 *
+	 * The future completes once, with a [QuickBuildResult]. It completes with
+	 * [QuickBuildResult.Refused] at once when Quick Build is unavailable
+	 * ([getQuickBuildAvailability]), another build or Quick Build is running, or no editor is in
+	 * the foreground. Needs no permission, like [runApp].
+	 */
+	fun startQuickBuild(): CompletableFuture<QuickBuildResult> =
+		CompletableFuture.completedFuture(QuickBuildResult.Refused("Quick Build is not supported"))
+
+	/**
+	 * Stops the running Quick Build, whoever started it, as a tap on its stop icon does, or drops a
+	 * [startQuickBuild] still saving the open files or asking the user. Completes with true if one
+	 * was running and was asked to stop; its [startQuickBuild] future, if any, then completes with
+	 * [QuickBuildResult.Cancelled]. Needs the `system.commands` permission, like
+	 * [cancelBuild]; without it this throws [SecurityException].
+	 */
+	fun cancelQuickBuild(): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
+
+	/** What the Quick Build button shows now. Needs no permission. */
+	fun getQuickBuildStatus(): QuickBuildState = QuickBuildState.UNAVAILABLE
 }
 
 /**

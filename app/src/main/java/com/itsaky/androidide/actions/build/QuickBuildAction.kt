@@ -12,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.EditorActivityAction
 import com.itsaky.androidide.actions.getContext
+import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
@@ -22,12 +23,14 @@ import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.resolveAttr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildTone
 import org.appdevforall.cotg.quickbuild.domain.session.toTone
 import org.appdevforall.cotg.quickbuild.service.session.QuickBuildSessionManager
 import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The Quick Build toolbar action (ADFA-4128, plan 2.6): the first tap starts the session, later taps
@@ -67,52 +70,7 @@ class QuickBuildAction(
 		// the user never agreed to give up. No caller reaches this today - getActivity() is
 		// non-null on every toolbar path - so refusing is cheaper than defending the branch.
 		val activity = data.getActivity() ?: return false
-
-		// The rest of the tap runs on the ACTIVITY's scope, not this action's: execAction
-		// runs on the actions registry's process-lifetime dispatcher, so an awaited save that
-		// outlived the activity would then post a dialog onto a dead window
-		// (WindowManager$BadTokenException) or provision against whatever project opened next.
-		activity.lifecycleScope.launch(Dispatchers.Main.immediate) {
-			// Flush unsaved editor buffers BEFORE triggering the build. The Quick Build
-			// watcher is filesystem-based, so an unflushed buffer means the build silently
-			// uses stale on-disk content while the editor shows the user's edit. Awaited,
-			// not fire-and-forget: the tap must build what the user sees.
-			val wroteSomething: Boolean
-			try {
-				wroteSomething =
-					sampleDirtyThenSaveAll(
-						areFilesModified = activity::areFilesModified,
-						saveAll = { activity.saveAllResult() },
-					)
-			} catch (e: CancellationException) {
-				// The activity is going away; the tap goes with it. Rethrown rather than
-				// swallowed so the coroutine really unwinds instead of building on.
-				throw e
-			} catch (e: Throwable) {
-				// Do NOT fall through to a build: building stale content is the exact bug
-				// saving first exists to prevent. Tell the user why nothing happened - a
-				// silent `return false` reads as "the button is broken".
-				log.error("Quick Build: could not save open files; not building stale state", e)
-				activity.flashError(R.string.save_failed)
-				return@launch
-			}
-			if (activity.isDestroyed || activity.isFinishing) {
-				log.info("Quick Build: the activity went away during the save; dropping the tap")
-				return@launch
-			}
-			// Confirm-on-switch gate (ADFA-4128): Quick Build installs the proxy app under the
-			// project's real applicationId. If the Standard Run build currently occupies that
-			// id, a tap replaces it, so the activity confirms the clobber first and the build
-			// proceeds only on accept.
-			activity.ensureQuickBuildClobberConfirmed {
-				// Counted here and nowhere earlier, so the event means a Quick Build ran: a stop
-				// tap, a failed save-all and a declined clobber all end without one. Best-effort:
-				// analytics must never block or fail the build action (REVIEW.md section 11).
-				runCatching { GlobalContext.get().get<IAnalyticsManager>().trackFeatureUsed(FEATURE_NAME) }
-					.onFailure { log.warn("Quick Build analytics unavailable", it) }
-				sessionManager.onQuickBuildTapped(wroteSomething)
-			}
-		}
+		launchTap(activity, sessionManager)
 		return true
 	}
 
@@ -154,6 +112,114 @@ class QuickBuildAction(
 
 		/** Low-cardinality feature name for [IAnalyticsManager.trackFeatureUsed]. */
 		const val FEATURE_NAME = "quick_build"
+
+		/** How a tap that got past the stop check ended, for a caller that started it (ADFA-6493). */
+		internal enum class TapOutcome {
+			/** The tap is about to reach the session; reported just before it does. */
+			STARTED,
+
+			/** Saving the open files failed, so nothing was built. */
+			SAVE_FAILED,
+
+			/** The activity went away during the save. */
+			ACTIVITY_GONE,
+
+			/** The user declined to replace the app installed under the project's application ID. */
+			DECLINED,
+		}
+
+		/**
+		 * Set while a tap is saving or asking about the installed app. The toolbar and a plugin
+		 * tap from different threads, and two taps at once would each save, each ask, and each
+		 * build.
+		 */
+		private val tapInFlight = AtomicBoolean(false)
+
+		/**
+		 * Runs a Quick Build tap: save the open files, confirm replacing an installed app, then
+		 * hand the tap to [sessionManager]. The toolbar button and the plugin API both start
+		 * Quick Build here, so they cannot drift apart.
+		 *
+		 * @param beforeSession asked on the main thread just before the tap reaches the session;
+		 *   false drops it, for a caller that cancelled while the tap was saving or asking.
+		 * @param onOutcome told once how the tap ended, unless the activity is destroyed or
+		 *   [beforeSession] drops the tap; the returned job then completes without it.
+		 * @return the tap's job, or null when another tap is still in flight and this one is dropped.
+		 */
+		internal fun launchTap(
+			activity: EditorHandlerActivity,
+			sessionManager: QuickBuildSessionManager,
+			beforeSession: () -> Boolean = { true },
+			onOutcome: (TapOutcome) -> Unit = {},
+		): Job? {
+			if (!tapInFlight.compareAndSet(false, true)) {
+				log.info("Quick Build: a tap is already in flight; dropping this one")
+				return null
+			}
+			return startTap(activity, sessionManager, beforeSession, onOutcome)
+				.also { it.invokeOnCompletion { tapInFlight.set(false) } }
+		}
+
+		private fun startTap(
+			activity: EditorHandlerActivity,
+			sessionManager: QuickBuildSessionManager,
+			beforeSession: () -> Boolean,
+			onOutcome: (TapOutcome) -> Unit,
+		): Job =
+			// The tap runs on the ACTIVITY's scope, not the action's: execAction runs on the
+			// actions registry's process-lifetime dispatcher, so an awaited save that outlived
+			// the activity would then post a dialog onto a dead window
+			// (WindowManager$BadTokenException) or provision against whatever project opened next.
+			activity.lifecycleScope.launch(Dispatchers.Main.immediate) {
+				// Flush unsaved editor buffers BEFORE triggering the build. The Quick Build
+				// watcher is filesystem-based, so an unflushed buffer means the build silently
+				// uses stale on-disk content while the editor shows the user's edit. Awaited,
+				// not fire-and-forget: the tap must build what the user sees.
+				val wroteSomething: Boolean
+				try {
+					wroteSomething =
+						sampleDirtyThenSaveAll(
+							areFilesModified = activity::areFilesModified,
+							saveAll = { activity.saveAllResult() },
+						)
+				} catch (e: CancellationException) {
+					// The activity is going away; the tap goes with it. Rethrown rather than
+					// swallowed so the coroutine really unwinds instead of building on.
+					throw e
+				} catch (e: Throwable) {
+					// Do NOT fall through to a build: building stale content is the exact bug
+					// saving first exists to prevent. Tell the user why nothing happened - a
+					// silent `return false` reads as "the button is broken".
+					log.error("Quick Build: could not save open files; not building stale state", e)
+					activity.flashError(R.string.save_failed)
+					onOutcome(TapOutcome.SAVE_FAILED)
+					return@launch
+				}
+				if (activity.isDestroyed || activity.isFinishing) {
+					log.info("Quick Build: the activity went away during the save; dropping the tap")
+					onOutcome(TapOutcome.ACTIVITY_GONE)
+					return@launch
+				}
+				// Confirm-on-switch gate (ADFA-4128): Quick Build installs the proxy app under the
+				// project's real applicationId. If the Standard Run build currently occupies that
+				// id, a tap replaces it, so the activity confirms the clobber first and the build
+				// proceeds only on accept.
+				if (!activity.awaitQuickBuildClobberConfirmed()) {
+					onOutcome(TapOutcome.DECLINED)
+					return@launch
+				}
+				if (!beforeSession()) {
+					log.info("Quick Build: the tap was cancelled before it started")
+					return@launch
+				}
+				// Counted here and nowhere earlier, so the event means a Quick Build ran: a stop
+				// tap, a failed save-all and a declined clobber all end without one. Best-effort:
+				// analytics must never block or fail the build action (REVIEW.md section 11).
+				runCatching { GlobalContext.get().get<IAnalyticsManager>().trackFeatureUsed(FEATURE_NAME) }
+					.onFailure { log.warn("Quick Build analytics unavailable", it) }
+				onOutcome(TapOutcome.STARTED)
+				sessionManager.onQuickBuildTapped(wroteSomething)
+			}
 
 		/**
 		 * The one bit the tap carries across the save/watch boundary: whether the save-all

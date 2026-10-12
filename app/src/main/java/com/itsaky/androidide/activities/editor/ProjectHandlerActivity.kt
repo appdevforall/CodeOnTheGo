@@ -909,26 +909,23 @@ abstract class ProjectHandlerActivity :
 	 * refuses rather than clobbers.
 	 */
 	fun ensureQuickBuildClobberConfirmed(onConfirmed: () -> Unit) {
-		// No check means the feature is off, and with it off no proxy app can exist to be
-		// replaced - the only branch here that may skip the confirmation.
-		val clobberCheck = quickBuildClobberCheck()
-		if (clobberCheck == null) {
-			onConfirmed()
-			return
-		}
 		// The check reads the PackageManager, which is IO and suspends. Callers of this gate
 		// are ordinary click handlers, so the coroutine is owned here rather than pushed onto
 		// them; Main.immediate keeps the common case (nothing to confirm) in the same frame.
 		lifecycleScope.launch(Dispatchers.Main.immediate) {
-			ensureQuickBuildClobberConfirmedNow(clobberCheck, onConfirmed)
+			if (awaitQuickBuildClobberConfirmed()) onConfirmed()
 		}
 	}
 
-	private suspend fun ensureQuickBuildClobberConfirmedNow(
-		clobberCheck: QuickBuildClobberCheck,
-		onConfirmed: () -> Unit,
-	) {
-		when (
+	/**
+	 * [ensureQuickBuildClobberConfirmed] for a caller already in a coroutine on the main thread:
+	 * true when the build may proceed, false when the user declined to replace the installed app.
+	 */
+	suspend fun awaitQuickBuildClobberConfirmed(): Boolean {
+		// No check means the feature is off, and with it off no proxy app can exist to be
+		// replaced - the only branch here that may skip the confirmation.
+		val clobberCheck = quickBuildClobberCheck() ?: return true
+		return when (
 			val decision =
 				quickBuildClobberConfirmation(
 					projectRealApplicationId(),
@@ -936,20 +933,18 @@ abstract class ProjectHandlerActivity :
 				)
 		) {
 			QuickBuildClobberConfirmation.NotNeeded -> {
-				onConfirmed()
+				true
 			}
 
 			QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
-				if (confirmUnknownOccupantSwitch()) onConfirmed()
+				confirmUnknownOccupantSwitch()
 			}
 
 			is QuickBuildClobberConfirmation.Needed -> {
-				val confirmed =
-					awaitBuildTypeSwitchConfirmation(
-						getString(string.quick_build_switch_to_quick_title),
-						getString(string.quick_build_switch_to_quick_message, decision.applicationId),
-					)
-				if (confirmed) onConfirmed()
+				awaitBuildTypeSwitchConfirmation(
+					getString(string.quick_build_switch_to_quick_title),
+					getString(string.quick_build_switch_to_quick_message, decision.applicationId),
+				)
 			}
 		}
 	}

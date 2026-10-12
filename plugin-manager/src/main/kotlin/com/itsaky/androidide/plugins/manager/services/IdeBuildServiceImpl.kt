@@ -8,6 +8,10 @@ import com.itsaky.androidide.plugins.services.GradleSyncCallback
 import com.itsaky.androidide.plugins.services.GradleTaskInfo
 import com.itsaky.androidide.plugins.services.GradleTaskResult
 import com.itsaky.androidide.plugins.services.IdeBuildService
+import com.itsaky.androidide.plugins.services.QuickBuildAvailability
+import com.itsaky.androidide.plugins.services.QuickBuildResult
+import com.itsaky.androidide.plugins.services.QuickBuildState
+import com.itsaky.androidide.plugins.services.QuickBuildUnavailableReason
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
@@ -38,6 +42,9 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 	private var runAppProvider: ((BuildAndLaunchCallback) -> Unit)? = null
 	private var gradleSyncProvider: ((GradleSyncCallback) -> Unit)? = null
 	private var buildOutputProvider: (() -> String?)? = null
+
+	@Volatile
+	private var quickBuildProvider: QuickBuildProvider? = null
 
 	companion object {
 		private val log = LoggerFactory.getLogger(IdeBuildServiceImpl::class.java)
@@ -295,6 +302,53 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 	override fun getBuildOutput(): String? = buildOutputProvider?.invoke()
 
 	override fun getTasks(): List<GradleTaskInfo> = tasksOf(IProjectManager.getInstance().gradleBuild)
+
+	// A throw in the app's Quick Build must reach the plugin as a result, not as an exception
+	// out of an IDE service call it had no reason to guard.
+
+	override fun getQuickBuildAvailability(): QuickBuildAvailability {
+		val provider = quickBuildProvider ?: return super.getQuickBuildAvailability()
+		return runCatching { provider.availability() }.getOrElse {
+			log.error("Quick Build availability check failed", it)
+			QuickBuildAvailability.Unavailable(QuickBuildUnavailableReason.NOT_SUPPORTED, "Quick Build failed to report its availability.")
+		}
+	}
+
+	override fun startQuickBuild(): CompletableFuture<QuickBuildResult> {
+		val provider = quickBuildProvider ?: return super.startQuickBuild()
+		val run =
+			runCatching { provider.start() }.getOrElse {
+				log.error("Quick Build failed to start", it)
+				return CompletableFuture.completedFuture(QuickBuildResult.Refused("Quick Build failed to start: ${it.describe()}"))
+			}
+		return run.handle { result, error ->
+			if (error == null) return@handle result
+			log.error("Quick Build failed while running", error)
+			QuickBuildResult.Failed(((error as? CompletionException)?.cause ?: error).describe(), null)
+		}
+	}
+
+	private fun Throwable.describe() = message ?: javaClass.simpleName
+
+	override fun cancelQuickBuild(): CompletableFuture<Boolean> {
+		val cancelled =
+			runCatching { quickBuildProvider?.cancel() ?: false }.getOrElse {
+				log.error("Quick Build failed to cancel", it)
+				false
+			}
+		return CompletableFuture.completedFuture(cancelled)
+	}
+
+	override fun getQuickBuildStatus(): QuickBuildState =
+		runCatching { quickBuildProvider?.status() }.getOrElse {
+			log.error("Quick Build status check failed", it)
+			null
+		} ?: QuickBuildState.UNAVAILABLE
+
+	/** Set the Quick Build provider (should be called by Code On the Go's app module during initialization) */
+	fun setQuickBuildProvider(provider: QuickBuildProvider?) {
+		this.quickBuildProvider = provider
+	}
 
 	/**
 	 * Set the run app provider (should be called by Code On the Go's app module during initialization)

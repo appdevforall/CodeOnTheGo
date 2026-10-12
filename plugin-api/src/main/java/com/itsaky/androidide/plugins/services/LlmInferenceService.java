@@ -13,7 +13,7 @@ import java.util.concurrent.CompletableFuture;
  * Service for LLM inference operations. Provided by ai-core plugin.
  *
  * <p>
- * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link ActiveModelReportingBackend}, {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend}, {@link EmbeddingBackend}, {@link StatusReportingBackend}, {@link WebSearchBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
+ * {@link LlmBackend} is the one type here that plugins <em>implement</em> rather than call, so it carries only what every backend can answer. Anything a backend may or may not do is a separate interface extending it -- {@link ActiveModelReportingBackend}, {@link ContextWindowReportingBackend}, {@link HistoryCapableBackend}, {@link ToolCallingBackend}, {@link CancellableBackend}, {@link ConfigurableBackend}, {@link EmbeddingBackend}, {@link StatusReportingBackend}, {@link WebSearchBackend} -- and the consumer asks with {@code instanceof} before it calls. A capability is therefore declared by the type, not by a flag a backend can set inconsistently with the methods it overrode.
  */
 public interface LlmInferenceService {
 
@@ -328,6 +328,25 @@ public interface LlmInferenceService {
 	}
 
 	/**
+	 * An {@link LlmBackend} that knows how many tokens one request may hold, so a consumer can keep a conversation under it instead of guessing a figure per backend. A backend that does not implement this reports no window.
+	 *
+	 * <p>
+	 * A separate interface rather than a default on {@link LlmBackend}, so a backend built before it cannot have an unrelated method of the same name taken for this one.
+	 */
+	interface ContextWindowReportingBackend extends LlmBackend {
+
+		/**
+		 * Gets the context window of the model this backend will answer with, in tokens: prompt, history, tools and reply together. For a local model it is the context actually allocated, which can be smaller than the model's own maximum.
+		 *
+		 * <p>
+		 * Must be cheap and non-blocking: answer from state the backend already holds, never by asking a server. Call {@link LlmInferenceService#notifyBackendChanged} when it changes.
+		 *
+		 * @return the window in tokens, or 0 when it is not known yet
+		 */
+		int getContextWindowTokens();
+	}
+
+	/**
 	 * An {@link LlmBackend} that turns text into vectors.
 	 *
 	 * <p>
@@ -442,6 +461,16 @@ public interface LlmInferenceService {
 		 *             if {@code modelId} is null
 		 */
 		void setEmbeddingModelId(@NonNull String modelId);
+	}
+
+	/**
+	 * Why a generation failed, as far as the backend can tell. Lets a consumer react to a failure by its kind rather than by matching the wording of {@link LlmResponse#error}, which is written for the user and may be translated.
+	 */
+	enum FailureKind {
+		/** Any failure without a kind of its own: network, authentication, rate limits, server errors. */
+		OTHER,
+		/** The request did not fit the model's context window. Resending it unchanged fails the same way; the consumer has to shorten it. */
+		CONTEXT_TOO_LONG
 	}
 
 	/**
@@ -624,7 +653,21 @@ public interface LlmInferenceService {
 		 */
 		@NonNull
 		public static LlmResponse failure(@NonNull String error) {
-			return new LlmResponse(false, null, error, 0, 0);
+			return failure(error, FailureKind.OTHER);
+		}
+
+		/**
+		 * Creates a failed response of a known kind.
+		 *
+		 * @param error
+		 *            the error message describing why generation failed
+		 * @param kind
+		 *            why it failed (must not be null)
+		 * @return a failed LlmResponse
+		 */
+		@NonNull
+		public static LlmResponse failure(@NonNull String error, @NonNull FailureKind kind) {
+			return new LlmResponse(false, null, error, 0, 0, Objects.requireNonNull(kind, "kind must not be null"));
 		}
 
 		/**
@@ -654,6 +697,10 @@ public interface LlmInferenceService {
 		@Nullable
 		public final String error;
 
+		/** Why generation failed; null if successful, {@link FailureKind#OTHER} when the backend did not say */
+		@Nullable
+		public final FailureKind failureKind;
+
 		/** Number of tokens generated in the response */
 		public final int tokensGenerated;
 
@@ -662,11 +709,24 @@ public interface LlmInferenceService {
 
 		public LlmResponse(boolean success, @Nullable String text, @Nullable String error,
 				int tokensGenerated, long timeMs) {
+			this(success, text, error, tokensGenerated, timeMs, null);
+		}
+
+		/**
+		 * Creates a response, for a failure that still carries what was generated before it.
+		 *
+		 * @param failureKind
+		 *            why generation failed; ignored when {@code success}, and {@link FailureKind#OTHER} when null
+		 */
+		public LlmResponse(boolean success, @Nullable String text, @Nullable String error,
+				int tokensGenerated, long timeMs, @Nullable FailureKind failureKind) {
 			this.success = success;
 			this.text = text;
 			this.error = error;
 			this.tokensGenerated = tokensGenerated;
 			this.timeMs = timeMs;
+			// Keeps the field's contract whatever the caller passes: null exactly when successful.
+			this.failureKind = success ? null : (failureKind != null ? failureKind : FailureKind.OTHER);
 		}
 	}
 
@@ -717,6 +777,18 @@ public interface LlmInferenceService {
 		 *            the error message
 		 */
 		void onError(String error);
+
+		/**
+		 * Called when an error of a known kind occurs. Defaults to {@link #onError(String)}, so a consumer built before this method still hears every failure; one that overrides it receives this call instead, not both.
+		 *
+		 * @param error
+		 *            the error message
+		 * @param kind
+		 *            why generation failed (never null)
+		 */
+		default void onError(@NonNull String error, @NonNull FailureKind kind) {
+			onError(error);
+		}
 
 		/**
 		 * Called when a token is received.
@@ -899,6 +971,18 @@ public interface LlmInferenceService {
 		 *            the error message
 		 */
 		void onError(String error);
+
+		/**
+		 * Called when an error of a known kind occurs. Defaults to {@link #onError(String)}, so a consumer built before this method still hears every failure; one that overrides it receives this call instead, not both.
+		 *
+		 * @param error
+		 *            the error message
+		 * @param kind
+		 *            why generation failed (never null)
+		 */
+		default void onError(@NonNull String error, @NonNull FailureKind kind) {
+			onError(error);
+		}
 
 		/**
 		 * Called when a text token is received.

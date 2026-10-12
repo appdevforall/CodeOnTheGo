@@ -28,6 +28,11 @@ class PluginBuildService(
 		return delegate.cancelBuild()
 	}
 
+	override fun cancelQuickBuild(): CompletableFuture<Boolean> {
+		requireSystemCommands("cancel a Quick Build")
+		return delegate.cancelQuickBuild()
+	}
+
 	private fun requireSystemCommands(action: String) {
 		if (PluginPermission.SYSTEM_COMMANDS !in permissions) {
 			throw SecurityException("Plugin $pluginId needs the SYSTEM_COMMANDS permission to $action")
