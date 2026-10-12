@@ -1,5 +1,6 @@
 package com.termux.app.terminal;
 
+import com.itsaky.androidide.terminal.TerminalCommandRequests;
 import android.app.Service;
 import androidx.annotation.NonNull;
 import com.termux.app.TermuxService;
@@ -19,6 +20,12 @@ public class TermuxTerminalSessionServiceClient extends TermuxTerminalSessionCli
 
     public TermuxTerminalSessionServiceClient(TermuxService service) {
         this.mService = service;
+    }
+
+    @Override
+    public void onSessionFinished(@NonNull TerminalSession finishedSession) {
+        // The activity is gone; its client is not there to report a plugin command's exit.
+        TerminalCommandRequests.onSessionFinished(finishedSession);
     }
 
     @Override

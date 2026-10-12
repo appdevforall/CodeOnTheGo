@@ -43,7 +43,6 @@ import com.itsaky.androidide.plugins.manager.project.PluginProjectManager
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
 import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
-import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeCommandServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
@@ -56,9 +55,11 @@ import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSnippetServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTemplateServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
+import com.itsaky.androidide.plugins.manager.services.PluginBuildService
 import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.services.IdeArchiveService
@@ -75,6 +76,7 @@ import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeSidebarService
 import com.itsaky.androidide.plugins.services.IdeSnippetService
 import com.itsaky.androidide.plugins.services.IdeTemplateService
+import com.itsaky.androidide.plugins.services.IdeTerminalService
 import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeUIService
@@ -807,6 +809,10 @@ class PluginManager private constructor(
 			if (commandService is IdeCommandServiceImpl) {
 				commandService.cancelAllCommands()
 			}
+			val terminalService = loadedPlugin.context.services.get(IdeTerminalService::class.java)
+			if (terminalService is IdeTerminalServiceImpl) {
+				terminalService.cancelAll()
+			}
 
 			val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
 			if (templateService is IdeTemplateServiceImpl) {
@@ -1126,6 +1132,8 @@ class PluginManager private constructor(
 			return true
 		}
 
+		// The services outlive a disable, which closed the terminal service.
+		(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.reopen()
 		loadedPlugin.isEnabled = true
 		activateLoadedPlugin(loadedPlugin)
 		return if (loadedPlugin.isEnabled) {
@@ -1194,6 +1202,10 @@ class PluginManager private constructor(
 			val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
 			if (commandService is IdeCommandServiceImpl) commandService.cancelAllCommands()
 		}.onFailure { logger.error("Failed to cancel commands for: $pluginId", it) }
+		runCatching {
+			val terminalService = loadedPlugin.context.services.get(IdeTerminalService::class.java)
+			if (terminalService is IdeTerminalServiceImpl) terminalService.cancelAll()
+		}.onFailure { logger.error("Failed to cancel terminal commands for: $pluginId", it) }
 		runCatching {
 			val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
 			if (templateService is IdeTemplateServiceImpl) templateService.cleanupAllTemplates()
@@ -1446,7 +1458,7 @@ class PluginManager private constructor(
 			pluginId,
 			"build",
 		) {
-			IdeBuildServiceImpl.getInstance()
+			PluginBuildService(pluginId, permissions)
 		}
 
 		registerServiceWithErrorHandling(
@@ -1627,6 +1639,20 @@ class PluginManager private constructor(
 			)
 		}
 
+		registerServiceWithErrorHandling(
+			pluginServiceRegistry,
+			IdeTerminalService::class.java,
+			pluginId,
+			"terminal",
+		) {
+			IdeTerminalServiceImpl(
+				pluginId = pluginId,
+				permissions = permissions,
+				projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+				appFilesDir = context.filesDir,
+			)
+		}
+
 		// Note: Phase 2 services (IdeFileService, IdeProjectService, IdeResourceService)
 		// have been removed. Use existing services instead:
 		// - IdeFileService for file operations (now includes listFiles)
@@ -1705,7 +1731,7 @@ class PluginManager private constructor(
 			pluginId,
 			"build",
 		) {
-			IdeBuildServiceImpl.getInstance()
+			PluginBuildService(pluginId, permissions)
 		}
 
 		registerServiceWithErrorHandling(
