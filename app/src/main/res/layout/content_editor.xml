@@ -20,6 +20,8 @@
 		android:layout_height="wrap_content"
 		android:background="@android:color/transparent"
 		android:fitsSystemWindows="false"
+		app:elevation="0dp"
+		app:liftOnScroll="false"
 		app:layout_behavior="com.google.android.material.appbar.AppBarLayout$Behavior">
 
 		<LinearLayout
