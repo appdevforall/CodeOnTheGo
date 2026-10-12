@@ -49,8 +49,7 @@ class GradleBuildServiceServerExitTest {
 		service.onListenerStarted(server, ByteArrayInputStream(ByteArray(0)))
 
 		val build = service.executeTasks(listOf(":app:assembleDebug"))
-		// The slot is taken on the build's own future chain, not on the caller's thread.
-		awaitUntil { service.isBuildInProgress }
+		// The slot is taken on the caller's thread, before the request is sent.
 		assertThat(service.isBuildInProgress).isTrue()
 
 		service.onServerExited(137)
