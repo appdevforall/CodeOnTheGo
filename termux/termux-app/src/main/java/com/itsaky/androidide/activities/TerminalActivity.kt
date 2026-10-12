@@ -24,12 +24,14 @@ import android.os.IBinder
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
-import com.itsaky.androidide.terminal.TerminalCommandRequests
+import com.itsaky.androidide.terminal.CommandIntentRouter
+import com.itsaky.androidide.terminal.TerminalSessionFactory
 import com.itsaky.androidide.utils.Environment
 import com.termux.app.TermuxActivity
 import com.termux.app.TermuxService
 import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession
 import com.termux.shared.termux.TermuxConstants
+import com.termux.terminal.TerminalSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -40,7 +42,8 @@ class TerminalActivity : TermuxActivity() {
     private var pendingWorkingDir: String? = null
     private var pendingSessionName: String? = null
     private var pendingIsFailsafe: Boolean = false
-    private var pendingCommandRequestId: String? = null
+    // Each command request that arrived before the service connected, in order.
+    private val pendingCommandRequestIds = mutableListOf<String>()
 
     // True when this instance was started only to run a plugin's command, not recreated or reused.
     private var launchedForCommand = false
@@ -55,8 +58,8 @@ class TerminalActivity : TermuxActivity() {
         controller.isAppearanceLightNavigationBars = false
         controller.isAppearanceLightStatusBars = false
         // Read before super: TermuxActivity consumes the intent once its service connects.
-        pendingCommandRequestId = intent?.getStringExtra(TerminalCommandRequests.EXTRA_COMMAND_REQUEST_ID)
-        launchedForCommand = savedInstanceState == null && pendingCommandRequestId != null
+        CommandIntentRouter.shared.requestId(intent)?.let(pendingCommandRequestIds::add)
+        launchedForCommand = savedInstanceState == null && pendingCommandRequestIds.isNotEmpty()
         super.onCreate(savedInstanceState)
     }
 
@@ -75,15 +78,22 @@ class TerminalActivity : TermuxActivity() {
             pendingIsFailsafe = false
         }
 
-        // No service yet: keep the request and launchedForCommand for the next connection.
+        // No service yet: keep the requests and launchedForCommand for the next connection.
         if (termuxService == null) return
 
-        pendingCommandRequestId?.let { requestId ->
-            pendingCommandRequestId = null
-            // Withdrawn or cancelled before its session started: close the window opened for it.
-            if (!runCommand(termuxService, requestId) && launchedForCommand) finishActivityIfNotFinishing()
-        }
+        val requestIds = pendingCommandRequestIds.toList()
+        pendingCommandRequestIds.clear()
+        val closeIfNoneStarts = launchedForCommand
         launchedForCommand = false
+        var unrouted = requestIds.size
+        var anyStarted = false
+        requestIds.forEach { requestId ->
+            runCommand(termuxService, requestId) { started ->
+                anyStarted = anyStarted || started
+                // Withdrawn or cancelled before their sessions started: close the window opened for them.
+                if (--unrouted == 0 && !anyStarted && closeIfNoneStarts) finishActivityIfNotFinishing()
+            }
+        }
     }
 
     override fun setupTermuxSessionOnServiceConnected(
@@ -93,7 +103,7 @@ class TerminalActivity : TermuxActivity() {
         existingSession: TermuxSession?,
         launchFailsafe: Boolean
     ) {
-        // The command gets its own session; a default shell beside it would be left behind.
+        // The command runs in a plugin session; a default shell beside it would be left behind.
         if (launchedForCommand && mTermuxService.isTermuxSessionsEmpty) return
         super.setupTermuxSessionOnServiceConnected(intent, workingDir, sessionName, existingSession, launchFailsafe)
     }
@@ -103,10 +113,10 @@ class TerminalActivity : TermuxActivity() {
         setIntent(intent)
         if (intent == null) return
 
-        val commandRequestId = intent.getStringExtra(TerminalCommandRequests.EXTRA_COMMAND_REQUEST_ID)
+        val commandRequestId = CommandIntentRouter.shared.requestId(intent)
         if (commandRequestId != null) {
             val service = mTermuxService
-            if (service != null) runCommand(service, commandRequestId) else pendingCommandRequestId = commandRequestId
+            if (service != null) runCommand(service, commandRequestId) else pendingCommandRequestIds += commandRequestId
             return
         }
 
@@ -124,31 +134,32 @@ class TerminalActivity : TermuxActivity() {
         }
     }
 
-    /** Runs a plugin's command in a new session and shows it. Returns false if it did not start. */
-    private fun runCommand(service: TermuxService, requestId: String): Boolean {
-        // Null when already run (a recreated activity sees the same intent again) or withdrawn.
-        val request = TerminalCommandRequests.claim(requestId) ?: return false
-        // TermuxActivity finishes a window with no sessions when its service connects before
-        // onStart; a session started now would run the command with nothing on screen.
-        if (isFinishing) {
-            request.notStarted("The Terminal closed before the command could start")
-            return false
+    /**
+     * Runs a plugin's command in an idle session of that plugin, or a new one, and shows it. Tells
+     * [onRouted] whether it started.
+     */
+    private fun runCommand(service: TermuxService, requestId: String, onRouted: (Boolean) -> Unit = {}) {
+        // TermuxActivity finishes a window with no sessions when its service connects before onStart.
+        CommandIntentRouter.shared.route(requestId, sessionFactory(service), screenClosing = { isFinishing }) { session ->
+            // Destroyed meanwhile: there is no window to show it in.
+            if (isDestroyed) return@route
+            if (session != null) mTermuxTerminalSessionActivityClient.setCurrentSession(session)
+            onRouted(session != null)
         }
-        val newSession = service.createTermuxSession(
-            Environment.BASH_SHELL.absolutePath,
-            arrayOf("-c", TerminalCommandRequests.RUN_SCRIPT, "cogo", request.command),
-            null,
-            request.workingDirectory,
-            false,
-            request.sessionName
-        )
-        if (newSession == null) {
-            request.notStarted("The terminal session could not be started")
-            return false
-        }
-        TerminalCommandRequests.attach(request, newSession.terminalSession)
-        mTermuxTerminalSessionActivityClient.setCurrentSession(newSession.terminalSession)
-        return true
+    }
+
+    private fun sessionFactory(service: TermuxService) = object : TerminalSessionFactory {
+        override fun isOpen(session: TerminalSession) = service.getIndexOfSession(session) >= 0 && session.isRunning
+
+        override fun open(name: String, bashArguments: Array<String>, workingDirectory: String?) =
+            service.createTermuxSession(
+                Environment.BASH_SHELL.absolutePath,
+                bashArguments,
+                null,
+                workingDirectory,
+                false,
+                name
+            )?.terminalSession
     }
 
     private fun createAndSetSession(
