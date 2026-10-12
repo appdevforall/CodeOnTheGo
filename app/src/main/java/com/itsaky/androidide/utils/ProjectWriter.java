@@ -30,7 +30,7 @@ import kotlin.text.StringsKt;
 public class ProjectWriter {
 
 	private static final String XML_TEMPLATE_PATH = "templates/xml";
-	private static final String SOURCE_PATH_REGEX = "/.*/src/.*/java|kt";
+	private static final String SOURCE_PATH_REGEX = "/.*/src/.*?/(java|kotlin)(?:/|$)";
 
 	public static String createActivity(String packageName, String className, boolean appCompatActivity, SourceLanguage language) {
 		return ClassBuilder.createActivity(packageName, className, appCompatActivity, language);
@@ -103,7 +103,7 @@ public class ProjectWriter {
 	}
 
 	public static String getPackageName(File parentPath) {
-		// Returns the package name or the closest internal and if none is found, returns null
+		// Returns the package for a directory under a java/kotlin source root, or null outside one
 		Matcher pkgMatcher = Pattern.compile(SOURCE_PATH_REGEX).matcher(parentPath.getAbsolutePath());
 
 		if (pkgMatcher.find()) {
@@ -120,15 +120,20 @@ public class ProjectWriter {
 				return name.replace(File.separator, ".");
 			}
 
-			File[] files = parentPath.listFiles();
-			if (files != null) {
-				for (File file : files) {
-					if (file.isDirectory() && isValidPackageName(file.getName())) {
-						return file.getName();
-					}
+			// At a source root: follow the chain of lone package directories (org/example)
+			// and stop at one holding sources or several packages. Other files (.gitkeep,
+			// .DS_Store) are ignored.
+			StringBuilder pkg = new StringBuilder();
+			File dir = parentPath;
+			File next;
+			while ((next = loneChildPackage(dir)) != null) {
+				dir = next;
+				if (pkg.length() > 0) {
+					pkg.append('.');
 				}
+				pkg.append(dir.getName());
 			}
-			return "";
+			return pkg.toString();
 		}
 
 		return null;
@@ -136,5 +141,28 @@ public class ProjectWriter {
 
 	private static boolean isValidPackageName(String name) {
 		return name.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
+	}
+
+	// The only package directory in dir, or null if dir holds sources or not exactly one package
+	private static File loneChildPackage(File dir) {
+		File[] files = dir.listFiles();
+		if (files == null) {
+			return null;
+		}
+		File found = null;
+		for (File file : files) {
+			String name = file.getName();
+			if (file.isDirectory()) {
+				if (isValidPackageName(name)) {
+					if (found != null) {
+						return null;
+					}
+					found = file;
+				}
+			} else if (name.endsWith(".java") || name.endsWith(".kt")) {
+				return null;
+			}
+		}
+		return found;
 	}
 }
