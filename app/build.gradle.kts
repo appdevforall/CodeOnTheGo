@@ -1609,7 +1609,18 @@ fun assetsDownload(
 	assets: List<Asset>,
 	projectDir: File,
 ) {
+	val skipped = (project.findProperty("assetsSkip") as String?)?.split(',').orEmpty()
+	val unknown = skipped - assets.map { it.localPath }.toSet()
+	if (unknown.isNotEmpty()) {
+		throw GradleException("assetsSkip names paths that are not assets of this task: ${unknown.joinToString()}")
+	}
+
 	assets.forEach { asset ->
+		if (asset.localPath in skipped) {
+			project.logger.lifecycle("Skipping ${asset.localPath} (assetsSkip).")
+			return@forEach
+		}
+
 		val target = File(projectDir, asset.localPath)
 		target.parentFile.mkdirs()
 

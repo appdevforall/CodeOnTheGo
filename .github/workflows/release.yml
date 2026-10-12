@@ -170,6 +170,7 @@ jobs:
       - name: Download release assets
         run: |
           flox activate -d flox/base -- ./gradlew :app:assetsDownloadRelease --no-daemon \
+            -PassetsSkip=assets/release/common/database/documentation.db.br \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \

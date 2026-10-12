@@ -110,8 +110,8 @@ Large assets are not in this repo. They are `.gitignore`d and fetched at build t
 **`documentation.db` provenance.** The canonical copy is on **Google Drive**; OfflineDocumentationTools' workflows edit it there. This repo's CI reads it from Drive, not from dev-assets:
 
 - `compress_docdb.yml` (daily) downloads `documentation.db`, and if its MD5 changed, Brotli-compresses it and uploads `documentation.db.br` back to Drive.
-- `release.yml` fetches dev-assets' release assets, then its `download_documentation` job replaces `documentation.db.br` with the Drive copy.
-- `generate_assets.yml` (manual) fetches dev-assets' debug assets, replaces `assets/documentation.db` with the Drive copy, builds `assets-arm64-v8a.zip` / `assets-armeabi-v7a.zip` (`:app:assembleAssets`), and uploads them to Drive.
+- `release.yml` fetches dev-assets' release assets except `documentation.db.br` (`-PassetsSkip=<asset path>`), which its `download_documentation` job takes from Drive.
+- `generate_assets.yml` (manual) fetches dev-assets' debug assets except `assets/documentation.db` (`-PassetsSkip`), takes that from Drive, builds `assets-arm64-v8a.zip` / `assets-armeabi-v7a.zip` (`:app:assembleAssets`), and uploads them to Drive.
 
 Local builds get `documentation.db` from dev-assets instead, which is updated by hand and can lag Drive.
 
