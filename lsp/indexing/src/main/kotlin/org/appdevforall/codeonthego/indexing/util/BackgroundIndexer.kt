@@ -134,8 +134,9 @@ class BackgroundIndexer<T : Indexable>(
 						} catch (e: CancellationException) {
 							throw e
 						} catch (e: Exception) {
-							// The flow can fail after its last emit (e.g. EIO closing the JAR);
-							// keep the entries already collected, then report the failure.
+							// Keep the entries already collected on any failure, then report it. Meant for
+							// a failure after the last emit (e.g. EIO closing the JAR); a mid-stream failure
+							// also leaves a partial source that containsSource() treats as indexed.
 							error = e
 						}
 						if (batch.isNotEmpty()) index.insertAll(batch.asSequence())
