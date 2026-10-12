@@ -25,7 +25,7 @@ The first three cannot be sped up or skipped.
 
 **Gradle handles what live reload cannot.** It still provisions the proxy app through the existing Tooling API path, and still builds every edit the classifier declines. Nothing a user installs or ships comes out of the daemon.
 
-**One compiler, not two.** Quick Build needs Kotlin 2.3.x for faster, more robust incremental compilation. Until the rest of CoGo moves up, the APK carries two Kotlin compilers. The move is in review as ADFA-2602; unifying them is ADFA-4931.
+**One compiler, not two (ADFA-4931).** The daemon no longer ships a Kotlin compiler. `:app`'s `quickBuildDaemonZip` leaves `kotlin-compiler-embeddable` and eight other jars out of the daemon zip, and `QuickBuildArtifactStager` links the on-device Gradle distribution's copies in at provision time - 57.6 MB off the debug v8 APK. The price is a version tie: the daemon's Kotlin must equal the distribution's, so `:quickbuild:daemon` takes its Kotlin artifacts at `KOTLIN_VERSION`, and `:app:quickBuildDistJarCheck` fails the build when the distribution lacks a linked jar.
 
 ## Consequences
 

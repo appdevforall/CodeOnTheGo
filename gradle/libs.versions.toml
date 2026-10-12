@@ -242,6 +242,14 @@ androidx-work-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "
 # Google
 google-material = { module = "com.google.android.material:material", version = "1.12.0" }
 google-gson = { module = "com.google.code.gson:gson", version = "2.12.1" }
+# The Quick Build daemon takes this from the on-device Gradle distribution rather than the APK,
+# so the version is the distribution's choice, not ours. Kept separate from google-gson above so
+# an app-wide bump cannot silently break that link.
+gson-quickBuildDaemon = { module = "com.google.code.gson:gson", version = "2.13.1" }
+# Same story for the coroutines the Kotlin compiler pulls in. Names the -jvm module rather than
+# the KMP root because that is what the compiler depends on, and a constraint on the root would
+# not govern it.
+kotlinx-coroutines-core-jvm-quickBuildDaemon = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm", version = "1.10.2" }
 google-guava = { module = "com.google.guava:guava", version = "33.4.0-android" }
 google-auto-value-annotations = { module = "com.google.auto.value:auto-value-annotations", version = "1.11.0" }
 google-auto-value-ap = { module = "com.google.auto.value:auto-value", version = "1.11.0" }
@@ -269,14 +277,17 @@ xml-jb-annotations = { module = "org.jetbrains:annotations", version = "24.1.0" 
 # GIT
 git-jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version = "6.8.0.202311291450-r" }
 
-# Quick Build daemon (ADFA-4128): Kotlin Build Tools API incremental engine
-kotlin-buildToolsApi = { module = "org.jetbrains.kotlin:kotlin-build-tools-api", version.ref = "kotlin" }
-kotlin-buildToolsImpl = { module = "org.jetbrains.kotlin:kotlin-build-tools-impl", version.ref = "kotlin" }
-# Compose compiler plugin, version-matched to the daemon's compiler
-kotlin-composeCompilerPluginEmbeddable = { module = "org.jetbrains.kotlin:kotlin-compose-compiler-plugin-embeddable", version.ref = "kotlin" }
+# Quick Build daemon (ADFA-4128): Kotlin Build Tools API incremental engine, and the Compose
+# compiler plugin matched to it. No version here: :quickbuild:daemon takes these at
+# org.adfa.constants.KOTLIN_VERSION, the Kotlin the on-device Gradle distribution embeds.
+kotlin-buildToolsApi = { module = "org.jetbrains.kotlin:kotlin-build-tools-api" }
+kotlin-buildToolsImpl = { module = "org.jetbrains.kotlin:kotlin-build-tools-impl" }
+kotlin-composeCompilerPluginEmbeddable = { module = "org.jetbrains.kotlin:kotlin-compose-compiler-plugin-embeddable" }
 # Compose runtime for the daemon's compose compile tests (see :quickbuild:daemon)
 composeRuntimeDaemonTests = { module = "androidx.compose.runtime:runtime-android", version = "1.7.3" }
-ow2-asm = { module = "org.ow2.asm:asm", version = "9.7.1" }
+# Only :quickbuild:daemon uses this, and it takes the jar from the on-device Gradle
+# distribution rather than the APK - so the version is the distribution's, not ours.
+ow2-asm = { module = "org.ow2.asm:asm", version = "9.9" }
 
 # Tests
 tests-junit = { module = "junit:junit", version = "4.13.2" }

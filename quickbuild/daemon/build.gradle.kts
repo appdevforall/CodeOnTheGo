@@ -1,3 +1,5 @@
+import org.adfa.constants.KOTLIN_VERSION
+
 plugins {
 	id("java-library")
 	id("org.jetbrains.kotlin.jvm")
@@ -102,29 +104,37 @@ dependencies {
 	// against one protocol definition. api: the router/handler signatures expose them.
 	api(projects.quickbuild.protocol)
 
-	implementation(libs.kotlin.buildToolsApi)
-	implementation(libs.google.gson)
+	// The Kotlin artifacts below take KOTLIN_VERSION, not a catalog version: ADFA-4931 links the
+	// on-device Gradle distribution's compiler, so the two must match by construction.
+	implementation("${libs.kotlin.buildToolsApi.get().module}:$KOTLIN_VERSION")
+	// Pinned to the on-device Gradle distribution's version, not the app's, because ADFA-4931
+	// links gson from the distribution instead of shipping it in the APK.
+	implementation(libs.gson.quickBuildDaemon)
 	// ACC_FINAL stripping on recompiled payload classes (proxies extend user classes).
 	implementation(libs.ow2.asm)
-	// The BTA implementation + its runtime deps are loaded from the daemon's runtime
-	// classpath on device (staged alongside the jar), matched to the bundled compiler.
-	// kotlin-compiler-runner exists solely to launch/talk to a separate long-lived
-	// "Kotlin compile daemon" JVM over RMI, which IncrementalCompiler never does here
-	// (it always calls useInProcessStrategy()) - dead weight (~17 KB of the ~62 MB
-	// quickbuild-daemon.zip, ADFA-4128 size audit).
-	// kotlin-daemon-client and kotlin-daemon-embeddable looked like the same kind of
-	// dead weight but are NOT: BuildToolsApiBuildICReporter.reportCompileIteration (part
-	// of kotlin-build-tools-impl itself, on the in-process path) references
-	// org.jetbrains.kotlin.daemon.common.CompileIterationResult, which lives in
-	// kotlin-daemon-client - excluding it throws NoClassDefFoundError and failed 12/52
-	// :quickbuild-daemon:test cases. Keep both.
-	runtimeOnly(libs.kotlin.buildToolsImpl) {
+
+	constraints {
+		// kotlin-compiler-embeddable asks for 1.8.0, but the on-device distribution already runs
+		// that compiler against 1.10.2, so the upgrade is safe.
+		runtimeOnly(libs.kotlinx.coroutines.core.jvm.quickBuildDaemon) {
+			because("the on-device Gradle distribution ships this version, which ADFA-4931 links")
+		}
+		// kotlin-compiler-embeddable's POM asks for 1.6.10; the distribution's compiler runs on its
+		// own 2.3.21 copy, which ADFA-4931 links instead of shipping an older one.
+		runtimeOnly("org.jetbrains.kotlin:kotlin-reflect:$KOTLIN_VERSION") {
+			because("the on-device Gradle distribution ships this version, which ADFA-4931 links")
+		}
+	}
+	// kotlin-compiler-runner only drives a separate compile-daemon JVM over RMI, which this
+	// daemon never does; do not also exclude kotlin-daemon-embeddable or kotlin-reflect, which
+	// look just as unused but break every real compile.
+	runtimeOnly("${libs.kotlin.buildToolsImpl.get().module}:$KOTLIN_VERSION") {
 		exclude(group = "org.jetbrains.kotlin", module = "kotlin-compiler-runner")
 	}
 
 	// Staged next to the daemon jar on device and passed as -Xplugin when the user
 	// project uses Compose.
-	composeCompilerPlugin(libs.kotlin.composeCompilerPluginEmbeddable)
+	composeCompilerPlugin("${libs.kotlin.composeCompilerPluginEmbeddable.get().module}:$KOTLIN_VERSION")
 	// The compose compile tests resolve a classpath from this; classes.jar is extracted
 	// from the AAR at build time and never shipped. Names the -android artifact rather
 	// than the KMP umbrella, which redirects via available-at - a redirect a
