@@ -207,16 +207,26 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 			return GradleTaskResult.Failed(cause.message ?: cause.javaClass.simpleName)
 		}
 		return when {
-			result == null -> GradleTaskResult.Failed(TaskExecutionResult.Failure.UNKNOWN.name)
+			result == null -> {
+				GradleTaskResult.Failed(TaskExecutionResult.Failure.UNKNOWN.name)
+			}
 
-			result.isSuccessful -> GradleTaskResult.Success
+			result.isSuccessful -> {
+				GradleTaskResult.Success
+			}
 
-			result.failure == TaskExecutionResult.Failure.BUILD_CANCELLED -> GradleTaskResult.Cancelled
+			result.failure == TaskExecutionResult.Failure.BUILD_CANCELLED -> {
+				GradleTaskResult.Cancelled
+			}
 
 			// Another build took the slot between the check above and the service's own claim.
-			result.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS -> GradleTaskResult.Refused(BUILD_IN_PROGRESS_REASON)
+			result.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS -> {
+				GradleTaskResult.Refused(BUILD_IN_PROGRESS_REASON)
+			}
 
-			else -> GradleTaskResult.Failed((result.failure ?: TaskExecutionResult.Failure.UNKNOWN).name)
+			else -> {
+				GradleTaskResult.Failed((result.failure ?: TaskExecutionResult.Failure.UNKNOWN).name)
+			}
 		}
 	}
 
@@ -231,7 +241,8 @@ class IdeBuildServiceImpl private constructor() : IdeBuildService {
 	private class RefusedRun(
 		reason: String,
 	) : GradleTaskRun {
-		override val result: CompletableFuture<GradleTaskResult> = CompletableFuture.completedFuture(GradleTaskResult.Refused(reason))
+		override val result: CompletableFuture<GradleTaskResult> =
+			CompletableFuture.completedFuture(GradleTaskResult.Refused(reason))
 
 		override fun output() = ""
 
