@@ -106,6 +106,7 @@ import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_CANCELLED
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_IN_PROGRESS
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.CACHE_READ_ERROR
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_DIRECTORY_INACCESSIBLE
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_DIRECTORY
@@ -1703,6 +1704,7 @@ abstract class ProjectHandlerActivity :
 					PROJECT_NOT_DIRECTORY -> string.msg_file_is_not_dir
 					PROJECT_NOT_FOUND -> string.msg_project_dir_doesnt_exist
 					CACHE_READ_ERROR -> string.msg_project_cache_read_failure
+					BUILD_IN_PROGRESS -> string.build_in_progress_warning
 					else -> null
 				}?.let {
 					"$initFailed: ${getString(it)}"

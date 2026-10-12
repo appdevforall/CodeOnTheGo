@@ -50,8 +50,9 @@ public abstract class NonEditableEditorFragment extends
 			return;
 		}
 
-		// Editing CodeEditor's content is a synchronized operation
-		editor.getText().delete(0, editor.getText().length());
+		// Replace the Content rather than delete(0, length): on a large word-wrapped buffer the
+		// delete walks every row on the main thread (WordwrapLayout.afterDelete) and ANRs.
+		editor.setText("");
 		getEmptyStateViewModel().setEmpty(true);
 	}
 
