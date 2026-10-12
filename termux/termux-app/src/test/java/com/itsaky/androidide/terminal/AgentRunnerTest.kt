@@ -1,6 +1,7 @@
 package com.itsaky.androidide.terminal
 
 import com.google.common.truth.Truth.assertThat
+import com.termux.shared.termux.TermuxConstants
 import com.termux.terminal.ShellIntegrationMark
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalOutput
@@ -212,8 +213,17 @@ class AgentRunnerTest {
 
 	@Test
 	fun typedRunLineClearsThePromptAndRunsTheCommand() {
-		assertThat(AgentRunner(File("/tmp"), "\$TMPDIR").typedRunLine("3f2a"))
-			.isEqualTo("\u0015bash \"\$TMPDIR/agent-run\" 3f2a\r")
+		assertThat(AgentRunner(File("/tmp")).typedRunLine("3f2a"))
+			.isEqualTo("\u0015bash \"/tmp/agent-run\" 3f2a\r")
+	}
+
+	@Test
+	fun termuxRunnerIsRunByItsAbsolutePathNotTheSessionsTmpdir() {
+		// A profile may set its own TMPDIR; the runner is not there.
+		val dir = TermuxConstants.TERMUX_TMP_PREFIX_DIR_PATH
+
+		assertThat(AgentRunner.termux.typedRunLine("3f2a")).isEqualTo("\u0015bash \"$dir/agent-run\" 3f2a\r")
+		assertThat(AgentRunner.termux.firstRunArguments("3f2a")[2]).contains("bash \"$dir/agent-run\"")
 	}
 
 	@Test

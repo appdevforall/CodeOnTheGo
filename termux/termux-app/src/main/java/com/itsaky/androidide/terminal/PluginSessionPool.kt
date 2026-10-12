@@ -7,9 +7,6 @@ interface TerminalSessionFactory {
 	/** Whether [session] is still open and its shell running, so it can take another command. */
 	fun isOpen(session: TerminalSession): Boolean
 
-	/** The process group in the foreground of [session]'s terminal, or null if that cannot be told. */
-	fun foregroundProcessGroup(session: TerminalSession): Int?
-
 	/** Opens a visible session named [name] running bash with [bashArguments], or null if it cannot. */
 	fun open(
 		name: String,
@@ -152,6 +149,9 @@ internal class PluginSessionPool(
 		val taken = sessions.mapTo(mutableSetOf()) { it.name }
 		return Slot.Free((1..maxPerPlugin).map { "$label $it" }.first { it !in taken })
 	}
+
+	/** The sessions of [owner] running no command. */
+	fun idle(owner: String): List<PluginSession> = byOwner[owner].orEmpty().filter { it.isIdle }
 
 	/** The sessions of [owner] running a command. */
 	fun busy(owner: String): List<PluginSession> = byOwner[owner].orEmpty().filterNot { it.isIdle }

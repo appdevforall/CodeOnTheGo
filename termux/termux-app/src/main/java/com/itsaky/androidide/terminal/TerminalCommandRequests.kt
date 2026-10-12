@@ -57,29 +57,52 @@ class TerminalCommandRequests internal constructor(
 		id: String,
 		reason: TerminalStartFailure,
 	): Boolean {
-		val command = commands[id]?.takeIf { it.state == State.Queued } ?: return false
+		val command = queued(id) ?: return false
 		notStarted(command, reason)
 		return true
 	}
 
 	/**
 	 * Runs queued command [id] in an idle session of its plugin, or in a new one from [factory] while
-	 * the plugin has room for one. One-shot, so an activity recreated with the same intent does not
-	 * run it twice.
+	 * the plugin has room for one, then hands [started] the session it runs in, on the main thread.
+	 * One-shot, so an activity recreated with the same intent does not run it twice.
 	 *
-	 * @return the session it runs in, or null if it does not run; the listener has been told why,
-	 *   unless it was not queued.
+	 * Whether an idle session is at its prompt is read from /proc on [io] first.
+	 *
+	 * @param screenClosing whether the screen asking is finishing, checked once that read is done; a
+	 *   session started then would run the command with nothing on screen, so it is withdrawn instead.
+	 * @param started gets null if the command does not run; the listener has been told why, unless it
+	 *   was not queued.
 	 */
 	fun start(
 		id: String,
 		factory: TerminalSessionFactory,
-	): TerminalSession? {
-		val command = commands[id]?.takeIf { it.state == State.Queued } ?: return null
+		screenClosing: () -> Boolean,
+		started: (TerminalSession?) -> Unit,
+	) {
+		val command = queued(id) ?: return started(null)
 		pool.prune(command.owner, factory::isOpen).forEach(::closed)
-		// Frees, for a later command, a session whose command will never report its end.
+		// Frees, for this command or a later one, a session whose command will never report its end.
 		pool.busy(command.owner).forEach(::checkGone)
+		val shellPids = pool.idle(command.owner).associateWith { it.terminal.pid }
+		io.execute {
+			val foreground = shellPids.mapValues { (_, pid) -> processes.foregroundProcessGroup(pid) }
+			main.execute { started(place(id, factory, foreground, screenClosing())) }
+		}
+	}
 
-		val atPrompt = { session: PluginSession -> session.isAtPrompt(factory.foregroundProcessGroup(session.terminal)) }
+	private fun place(
+		id: String,
+		factory: TerminalSessionFactory,
+		foreground: Map<PluginSession, Int?>,
+		screenClosing: Boolean,
+	): TerminalSession? {
+		// Withdrawn, cancelled or started elsewhere during the read.
+		val command = queued(id) ?: return null
+		if (screenClosing) return notStarted(command, TerminalStartFailure.TerminalClosed)
+
+		// A session that went idle during the read is not known to be at its prompt.
+		val atPrompt = { session: PluginSession -> session in foreground && session.isAtPrompt(foreground.getValue(session)) }
 		val slot = pool.slotFor(command.owner, command.sessionLabel, atPrompt)
 		val session =
 			when (slot) {
@@ -96,6 +119,8 @@ class TerminalCommandRequests internal constructor(
 		command.listener.onStarted(session.name)
 		return session.terminal
 	}
+
+	private fun queued(id: String): TerminalCommand? = commands[id]?.takeIf { it.state == State.Queued }
 
 	/** Interrupts command [id] with Ctrl-C if it runs, or makes sure it never starts. */
 	fun cancel(id: String) {
@@ -163,26 +188,28 @@ class TerminalCommandRequests internal constructor(
 
 	// Reports the command [session] ran, if any, as ended with the session; true if there was one.
 	private fun closed(session: PluginSession): Boolean {
-		val terminal = session.terminal
-		terminal.setShellIntegrationListener(null)
+		session.terminal.setShellIntegrationListener(null)
 		if (session.isIdle) return false
-		exited(session, if (terminal.isRunning) CommandMarkListener.UNKNOWN_EXIT_CODE else terminal.exitStatus)
+		// The shell's exit status is not the command's: the command ran in a runner of its own.
+		exited(session, CommandMarkListener.UNKNOWN_EXIT_CODE)
 		return true
 	}
 
 	/**
 	 * Ends, with an unknown exit code, the command in [session] if it will never report its end: its
 	 * runner was killed, its output swallowed the end mark in an unfinished escape sequence, or a
-	 * `read` at the prompt took its typed run line. That holds once the shell has the terminal back
+	 * `read` at the prompt took its typed run line, or the login profile of its new session exec'd
+	 * another shell before the runner could start. That holds once the shell has the terminal back
 	 * and the runner is gone; the ending lands on a later call, as the end mark may still be coming.
 	 */
 	private fun checkGone(session: PluginSession) {
 		val command = session.command ?: return
 		val shellPid = session.terminal.pid
 		val runnerPid = session.runnerPid
-		val typedAt = session.startedAt.takeIf { session.typed }
+		val startedAt = session.startedAt
+		val typed = session.typed
 		io.execute {
-			val found = runnerOf(command.id, shellPid, runnerPid, typedAt)
+			val found = runnerOf(command.id, shellPid, runnerPid, startedAt, typed)
 			main.execute { onRunnerChecked(session, command, found) }
 		}
 	}
@@ -194,13 +221,14 @@ class TerminalCommandRequests internal constructor(
 		id: String,
 		shellPid: Int,
 		runnerPid: Int?,
-		typedAt: Long?,
+		startedAt: Long,
+		typed: Boolean,
 	): Runner {
 		if (processes.foregroundProcessGroup(shellPid) != shellPid) return Runner.ALIVE
 		if (runnerPid != null) return if (processes.parentOf(runnerPid) == shellPid) Runner.ALIVE else Runner.GONE
-		// The runner has not reported in. Only a typed run line can have gone elsewhere, and only
-		// once it had time to start is that worth checking.
-		if (typedAt == null || now() - typedAt < GONE_GRACE_MS) return Runner.ALIVE
+		// The runner has not reported in. Once it had time to start, the command is taken back so it
+		// never runs; a new session's runner starts only after the login profile is sourced.
+		if (now() - startedAt < if (typed) GONE_GRACE_MS else FIRST_RUN_GRACE_MS) return Runner.ALIVE
 		return if (runner.withdraw(id)) Runner.NEVER_STARTED else Runner.ALIVE
 	}
 
@@ -271,6 +299,9 @@ class TerminalCommandRequests internal constructor(
 
 		/** How long a command's runner must look gone, or a typed run line go unanswered, before the command is ended. */
 		const val GONE_GRACE_MS = 5_000L
+
+		/** How long a new session's first command waits for its runner, which starts once the login profile is sourced. */
+		const val FIRST_RUN_GRACE_MS = 30_000L
 
 		/** The instance the plugin launcher, the intent router and the session clients share. */
 		@JvmField

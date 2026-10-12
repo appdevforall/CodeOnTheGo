@@ -17,12 +17,12 @@ class TerminalCommandRequestsTest {
 	@get:Rule
 	val tmp = TemporaryFolder()
 
-	private val runner by lazy { AgentRunner(tmp.root, "\$TMPDIR") }
+	private val runner by lazy { AgentRunner(tmp.root) }
 	private val requests by lazy {
 		TerminalCommandRequests(
 			runner,
 			TerminalCommandRequests.MAX_SESSIONS_PER_PLUGIN,
-			io = { it.run() },
+			io = { if (ioHeld) heldIo += it else it.run() },
 			main = { it.run() },
 			processes = processes,
 			now = { clock },
@@ -41,6 +41,15 @@ class TerminalCommandRequestsTest {
 	private var nextPid = 100
 	private var clock = 0L
 
+	// While true, I/O waits in heldIo until the test runs it, as if the read were still under way.
+	private var ioHeld = false
+	private val heldIo = mutableListOf<Runnable>()
+
+	private fun finishIo() {
+		ioHeld = false
+		heldIo.toList().also { heldIo.clear() }.forEach(Runnable::run)
+	}
+
 	private val processes =
 		object : ProcessProbe {
 			override fun foregroundProcessGroup(pid: Int) = foreground.entries.firstOrNull { it.key.pid == pid }?.value
@@ -52,7 +61,6 @@ class TerminalCommandRequestsTest {
 	private class Shell(
 		name: String,
 		val pid: Int,
-		exitStatus: Int = 0,
 	) {
 		private var listener: TerminalSession.ShellIntegrationListener? = null
 		private var tap: TerminalEmulator.OutputTap? = null
@@ -60,7 +68,6 @@ class TerminalCommandRequestsTest {
 		val terminal =
 			mockk<TerminalSession>(relaxed = true).also {
 				it.mSessionName = name
-				every { it.exitStatus } returns exitStatus
 				every { it.pid } returns pid
 				every { it.emulator } returns emulator
 				every { it.setShellIntegrationListener(any()) } answers { listener = firstArg() }
@@ -99,8 +106,6 @@ class TerminalCommandRequestsTest {
 	private val factory =
 		object : TerminalSessionFactory {
 			override fun isOpen(session: TerminalSession) = session !in closed
-
-			override fun foregroundProcessGroup(session: TerminalSession) = foreground[session]
 
 			override fun open(
 				name: String,
@@ -141,7 +146,14 @@ class TerminalCommandRequestsTest {
 
 	private fun hasFiles(id: String) = File(tmp.root, "$id.cmd").exists() || File(tmp.root, "$id.dir").exists()
 
-	private fun start(id: String): Shell? = requests.start(id, factory)?.let(shells::getValue)
+	private fun start(
+		id: String,
+		screenClosing: Boolean = false,
+	): Shell? {
+		var session: TerminalSession? = null
+		requests.start(id, factory, { screenClosing }) { session = it }
+		return session?.let(shells::getValue)
+	}
 
 	@Test
 	fun startIsOneShot() {
@@ -255,30 +267,17 @@ class TerminalCommandRequestsTest {
 	}
 
 	@Test
-	fun busySessionThatLeftTheTerminalReportsItsCommandEnded() {
+	fun busySessionThatLeftTheTerminalReportsItsCommandEndedWithAnUnknownExit() {
 		val id = enqueue()
 		val shell = start(id)!!
-		every { shell.terminal.exitStatus } returns 137
 		// Gone from the Terminal before it reported finishing.
 		closed += shell.terminal
 
 		start(enqueue())
 
-		assertThat(events).contains("exited 137: ")
+		assertThat(events).contains("exited ${CommandMarkListener.UNKNOWN_EXIT_CODE}: ")
 		assertThat(requests.snapshot(id)).isNull()
 		assertThat(opened.map { it.first }).containsExactly("test.plugin 1", "test.plugin 1")
-	}
-
-	@Test
-	fun busySessionThatLeftTheTerminalStillRunningReportsAnUnknownExit() {
-		val id = enqueue()
-		val shell = start(id)!!
-		every { shell.terminal.isRunning } returns true
-		closed += shell.terminal
-
-		start(enqueue())
-
-		assertThat(events).contains("exited ${CommandMarkListener.UNKNOWN_EXIT_CODE}: ")
 	}
 
 	@Test
@@ -359,9 +358,8 @@ class TerminalCommandRequestsTest {
 		requests.kill(id)
 
 		verify { shell.terminal.finishIfRunning() }
-		every { shell.terminal.exitStatus } returns 137
 		assertThat(requests.onSessionFinished(shell.terminal)).isTrue()
-		assertThat(events.last()).isEqualTo("exited 137: ")
+		assertThat(events.last()).isEqualTo("exited ${CommandMarkListener.UNKNOWN_EXIT_CODE}: ")
 	}
 
 	@Test
@@ -457,16 +455,18 @@ class TerminalCommandRequestsTest {
 	}
 
 	@Test
-	fun sessionDyingMidCommandReportsItAndStaysOpen() {
+	fun sessionDyingMidCommandReportsAnUnknownExitAndStaysOpen() {
 		val id = enqueue()
 		val shell = start(id)!!
 		shell.mark(Kind.OUTPUT_START, id)
 		shell.prints("\$ ./gradlew --version\r\n\r\n[Process completed (signal 9) - press Enter]")
-		every { shell.terminal.exitStatus } returns 137
+		// The killed shell's status, which is not the command's exit code.
+		every { shell.terminal.exitStatus } returns -9
 
 		assertThat(requests.onSessionFinished(shell.terminal)).isTrue()
-		assertThat(events.last()).isEqualTo("exited 137: \$ ./gradlew --version")
-		assertThat(requests.read("test.plugin", id)).isEqualTo(CommandState.Exited(id, "test.plugin 1", 137, "\$ ./gradlew --version"))
+		val unknown = CommandMarkListener.UNKNOWN_EXIT_CODE
+		assertThat(events.last()).isEqualTo("exited $unknown: \$ ./gradlew --version")
+		assertThat(requests.read("test.plugin", id)).isEqualTo(CommandState.Exited(id, "test.plugin 1", unknown, "\$ ./gradlew --version"))
 	}
 
 	@Test
@@ -656,6 +656,87 @@ class TerminalCommandRequestsTest {
 
 		assertThat(requests.read("test.plugin", id)).isInstanceOf(CommandState.Running::class.java)
 		assertThat(hasFiles(id)).isTrue()
+	}
+
+	@Test
+	fun newSessionsCommandWhoseRunnerNeverStartsEndsAndNeverRuns() {
+		val id = enqueuePrepared()
+		val shell = start(id)!!
+		// The login profile exec'd another shell: no runner reports in, and that shell holds the terminal.
+		foreground[shell.terminal] = shell.pid
+		clock += TerminalCommandRequests.FIRST_RUN_GRACE_MS
+
+		assertThat(requests.read("test.plugin", id))
+			.isEqualTo(CommandState.Exited(id, "test.plugin 1", CommandMarkListener.UNKNOWN_EXIT_CODE, ""))
+		assertThat(hasFiles(id)).isFalse()
+	}
+
+	@Test
+	fun idleSessionIsTypedIntoOnlyOnceItsForegroundWasReadOffTheMainThread() {
+		val first = enqueue()
+		val shell = start(first)!!
+		shell.runs(first, "", exitCode = 0)
+		ioHeld = true
+
+		val second = enqueue()
+		start(second)
+		verify(exactly = 0) { shell.terminal.write(runner.typedRunLine(second)) }
+		finishIo()
+
+		verify { shell.terminal.write(runner.typedRunLine(second)) }
+		assertThat(opened).hasSize(1)
+	}
+
+	@Test
+	fun sessionThatWentIdleDuringTheReadIsNotTypedInto() {
+		val first = enqueue()
+		val shell = start(first)!!
+		foreground[shell.terminal] = shell.pid
+		ioHeld = true
+		val second = enqueue()
+		start(second)
+
+		shell.runs(first, "", exitCode = 0)
+		finishIo()
+
+		assertThat(opened.map { it.first }).containsExactly("test.plugin 1", "test.plugin 2").inOrder()
+		verify(exactly = 0) { shell.terminal.write(runner.typedRunLine(second)) }
+	}
+
+	@Test
+	fun commandWithdrawnDuringTheReadNeverStarts() {
+		ioHeld = true
+		val id = enqueue()
+		start(id)
+
+		requests.withdraw(id, TerminalStartFailure.TerminalDidNotOpen)
+		finishIo()
+
+		assertThat(opened).isEmpty()
+		assertThat(events).containsExactly("not started ${TerminalStartFailure.TerminalDidNotOpen}")
+	}
+
+	@Test
+	fun commandStartedTwiceDuringTheReadRunsOnce() {
+		ioHeld = true
+		val id = enqueue()
+		start(id)
+		start(id)
+
+		finishIo()
+
+		assertThat(opened).hasSize(1)
+		assertThat(events).containsExactly("started test.plugin 1")
+	}
+
+	@Test
+	fun screenClosingByTheEndOfTheReadWithdrawsTheCommand() {
+		val id = enqueue()
+
+		assertThat(start(id, screenClosing = true)).isNull()
+
+		assertThat(opened).isEmpty()
+		assertThat(events).containsExactly("not started ${TerminalStartFailure.TerminalClosed}")
 	}
 
 	@Test

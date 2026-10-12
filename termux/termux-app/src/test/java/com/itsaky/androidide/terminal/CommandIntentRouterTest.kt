@@ -27,8 +27,6 @@ class CommandIntentRouterTest {
 		object : TerminalSessionFactory {
 			override fun isOpen(session: TerminalSession) = true
 
-			override fun foregroundProcessGroup(session: TerminalSession): Int? = null
-
 			override fun open(
 				name: String,
 				bashArguments: Array<String>,
@@ -54,9 +52,18 @@ class CommandIntentRouterTest {
 
 	private fun enqueue(id: String = "cmd") = id.also { requests.enqueue(it, null, "p", listener) }
 
+	private fun route(
+		id: String,
+		screenClosing: Boolean = false,
+	): TerminalSession? {
+		var session: TerminalSession? = null
+		router.route(id, factory, { screenClosing }) { session = it }
+		return session
+	}
+
 	@Test
 	fun queuedCommandStartsInASession() {
-		val session = router.route(enqueue(), factory, screenClosing = false)
+		val session = route(enqueue())
 
 		assertThat(session?.mSessionName).isEqualTo("p 1")
 		assertThat(events).containsExactly("started p 1")
@@ -65,9 +72,9 @@ class CommandIntentRouterTest {
 	@Test
 	fun commandIsRoutedOnlyOnce() {
 		val id = enqueue()
-		router.route(id, factory, screenClosing = false)
+		route(id)
 
-		assertThat(router.route(id, factory, screenClosing = false)).isNull()
+		assertThat(route(id)).isNull()
 		assertThat(events).hasSize(1)
 	}
 
@@ -75,14 +82,14 @@ class CommandIntentRouterTest {
 	fun closingScreenWithdrawsTheCommand() {
 		val id = enqueue()
 
-		assertThat(router.route(id, factory, screenClosing = true)).isNull()
+		assertThat(route(id, screenClosing = true)).isNull()
 		assertThat(events).containsExactly("not started ${TerminalStartFailure.TerminalClosed}")
-		assertThat(router.route(id, factory, screenClosing = false)).isNull()
+		assertThat(route(id)).isNull()
 	}
 
 	@Test
 	fun unknownCommandIsNotRouted() {
-		assertThat(router.route("never-queued", factory, screenClosing = false)).isNull()
+		assertThat(route("never-queued")).isNull()
 		assertThat(events).isEmpty()
 	}
 }

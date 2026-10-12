@@ -22,24 +22,19 @@ class CommandIntentRouter internal constructor(
 	): Intent = intent.putExtra(EXTRA_COMMAND_REQUEST_ID, id)
 
 	/**
-	 * Runs command [id] in an idle session of its plugin, or a new one from [factory].
+	 * Runs command [id] in an idle session of its plugin, or a new one from [factory], then hands
+	 * [routed] the session it runs in, on the main thread; null if it does not run, including when it
+	 * already ran (a recreated screen sees the same intent again) or was withdrawn.
 	 *
-	 * @param screenClosing whether the screen asking is finishing; a session started now would run
+	 * @param screenClosing whether the screen asking is finishing; a session started then would run
 	 *   the command with nothing on screen, so the command is withdrawn instead.
-	 * @return the session it runs in, or null if it does not run, including when it already ran
-	 *   (a recreated screen sees the same intent again) or was withdrawn.
 	 */
 	fun route(
 		id: String,
 		factory: TerminalSessionFactory,
-		screenClosing: Boolean,
-	): TerminalSession? {
-		if (screenClosing) {
-			requests.withdraw(id, TerminalStartFailure.TerminalClosed)
-			return null
-		}
-		return requests.start(id, factory)
-	}
+		screenClosing: () -> Boolean,
+		routed: (TerminalSession?) -> Unit,
+	) = requests.start(id, factory, screenClosing, routed)
 
 	companion object {
 		/** Intent extra carrying the command id. */

@@ -10,14 +10,13 @@ import java.util.UUID
  * command is handed over in a file rather than on the command line, so it needs no quoting and the
  * line the session shows stays short.
  *
- * @param directory where the runner and the command files are written.
- * @param shellDirectory how a Terminal session's shell spells [directory].
+ * @param directory where the runner and the command files are written; its absolute path is what
+ *   the session's shell runs, so a profile that changes `$TMPDIR` does not lose the runner.
  */
 class AgentRunner(
 	private val directory: File,
-	private val shellDirectory: String = directory.path,
 ) {
-	private val scriptPath get() = "$shellDirectory/$SCRIPT_NAME"
+	private val scriptPath get() = "${directory.path}/$SCRIPT_NAME"
 
 	/**
 	 * Writes the runner, [command] and its [workingDirectory] where the runner reads them. Does file
@@ -93,8 +92,8 @@ class AgentRunner(
 			checkNotNull(AgentRunner::class.java.getResource("agent-run.sh")) { "agent-run.sh is missing" }.readText()
 		}
 
-		/** Runs commands from Termux's `$TMPDIR`, which Termux clears when its service stops. */
-		val termux = AgentRunner(File(TermuxConstants.TERMUX_TMP_PREFIX_DIR_PATH), "\$TMPDIR")
+		/** Runs commands from Termux's tmp directory, which Termux clears when its service stops. */
+		val termux = AgentRunner(File(TermuxConstants.TERMUX_TMP_PREFIX_DIR_PATH))
 	}
 }
 
