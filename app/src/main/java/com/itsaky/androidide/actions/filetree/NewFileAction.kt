@@ -267,13 +267,12 @@ class NewFileAction(
 		val fileName = if (name.endsWith(extension)) name else "$name$extension"
 		val className = if (!name.contains(".")) name else name.substring(0, name.lastIndexOf("."))
 
+		// At a source root, getPackageName infers the package from the directories below,
+		// so the file belongs in that package directory rather than the root.
 		val sourceFileDirectory =
-			if (pkgName == "com") {
-				val subDir = File(file, "com")
-				if (subDir.exists() && subDir.isDirectory) subDir else file
-			} else {
-				file
-			}
+			File(file, pkgName.orEmpty().replace('.', File.separatorChar))
+				.takeIf { !pkgName.isNullOrEmpty() && file.name in setOf("java", "kotlin") && it.isDirectory }
+				?: file
 
 		when (id) {
 			binding.typeClass.id -> {
