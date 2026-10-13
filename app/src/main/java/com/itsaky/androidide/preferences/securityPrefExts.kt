@@ -19,12 +19,14 @@ package com.itsaky.androidide.preferences
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_SECURITY
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
+import com.itsaky.androidide.security.WipePracticeActivity
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
@@ -110,6 +112,8 @@ class InstantWipe(
 			.setPositiveButton(R.string.instant_wipe_arm_confirm) { _, _ ->
 				SecurityPreferences.instantWipeEnabled = true
 				switch?.isChecked = true
+				// Immediately offer a safe rehearsal of the irreversible gesture (nothing is wiped there).
+				preference.context.startActivity(Intent(preference.context, WipePracticeActivity::class.java))
 			}
 			.show()
 		return false

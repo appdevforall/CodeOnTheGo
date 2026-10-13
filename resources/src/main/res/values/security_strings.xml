@@ -23,6 +23,12 @@
 		understand the risk.</string>
 	<string name="instant_wipe_arm_confirm">Enable</string>
 
+	<!-- Safe gesture rehearsal shown right after arming Instant Wipe; nothing is deleted. -->
+	<string name="practice_wipe_instructions">Practice Instant Wipe: with one finger, draw a single continuous circle spanning at least %1$d%%
+		of the screen width. This is a safe rehearsal -- nothing is deleted.</string>
+	<string name="gesture_success">Gesture recognized!</string>
+	<string name="gesture_success_with_check">✔ %1$s</string>
+
 	<!-- Cryptogram disguise. stealth_app_name is also the launcher label for the activity-aliases declared in the app manifest. -->
 	<string name="stealth_app_name">Code Breaker</string>
 	<string name="cryptogram_title">Code Breaker - Cryptogram</string>
