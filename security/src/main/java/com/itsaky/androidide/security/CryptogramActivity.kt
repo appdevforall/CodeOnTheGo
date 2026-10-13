@@ -89,6 +89,7 @@ class CryptogramActivity : AppCompatActivity() {
 	private val userReplacements = mutableMapOf<Char, Char>() // cipher -> user-entered letter
 
 	private lateinit var exitGestureDetector: GestureDetectorHelper.SlowDoubleThreeFingerTapDetector
+	private lateinit var wipeDetector: GestureDetectorHelper.CircleGestureDetector
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -110,6 +111,7 @@ class CryptogramActivity : AppCompatActivity() {
 
 		exitGestureDetector =
 			GestureDetectorHelper.SlowDoubleThreeFingerTapDetector(this) { exitDisguiseMode() }
+		wipeDetector = GestureDetectorHelper.CircleGestureDetector(this) { triggerInstantWipe() }
 
 		binding.btnCheckSolution.setOnClickListener { checkSolution() }
 		binding.btnNextPuzzle.setOnClickListener {
@@ -359,6 +361,14 @@ class CryptogramActivity : AppCompatActivity() {
 
 	override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
 		exitGestureDetector.onTouchEvent(ev)
+		if (SecurityPreferences.instantWipeEnabled) {
+			wipeDetector.onTouchEvent(ev)
+		}
 		return super.dispatchTouchEvent(ev)
+	}
+
+	private fun triggerInstantWipe() {
+		if (!SecurityPreferences.instantWipeEnabled || isFinishing) return
+		(applicationContext as? WipeServiceProvider)?.wipeService?.trigger(this)
 	}
 }

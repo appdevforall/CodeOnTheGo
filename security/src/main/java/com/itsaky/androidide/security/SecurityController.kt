@@ -54,9 +54,14 @@ class SecurityController(
 	}
 
 	private val enabled: Boolean get() = SecurityPreferences.instantHideEnabled
+	private val wipeEnabled: Boolean get() = SecurityPreferences.instantWipeEnabled
 
 	private var hideDetector: GestureDetectorHelper.ThreeFingerTapDetector? = null
 	private var screenOffReceiver: BroadcastReceiver? = null
+
+	// Created once (the circle detector is stateless between strokes); fed only while Instant Wipe is
+	// armed. Independent of Instant Hide -- the two features arm separately.
+	private val wipeDetector = GestureDetectorHelper.CircleGestureDetector(activity) { triggerInstantWipe() }
 
 	private val sensorManager = activity.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
 	private val gravitySensor =
@@ -140,9 +145,13 @@ class SecurityController(
 	}
 
 	fun onTouchEvent(ev: MotionEvent) {
-		if (!enabled) return
-		resetInactivityTimer()
-		hideDetector?.onTouchEvent(ev)
+		if (enabled) {
+			resetInactivityTimer()
+			hideDetector?.onTouchEvent(ev)
+		}
+		if (wipeEnabled) {
+			wipeDetector.onTouchEvent(ev)
+		}
 	}
 
 	private fun resetInactivityTimer() {
@@ -162,5 +171,10 @@ class SecurityController(
 			},
 		)
 		activity.finish()
+	}
+
+	private fun triggerInstantWipe() {
+		if (!wipeEnabled || activity.isFinishing) return
+		(activity.applicationContext as? WipeServiceProvider)?.wipeService?.trigger(activity)
 	}
 }

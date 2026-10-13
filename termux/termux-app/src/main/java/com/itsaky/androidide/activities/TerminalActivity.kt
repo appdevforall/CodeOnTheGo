@@ -21,9 +21,13 @@ import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
 import android.os.IBinder
+import android.view.MotionEvent
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
+import com.itsaky.androidide.preferences.internal.SecurityPreferences
+import com.itsaky.androidide.security.GestureDetectorHelper
+import com.itsaky.androidide.security.WipeServiceProvider
 import com.itsaky.androidide.utils.Environment
 import com.termux.app.TermuxActivity
 import com.termux.app.TermuxService
@@ -43,6 +47,24 @@ class TerminalActivity : TermuxActivity() {
         get() = ContextCompat.getColor(this, android.R.color.black)
     override val statusBarColor: Int
         get() = ContextCompat.getColor(this, android.R.color.black)
+
+    // Instant Wipe (ADFA-6510): the terminal is a separate activity, outside the EdgeToEdgeIDEActivity
+    // hierarchy that SecurityController hooks, so the wipe circle-sweep is wired here directly.
+    private val wipeDetector by lazy {
+        GestureDetectorHelper.CircleGestureDetector(this) { triggerInstantWipe() }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev != null && SecurityPreferences.instantWipeEnabled) {
+            wipeDetector.onTouchEvent(ev)
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun triggerInstantWipe() {
+        if (!SecurityPreferences.instantWipeEnabled || isFinishing) return
+        (applicationContext as? WipeServiceProvider)?.wipeService?.trigger(this)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
