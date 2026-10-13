@@ -109,6 +109,14 @@ object LauncherAliasManager {
 
 		try {
 			if (enableStealth) {
+				// Disable the real "Code On The Go" identity FIRST (ADFA-6507): if a later call throws
+				// mid-sequence (seen on some OEM ROMs), the swap fails HIDDEN -- at worst briefly no
+				// launcher icon -- rather than leaving the real icon visible while the disguise is engaged.
+				pm.setComponentEnabledSetting(
+					defaultComponent,
+					PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+					PackageManager.DONT_KILL_APP,
+				)
 				for (aliasName in STEALTH_ALIASES) {
 					val state =
 						if (aliasName == activeStealthAlias) {
@@ -118,11 +126,6 @@ object LauncherAliasManager {
 						}
 					pm.setComponentEnabledSetting(ComponentName(context, aliasName), state, PackageManager.DONT_KILL_APP)
 				}
-				pm.setComponentEnabledSetting(
-					defaultComponent,
-					PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-					PackageManager.DONT_KILL_APP,
-				)
 			} else {
 				pm.setComponentEnabledSetting(
 					defaultComponent,

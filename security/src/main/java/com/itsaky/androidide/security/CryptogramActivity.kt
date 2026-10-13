@@ -113,6 +113,17 @@ class CryptogramActivity : AppCompatActivity() {
 			GestureDetectorHelper.SlowDoubleThreeFingerTapDetector(this) { exitDisguiseMode() }
 		wipeDetector = GestureDetectorHelper.CircleGestureDetector(this) { triggerInstantWipe() }
 
+		// ADFA-6507 (wipe-aware reconcile): the disguise is on screen for a hidden or wiped reason, so
+		// the stealth alias must be the enabled launcher identity. Re-assert it only if a partial swap
+		// left it wrong, healing a leftover real "Code On The Go" icon without needless PackageManager
+		// churn. (It must stay stealth here -- never restore the default -- or the disguise/tamper signal
+		// would break.)
+		if ((SecurityPreferences.isHiddenStateActive || NeutralizationMarker.isWiped(this)) &&
+			!LauncherAliasManager.isStealthModeActive(this)
+		) {
+			LauncherAliasManager.setStealthMode(this, true)
+		}
+
 		binding.btnCheckSolution.setOnClickListener { checkSolution() }
 		binding.btnNextPuzzle.setOnClickListener {
 			currentPuzzleIndex = (currentPuzzleIndex + 1) % puzzles.size

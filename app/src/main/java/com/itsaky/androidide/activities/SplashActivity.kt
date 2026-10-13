@@ -25,6 +25,7 @@ import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
 import com.itsaky.androidide.security.CryptogramActivity
+import com.itsaky.androidide.security.LauncherAliasManager
 import com.itsaky.androidide.security.NeutralizationMarker
 import com.itsaky.androidide.ui.showLowStorageDialog
 import com.itsaky.androidide.utils.FeatureFlags
@@ -81,6 +82,13 @@ class SplashActivity : Activity() {
 		if (isX86 && (!IDEBuildConfigProvider.getInstance().supportsCpuAbi() || !FeatureFlags.isEmulatorUseEnabled)) {
 			finishAffinity()
 			exitProcess(0)
+		}
+
+		// ADFA-6507 (wipe-aware reconcile): launching the real IDE -- not hidden, wiped, or tampered --
+		// so the default launcher identity must be the enabled one. Heal a stealth alias left stuck by a
+		// partial swap, before it could later read as the tamper fingerprint.
+		if (LauncherAliasManager.isStealthModeActive(this)) {
+			LauncherAliasManager.setStealthMode(this, false)
 		}
 
 		startActivity(Intent(this, OnboardingActivity::class.java))
