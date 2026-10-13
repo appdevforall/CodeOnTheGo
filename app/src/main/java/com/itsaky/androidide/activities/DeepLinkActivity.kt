@@ -30,7 +30,9 @@ import com.itsaky.androidide.analytics.depth
 import com.itsaky.androidide.analytics.selector
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.models.DeepLinkRequest
+import com.itsaky.androidide.preferences.internal.SecurityPreferences
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.security.CryptogramActivity
 import org.koin.android.ext.android.inject
 
 /**
@@ -49,6 +51,20 @@ class DeepLinkActivity : Activity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		// Instant Hide (ADFA-40): this activity is exported and routes straight into IDE content,
+		// bypassing SplashActivity's hidden-state guard. While the disguise is engaged, show it instead
+		// and drop the link silently -- even acknowledging that a link arrived would leak the IDE's
+		// presence. Mirrors SplashActivity; the state persists until the user performs the exit gesture.
+		if (SecurityPreferences.isHiddenStateActive) {
+			startActivity(
+				Intent(this, CryptogramActivity::class.java).apply {
+					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+				},
+			)
+			finish()
+			return
+		}
 
 		// A link can arrive before the IDE is usable -- a fresh install, or a Clear Data. Both targets
 		// below sit *past* SplashActivity and OnboardingActivity, which are the only things enforcing
