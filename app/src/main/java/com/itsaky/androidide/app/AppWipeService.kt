@@ -24,6 +24,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
+import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
@@ -55,7 +56,9 @@ class AppWipeService(
 	private val mainHandler = Handler(Looper.getMainLooper())
 
 	override fun trigger(activity: Activity) {
-		val dryRun = SecurityOverride.isWipeDryRun()
+		// The /sdcard/Download/CodeOnTheGo.nowipe override is honoured only in debug builds, so a
+		// dropped file can never silently no-op a real wipe in a release build (F02).
+		val dryRun = BuildConfig.DEBUG && SecurityOverride.isWipeDryRun()
 
 		// Present the disguise immediately (reuse Instant Hide's presentation): the Code Breaker game
 		// covers the screen while the destroy pass runs behind it. Shown in dry-run too, so the whole
@@ -73,14 +76,19 @@ class AppWipeService(
 		Thread {
 			runCatching { Environment.init(app) }
 			val result = WipeManager.wipe(buildPlan(), teardown(dryRun), dryRun) { line -> Log.w(TAG, line) }
-			mainHandler.post {
-				val msg =
-					if (dryRun) {
-						"Instant Wipe DRY RUN: ${result.enumeratedTargets.size} target(s), nothing deleted"
-					} else {
-						"Instant Wipe complete"
-					}
-				Toast.makeText(app, msg, Toast.LENGTH_LONG).show()
+			if (dryRun) {
+				// Advisory in dry-run only (QA). A real wipe shows nothing user-visible: a toast would
+				// pop over the disguise and announce the wipe to anyone watching the seized device (F01).
+				mainHandler.post {
+					Toast
+						.makeText(
+							app,
+							"Instant Wipe dry run: ${result.enumeratedTargets.size} target(s), nothing deleted",
+							Toast.LENGTH_LONG,
+						).show()
+				}
+			} else {
+				Log.w(TAG, "Instant Wipe complete")
 			}
 		}.start()
 	}

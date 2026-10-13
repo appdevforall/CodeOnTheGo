@@ -59,8 +59,26 @@ object NeutralizationMarker {
 		context: Context,
 		stealthLabel: String,
 	): Boolean =
-		!isWiped(context) &&
-			!SecurityPreferences.instantHideEnabled &&
-			!SecurityPreferences.instantWipeEnabled &&
-			LauncherAliasManager.getCurrentLauncherLabel(context) == stealthLabel
+		isTamperSignature(
+			wiped = isWiped(context),
+			hideArmed = SecurityPreferences.instantHideEnabled,
+			wipeArmed = SecurityPreferences.instantWipeEnabled,
+			currentLauncherLabel = LauncherAliasManager.getCurrentLauncherLabel(context),
+			stealthLabel = stealthLabel,
+		)
+
+	/**
+	 * The pure tamper decision, split out so it is unit-testable without a PackageManager or the
+	 * preference store: a post-destruct look -- the stealth alias still showing [stealthLabel] -- with
+	 * no marker and the security prefs blanked is the fingerprint of clearing app data to strip the
+	 * markers. A clean fresh install (default alias) or a still-armed install (prefs not blank) does
+	 * not match, and a present marker is handled by [isWiped] before this is reached.
+	 */
+	internal fun isTamperSignature(
+		wiped: Boolean,
+		hideArmed: Boolean,
+		wipeArmed: Boolean,
+		currentLauncherLabel: String,
+		stealthLabel: String,
+	): Boolean = !wiped && !hideArmed && !wipeArmed && currentLauncherLabel == stealthLabel
 }

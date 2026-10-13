@@ -53,4 +53,67 @@ class NeutralizationMarkerTest {
 		NeutralizationMarker.pip2File(context).apply { parentFile?.mkdirs() }.createNewFile()
 		assertThat(NeutralizationMarker.isWiped(context)).isTrue()
 	}
+
+	private val stealth = "Code Breaker"
+
+	@Test
+	fun `tamper signature - blank prefs + stealth alias + no marker`() {
+		assertThat(
+			NeutralizationMarker.isTamperSignature(
+				wiped = false,
+				hideArmed = false,
+				wipeArmed = false,
+				currentLauncherLabel = stealth,
+				stealthLabel = stealth,
+			),
+		).isTrue()
+	}
+
+	@Test
+	fun `not tamper - a fresh install still shows the default launcher label`() {
+		assertThat(
+			NeutralizationMarker.isTamperSignature(
+				wiped = false,
+				hideArmed = false,
+				wipeArmed = false,
+				currentLauncherLabel = "Code On The Go",
+				stealthLabel = stealth,
+			),
+		).isFalse()
+	}
+
+	@Test
+	fun `not tamper - a marker is already present (handled as wiped)`() {
+		assertThat(
+			NeutralizationMarker.isTamperSignature(
+				wiped = true,
+				hideArmed = false,
+				wipeArmed = false,
+				currentLauncherLabel = stealth,
+				stealthLabel = stealth,
+			),
+		).isFalse()
+	}
+
+	@Test
+	fun `not tamper - still armed, so prefs are not blank`() {
+		assertThat(
+			NeutralizationMarker.isTamperSignature(
+				wiped = false,
+				hideArmed = true,
+				wipeArmed = false,
+				currentLauncherLabel = stealth,
+				stealthLabel = stealth,
+			),
+		).isFalse()
+		assertThat(
+			NeutralizationMarker.isTamperSignature(
+				wiped = false,
+				hideArmed = false,
+				wipeArmed = true,
+				currentLauncherLabel = stealth,
+				stealthLabel = stealth,
+			),
+		).isFalse()
+	}
 }
