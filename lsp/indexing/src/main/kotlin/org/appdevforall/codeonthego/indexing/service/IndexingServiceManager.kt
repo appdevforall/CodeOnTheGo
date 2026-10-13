@@ -7,11 +7,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
 import java.io.Closeable
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 
@@ -62,8 +64,35 @@ class IndexingServiceManager(
 	 */
 	val registry = IndexRegistry()
 
+	/** Collects the progress of every service's indexing passes; supplied to a service when it is registered. */
+	val progressTracker = IndexingProgressTracker()
+
+	/** Whether indexing is in flight and how far it got, across every service reporting to [progressTracker]. */
+	val state: StateFlow<IndexingState> get() = progressTracker.state
+
+	/** How many indexing passes have finished; see [IndexingProgressTracker.finishedPasses]. */
+	val finishedPasses: StateFlow<Long> get() = progressTracker.finishedPasses
+
 	private val services = ConcurrentHashMap<String, IndexingService>()
 	private var initialized = false
+
+	/**
+	 * JAR paths already reported unreadable this project session (see [filterNewlyUnreadableJars]).
+	 * Cleared in [close], so a new session reports the same JAR again.
+	 */
+	private val reportedUnreadableJars = Collections.synchronizedSet(mutableSetOf<String>())
+
+	/**
+	 * Returns the subset of [jarPaths] not yet reported unreadable this session, recording every one
+	 * of [jarPaths] as reported.
+	 *
+	 * Shared by every [IndexingService] built against this manager, so a JAR that stays unreadable
+	 * across many passes - a library JAR whose scan two language servers both trigger at project
+	 * open, or a generated JAR re-scanned after every build - is reported to the user once, not once
+	 * per pass. It is still retried every pass regardless: this only dedupes the report, since no
+	 * fingerprint is ever written for a JAR whose scan failed.
+	 */
+	fun filterNewlyUnreadableJars(jarPaths: Collection<String>): List<String> = jarPaths.filter { reportedUnreadableJars.add(it) }
 
 	/**
 	 * Register an [IndexingService].
@@ -158,6 +187,8 @@ class IndexingServiceManager(
 		val toClose = services.values.toList()
 		services.clear()
 		initialized = false
+		progressTracker.reset()
+		reportedUnreadableJars.clear()
 
 		val previous = pendingClose
 		pendingClose =
