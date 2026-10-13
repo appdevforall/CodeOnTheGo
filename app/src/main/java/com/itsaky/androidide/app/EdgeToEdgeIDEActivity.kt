@@ -212,6 +212,15 @@ abstract class EdgeToEdgeIDEActivity : IDEActivity() {
 	 */
 	protected open fun isInstantHideGesturesEnabled(): Boolean = true
 
+	/**
+	 * Re-applies the FLAG_SECURE policy immediately, for callers that change the armed state while a
+	 * screen is already resumed (arming the toggle in Settings). Without this the new policy would not
+	 * take effect until the next [onResume], leaving the current window screenshotable in between.
+	 */
+	internal fun applyInstantHideScreenSecurity() {
+		securityController.applyScreenSecurity()
+	}
+
 	override fun onResume() {
 		super.onResume()
 		securityController.applyScreenSecurity()
