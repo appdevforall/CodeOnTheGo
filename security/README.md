@@ -17,9 +17,11 @@ Owned by `SecurityController`, mounted on `EdgeToEdgeIDEActivity` so they are li
 - **60s inactivity** (a `Handler` reset on every touch).
 
 Any trigger calls `triggerInstantHide()`: set the hidden-state flag, swap to the stealth launcher
-alias, launch `CryptogramActivity` (`NEW_TASK | CLEAR_TASK`), finish the IDE. `SplashActivity`
-redirects to the disguise on launch while the flag is set. The exit gesture (slow double three-finger
-tap) clears the flag, restores the default alias, and returns to the IDE.
+alias, launch `CryptogramActivity` (`NEW_TASK | CLEAR_TASK`), finish the IDE. Both entry points into
+the app redirect to the disguise while the flag is set — `SplashActivity` (the launcher) and
+`DeepLinkActivity` (the exported App-Link route, which otherwise forwards straight into IDE content) —
+so no entry point can surface IDE UI while hidden. The exit gesture (slow double three-finger tap)
+clears the flag, restores the default alias, and returns to the IDE.
 
 ## Screenshot / Recents masking
 
