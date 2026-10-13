@@ -55,6 +55,7 @@ internal class PluginQuickBuildCoordinator(
 	private class Run(
 		val tracker: QuickBuildRunTracker,
 		val result: CompletableFuture<QuickBuildResult>,
+		val handoff: TapHandoff,
 	) {
 		/** Claimed by whichever comes first: the tap reaching the session, or a cancel before it does. */
 		val claimed = AtomicBoolean(false)
@@ -94,9 +95,14 @@ internal class PluginQuickBuildCoordinator(
 			run.tap?.cancel()
 			return true
 		}
+		if (run != null && !run.result.isDone) {
+			// The tap is ours and past its gate, though the tone may not show BUILDING yet.
+			run.tracker.onCancelRequested()
+			run.handoff.cancel()
+			return true
+		}
 		val sessionManager = sessionManager() ?: return false
 		if (QuickBuildAction.currentTone() != QuickBuildTone.BUILDING) return false
-		run?.tracker?.onCancelRequested()
 		sessionManager.onCancelRequested()
 		return true
 	}
@@ -119,7 +125,7 @@ internal class PluginQuickBuildCoordinator(
 				startedAtMillis = SystemClock.elapsedRealtime(),
 				buildOutput = ::buildOutput,
 			)
-		val run = Run(tracker, result)
+		val run = Run(tracker, result, TapHandoff(sessionManager::onCancelRequested))
 		if (!running.compareAndSet(null, run)) return refused(ALREADY_RUNNING)
 		result.whenComplete { _, _ -> running.compareAndSet(run, null) }
 
@@ -130,14 +136,22 @@ internal class PluginQuickBuildCoordinator(
 				beforeSession = { run.claimed.compareAndSet(false, true) },
 			) { outcome ->
 				when (outcome) {
-					// Before the tap reaches the session, so the tracker's start is the status before it.
-					TapOutcome.STARTED -> scope.launch { result.complete(track(sessionManager.status, tracker)) }
+					TapOutcome.STARTED -> {
+						run.handoff.onTapQueued()
+						scope.launch { result.complete(track(sessionManager.status, tracker)) }
+					}
 
-					TapOutcome.SAVE_FAILED -> result.complete(QuickBuildResult.Refused("The open files could not be saved."))
+					TapOutcome.SAVE_FAILED -> {
+						result.complete(QuickBuildResult.Refused("The open files could not be saved."))
+					}
 
-					TapOutcome.ACTIVITY_GONE -> result.complete(QuickBuildResult.Refused(EDITOR_CLOSED))
+					TapOutcome.ACTIVITY_GONE -> {
+						result.complete(QuickBuildResult.Refused(EDITOR_CLOSED))
+					}
 
-					TapOutcome.DECLINED -> result.complete(QuickBuildResult.Declined)
+					TapOutcome.DECLINED -> {
+						result.complete(QuickBuildResult.Declined)
+					}
 				}
 			}
 		if (tap == null) {
@@ -162,6 +176,34 @@ internal class PluginQuickBuildCoordinator(
 	private fun sessionManager(): QuickBuildSessionManager? = QuickBuildGraphWarmUp.INSTANCE.sessionManagerOrNull
 
 	private fun buildOutput(): String? = runCatching { BuildOutputProvider.getBuildOutputContent() }.getOrNull()
+
+	/**
+	 * Orders a stop after the tap it stops. A stop sent before the tap reaches the session is
+	 * reduced against Idle, which drops it, and the tap then builds anyway; so a stop that
+	 * arrives first waits for [onTapQueued]. The session reduces its events in the order sent.
+	 */
+	internal class TapHandoff(
+		private val sendCancel: () -> Unit,
+	) {
+		private var queued = false
+		private var cancelPending = false
+
+		/** Sends the stop now, or holds it until the tap is queued. */
+		@Synchronized
+		fun cancel() {
+			if (queued) sendCancel() else cancelPending = true
+		}
+
+		/** The tap was handed to the session; a held stop follows it. */
+		@Synchronized
+		fun onTapQueued() {
+			queued = true
+			if (cancelPending) {
+				cancelPending = false
+				sendCancel()
+			}
+		}
+	}
 
 	companion object {
 		private val log = LoggerFactory.getLogger(PluginQuickBuildCoordinator::class.java)

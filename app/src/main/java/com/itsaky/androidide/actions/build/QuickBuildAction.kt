@@ -115,7 +115,7 @@ class QuickBuildAction(
 
 		/** How a tap that got past the stop check ended, for a caller that started it (ADFA-6493). */
 		internal enum class TapOutcome {
-			/** The tap is about to reach the session; reported just before it does. */
+			/** The tap was handed to the session; an event sent to it from here on is reduced after the tap. */
 			STARTED,
 
 			/** Saving the open files failed, so nothing was built. */
@@ -217,8 +217,8 @@ class QuickBuildAction(
 				// analytics must never block or fail the build action (REVIEW.md section 11).
 				runCatching { GlobalContext.get().get<IAnalyticsManager>().trackFeatureUsed(FEATURE_NAME) }
 					.onFailure { log.warn("Quick Build analytics unavailable", it) }
-				onOutcome(TapOutcome.STARTED)
 				sessionManager.onQuickBuildTapped(wroteSomething)
+				onOutcome(TapOutcome.STARTED)
 			}
 
 		/**

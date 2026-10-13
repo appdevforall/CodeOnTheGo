@@ -107,4 +107,28 @@ class PluginQuickBuildCoordinatorTest {
 			runCurrent()
 			assertThat(result.await()).isEqualTo(QuickBuildResult.Reloaded(durationMillis = 21_000L, restarted = false))
 		}
+
+	@Test
+	fun `a stop before the tap reaches the session is held until it does`() {
+		var sent = 0
+		val handoff = PluginQuickBuildCoordinator.TapHandoff { sent++ }
+
+		handoff.cancel()
+		assertThat(sent).isEqualTo(0)
+
+		handoff.onTapQueued()
+		assertThat(sent).isEqualTo(1)
+	}
+
+	@Test
+	fun `a stop after the tap reaches the session is sent at once`() {
+		var sent = 0
+		val handoff = PluginQuickBuildCoordinator.TapHandoff { sent++ }
+
+		handoff.onTapQueued()
+		assertThat(sent).isEqualTo(0)
+
+		handoff.cancel()
+		assertThat(sent).isEqualTo(1)
+	}
 }
