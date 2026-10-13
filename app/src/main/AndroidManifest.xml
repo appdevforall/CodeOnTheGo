@@ -78,15 +78,99 @@
             </intent-filter>
         </activity>
 
+        <!--
+            SplashActivity has no launcher intent-filter of its own: the launcher identity is carried
+            by the activity-aliases below so Instant Hide (ADFA-40) can swap the app name/icon to the
+            "Code Breaker" disguise by toggling which alias is enabled. All aliases target SplashActivity.
+        -->
         <activity
             android:name=".activities.SplashActivity"
             android:exported="true"
-            android:theme="@style/AppTheme.Splash">
+            android:theme="@style/AppTheme.Splash" />
+
+        <activity-alias
+            android:name=".DefaultAliasActivity"
+            android:targetActivity=".activities.SplashActivity"
+            android:label="@string/app_name"
+            android:icon="@drawable/ic_launcher"
+            android:roundIcon="@drawable/ic_launcher"
+            android:enabled="true"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".StealthAliasActivity1"
+            android:targetActivity=".activities.SplashActivity"
+            android:label="@string/stealth_app_name"
+            android:icon="@drawable/ic_launcher_stealth_1"
+            android:roundIcon="@drawable/ic_launcher_stealth_1"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".StealthAliasActivity2"
+            android:targetActivity=".activities.SplashActivity"
+            android:label="@string/stealth_app_name"
+            android:icon="@drawable/ic_launcher_stealth_2"
+            android:roundIcon="@drawable/ic_launcher_stealth_2"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".StealthAliasActivity3"
+            android:targetActivity=".activities.SplashActivity"
+            android:label="@string/stealth_app_name"
+            android:icon="@drawable/ic_launcher_stealth_3"
+            android:roundIcon="@drawable/ic_launcher_stealth_3"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".StealthAliasActivity4"
+            android:targetActivity=".activities.SplashActivity"
+            android:label="@string/stealth_app_name"
+            android:icon="@drawable/ic_launcher_stealth_4"
+            android:roundIcon="@drawable/ic_launcher_stealth_4"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".StealthAliasActivity5"
+            android:targetActivity=".activities.SplashActivity"
+            android:label="@string/stealth_app_name"
+            android:icon="@drawable/ic_launcher_stealth_5"
+            android:roundIcon="@drawable/ic_launcher_stealth_5"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <activity
             android:name=".activities.OnboardingActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"

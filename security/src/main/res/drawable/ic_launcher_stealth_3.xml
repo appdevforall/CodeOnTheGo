@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="108dp"
+	android:height="108dp"
+	android:viewportWidth="108"
+	android:viewportHeight="108">
+	<!-- Variation 3: Amber Cryptographic Rune / Monogram -->
+	<path
+		android:fillColor="#222831"
+		android:pathData="M10,10h88v88h-88z" />
+	<path
+		android:fillColor="#393E46"
+		android:pathData="M16,16h76v76h-76z" />
+	<path
+		android:fillColor="#FFD369"
+		android:pathData="M34,28h40v10h-40z M49,38h10v42h-10z M34,70h40v10h-40z M30,48h48v6h-48z" />
+</vector>
