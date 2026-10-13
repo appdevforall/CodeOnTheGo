@@ -49,6 +49,10 @@ class PreferencesActivity : EdgeToEdgeIDEActivity() {
 	 */
 	private var contributedPreferences: List<PluginSettingsEntryPreference>? = null
 
+	// Don't let Instant Hide (ADFA-40) triggers fire while the user is arming or practising the
+	// feature on its own Settings screen. FLAG_SECURE masking still applies via the base class.
+	override fun isInstantHideGesturesEnabled(): Boolean = false
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
