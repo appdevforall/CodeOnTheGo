@@ -26,7 +26,6 @@ import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
 import com.itsaky.androidide.security.CryptogramActivity
 import com.itsaky.androidide.security.NeutralizationMarker
-import com.itsaky.androidide.security.WipeServiceProvider
 import com.itsaky.androidide.ui.showLowStorageDialog
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.hasEnoughStorageAvailable
@@ -40,22 +39,21 @@ class SplashActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		// Instant Wipe neutralization (ADFA-6510): a wiped install is permanently the disguise, before
-		// any IDE UI. Checked before the hidden-state redirect because a wipe blanks that flag.
-		if (NeutralizationMarker.isWiped(this)) {
+		// Instant Wipe neutralization (ADFA-6510): a wiped install -- or one whose markers were stripped
+		// by clearing app data while the stealth alias persists (the tamper fingerprint) -- is permanently
+		// the disguise, shown before any IDE UI (and before the hidden-state redirect, since a wipe blanks
+		// that flag). Tamper deliberately does NOT re-run the wipe: the signature cannot tell a prior
+		// Instant Wipe from a plain Instant Hide whose data was cleared, so re-wiping could destroy work
+		// the user never meant to wipe. Neutralizing (staying the disguise) still defeats the tamper.
+		if (NeutralizationMarker.isWiped(this) ||
+			NeutralizationMarker.isTampered(this, getString(ResR.string.stealth_app_name))
+		) {
 			startActivity(
 				Intent(this, CryptogramActivity::class.java).apply {
 					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
 				},
 			)
 			finish()
-			return
-		}
-		// Tamper: markers stripped by clearing app data, but the stealth alias remains and prefs are
-		// blank. The /sdcard workspace survives a data clear, so re-engage the wipe (which also shows
-		// the disguise and finishes this activity).
-		if (NeutralizationMarker.isTampered(this, getString(ResR.string.stealth_app_name))) {
-			(applicationContext as? WipeServiceProvider)?.wipeService?.trigger(this)
 			return
 		}
 
