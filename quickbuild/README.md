@@ -17,8 +17,8 @@ Three things that number does not say:
 3. **Avoid modifying the user's code.** We use a Gradle plugin to create the proxy app that works as a wrapper, and try not to modify any of the user's app otherwise.
 4. **Good enough, but no need to be 100% compatible.** Where the proxy app cannot match the real app, make that clear to the user - see [the boundary](#edit-types-that-can-live-reload) and [Known limitations](#known-limitations-v1). We're not trying to match a Gradle build exactly, just to be useful.
 5. **Accept some tradeoffs to make live reload fast, but try to reduce tradeoffs**
-  1. A reasonable amount of extra time at project open is OK - today the first open costs noticeably more than a standard Run's first build.
-  2. We need some memory to keep Quick Build's compile daemon resident and available.
+   1. A reasonable amount of extra time at project open is OK - today the first open costs noticeably more than a standard Run's first build.
+   2. We need some memory to keep Quick Build's compile daemon resident and available.
 6. **Runs offline, on device.** Same standard as Code on the Go.
 
 ## Overview
@@ -88,7 +88,7 @@ Here's a more detailed map of the key components:
 | [`:quickbuild:core`](core/README.md)                         | The orchestration layer - it watches for file changes, classifies changes, and then orchestrates live reload via the daemon or (re)building the proxy app using Gradle.  The core makes sure that all changes eventually lead to a consistent proxy app (or a clear error shown to the user) | [`LiveReloadOrchestrator`](core/src/main/java/org/appdevforall/cotg/quickbuild/domain/reload/LiveReloadOrchestrator.kt), [`ChangeClassifier`](core/src/main/java/org/appdevforall/cotg/quickbuild/domain/classify/ChangeClassifier.kt), [`SessionReducer`](core/src/main/java/org/appdevforall/cotg/quickbuild/domain/session/SessionReducer.kt), [`QuickBuildSessionManager`](core/src/main/java/org/appdevforall/cotg/quickbuild/service/session/QuickBuildSessionManager.kt) |
 | [`:gradle-plugin`](../gradle-plugin/src/main/java/com/itsaky/androidide/gradle/QuickBuildPlugin.kt) | Gradle plugin that minimally wraps the user's app to create the proxy app | [`QuickBuildPlugin`](../gradle-plugin/src/main/java/com/itsaky/androidide/gradle/QuickBuildPlugin.kt), [`ProxySourceGenerator`](../gradle-plugin/src/main/java/com/itsaky/androidide/gradle/quickbuild/ProxySourceGenerator.kt) |
 | [`:quickbuild:runtime`](runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/) | Java-only AAR that runs inside the proxy app and securely connects back to Code on the Go and handles live reloads and connection lifecycle.  The runtime defines an AIDL interface for bidirectional communication with `quickbuild:core`. | [`QuickBuildAppComponentFactory`](runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/QuickBuildAppComponentFactory.java), [`PayloadStore`](runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/PayloadStore.java), [`ResourceSwapStrategy`](runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/ResourceSwapStrategy.java) |
-| [`:quickbuild:daemon`](daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/) | JVM child process of Code on the Go that handles incremental Kotlin compile via the Kotlin Build Tools API, javac, d8 (DEXing), aapt2 (updating resources) | [`DaemonMain`](daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonMain.kt), [`DaemonService`](daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonService.kt) |
+| [`:quickbuild:daemon`](daemon/README.md)                     | JVM child process of Code on the Go that handles incremental Kotlin compile via the Kotlin Build Tools API, javac, d8 (DEXing), aapt2 (updating resources) | [`DaemonMain`](daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonMain.kt), [`DaemonService`](daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonService.kt) |
 | [`:quickbuild:protocol`](protocol/README.md)                 | Interface definition between core and compile daemon         | [`DaemonProtocol.kt`](protocol/src/main/kotlin/org/appdevforall/cotg/quickbuild/protocol/DaemonProtocol.kt) |
 | `:app` layer                                                 | Integration points in the Code on the Go IDE, including the toolbar button, the Koin graph binding every port to Android, and the Firebase + bench metrics sinks | [`QuickBuildAction`](../app/src/main/java/com/itsaky/androidide/actions/build/QuickBuildAction.kt), [`QuickBuildModule`](../app/src/main/java/com/itsaky/androidide/di/QuickBuildModule.kt), [`QuickBuildMetricsSink`](core/src/main/java/org/appdevforall/cotg/quickbuild/domain/telemetry/QuickBuildMetricsSink.kt) (port) |
 
@@ -98,7 +98,7 @@ How `:quickbuild:core` gets a compiled change into the running app - the step th
 
 ### Proxy-App Architecture
 
-What gets proxied: every **manifest-declared** activity, service, receiver, and provider gets a generated `Proxy<N><Type> extends <user class>` compiled into the APK; the `Application` keeps the user's class (the runtime already hooks process start), and runtime-registered receivers are ordinary objects needing nothing.
+What gets proxied: every **manifest-declared, proxiable** activity and provider gets a generated `Proxy<N><Type> extends <user class>` compiled into the APK - `final` library components and the name-resolved ones are skipped (see the exceptions below). Services, receivers, and the `Application` keep the user's class name - explicit intents address services and receivers by that real name and Android has no alias to compensate a rename with, while the `AppComponentFactory` instantiates whatever the manifest names through the payload loader anyway. Runtime-registered receivers are ordinary objects needing nothing.
 
 What the installed proxy app is made of:
 
@@ -107,14 +107,14 @@ flowchart LR
     subgraph apk["Installed proxy app APK - under the user's real applicationId"]
         rt["The runtime AAR"]
         libs["The user's libraries and resources"]
-        man["A manifest naming proxy components<br/>(Proxy0Activity, Proxy1Service, ...)"]
+        man["A manifest naming proxy activities/providers<br/>(Proxy0Activity, ...) and the real<br/>service/receiver names"]
         gen0["gen-0.dex - a baseline copy<br/>of the user's classes"]
     end
 
     payload[["Payload dex, arriving per reload:<br/>the user's classes, plus their proxies"]] --> apk
 ```
 
-The APK's own dex holds **no user classes at all**. They live only in the payload, which is why a reload can replace every one of them and why parent-first delegation can never serve a stale copy.
+The APK's own dex holds **none of the app module's own compiled classes**. They live only in the payload, which is why a reload can replace every one of them and why parent-first delegation can never serve a stale copy. The generated `R`/`R$*` classes stay behind (resource ids must resolve before any payload arrives), as do the user's own library modules in a multi-module project - those rebuild through Gradle.
 
 - **A proxy is a subclass, not a delegate.** `Proxy0Activity extends com.user.MainActivity`, so the manifest name stays fixed while the class beneath it is replaced wholesale. Proxy and user class travel in the same payload dex, so a reload swaps them together.
 - **Activity proxies exist for one runtime reason:** they override `getClassLoader()`. `Context#getClassLoader()` is otherwise pinned to the APK loader, so by-name resolution (`LayoutInflater` custom views, `FragmentFactory`, Navigation destinations) would never find a payload-only class.
@@ -345,6 +345,7 @@ Design notes live in [`docs/`](docs/); repo-level ADRs are elsewhere, at [`docs/
 | Doc                                                          | What it covers                                               |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | [`core/README.md`](core/README.md)                           | inside `:quickbuild:core` - the ports-and-adapters rule, the packages, and what is unit-testable |
+| [`daemon/README.md`](daemon/README.md)                       | inside `:quickbuild:daemon` - the never-exit rule, the session lifecycle, and the two-pass compile |
 | [`docs/pipeline.md`](docs/pipeline.md)                       | the class-level map of all eight steps, in pipeline order - read this to find the file that implements a step |
 | [`docs/debugging.md`](docs/debugging.md)                     | why a save did not show up: watch rules, logcat tags, on-device paths, `bench-events.jsonl`, every timeout |
 | [`docs/concurrency.md`](docs/concurrency.md)                 | what runs on which thread or process, the Standard Run contention gates, and what happens when edits arrive mid-build |

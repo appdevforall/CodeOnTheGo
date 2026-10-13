@@ -55,6 +55,15 @@
 		<item name="shapeAppearanceLargeComponent">@style/AppTheme.ShapeOverlay.Large</item>
 		<item name="textAppearanceBodySmall">@style/TextAppearance.AndroidIDE.BodySmall</item>
 		<item name="colorSuccess">@color/green_500</item>
+		<item name="materialButtonOutlinedStyle">@style/Widget.AndroidIDE.Button.OutlinedButton</item>
+	</style>
+
+	<style
+		name="Widget.AndroidIDE.Button.OutlinedButton"
+		parent="Widget.Material3.Button.OutlinedButton">
+		<item name="backgroundTint">@color/button_outlined_background_selector</item>
+		<item name="android:textColor">@color/button_outlined_foreground_selector</item>
+		<item name="iconTint">@color/button_outlined_foreground_selector</item>
 	</style>
 
 	<style
@@ -147,6 +156,18 @@
 		<item name="shapeAppearanceOverlay">@style/MaterialDialog.ShapeAppearance</item>
 		<item name="android:windowEnterAnimation">@animator/dialog_in</item>
 		<item name="android:windowExitAnimation">@animator/dialog_out</item>
+		<item name="alertDialogStyle">@style/MaterialDialog.Insets</item>
+	</style>
+
+	<!-- Material reserves 80dp above and below every alert dialog, which on a 1080x2340 phone is 450px of the 2340 spent
+		on margin. At 2x font scale that is the difference between a dialog that fits and one whose message and lower button are
+		silently cut off - the panel is measured against what is left, and both the message and the button bar sit in ScrollViews
+		that clip rather than grow. 24dp matches Material's own horizontal inset. -->
+	<style
+		name="MaterialDialog.Insets"
+		parent="@style/MaterialAlertDialog.Material3">
+		<item name="backgroundInsetTop">24dp</item>
+		<item name="backgroundInsetBottom">24dp</item>
 	</style>
 
 	<style
