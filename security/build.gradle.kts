@@ -10,6 +10,11 @@ android {
 }
 
 dependencies {
+	implementation(libs.androidx.appcompat.v171)
+	implementation(libs.androidx.core.ktx.v1120)
+	implementation(libs.google.material)
+	implementation(projects.preferences)
+
 	testImplementation(libs.tests.junit)
 	testImplementation(libs.tests.google.truth)
 	testImplementation(libs.tests.robolectric)

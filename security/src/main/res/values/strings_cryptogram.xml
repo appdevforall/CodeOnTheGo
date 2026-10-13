@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the "Code Breaker" cryptogram disguise (ADFA-40). stealth_app_name is also used by the launcher activity-aliases
+	declared in the app manifest (library resources merge into app). -->
+<resources>
+	<string name="stealth_app_name">Code Breaker</string>
+	<string name="cryptogram_title">Code Breaker - Cryptogram</string>
+	<string name="cryptogram_instructions">Each blue letter represents an encrypted code. Replace each cipher letter with your guess. Your
+		decoded letters appear in green on the top row above each cipher letter.</string>
+	<string name="check_solution">Check Solution</string>
+	<string name="next_puzzle">Next Puzzle</string>
+	<string name="reset_puzzle">Reset</string>
+	<string name="hint_letter">Hint</string>
+	<string name="puzzle_solved">Congratulations! Puzzle Solved!</string>
+	<string name="puzzle_incorrect">Not quite right yet. Keep trying!</string>
+	<string name="hint_used">Revealed letter \"%1$c\" = \"%2$c\"</string>
+	<string name="puzzle_author_format">— %1$s</string>
+	<string name="letter_substitution_title">Letter Substitution Mapping:</string>
+	<string name="cipher_letter_label">Cipher Letter: </string>
+	<string name="replace_with_label">→ Replace with: </string>
+	<string name="apply_substitution">Apply</string>
+</resources>
