@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Strings for the "Code Breaker" cryptogram disguise (ADFA-40). stealth_app_name is also used by the launcher activity-aliases
-	declared in the app manifest (library resources merge into app). -->
+<!-- User-facing strings for the Instant Hide emergency security feature and its "Code Breaker" cryptogram disguise (ADFA-40).
+	Kept in the :resources module so they feed the Crowdin translation flow (crowdin.yml sources only resources/.../values/*strings.xml);
+	kept in their own file so adding them does not pull strings.xml under the file-level Spotless ratchet. -->
 <resources>
+	<!-- Security settings group -->
+	<string name="idepref_security_title">Security</string>
+	<string name="idepref_security_summary">Quickly disguise the IDE in an emergency</string>
+	<string name="idepref_security_emergency_group">Emergency hiding</string>
+	<string name="idepref_security_instantHide_title">Instant Hide</string>
+	<string name="idepref_security_instantHide_summary">Disguise the app as a puzzle game on a three-finger tap, screen off, face-down, or one minute
+		idle. A slow double three-finger tap returns to the IDE.</string>
+
+	<!-- Cryptogram disguise. stealth_app_name is also the launcher label for the activity-aliases declared in the app manifest. -->
 	<string name="stealth_app_name">Code Breaker</string>
 	<string name="cryptogram_title">Code Breaker - Cryptogram</string>
 	<string name="cryptogram_instructions">Each blue letter represents an encrypted code. Replace each cipher letter with your guess. Your

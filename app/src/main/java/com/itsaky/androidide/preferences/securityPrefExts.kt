@@ -19,7 +19,7 @@ package com.itsaky.androidide.preferences
 
 import android.content.Context
 import androidx.preference.Preference
-import com.itsaky.androidide.R
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_SECURITY
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
 import kotlinx.parcelize.Parcelize

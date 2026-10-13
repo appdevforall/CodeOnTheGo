@@ -32,6 +32,7 @@ import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Toast
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
+import com.itsaky.androidide.resources.R as ResR
 
 /**
  * Drives the Instant Hide (ADFA-40) triggers for a host IDE activity: the three-finger tap, the
@@ -103,7 +104,7 @@ class SecurityController(
 		}
 		if (enabled && overridden && !advisoryShown) {
 			advisoryShown = true
-			Toast.makeText(activity, R.string.instant_hide_screenshot_override, Toast.LENGTH_LONG).show()
+			Toast.makeText(activity, ResR.string.instant_hide_screenshot_override, Toast.LENGTH_LONG).show()
 		}
 	}
 

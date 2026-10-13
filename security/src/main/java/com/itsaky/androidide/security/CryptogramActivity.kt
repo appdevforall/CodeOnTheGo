@@ -34,6 +34,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
 import com.itsaky.androidide.security.databinding.ActivityCryptogramBinding
+import com.itsaky.androidide.resources.R as ResR
 
 /**
  * The "Code Breaker" cryptogram disguise for Instant Hide (ADFA-40). A fully playable offline
@@ -99,12 +100,12 @@ class CryptogramActivity : AppCompatActivity() {
 			setTaskDescription(
 				ActivityManager.TaskDescription
 					.Builder()
-					.setLabel(getString(R.string.stealth_app_name))
+					.setLabel(getString(ResR.string.stealth_app_name))
 					.build(),
 			)
 		} else {
 			@Suppress("DEPRECATION")
-			setTaskDescription(ActivityManager.TaskDescription(getString(R.string.stealth_app_name)))
+			setTaskDescription(ActivityManager.TaskDescription(getString(ResR.string.stealth_app_name)))
 		}
 
 		exitGestureDetector =
@@ -142,7 +143,7 @@ class CryptogramActivity : AppCompatActivity() {
 
 	private fun loadPuzzle(index: Int) {
 		val puzzle = puzzles[index]
-		binding.tvPuzzleAuthor.text = getString(R.string.puzzle_author_format, puzzle.author)
+		binding.tvPuzzleAuthor.text = getString(ResR.string.puzzle_author_format, puzzle.author)
 		binding.tvSolutionFeedback.text = ""
 		userReplacements.clear()
 
@@ -270,7 +271,7 @@ class CryptogramActivity : AppCompatActivity() {
 			ContextCompat.getColor(this, if (solved) R.color.success_green else R.color.error_red),
 		)
 		binding.tvSolutionFeedback.text =
-			getString(if (solved) R.string.puzzle_solved else R.string.puzzle_incorrect)
+			getString(if (solved) ResR.string.puzzle_solved else ResR.string.puzzle_incorrect)
 		updateHintButtonState()
 	}
 
@@ -310,7 +311,7 @@ class CryptogramActivity : AppCompatActivity() {
 			renderPuzzleGrid()
 			updateHintButtonState()
 			binding.tvSolutionFeedback.setTextColor(ContextCompat.getColor(this, R.color.cipher_letter_blue))
-			binding.tvSolutionFeedback.text = getString(R.string.hint_used, targetCipher, targetPlain)
+			binding.tvSolutionFeedback.text = getString(ResR.string.hint_used, targetCipher, targetPlain)
 		}
 	}
 
