@@ -10,6 +10,18 @@
 	<string name="idepref_security_instantHide_title">Instant Hide</string>
 	<string name="idepref_security_instantHide_summary">Disguise the app as a puzzle game on a three-finger tap, screen off, face-down, or one minute
 		idle. A slow double three-finger tap returns to the IDE.</string>
+	<string name="idepref_security_instantWipe_title">Instant Wipe</string>
+	<string name="idepref_security_instantWipe_summary">Permanently delete all projects on a full-circle gesture. Instant, with no confirmation and no
+		undo.</string>
+
+	<!-- Shown once when arming Instant Wipe. It is destructive with no per-trigger confirmation, so the warning says "delete"
+		(not "securely erase": an overwrite is not a guaranteed erase on flash). -->
+	<string name="instant_wipe_arm_title">Enable Instant Wipe?</string>
+	<string name="instant_wipe_arm_message">While armed, drawing a full circle anywhere in the app immediately and permanently deletes all
+		your projects. There is no confirmation and no undo, and deleted work cannot be recovered. Only enable this if
+		you
+		understand the risk.</string>
+	<string name="instant_wipe_arm_confirm">Enable</string>
 
 	<!-- Cryptogram disguise. stealth_app_name is also the launcher label for the activity-aliases declared in the app manifest. -->
 	<string name="stealth_app_name">Code Breaker</string>
